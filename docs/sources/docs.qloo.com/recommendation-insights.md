@@ -180,7 +180,7 @@ Now that you’ve seen how to send a basic Insights request, let’s look at a m
 
 This example shows how Qloo’s recommendation engine combines entity signals (like a restaurant’s ID) with location filters to produce geographically relevant results.
 
-- [Recommendations for restaurants similar to Balthazar in NYC](https://docs.qloo.com/recipes/recommendations-for-restaurants-similar-to-balthazar-in-nyc)
+- [Recommendations for restaurants similar to Balthazar in NYC](recipe-find-restaurants-like-balthazar-in-new-york.md)
 
 ## See also
 

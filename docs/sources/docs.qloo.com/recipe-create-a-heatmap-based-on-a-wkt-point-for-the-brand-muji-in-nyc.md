@@ -1,10 +1,20 @@
----
-updatedAt: 2026-09-18T13:42:37.000Z
----
-
 # Create a heatmap based on a WKT point for the brand MUJI in NYC
 
-```javascript Heatmap
+A Qloo API example from the docs.qloo.com recipes: a request, a sample response, and notes on each part of the request.
+
+Contents:
+
+1.  [Request](#request)
+1.  [Response example](#response-example)
+1.  [Steps](#steps)
+    1.  [Set up request options](#set-up-request-options)
+    1.  [Send the request](#send-the-request)
+    1.  [Handle the response](#handle-the-response)
+1.  [See also](#see-also)
+
+## Request
+
+```javascript
 const options = {
   method: 'GET',
   headers: { 'X-Api-Key': '<<apiKey>>' }
@@ -19,7 +29,9 @@ fetch(
   .catch((error) => console.error('Error:', error))
 ```
 
-```json Response Example
+## Response example
+
+```json
 {
   "success": true,
   "results": {
@@ -41,22 +53,23 @@ fetch(
 }
 ```
 
-# Set up request options
+## Steps
 
-<!-- javascript@1-4 -->
+### Set up request options
 
 Define the HTTP request method and headers, including the API key.
 
-# Send the request
-
-<!-- javascript@6 -->
+### Send the request
 
 Send a GET Insights request with `filter.type` set to heatmap, a location, and at least one other applicable signal query parameter.
 
 This example returns heatmap data showing the concentration of affinity and affinity rank for the brand MUJI in NYC.
 
-# Handle the response
-
-<!-- javascript@7-9 -->
+### Handle the response
 
 Process the response by converting it to text, logging the result, and handling any errors.
+
+## See also
+
+- [Create a heatmap based on a WKT point for the brand MUJI in NYC on docs.qloo.com](https://docs.qloo.com/recipes/create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc), fetched 2026-10-16, page updated 2026-09-18
+- [Insights API deep dive](insights-api-deep-dive.md)

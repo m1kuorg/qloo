@@ -1,10 +1,20 @@
----
-updatedAt: 2026-05-14T17:34:31.000Z
----
-
 # Create a heatmap for a brand scoped to a neighborhood boundary
 
-```c cURL
+A Qloo API example from the docs.qloo.com recipes: a request, a sample response, and notes on each part of the request.
+
+Contents:
+
+1.  [Request](#request)
+1.  [Response example](#response-example)
+1.  [Steps](#steps)
+    1.  [Pass a brand as signal](#pass-a-brand-as-signal)
+    1.  [Define the boundary as a WKT polygon](#define-the-boundary-as-a-wkt-polygon)
+    1.  [Handle the response](#handle-the-response)
+1.  [See also](#see-also)
+
+## Request
+
+```shell
 curl --request GET \
   --url 'https://api.qloo.com/v2/insights/?filter.type=urn:heatmap \
   &signal.interests.entities=93A50AC5-FCF2-4F47-87C0-E821E0B9F823 \
@@ -12,7 +22,9 @@ curl --request GET \
   --header 'X-Api-Key: <<apiKey>>'
 ```
 
-```json Response Example
+## Response example
+
+```json
 {
   "success": true,
   "results": {
@@ -34,20 +46,21 @@ curl --request GET \
 }
 ```
 
-# Pass a brand as signal
+## Steps
 
-<!-- c@3 -->
+### Pass a brand as signal
 
 Use a brand's Qloo entity ID as `signal.interests.entities`. This example uses Jacquemus — entity ID `93A50AC5-FCF2-4F47-87C0-E821E0B9F823`
 
-# Define the boundary as a WKT polygon
-
-<!-- c@4 -->
+### Define the boundary as a WKT polygon
 
 Pass a WKT POLYGON to `filter.location`. Coordinates must be in longitude/latitude order, and the polygon must close. This example traces lower Manhattan.
 
-# Handle the response
-
-<!-- c@ -->
+### Handle the response
 
 Heatmap results return as `results.heatmap`, not `results.entities`. Each cell has a `location` object with latitude, longitude, and geohash, and a `query` object with `affinity`, `affinity_rank`, and `popularity`.
+
+## See also
+
+- [Create a heatmap for a brand scoped to a neighborhood boundary on docs.qloo.com](https://docs.qloo.com/recipes/heatmap-for-brand-jacquemus-inside-manhattan-based-on-wkt-shape), fetched 2026-10-16, page updated 2026-05-14
+- [Insights API deep dive](insights-api-deep-dive.md)
