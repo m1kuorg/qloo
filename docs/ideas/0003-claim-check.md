@@ -1,6 +1,6 @@
 # Claim Check
 
-An agent that checks the audience claims in AI-written marketing briefs and startup pitch decks against Qloo, and rewrites each claim to say only what the data supports. Ranked 3 of 10 finalists in the [idea ranking](0000-ranking.md), at 16 out of 20.
+An agent that checks the audience claims in AI-written marketing briefs and startup pitch decks against Qloo, and rewrites each claim to say only what the data supports. Ranked 3 of 15 finalists in the [idea ranking](0000-ranking.md), at 20 out of 25.
 
 Contents:
 
@@ -59,20 +59,22 @@ The whole product is an independent check. An LLM checker shares the author's pr
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                                                       |
 | ---------------------------- | ------------ | -------------- | ---- | --------------------------------------------------------------------------------------------------------- |
-| Technological implementation | 5            | 5              | 5    | Routes each claim to demographics, decoy-matched closed lists, heatmaps, or compare                       |
+| Technological implementation | 5            | 4              | 4.5  | Routes each claim to demographics, decoy-matched closed lists, heatmaps, or compare                       |
 | Design                       | 4            | 4              | 4    | An annotated brief with verdict badges and rewrites; claim extraction must be reliable                    |
-| Potential impact             | 4            | 3              | 3.5  | Real users in agencies and funds, but campaign waste is hard to attribute and unquantified                |
-| Quality of the idea          | 4            | 3              | 3.5  | Verifying instead of generating is the inversion; Alloy and 2026 market-fit and audit repos are neighbors |
-| **Total**                    | 17           | 15             | 16   |                                                                                                           |
+| Potential impact             | 4            | 4              | 4    | Real users in agencies and funds, but campaign waste is hard to attribute and unquantified                |
+| Quality of the idea          | 4            | 4              | 4    | Verifying instead of generating is the inversion; Alloy and 2026 market-fit and audit repos are neighbors |
+| Pull                         | 3            | 4              | 3.5  | Briefs and decks arrive weekly, and the appendix travels with them                                        |
+| **Official, out of 20**      | 17           | 16             | 16.5 |                                                                                                           |
+| **Total, out of 25**         | 20           | 20             | 20   |                                                                                                           |
 
 Related criteria:
 
 - **Field collisions:** the 2025 honorable mention Alloy did cultural due diligence for M&A, and 2026 repos give market-fit verdicts and audit AI recommendations. Claim-level verification of any text is the distinct part.
-- **Safe use:** demographics describe an entity's audience relative to the average, never a person; protected-trait claims are refused. It's the clearest Seligman fit of the ten.
+- **Safe use:** demographics describe an entity's audience relative to the average, never a person; protected-trait claims are refused. It's the clearest Seligman fit of the first ten.
 - **Build risk:** medium. About 15 calls per document, streamed; claim extraction and thresholds need care.
 - **Bonus fit:** strong in deck mode, since Calacanis reads consumer decks for a living.
 - **Panel fit:** strong for Diolosa, since Qloo serves as ground truth.

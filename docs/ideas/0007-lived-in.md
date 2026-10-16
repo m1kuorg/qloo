@@ -1,6 +1,6 @@
 # Lived-In
 
-An agent that dresses a fictional character's room for a set decorator: shelves, walls, and fridge filled with books, records, brands, and games that cohere with the character's taste in Qloo, and flags the script's out-of-character items. Ranked 7 of 10 finalists in the [idea ranking](0000-ranking.md), at 13.5 out of 20.
+An agent that dresses a fictional character's room for a set decorator: shelves, walls, and fridge filled with books, records, brands, and games that cohere with the character's taste in Qloo, and flags the script's out-of-character items. Ranked 14 of 15 finalists in the [idea ranking](0000-ranking.md), at 15 out of 25.
 
 Contents:
 
@@ -52,15 +52,17 @@ An LLM gives the most famous, most stereotyped item in each category. It can't t
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                                             |
 | ---------------------------- | ------------ | -------------- | ---- | ----------------------------------------------------------------------------------------------- |
-| Technological implementation | 4            | 4              | 4    | Six types in bands with a year cap, closed-list coherence flags, and compare for roommates      |
-| Design                       | 4            | 4              | 4    | A dressed shelf per character with clearance flags; image rights are unclear                    |
+| Technological implementation | 4            | 3              | 3.5  | Six types in bands with a year cap, closed-list coherence flags, and compare for roommates      |
+| Design                       | 4            | 3              | 3.5  | A dressed shelf per character with clearance flags; image rights are unclear                    |
 | Potential impact             | 2            | 2              | 2    | A small trade with weak willingness to pay, and period work is out of reach                     |
-| Quality of the idea          | 4            | 3              | 3.5  | Out-of-character flags are new; cross-domain persona fill is Qloo's own demo and a 2025 project |
-| **Total**                    | 14           | 13             | 13.5 |                                                                                                 |
+| Quality of the idea          | 4            | 4              | 4    | Out-of-character flags are new; cross-domain persona fill is Qloo's own demo and a 2025 project |
+| Pull                         | 2            | 2              | 2    | Per production, for a small user base                                                           |
+| **Official, out of 20**      | 14           | 12             | 13   |                                                                                                 |
+| **Total, out of 25**         | 16           | 14             | 15   |                                                                                                 |
 
 Related criteria:
 
@@ -72,7 +74,7 @@ Related criteria:
 
 ## Risks and open questions
 
-- **Willingness to pay:** the weakest buyer case of the ten.
+- **Willingness to pay:** the weakest buyer case of the first ten.
 - **Period pieces:** Qloo popularity is present-day, so the agent must say it can't dress a period set rather than fill one.
 - **Qloo's pitch:** cross-domain persona fill is on Qloo's capabilities page, so the out-of-character flags must lead.
 - **Long-tail noise:** popularity bands return noisy items in some types.

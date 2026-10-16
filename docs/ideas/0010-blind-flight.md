@@ -1,6 +1,6 @@
 # Blind Flight
 
-A taste benchmark for teams shipping shopping and concierge agents: it runs their agent and baselines on fictional personas and measures, with Qloo, whether the agent's picks are real, varied, and fitted to each persona. Ranked last of 10 finalists in the [idea ranking](0000-ranking.md): it scored 13 out of 20, but as described it fails the agent gate.
+A taste benchmark for teams shipping shopping and concierge agents: it runs their agent and baselines on fictional personas and measures, with Qloo, whether the agent's picks are real, varied, and fitted to each persona. Ranked last of 15 finalists in the [idea ranking](0000-ranking.md): it scored 14 out of 25, but as described it fails the agent gate.
 
 Contents:
 
@@ -52,15 +52,17 @@ Without an independent taste graph there's nothing to measure against, and taste
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                          |
 | ---------------------------- | ------------ | -------------- | ---- | ---------------------------------------------------------------------------- |
-| Technological implementation | 5            | 4              | 4.5  | Careful metrics, but grading with Qloo to show Qloo helps is circular        |
-| Design                       | 3            | 3              | 3    | A leaderboard and a heatmap: a developer harness, not a product flow         |
-| Potential impact             | 3            | 3              | 3    | Evals are frequent, but nobody has asked for a taste metric                  |
-| Quality of the idea          | 3            | 2              | 2.5  | Qloo's own claim as a benchmark; 2026 repos already compare Qloo with an LLM |
-| **Total**                    | 14           | 12             | 13   |                                                                              |
+| Technological implementation | 5            | 3              | 4    | Careful metrics, but grading with Qloo to show Qloo helps is circular        |
+| Design                       | 3            | 2              | 2.5  | A leaderboard and a heatmap: a developer harness, not a product flow         |
+| Potential impact             | 3            | 2              | 2.5  | Evals are frequent, but nobody has asked for a taste metric                  |
+| Quality of the idea          | 3            | 3              | 3    | Qloo's own claim as a benchmark; 2026 repos already compare Qloo with an LLM |
+| Pull                         | 2            | 2              | 2    | CI runs it; nobody opens it unprompted                                       |
+| **Official, out of 20**      | 14           | 10             | 12   |                                                                              |
+| **Total, out of 25**         | 16           | 12             | 14   |                                                                              |
 
 Related criteria:
 

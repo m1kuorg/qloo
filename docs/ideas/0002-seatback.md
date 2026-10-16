@@ -1,6 +1,6 @@
 # Seatback
 
-An agent that picks which films and shows an airline licenses and features on each route, by scoring a distributor's offer against the taste of each route's origin and destination in Qloo. Ranked 2 of 10 finalists in the [idea ranking](0000-ranking.md), at 16.5 out of 20.
+An agent that picks which films and shows an airline licenses and features on each route, by scoring a distributor's offer against the taste of each route's origin and destination in Qloo. Ranked 9 of 15 finalists in the [idea ranking](0000-ranking.md), at 18 out of 25.
 
 Contents:
 
@@ -57,20 +57,22 @@ An LLM returns global box office. It can't tell one route from another, and when
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                                                                  |
 | ---------------------------- | ------------ | -------------- | ---- | -------------------------------------------------------------------------------------------------------------------- |
 | Technological implementation | 4            | 4              | 4    | Per-city closed-list scoring, demographics, and a budget solve; the location signal partly measures the wrong people |
-| Design                       | 4            | 4              | 4    | A route click re-sorts the slate; it needs visible decision points to stay an agent                                  |
-| Potential impact             | 3            | 4              | 3.5  | A costly, recurring licensing cycle, but a few dozen buyers and synthetic fees                                       |
-| Quality of the idea          | 5            | 5              | 5    | No neighbor in either field, and route fit is the trade's own rule                                                   |
-| **Total**                    | 16           | 17             | 16.5 |                                                                                                                      |
+| Design                       | 4            | 3              | 3.5  | A route click re-sorts the slate; it needs visible decision points to stay an agent                                  |
+| Potential impact             | 3            | 3              | 3    | A costly, recurring licensing cycle, but a few dozen buyers and synthetic fees                                       |
+| Quality of the idea          | 5            | 4              | 4.5  | No neighbor in either field, and route fit is the trade's own rule                                                   |
+| Pull                         | 3            | 3              | 3    | A monthly licensing cycle for a handful of content managers                                                          |
+| **Official, out of 20**      | 16           | 14             | 15   |                                                                                                                      |
+| **Total, out of 25**         | 19           | 17             | 18   |                                                                                                                      |
 
 Related criteria:
 
 - **Field collisions:** none in either field.
-- **Safe use:** the riskiest of the ten. For one US city, the location signal returned mostly films with Black leads, so it partly tracks a place's racial makeup. The product must rank titles for a place, say that scores describe markets, never passengers, and let the manager override.
+- **Safe use:** the riskiest of the first ten. For one US city, the location signal returned mostly films with Black leads, so it partly tracks a place's racial makeup. The product must rank titles for a place, say that scores describe markets, never passengers, and let the manager override.
 - **Build risk:** medium. License fees and offers are synthetic in a demo.
 - **Bonus fit:** weak. Few buyers, and enterprise sales.
 - **Panel fit:** location signals for Diolosa; media licensing for Abrams.

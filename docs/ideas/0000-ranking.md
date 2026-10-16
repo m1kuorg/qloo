@@ -1,6 +1,6 @@
 # Idea ranking
 
-Ten finalist product ideas for our Qloo Agentic Hackathon entry, ranked on 2026-10-16 after ten rounds of ideation against the judging criteria. It builds on the [brief](/docs/BRIEF.md) and the [context](/docs/CONTEXT.md), and everything here is our reading, not source text. Each finalist has its own doc; file numbers are IDs fixed at this ranking, so a later re-rank changes this table, not the file names.
+Fifteen finalist product ideas for our Qloo Agentic Hackathon entry, from two ideations of ten rounds each, ranked on 2026-10-17 against the judging criteria and Pull, our measure of whether people will actually use a product. It builds on the [brief](/docs/BRIEF.md) and the [context](/docs/CONTEXT.md), and everything here is our reading, not source text. Each finalist has its own doc; file numbers are IDs fixed when the finalist was chosen, so a re-rank changes this table, not the file names.
 
 Contents:
 
@@ -8,8 +8,9 @@ Contents:
 1.  [Recommendation](#recommendation)
 1.  [Scoring matrix](#scoring-matrix)
     1.  [Criteria](#criteria)
+    1.  [Pull](#pull)
     1.  [Related criteria](#related-criteria)
-1.  [Ideation rounds](#ideation-rounds)
+1.  [First ideation](#first-ideation)
     1.  [Round 1: diverge](#round-1-diverge)
     1.  [Round 2: cluster](#round-2-cluster)
     1.  [Round 3: gates](#round-3-gates)
@@ -20,44 +21,70 @@ Contents:
     1.  [Round 8: judge-panel stress test](#round-8-judge-panel-stress-test)
     1.  [Round 9: build and demo test](#round-9-build-and-demo-test)
     1.  [Round 10: blind review and final ranking](#round-10-blind-review-and-final-ranking)
+1.  [Second ideation](#second-ideation)
+    1.  [Round 11: X research](#round-11-x-research)
+    1.  [Round 12: diverge](#round-12-diverge)
+    1.  [Round 13: cluster](#round-13-cluster)
+    1.  [Round 14: gates](#round-14-gates)
+    1.  [Round 15: field collisions](#round-15-field-collisions)
+    1.  [Round 16: live API checks](#round-16-live-api-checks)
+    1.  [Round 17: first scoring](#round-17-first-scoring)
+    1.  [Round 18: mutate and merge](#round-18-mutate-and-merge)
+    1.  [Round 19: judge-panel and Pull stress test](#round-19-judge-panel-and-pull-stress-test)
+    1.  [Round 20: blind review and final ranking](#round-20-blind-review-and-final-ranking)
 1.  [Unverified](#unverified)
 1.  [See also](#see-also)
 
 ## Ranking
 
-Each score is the mean of two judges, out of 20; the criteria columns are out of 5.
+Each score is the mean of two judges, the orchestrator and a blind reviewer; the criteria columns are out of 5. Official is the four judging criteria, out of 20, and Total adds Pull, out of 25.
 
-| Rank | Product        | For                                    | Tech | Design | Impact | Idea | Score |
-| ---- | -------------- | -------------------------------------- | ---- | ------ | ------ | ---- | ----- |
-| 1    | [X Meets Y]    | Authors pitching agents and buying ads | 5    | 4.5    | 3.5    | 4.5  | 17.5  |
-| 2    | [Seatback]     | Airline in-flight content managers     | 4    | 4      | 3.5    | 5    | 16.5  |
-| 3    | [Claim Check]  | Strategists and investors              | 5    | 4      | 3.5    | 3.5  | 16    |
-| 4    | [Crossfeed]    | Podcast networks                       | 5    | 3.5    | 4      | 3.5  | 16    |
-| 5    | [Floatplan]    | Multi-branch public libraries          | 4    | 4.5    | 3.5    | 3.5  | 15.5  |
-| 6    | [Cuesheet]     | Music supervisors                      | 4    | 4      | 3      | 4    | 15    |
-| 7    | [Lived-In]     | Set decorators and prop masters        | 4    | 4      | 2      | 3.5  | 13.5  |
-| 8    | [Warmer]       | Gift-givers and recipients             | 3.5  | 4      | 2.5    | 3.5  | 13.5  |
-| 9    | [Next Beat]    | Local newsletter chains                | 4    | 3.5    | 3      | 2.5  | 13    |
-| 10   | [Blind Flight] | Teams shipping taste-dependent agents  | 4.5  | 3      | 3      | 2.5  | 13    |
+| Rank | Product        | For                                    | Tech | Design | Impact | Idea | Pull | Official | Total |
+| ---- | -------------- | -------------------------------------- | ---- | ------ | ------ | ---- | ---- | -------- | ----- |
+| 1    | [Dance Card]   | Wedding and event DJs                  | 5    | 4      | 3.5    | 4.5  | 4    | 17       | 21    |
+| 2    | [Crossfeed]    | Podcast networks                       | 4.5  | 4      | 4      | 4    | 3.5  | 16.5     | 20    |
+| 3    | [Claim Check]  | Strategists and investors              | 4.5  | 4      | 4      | 4    | 3.5  | 16.5     | 20    |
+| 4    | [Sieve]        | Anyone handed a pile of recs           | 4    | 4.5    | 3      | 4    | 4.5  | 15.5     | 20    |
+| 5    | [X Meets Y]    | Authors pitching agents and buying ads | 4.5  | 4.5    | 3.5    | 4.5  | 2.5  | 17       | 19.5  |
+| 6    | [Hold Slip]    | Independent record, game, comic shops  | 4    | 4      | 3      | 4    | 4    | 15       | 19    |
+| 7    | [On-Ramp]      | Fans converting a partner or a friend  | 4.5  | 4      | 2      | 4    | 3.5  | 14.5     | 18    |
+| 8    | [Floatplan]    | Multi-branch public libraries          | 4    | 4      | 3.5    | 4    | 2.5  | 15.5     | 18    |
+| 9    | [Seatback]     | Airline in-flight content managers     | 4    | 3.5    | 3      | 4.5  | 3    | 15       | 18    |
+| 10   | [Cuesheet]     | Music supervisors                      | 4    | 4      | 3      | 3.5  | 3    | 14.5     | 17.5  |
+| 11   | [Vouch]        | The friend everyone asks, and curators | 3    | 4      | 2.5    | 3.5  | 4    | 13       | 17    |
+| 12   | [Warmer]       | Gift-givers and recipients             | 3.5  | 4      | 2.5    | 4    | 2    | 14       | 16    |
+| 13   | [Next Beat]    | Local newsletter chains                | 3.5  | 3.5    | 3      | 3    | 2.5  | 13       | 15.5  |
+| 14   | [Lived-In]     | Set decorators and prop masters        | 3.5  | 3.5    | 2      | 4    | 2    | 13       | 15    |
+| 15   | [Blind Flight] | Teams shipping taste-dependent agents  | 4    | 2.5    | 2.5    | 3    | 2    | 12       | 14    |
 
-Claim Check beats Crossfeed on Design, and Lived-In beats Warmer on Technological implementation. Blind Flight ranks last because it fails the agent gate.
+Rows are ordered by Total. Ties go to Technological implementation, then Design, Potential impact, Quality of the idea, and Pull:
 
-[X Meets Y]: 0001-x-meets-y.md
-[Seatback]: 0002-seatback.md
-[Claim Check]: 0003-claim-check.md
+- Crossfeed and Claim Check tie on every criterion, and the cross-vendor check in [round 20](#round-20-blind-review-and-final-ranking) breaks the tie for Crossfeed.
+- Sieve ties them at 20 but loses on Technological implementation, 4 to 4.5.
+- On-Ramp, Floatplan, and Seatback tie at 18. On-Ramp leads on Technological implementation, 4.5 to 4, and Floatplan beats Seatback on Design, 4 to 3.5.
+- Blind Flight ranks last because it fails the agent gate.
+
+[Dance Card]: 0011-dance-card.md
 [Crossfeed]: 0004-crossfeed.md
+[Claim Check]: 0003-claim-check.md
+[Sieve]: 0012-sieve.md
+[X Meets Y]: 0001-x-meets-y.md
+[Hold Slip]: 0013-hold-slip.md
+[On-Ramp]: 0014-on-ramp.md
 [Floatplan]: 0005-floatplan.md
+[Seatback]: 0002-seatback.md
 [Cuesheet]: 0006-cuesheet.md
-[Lived-In]: 0007-lived-in.md
+[Vouch]: 0015-vouch.md
 [Warmer]: 0008-warmer.md
 [Next Beat]: 0009-next-beat.md
+[Lived-In]: 0007-lived-in.md
 [Blind Flight]: 0010-blind-flight.md
 
 ## Recommendation
 
-- **Build X Meets Y.** It has the highest mean, both judges ranked it in their top two, its core calls were verified live, and it has the lowest build risk. Its weak spot is Potential impact, so source the comp-title conventions and the number of querying authors, and lead the business case with the ad-target export.
-- **The judges split on the runner-up.** The blind reviewer would build Seatback for the cash prizes, as the only idea with no neighbor in either field and a Quality of the idea of 5 from both judges. Its passenger-mix prior and confidence gate must work before it's safe to demo.
-- **For the Calacanis bonus, Crossfeed.** Both judges named it, cut to launch promos and demoed on a podcast roster he knows. The rules allow several substantially different entries, each eligible for one prize ([brief](/docs/BRIEF.md#submission-checklist)), so a second entry is an option.
+- **Build Dance Card.** It ranks first on the total, ties X Meets Y on the official score and wins that tie on Technological implementation. Both judges gave it a 5 for Technological implementation, and it's the blind reviewer's pick for the cash prizes. Of the five new finalists, it pairs a paying user and weekly use with the deepest Qloo chain. No DJ tool exists in either field, and it fits the CTO and the Live Nation judge. Its weak spot is Potential impact. Source the number of working wedding DJs and what they pay for planning tools. Cut scope to a CSV crate import, the guest form, the ranked crate, the hold-back list, and the gig sheet; build the mid-gig lookup last.
+- **For "people will actually use it", Sieve.** It has the highest Pull of the fifteen, and the cross-vendor check ranked it first. The blind reviewer marked down its Quality of the idea because it shares an engine with Vouch, so fold Vouch in as Sieve's reply mode rather than entering both. Sieve is consumer-facing, substantially different from Dance Card, and close to what Calacanis says he wants: an agent normal people use by pasting or snapping a photo, shared as a bot link.
+- **The judges split on the Calacanis bonus.** The blind reviewer named Crossfeed, since Calacanis runs a podcast network, and the cross-vendor check named Dance Card. The rules allow several substantially different entries, each eligible for one prize ([brief](/docs/BRIEF.md#submission-checklist)), so Dance Card plus Sieve covers both the cash prizes and a consumer pitch for the bonus.
 
 Take the chosen idea into `/grill-with-docs` before building.
 
@@ -76,6 +103,18 @@ The four official criteria, equally weighted, each scored 1 to 5 for a total out
 
 [tie]: /docs/sources/qloo.devpost.com/official-rules.md#tie-breaking
 
+### Pull
+
+Pull asks whether people will actually use the product, beyond whether judges will score it. It isn't an official criterion. The second ideation added it with equal weight for a total out of 25, and scored all fifteen finalists on it:
+
+| Score | Pull means                                                                                                         |
+| ----- | ------------------------------------------------------------------------------------------------------------------ |
+| 5     | A named person hits the trigger weekly or more, opens it unprompted, and the output travels (shared, sent, posted) |
+| 3     | A real need, but monthly or per project, or it needs a nudge to come back                                          |
+| 1     | A once-a-year novelty or a demo toy                                                                                |
+
+Pull overlaps Potential impact, which also rewards a frequent job. They part where the user and the buyer differ: a consumer habit with no buyer scores high on Pull and low on impact.
+
 ### Related criteria
 
 Gates eliminate an idea outright:
@@ -93,7 +132,9 @@ Flags don't add points, but they move the anchors above and are reported for eve
 - **Panel fit:** API depth for Diolosa, safety for Seligman, live entertainment for Abrams, commercial use for Boehly and Cedric.
 - **Name:** distinct from both fields.
 
-## Ideation rounds
+## First ideation
+
+The first ideation ran on 2026-10-16 and chose finalists 1 to 10. Its scores were superseded in [round 20](#round-20-blind-review-and-final-ranking), which re-scored every finalist with Pull added.
 
 ### Round 1: diverge
 
@@ -190,19 +231,169 @@ Each finalist was sized against 14 days, the existing Hono-on-Cloudflare-Workers
 
 A second model (Fable 5.1) scored the ten finalists blind, in random order, from the same rubric, the brief, the context, and a neutral description of each idea. The orchestrator's scores were recorded before the review ran. The final score is the mean of the two, with ties broken in the official order. The results:
 
-- **The judges agreed on shape.** No criterion differed by more than one point; the reviewer graded harder, averaging 14.1 against the orchestrator's 15.8.
+- **The judges agreed on shape.** No criterion differed by more than one point; the reviewer graded harder, averaging 14.1 out of 20 against the orchestrator's 15.8.
 - **Blind Flight fails the agent gate.** The reviewer read it as a CI harness with no human decision point, and the orchestrator agrees, so it ranks last whatever its score.
 - **Gate risks were fixed in the idea docs.** Seatback, Floatplan, and Next Beat gained visible decision points. Crossfeed now resolves guests only through their public works, so no third-party names reach Qloo. Claim Check's verdicts describe engagement, not customers. Warmer says "sealed" only of the giver, since Qloo still sees the anchors. Seatback gained a passenger-mix prior and a confidence gate against the location proxy.
 - **The likely AI pre-screen favorites** from descriptions alone are Claim Check, Crossfeed, and X Meets Y. Each names its endpoints, quotes a number, and answers "what breaks without Qloo".
 
+## Second ideation
+
+The second ideation ran on 2026-10-17 to push past the first. Most of the first finalists are tools for niche professionals who need them once per project, so this round also looked for something people will actually use. It started from what people say on X, added [Pull](#pull) to the matrix, and chose finalists 11 to 15.
+
+### Round 11: X research
+
+Three research agents searched x.com with the `bird` CLI under a logged-in session: about 160 searches with like-count floors, and about 37 reads of posts, reply threads, and timelines. X rate-limited two agents for about 13 minutes and one for about 7. No raw posts are in this repo; the posts below and in the idea docs are links. The agents found:
+
+- **Feeds loop:** "it shows you the same five things then devolves into irrelevant content", 8,130 likes ([Techno_Coloured][x-loop]).
+- **Rec threads are piles nobody ranks:** an ask for comics that "aren't Superheroes" drew 8,488 likes and mostly image replies ([GothTransFem][x-thread]).
+- **People want overlap, not clones:** "different music taste but a compatible philosophy", 15,946 likes ([polypocketknife][x-overlap]).
+- **Taste rituals repeat weekly and monthly:** #LetterboxdFriday runs every week ([letterboxd][x-friday]), and monthly "media wrapped" posts draw template requests ([gabbieorleaveit][x-wrapped], [thefateofrey][x-template]).
+- **Taste games come back:** "mention a movie and we guess your age" is reposted every few months ([Ugochukwu96_][x-age]).
+- **Practitioners serve other people's taste:** a post about Taylor Swift's do-not-play list drew 51,657 likes ([Tom_Smyth_][x-dnp]), and a sommelier's customers trust a chatbot over her ([glyphclutter][x-somm]).
+- **Agents need taste but must leave the personal part to people:** the most-liked agent wish was one that "remembers there's a birthday party Saturday" ([SoniaBaschez][x-notice]), a Muse ad drew "I always wanted to be a shittier friend" ([coopercooperco][x-shittier]), and restaurant recs "have a 50% hit rate" ([andruyeung][x-hitrate]).
+- **Calacanis wants agents normal people can use:** he called Grok Bot "the ultimate agent onboarding tool for non-technical people" ([Jason][x-normies]) and called AI relationships "abhorrent" ([Jason][x-abhorrent]).
+- **Few entrants post on X:** only three 2026 entries turned up: [CulturePilot][x-culturepilot], [Together][x-together], and [Rekindle][x-rekindle].
+
+[x-loop]: https://x.com/Techno_Coloured/status/2106389999554089105
+[x-thread]: https://x.com/GothTransFem/status/2110538392249287058
+[x-overlap]: https://x.com/polypocketknife/status/2050109280066683309
+[x-friday]: https://x.com/letterboxd/status/2108546342519783882
+[x-wrapped]: https://x.com/gabbieorleaveit/status/2092154149777572334
+[x-template]: https://x.com/thefateofrey/status/2092417068557574292
+[x-age]: https://x.com/Ugochukwu96_/status/2022320535690953102
+[x-dnp]: https://x.com/Tom_Smyth_/status/2072051265744294018
+[x-somm]: https://x.com/glyphclutter/status/2098763714216570895
+[x-notice]: https://x.com/SoniaBaschez/status/2107267198091997211
+[x-shittier]: https://x.com/coopercooperco/status/2105062878701310345
+[x-hitrate]: https://x.com/andruyeung/status/2103129968247017683
+[x-normies]: https://x.com/Jason/status/2092038690595864844
+[x-abhorrent]: https://x.com/Jason/status/2110938884066685376
+[x-culturepilot]: https://x.com/JimmyOgb12/status/2109880083548610839
+[x-together]: https://x.com/noboru59631/status/2109264388079464695
+[x-rekindle]: https://x.com/edycutjong/status/2108728699898224759
+
+### Round 12: diverge
+
+Five generators each wrote ten seeds from the X digests through a different lens:
+
+- **Demand-mined** (Fable 5.1): each seed answers a need people voiced on X.
+- **Habit loops** (Sonnet 5.5): rituals people already repeat weekly or more.
+- **Agent-native** (Opus 5.5): Qloo inside the personal agents people already run.
+- **Taste servers** (Sonnet 5.5): practitioners who serve other people's taste at the counter or on the gig.
+- **Odd mechanics and inversions** (Fable 5.1): products only an under-used Qloo feature enables.
+
+All five were told the 31 concepts of the first ideation were already covered, the crowded niches, and the gates. Each seed named its trigger and how often it recurs, its X evidence, its decision points, its Qloo calls, what breaks without Qloo, and its nearest neighbor. That gave 50 seeds.
+
+### Round 13: cluster
+
+Merging seeds that described the same product left 23 concepts. Four ideas came from four of the five lenses:
+
+- Ranking a pile of recommendations other people gave you: Sieve twice, Combed, and Winnow, with Circled's photos.
+- Scoring a DJ's crate against the room: Dance Card, Crate Read, Floorfill, and Crate Check, absorbing modes for fitness classes, parties, and venues.
+- A path to win someone over to a favorite: On-Ramp twice, Convert, and Gateway.
+- Taste-age and top-four cards: Tell twice, Odd One Out, Fourth, and Friday Four.
+
+Vouch came from three lenses and absorbed Rec Desk. Shows-this-month triage came from three lenses as Doors.
+
+### Round 14: gates
+
+The gates cut 5 concepts, leaving 18:
+
+- **Off Loop**, an anti-feed, is "you may also like" with exclusions, Qloo's own pitch.
+- **Spec**, answering mood-spec requests, fails the Qloo test: an LLM maps moods to titles well, and 2025 had several mood recommenders.
+- **Changelog**, a reviewable TASTE.md diff for agents, doesn't need Qloo.
+- **Tell**, a taste-age card, has no agent loop, and it reads a person's age from their taste.
+- **Rack Pull**, ranking a stylist's labels, fails the Qloo test: raw brand scores followed popularity for two very different profiles, as Fitting did in [round 3](#round-3-gates).
+
+### Round 15: field collisions
+
+Checking against the 241 Qloo repos created since 2026-09-01, the 2025 gallery, and the X field cut 5 more, leaving 13:
+
+- **Venn**, two people's shared taste: at least eight common-ground and taste-overlap repos.
+- **Regulars**, third places for a newcomer: nine relocation repos.
+- **Turn Order**, fair book-club picks: chapterweave, crowd-pleaser, and common-table.
+- **Next Stream**, a streamer's game poll: tastecontent plans short-form video from audience taste.
+- **Submission Desk**, ranking playlist submissions: the first ideation's Green Room with a different inbox.
+
+No 2026 repo serves DJs, rec threads, record shops, or conversion paths, and none of the five eventual finalists' names appears in either field.
+
+### Round 16: live API checks
+
+About 135 calls by two generators and about 45 by the orchestrator, on 2026-10-17, tested what the survivors assumed. No response data is in this repo. The results:
+
+- **Closed lists scale:** 100 candidates scored in two pages of 50, in 4.2 and 2.4 seconds, with continuous affinities across the page break.
+- **Anchors cross categories:** Mamma Mia alone put ABBA first in a DJ crate and Succession alone put Frank Sinatra last; an artist, a game, and Normal People reordered a pool of films.
+- **The age signal reorders a closed list but doesn't translate an open one:** ABBA rose from 6th to 1st of seven for 45 to 54. Frank Sinatra for under-25s still returned Peggy Lee and Mel Tormé, and Casablanca's theme tags gave scattered modern films. This cut **Dubbed**, a translator of favorites between generations, leaving 12.
+- **Weighted signals interpolate:** a film pool slid smoothly from heist films to Ghibli as the weights moved, but a heist film by Miyazaki, the bridge a person would pick, never ranked above 11th of 17. Qloo scores co-engagement, not content.
+- **Explainability is nearly flat:** with three anchors, every candidate split about 40, 32, and 28 percent, so per-pick reasons need one call per anchor.
+- **Weighted anchors need `{"id": ..., "weight": ...}`;** the documented `entity` key returns 400.
+- **`urn:tag` needs `filter.parents.types`;** without it, the entity signal is silently ignored and place tags come back.
+- **`theme:qloo` tags cross categories:** Phoebe Bridgers and Past Lives both returned Grief and Loneliness.
+- **Nulls are common:** a book against films can score nothing, and release-week titles resolve but mostly score null.
+- **Brands follow popularity:** two unlike profiles gave the same top fashion labels, and only lift over a baseline separated them. Wine brands and most board games don't resolve.
+- **Resolution varies:** films 4 of 4 and games 8 of 8 resolved cleanly, comics 3 of 6 resolved to the wrong entity, and acts as small as 0.21 popularity resolved.
+- **Compare is quick:** 1.3 to 1.8 seconds, with shared tags and each side's own.
+
+### Round 17: first scoring
+
+The orchestrator scored all 12 on the five criteria. Cutting anything under 15 on the official criteria, or with a Pull of 2, left 7:
+
+- **Doors**, shows this month for a fan, scored 14: local discovery is saturated, and listings need a ticketing API key we don't have.
+- **Bins**, a record-shop counter ranking stock for a customer, scored 14 as a standalone; [round 18](#round-18-mutate-and-merge) folds it into Hold Slip.
+- **Ledger**, a monthly cross-media wrap, scored 14: tag noise is high and nobody pays.
+- **First Piece**, ranking a music teacher's shelf for a student, scored 14: its own generator called it the weakest Qloo case.
+- **Pickrate**, measuring how often other agents pick an independent shop, had a Pull of 2, and Qloo only defines its personas.
+
+### Round 18: mutate and merge
+
+Each survivor was pushed to its strongest form, and two merges left 5:
+
+- **Sieve** absorbed **Told You**, friends' texted recs, and **Clash**, festival lineups. It keeps one pile from threads, chats, shelves, and lineups and ranks it when asked. The photo card it gained raised its Design from 4 to 5.
+- **Hold Slip** gained Bins' counter mode.
+- **Dance Card** gained age-band blocks and the do-not-play look-alike lint.
+- **On-Ramp** gained the verified weight schedule, with an LLM proposing bridges and Qloo placing them.
+- **Vouch** gained a curator link for critics, newsletters, and booksellers.
+
+### Round 19: judge-panel and Pull stress test
+
+Each finalist was read as each judge would read it, checked against its X evidence for whether people would come back, and sized against 13 days and the existing scaffold. No idea was cut:
+
+- **Calacanis:** Sieve is the new finalist he could share as a bot link and normal people could use; Dance Card and Hold Slip are vertical tools.
+- **Diolosa:** Dance Card has the deepest chain: closed lists, cross-category anchors, demographics, compare, and tags.
+- **Seligman:** Hold Slip holds customers' names and favorites, so consent and deletion became product features.
+- **Abrams:** Dance Card, and Sieve's lineup entry point.
+- **Pull:** On-Ramp ends after four weeks, and Hold Slip needs weeks to seed its regulars' favorites.
+- **Build:** Sieve's risk is thread access, since X's API is paid, so pasted text, screenshots, Bluesky, and Reddit come first.
+- **Scores:** Vouch's Technological implementation fell from 4 to 3, since each ask is one scoring call.
+
+### Round 20: blind review and final ranking
+
+All fifteen finalists were re-scored in one blind sitting, so old and new share one calibration:
+
+- **Packet:** each finalist's doc with its scores, rank, and links to other finalists stripped, labeled A to O in seeded random order.
+- **Reviewer:** Fable 5.1, the first ranking's blind reviewer, scored all five criteria and the gates from the rubric, the brief, the context, and the packet. Its scores replace the first review's.
+- **Orchestrator:** its scores were recorded before the review. The first ten keep the first ranking's official scores, with Pull added.
+- **Cross-vendor check:** OpenAI and xAI keys had no credit, the OpenRouter key had a $0 limit, and Gemini's Pro and Flash models refused for quota or demand. Gemini 3.5 Flash-Lite scored the packet, but it's a lightweight model that scored nearly everything 4 or 5, so it only breaks the one full tie.
+
+The results:
+
+- **The judges agreed on shape.** No criterion differed by more than two points, and only three differed by two: Sieve's Quality of the idea, Floatplan's Design, and Blind Flight's Technological implementation. The reviewer graded harder, averaging 16.9 out of 25 against the orchestrator's 18.9.
+- **New finalists took 1st, 4th, 6th, 7th, and 11th.** Pull moved X Meets Y from 1st to 5th, since authors need comps about once per book.
+- **One engine runs through the field.** The reviewer noted that 13 of 15 rely on closed-list scoring, so what sets each apart is the trade rule it encodes and the artifact it ends in. Sieve and Vouch are one engine with two front doors, so enter at most one.
+- **Location ideas are fragile.** Next Beat, Seatback, and Floatplan depend on location signals the brief shows behave inconsistently.
+- **Blind Flight fails the agent gate** again, for all three scorers.
+- **Picks:** the reviewer's pick for the cash prizes is Dance Card, and for the bonus, Crossfeed. The cross-vendor check picked Sieve for the cash prizes and Dance Card for the bonus, and put Sieve, Dance Card, Hold Slip, and Crossfeed in its top four.
+
 ## Unverified
 
-- **Market numbers:** sizes, prices, and costs in the idea docs are the generators' order-of-magnitude estimates, without sources. They cover comp-title conventions and the number of querying authors, podcast CPMs, in-flight content spend, library collection spend, and sync fees.
-- **Coverage:** whether Qloo resolves 2025 and 2026 books, small-press titles, small podcasts, and pitched artists.
+- **Market numbers:** sizes, prices, and costs in the idea docs are the generators' order-of-magnitude estimates, without sources. They cover comp-title conventions and querying authors, podcast CPMs, in-flight content spend, library collection spend, sync fees, working wedding DJs, and independent shops.
+- **Pull:** it's our own criterion, scored by models from the docs and X posts, not from usage. X like counts are a snapshot of 2026-10-16 and 2026-10-17 and favor viral posts.
+- **Coverage:** whether Qloo resolves 2025 and 2026 books, small-press and non-Western titles, comics, small podcasts, and pitched artists.
 - **Heatmaps:** whether genre heatmaps, once normalized, carry preference rather than signal density.
+- **Thread access:** X's API pricing for reading replies, which Sieve's thread entry point needs.
 - **Pre-screen:** whether Devpost's automated analysis rewards what the reviewer predicted; [CONTEXT](/docs/CONTEXT.md#devpost-guidance) found no write-up of how it works.
-- **Live checks:** a few calls per question on 2026-10-16; results may shift as Qloo's data changes, and under load.
-- **Judges:** both scorers are models from one vendor, and neither is a hackathon judge.
+- **Live checks:** a few calls per question on 2026-10-16 and 2026-10-17; results may shift as Qloo's data changes, and under load.
+- **Judges:** both scorers are models from one vendor, and the only cross-vendor check came from a lightweight model; none is a hackathon judge.
 
 ## See also
 

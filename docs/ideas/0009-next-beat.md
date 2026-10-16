@@ -1,6 +1,6 @@
 # Next Beat
 
-An agent that tells a local newsletter chain which culture vertical to launch in which metro, from how each metro's taste differs from the rest of the chain's footprint in Qloo. Ranked 9 of 10 finalists in the [idea ranking](0000-ranking.md), at 13 out of 20.
+An agent that tells a local newsletter chain which culture vertical to launch in which metro, from how each metro's taste differs from the rest of the chain's footprint in Qloo. Ranked 13 of 15 finalists in the [idea ranking](0000-ranking.md), at 15.5 out of 25.
 
 Contents:
 
@@ -51,15 +51,17 @@ An LLM answers with stereotypes, such as country for one city and live music for
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                             |
 | ---------------------------- | ------------ | -------------- | ---- | ------------------------------------------------------------------------------- |
-| Technological implementation | 4            | 4              | 4    | Three insight types in sequence, but no closed-list scoring and no confirm step |
+| Technological implementation | 4            | 3              | 3.5  | Three insight types in sequence, but no closed-list scoring and no confirm step |
 | Design                       | 4            | 3              | 3.5  | A ranked table and a brief, which reads as a report generator                   |
 | Potential impact             | 3            | 3              | 3    | A credible cost per vertical, but a yearly decision and poor buyers             |
-| Quality of the idea          | 3            | 2              | 2.5  | GeoTaste's shape and Qloo's Clarion pitch with a newsroom buyer                 |
-| **Total**                    | 14           | 12             | 13   |                                                                                 |
+| Quality of the idea          | 3            | 3              | 3    | GeoTaste's shape and Qloo's Clarion pitch with a newsroom buyer                 |
+| Pull                         | 3            | 2              | 2.5  | Weekly editions, but vertical launches are rare                                 |
+| **Official, out of 20**      | 14           | 12             | 13   |                                                                                 |
+| **Total, out of 25**         | 17           | 14             | 15.5 |                                                                                 |
 
 Related criteria:
 
