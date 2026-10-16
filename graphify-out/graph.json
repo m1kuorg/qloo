@@ -488,18 +488,6 @@
       "source_location": "L16"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities",
-      "label": "capabilities.md",
-      "_origin": "ast",
-      "community": 10,
-      "community_name": "Capabilities",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "capabilities.md",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L1"
-    },
-    {
       "id": "docs_sources_qloo_com_capabilities_a_factual_database_one_call_deep",
       "label": "A factual database, one call deep",
       "_origin": "ast",
@@ -572,6 +560,78 @@
       "source_location": "L1"
     },
     {
+      "id": "docs_sources_qloo_com_capabilities_connect_taste_to_location",
+      "label": "Connect taste to location",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "connect taste to location",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L152"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_cross_the_category_boundary",
+      "label": "Cross the category boundary",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "cross the category boundary",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L118"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_cultural_data_enrichment",
+      "label": "Cultural data enrichment",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "cultural data enrichment",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L38"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_define_the_scope_around_your_use_case",
+      "label": "Define the scope around your use case",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "define the scope around your use case",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L67"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_describe_more_than_the_basics",
+      "label": "Describe more than the basics",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "describe more than the basics",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L59"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_describe_the_context",
+      "label": "Describe the context",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "describe the context",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L84"
+    },
+    {
       "id": "docs_sources_qloo_com_capabilities_know_the_person_beyond_the_instructions",
       "label": "Know the person beyond the instructions",
       "_origin": "ast",
@@ -596,6 +656,30 @@
       "source_location": "L239"
     },
     {
+      "id": "docs_sources_qloo_com_capabilities_locality_intelligence",
+      "label": "Locality intelligence",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "locality intelligence",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L126"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_make_local_discovery_more_relevant",
+      "label": "Make local discovery more relevant",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "make local discovery more relevant",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L156"
+    },
+    {
       "id": "docs_sources_qloo_com_capabilities_on_device_intelligence",
       "label": "On-device intelligence",
       "_origin": "ast",
@@ -606,6 +690,18 @@
       "norm_label": "on-device intelligence",
       "source_file": "docs/sources/qloo.com/capabilities.md",
       "source_location": "L226"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_predict_beyond_the_inputs",
+      "label": "Predict beyond the inputs",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "predict beyond the inputs",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L88"
     },
     {
       "id": "docs_sources_qloo_com_capabilities_preferences_as_context_for_action",
@@ -620,6 +716,30 @@
       "source_location": "L218"
     },
     {
+      "id": "docs_sources_qloo_com_capabilities_put_relationships_to_work",
+      "label": "Put relationships to work",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "put relationships to work",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L63"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_rank_for_the_context",
+      "label": "Rank for the context",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "rank for the context",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L122"
+    },
+    {
       "id": "docs_sources_qloo_com_capabilities_ranked_for_the_person_not_just_the_query",
       "label": "Ranked for the person, not just the query",
       "_origin": "ast",
@@ -630,6 +750,30 @@
       "norm_label": "ranked for the person, not just the query",
       "source_file": "docs/sources/qloo.com/capabilities.md",
       "source_location": "L178"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_recommendations",
+      "label": "Recommendations",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "recommendations",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L96"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_reconsider_the_whole_combination",
+      "label": "Reconsider the whole combination",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "reconsider the whole combination",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L92"
     },
     {
       "id": "docs_sources_qloo_com_capabilities_see_also",
@@ -668,6 +812,30 @@
       "source_location": "L251"
     },
     {
+      "id": "docs_sources_qloo_com_capabilities_start_with_what_you_know",
+      "label": "Start with what you know",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "start with what you know",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L114"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_taste_intelligence",
+      "label": "Taste intelligence",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "taste intelligence",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L71"
+    },
+    {
       "id": "docs_sources_qloo_com_capabilities_work_alongside_your_models",
       "label": "Work alongside your models",
       "_origin": "ast",
@@ -678,6 +846,18 @@
       "norm_label": "work alongside your models",
       "source_file": "docs/sources/qloo.com/capabilities.md",
       "source_location": "L222"
+    },
+    {
+      "id": "docs_sources_qloo_com_capabilities_work_at_the_scale_of_the_question",
+      "label": "Work at the scale of the question",
+      "_origin": "ast",
+      "community": 10,
+      "community_name": "Capabilities",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "work at the scale of the question",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L148"
     },
     {
       "id": "docs_ideas_0005_floatplan",
@@ -761,7 +941,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0005-floatplan.md",
-      "source_location": "L78"
+      "source_location": "L80"
     },
     {
       "id": "docs_ideas_0005_floatplan_scorecard",
@@ -785,7 +965,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0005-floatplan.md",
-      "source_location": "L85"
+      "source_location": "L87"
     },
     {
       "id": "docs_ideas_0005_floatplan_why_qloo_is_load_bearing",
@@ -953,7 +1133,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0007-lived-in.md",
-      "source_location": "L73"
+      "source_location": "L75"
     },
     {
       "id": "docs_ideas_0007_lived_in_scorecard",
@@ -977,7 +1157,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0007-lived-in.md",
-      "source_location": "L81"
+      "source_location": "L83"
     },
     {
       "id": "docs_ideas_0007_lived_in_why_qloo_is_load_bearing",
@@ -990,18 +1170,6 @@
       "norm_label": "why qloo is load-bearing",
       "source_file": "docs/ideas/0007-lived-in.md",
       "source_location": "L42"
-    },
-    {
-      "id": "docs_ideas_0009_next_beat",
-      "label": "0009-next-beat.md",
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "Next Beat",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "0009-next-beat.md",
-      "source_file": "docs/ideas/0009-next-beat.md",
-      "source_location": "L1"
     },
     {
       "id": "docs_ideas_0009_next_beat_agent_loop",
@@ -1073,7 +1241,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0009-next-beat.md",
-      "source_location": "L72"
+      "source_location": "L74"
     },
     {
       "id": "docs_ideas_0009_next_beat_scorecard",
@@ -1097,7 +1265,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0009-next-beat.md",
-      "source_location": "L78"
+      "source_location": "L80"
     },
     {
       "id": "docs_ideas_0009_next_beat_why_qloo_is_load_bearing",
@@ -1193,7 +1361,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0010-blind-flight.md",
-      "source_location": "L73"
+      "source_location": "L75"
     },
     {
       "id": "docs_ideas_0010_blind_flight_scorecard",
@@ -1217,7 +1385,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0010-blind-flight.md",
-      "source_location": "L80"
+      "source_location": "L82"
     },
     {
       "id": "docs_ideas_0010_blind_flight_why_qloo_is_load_bearing",
@@ -1230,6 +1398,18 @@
       "norm_label": "why qloo is load-bearing",
       "source_file": "docs/ideas/0010-blind-flight.md",
       "source_location": "L42"
+    },
+    {
+      "id": "docs_ideas_0001_x_meets_y",
+      "label": "0001-x-meets-y.md",
+      "_origin": "ast",
+      "community": 106,
+      "community_name": "X Meets Y",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "0001-x-meets-y.md",
+      "source_file": "docs/ideas/0001-x-meets-y.md",
+      "source_location": "L1"
     },
     {
       "id": "docs_ideas_0001_x_meets_y_agent_loop",
@@ -1289,7 +1469,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0001-x-meets-y.md",
-      "source_location": "L84"
+      "source_location": "L86"
     },
     {
       "id": "docs_ideas_0001_x_meets_y_scorecard",
@@ -1313,7 +1493,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0001-x-meets-y.md",
-      "source_location": "L94"
+      "source_location": "L96"
     },
     {
       "id": "docs_ideas_0001_x_meets_y_why_qloo_is_load_bearing",
@@ -1337,6 +1517,18 @@
       "node_kind": "heading",
       "norm_label": "x meets y",
       "source_file": "docs/ideas/0001-x-meets-y.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0002_seatback",
+      "label": "0002-seatback.md",
+      "_origin": "ast",
+      "community": 107,
+      "community_name": "Seatback",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "0002-seatback.md",
+      "source_file": "docs/ideas/0002-seatback.md",
       "source_location": "L1"
     },
     {
@@ -1397,7 +1589,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0002-seatback.md",
-      "source_location": "L78"
+      "source_location": "L80"
     },
     {
       "id": "docs_ideas_0002_seatback_scorecard",
@@ -1433,7 +1625,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0002-seatback.md",
-      "source_location": "L86"
+      "source_location": "L88"
     },
     {
       "id": "docs_ideas_0002_seatback_why_qloo_is_load_bearing",
@@ -1517,7 +1709,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0004-crossfeed.md",
-      "source_location": "L89"
+      "source_location": "L91"
     },
     {
       "id": "docs_ideas_0004_crossfeed_scorecard",
@@ -1541,7 +1733,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0004-crossfeed.md",
-      "source_location": "L97"
+      "source_location": "L99"
     },
     {
       "id": "docs_ideas_0004_crossfeed_why_qloo_is_load_bearing",
@@ -1625,7 +1817,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0006-cuesheet.md",
-      "source_location": "L76"
+      "source_location": "L78"
     },
     {
       "id": "docs_ideas_0006_cuesheet_scorecard",
@@ -1649,7 +1841,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0006-cuesheet.md",
-      "source_location": "L83"
+      "source_location": "L85"
     },
     {
       "id": "docs_ideas_0006_cuesheet_why_qloo_is_load_bearing",
@@ -1730,6 +1922,18 @@
       "source_location": "L6"
     },
     {
+      "id": "docs_ideas_0008_warmer",
+      "label": "0008-warmer.md",
+      "_origin": "ast",
+      "community": 110,
+      "community_name": "Warmer",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "0008-warmer.md",
+      "source_file": "docs/ideas/0008-warmer.md",
+      "source_location": "L1"
+    },
+    {
       "id": "docs_ideas_0008_warmer_agent_loop",
       "label": "Agent loop",
       "_origin": "ast",
@@ -1787,7 +1991,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0008-warmer.md",
-      "source_location": "L77"
+      "source_location": "L79"
     },
     {
       "id": "docs_ideas_0008_warmer_scorecard",
@@ -1811,7 +2015,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0008-warmer.md",
-      "source_location": "L85"
+      "source_location": "L87"
     },
     {
       "id": "docs_ideas_0008_warmer_warmer",
@@ -1838,100 +2042,136 @@
       "source_location": "L46"
     },
     {
-      "id": "docs_ideas_0000_ranking_criteria",
-      "label": "Criteria",
+      "id": "docs_sources_docs_qloo_com_heatmap_insights_use_case",
+      "label": "heatmap-insights-use-case.md",
       "_origin": "ast",
       "community": 111,
-      "community_name": "Idea ranking",
+      "community_name": "key-use-cases.md",
       "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "criteria",
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L66"
-    },
-    {
-      "id": "docs_ideas_0000_ranking_idea_ranking",
-      "label": "Idea ranking",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Idea ranking",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "idea ranking",
-      "source_file": "docs/ideas/0000-ranking.md",
+      "node_kind": "page",
+      "norm_label": "heatmap-insights-use-case.md",
+      "source_file": "docs/sources/docs.qloo.com/heatmap-insights-use-case.md",
       "source_location": "L1"
     },
     {
-      "id": "docs_ideas_0000_ranking_ranking",
-      "label": "Ranking",
+      "id": "docs_sources_docs_qloo_com_key_use_cases",
+      "label": "key-use-cases.md",
       "_origin": "ast",
       "community": 111,
-      "community_name": "Idea ranking",
+      "community_name": "key-use-cases.md",
       "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "ranking",
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L26"
+      "node_kind": "page",
+      "norm_label": "key-use-cases.md",
+      "source_file": "docs/sources/docs.qloo.com/key-use-cases.md",
+      "source_location": "L1"
     },
     {
-      "id": "docs_ideas_0000_ranking_recommendation",
-      "label": "Recommendation",
+      "id": "docs_sources_docs_qloo_com_key_use_cases_key_use_cases",
+      "label": "Key use cases",
       "_origin": "ast",
       "community": 111,
-      "community_name": "Idea ranking",
+      "community_name": "key-use-cases.md",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "recommendation",
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L56"
+      "norm_label": "key use cases",
+      "source_file": "docs/sources/docs.qloo.com/key-use-cases.md",
+      "source_location": "L1"
     },
     {
-      "id": "docs_ideas_0000_ranking_related_criteria",
-      "label": "Related criteria",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Idea ranking",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "related criteria",
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L79"
-    },
-    {
-      "id": "docs_ideas_0000_ranking_scoring_matrix",
-      "label": "Scoring matrix",
-      "_origin": "ast",
-      "community": 111,
-      "community_name": "Idea ranking",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "scoring matrix",
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L64"
-    },
-    {
-      "id": "docs_ideas_0000_ranking_see_also",
+      "id": "docs_sources_docs_qloo_com_key_use_cases_see_also",
       "label": "See also",
       "_origin": "ast",
       "community": 111,
-      "community_name": "Idea ranking",
+      "community_name": "key-use-cases.md",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "see also",
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L207"
+      "source_file": "docs/sources/docs.qloo.com/key-use-cases.md",
+      "source_location": "L22"
     },
     {
-      "id": "docs_ideas_0000_ranking_unverified",
-      "label": "Unverified",
+      "id": "docs_sources_docs_qloo_com_key_use_cases_use_case_guides",
+      "label": "Use case guides",
       "_origin": "ast",
       "community": 111,
-      "community_name": "Idea ranking",
+      "community_name": "key-use-cases.md",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "unverified",
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L198"
+      "norm_label": "use case guides",
+      "source_file": "docs/sources/docs.qloo.com/key-use-cases.md",
+      "source_location": "L10"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_recipe_create_a_heatmap_based_on_a_wkt_point_for_the_brand_muji_in_nyc",
+      "label": "recipe-create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc.md",
+      "_origin": "ast",
+      "community": 111,
+      "community_name": "key-use-cases.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "recipe-create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc.md",
+      "source_file": "docs/sources/docs.qloo.com/recipe-create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_solutions_overview",
+      "label": "solutions-overview.md",
+      "_origin": "ast",
+      "community": 111,
+      "community_name": "key-use-cases.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "solutions-overview.md",
+      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_solutions_overview_key_benefits",
+      "label": "Key benefits",
+      "_origin": "ast",
+      "community": 111,
+      "community_name": "key-use-cases.md",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "key benefits",
+      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
+      "source_location": "L17"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_solutions_overview_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 111,
+      "community_name": "key-use-cases.md",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
+      "source_location": "L27"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_solutions_overview_solutions_overview",
+      "label": "Solutions overview",
+      "_origin": "ast",
+      "community": 111,
+      "community_name": "key-use-cases.md",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "solutions overview",
+      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_solutions_overview_use_cases",
+      "label": "Use cases",
+      "_origin": "ast",
+      "community": 111,
+      "community_name": "key-use-cases.md",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "use cases",
+      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
+      "source_location": "L11"
     },
     {
       "id": "docs_sources_docs_qloo_com_entities",
@@ -2222,27 +2462,15 @@
       "source_location": "L1"
     },
     {
-      "id": "docs_ideas_0001_x_meets_y",
-      "label": "0001-x-meets-y.md",
+      "id": "docs_ideas_0003_claim_check",
+      "label": "0003-claim-check.md",
       "_origin": "ast",
       "community": 115,
       "community_name": "0000-ranking.md",
       "file_type": "document",
       "node_kind": "page",
-      "norm_label": "0001-x-meets-y.md",
-      "source_file": "docs/ideas/0001-x-meets-y.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_ideas_0002_seatback",
-      "label": "0002-seatback.md",
-      "_origin": "ast",
-      "community": 115,
-      "community_name": "0000-ranking.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "0002-seatback.md",
-      "source_file": "docs/ideas/0002-seatback.md",
+      "norm_label": "0003-claim-check.md",
+      "source_file": "docs/ideas/0003-claim-check.md",
       "source_location": "L1"
     },
     {
@@ -2270,15 +2498,63 @@
       "source_location": "L1"
     },
     {
-      "id": "docs_ideas_0008_warmer",
-      "label": "0008-warmer.md",
+      "id": "docs_ideas_0009_next_beat",
+      "label": "0009-next-beat.md",
       "_origin": "ast",
       "community": 115,
       "community_name": "0000-ranking.md",
       "file_type": "document",
       "node_kind": "page",
-      "norm_label": "0008-warmer.md",
-      "source_file": "docs/ideas/0008-warmer.md",
+      "norm_label": "0009-next-beat.md",
+      "source_file": "docs/ideas/0009-next-beat.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0011_dance_card",
+      "label": "0011-dance-card.md",
+      "_origin": "ast",
+      "community": 115,
+      "community_name": "0000-ranking.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "0011-dance-card.md",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0012_sieve",
+      "label": "0012-sieve.md",
+      "_origin": "ast",
+      "community": 115,
+      "community_name": "0000-ranking.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "0012-sieve.md",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0013_hold_slip",
+      "label": "0013-hold-slip.md",
+      "_origin": "ast",
+      "community": 115,
+      "community_name": "0000-ranking.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "0013-hold-slip.md",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0015_vouch",
+      "label": "0015-vouch.md",
+      "_origin": "ast",
+      "community": 115,
+      "community_name": "0000-ranking.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "0015-vouch.md",
+      "source_file": "docs/ideas/0015-vouch.md",
       "source_location": "L1"
     },
     {
@@ -2414,64 +2690,124 @@
       "source_location": "L33"
     },
     {
-      "id": "docs_sources_docs_qloo_com_audiences_methodology_audiences_methodology",
-      "label": "Audiences methodology",
+      "id": "docs_ideas_0014_on_ramp",
+      "label": "0014-on-ramp.md",
       "_origin": "ast",
       "community": 118,
-      "community_name": "Audiences methodology",
+      "community_name": "On-Ramp",
       "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "audiences methodology",
-      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
+      "node_kind": "page",
+      "norm_label": "0014-on-ramp.md",
+      "source_file": "docs/ideas/0014-on-ramp.md",
       "source_location": "L1"
     },
     {
-      "id": "docs_sources_docs_qloo_com_audiences_methodology_defining_an_audience",
-      "label": "Defining an audience",
+      "id": "docs_ideas_0014_on_ramp_agent_loop",
+      "label": "Agent loop",
       "_origin": "ast",
       "community": 118,
-      "community_name": "Audiences methodology",
+      "community_name": "On-Ramp",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "defining an audience",
-      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
-      "source_location": "L12"
+      "norm_label": "agent loop",
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L30"
     },
     {
-      "id": "docs_sources_docs_qloo_com_audiences_methodology_methodology",
-      "label": "Methodology",
+      "id": "docs_ideas_0014_on_ramp_demo",
+      "label": "Demo",
       "_origin": "ast",
       "community": 118,
-      "community_name": "Audiences methodology",
+      "community_name": "On-Ramp",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "methodology",
-      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
+      "norm_label": "demo",
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L65"
+    },
+    {
+      "id": "docs_ideas_0014_on_ramp_on_ramp",
+      "label": "On-Ramp",
+      "_origin": "ast",
+      "community": 118,
+      "community_name": "On-Ramp",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "on-ramp",
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0014_on_ramp_problem",
+      "label": "Problem",
+      "_origin": "ast",
+      "community": 118,
+      "community_name": "On-Ramp",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "problem",
+      "source_file": "docs/ideas/0014-on-ramp.md",
       "source_location": "L16"
     },
     {
-      "id": "docs_sources_docs_qloo_com_audiences_methodology_see_also",
+      "id": "docs_ideas_0014_on_ramp_qloo_calls",
+      "label": "Qloo calls",
+      "_origin": "ast",
+      "community": 118,
+      "community_name": "On-Ramp",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "qloo calls",
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L39"
+    },
+    {
+      "id": "docs_ideas_0014_on_ramp_risks_and_open_questions",
+      "label": "Risks and open questions",
+      "_origin": "ast",
+      "community": 118,
+      "community_name": "On-Ramp",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "risks and open questions",
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L96"
+    },
+    {
+      "id": "docs_ideas_0014_on_ramp_scorecard",
+      "label": "Scorecard",
+      "_origin": "ast",
+      "community": 118,
+      "community_name": "On-Ramp",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "scorecard",
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L74"
+    },
+    {
+      "id": "docs_ideas_0014_on_ramp_see_also",
       "label": "See also",
       "_origin": "ast",
       "community": 118,
-      "community_name": "Audiences methodology",
+      "community_name": "On-Ramp",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
-      "source_location": "L24"
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L103"
     },
     {
-      "id": "docs_sources_docs_qloo_com_audiences_methodology_signal_analysis",
-      "label": "Signal analysis",
+      "id": "docs_ideas_0014_on_ramp_why_qloo_is_load_bearing",
+      "label": "Why Qloo is load-bearing",
       "_origin": "ast",
       "community": 118,
-      "community_name": "Audiences methodology",
+      "community_name": "On-Ramp",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "signal analysis",
-      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
-      "source_location": "L20"
+      "norm_label": "why qloo is load-bearing",
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L61"
     },
     {
       "id": "docs_sources_docs_qloo_com_filters",
@@ -2882,196 +3218,808 @@
       "source_location": "L161"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_connect_taste_to_location",
-      "label": "Connect taste to location",
+      "id": "docs_ideas_0011_dance_card_agent_loop",
+      "label": "Agent loop",
       "_origin": "ast",
       "community": 120,
-      "community_name": "Locality intelligence",
+      "community_name": "Dance Card",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "connect taste to location",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L152"
+      "norm_label": "agent loop",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L31"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_locality_intelligence",
-      "label": "Locality intelligence",
+      "id": "docs_ideas_0011_dance_card_dance_card",
+      "label": "Dance Card",
       "_origin": "ast",
       "community": 120,
-      "community_name": "Locality intelligence",
+      "community_name": "Dance Card",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "locality intelligence",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L126"
+      "norm_label": "dance card",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L1"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_make_local_discovery_more_relevant",
-      "label": "Make local discovery more relevant",
+      "id": "docs_ideas_0011_dance_card_demo",
+      "label": "Demo",
       "_origin": "ast",
       "community": 120,
-      "community_name": "Locality intelligence",
+      "community_name": "Dance Card",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "make local discovery more relevant",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L156"
+      "norm_label": "demo",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L62"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_work_at_the_scale_of_the_question",
-      "label": "Work at the scale of the question",
+      "id": "docs_ideas_0011_dance_card_problem",
+      "label": "Problem",
       "_origin": "ast",
       "community": 120,
-      "community_name": "Locality intelligence",
+      "community_name": "Dance Card",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "work at the scale of the question",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L148"
+      "norm_label": "problem",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L16"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_cross_the_category_boundary",
-      "label": "Cross the category boundary",
+      "id": "docs_ideas_0011_dance_card_qloo_calls",
+      "label": "Qloo calls",
+      "_origin": "ast",
+      "community": 120,
+      "community_name": "Dance Card",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "qloo calls",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L40"
+    },
+    {
+      "id": "docs_ideas_0011_dance_card_risks_and_open_questions",
+      "label": "Risks and open questions",
+      "_origin": "ast",
+      "community": 120,
+      "community_name": "Dance Card",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "risks and open questions",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L94"
+    },
+    {
+      "id": "docs_ideas_0011_dance_card_scorecard",
+      "label": "Scorecard",
+      "_origin": "ast",
+      "community": 120,
+      "community_name": "Dance Card",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "scorecard",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L72"
+    },
+    {
+      "id": "docs_ideas_0011_dance_card_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 120,
+      "community_name": "Dance Card",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L104"
+    },
+    {
+      "id": "docs_ideas_0011_dance_card_why_qloo_is_load_bearing",
+      "label": "Why Qloo is load-bearing",
+      "_origin": "ast",
+      "community": 120,
+      "community_name": "Dance Card",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "why qloo is load-bearing",
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L58"
+    },
+    {
+      "id": "docs_ideas_0012_sieve_agent_loop",
+      "label": "Agent loop",
       "_origin": "ast",
       "community": 121,
-      "community_name": "Recommendations",
+      "community_name": "Sieve",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "cross the category boundary",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L118"
+      "norm_label": "agent loop",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L31"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_rank_for_the_context",
-      "label": "Rank for the context",
+      "id": "docs_ideas_0012_sieve_demo",
+      "label": "Demo",
       "_origin": "ast",
       "community": 121,
-      "community_name": "Recommendations",
+      "community_name": "Sieve",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "rank for the context",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L122"
+      "norm_label": "demo",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L65"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_recommendations",
-      "label": "Recommendations",
+      "id": "docs_ideas_0012_sieve_problem",
+      "label": "Problem",
       "_origin": "ast",
       "community": 121,
-      "community_name": "Recommendations",
+      "community_name": "Sieve",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "recommendations",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L96"
+      "norm_label": "problem",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L16"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_start_with_what_you_know",
-      "label": "Start with what you know",
+      "id": "docs_ideas_0012_sieve_qloo_calls",
+      "label": "Qloo calls",
       "_origin": "ast",
       "community": 121,
-      "community_name": "Recommendations",
+      "community_name": "Sieve",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "start with what you know",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L114"
+      "norm_label": "qloo calls",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L42"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_cultural_data_enrichment",
-      "label": "Cultural data enrichment",
+      "id": "docs_ideas_0012_sieve_risks_and_open_questions",
+      "label": "Risks and open questions",
       "_origin": "ast",
-      "community": 122,
-      "community_name": "Cultural data enrichment",
+      "community": 121,
+      "community_name": "Sieve",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "cultural data enrichment",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L38"
+      "norm_label": "risks and open questions",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L97"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_define_the_scope_around_your_use_case",
-      "label": "Define the scope around your use case",
+      "id": "docs_ideas_0012_sieve_scorecard",
+      "label": "Scorecard",
       "_origin": "ast",
-      "community": 122,
-      "community_name": "Cultural data enrichment",
+      "community": 121,
+      "community_name": "Sieve",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "define the scope around your use case",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L67"
+      "norm_label": "scorecard",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L75"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_describe_more_than_the_basics",
-      "label": "Describe more than the basics",
+      "id": "docs_ideas_0012_sieve_see_also",
+      "label": "See also",
       "_origin": "ast",
-      "community": 122,
-      "community_name": "Cultural data enrichment",
+      "community": 121,
+      "community_name": "Sieve",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "describe more than the basics",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "norm_label": "see also",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L107"
+    },
+    {
+      "id": "docs_ideas_0012_sieve_sieve",
+      "label": "Sieve",
+      "_origin": "ast",
+      "community": 121,
+      "community_name": "Sieve",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "sieve",
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0012_sieve_why_qloo_is_load_bearing",
+      "label": "Why Qloo is load-bearing",
+      "_origin": "ast",
+      "community": 121,
+      "community_name": "Sieve",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "why qloo is load-bearing",
+      "source_file": "docs/ideas/0012-sieve.md",
       "source_location": "L59"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_put_relationships_to_work",
-      "label": "Put relationships to work",
+      "id": "docs_ideas_0013_hold_slip_agent_loop",
+      "label": "Agent loop",
       "_origin": "ast",
       "community": 122,
-      "community_name": "Cultural data enrichment",
+      "community_name": "Hold Slip",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "put relationships to work",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L63"
+      "norm_label": "agent loop",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L29"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_describe_the_context",
-      "label": "Describe the context",
+      "id": "docs_ideas_0013_hold_slip_demo",
+      "label": "Demo",
       "_origin": "ast",
-      "community": 123,
-      "community_name": "Taste intelligence",
+      "community": 122,
+      "community_name": "Hold Slip",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "describe the context",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L84"
+      "norm_label": "demo",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L58"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_predict_beyond_the_inputs",
-      "label": "Predict beyond the inputs",
+      "id": "docs_ideas_0013_hold_slip_hold_slip",
+      "label": "Hold Slip",
       "_origin": "ast",
-      "community": 123,
-      "community_name": "Taste intelligence",
+      "community": 122,
+      "community_name": "Hold Slip",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "predict beyond the inputs",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L88"
+      "norm_label": "hold slip",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L1"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_reconsider_the_whole_combination",
-      "label": "Reconsider the whole combination",
+      "id": "docs_ideas_0013_hold_slip_problem",
+      "label": "Problem",
       "_origin": "ast",
-      "community": 123,
-      "community_name": "Taste intelligence",
+      "community": 122,
+      "community_name": "Hold Slip",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "reconsider the whole combination",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L92"
+      "norm_label": "problem",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L16"
     },
     {
-      "id": "docs_sources_qloo_com_capabilities_taste_intelligence",
-      "label": "Taste intelligence",
+      "id": "docs_ideas_0013_hold_slip_qloo_calls",
+      "label": "Qloo calls",
       "_origin": "ast",
-      "community": 123,
-      "community_name": "Taste intelligence",
+      "community": 122,
+      "community_name": "Hold Slip",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "taste intelligence",
-      "source_file": "docs/sources/qloo.com/capabilities.md",
-      "source_location": "L71"
+      "norm_label": "qloo calls",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L38"
+    },
+    {
+      "id": "docs_ideas_0013_hold_slip_risks_and_open_questions",
+      "label": "Risks and open questions",
+      "_origin": "ast",
+      "community": 122,
+      "community_name": "Hold Slip",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "risks and open questions",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L90"
+    },
+    {
+      "id": "docs_ideas_0013_hold_slip_scorecard",
+      "label": "Scorecard",
+      "_origin": "ast",
+      "community": 122,
+      "community_name": "Hold Slip",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "scorecard",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L68"
+    },
+    {
+      "id": "docs_ideas_0013_hold_slip_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 122,
+      "community_name": "Hold Slip",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L99"
+    },
+    {
+      "id": "docs_ideas_0013_hold_slip_why_qloo_is_load_bearing",
+      "label": "Why Qloo is load-bearing",
+      "_origin": "ast",
+      "community": 122,
+      "community_name": "Hold Slip",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "why qloo is load-bearing",
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L54"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_agent_loop",
+      "label": "Agent loop",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "agent loop",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L28"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_demo",
+      "label": "Demo",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "demo",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L52"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_problem",
+      "label": "Problem",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "problem",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L16"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_qloo_calls",
+      "label": "Qloo calls",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "qloo calls",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L37"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_risks_and_open_questions",
+      "label": "Risks and open questions",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "risks and open questions",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L83"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_scorecard",
+      "label": "Scorecard",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "scorecard",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L61"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L91"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_vouch",
+      "label": "Vouch",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "vouch",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0015_vouch_why_qloo_is_load_bearing",
+      "label": "Why Qloo is load-bearing",
+      "_origin": "ast",
+      "community": 123,
+      "community_name": "Vouch",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "why qloo is load-bearing",
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L48"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_analysis_compare",
+      "label": "analysis-compare.md",
+      "_origin": "ast",
+      "community": 124,
+      "community_name": "api-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "analysis-compare.md",
+      "source_file": "docs/sources/docs.qloo.com/analysis-compare.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_api_overview",
+      "label": "api-overview.md",
+      "_origin": "ast",
+      "community": 124,
+      "community_name": "api-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "api-overview.md",
+      "source_file": "docs/sources/docs.qloo.com/api-overview.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_trending_data",
+      "label": "get-trending-data.md",
+      "_origin": "ast",
+      "community": 124,
+      "community_name": "api-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "get-trending-data.md",
+      "source_file": "docs/sources/docs.qloo.com/get-trending-data.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_search_entities",
+      "label": "search-entities.md",
+      "_origin": "ast",
+      "community": 124,
+      "community_name": "api-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "search-entities.md",
+      "source_file": "docs/sources/docs.qloo.com/search-entities.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_search_entities_by_id",
+      "label": "search-entities-by-id.md",
+      "_origin": "ast",
+      "community": 124,
+      "community_name": "api-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "search-entities-by-id.md",
+      "source_file": "docs/sources/docs.qloo.com/search-entities-by-id.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_taste_analysis",
+      "label": "taste-analysis.md",
+      "_origin": "ast",
+      "community": 124,
+      "community_name": "api-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "taste-analysis.md",
+      "source_file": "docs/sources/docs.qloo.com/taste-analysis.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_api_information",
+      "label": "get-api-information.md",
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "Get API information",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "get-api-information.md",
+      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_api_information_endpoint",
+      "label": "Endpoint",
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "Get API information",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "endpoint",
+      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
+      "source_location": "L11"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_api_information_get_api_information",
+      "label": "Get API information",
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "Get API information",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "get api information",
+      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_api_information_responses",
+      "label": "Responses",
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "Get API information",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "responses",
+      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
+      "source_location": "L17"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_api_information_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "Get API information",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
+      "source_location": "L55"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_audience_types_endpoint",
+      "label": "Endpoint",
+      "_origin": "ast",
+      "community": 126,
+      "community_name": "Get audience types",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "endpoint",
+      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
+      "source_location": "L12"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_audience_types_endpoint_parameters",
+      "label": "Endpoint parameters",
+      "_origin": "ast",
+      "community": 126,
+      "community_name": "Get audience types",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "endpoint parameters",
+      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
+      "source_location": "L18"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_audience_types_get_audience_types",
+      "label": "Get audience types",
+      "_origin": "ast",
+      "community": 126,
+      "community_name": "Get audience types",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "get audience types",
+      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_audience_types_responses",
+      "label": "Responses",
+      "_origin": "ast",
+      "community": 126,
+      "community_name": "Get audience types",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "responses",
+      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
+      "source_location": "L26"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_audience_types_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 126,
+      "community_name": "Get audience types",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
+      "source_location": "L57"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_tag_types",
+      "label": "get-tag-types.md",
+      "_origin": "ast",
+      "community": 127,
+      "community_name": "get-tag-types.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "get-tag-types.md",
+      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_tag_types_endpoint",
+      "label": "Endpoint",
+      "_origin": "ast",
+      "community": 127,
+      "community_name": "get-tag-types.md",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "endpoint",
+      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
+      "source_location": "L11"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_tag_types_endpoint_parameters",
+      "label": "Endpoint parameters",
+      "_origin": "ast",
+      "community": 127,
+      "community_name": "get-tag-types.md",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "endpoint parameters",
+      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
+      "source_location": "L17"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_tag_types_get_tag_types",
+      "label": "Get tag types",
+      "_origin": "ast",
+      "community": 127,
+      "community_name": "get-tag-types.md",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "get tag types",
+      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_tag_types_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 127,
+      "community_name": "get-tag-types.md",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
+      "source_location": "L25"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_filters",
+      "label": "Filters",
+      "_origin": "ast",
+      "community": 128,
+      "community_name": "Legacy to Insights parameter mapping",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "filters",
+      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
+      "source_location": "L20"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_legacy_to_insights_parameter_mapping",
+      "label": "Legacy to Insights parameter mapping",
+      "_origin": "ast",
+      "community": 128,
+      "community_name": "Legacy to Insights parameter mapping",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "legacy to insights parameter mapping",
+      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_output",
+      "label": "Output",
+      "_origin": "ast",
+      "community": 128,
+      "community_name": "Legacy to Insights parameter mapping",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "output",
+      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
+      "source_location": "L112"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 128,
+      "community_name": "Legacy to Insights parameter mapping",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
+      "source_location": "L124"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_signals",
+      "label": "Signals",
+      "_origin": "ast",
+      "community": 128,
+      "community_name": "Legacy to Insights parameter mapping",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "signals",
+      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
+      "source_location": "L95"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_parameter_reference_filter_parameters",
+      "label": "Filter parameters",
+      "_origin": "ast",
+      "community": 129,
+      "community_name": "Parameter reference",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "filter parameters",
+      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
+      "source_location": "L21"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_parameter_reference_output_parameters",
+      "label": "Output parameters",
+      "_origin": "ast",
+      "community": 129,
+      "community_name": "Parameter reference",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "output parameters",
+      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
+      "source_location": "L116"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_parameter_reference_parameter_reference",
+      "label": "Parameter reference",
+      "_origin": "ast",
+      "community": 129,
+      "community_name": "Parameter reference",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "parameter reference",
+      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_parameter_reference_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 129,
+      "community_name": "Parameter reference",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
+      "source_location": "L130"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_parameter_reference_signal_parameters",
+      "label": "Signal parameters",
+      "_origin": "ast",
+      "community": 129,
+      "community_name": "Parameter reference",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "signal parameters",
+      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
+      "source_location": "L98"
     },
     {
       "id": "docs_sources_qloo_com_terms_of_use_10_disclaimers_no_warranties",
@@ -3324,6 +4272,90 @@
       "norm_label": "terms of use",
       "source_file": "docs/sources/qloo.com/terms-of-use.md",
       "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_api_system_status",
+      "label": "api-system-status.md",
+      "_origin": "ast",
+      "community": 130,
+      "community_name": "API system status",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "api-system-status.md",
+      "source_file": "docs/sources/docs.qloo.com/api-system-status.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_api_system_status_api_system_status",
+      "label": "API system status",
+      "_origin": "ast",
+      "community": 130,
+      "community_name": "API system status",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "api system status",
+      "source_file": "docs/sources/docs.qloo.com/api-system-status.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_api_system_status_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 130,
+      "community_name": "API system status",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/docs.qloo.com/api-system-status.md",
+      "source_location": "L14"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_api_system_status_status_page",
+      "label": "Status page",
+      "_origin": "ast",
+      "community": 130,
+      "community_name": "API system status",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "status page",
+      "source_file": "docs/sources/docs.qloo.com/api-system-status.md",
+      "source_location": "L10"
+    },
+    {
+      "id": "docs_sources_qloo_com_press_press",
+      "label": "Press",
+      "_origin": "ast",
+      "community": 131,
+      "community_name": "Press",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "press",
+      "source_file": "docs/sources/qloo.com/press.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_qloo_com_press_press_coverage",
+      "label": "Press coverage",
+      "_origin": "ast",
+      "community": 131,
+      "community_name": "Press",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "press coverage",
+      "source_file": "docs/sources/qloo.com/press.md",
+      "source_location": "L10"
+    },
+    {
+      "id": "docs_sources_qloo_com_press_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 131,
+      "community_name": "Press",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/qloo.com/press.md",
+      "source_location": "L54"
     },
     {
       "id": "docs_agents_graphify",
@@ -5761,18 +6793,6 @@
       "source_location": "L33"
     },
     {
-      "id": "docs_sources_qloo_com_clarion_magnificent_mile",
-      "label": "clarion-magnificent-mile.md",
-      "_origin": "ast",
-      "community": 29,
-      "community_name": "Clarion attracts athleisure brand to Magnificent Mile using Qloo\u2019s taste intelligence",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "clarion-magnificent-mile.md",
-      "source_file": "docs/sources/qloo.com/clarion-magnificent-mile.md",
-      "source_location": "L1"
-    },
-    {
       "id": "docs_sources_qloo_com_clarion_magnificent_mile_building_an_ai_powered_future",
       "label": "Building an AI-powered future",
       "_origin": "ast",
@@ -5978,18 +6998,6 @@
       "source_location": "L9"
     },
     {
-      "id": "docs_sources_qloo_com_jewelry_brand_radiant_growth",
-      "label": "jewelry-brand-radiant-growth.md",
-      "_origin": "ast",
-      "community": 30,
-      "community_name": "Unlocking radiant growth for a leading jewelry brand with Qloo\u2019s Taste AI\u2122",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "jewelry-brand-radiant-growth.md",
-      "source_file": "docs/sources/qloo.com/jewelry-brand-radiant-growth.md",
-      "source_location": "L1"
-    },
-    {
       "id": "docs_sources_qloo_com_jewelry_brand_radiant_growth_key_takeaways",
       "label": "Key takeaways",
       "_origin": "ast",
@@ -6071,18 +7079,6 @@
       "node_kind": "heading",
       "norm_label": "unlocking radiant growth for a leading jewelry brand with qloo\u2019s taste aitm",
       "source_file": "docs/sources/qloo.com/jewelry-brand-radiant-growth.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_qloo_com_netflix_merchandising",
-      "label": "netflix-merchandising.md",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "Netflix and Qloo elevate merchandising with AI-driven audience insights",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "netflix-merchandising.md",
-      "source_file": "docs/sources/qloo.com/netflix-merchandising.md",
       "source_location": "L1"
     },
     {
@@ -7370,6 +8366,90 @@
       "source_location": "L73"
     },
     {
+      "id": "docs_sources_docs_qloo_com_audiences_methodology",
+      "label": "audiences-methodology.md",
+      "_origin": "ast",
+      "community": 36,
+      "community_name": "Signal",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "audiences-methodology.md",
+      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_audiences_methodology_audiences_methodology",
+      "label": "Audiences methodology",
+      "_origin": "ast",
+      "community": 36,
+      "community_name": "Signal",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "audiences methodology",
+      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_audiences_methodology_defining_an_audience",
+      "label": "Defining an audience",
+      "_origin": "ast",
+      "community": 36,
+      "community_name": "Signal",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "defining an audience",
+      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
+      "source_location": "L12"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_audiences_methodology_methodology",
+      "label": "Methodology",
+      "_origin": "ast",
+      "community": 36,
+      "community_name": "Signal",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "methodology",
+      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
+      "source_location": "L16"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_audiences_methodology_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 36,
+      "community_name": "Signal",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
+      "source_location": "L24"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_audiences_methodology_signal_analysis",
+      "label": "Signal analysis",
+      "_origin": "ast",
+      "community": 36,
+      "community_name": "Signal",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "signal analysis",
+      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
+      "source_location": "L20"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_signal",
+      "label": "signal.md",
+      "_origin": "ast",
+      "community": 36,
+      "community_name": "Signal",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "signal.md",
+      "source_file": "docs/sources/docs.qloo.com/signal.md",
+      "source_location": "L1"
+    },
+    {
       "id": "docs_sources_docs_qloo_com_signal_geospatial_signal_associations",
       "label": "Geospatial signal associations",
       "_origin": "ast",
@@ -7814,18 +8894,6 @@
       "source_location": "L69"
     },
     {
-      "id": "docs_sources_docs_qloo_com_analysis_compare",
-      "label": "analysis-compare.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "analysis-compare.md",
-      "source_file": "docs/sources/docs.qloo.com/analysis-compare.md",
-      "source_location": "L1"
-    },
-    {
       "id": "docs_sources_docs_qloo_com_api_onboarding_and_authentication",
       "label": "api-onboarding-and-authentication.md",
       "_origin": "ast",
@@ -7835,90 +8903,6 @@
       "node_kind": "page",
       "norm_label": "api-onboarding-and-authentication.md",
       "source_file": "docs/sources/docs.qloo.com/api-onboarding-and-authentication.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_api_overview",
-      "label": "api-overview.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "api-overview.md",
-      "source_file": "docs/sources/docs.qloo.com/api-overview.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_api_system_status",
-      "label": "api-system-status.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "api-system-status.md",
-      "source_file": "docs/sources/docs.qloo.com/api-system-status.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_api_system_status_api_system_status",
-      "label": "API system status",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "api system status",
-      "source_file": "docs/sources/docs.qloo.com/api-system-status.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_api_system_status_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/api-system-status.md",
-      "source_location": "L14"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_api_system_status_status_page",
-      "label": "Status page",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "status page",
-      "source_file": "docs/sources/docs.qloo.com/api-system-status.md",
-      "source_location": "L10"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_audiences",
-      "label": "audiences.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "audiences.md",
-      "source_file": "docs/sources/docs.qloo.com/audiences.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_audiences_methodology",
-      "label": "audiences-methodology.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "audiences-methodology.md",
-      "source_file": "docs/sources/docs.qloo.com/audiences-methodology.md",
       "source_location": "L1"
     },
     {
@@ -7946,234 +8930,6 @@
       "source_location": "L1"
     },
     {
-      "id": "docs_sources_docs_qloo_com_get_api_information",
-      "label": "get-api-information.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "get-api-information.md",
-      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_api_information_endpoint",
-      "label": "Endpoint",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "endpoint",
-      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
-      "source_location": "L11"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_api_information_get_api_information",
-      "label": "Get API information",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "get api information",
-      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_api_information_responses",
-      "label": "Responses",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "responses",
-      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
-      "source_location": "L17"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_api_information_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/get-api-information.md",
-      "source_location": "L55"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_audience_types",
-      "label": "get-audience-types.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "get-audience-types.md",
-      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_audience_types_endpoint",
-      "label": "Endpoint",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "endpoint",
-      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
-      "source_location": "L12"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_audience_types_endpoint_parameters",
-      "label": "Endpoint parameters",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "endpoint parameters",
-      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
-      "source_location": "L18"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_audience_types_get_audience_types",
-      "label": "Get audience types",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "get audience types",
-      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_audience_types_responses",
-      "label": "Responses",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "responses",
-      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
-      "source_location": "L26"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_audience_types_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
-      "source_location": "L57"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_audiences",
-      "label": "get-audiences.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "get-audiences.md",
-      "source_file": "docs/sources/docs.qloo.com/get-audiences.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_tag_types",
-      "label": "get-tag-types.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "get-tag-types.md",
-      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_tag_types_endpoint",
-      "label": "Endpoint",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "endpoint",
-      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
-      "source_location": "L11"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_tag_types_endpoint_parameters",
-      "label": "Endpoint parameters",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "endpoint parameters",
-      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
-      "source_location": "L17"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_tag_types_get_tag_types",
-      "label": "Get tag types",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "get tag types",
-      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_tag_types_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/get-tag-types.md",
-      "source_location": "L25"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_get_trending_data",
-      "label": "get-trending-data.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "get-trending-data.md",
-      "source_file": "docs/sources/docs.qloo.com/get-trending-data.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_heatmap_insights_use_case",
-      "label": "heatmap-insights-use-case.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "heatmap-insights-use-case.md",
-      "source_file": "docs/sources/docs.qloo.com/heatmap-insights-use-case.md",
-      "source_location": "L1"
-    },
-    {
       "id": "docs_sources_docs_qloo_com_insights_api",
       "label": "insights-api.md",
       "_origin": "ast",
@@ -8198,54 +8954,6 @@
       "source_location": "L1"
     },
     {
-      "id": "docs_sources_docs_qloo_com_key_use_cases",
-      "label": "key-use-cases.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "key-use-cases.md",
-      "source_file": "docs/sources/docs.qloo.com/key-use-cases.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_key_use_cases_key_use_cases",
-      "label": "Key use cases",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "key use cases",
-      "source_file": "docs/sources/docs.qloo.com/key-use-cases.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_key_use_cases_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/key-use-cases.md",
-      "source_location": "L22"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_key_use_cases_use_case_guides",
-      "label": "Use case guides",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "use case guides",
-      "source_file": "docs/sources/docs.qloo.com/key-use-cases.md",
-      "source_location": "L10"
-    },
-    {
       "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping",
       "label": "legacy-to-insights-parameter-mapping.md",
       "_origin": "ast",
@@ -8256,66 +8964,6 @@
       "norm_label": "legacy-to-insights-parameter-mapping.md",
       "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
       "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_filters",
-      "label": "Filters",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "filters",
-      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
-      "source_location": "L20"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_legacy_to_insights_parameter_mapping",
-      "label": "Legacy to Insights parameter mapping",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "legacy to insights parameter mapping",
-      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_output",
-      "label": "Output",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "output",
-      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
-      "source_location": "L112"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
-      "source_location": "L124"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_legacy_to_insights_parameter_mapping_signals",
-      "label": "Signals",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "signals",
-      "source_file": "docs/sources/docs.qloo.com/legacy-to-insights-parameter-mapping.md",
-      "source_location": "L95"
     },
     {
       "id": "docs_sources_docs_qloo_com_location_based_insights",
@@ -8354,66 +9002,6 @@
       "source_location": "L1"
     },
     {
-      "id": "docs_sources_docs_qloo_com_parameter_reference_filter_parameters",
-      "label": "Filter parameters",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "filter parameters",
-      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
-      "source_location": "L21"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_parameter_reference_output_parameters",
-      "label": "Output parameters",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "output parameters",
-      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
-      "source_location": "L116"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_parameter_reference_parameter_reference",
-      "label": "Parameter reference",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "parameter reference",
-      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_parameter_reference_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
-      "source_location": "L130"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_parameter_reference_signal_parameters",
-      "label": "Signal parameters",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "signal parameters",
-      "source_file": "docs/sources/docs.qloo.com/parameter-reference.md",
-      "source_location": "L98"
-    },
-    {
       "id": "docs_sources_docs_qloo_com_qloo_agentic_hackathon_developer_guide",
       "label": "qloo-agentic-hackathon-developer-guide.md",
       "_origin": "ast",
@@ -8423,18 +9011,6 @@
       "node_kind": "page",
       "norm_label": "qloo-agentic-hackathon-developer-guide.md",
       "source_file": "docs/sources/docs.qloo.com/qloo-agentic-hackathon-developer-guide.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_recipe_create_a_heatmap_based_on_a_wkt_point_for_the_brand_muji_in_nyc",
-      "label": "recipe-create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "recipe-create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc.md",
-      "source_file": "docs/sources/docs.qloo.com/recipe-create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc.md",
       "source_location": "L1"
     },
     {
@@ -8498,30 +9074,6 @@
       "source_location": "L1"
     },
     {
-      "id": "docs_sources_docs_qloo_com_search_entities",
-      "label": "search-entities.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "search-entities.md",
-      "source_file": "docs/sources/docs.qloo.com/search-entities.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_search_entities_by_id",
-      "label": "search-entities-by-id.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "search-entities-by-id.md",
-      "source_file": "docs/sources/docs.qloo.com/search-entities-by-id.md",
-      "source_location": "L1"
-    },
-    {
       "id": "docs_sources_docs_qloo_com_search_tags",
       "label": "search-tags.md",
       "_origin": "ast",
@@ -8531,90 +9083,6 @@
       "node_kind": "page",
       "norm_label": "search-tags.md",
       "source_file": "docs/sources/docs.qloo.com/search-tags.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_signal",
-      "label": "signal.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "signal.md",
-      "source_file": "docs/sources/docs.qloo.com/signal.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_solutions_overview",
-      "label": "solutions-overview.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "solutions-overview.md",
-      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_solutions_overview_key_benefits",
-      "label": "Key benefits",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "key benefits",
-      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
-      "source_location": "L17"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_solutions_overview_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
-      "source_location": "L27"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_solutions_overview_solutions_overview",
-      "label": "Solutions overview",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "solutions overview",
-      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_solutions_overview_use_cases",
-      "label": "Use cases",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "use cases",
-      "source_file": "docs/sources/docs.qloo.com/solutions-overview.md",
-      "source_location": "L11"
-    },
-    {
-      "id": "docs_sources_docs_qloo_com_taste_analysis",
-      "label": "taste-analysis.md",
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "insights-api-deep-dive.md",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "taste-analysis.md",
-      "source_file": "docs/sources/docs.qloo.com/taste-analysis.md",
       "source_location": "L1"
     },
     {
@@ -11018,143 +11486,419 @@
       "source_location": "L113"
     },
     {
-      "id": "docs_ideas_0000_ranking_ideation_rounds",
-      "label": "Ideation rounds",
+      "id": "docs_ideas_0000_ranking_criteria",
+      "label": "Criteria",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "ideation rounds",
+      "norm_label": "criteria",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L96"
+      "source_location": "L93"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_first_ideation",
+      "label": "First ideation",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "first ideation",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L135"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_idea_ranking",
+      "label": "Idea ranking",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "idea ranking",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_pull",
+      "label": "Pull",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "pull",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L106"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_ranking",
+      "label": "Ranking",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "ranking",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L38"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_recommendation",
+      "label": "Recommendation",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "recommendation",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L83"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_related_criteria",
+      "label": "Related criteria",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "related criteria",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L118"
     },
     {
       "id": "docs_ideas_0000_ranking_round_10_blind_review_and_final_ranking",
       "label": "Round 10: blind review and final ranking",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 10: blind review and final ranking",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L189"
+      "source_location": "L230"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_11_x_research",
+      "label": "Round 11: X research",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 11: x research",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L243"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_12_diverge",
+      "label": "Round 12: diverge",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 12: diverge",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L275"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_13_cluster",
+      "label": "Round 13: cluster",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 13: cluster",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L287"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_14_gates",
+      "label": "Round 14: gates",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 14: gates",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L298"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_15_field_collisions",
+      "label": "Round 15: field collisions",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 15: field collisions",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L308"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_16_live_api_checks",
+      "label": "Round 16: live API checks",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 16: live api checks",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L320"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_17_first_scoring",
+      "label": "Round 17: first scoring",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 17: first scoring",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L337"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_18_mutate_and_merge",
+      "label": "Round 18: mutate and merge",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 18: mutate and merge",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L347"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_19_judge_panel_and_pull_stress_test",
+      "label": "Round 19: judge-panel and Pull stress test",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 19: judge-panel and pull stress test",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L357"
     },
     {
       "id": "docs_ideas_0000_ranking_round_1_diverge",
       "label": "Round 1: diverge",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 1: diverge",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L98"
+      "source_location": "L139"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_round_20_blind_review_and_final_ranking",
+      "label": "Round 20: blind review and final ranking",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "round 20: blind review and final ranking",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L369"
     },
     {
       "id": "docs_ideas_0000_ranking_round_2_cluster",
       "label": "Round 2: cluster",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 2: cluster",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L109"
+      "source_location": "L150"
     },
     {
       "id": "docs_ideas_0000_ranking_round_3_gates",
       "label": "Round 3: gates",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 3: gates",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L118"
+      "source_location": "L159"
     },
     {
       "id": "docs_ideas_0000_ranking_round_4_field_collisions",
       "label": "Round 4: field collisions",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 4: field collisions",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L127"
+      "source_location": "L168"
     },
     {
       "id": "docs_ideas_0000_ranking_round_5_live_api_checks",
       "label": "Round 5: live API checks",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 5: live api checks",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L139"
+      "source_location": "L180"
     },
     {
       "id": "docs_ideas_0000_ranking_round_6_first_scoring",
       "label": "Round 6: first scoring",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 6: first scoring",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L154"
+      "source_location": "L195"
     },
     {
       "id": "docs_ideas_0000_ranking_round_7_mutate_and_merge",
       "label": "Round 7: mutate and merge",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 7: mutate and merge",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L164"
+      "source_location": "L205"
     },
     {
       "id": "docs_ideas_0000_ranking_round_8_judge_panel_stress_test",
       "label": "Round 8: judge-panel stress test",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 8: judge-panel stress test",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L173"
+      "source_location": "L214"
     },
     {
       "id": "docs_ideas_0000_ranking_round_9_build_and_demo_test",
       "label": "Round 9: build and demo test",
       "_origin": "ast",
       "community": 63,
-      "community_name": "Ideation rounds",
+      "community_name": "First ideation",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "round 9: build and demo test",
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L185"
+      "source_location": "L226"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_scoring_matrix",
+      "label": "Scoring matrix",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "scoring matrix",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L91"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_second_ideation",
+      "label": "Second ideation",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "second ideation",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L239"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_see_also",
+      "label": "See also",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "see also",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L398"
+    },
+    {
+      "id": "docs_ideas_0000_ranking_unverified",
+      "label": "Unverified",
+      "_origin": "ast",
+      "community": 63,
+      "community_name": "First ideation",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "unverified",
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L387"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_audiences",
+      "label": "audiences.md",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "get-audiences.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "audiences.md",
+      "source_file": "docs/sources/docs.qloo.com/audiences.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_audience_types",
+      "label": "get-audience-types.md",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "get-audiences.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "get-audience-types.md",
+      "source_file": "docs/sources/docs.qloo.com/get-audience-types.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_docs_qloo_com_get_audiences",
+      "label": "get-audiences.md",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "get-audiences.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "get-audiences.md",
+      "source_file": "docs/sources/docs.qloo.com/get-audiences.md",
+      "source_location": "L1"
     },
     {
       "id": "docs_sources_docs_qloo_com_get_audiences_endpoint",
       "label": "Endpoint",
       "_origin": "ast",
       "community": 64,
-      "community_name": "Get audiences",
+      "community_name": "get-audiences.md",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "endpoint",
@@ -11166,7 +11910,7 @@
       "label": "Endpoint parameters",
       "_origin": "ast",
       "community": 64,
-      "community_name": "Get audiences",
+      "community_name": "get-audiences.md",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "endpoint parameters",
@@ -11178,7 +11922,7 @@
       "label": "Get audiences",
       "_origin": "ast",
       "community": 64,
-      "community_name": "Get audiences",
+      "community_name": "get-audiences.md",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "get audiences",
@@ -11190,7 +11934,7 @@
       "label": "Responses",
       "_origin": "ast",
       "community": 64,
-      "community_name": "Get audiences",
+      "community_name": "get-audiences.md",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "responses",
@@ -11202,7 +11946,7 @@
       "label": "See also",
       "_origin": "ast",
       "community": 64,
-      "community_name": "Get audiences",
+      "community_name": "get-audiences.md",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "see also",
@@ -11570,6 +12314,30 @@
       "source_location": "L1"
     },
     {
+      "id": "docs_sources_qloo_com_capabilities",
+      "label": "capabilities.md",
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "qloo-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "capabilities.md",
+      "source_file": "docs/sources/qloo.com/capabilities.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_qloo_com_clarion_magnificent_mile",
+      "label": "clarion-magnificent-mile.md",
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "qloo-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "clarion-magnificent-mile.md",
+      "source_file": "docs/sources/qloo.com/clarion-magnificent-mile.md",
+      "source_location": "L1"
+    },
+    {
       "id": "docs_sources_qloo_com_contact",
       "label": "contact.md",
       "_origin": "ast",
@@ -11591,6 +12359,18 @@
       "node_kind": "page",
       "norm_label": "jcdecaux-out-of-home-targeting.md",
       "source_file": "docs/sources/qloo.com/jcdecaux-out-of-home-targeting.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "docs_sources_qloo_com_jewelry_brand_radiant_growth",
+      "label": "jewelry-brand-radiant-growth.md",
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "qloo-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "jewelry-brand-radiant-growth.md",
+      "source_file": "docs/sources/qloo.com/jewelry-brand-radiant-growth.md",
       "source_location": "L1"
     },
     {
@@ -11630,6 +12410,18 @@
       "source_location": "L1"
     },
     {
+      "id": "docs_sources_qloo_com_netflix_merchandising",
+      "label": "netflix-merchandising.md",
+      "_origin": "ast",
+      "community": 7,
+      "community_name": "qloo-overview.md",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "netflix-merchandising.md",
+      "source_file": "docs/sources/qloo.com/netflix-merchandising.md",
+      "source_location": "L1"
+    },
+    {
       "id": "docs_sources_qloo_com_press",
       "label": "press.md",
       "_origin": "ast",
@@ -11640,42 +12432,6 @@
       "norm_label": "press.md",
       "source_file": "docs/sources/qloo.com/press.md",
       "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_qloo_com_press_press",
-      "label": "Press",
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "qloo-overview.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "press",
-      "source_file": "docs/sources/qloo.com/press.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "docs_sources_qloo_com_press_press_coverage",
-      "label": "Press coverage",
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "qloo-overview.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "press coverage",
-      "source_file": "docs/sources/qloo.com/press.md",
-      "source_location": "L10"
-    },
-    {
-      "id": "docs_sources_qloo_com_press_see_also",
-      "label": "See also",
-      "_origin": "ast",
-      "community": 7,
-      "community_name": "qloo-overview.md",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "see also",
-      "source_file": "docs/sources/qloo.com/press.md",
-      "source_location": "L54"
     },
     {
       "id": "docs_sources_qloo_com_privacy_policy",
@@ -11978,18 +12734,6 @@
       "source_location": "L49"
     },
     {
-      "id": "docs_ideas_0003_claim_check",
-      "label": "0003-claim-check.md",
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "Claim Check",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "0003-claim-check.md",
-      "source_file": "docs/ideas/0003-claim-check.md",
-      "source_location": "L1"
-    },
-    {
       "id": "docs_ideas_0003_claim_check_agent_loop",
       "label": "Agent loop",
       "_origin": "ast",
@@ -12059,7 +12803,7 @@
       "node_kind": "heading",
       "norm_label": "risks and open questions",
       "source_file": "docs/ideas/0003-claim-check.md",
-      "source_location": "L80"
+      "source_location": "L82"
     },
     {
       "id": "docs_ideas_0003_claim_check_scorecard",
@@ -12083,7 +12827,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/ideas/0003-claim-check.md",
-      "source_location": "L89"
+      "source_location": "L91"
     },
     {
       "id": "docs_ideas_0003_claim_check_why_qloo_is_load_bearing",
@@ -16002,25 +16746,135 @@
       "weight": 1.0
     },
     {
-      "source": "docs_ideas_0000_ranking_idea_ranking",
-      "target": "docs_ideas_0000_ranking_unverified",
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_1_diverge",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L198",
+      "source_location": "L139",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_2_cluster",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L150",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_3_gates",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L159",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_4_field_collisions",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L168",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_5_live_api_checks",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L180",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_6_first_scoring",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L195",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_7_mutate_and_merge",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L205",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_8_judge_panel_stress_test",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L214",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_9_build_and_demo_test",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L226",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_first_ideation",
+      "target": "docs_ideas_0000_ranking_round_10_blind_review_and_final_ranking",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L230",
       "weight": 1.0
     },
     {
       "source": "docs_ideas_0000_ranking_idea_ranking",
-      "target": "docs_ideas_0000_ranking_see_also",
+      "target": "docs_ideas_0000_ranking_first_ideation",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L207",
+      "source_location": "L135",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_idea_ranking",
+      "target": "docs_ideas_0000_ranking_second_ideation",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L239",
       "weight": 1.0
     },
     {
@@ -16031,7 +16885,29 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L26",
+      "source_location": "L38",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_idea_ranking",
+      "target": "docs_ideas_0000_ranking_unverified",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L387",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_idea_ranking",
+      "target": "docs_ideas_0000_ranking_see_also",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L398",
       "weight": 1.0
     },
     {
@@ -16042,7 +16918,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L56",
+      "source_location": "L83",
       "weight": 1.0
     },
     {
@@ -16053,139 +16929,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L64",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_idea_ranking",
-      "target": "docs_ideas_0000_ranking_ideation_rounds",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L96",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_2_cluster",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L109",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_3_gates",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L118",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_4_field_collisions",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L127",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_5_live_api_checks",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L139",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_6_first_scoring",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L154",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_7_mutate_and_merge",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L164",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_8_judge_panel_stress_test",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L173",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_9_build_and_demo_test",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L185",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_10_blind_review_and_final_ranking",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L189",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking_ideation_rounds",
-      "target": "docs_ideas_0000_ranking_round_1_diverge",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L98",
+      "source_location": "L91",
       "weight": 1.0
     },
     {
       "source": "docs_ideas_0000_ranking_scoring_matrix",
-      "target": "docs_ideas_0000_ranking_criteria",
+      "target": "docs_ideas_0000_ranking_pull",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L66",
+      "source_location": "L106",
       "weight": 1.0
     },
     {
@@ -16196,7 +16951,128 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L79",
+      "source_location": "L118",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_scoring_matrix",
+      "target": "docs_ideas_0000_ranking_criteria",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L93",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_11_x_research",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L243",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_12_diverge",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L275",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_13_cluster",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L287",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_14_gates",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L298",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_15_field_collisions",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L308",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_16_live_api_checks",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L320",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_17_first_scoring",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L337",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_18_mutate_and_merge",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L347",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_19_judge_panel_and_pull_stress_test",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L357",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking_second_ideation",
+      "target": "docs_ideas_0000_ranking_round_20_blind_review_and_final_ranking",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L369",
       "weight": 1.0
     },
     {
@@ -16284,7 +17160,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0001-x-meets-y.md",
-      "source_location": "L84",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -16295,7 +17171,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0001-x-meets-y.md",
-      "source_location": "L94",
+      "source_location": "L96",
       "weight": 1.0
     },
     {
@@ -16383,7 +17259,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0002-seatback.md",
-      "source_location": "L78",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -16394,7 +17270,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0002-seatback.md",
-      "source_location": "L86",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
@@ -16482,7 +17358,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0003-claim-check.md",
-      "source_location": "L80",
+      "source_location": "L82",
       "weight": 1.0
     },
     {
@@ -16493,7 +17369,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0003-claim-check.md",
-      "source_location": "L89",
+      "source_location": "L91",
       "weight": 1.0
     },
     {
@@ -16581,7 +17457,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0004-crossfeed.md",
-      "source_location": "L89",
+      "source_location": "L91",
       "weight": 1.0
     },
     {
@@ -16592,7 +17468,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0004-crossfeed.md",
-      "source_location": "L97",
+      "source_location": "L99",
       "weight": 1.0
     },
     {
@@ -16680,7 +17556,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0005-floatplan.md",
-      "source_location": "L78",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -16691,7 +17567,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0005-floatplan.md",
-      "source_location": "L85",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -16779,7 +17655,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0006-cuesheet.md",
-      "source_location": "L76",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -16790,7 +17666,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0006-cuesheet.md",
-      "source_location": "L83",
+      "source_location": "L85",
       "weight": 1.0
     },
     {
@@ -16878,7 +17754,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0007-lived-in.md",
-      "source_location": "L73",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -16889,7 +17765,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0007-lived-in.md",
-      "source_location": "L81",
+      "source_location": "L83",
       "weight": 1.0
     },
     {
@@ -16977,7 +17853,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0008-warmer.md",
-      "source_location": "L77",
+      "source_location": "L79",
       "weight": 1.0
     },
     {
@@ -16988,7 +17864,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0008-warmer.md",
-      "source_location": "L85",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -17076,7 +17952,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0009-next-beat.md",
-      "source_location": "L72",
+      "source_location": "L74",
       "weight": 1.0
     },
     {
@@ -17087,7 +17963,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0009-next-beat.md",
-      "source_location": "L78",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -17175,7 +18051,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0010-blind-flight.md",
-      "source_location": "L73",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -17186,7 +18062,502 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0010-blind-flight.md",
-      "source_location": "L80",
+      "source_location": "L82",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card",
+      "target": "docs_ideas_0011_dance_card_dance_card",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card_dance_card",
+      "target": "docs_ideas_0011_dance_card_see_also",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L104",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card_dance_card",
+      "target": "docs_ideas_0011_dance_card_problem",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card_dance_card",
+      "target": "docs_ideas_0011_dance_card_agent_loop",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card_dance_card",
+      "target": "docs_ideas_0011_dance_card_qloo_calls",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L40",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card_dance_card",
+      "target": "docs_ideas_0011_dance_card_why_qloo_is_load_bearing",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L58",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card_dance_card",
+      "target": "docs_ideas_0011_dance_card_demo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L62",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card_dance_card",
+      "target": "docs_ideas_0011_dance_card_scorecard",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L72",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card_dance_card",
+      "target": "docs_ideas_0011_dance_card_risks_and_open_questions",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L94",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve",
+      "target": "docs_ideas_0012_sieve_sieve",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve_sieve",
+      "target": "docs_ideas_0012_sieve_see_also",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L107",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve_sieve",
+      "target": "docs_ideas_0012_sieve_problem",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve_sieve",
+      "target": "docs_ideas_0012_sieve_agent_loop",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve_sieve",
+      "target": "docs_ideas_0012_sieve_qloo_calls",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L42",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve_sieve",
+      "target": "docs_ideas_0012_sieve_why_qloo_is_load_bearing",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L59",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve_sieve",
+      "target": "docs_ideas_0012_sieve_demo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L65",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve_sieve",
+      "target": "docs_ideas_0012_sieve_scorecard",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L75",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve_sieve",
+      "target": "docs_ideas_0012_sieve_risks_and_open_questions",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L97",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_hold_slip",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_problem",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_agent_loop",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L29",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_qloo_calls",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L38",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_why_qloo_is_load_bearing",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L54",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_demo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L58",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_scorecard",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L68",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_risks_and_open_questions",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L90",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0013_hold_slip_hold_slip",
+      "target": "docs_ideas_0013_hold_slip_see_also",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0013-hold-slip.md",
+      "source_location": "L99",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_on_ramp",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_see_also",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L103",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_problem",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_agent_loop",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L30",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_qloo_calls",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L39",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_why_qloo_is_load_bearing",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L61",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_demo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L65",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_scorecard",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L74",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0014_on_ramp_on_ramp",
+      "target": "docs_ideas_0014_on_ramp_risks_and_open_questions",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0014-on-ramp.md",
+      "source_location": "L96",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch",
+      "target": "docs_ideas_0015_vouch_vouch",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch_vouch",
+      "target": "docs_ideas_0015_vouch_problem",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch_vouch",
+      "target": "docs_ideas_0015_vouch_agent_loop",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L28",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch_vouch",
+      "target": "docs_ideas_0015_vouch_qloo_calls",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L37",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch_vouch",
+      "target": "docs_ideas_0015_vouch_why_qloo_is_load_bearing",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L48",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch_vouch",
+      "target": "docs_ideas_0015_vouch_demo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L52",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch_vouch",
+      "target": "docs_ideas_0015_vouch_scorecard",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L61",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch_vouch",
+      "target": "docs_ideas_0015_vouch_risks_and_open_questions",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L83",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0015_vouch_vouch",
+      "target": "docs_ideas_0015_vouch_see_also",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0015-vouch.md",
+      "source_location": "L91",
       "weight": 1.0
     },
     {
@@ -27355,35 +28726,13 @@
     },
     {
       "source": "docs_ideas_0000_ranking",
-      "target": "docs_ideas_0001_x_meets_y",
+      "target": "docs_ideas_0011_dance_card",
       "relation": "references",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L45",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking",
-      "target": "docs_ideas_0002_seatback",
-      "relation": "references",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L46",
-      "weight": 1.0
-    },
-    {
-      "source": "docs_ideas_0000_ranking",
-      "target": "docs_ideas_0003_claim_check",
-      "relation": "references",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L47",
+      "source_location": "L67",
       "weight": 1.0
     },
     {
@@ -27394,7 +28743,62 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L48",
+      "source_location": "L68",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking",
+      "target": "docs_ideas_0003_claim_check",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L69",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking",
+      "target": "docs_ideas_0012_sieve",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L70",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking",
+      "target": "docs_ideas_0001_x_meets_y",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L71",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking",
+      "target": "docs_ideas_0013_hold_slip",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L72",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking",
+      "target": "docs_ideas_0014_on_ramp",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L73",
       "weight": 1.0
     },
     {
@@ -27405,7 +28809,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L49",
+      "source_location": "L74",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking",
+      "target": "docs_ideas_0002_seatback",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -27416,18 +28831,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L50",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
       "source": "docs_ideas_0000_ranking",
-      "target": "docs_ideas_0007_lived_in",
+      "target": "docs_ideas_0015_vouch",
       "relation": "references",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L51",
+      "source_location": "L77",
       "weight": 1.0
     },
     {
@@ -27438,7 +28853,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L52",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -27449,7 +28864,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L53",
+      "source_location": "L79",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0000_ranking",
+      "target": "docs_ideas_0007_lived_in",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0000-ranking.md",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -27460,7 +28886,29 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/ideas/0000-ranking.md",
-      "source_location": "L54",
+      "source_location": "L81",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0011_dance_card",
+      "target": "docs_ideas_0006_cuesheet",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0011-dance-card.md",
+      "source_location": "L102",
+      "weight": 1.0
+    },
+    {
+      "source": "docs_ideas_0012_sieve",
+      "target": "docs_ideas_0015_vouch",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/ideas/0012-sieve.md",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -29346,5 +30794,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "f922d39556c86db01743b89905bd5462a1663a1c"
+  "built_at_commit": "6b532e2c5340527173ac0634c4d1513471f6861d"
 }

@@ -1,6 +1,6 @@
 # Warmer
 
-Two agents negotiate a gift: the giver's agent proposes, and the recipient's agent answers only "hot", "warm", or "cold" from favourites the giver never sees, scored in Qloo. Ranked 8 of 10 finalists in the [idea ranking](0000-ranking.md), at 13.5 out of 20.
+Two agents negotiate a gift: the giver's agent proposes, and the recipient's agent answers only "hot", "warm", or "cold" from favourites the giver never sees, scored in Qloo. Ranked 12 of 15 finalists in the [idea ranking](0000-ranking.md), at 16 out of 25.
 
 Contents:
 
@@ -56,15 +56,17 @@ An LLM acting as the recipient's oracle says "she'd like that" to most candidate
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                                                |
 | ---------------------------- | ------------ | -------------- | ---- | -------------------------------------------------------------------------------------------------- |
 | Technological implementation | 4            | 3              | 3.5  | One closed-list call per round plus a baseline; the protocol, not Qloo, carries the sophistication |
-| Design                       | 4            | 4              | 4    | The clearest demo of the ten, but two parties and an OpenClaw skill are a lot to ship              |
+| Design                       | 4            | 4              | 4    | The clearest demo of the first ten, but two parties and an OpenClaw skill are a lot to ship        |
 | Potential impact             | 3            | 2              | 2.5  | A huge audience, but both people must run an agent, and gift finders rarely become companies       |
-| Quality of the idea          | 4            | 3              | 3.5  | A genuine privacy inversion inside a saturated theme                                               |
-| **Total**                    | 15           | 12             | 13.5 |                                                                                                    |
+| Quality of the idea          | 4            | 4              | 4    | A genuine privacy inversion inside a saturated theme                                               |
+| Pull                         | 2            | 2              | 2    | A few gifts a year                                                                                 |
+| **Official, out of 20**      | 15           | 13             | 14   |                                                                                                    |
+| **Total, out of 25**         | 17           | 15             | 16   |                                                                                                    |
 
 Related criteria:
 

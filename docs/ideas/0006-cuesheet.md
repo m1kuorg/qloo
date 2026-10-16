@@ -1,6 +1,6 @@
 # Cuesheet
 
-An agent that ranks the artists pitched to a music supervisor by how well their listeners overlap the production's audience, and turns the result into a cue sheet the supervisor can forward. Ranked 6 of 10 finalists in the [idea ranking](0000-ranking.md), at 15 out of 20.
+An agent that ranks the artists pitched to a music supervisor by how well their listeners overlap the production's audience, and turns the result into a cue sheet the supervisor can forward. Ranked 10 of 15 finalists in the [idea ranking](0000-ranking.md), at 17.5 out of 25.
 
 Contents:
 
@@ -55,15 +55,17 @@ An LLM picks sonic matches and famous names. It can't say whether a show's audie
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                              |
 | ---------------------------- | ------------ | -------------- | ---- | -------------------------------------------------------------------------------- |
 | Technological implementation | 4            | 4              | 4    | A full chain, but live scores re-ordered only within a narrow band               |
 | Design                       | 4            | 4              | 4    | The trade's own artifact in one flow; show ranks, not flat scores                |
 | Potential impact             | 3            | 3              | 3    | A frequent job for a small, relationship-driven trade, with no saving quantified |
-| Quality of the idea          | 4            | 4              | 4    | Popularity as a clearance-cost proxy encodes a trade rule; one neighbor          |
-| **Total**                    | 15           | 15             | 15   |                                                                                  |
+| Quality of the idea          | 4            | 3              | 3.5  | Popularity as a clearance-cost proxy encodes a trade rule; one neighbor          |
+| Pull                         | 3            | 3              | 3    | Per cue and per project, for a small trade                                       |
+| **Official, out of 20**      | 15           | 14             | 14.5 |                                                                                  |
+| **Total, out of 25**         | 18           | 17             | 17.5 |                                                                                  |
 
 Related criteria:
 

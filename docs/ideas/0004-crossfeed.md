@@ -1,6 +1,6 @@
 # Crossfeed
 
-An agent that tells a podcast network which of its shows should promote a launch, and which pitched guests its listeners actually want, by scoring the network's own lists against each show's audience in Qloo. Ranked 4 of 10 finalists in the [idea ranking](0000-ranking.md), at 16 out of 20.
+An agent that tells a podcast network which of its shows should promote a launch, and which pitched guests its listeners actually want, by scoring the network's own lists against each show's audience in Qloo. Ranked 2 of 15 finalists in the [idea ranking](0000-ranking.md), at 20 out of 25.
 
 Contents:
 
@@ -68,15 +68,17 @@ An LLM pairs a true-crime launch with the network's other true-crime shows, and 
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                                                          |
 | ---------------------------- | ------------ | -------------- | ---- | ------------------------------------------------------------------------------------------------------------ |
-| Technological implementation | 5            | 5              | 5    | Spotify-ID resolution, closed-list roster scoring with a live 0.70 to 0.92 spread, demographics, and compare |
-| Design                       | 4            | 3              | 3.5  | Two flows to polish in 14 days, so cross-promo ships first                                                   |
+| Technological implementation | 5            | 4              | 4.5  | Spotify-ID resolution, closed-list roster scoring with a live 0.70 to 0.92 spread, demographics, and compare |
+| Design                       | 4            | 4              | 4    | Two flows to polish in 14 days, so cross-promo ships first                                                   |
 | Potential impact             | 4            | 4              | 4    | A named buyer, slots priced as foregone inventory, and a job that recurs with every launch                   |
-| Quality of the idea          | 4            | 3              | 3.5  | The inventory framing is fresh; audience-overlap scoring has 2026 neighbors                                  |
-| **Total**                    | 17           | 15             | 16   |                                                                                                              |
+| Quality of the idea          | 4            | 4              | 4    | The inventory framing is fresh; audience-overlap scoring has 2026 neighbors                                  |
+| Pull                         | 4            | 3              | 3.5  | Launch promos are per show; the daily guest inbox is the habit                                               |
+| **Official, out of 20**      | 17           | 16             | 16.5 |                                                                                                              |
+| **Total, out of 25**         | 21           | 19             | 20   |                                                                                                              |
 
 Related criteria:
 

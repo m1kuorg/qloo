@@ -1,6 +1,6 @@
 # Floatplan
 
-An agent that tells a multi-branch public library where each genre's copies should live, using Qloo heatmaps as a taste prior that doesn't depend on what each branch already holds. Ranked 5 of 10 finalists in the [idea ranking](0000-ranking.md), at 15.5 out of 20.
+An agent that tells a multi-branch public library where each genre's copies should live, using Qloo heatmaps as a taste prior that doesn't depend on what each branch already holds. Ranked 8 of 15 finalists in the [idea ranking](0000-ranking.md), at 18 out of 25.
 
 Contents:
 
@@ -57,15 +57,17 @@ An LLM can only echo circulation or allocate by census stereotypes, which is bot
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                                                        |
 | ---------------------------- | ------------ | -------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
 | Technological implementation | 4            | 4              | 4    | Tag mapping, one heatmap per genre, and cross-genre normalization; one insight type carries it             |
-| Design                       | 5            | 4              | 4.5  | A map where one branch glows; it needs more decision points than one confirmation                          |
+| Design                       | 5            | 3              | 4    | A map where one branch glows; it needs more decision points than one confirmation                          |
 | Potential impact             | 4            | 3              | 3.5  | A public good with an order budget, but quarterly decisions and slow buyers                                |
-| Quality of the idea          | 4            | 3              | 3.5  | The censored-circulation insight is real; a collection-development repo and GeoTaste's shape are neighbors |
-| **Total**                    | 17           | 14             | 15.5 |                                                                                                            |
+| Quality of the idea          | 4            | 4              | 4    | The censored-circulation insight is real; a collection-development repo and GeoTaste's shape are neighbors |
+| Pull                         | 3            | 2              | 2.5  | Allocation runs per purchasing cycle, quarterly at most                                                    |
+| **Official, out of 20**      | 17           | 14             | 15.5 |                                                                                                            |
+| **Total, out of 25**         | 20           | 16             | 18   |                                                                                                            |
 
 Related criteria:
 

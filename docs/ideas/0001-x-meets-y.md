@@ -1,6 +1,6 @@
 # X Meets Y
 
-An agent that grades and rebuilds the comp titles in an author's query letter, using Qloo to keep them recent, selling but not blockbusters, and in the author's readership. Ranked 1 of 10 finalists in the [idea ranking](0000-ranking.md), at 17.5 out of 20.
+An agent that grades and rebuilds the comp titles in an author's query letter, using Qloo to keep them recent, selling but not blockbusters, and in the author's readership. Ranked 5 of 15 finalists in the [idea ranking](0000-ranking.md), at 19.5 out of 25.
 
 Contents:
 
@@ -63,15 +63,17 @@ A day-one benchmark makes this checkable: ask a plain LLM for comps for ten samp
 
 ## Scorecard
 
-Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix); the mean is the score.
+Scores run from 1 to 5 against the [matrix](0000-ranking.md#scoring-matrix), including Pull; the mean of the orchestrator and the [round 20](0000-ranking.md#round-20-blind-review-and-final-ranking) blind reviewer is the score. The orchestrator's official scores date from the first ranking; the blind reviewer re-scored all fifteen finalists.
 
 | Criterion                    | Orchestrator | Blind reviewer | Mean | Why                                                                                                            |
 | ---------------------------- | ------------ | -------------- | ---- | -------------------------------------------------------------------------------------------------------------- |
-| Technological implementation | 5            | 5              | 5    | Year filter, popularity window, closed-list grading, explainability split, and compare chain into one decision |
+| Technological implementation | 5            | 4              | 4.5  | Year filter, popularity window, closed-list grading, explainability split, and compare chain into one decision |
 | Design                       | 5            | 4              | 4.5  | One flow ends in a graded comp card and a rewritten sentence; the payoff is text, so Qloo's part must show     |
 | Potential impact             | 4            | 3              | 3.5  | A large, motivated audience, but the job comes once per book and the cost of a bad comp is vague               |
 | Quality of the idea          | 5            | 4              | 4.5  | The popularity window encodes the trade's "not a blockbuster" rule; one neighbor does game comps               |
-| **Total**                    | 19           | 16             | 17.5 |                                                                                                                |
+| Pull                         | 2            | 3              | 2.5  | Once per book; ad targets recur monthly for self-publishers                                                    |
+| **Official, out of 20**      | 19           | 15             | 17   |                                                                                                                |
+| **Total, out of 25**         | 21           | 18             | 19.5 |                                                                                                                |
 
 Related criteria:
 
