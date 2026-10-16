@@ -57,6 +57,8 @@ Transform tasks into verifiable goals:
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
+Prefer writing these tests through public interfaces rather than as unit tests; see [project-conventions.md](/docs/references/project-conventions.md).
+
 For multi-step tasks, state a brief plan:
 
 ```
