@@ -135,7 +135,7 @@ This section is our reading of the sources, not source text:
   - picking merchandise partners ([Netflix][netflix])
   - out-of-home ad targeting ([JCDecaux][jcdecaux])
   - persuading a retailer to lease a site ([Clarion][clarion])
-- **Check the last hackathon's entries.** The [Qloo LLM Hackathon][events] of Jul–Aug 2025 is prior art, but its project gallery isn't in the sources.
+- **Check the last hackathon's entries.** The [Qloo LLM Hackathon][events] of Jul–Aug 2025 is prior art. [CONTEXT.md](CONTEXT.md) covers its winners, its saturated themes, and the 2026 field.
 - **Write for a judge who never opens the app.** The description and images must make the case on their own.
 - **Keep the demo working through 2026-11-16.** Hackathon keys stay active through the judging period. They are deactivated after the hackathon closes ([quotas][guide-quotas]).
 - **Keep Qloo data and the key out of the public repo.** Private server-side caching is allowed with no time limit. Committing response data would publish it outside the key's terms ([caching][guide-cache]).
