@@ -190,7 +190,7 @@ Each point in the response can be plotted on a map to show:
 
 This same request pattern can be used for any tag or entity to visualize where affinity and affinity rank concentrations are most substantial.
 
-- [Create a heatmap based on a WKT point for the brand MUJI in NYC](https://docs.qloo.com/recipes/create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc)
+- [Create a heatmap based on a WKT point for the brand MUJI in NYC](recipe-create-a-heatmap-based-on-a-wkt-point-for-the-brand-muji-in-nyc.md)
 
 ## See also
 

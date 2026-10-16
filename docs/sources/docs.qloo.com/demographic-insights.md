@@ -100,7 +100,7 @@ Each demographic block includes affinity scores by age and gender, where positiv
 
 ## Step-by-step example
 
-- [See the affinity scores for demographic data related to Charlize Theron action movies.](https://docs.qloo.com/recipes/see-the-affinity-scores-for-demographic-data-related-to-charlize-theron-action-movies)
+- See the affinity scores for demographic data related to Charlize Theron action movies.
 
 ## See also
 

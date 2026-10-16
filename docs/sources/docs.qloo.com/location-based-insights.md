@@ -120,9 +120,9 @@ These examples show how Qloo combines **entity signals** (such as a restaurantâ€
 
 Each example below links to a step-by-step recipe that includes its own `curl` request and response walkthrough.
 
-- [Find restaurants like Balthazar in New York (location via query string)](https://docs.qloo.com/recipes/recommendations-for-restaurants-similar-to-balthazar-in-nyc)
-- [Find restaurants like BADMAASH in New York (location via lat/lon coordinates)](https://docs.qloo.com/recipes/recommendations-for-restaurants-similar-to-a-given-place-in-a-specific-location)
-- [Recommendations for popular brands inside Paris center based on WKT shape](https://docs.qloo.com/recipes/recommendations-for-popular-brands-inside-paris-center-based-on-wkt-shape)
+- [Find restaurants like Balthazar in New York (location via query string)](recipe-find-restaurants-like-balthazar-in-new-york.md)
+- [Find restaurants like BADMAASH in New York (location via lat/lon coordinates)](recipe-find-restaurants-near-a-coordinate-point-lat-lon.md)
+- [Recommendations for popular brands inside Paris center based on WKT shape](recipe-find-places-inside-a-neighborhood-boundary-wkt-polygon.md)
 
 ## See also
 
