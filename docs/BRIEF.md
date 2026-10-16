@@ -2,7 +2,7 @@
 
 What the Qloo Agentic Hackathon asks for, how entries are judged, and what the Qloo API gives an agent. It is distilled from the [`docs/sources/`](/docs/sources/) crawls of 2026-10-16. Submissions close **2026-10-30 at 11:45 pm ET**.
 
-Each claim links to its source, and the source wins wherever this brief disagrees with it. Where Devpost pages disagree with each other, the [official rules][rules-11] prevail.
+Each claim links to its source, and the source wins wherever this brief disagrees with it, except for facts marked as a live check. Those come from calls to the hackathon API, which win over the docs. Where Devpost pages disagree with each other, the [official rules][rules-11] prevail.
 
 Contents:
 
@@ -18,7 +18,7 @@ Contents:
     1.  [Insight types](#insight-types)
     1.  [Reading results](#reading-results)
     1.  [Gotchas beyond the developer guide](#gotchas-beyond-the-developer-guide)
-    1.  [Contradictions in the API docs](#contradictions-in-the-api-docs)
+    1.  [Live API checks](#live-api-checks)
 1.  [See also](#see-also)
 
 ## Challenge
@@ -170,7 +170,7 @@ The [developer guide][guide] is the hackathon's own API reference, covering keys
 
 ### Request flow
 
-The developer guide says `/v2/insights` takes a GET with parameters in the query string, not a POST with a JSON body ([wrong HTTP method][guide-get]); other pages disagree, per [Contradictions in the API docs](#contradictions-in-the-api-docs). The [quick start][guide-start] flow:
+`/v2/insights` takes a GET with parameters in the query string, or a POST whose JSON body uses the same flat dotted keys, such as `{"filter.type": "urn:entity:movie", "signal.interests.tags": "urn:tag:genre:media:horror", "take": 5}` ([live check](#live-api-checks)). The [quick start][guide-start] flow:
 
 1.  Resolve names to IDs with the lookup endpoints:
     - [`/search`][search] finds entities by name.
@@ -204,12 +204,12 @@ Every insight comes from `/v2/insights`, and `filter.type` picks the kind ([key 
 | -------------------------- | -------------------------- | -------------------------------------------------------- |
 | [Recommendations][recs]    | `urn:entity:<type>`        | At least one signal or filter                            |
 | [Cross-category][cross]    | A type unlike the signal's | A signal entity of another type ([recipe][cross-recipe]) |
-| [Location-based][location] | `urn:entity:<type>`        | `signal.location` or `signal.location.query`             |
+| [Location-based][location] | `urn:entity:<type>`        | A location signal or `filter.location` bound             |
 | [Demographics][demo]       | `urn:demographics`         | An entity or tag signal                                  |
 | [Heatmap][heatmap]         | `urn:heatmap`              | A location and a signal                                  |
 | [Taste analysis][taste]    | `urn:tag`                  | A signal or filter; returns tags                         |
 
-The [developer guide][guide-types] lists the entity types the hackathon key supports. They are `artist`, `book`, `brand`, `destination`, `movie`, `person`, `place`, `podcast`, `tv_show`, and `video_game`, each prefixed `urn:entity:`. Two of those names are disputed, per [Contradictions in the API docs](#contradictions-in-the-api-docs).
+The hackathon key accepts these entity types in `filter.type`, each prefixed `urn:entity:`: `artist`, `book`, `brand`, `destination`, `locality`, `movie`, `person`, `place`, `podcast`, `tv_show`, and `videogame` ([live check](#live-api-checks)). The [developer guide][guide-types] spells the last one `video_game`, which returns 400.
 
 - Music is `artist`. Restaurants are `place` or `brand`.
 - Sports teams are brands tagged `urn:tag:genre:brand:sports_organization`, and athletes are persons ([schema and taxonomy][schema]).
@@ -236,7 +236,7 @@ Which parameters apply depends on `filter.type`, per the [entity type parameter 
 - **Affinity** runs from 0 to 1. Above 0.8 is very high, 0.6–0.8 is high, and below 0.5 is low ([interpreting affinity scores][affinity]).
   - Scores are normalized per query, so compare positions, not just raw scores.
   - Scores may fall as inputs are added, and a gap like 0.91 versus 0.92 usually means similar relevance.
-  - Affinity is null when the request has no signal entity ([recipe][null-recipe]).
+  - Affinity is null when the request has only filters and no signal ([recipe][null-recipe], [live check](#live-api-checks)).
 - **Popularity** is a percentile within the entity's category ([glossary]).
 - **Demographics** are relative to the average and can be negative ([demographic insights][demo]).
 
@@ -245,27 +245,42 @@ Which parameters apply depends on `filter.type`, per the [entity type parameter 
 
 ### Gotchas beyond the developer guide
 
-The [developer guide's common issues][guide-errors] cover 401, 403, 404, and empty results. Remember its worst trap: parameters that aren't valid for the `filter.type` are silently ignored. The general docs add:
+The [developer guide's common issues][guide-errors] cover 401, 403, 404, and empty results, though an unknown `filter.type`, such as `urn:entity:video_game`, returned 400, not 403 ([live check](#live-api-checks)). Remember the guide's worst trap: parameters that aren't valid for the `filter.type` are silently ignored. The general docs and live checks add:
 
 - **Pagination:** `take` defaults to 20 and maxes out at 50, and `page` maxes out at 100 ([deep dive][insights]).
 - **Unmatched place:** a `signal.location.query` that matches no locality returns 400 ([parameter reference][params]).
 - **Coordinate order:** WKT puts longitude first, as in `POINT(-73.99 40.72)` ([deep dive][insights]).
 - **Radius units:** miles on `/search` ([search][search]) but meters on `/v2/insights` ([deep dive][insights]).
 - **Audiences:** pass the URN, not the UUID ([audience recipe][audience-recipe]).
+- **Demographics alone:** `signal.demographics.*` with no other signal returns 400, "at least one valid signal or filter is required." Adding `signal.location.query` made the same request work ([live check](#live-api-checks)).
+- **Location signals don't restrict:** neither `signal.location` nor `signal.location.query` keeps results inside the place. For a hard bound, use `filter.location` or `filter.location.query` ([live check](#live-api-checks)).
+- **Unresolved names:** a name in `signal.interests.entities.query` that doesn't resolve is dropped silently, returning the same results as no signal, with affinity null. Check that affinity is set before trusting the signal ([live check](#live-api-checks)).
+- **Latency:** a repeated insights call took 8.1 and 8.5 seconds. Three calls returned 504 Gateway Time-out, and the two we retried later succeeded ([live check](#live-api-checks)).
 
 [guide-errors]: /docs/sources/docs.qloo.com/qloo-agentic-hackathon-developer-guide.md#common-issues-and-how-to-fix-them
 [params]: /docs/sources/docs.qloo.com/parameter-reference.md
 [audience-recipe]: /docs/sources/docs.qloo.com/recipe-recommend-places-using-an-audience-segment-as-signal.md
 
-### Contradictions in the API docs
+### Live API checks
 
-These stay unknown until the live hackathon API settles them, tracked in [#11](https://github.com/m1kuorg/qloo/issues/11):
+The API docs contradict each other on the points below. Each was checked against `https://hackathon.api.qloo.com` on 2026-10-16 ([#11](https://github.com/m1kuorg/qloo/issues/11)), with control calls wherever a 200 alone could have meant a silently ignored parameter:
 
-- **GET or POST:** the developer guide says POST fails. The deep dive documents POST-only parameters, though, and a [recipe][recipe-post] uses POST.
-- **Entity type names:** the developer guide writes `video_game` and `destination`. The deep dive lists `videogame` and `locality`.
-- **Heatmap type:** most pages say `urn:heatmap`, but one row of the deep dive says `urn:entity:heatmap`.
-- **Location signals:** the [parameter guide][type-guide] lists `signal.location` for no entity type, yet the [location-based insights][location] page requires it.
-- **Affinity scale:** the [FAQs][faqs] say 0–100. Every other page says 0–1.
+- **GET and POST both work.**
+  - A POST with flat dotted keys in its JSON body returned the same results as the matching GET, for two different tags.
+  - A nested body, such as `{"filter": {"type": ...}}`, returns 400. So does a POST that leaves its parameters in the URL. The developer guide's failing example is the nested form ([wrong HTTP method][guide-get]).
+  - POST-only parameters, such as `signal.interests.entities.query` ([recipe][recipe-post]), return 400 on GET: "the entities.query parameter can only be used in a POST request."
+- **Entity type names:**
+  - `videogame` works; the developer guide's `video_game` returns 400, "not supported for filter.type."
+  - `destination` works. `locality` works with `filter.location.query`, but rejected a brand entity signal as invalid.
+  - A `/search` 400 error lists the `types` it allows, which add `actor`, `album`, `author`, `director`, `urn:demographics`, and `urn:tag`.
+- **Heatmap type:** `urn:heatmap` returns `results.heatmap`. The deep dive's `urn:entity:heatmap` returns 400.
+- **Location signals** are accepted, though the [parameter guide][type-guide] lists them for no type. They behave differently. For 10 `place` results with a brand signal:
+  - No location put 2 of the 10 in Tokyo.
+  - `signal.location=POINT(139.70 35.69)`, a WKT point in Tokyo, put 9 there.
+  - `signal.location.query=Tokyo` changed the results and their scores but still put only 2 there.
+  - `filter.location.query=Tokyo` put all 10 there.
+  - A made-up `signal.location.query` returns 400. On `artist`, `signal.location.query` also changed the results.
+- **Affinity scale:** every non-null live score fell between 0.83 and 1, so the [FAQs][faqs]' 0–100 is wrong. A single horror or romance tag signal scored every top result exactly 1.
 
 [recipe-post]: /docs/sources/docs.qloo.com/recipe-get-restaurant-recommendations-from-transaction-history.md
 
