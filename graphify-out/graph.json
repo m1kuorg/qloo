@@ -8198,18 +8198,6 @@
       "source_location": "L24"
     },
     {
-      "id": "docs_brief_contradictions_in_the_api_docs",
-      "label": "Contradictions in the API docs",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "Brief",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "contradictions in the api docs",
-      "source_file": "docs/BRIEF.md",
-      "source_location": "L260"
-    },
-    {
       "id": "docs_brief_dates",
       "label": "Dates",
       "_origin": "ast",
@@ -8270,6 +8258,18 @@
       "source_location": "L59"
     },
     {
+      "id": "docs_brief_live_api_checks",
+      "label": "Live API checks",
+      "_origin": "ast",
+      "community": 5,
+      "community_name": "Brief",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "live api checks",
+      "source_file": "docs/BRIEF.md",
+      "source_location": "L264"
+    },
+    {
       "id": "docs_brief_qloo_in_brief",
       "label": "Qloo in brief",
       "_origin": "ast",
@@ -8315,7 +8315,7 @@
       "node_kind": "heading",
       "norm_label": "see also",
       "source_file": "docs/BRIEF.md",
-      "source_location": "L272"
+      "source_location": "L287"
     },
     {
       "id": "docs_brief_submission_checklist",
@@ -13381,13 +13381,13 @@
     },
     {
       "source": "docs_brief_api_essentials",
-      "target": "docs_brief_contradictions_in_the_api_docs",
+      "target": "docs_brief_live_api_checks",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/BRIEF.md",
-      "source_location": "L260",
+      "source_location": "L264",
       "weight": 1.0
     },
     {
@@ -13442,7 +13442,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/BRIEF.md",
-      "source_location": "L272",
+      "source_location": "L287",
       "weight": 1.0
     },
     {
@@ -24964,5 +24964,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "6cbf416eae81b8f80c2882f83bfadb486ea2164c"
+  "built_at_commit": "df009e02b06313d83e1f88f554bc617d18b191a2"
 }
