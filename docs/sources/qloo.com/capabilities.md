@@ -1,64 +1,60 @@
-[Skip to content](https://www.qloo.com/capabilities#main)
-
 # Capabilities
 
 Every capability draws on the same proprietary cultural ontology and taste intelligence. Use one or combine all six.
 
-[Book a Demo→](https://www.qloo.com/book-a-demo)
+Contents:
 
-One foundation
+1.  [Cultural data enrichment](#cultural-data-enrichment)
+    1.  [Describe more than the basics](#describe-more-than-the-basics)
+    1.  [Put relationships to work](#put-relationships-to-work)
+    1.  [Define the scope around your use case](#define-the-scope-around-your-use-case)
+1.  [Taste intelligence](#taste-intelligence)
+    1.  [Describe the context](#describe-the-context)
+    1.  [Predict beyond the inputs](#predict-beyond-the-inputs)
+    1.  [Reconsider the whole combination](#reconsider-the-whole-combination)
+1.  [Recommendations](#recommendations)
+    1.  [Start with what you know](#start-with-what-you-know)
+    1.  [Cross the category boundary](#cross-the-category-boundary)
+    1.  [Rank for the context](#rank-for-the-context)
+1.  [Locality intelligence](#locality-intelligence)
+    1.  [Work at the scale of the question](#work-at-the-scale-of-the-question)
+    1.  [Connect taste to location](#connect-taste-to-location)
+    1.  [Make local discovery more relevant](#make-local-discovery-more-relevant)
+1.  [AI & agent grounding](#ai--agent-grounding)
+    1.  [A factual database, one call deep](#a-factual-database-one-call-deep)
+    1.  [Ranked for the person, not just the query](#ranked-for-the-person-not-just-the-query)
+    1.  [Know the person beyond the instructions](#know-the-person-beyond-the-instructions)
+    1.  [Benefits that compound per request](#benefits-that-compound-per-request)
+    1.  [A real-world reference for generated answers](#a-real-world-reference-for-generated-answers)
+    1.  [Preferences as context for action](#preferences-as-context-for-action)
+    1.  [Work alongside your models](#work-alongside-your-models)
+1.  [On-device intelligence](#on-device-intelligence)
+    1.  [Local processing for supported tasks](#local-processing-for-supported-tasks)
+    1.  [An extension of the same foundation](#an-extension-of-the-same-foundation)
+    1.  [Shaped to the experience](#shaped-to-the-experience)
+1.  [Six capabilities, one system](#six-capabilities-one-system)
+1.  [See also](#see-also)
 
-Six capabilities drawing on one foundationONE CULTURAL ONTOLOGY · ONE TASTE INTELLIGENCE [Cultural DataEnrichment](https://www.qloo.com/capabilities#enrichment) [Taste Intelligence](https://www.qloo.com/capabilities#taste) [Recommendations](https://www.qloo.com/capabilities#recommendations) [Locality Intelligence](https://www.qloo.com/capabilities#locality) [AI & AgentGrounding](https://www.qloo.com/capabilities#grounding) [On-Device Intelligence](https://www.qloo.com/capabilities#on-device)
+## Cultural data enrichment
 
-01Cultural Data Enrichment
-
-## Give your datacultural context.
+Give your data cultural context.
 
 Resolve your own records against Qloo's entities and attach the structured attributes, signals, and relationships that sit behind them.
 
-[Add cultural understanding to your data→](https://www.qloo.com/book-a-demo)
+One record, before and after (+8 fields):
 
-One record, before and after+8 fields
+- Your record:
+  - name: I Sodi
+  - address: 314 Bleecker St New York, NY 10014
+  - category: Restaurant
+  - internal_id: VEN-40817
+- Resolved and enriched:
+  - Resolved entity: I Sodi
+  - Attributes: category Italian, Tuscan restaurant; known for Tiramisu, Pan fried pork chop with lemon, Cacio e pepe; ambience Gastronomic, Elegant, Understated
+  - Signal: popularity 4.2 average rating; neighborhood West Village
+  - Relationships: in-domain Via Carota, Don Angie, Loring Place; cross-domain Warby Parker, New Haven, Flor de Toloache
 
-Your record
-
-nameI Sodi
-
-address314 Bleecker St New York, NY 10014
-
-categoryRestaurant
-
-internal\_idVEN-40817
-
-Four fields. Enough to store a venue, not enough to reason about it.
-
-Resolved and enriched
-
-Resolved
-
-entityI Sodi
-
-Attributes
-
-categoryItalianTuscan restaurant
-
-known forTiramisuPan fried pork chop with lemonCacio e pepe
-
-ambienceGastronomicElegantUnderstated
-
-Signal
-
-popularity4.2 average rating
-
-neighborhoodWest Village
-
-Relationships
-
-in-domainVia CarotaDon AngieLoring Place
-
-cross-domainWarby ParkerNew HavenFlor de Toloache
-
-Resolved and enriched from Qloo's real data. Scope the fields to the use: attributes only, or attributes with relationships and signal.entity resolution → enrichment
+Four fields. Enough to store a venue, not enough to reason about it. Resolved and enriched from Qloo's real data. Scope the fields to the use: attributes only, or attributes with relationships and signal.
 
 ### Describe more than the basics
 
@@ -72,33 +68,18 @@ Bring relevant cultural connections into the way your product organizes and pres
 
 Work with what is useful: the entities, attributes, and delivery that fit the systems you already run, through an API or a managed feed.
 
-02Taste Intelligence
+## Taste intelligence
 
-## Understand the combination.Infer beyond it.
+Understand the combination. Infer beyond it.
 
 Turn a place, brand, or combination of interests into structured cultural context. Explore what defines it and which additional affinities it suggests.
 
-[See what your context can reveal→](https://www.qloo.com/book-a-demo)
+Combine interests. See the picture change. Example interests: I Sodi, Jil Sander, Brian Eno, Tyler, the Creator.
 
-Combine interests. See the picture change.3 interests
+- Descriptive taste, what defines this combination: An appetite for New American cooking pairs with a taste for German Literature, both drawn to clean lines beneath surface warmth. That same clarity carries into minimalist tailoring and the pulse of new wave sound, favoring form stripped to essentials.
+- Predictive taste, what else this combination points to: The same appetite reaches 11 Howard and Brooklyn, while its restless edge answers to the sound of Arca. It also inclines toward Vetements cut and the narrative pull of The Square, each read as evidence of one continuous curiosity.
 
-I SodiJil SanderBrian EnoTyler, the Creator
-
-Keep two interests selected. Add another before removing one.
-
-Descriptive taste
-
-What defines this combination
-
-An appetite for New American cooking pairs with a taste for German Literature, both drawn to clean lines beneath surface warmth. That same clarity carries into minimalist tailoring and the pulse of new wave sound, favoring form stripped to essentials.
-
-Predictive taste
-
-What else this combination points to
-
-The same appetite reaches 11 Howard and Brooklyn, while its restless edge answers to the sound of Arca. It also inclines toward Vetements cut and the narrative pull of The Square, each read as evidence of one continuous curiosity.
-
-PlacesBrandsArtistsFilm & TVBooksSame combination, same read, every time.
+Same combination, same read, every time.
 
 ### Describe the context
 
@@ -112,27 +93,23 @@ Infer additional interests and cultural attributes within and across categories.
 
 One interest can point in a direction. A richer combination narrows it: each addition re-reads the whole, rather than stacking on the last answer.
 
-03Recommendations
+## Recommendations
 
-## Discovery that connectsacross categories.
+Discovery that connects across categories.
 
 Start from a single interest or a detailed combination, and surface what fits across dining, travel, entertainment, brands, and place.
 
-[Make discovery more relevant from the first interest→](https://www.qloo.com/book-a-demo)
+One interest in. Five categories out. Example input: Brian Eno, music artist.
 
-One interest in. Five categories out.Brian EnoJil SanderTyler, the Creator
+| Category    | Recommendation                                | Score |
+| ----------- | --------------------------------------------- | ----- |
+| Hotel       | Villa Lena                                    | 0.91  |
+| Restaurant  | Rathbone Place                                | 0.91  |
+| Destination | Canterbury                                    | 0.93  |
+| Book        | Ziggyology: A Brief History Of Ziggy Stardust | 0.92  |
+| Film        | Enter the Void                                | 0.93  |
 
-Brian Eno
-
-Music artist
-
-1. HotelVilla Lena0.91
-2. RestaurantRathbone Place0.91
-3. DestinationCanterbury0.93
-4. BookZiggyology: A Brief History Of Ziggy Stardust0.92
-5. FilmEnter the Void0.93
-
-One affinity query per category, ranked against the same input across all five.cross-domain
+One affinity query per category, ranked against the same input across all five.
 
 ### Start with what you know
 
@@ -146,35 +123,27 @@ Most engines stay inside one catalog. Qloo carries an affinity from music to hot
 
 The same candidates order differently for a different moment, place, or combination. Ranking reflects the request rather than a fixed popularity list.
 
-04Locality Intelligence
+## Locality intelligence
 
-## Understand a placebeyond its coordinates.
+Understand a place beyond its coordinates.
 
 A place is more than a named geography. Explore the character of a locality, compare places across scales, and see which tastes concentrate where.
 
-[Bring cultural context to your map→](https://www.qloo.com/book-a-demo)
+Reads at this scale, around a point in Harlem:
 
-A pointA neighborhoodA city
+| Tag              | Concentration index |
+| ---------------- | ------------------- |
+| Lounge           | 100                 |
+| Bar              | 94                  |
+| Brunch           | 90                  |
+| Live music venue | 90                  |
+| American         | 89                  |
 
-Reads at this scale
-
-Around a point · Harlem
-
-Concentration index, 0–100 - each row's place among the 20 tags fetched at this scale, rescaled. The bar is the same figure. Not a share and not a count.
-
-Lounge _100_
-
-Bar _94_
-
-Brunch _90_
-
-Live music venue _90_
-
-American _89_
+Concentration index, 0–100 - each row's place among the 20 tags fetched at this scale, rescaled. Not a share and not a count.
 
 At block scale the read is specific to a few hundred metres: the genres that concentrate around one address, and where restaurant affinity peaks within that radius.
 
-Every hex reads restaurant affinity, the signal Qloo's heatmap endpoint requires (urn:tag:genre:place:restaurant). The tilt is mild - swapping the signal for museums keeps three of the top five cells.block → global
+Every hex reads restaurant affinity, the signal Qloo's heatmap endpoint requires (`urn:tag:genre:place:restaurant`). The tilt is mild - swapping the signal for museums keeps three of the top five cells.
 
 ### Work at the scale of the question
 
@@ -188,75 +157,57 @@ A request does not always specify everything that matters. Qloo can interpret a 
 
 Rank nearby inventory by cultural fit rather than distance alone, so what surfaces first is what suits the place and the person asking.
 
-05AI & Agent Grounding
+## AI & agent grounding
 
-## Ground the answer.Inform the action.
+Ground the answer. Inform the action.
 
 Qloo is a partner to the model API, not a chat product. It grounds language models and agents in two things at once, the facts of the world and the taste of the person, delivered as one structured call at the scale a product runs.
-
-[Build AI around real-world relevance→](https://www.qloo.com/book-a-demo)
-
-Facts
 
 ### A factual database, one call deep
 
 Hundreds of millions of places, brands, titles, and artists with hours, location, category, and attributes. A request filters that whole set in one pass, instead of a model probing websites one page at a time.
 
+```text
 filter.type = place
-
 filter.location = copenhagen · 3 km
-
 filter.tags = restaurant
+```
 
-↓
-
-**500+ venues** 419 of 500 counted carry hours · 500 of 500 carry a location
-
-Taste
+Result: 500+ venues. 419 of 500 counted carry hours · 500 of 500 carry a location.
 
 ### Ranked for the person, not just the query
 
 The request says _restaurant_. The person’s interests say _Jil Sander, Brian Eno_. Qloo ranks the qualified venues by what those interests point to, even though neither has anything to do with restaurants.
 
+```text
 signal.interests = jil-sander, brian-eno
+```
 
-↓
-
-1. 1Aoc0.90Sophisticated · Gastronomic
-2. 2MASH Penthouse \| København0.89Gastronomic · Buzzing
-3. 3Istid0.86Lively · Interactive
+1. Aoc, 0.90: Sophisticated · Gastronomic
+2. MASH Penthouse | København, 0.89: Gastronomic · Buzzing
+3. Istid, 0.86: Lively · Interactive
 
 Each venue’s own attributes, as many as fit, shown for context.
-
-Agents
 
 ### Know the person beyond the instructions
 
 An agent acting on someone’s behalf has to understand the person, the context, and the instructions, not the instructions alone. Qloo supplies the person’s taste as structured context, with no identity attached, so the agent’s choices stay aligned with who it is acting for.
 
-Instructions“Book me dinner tonight”
-
-ContextCopenhagen · 19:00 · one night
-
-Taste, from Qloorestraint · counter-service · ambient
-
-ActionReserve Kadeau, counter, 19:30
+- Instructions: “Book me dinner tonight”
+- Context: Copenhagen · 19:00 · one night
+- Taste, from Qloo: restraint · counter-service · ambient
+- Action: Reserve Kadeau, counter, 19:30
 
 Illustrative: a plausible agent flow, not a real reservation.
-
-Scale
 
 ### Benefits that compound per request
 
 The advantage is not one clever answer. It is what happens across millions of requests: one call instead of a crawl, an answer in milliseconds, and nothing stored about anyone. That is the difference between a feature and infrastructure.
 
-**1** request, not a crawl
-
-**~100 ms** facts and taste together
-
-**Static** example, generated once
-
-**0** identifiers, no profile stored
+- **1** request, not a crawl
+- **~100 ms** facts and taste together
+- **Static** example, generated once
+- **0** identifiers, no profile stored
 
 Illustrative figures for a supported flow, not measurements against live traffic.
 
@@ -272,29 +223,18 @@ A request rarely states everything that matters. Qloo turns the interests a pers
 
 Let the language model handle the conversation. Qloo handles the facts and the taste behind the choice, as a tool the model calls once.
 
-06On-Device Intelligence
+## On-device intelligence
 
-## Personalization withoutthe round trip.
+Personalization without the round trip.
 
 Qloo's compact models run supported inference on the device itself, so a personal experience does not depend on sending context anywhere.
 
-[Explore on-device deployment→](https://www.qloo.com/book-a-demo)
+Same request, two paths:
 
-Same request, two paths
+- Cloud round trip, context leaves the device: serialize, network out, inference, network back. Leaves the device: **request payload**.
+- On device, context never leaves. Leaves the device: **nothing**. Works offline: **on-device only**.
 
-Cloud round tripcontext leaves the device
-
-serializenetwork outinferencenetwork back
-
--293 ms
-
-On devicecontext never leaves
-
--292 ms
-
-Leaves the device: **request payload**Leaves the device: **nothing**Works offline: **on-device only**
-
-Illustrative timings for a supported ranking task. Network latency varies; the architectural difference does not.compact models
+Network latency varies; the architectural difference does not.
 
 ### Local processing for supported tasks
 
@@ -308,12 +248,12 @@ Compact models draw on the same ontology and signals as the API, so what the dev
 
 Start with the inference task and target footprint, then size the model to it. Pair with the API when a request needs the full graph.
 
-## Six capabilities, one system. What strengthens one strengthens the rest.
+## Six capabilities, one system
 
-A signal that sharpens recommendations sharpens grounding. An ontology deepened for enrichment deepens locality. This is why the six are one company and not a catalog.
+What strengthens one strengthens the rest. A signal that sharpens recommendations sharpens grounding. An ontology deepened for enrichment deepens locality. This is why the six are one company and not a catalog.
 
-## See what Qloo knows about your world.
+## See also
 
-Schedule time with our team, to talk to sales engineering about methodology, evaluation, and integration.
-
-[Book a Demo→](https://www.qloo.com/book-a-demo)
+- [Capabilities on qloo.com](https://www.qloo.com/capabilities), crawled 2026-10-16
+- [Qloo overview](qloo-overview.md)
+- [Contact](contact.md)
