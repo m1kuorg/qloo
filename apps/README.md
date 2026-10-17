@@ -161,7 +161,27 @@ The daily cron (`triggers.crons` in `wrangler.jsonc`, 12:00 UTC) runs the health
 - `qloo_search`: the TRD's health-check search, sent to Qloo past the cache. A 401 means the key stopped working.
 - `sample_ranking_cached`: the sample launch, The Watch against the other 15 resolved sample shows with nothing settled, answers from the cache. It reads the cache only and never calls Qloo, so it fails until a fresh session has started the sample launch before settling anything. Settling Binge Mode or mapping a miss first sends a different ranking.
 
-Run it locally with `curl 'http://localhost:5128/cdn-cgi/local/scheduled?cron=0+12+*+*+*'` against the dev server, which prints `ok` and logs the lines in the server's output. Wrangler can't run the deployed cron on demand: `bunx wrangler deploy` lists `schedule: 0 12 * * *`, and `bunx wrangler tail --format json` across 12:00 UTC shows the run.
+Run it locally with `curl 'http://localhost:5128/cdn-cgi/local/scheduled?cron=0+12+*+*+*'` against the dev server, which prints `ok` and logs the lines in the server's output. On the Worker, `bunx wrangler deploy` lists `schedule: 0 12 * * *`, and `bunx wrangler tail --format json` across 12:00 UTC shows the run.
+
+Wrangler can't run the deployed cron on demand, but a temporary per-minute schedule can, through the schedules API that `bunx wrangler deploy` uses. The cron handler ignores which schedule fired, so every tick runs the health check. Treat it as a deploy, one at a time: a deploy puts `wrangler.jsonc`'s schedule back. In `apps/`:
+
+```sh
+SCHEDULES=https://api.cloudflare.com/client/v4/accounts/f0621d6622ac79af0e8e6f3520f78063/workers/scripts/crossfeed/schedules
+TOKEN=$(bunx wrangler auth token --json | jq -r .token)
+curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  --data '[{"cron":"0 12 * * *"},{"cron":"* * * * *"}]' "$SCHEDULES"
+bunx wrangler tail crossfeed --format json
+```
+
+The tick is the tail event with an `.event.cron`, and its `logs` hold the two `health_check` lines. Then put the schedule back, and check that it lists only `0 12 * * *`:
+
+```sh
+curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  --data '[{"cron":"0 12 * * *"}]' "$SCHEDULES"
+curl -H "Authorization: Bearer $TOKEN" "$SCHEDULES"
+```
+
+Each change takes about five minutes to reach the Worker: the first tick comes about five minutes after the first `PUT`, and ticks go on for about five minutes after the second. Each tick spends one Qloo call on its search, so budget about 15.
 
 Agent log lines show each model call's tokens and cache reads (`"event":"model_call"`), each run's topic baseline with its status and whether it came from the cache (`"event":"topic_baseline"`), and one summary per run with its outcome (`"event":"run_summary"`). To see a run stopped at a limit, lower a limit in `src/limits.ts` while the dev server runs, and put it back afterwards.
 
