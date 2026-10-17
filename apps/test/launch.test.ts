@@ -44,7 +44,15 @@ describe('starting a launch run', () => {
 
     const { runId } = await s.call<{ runId: string }>('startLaunch', { name: 'Night Shift Cinema' })
     expect(s.state()?.launch).toEqual({ name: 'Night Shift Cinema', match: null })
-    expect(s.state()?.run).toEqual({ id: runId, status: 'running', notes: [], error: null })
+    expect(s.state()?.run).toEqual({
+      id: runId,
+      status: 'running',
+      notes: [],
+      error: null,
+      question: null,
+      budget: null,
+      exclusions: null
+    })
 
     firstTurn.resolve()
     const state = await finished(s)
@@ -62,7 +70,10 @@ describe('starting a launch run', () => {
       id: runId,
       status: 'completed',
       notes: [{ text: 'Resolving Night Shift Cinema', status: 'done' }],
-      error: null
+      error: null,
+      question: null,
+      budget: null,
+      exclusions: null
     })
     expect(modelRequests()).toHaveLength(2)
     expect(await s.call<Evidence[]>('getEvidence')).toMatchObject([

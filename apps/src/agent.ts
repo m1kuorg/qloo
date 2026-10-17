@@ -3,7 +3,7 @@ import { Agent, callable, type Connection } from 'agents'
 import { claude } from './claude'
 import { callNumber, type Evidence } from './evidence'
 import { pitchReader } from './extract'
-import { scorable, type Ranking } from './fit'
+import { markFinalists, scorable, type Ranking } from './fit'
 import type { QlooGateway, QlooResult } from './gateway'
 import { qlooType, readInbox, type Inbox, type Pitch } from './inbox'
 import { MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
@@ -52,10 +52,29 @@ export type Launch = {
 
 export type Run = {
   id: string
-  status: 'running' | 'completed' | 'stopped' | 'failed' // stopped: at a turn or Qloo call limit
+  // stopped: at a turn or Qloo call limit; waiting: paused on `question` until the programmer answers
+  status: 'running' | 'waiting' | 'completed' | 'stopped' | 'failed'
   notes: Note[] // one per tool call, in the order the calls started
   error: string | null // why the run failed or stopped
+  question: Question | null // the open question, from ask_human
+  budget: Budget | null // the slot budget the programmer gave this run; only their answer sets it
+  exclusions: string[] | null // show names left out of this run only; null until answered
 }
+
+export type Budget = { slots: number } | { dollars: number }
+
+// A question the agent put to the programmer. `choice` is a fork in the plan, answered with one of
+// its options or free text.
+export type Question = {
+  id: string // the ask_human call's tool use ID
+  kind: 'choice' | 'budget' | 'exclusions'
+  question: string
+  options: string[]
+}
+
+// How the programmer answers: `choice` or `text` for a choice question, `slots` or `dollars` for
+// the budget, `exclude` for exclusions, and free `text` as a note on any other kind.
+export type Reply = { choice?: string; text?: string; slots?: number; dollars?: number; exclude?: string[] }
 
 // One run in the session's list of runs. Its results, once it ends, come from getRun.
 export type RunSummary = {
@@ -98,6 +117,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
     // has ended, the state it ended with.
     this.sql`CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, started_at INTEGER,
       turns INTEGER DEFAULT 0, qloo_calls INTEGER DEFAULT 0, cache_hits INTEGER DEFAULT 0, snapshot TEXT)`
+    // The turn a run paused on and its tool results so far, until the answer completes them.
+    this.sql`CREATE TABLE IF NOT EXISTS paused (run TEXT PRIMARY KEY, assistant TEXT, results TEXT)`
     // A run is kept alive while its loop runs, so one still running at startup lost its loop.
     const run = this.state.run
     if (run?.status === 'running') this.finish(run.id, 'The run was interrupted. Start it again.')
@@ -223,13 +244,18 @@ export class CrossfeedAgent extends Agent<Env, State> {
         `This session has started its ${MAX_RUNS_PER_DAY} runs for today. Runs reset at 00:00 UTC; earlier runs stay viewable.`
       )
 
+    // A run left waiting on a question ends unanswered, and its paused turn with it.
+    const waiting = this.state.run
+    if (waiting?.status === 'waiting') this.finish(waiting.id, 'Left unanswered: a new run started instead.')
+    this.sql`DELETE FROM paused`
+
     const run = crypto.randomUUID()
     const startedAt = Date.now()
     this.sql`INSERT INTO runs (id, started_at) VALUES (${run}, ${startedAt})`
     this.setState({
       ...this.state,
       launch: { name, match: null },
-      run: { id: run, status: 'running', notes: [], error: null },
+      run: { id: run, status: 'running', notes: [], error: null, question: null, budget: null, exclusions: null },
       // Sessions from before run limits have no list.
       runs: [
         ...(this.state.runs ?? []),
@@ -248,6 +274,41 @@ export class CrossfeedAgent extends Agent<Env, State> {
     })
     void this.keepAliveWhile(() => this.runLoop(run)).catch((e) => this.finish(run, `The run stopped: ${message(e)}`))
     return { runId: run }
+  }
+
+  // Answers the run's open question and resumes the run. The answer goes to Claude as the
+  // programmer's own text, after the tool result, which only says they were asked. Leaving shows
+  // out recomputes the finalists, which the tool result then lists.
+  @callable()
+  answer(questionId: string, reply: Reply) {
+    const run = this.state.run
+    const question = run?.status === 'waiting' ? run.question : null
+    if (!run || !question || question.id !== questionId)
+      throw new Error('That question is no longer open: it was already answered, or its run has ended.')
+    const given = typeof reply === 'object' && reply !== null ? reply : {} // it arrives as untrusted JSON
+    const { answer, stored } = settle(question, given)
+    let notice = 'Asked the programmer. Their answer follows.'
+    if (stored.exclusions && this.state.ranking) {
+      const ranking = markFinalists(this.state.ranking, stored.exclusions)
+      this.setState({ ...this.state, ranking })
+      const finalists = ranking.rows.filter((r) => r.finalist).map((r) => r.show)
+      notice += ` Code has left those shows out of the fit ranking ${ranking.call}; the finalists are now ${finalists.join(', ') || 'none'}.`
+    }
+    const [paused] = this.sql<{ assistant: string; results: string }>`
+      SELECT assistant, results FROM paused WHERE run = ${run.id}`
+    const results: Anthropic.ToolResultBlockParam[] = JSON.parse(paused.results)
+    this.append(run.id, JSON.parse(paused.assistant), {
+      role: 'user',
+      content: [
+        ...results.map((r) => (r.tool_use_id === question.id ? { ...r, content: notice } : r)),
+        { type: 'text', text: answer }
+      ]
+    })
+    this.sql`DELETE FROM paused WHERE run = ${run.id}`
+    this.setStatus(run.id, 'running', { ...stored, question: null })
+    void this.keepAliveWhile(() => this.runLoop(run.id)).catch((e) =>
+      this.finish(run.id, `The run stopped: ${message(e)}`)
+    )
   }
 
   // What an earlier run ended with, roster and all, to compare with a re-run.
@@ -426,9 +487,18 @@ export class CrossfeedAgent extends Agent<Env, State> {
           'stopped'
         )
       const results = await Promise.all(calls.map((call) => this.callTool(run, call)))
+      const cut = calls.filter((_, i) => results[i].cutOff)
+      // A question pauses the run: this turn and its results wait in storage for the answer.
+      if (cut.length === 0 && this.state.run?.id === run && this.state.run.question) {
+        this.sql`INSERT INTO paused (run, assistant, results)
+          VALUES (${run}, ${JSON.stringify(assistant)}, ${JSON.stringify(results.map((r) => r.block))})`
+        this.setStatus(run, 'waiting')
+        const [spent] = this.sql<Spent>`SELECT started_at, turns, qloo_calls, cache_hits FROM runs WHERE id = ${run}`
+        if (spent) log(summary(run, 'waiting', spent))
+        return
+      }
       // The turn and its results are stored together, so history never ends on an unanswered call.
       this.append(run, assistant, { role: 'user', content: results.map((r) => r.block) })
-      const cut = calls.filter((_, i) => results[i].cutOff)
       if (cut.length > 0)
         return this.finish(
           run,
@@ -445,6 +515,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     let cutOff = false
     const context: ToolContext = {
       run,
+      call: call.id,
       qloo: async (request) => {
         // Checked and counted before any await, so concurrent tools can't pass the limit together.
         const counted = this.sql`
@@ -516,20 +587,18 @@ export class CrossfeedAgent extends Agent<Env, State> {
     const runs = (this.state.runs ?? []).map((s) => (s.id === run ? { ...s, status: ended.status } : s))
     this.setState({ ...this.state, run: ended, runs })
     const { runs: _, ...snapshot } = this.state
-    const [spent] = this.sql<{ started_at: number; turns: number; qloo_calls: number; cache_hits: number }>`
+    const [spent] = this.sql<Spent>`
       UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}
       RETURNING started_at, turns, qloo_calls, cache_hits`
     // A run started before run limits has no row to summarize.
-    if (spent)
-      log({
-        event: 'run_summary',
-        run,
-        outcome: ended.status,
-        turns: spent.turns,
-        qlooCalls: spent.qloo_calls,
-        cacheHits: spent.cache_hits,
-        wallMs: Date.now() - spent.started_at
-      })
+    if (spent) log(summary(run, ended.status, spent))
+  }
+
+  // Pauses or resumes the run, here and in the session's list of runs.
+  private setStatus(run: string, status: 'running' | 'waiting', change: Partial<Run> = {}) {
+    if (this.state.run?.id !== run) return
+    const runs = (this.state.runs ?? []).map((s) => (s.id === run ? { ...s, status } : s))
+    this.setState({ ...this.state, run: { ...this.state.run, ...change, status }, runs })
   }
 
   private updateRun(run: string, change: (r: Run) => Run) {
@@ -568,6 +637,62 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 // One structured line in Workers Logs, like the gateway's qloo_call lines.
 const log = (line: { event: 'model_call' | 'run_summary' } & Record<string, unknown>) =>
   console.log(JSON.stringify(line))
+
+// What a run has spent against its limits, from its row in `runs`.
+type Spent = { started_at: number; turns: number; qloo_calls: number; cache_hits: number }
+
+// The summary line for a run that ended, or paused on a question.
+const summary = (run: string, outcome: Run['status'], spent: Spent) => ({
+  event: 'run_summary' as const,
+  run,
+  outcome,
+  turns: spent.turns,
+  qlooCalls: spent.qloo_calls,
+  cacheHits: spent.cache_hits,
+  wallMs: Date.now() - spent.started_at
+})
+
+// The programmer's answer as Claude reads it, and what code stores on the run from it. Throws,
+// changing nothing, when the reply doesn't fit the question.
+function settle(question: Question, reply: Reply): { answer: string; stored: Partial<Run> } {
+  const note = typeof reply.text === 'string' ? reply.text.trim() : ''
+  const choice = reply.choice
+  if (choice !== undefined && !question.options.includes(choice)) throw new Error("That isn't one of the options.")
+  const withNote = (answer: string) => [answer, note].filter(Boolean).join('\n\n')
+  if (question.kind === 'budget') {
+    const budget = readBudget(reply)
+    const amount = 'slots' in budget ? `${budget.slots} promo slots` : `$${budget.dollars.toLocaleString('en-US')}`
+    return { answer: withNote(`Slot budget: ${amount}.`), stored: { budget } }
+  }
+  if (question.kind === 'exclusions') {
+    if (!Array.isArray(reply.exclude)) throw new Error('List the shows to leave out, or none.')
+    const exclusions = [...new Set(reply.exclude)]
+    const unknown = exclusions.find((name) => !question.options.includes(name))
+    if (unknown !== undefined) throw new Error(`"${unknown}" isn't one of the shows this launch can leave out.`)
+    const answer = exclusions.length
+      ? `Leave out of this launch: ${exclusions.join(', ')}.`
+      : 'No exclusions for this launch.'
+    return { answer: withNote(answer), stored: { exclusions } }
+  }
+  const answer = withNote(choice ?? '')
+  if (!answer) throw new Error('Pick an option or type an answer.')
+  return { answer, stored: {} }
+}
+
+function readBudget({ slots, dollars }: Reply): Budget {
+  if (slots === undefined && dollars === undefined)
+    throw new Error('Give the budget as a number of promo slots or a dollar amount.')
+  if (slots !== undefined && dollars !== undefined)
+    throw new Error('Give the budget as promo slots or dollars, not both.')
+  if (slots !== undefined) {
+    if (!Number.isSafeInteger(slots) || slots < 1)
+      throw new Error('The slot budget must be a whole number of slots, 1 or more.')
+    return { slots }
+  }
+  if (typeof dollars !== 'number' || !Number.isFinite(dollars) || dollars <= 0)
+    throw new Error('The dollar budget must be an amount above $0.')
+  return { dollars }
+}
 
 // The progress note a tool call shows, such as "Resolving The Big Picture".
 function noteFor(call: Anthropic.ToolUseBlock, state: State) {

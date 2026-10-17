@@ -1,6 +1,18 @@
 import { useAgent } from 'agents/react'
 import { useRef, useState } from 'react'
-import type { CrossfeedAgent, Launch, Run, RunSnapshot, RunSummary, Show, ShowPatch, State } from '../agent'
+import type {
+  Budget,
+  CrossfeedAgent,
+  Launch,
+  Question,
+  Reply,
+  Run,
+  RunSnapshot,
+  RunSummary,
+  Show,
+  ShowPatch,
+  State
+} from '../agent'
 import type { Band, Ranking } from '../fit'
 import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import { sameName } from '../resolve'
@@ -66,6 +78,7 @@ export function App({ page }: { page: string | undefined }) {
         <div className="chart-col">
           <FitChart
             ranking={shown?.ranking ?? null}
+            leftOut={shown?.run?.exclusions ?? []}
             running={run?.status === 'running'}
             openCall={openCall}
             opened={opened?.call ?? null}
@@ -94,6 +107,9 @@ export function App({ page }: { page: string | undefined }) {
           </section>
         </div>
         <aside className="rail" aria-label="Details">
+          {run?.status === 'waiting' && run.question && (
+            <OpenQuestion key={run.question.id} question={run.question} agent={agent} />
+          )}
           {run && <RunLog run={run} />}
           {runs.length > 0 && (
             <RunList
@@ -114,6 +130,7 @@ export function App({ page }: { page: string | undefined }) {
 
 const runLabel: Record<Run['status'], string> = {
   running: 'Running',
+  waiting: 'Waiting on you',
   completed: 'Completed',
   stopped: 'Stopped at a limit',
   failed: 'Failed'
@@ -164,6 +181,7 @@ function LaunchHeader({
           <div className="status" role="status">
             <b>{runLabel[run.status]}</b>
             {run.status === 'running' && <p>{current ?? 'Waiting for Claude'}</p>}
+            {run.status === 'waiting' && <p>Answer the agent's question to go on.</p>}
             {(run.status === 'failed' || run.status === 'stopped') && <p>{run.error}</p>}
           </div>
         )}
@@ -281,6 +299,147 @@ function RunLog({ run }: { run: Run }) {
         )}
       </ol>
       {run.notes.length === 0 && run.status === 'running' && <p className="help">Waiting for Claude.</p>}
+      {(run.budget || run.exclusions) && (
+        <dl className="rec">
+          {run.budget && (
+            <div className="rec-row">
+              <dt>Slot budget</dt>
+              <dd>{budgetText(run.budget)}</dd>
+            </div>
+          )}
+          {run.exclusions && (
+            <div className="rec-row">
+              <dt>Left out</dt>
+              <dd>{run.exclusions.length ? run.exclusions.join(', ') : 'None'}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </section>
+  )
+}
+
+const budgetText = (b: Budget) => ('slots' in b ? `${b.slots} promo slots` : `$${b.dollars.toLocaleString('en-US')}`)
+
+// The agent's open question, the rail's primary action: the run waits here until it's answered.
+function OpenQuestion({ question, agent }: { question: Question; agent: Session }) {
+  const { busy, error, run } = useAction()
+  const [choice, setChoice] = useState<string | undefined>(undefined)
+  const [text, setText] = useState('')
+  const [unit, setUnit] = useState<'slots' | 'dollars'>('slots')
+  const [amount, setAmount] = useState('')
+  const [exclude, setExclude] = useState<string[]>([])
+  const reply = (): Reply => {
+    const note = text.trim() ? { text } : {}
+    if (question.kind === 'budget') {
+      const digits = amount.replace(/[,\s$]/g, '')
+      return { ...note, ...(digits && { [unit]: Number(digits) }) }
+    }
+    if (question.kind === 'exclusions') return { ...note, exclude }
+    return { ...note, ...(choice !== undefined && { choice }) }
+  }
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void run(() => agent.stub.answer(question.id, reply()))
+  }
+  const toggle = (name: string) =>
+    setExclude((names) => (names.includes(name) ? names.filter((n) => n !== name) : [...names, name]))
+  return (
+    <section className="mod ask" aria-labelledby="ask-h">
+      <div className="mh">
+        <span className="lbl" id="ask-h">
+          Agent asks
+        </span>
+        <span className="chips">
+          <Source of="agent" />
+          <span className="chip">Waiting on you</span>
+        </span>
+      </div>
+      <form onSubmit={submit}>
+        <fieldset disabled={busy}>
+          <legend className="q">{question.question}</legend>
+          {question.kind === 'choice' && question.options.length > 0 && (
+            <div className="opts">
+              {question.options.map((option) => (
+                <label key={option}>
+                  <input
+                    type="radio"
+                    name="ask-choice"
+                    checked={choice === option}
+                    onChange={() => setChoice(option)}
+                  />
+                  <span>{option}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {question.kind === 'budget' && (
+            <>
+              <p className="help">The insertion order is checked against it.</p>
+              <div className="opts">
+                <label>
+                  <input type="radio" name="ask-unit" checked={unit === 'slots'} onChange={() => setUnit('slots')} />
+                  <span>Promo slots</span>
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="ask-unit"
+                    checked={unit === 'dollars'}
+                    onChange={() => setUnit('dollars')}
+                  />
+                  <span>A dollar budget</span>
+                </label>
+              </div>
+              <span className="in">
+                {unit === 'dollars' && <span className="pre">$</span>}
+                <input
+                  aria-label={unit === 'slots' ? 'Promo slots' : 'Dollar budget'}
+                  inputMode={unit === 'slots' ? 'numeric' : 'decimal'}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder={unit === 'slots' ? 'Slots, e.g. 20' : 'Budget, e.g. 150,000'}
+                />
+              </span>
+            </>
+          )}
+          {question.kind === 'exclusions' &&
+            (question.options.length > 0 ? (
+              <>
+                <p className="help">Left out of this run only; the roster keeps them.</p>
+                <div className="opts">
+                  {question.options.map((name) => (
+                    <label key={name}>
+                      <input type="checkbox" checked={exclude.includes(name)} onChange={() => toggle(name)} />
+                      <span>{name}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="help">No roster show can be scored yet, so there's nothing to leave out.</p>
+            ))}
+          <label className="field">
+            <span className="lbl">
+              {question.kind !== 'choice'
+                ? 'Note for the agent, optional'
+                : question.options.length > 0
+                  ? 'Or type your own answer'
+                  : 'Your answer'}
+            </span>
+            <span className="in">
+              <input value={text} onChange={(e) => setText(e.target.value)} />
+            </span>
+          </label>
+          <div className="acts">
+            <button className="btn pri" type="submit">
+              Answer
+            </button>
+            {question.kind === 'exclusions' && <small>Leave all unticked for no exclusions.</small>}
+          </div>
+        </fieldset>
+      </form>
+      <Alert error={error} />
     </section>
   )
 }
@@ -366,11 +525,13 @@ const listOf = (names: string[]) =>
 // Raw affinities stay in the ranking call's evidence.
 function FitChart({
   ranking,
+  leftOut,
   running,
   openCall,
   opened
 }: {
   ranking: Ranking | null
+  leftOut: string[] // shows the run's exclusions answer left out
   running: boolean
   openCall: (call: string) => void
   opened: string | null
@@ -400,7 +561,8 @@ function FitChart({
       </div>
       <p className="help sec-help">
         Ranked by how much each show&apos;s listeners overlap the listeners of{' '}
-        {listOf(ranking.anchors.map((a) => a.name))}. Bands are thirds of this ranking, and the top five are finalists.
+        {listOf(ranking.anchors.map((a) => a.name))}. Bands are thirds of this ranking, and the top five, after any
+        shows left out, are finalists.
       </p>
       {ranking.error ? (
         <p className="err" role="alert">
@@ -434,12 +596,17 @@ function FitChart({
                 comps && (r.leadingComp ? `Led by ${r.leadingComp.name}` : 'Comps contributed evenly')
               ].filter(Boolean)
               return (
-                <tr key={r.show} data-finalist={r.finalist || undefined}>
+                <tr
+                  key={r.show}
+                  data-finalist={r.finalist || undefined}
+                  data-left-out={leftOut.includes(r.show) || undefined}
+                >
                   <td className="pos">{r.rank}</td>
                   <td>
                     <div className="nm-row">
                       <span className="nm">{r.show}</span>
                       {r.finalist && <span className="chip">Finalist</span>}
+                      {leftOut.includes(r.show) && <span className="chip">Left out</span>}
                     </div>
                     {notes.length > 0 && <div className="tg">{notes.join(' · ')}</div>}
                   </td>
