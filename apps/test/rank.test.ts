@@ -67,7 +67,7 @@ async function launch(script: Parameters<typeof fakeClaude>[0]) {
   fakeQloo({ search })
   fakeClaude(script)
   const s = await session()
-  await s.call('importRoster', roster)
+  await s.importRoster(roster)
   await s.call('updateShow', 'Overtime Desk', { excluded: true })
   await s.call('startLaunch', { name: 'Night Shift Cinema' })
   return { s, state: await finished(s) }
@@ -231,7 +231,7 @@ describe('ranking the roster by fit to the launch', () => {
     fakeInsights(ranked)
     fakeClaude([turn(resolveLaunch), turn(rank(['e-0001'])), turn(text('Ranked.'))])
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
     await s.call('updateShow', 'Overtime Desk', { excluded: true })
     await s.call('searchComps', 'Ghost Signal', 'Long Take')
     await s.call('updateShow', 'Ghost Signal', { compId: 'e-0201' })
