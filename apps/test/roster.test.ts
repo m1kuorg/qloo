@@ -35,7 +35,7 @@ describe('importing a pasted roster', () => {
   it('shows each show as resolved, ambiguous with candidates, or missed', async () => {
     fakeQloo({ search })
     const s = await session()
-    expect(s.state()?.roster).toEqual([])
+    expect(s.state()?.roster).toHaveLength(1)
 
     await s.call('importRoster', roster)
 
