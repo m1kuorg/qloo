@@ -49,7 +49,7 @@ Tests run in the Workers runtime through `@cloudflare/vitest-plugin`, configured
 
 Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/cloudflare`][msw-cf] serves by intercepting `fetch` inside the runtime. `QLOO_BASE_URL` points at `https://qloo.test` in tests, and a request no fake serves fails the test.
 
-- `fakeQloo({ search })` serves `/search` from hand-written results keyed by query. A number in place of results answers with that HTTP status.
+- `fakeQloo({ search })` serves `/search` from hand-written results keyed by query. A number in place of results answers with that HTTP status, and `{ status, body }` answers with that raw body, such as a proxy's HTML error page.
 - `requests` records every request a fake served, in order, and `test/setup.ts` clears it after each test.
 - Add a fake for a new endpoint or API, such as the scripted Anthropic model, to `test/fake.ts` the same way.
 
@@ -63,6 +63,7 @@ Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo 
 
 - `call(method, ...args)` calls a `@callable` action and resolves with its result, after the state it set has arrived.
 - `state()` is the latest synced state.
+- `frames()` is every raw frame the server sent, which is everything the visitor's browser receives.
 - `openSession(cookie)` reconnects as the same visitor, like a reload; `openSession()` is a new visitor.
 
 ## Check types
@@ -114,7 +115,7 @@ Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status
 - `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. Each method returns its data or error together with an evidence record.
 - `src/evidence.ts`: the evidence record's shape. Fill its fields; don't reshape it.
 - `src/resolve.ts`: deciding whether a search result is the named entity.
-- `src/client/`: the React island. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`.
+- `src/client/`: the React island. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
 - `src/style.css`: the tokens and components from [DESIGN.md](/docs/DESIGN.md).
 
 ## See also
