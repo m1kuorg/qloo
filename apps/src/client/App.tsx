@@ -20,7 +20,7 @@ import type {
 } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
 import type { Ranking } from '../fit'
-import { MAX_COMPS, MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
+import { inProgress, MAX_COMPS, MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import { dollars, slotPrice } from '../order'
 import { offeredBy, sameName } from '../resolve'
 import type { RosterFormat } from '../roster'
@@ -61,6 +61,9 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
   const [opened, setOpened] = useState<Opened | null>(null)
   const latest = useRef<string | null>(null)
   const oneColumn = useOneColumn()
+  // The roster section moves when the page crosses one column, which remounts it; names typed into
+  // its import box are kept here so the move doesn't drop them.
+  const importDraft = useRef('')
   // The guide's page steps, marked once each while it shows.
   const guiding = useAction()
   const guide = agent.state?.guide
@@ -131,7 +134,11 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
       )}
       {!viewing && <RosterFailures roster={roster} />}
       {!viewing && (
-        <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
+        <RosterImport
+          roster={roster}
+          draft={importDraft}
+          importRoster={(text, format) => agent.stub.importRoster(text, format)}
+        />
       )}
       <RosterTable
         roster={roster}
@@ -206,8 +213,7 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
               openCall={openCall}
               opened={opened?.call ?? null}
               actions={
-                viewing ||
-                (run?.id === shown.insertionOrder.run && (run.status === 'running' || run.status === 'waiting'))
+                viewing || inProgress(run, shown.insertionOrder.run)
                   ? null
                   : {
                       edit: (lines) => agent.stub.editInsertionOrder(shown.insertionOrder!.id, lines),
@@ -1271,12 +1277,18 @@ function DemographicSummary({
 // The import answers at once, and each show fills in through synced state as its search settles.
 function RosterImport({
   roster,
+  draft,
   importRoster
 }: {
   roster: Show[]
+  draft: { current: string } // what's typed, kept by the page across a remount
   importRoster: (text: string, format: RosterFormat) => Promise<void>
 }) {
-  const [text, setText] = useState('')
+  const [text, setTyped] = useState(() => draft.current)
+  const setText = (value: string) => {
+    draft.current = value
+    setTyped(value)
+  }
   const [importing, setImporting] = useState<string | null>(null)
   const action = useAction()
   const { error, run } = action

@@ -18,7 +18,7 @@ import {
   type Work,
   type WorkMatch
 } from './inbox'
-import { MAX_COMPS, MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
+import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
 import { dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
@@ -807,7 +807,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
   private editableOrder(id: string) {
     const order = this.state.insertionOrder
     if (!order || order.id !== id) throw new Error(`${id} isn't the current insertion order. Reload to see the latest.`)
-    if (this.inProgress(order.run))
+    if (inProgress(this.state.run, order.run))
       throw new Error('The agent is still working on this run. Edit or approve the order once the run has ended.')
     return order
   }
@@ -836,12 +836,6 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return seq
   }
 
-  // Whether `run` is the latest run and the agent is still working on it, or waiting on an answer.
-  private inProgress(run: string) {
-    const r = this.state.run
-    return r?.id === run && (r.status === 'running' || r.status === 'waiting')
-  }
-
   private show(name: string) {
     const show = this.state.roster.find((s) => s.name === name)
     if (!show) throw new Error(`No show named "${name}" in the roster.`)
@@ -864,7 +858,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     const booking = this.state.booking
     const reply = booking?.replies?.find((r) => r.pitch === pitchId)
     if (!booking || !reply) throw new Error(`There's no drafted reply to ${pitchId}. Reload to see the latest.`)
-    if (this.inProgress(booking.run))
+    if (inProgress(this.state.run, booking.run))
       throw new Error('The agent is still drafting replies. Approve, edit, or discard them once the run has ended.')
     return reply
   }
