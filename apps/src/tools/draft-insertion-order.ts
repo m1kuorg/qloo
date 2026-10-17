@@ -42,6 +42,9 @@ export const draftInsertionOrder: Tool<Input> = {
   note: ({ lines }) =>
     `Drafting the insertion order: ${lines.length} shows, ${lines.reduce((n, l) => n + l.slots, 0)} slots`,
   async run({ lines }, { run, state, update }) {
+    const closeIn = 'Now end the run in under 60 words and at most three short sentences'
+    const unsaid =
+      "not even a flagged one, and don't mention demographic flags, tags, slots, or angles: the chart and the order show them. Never write a tool's name."
     const now = state()
     const finalists = finalistsOf(now.ranking).map((r) => r.show)
     if (finalists.length === 0)
@@ -97,9 +100,11 @@ export const draftInsertionOrder: Tool<Input> = {
         total: priced.total,
         complete: priced.complete,
         budget,
+        // The closing turn comes next. Its limits are repeated here, where the model reads them last:
+        // the system prompt's closing rule alone gave 75 to 113 words that named every finalist (#126).
         next: priced.complete
-          ? 'Stored as a draft. The programmer edits and approves it in the UI.'
-          : `Stored as a draft with an incomplete total, because ${gaps.join('; ')}. Say which figures the programmer must add. They edit and approve the order in the UI.`
+          ? `Stored as a draft. The programmer edits and approves it in the UI. ${closeIn}: say the order is drafted at ${dollars(priced.total)} and cite the ranking call, then, only if a show wasn't ranked or checked, say which and why. Name no finalist, ${unsaid}`
+          : `Stored as a draft with an incomplete total, because ${gaps.join('; ')}. They edit and approve the order in the UI. ${closeIn}: say the order is drafted at ${dollars(priced.total)} so far and which figures the programmer must add, naming only the shows that lack one, and cite the ranking call. Name no other finalist, ${unsaid}`
       })
     }
   }
