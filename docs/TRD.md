@@ -122,12 +122,13 @@ The launch and guest flows follow fixed steps, so the agent works from a short s
 - **Model:** `claude-haiku-5-5`, streamed through `client.messages.stream`.
 - **Thinking:** adaptive, on by default. A response can start with `thinking` blocks whose text is omitted, and thinking counts toward `max_tokens`, so code reads content blocks by type and passes thinking blocks back unchanged with tool results.
 - **Effort:** `output_config.effort` set explicitly to `medium`, this model's default.
-- **Sampling and prefill:** no `temperature`, `top_p`, `top_k`, or assistant prefill; this model rejects them with a 400.
-- **Refusals:** safety classifiers can decline with `stop_reason: "refusal"`, and this model has no server-side fallback. Check `stop_reason` before reading content, and stop the run with the refusal shown as a failed step.
+- **Output room:** `max_tokens` of 16,000 on every call, so thinking can't use up the answer's budget.
+- **Sampling and prefill:** send no sampling parameters and no assistant prefill. A non-default `temperature` or `top_p`, any `top_k`, and any prefill return a 400.
+- **Refusals:** safety classifiers can decline with `stop_reason: "refusal"`, and this model has no server-side fallback. Check `stop_reason` before reading content on every call. A refused agent turn stops the run with the refusal shown as a failed step.
 - **Tools:** `strict: true` and `additionalProperties: false` on every tool, and `tool_choice` `auto`, because a forced tool choice skips thinking on this model.
 - **Parallel calls:** execute every `tool_use` block in a turn concurrently, and return all results in one user message. A failed tool returns `is_error: true` with a message that says what to do next.
-- **History is append-only.** Never edit or delete earlier turns; a resumed run appends the human's answer as a tool result. Editing an earlier turn invalidates the thinking blocks replayed after it on this model.
-- **Prompt caching:** a frozen system prompt and a fixed, sorted tool list sit before a `cache_control` breakpoint, above this model's 512-token minimum; session data goes after it.
+- **History is append-only.** Never edit or delete earlier turns, and keep `system` and the tool list fixed for a session. On this model, sending a thinking block back after a change to `system`, `tools`, or earlier messages returns a 400. Stored history keeps every thinking block as returned, including blocks with empty text and only a `signature`.
+- **Prompt caching:** a frozen system prompt and a fixed, sorted tool list sit before a `cache_control` breakpoint, above this model's 512-token minimum _(verify)_; session data goes in `messages`, never in `system`.
 - **Later, if time allows:** an effort sweep on the demo scenarios, and checking cache reads.
 
 ### Tools
@@ -147,7 +148,7 @@ Each tool returns names alongside IDs, and errors the model can act on ([Writing
 
 ### Questions and approvals
 
-- **Questions:** when the model calls `ask_human`, the agent stores the open question in its state and ends the loop. The UI renders the question card; the human's answer becomes that call's tool result, and the loop resumes. The system prompt requires a question for every ambiguous match, every miss, comps for an unreleased launch, the slot budget, and exclusions.
+- **Questions:** when the model calls `ask_human`, the agent stores the open question in its state and ends the loop. The UI renders the question card. When the human answers, the next user message holds that call's tool result, a neutral "asked the human" notice, followed by the answer as a separate text block, and the loop resumes. The answer never goes inside the tool result, because this model can treat user text there as untrusted and ignore it. The system prompt requires a question for every ambiguous match, every miss, comps for an unreleased launch, the slot budget, and exclusions.
 - **Approvals:** approving or editing an insertion order and approving, editing, or discarding a reply are client actions handled in code, and no tool can perform them. Export refuses any insertion order that isn't approved.
 - Runs are short and the human gates sit between turns, so the agent's own SQLite state is enough; the Agents SDK's Workflow approval pattern isn't needed ([human in the loop][cf-hitl]).
 
@@ -155,10 +156,10 @@ Each tool returns names alongside IDs, and errors the model can act on ([Writing
 
 ### Other model calls
 
-Single calls with structured outputs (`output_config.format`), on the same model at `low` effort, so all calls share one cache namespace:
+Single calls with structured outputs (`output_config.format`), on the same model at `low` effort:
 
-- **Topic baseline:** ranks the roster by topic from show names and the network's own one-line descriptions. It gets no Qloo data, because it is the without-Qloo counterfactual.
-- **Pitch extraction:** turns each pitch email into a guest name, a work title, a work type, and whether there is a public work. The guest name stays in the session's storage and is never passed to a Qloo tool.
+- **Topic baseline:** ranks the roster by topic from show names and the network's own one-line descriptions. It gets no Qloo data, because it is the without-Qloo counterfactual. If it's refused, the fit ranking shows without the topic column.
+- **Pitch extraction:** turns each pitch email into a guest name, a work title, a work type, and whether there is a public work. The guest name stays in the session's storage and is never passed to a Qloo tool. A refused extraction sets that pitch aside as unreadable.
 
 ### Agent limits
 
