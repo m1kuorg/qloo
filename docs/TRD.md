@@ -164,6 +164,8 @@ Each tool returns names alongside IDs, and errors the model can act on ([Writing
 Single calls with structured outputs (`output_config.format`), on the same model at `low` effort:
 
 - **Topic baseline:** ranks the roster by topic from show names and the network's own one-line descriptions. It gets no Qloo data, because it is the without-Qloo counterfactual. If it's refused, the fit ranking shows without the topic column.
+  - It runs once per run, started beside the agent loop, and ranks every roster show but the launch, settled or not, so settling or excluding a show doesn't change its request. The prompt states the count ("Rank all N roster shows"), and code checks for a full permutation, because at `low` effort Haiku 5.5 sometimes returned only its top three. A partial list fails the baseline like a refusal does.
+  - The agent caches each full ranking by a SHA-256 hash of its request, so the same launch and roster always rank the same way within a session. The cache is per session, not shared through the gateway, which only serves Qloo.
 - **Pitch extraction:** turns each pitch email into a guest name, a work title, a work type, the work's year when the pitch or the model's knowledge gives it, and whether there is a public work. The guest name stays in the session's storage and is never passed to a Qloo tool. A refused extraction sets that pitch aside as unreadable.
 
 ### Agent limits
@@ -187,7 +189,7 @@ Single calls with structured outputs (`output_config.format`), on the same model
   - So the mean reads sensibly when comps share an audience, and a comp whose listeners differ pulls it off. The UI says the profile is the comps' mean, and the evidence shows each comp's own values.
 - **Demographic mismatch:** take the launch profile's two most over-indexed age buckets. Flag a candidate that under-indexes, with a value below 0, on either of them, or whose gender skew has the opposite sign to the launch profile's, when both magnitudes are 0.2 or more. Only a bucket above 0 is over-indexed, so a launch like The Watch has one, and no finalist is flagged for being below average where the launch is too. Values are compared at Qloo's three decimal places, past float noise such as 0.20600000000000004. The thresholds are starting values to tune on the demo network, set in one place in [`apps/src/demographics.ts`](/apps/src/demographics.ts).
 - **Slot value:** downloads per episode × CPM ÷ 1,000, rounded to whole dollars. The insertion order total is the sum of slot count × slot value.
-- **Topic move:** a show's topic-baseline rank minus its fit rank. A move of three or more places is highlighted.
+- **Topic move:** a show's topic-baseline rank minus its fit rank. A move of three or more places is highlighted. The topic rank counts only the shows on the fit chart, so shows that weren't scored can't inflate a move.
 
 ## Storage
 
