@@ -81,6 +81,7 @@ tmbootpicker.efi
 # Development
 node_modules/
 .worktrees/
+.playwright-cli/
 
 # Environment
 .env*
