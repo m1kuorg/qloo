@@ -9,6 +9,10 @@
   --line: #e6e6e6;
   --edge: #d4d4d4;
   --empty: #dcdcdc;
+  /* State colors (#42), provisional: never Chart Red, and always beside the state's word. */
+  --slow: #8a6100;
+  --fault: #a34700;
+  --missed: #2f5d8a;
   --body: 'Libre Franklin', sans-serif;
   --cond: 'Barlow Condensed', sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -459,11 +463,6 @@ h1 span {
   opacity: 0.6;
 }
 
-.err {
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .empty {
   padding: 24px 0;
   color: var(--mid);
@@ -718,7 +717,7 @@ fieldset {
 }
 
 .fields .acts,
-.fields .err {
+.fields .state {
   grid-column: 1 / -1;
   margin-top: 0;
 }
@@ -730,10 +729,6 @@ fieldset {
 
 .comp .help,
 .import .help {
-  margin-top: 8px;
-}
-
-.err {
   margin-top: 8px;
 }
 
@@ -1285,4 +1280,72 @@ a.btn {
 
 .io.editing .lnk {
   margin-top: 4px;
+}
+
+/* States: a square marker and the state's word in its color, then the sentence in ink. Loading and
+   empty states stay neutral; the only circle on the page is the gainer bullet. */
+.state {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  --tone: var(--mid);
+}
+
+.state[data-state='slow'],
+.chip[data-state='slow'] {
+  --tone: var(--slow);
+}
+
+.state[data-state='failed'],
+.state[data-state='error'],
+.chip[data-state='failed'] {
+  --tone: var(--fault);
+}
+
+.state[data-state='missed'],
+.chip[data-state='missed'] {
+  --tone: var(--missed);
+}
+
+.state-w {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--tone);
+}
+
+.state-w::before,
+.chip[data-state]::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  background: var(--tone);
+}
+
+.chip[data-state] {
+  color: var(--tone);
+}
+
+.state[data-state='empty'] {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--mid);
+}
+
+.sub-line .state {
+  display: inline;
+  font-size: inherit;
+}
+
+.status .state {
+  margin-top: 0;
+}
+
+/* A chart-column section's own state, such as a partial ranking, above what it qualifies. */
+.sec > .state {
+  margin: 0 0 12px;
 }

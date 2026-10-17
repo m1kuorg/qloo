@@ -1,0 +1,279 @@
+// What the workspace says when it isn't showing a result. Each test drives a session through the
+// fakes into a state, then renders the real workspace from the session's synced state and reads
+// its words, which every state shows, so none is told by color alone.
+import { env } from 'cloudflare:workers'
+import { http } from 'msw'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { State } from '../src/agent'
+import { Workspace, type Session as Agent } from '../src/client/App'
+import { fakeClaude, fakeInsights, fakeQloo, network, refusal, text, toolUse, turn } from './fake'
+import { openSession, type Session } from './session'
+
+// Synthetic shows, one exact match each.
+const names = ['Night Shift Cinema', 'Deep Cuts', 'Signal Boost', 'Paper Trail', 'Field Notes']
+const search = Object.fromEntries(names.map((name, i) => [name, [{ entity_id: `e-0${i}01`, name, popularity: 0.5 }]]))
+const resolveLaunch = toolUse('resolve_entities', { names: ['Night Shift Cinema'], type: 'urn:entity:podcast' })
+const rank = (candidate_ids: string[]) =>
+  toolUse('rank_candidates', { anchor_ids: ['e-0001'], candidate_ids, type: 'urn:entity:podcast' })
+
+// Holds every search for `query` until the returned promise is resolved, then lets the fake answer.
+const hold = (query: string) => {
+  const held = Promise.withResolvers<void>()
+  network.use(
+    http.get(`${env.QLOO_BASE_URL}/search`, async ({ request }) => {
+      if (new URL(request.url).searchParams.get('query') === query) await held.promise
+    })
+  )
+  return held
+}
+
+const open: Session[] = []
+const session = async () => {
+  const s = await openSession()
+  open.push(s)
+  return s
+}
+afterEach(() => open.splice(0).forEach((s) => s.close()))
+
+// Sets Worker variables for one test, as an operator would on the Worker; restored after it.
+type Vars = 'QLOO_SLOW_MS' | 'QLOO_DAILY_CALL_CAP'
+const saved = new Map<Vars, string>()
+const configure = (vars: Partial<Record<Vars, string>>) => {
+  for (const [name, value] of Object.entries(vars) as [Vars, string][]) {
+    if (!saved.has(name)) saved.set(name, env[name])
+    env[name] = value
+  }
+}
+afterEach(() => {
+  for (const [name, value] of saved) env[name] = value
+  saved.clear()
+})
+
+// The workspace's text as a visitor reads it, from the session's synced state.
+const page = (state: State | undefined, name = 'roster') => {
+  const agent = { state, stub: {} } as unknown as Agent
+  const html = renderToStaticMarkup(<Workspace page={name} agent={agent} />)
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+}
+
+describe('an empty workspace', () => {
+  it('says there is no roster and no launch yet, each with its next action', async () => {
+    const s = await session()
+
+    const text = page(s.state())
+    expect(text).toContain('No roster yet. Paste show names above to import one.')
+    expect(text).toContain('No launch yet. Import a roster first, then name a released launch to rank it.')
+  })
+
+  it('asks for the launch once a roster is in', async () => {
+    fakeQloo({ search })
+    const s = await session()
+    await s.importRoster('Night Shift Cinema')
+
+    expect(page(s.state())).toContain('No launch yet. Name a released launch below and start a run to rank the roster.')
+  })
+})
+
+describe('a run in progress', () => {
+  it("shows the run's current step from its progress notes", async () => {
+    fakeQloo({ search })
+    const held = hold('Night Shift Cinema')
+    fakeClaude([turn(resolveLaunch), turn(text('Night Shift Cinema is resolved.'))])
+    const s = await session()
+
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    const running = await s.until((st) => st.run?.notes[0]?.status === 'running')
+    expect(page(running)).toContain('Running Resolving Night Shift Cinema · step 1')
+    expect(page(running)).toContain('Working The fit chart appears here once the agent ranks the roster.')
+
+    held.resolve()
+    await s.until((st) => st.run?.status === 'completed')
+  })
+})
+
+describe('a slow Qloo', () => {
+  it('names a call still waiting past the slow mark, and drops it once Qloo answers', async () => {
+    configure({ QLOO_SLOW_MS: '50' })
+    fakeQloo({ search })
+    const held = hold('Deep Cuts')
+    const s = await session()
+
+    await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
+    const slow = await s.until((st) => st.slowCalls.length > 0)
+    expect(slow.slowCalls).toEqual([{ call: 'C-02', run: null, waitedMs: 50 }])
+    expect(page(slow)).toContain('Deep Cuts Slow Qloo C-02 has waited over 0.05 s for Qloo. Still trying.')
+
+    held.resolve()
+    const settled = await s.until((st) => st.roster.every((show) => show.resolution === 'resolved'))
+    expect(settled.slowCalls).toEqual([])
+    expect(page(settled)).not.toContain('Slow Qloo')
+  })
+
+  it("doesn't blame Qloo for calls queued behind the session's own, and times each once it's sent", async () => {
+    configure({ QLOO_SLOW_MS: '50' })
+    fakeQloo({ search })
+    const held = Object.fromEntries(names.map((name) => [name, hold(name)]))
+    const s = await session()
+
+    // The gateway sends 3 calls at a time, so C-04 and C-05 wait in its queue, not on Qloo.
+    await s.call('importRoster', names.join('\n'))
+    await s.until((st) => st.slowCalls.length === 3)
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(s.state()?.slowCalls.map((c) => c.call)).toEqual(['C-01', 'C-02', 'C-03'])
+
+    held['Night Shift Cinema'].resolve()
+    const next = await s.until((st) => st.slowCalls.some((c) => c.call === 'C-04'))
+    expect(next.slowCalls.map((c) => c.call)).toEqual(['C-02', 'C-03', 'C-04'])
+
+    Object.values(held).forEach((h) => h.resolve())
+    await s.until((st) => st.roster.every((show) => show.resolution === 'resolved'))
+  })
+
+  it("names a run's slow call beside its current step", async () => {
+    configure({ QLOO_SLOW_MS: '50' })
+    fakeQloo({ search })
+    const held = hold('Night Shift Cinema')
+    fakeClaude([turn(resolveLaunch), turn(text('Night Shift Cinema is resolved.'))])
+    const s = await session()
+
+    const { runId } = await s.call<{ runId: string }>('startLaunch', { name: 'Night Shift Cinema' })
+    const slow = await s.until((st) => st.slowCalls.length > 0)
+    expect(slow.slowCalls).toEqual([{ call: 'C-01', run: runId, waitedMs: 50 }])
+    expect(page(slow)).toContain(
+      'Running Resolving Night Shift Cinema · step 1 Slow Qloo C-01 has waited over 0.05 s for Qloo. Still trying. A call Qloo doesn’t answer is retried twice, so it can take about a minute.'
+    )
+
+    held.resolve()
+    const done = await s.until((st) => st.run?.status === 'completed')
+    expect(page(done)).not.toContain('Slow Qloo')
+  })
+})
+
+describe('a slow Qloo in the inbox', () => {
+  afterEach(() => {
+    env.GUEST_PITCHES = 'off'
+  })
+
+  it("names a pitched work's slow search in the inbox's status", async () => {
+    env.GUEST_PITCHES = 'on'
+    configure({ QLOO_SLOW_MS: '50' })
+    fakeQloo({ search: { 'Night Ferry': [{ entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.8 }] } })
+    const held = hold('Night Ferry')
+    fakeClaude([
+      turn(text(JSON.stringify({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } })))
+    ])
+    const s = await session()
+
+    await s.call('loadInbox', { text: 'Ada Quill, author of the novel Night Ferry, would love to come on.' })
+    const slow = await s.until((st) => st.slowCalls.length > 0)
+    expect(page(slow, 'inbox')).toContain(
+      'Reading 0 of 1 pitches read Slow Qloo C-01 has waited over 0.05 s for Qloo. Still trying.'
+    )
+
+    held.resolve()
+    await s.until((st) => st.inbox?.status === 'done')
+  })
+})
+
+describe('a failing Qloo', () => {
+  it('says what was retried and which shows are missing once retries run out', async () => {
+    fakeQloo({ search: { ...search, 'Deep Cuts': 503 } })
+    const s = await session()
+    const state = await s.importRoster('Night Shift Cinema\nDeep Cuts')
+
+    const text = page(state)
+    expect(text).toContain(
+      "Failed 1 show couldn't be looked up in Qloo, so it can't be scored: Deep Cuts. Import the roster again to retry it; shows already found come from the cache."
+    )
+    expect(text).toContain('Deep Cuts Lookup failed Qloo returned 503: fake failure, after 2 retries. Not scored.')
+  })
+
+  it('says the daily cap is reached, and what it left out', async () => {
+    configure({ QLOO_DAILY_CALL_CAP: '1' })
+    fakeQloo({ search })
+    const s = await session()
+    const state = await s.importRoster('Night Shift Cinema\nDeep Cuts')
+
+    const text = page(state)
+    expect(text).toContain("Failed 1 show couldn't be looked up in Qloo, so it can't be scored: Deep Cuts.")
+    expect(text).toContain(
+      'Deep Cuts Lookup failed The daily cap of 1 Qloo calls is reached; it resets at 00:00 UTC. Not scored.'
+    )
+  })
+
+  it("says the launch isn't resolved when its lookup fails", async () => {
+    fakeQloo({ search: { ...search, 'Night Shift Cinema': 503 } })
+    fakeClaude([turn(resolveLaunch), turn(text('The launch lookup failed.'))])
+    const s = await session()
+
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    const done = await s.until((st) => st.run?.status === 'completed')
+    expect(page(done)).toContain(
+      "Failed The launch isn't resolved, so nothing can be ranked: Qloo returned 503: fake failure, after 2 retries."
+    )
+  })
+
+  it('says nothing is ranked when the ranking fails after its retries', async () => {
+    fakeQloo({ search })
+    fakeInsights(503)
+    fakeClaude([turn(resolveLaunch), turn(rank(['e-0101', 'e-0201'])), turn(text('The ranking failed.'))])
+    const s = await session()
+    await s.importRoster('Night Shift Cinema\nDeep Cuts\nSignal Boost')
+
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    const done = await s.until((st) => st.run?.status === 'completed')
+    expect(page(done)).toContain('Failed Nothing is ranked: Qloo returned 503: fake failure, after 2 retries.')
+  })
+
+  it('marks a ranking partial when a roster lookup failed', async () => {
+    fakeQloo({ search: { ...search, 'Deep Cuts': 503 } })
+    fakeInsights([{ entity_id: 'e-0201', name: 'Signal Boost', affinity: 0.913 }])
+    fakeClaude([turn(resolveLaunch), turn(rank(['e-0201'])), turn(text('Ranked.'))])
+    const s = await session()
+    await s.importRoster('Night Shift Cinema\nDeep Cuts\nSignal Boost')
+
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    const done = await s.until((st) => st.run?.status === 'completed')
+    expect(page(done)).toContain("Failed Partial ranking: Deep Cuts isn't in it, because its Qloo lookup failed.")
+  })
+})
+
+describe('a missed match', () => {
+  it('says Qloo has no show by that name, with the next action', async () => {
+    fakeQloo({ search })
+    const s = await session()
+    const state = await s.importRoster('Night Shift Cinema\nGhost Signal')
+
+    expect(page(state)).toContain('Ghost Signal Missed No show by this name in Qloo. Map a comp or leave out')
+  })
+
+  it("says so when the launch isn't in Qloo", async () => {
+    fakeQloo({ search })
+    fakeClaude([
+      turn(toolUse('resolve_entities', { names: ['Ghost Signal'], type: 'urn:entity:podcast' })),
+      turn(text('Ghost Signal is not in Qloo.'))
+    ])
+    const s = await session()
+
+    await s.call('startLaunch', { name: 'Ghost Signal' })
+    const done = await s.until((st) => st.run?.status === 'completed')
+    expect(page(done)).toContain('Launch · Ghost Signal Qloo data Missed No show by this name in Qloo. C-01')
+  })
+})
+
+describe('an error', () => {
+  it('says why a run failed', async () => {
+    fakeClaude([refusal('cyber')])
+    const s = await session()
+
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    const failed = await s.until((st) => st.run?.status === 'failed')
+    expect(page(failed)).toContain('Failed Claude declined to continue this run (safety category: cyber).')
+  })
+})

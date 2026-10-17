@@ -13,6 +13,8 @@
     "QLOO_TIMEOUT_MS": "20000",
     "QLOO_RETRY_DELAYS_MS": "1000,3000",
     "QLOO_MIN_INTERVAL_MS": "400",
+    // A call still waiting this long is shown as slow: the TRD's worst case per Qloo call.
+    "QLOO_SLOW_MS": "8000",
     "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
     // Guest pitches ship dark: "on" shows the inbox flow; #57 switches it on in production.
     "GUEST_PITCHES": "off",

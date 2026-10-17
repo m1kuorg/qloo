@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import type { Show } from '../agent'
+import type { Show, SlowCall } from '../agent'
 import type { PitchList } from '../fit'
 import type { Booking, Inbox, InboxSource, PastGuest, Pitch, WorkType } from '../inbox'
 import { sameName } from '../resolve'
 import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
+import { SlowCalls } from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
@@ -21,12 +22,13 @@ type Page = {
   booking: Booking | null
   ranking: boolean // a pitch run is running
   runLog: ReactNode // the latest run, when it's a pitch run
+  slowCalls: SlowCall[] // Qloo calls still waiting past the slow mark
 }
 
 // The booker's inbox page, shown only while GUEST_PITCHES is on: load pitches, see what Claude read
 // from each and how Qloo matched its work, confirm ambiguous matches, and rank the pitched works
 // against a roster show and its past guests.
-export function InboxPage({ inbox, roster, booking, ranking, runLog, ...actions }: Page & Actions) {
+export function InboxPage({ inbox, roster, booking, ranking, runLog, slowCalls, ...actions }: Page & Actions) {
   const [selected, setSelected] = useState<string | null>(null)
   const pitch = inbox?.pitches.find((p) => p.id === selected)
   const reading = inbox?.status === 'reading'
@@ -48,6 +50,7 @@ export function InboxPage({ inbox, roster, booking, ranking, runLog, ...actions 
             <div className="status" role="status">
               <b>{reading ? 'Reading' : 'Read'}</b>
               <p>{reading ? `${done} of ${inbox.pitches.length} pitches read` : `${inbox.pitches.length} pitches`}</p>
+              <SlowCalls calls={slowCalls} />
             </div>
           )}
         </div>

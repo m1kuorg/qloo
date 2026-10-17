@@ -13,7 +13,7 @@ related_targets: []
 - **Proof and content:** the sample network's ranked roster with fit rank beside topic rank, Qloo evidence per call, and the drafted insertion order; every sample figure labelled.
 - **Constraints:** rank and band before raw score; Qloo record kept apart from agent text; nothing final until the human approves. Must not read as a generic AI chat app, a BI dashboard, or a spreadsheet clone (user, 2026-10-17).
 - **Chosen direction:** The Weekly Chart. Memorable moment: a cross-genre show climbing the chart with a red bullet, its "why it moved" line citing a Qloo call.
-- **Unresolved:** dark theme; empty, loading, degraded-Qloo, and error states; the narrow-width layout; motion timings.
+- **Unresolved:** dark theme; the narrow-width layout; motion timings. The empty, loading, slow, failing, missed, and error states are settled in DESIGN.md's state colors (#42).
 
 ## Direction contract
 

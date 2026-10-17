@@ -40,11 +40,14 @@ export type QlooDown = { capped: boolean; reason: string }
 // How long a request that failed after its retries marks Qloo as failing, unless one succeeds sooner.
 const FAILING_FOR_MS = 5 * 60_000
 
+// Requests in flight to Qloo at once, across all sessions.
+export const IN_FLIGHT = 3
+
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
-  // At most 3 requests in flight across all sessions, each started at least QLOO_MIN_INTERVAL_MS
-  // after the last: Qloo rate-limits bursts of fast calls, not only concurrent ones.
-  private free = 3
+  // At most IN_FLIGHT requests in flight across all sessions, each started at least
+  // QLOO_MIN_INTERVAL_MS after the last: Qloo rate-limits bursts of fast calls, not only concurrent ones.
+  private free = IN_FLIGHT
   private waiting: (() => void)[] = []
   private nextStart = 0
 
