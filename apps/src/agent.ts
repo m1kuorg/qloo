@@ -386,16 +386,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     this.setState({
       ...this.state,
       launch: { name, match: null, comps: (comps ?? []).map(newComp) },
-      run: {
-        id: run,
-        status: 'running',
-        notes: [],
-        error: null,
-        question: null,
-        budget: null,
-        exclusions: null,
-        closing: null
-      },
+      run: newRun(run),
       // Sessions from before run limits have no list.
       runs: [
         ...(this.state.runs ?? []),
@@ -478,16 +469,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
         lists: null,
         replies: null
       },
-      run: {
-        id: run,
-        status: 'running',
-        notes: [],
-        error: null,
-        question: null,
-        budget: null,
-        exclusions: null,
-        closing: null
-      },
+      run: newRun(run),
       runs: [
         ...(this.state.runs ?? []),
         {
@@ -794,8 +776,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
   private editableOrder(id: string) {
     const order = this.state.insertionOrder
     if (!order || order.id !== id) throw new Error(`${id} isn't the current insertion order. Reload to see the latest.`)
-    const run = this.state.run
-    if (run?.id === order.run && (run.status === 'running' || run.status === 'waiting'))
+    if (this.inProgress(order.run))
       throw new Error('The agent is still working on this run. Edit or approve the order once the run has ended.')
     return order
   }
@@ -824,6 +805,12 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return seq
   }
 
+  // Whether `run` is the latest run and the agent is still working on it, or waiting on an answer.
+  private inProgress(run: string) {
+    const r = this.state.run
+    return r?.id === run && (r.status === 'running' || r.status === 'waiting')
+  }
+
   private show(name: string) {
     const show = this.state.roster.find((s) => s.name === name)
     if (!show) throw new Error(`No show named "${name}" in the roster.`)
@@ -846,8 +833,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     const booking = this.state.booking
     const reply = booking?.replies?.find((r) => r.pitch === pitchId)
     if (!booking || !reply) throw new Error(`There's no drafted reply to ${pitchId}. Reload to see the latest.`)
-    const run = this.state.run
-    if (run?.id === booking.run && (run.status === 'running' || run.status === 'waiting'))
+    if (this.inProgress(booking.run))
       throw new Error('The agent is still drafting replies. Approve, edit, or discard them once the run has ended.')
     return reply
   }
@@ -1402,6 +1388,18 @@ function readComps(names: unknown): string[] {
 }
 
 const newComp = (name: string): Comp => ({ name, match: null, status: 'unconfirmed', entity: null })
+
+// A run as it starts: running, with nothing asked or answered yet.
+const newRun = (id: string): Run => ({
+  id,
+  status: 'running',
+  notes: [],
+  error: null,
+  question: null,
+  budget: null,
+  exclusions: null,
+  closing: null
+})
 
 // The programmer's pick for each comp the question offered, in its order: one of its matches, which
 // becomes the comp's entity, or null for none of these.

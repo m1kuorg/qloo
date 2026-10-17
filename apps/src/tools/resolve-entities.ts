@@ -30,22 +30,23 @@ export const resolveEntities: Tool<Input> = {
   note: ({ names }) => `Resolving ${names.join(', ')}`,
   async run({ names, type }, { qloo, update }) {
     if (names.length === 0) return { isError: true, content: 'No names were given. Call again with at least one.' }
-    // One search at a time: Qloo answers 429 to bursts. #35 moves pacing into the gateway.
-    const results: ({ name: string } & Lookup)[] = []
-    for (const name of names) {
-      const { call, result } = await qloo((gateway) => gateway.search(name, type))
-      const match = lookup(name, call, result)
-      results.push({ name, ...match })
-      update((state) => {
-        const launch = state.launch
-        if (launch?.name && sameName(launch.name, name)) return { ...state, launch: { ...launch, match } }
-        if (!launch?.comps.some((c) => sameName(c.name, name))) return state
-        const comps = launch.comps.map((c) =>
-          sameName(c.name, name) ? { ...c, match, status: 'unconfirmed' as const, entity: null } : c
-        )
-        return { ...state, launch: { ...launch, comps } }
+    // All at once, numbered in the order given: the gateway paces and limits the calls.
+    const results = await Promise.all(
+      names.map(async (name): Promise<{ name: string } & Lookup> => {
+        const { call, result } = await qloo((gateway) => gateway.search(name, type))
+        const match = lookup(name, call, result)
+        update((state) => {
+          const launch = state.launch
+          if (launch?.name && sameName(launch.name, name)) return { ...state, launch: { ...launch, match } }
+          if (!launch?.comps.some((c) => sameName(c.name, name))) return state
+          const comps = launch.comps.map((c) =>
+            sameName(c.name, name) ? { ...c, match, status: 'unconfirmed' as const, entity: null } : c
+          )
+          return { ...state, launch: { ...launch, comps } }
+        })
+        return { name, ...match }
       })
-    }
+    )
     const failed = results.filter((r) => r.resolution === 'failed')
     if (failed.length === 0) return { content: JSON.stringify(results) }
     return {

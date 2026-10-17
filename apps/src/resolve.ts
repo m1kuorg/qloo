@@ -60,7 +60,7 @@ export function resolveWork(
   let pool: WorkCandidate[]
   if (own.length > 0) {
     const edition = year === null ? [] : own.filter((c) => fitsYear(c.disambiguation, year, 1))
-    pool = ranked(edition.length > 0 ? edition : own)
+    pool = withPopularity(edition.length > 0 ? edition : own)
   } else {
     const open = type === 'book' ? named.filter((c) => !author(c.disambiguation)) : named
     pool = year === null ? open : byYear(open, year)
@@ -73,11 +73,11 @@ export function resolveWork(
 function byYear(named: WorkCandidate[], year: number) {
   const near = (slack: number) => named.filter((c) => fitsYear(c.disambiguation, year, slack))
   const dated = [near(0), near(1)].find((p) => p.length > 0)
-  return dated ? ranked(dated) : named.filter((c) => years(c.disambiguation).length === 0)
+  return dated ? withPopularity(dated) : named.filter((c) => years(c.disambiguation).length === 0)
 }
 
 // The results that have popularity, if any do.
-function ranked(pool: WorkCandidate[]) {
+function withPopularity(pool: WorkCandidate[]) {
   const scored = pool.filter((c) => c.popularity !== null)
   return scored.length > 0 ? scored : pool
 }
