@@ -1,7 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
 import { claude, declined } from './claude'
-import type { DemographicCheck } from './demographics'
+import { listOf, type DemographicCheck } from './demographics'
 import { callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
@@ -19,7 +19,7 @@ import {
   type WorkMatch
 } from './inbox'
 import { MAX_COMPS, MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
-import { lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
+import { dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
@@ -510,6 +510,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
       this.setState({ ...this.state, ranking })
       const finalists = finalistsOf(ranking).map((r) => r.show)
       notice += ` Code has left those shows out of the fit ranking ${ranking.call}; the finalists are now ${finalists.join(', ') || 'none'}.`
+      notice += this.dropFromDraft(run.id, finalists)
     }
     const [paused] = this.sql<{ assistant: string; results: string }>`
       SELECT assistant, results FROM paused WHERE run = ${run.id}`
@@ -526,6 +527,23 @@ export class CrossfeedAgent extends Agent<Env, State> {
     void this.keepAliveWhile(() => this.runLoop(run.id)).catch((e) =>
       this.finish(run.id, `The run stopped: ${message(e)}`)
     )
+  }
+
+  // A draft from before an exclusions answer loses the lines of the shows it leaves out, so no draft
+  // holds one (PRD story 19), and the rest is priced again. Returns code's line for the tool result.
+  private dropFromDraft(run: string, finalists: string[]) {
+    const order = this.state.insertionOrder
+    if (order?.run !== run) return ''
+    const kept = order.lines.filter((l) => finalists.includes(l.show))
+    if (kept.length === order.lines.length) return ''
+    if (kept.length === 0) {
+      this.setState({ ...this.state, insertionOrder: null })
+      return ` Code discarded the draft insertion order ${order.id}, as every show on it is now left out; draft it again.`
+    }
+    const priced = priceLines(kept, this.state.roster, this.state.cpm)
+    this.setState({ ...this.state, insertionOrder: { ...order, ...priced } })
+    const dropped = order.lines.filter((l) => !kept.includes(l)).map((l) => `${l.show}'s`)
+    return ` Code dropped ${listOf(dropped)} ${dropped.length === 1 ? 'line' : 'lines'} from the draft insertion order ${order.id}, now ${priced.slots} slots for ${dollars(priced.total)}${priced.complete ? '' : ' so far'}.`
   }
 
   // The programmer's edit of the current insertion order: slot counts, dropped shows, and reworded

@@ -152,6 +152,27 @@ describe('the insertion order', () => {
     })
   })
 
+  it("drops a show's line from the draft when a later exclusions answer leaves it out, and prices the rest again", async () => {
+    const s = await start({ slots: 20 }, [turn(fourShows), turn(askExclusions)])
+    await s.until((state) => state.run?.question?.id === 'toolu_5_1')
+    await s.call('answer', 'toolu_5_1', { exclude: ['Slow Burn'] })
+    const state = await finished(s)
+
+    expect(state.insertionOrder).toMatchObject({
+      status: 'draft',
+      lines: [
+        { show: 'Corner Booth', slots: 8, value: 9600 },
+        { show: 'Paper Route', slots: 4, value: 2600 },
+        { show: 'Field Notes', slots: 2, value: 876 }
+      ],
+      slots: 14,
+      total: 13076
+    })
+    expect(resultFor('toolu_5_1').content).toContain(
+      "Code dropped Slow Burn's line from the draft insertion order IO-0001, now 14 slots for $13,076."
+    )
+  })
+
   it('refuses a draft until the exclusions are answered, storing nothing', async () => {
     const s = await begin([turn(rank), turn(askBudget), turn(fourShows)], 25)
     await s.call('answer', 'toolu_2_1', { slots: 20 })
