@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { Evidence } from '../evidence'
 import { Source } from './Source'
+import { StateLine } from './states'
 
 // The call whose evidence the rail shows, fetched on demand with getEvidence.
 export type Opened =
@@ -39,9 +40,9 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
         </p>
       )}
       {opened?.status === 'failed' && (
-        <p className="err" role="alert">
+        <StateLine kind="error" role="alert">
           Couldn't load {opened.call}: {opened.error}
-        </p>
+        </StateLine>
       )}
       {opened?.status === 'loaded' &&
         (opened.record ? (

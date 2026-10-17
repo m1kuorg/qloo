@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Band } from '../fit'
 import type { Candidate } from '../resolve'
+import { StateLine } from './states'
 
 // Runs one action at a time for a form, keeping its error for the form to show.
 export function useAction() {
@@ -24,9 +25,9 @@ export function useAction() {
 
 export const Alert = ({ error }: { error: string | null }) =>
   error && (
-    <p className="err" role="alert">
+    <StateLine kind="error" role="alert">
       {error}
-    </p>
+    </StateLine>
   )
 
 // Fit bands as the charts word them: a meter of three bars filled from the left, then the word.

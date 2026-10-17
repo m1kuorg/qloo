@@ -15,6 +15,7 @@ Contents:
 1.  [Colors](#colors)
     1.  [Primary colors](#primary-colors)
     1.  [Neutral colors](#neutral-colors)
+    1.  [State colors](#state-colors)
     1.  [Color rules](#color-rules)
 1.  [Typography](#typography)
     1.  [Type hierarchy](#type-hierarchy)
@@ -66,11 +67,20 @@ A restrained palette: neutrals on white, the black top bar as the one committed 
 - **Control Edge** (#d4d4d4): input, button, and chip borders.
 - **Empty Segment** (#dcdcdc): unfilled band-meter segments; decorative, so the band's word label is always shown.
 - **Top Bar Text** (#a3a3a3 inactive nav, #b5b5b5 meta): text on Press Black, 7.49:1 and 9.21:1.
-- **State colors** for a slow or failing Qloo call, a missed match, and errors: [to be resolved during implementation]. They must not reuse Chart Red.
+
+### State colors
+
+Provisional, from #42. Each colors only a state's 8px square marker and its word, such as "Slow Qloo", set in Label type before the sentence that explains it, or a roster row's match chip. The sentence stays in ink. Loading ("Working") and empty states stay neutral, in Column Grey.
+
+- **Slow Amber** (#8a6100): a Qloo call still waiting past 8 seconds, the TRD's worst case. 5.54:1 on white and 4.95:1 on Panel Grey.
+- **Fault Rust** (#a34700): a Qloo call that failed after its retries or at the daily cap, and any other error. 6.07:1 on white and 5.42:1 on Panel Grey.
+- **Missed Slate** (#2f5d8a): a match Qloo doesn't have. 6.88:1 on white and 6.14:1 on Panel Grey.
 
 ### Color rules
 
 **The One Bullet Rule.** Chart Red marks a climb of three or more places, and the legend that explains it, and nothing else: not errors, links, buttons, falls, or emphasis. If a screen has no climbers, it shows neither the bullet nor its legend.
+
+**The Word First Rule.** A state always shows its word, so no state is told by color alone, and no state color is Chart Red or a red.
 
 **The Black Shell Rule.** Press Black fills only the top bar and primary action buttons, such as answering the agent and approving the order. No other region is filled black, so the bar reads as the shell and a black button reads as a decision.
 

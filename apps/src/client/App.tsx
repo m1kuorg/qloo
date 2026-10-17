@@ -14,6 +14,7 @@ import type {
   RunSummary,
   Show,
   ShowPatch,
+  SlowCall,
   State
 } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
@@ -28,14 +29,19 @@ import { EvidencePanel, type Opened } from './Evidence'
 import { InboxPage } from './Inbox'
 import { InsertionOrderPanel } from './InsertionOrder'
 import { Source } from './Source'
+import { sentence, SlowCalls, slowText, StateLine } from './states'
 
 // The session's agent; the server picks the instance from the session cookie.
 const useSession = () => useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgent', basePath: 'agents/session' })
-type Session = ReturnType<typeof useSession>
+export type Session = ReturnType<typeof useSession>
 
 // `page` is the server's choice of page: "roster", or "inbox" while GUEST_PITCHES is on.
 export function App({ page }: { page: string | undefined }) {
-  const agent = useSession()
+  return <Workspace page={page} agent={useSession()} />
+}
+
+// The page for a connected session; tests render it from a session's synced state.
+export function Workspace({ page, agent }: { page: string | undefined; agent: Session }) {
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
   const shown = viewing?.state ?? agent.state
@@ -45,6 +51,8 @@ export function App({ page }: { page: string | undefined }) {
   const runs = agent.state?.runs ?? []
   const sample = agent.state?.sample ?? null
   const sampleLaunch = sample && 'name' in sample.launch ? sample.launch.name : null
+  // Live, never a run's snapshot: calls waiting on Qloo right now. Sessions from before it have none.
+  const slowCalls = agent.state?.slowCalls ?? []
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
   const [opened, setOpened] = useState<Opened | null>(null)
@@ -85,6 +93,7 @@ export function App({ page }: { page: string | undefined }) {
               </>
             )
           }
+          slowCalls={slowCalls}
           loadInbox={(source) => agent.stub.loadInbox(source)}
           confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
           startPitches={(input) => agent.stub.startPitches(input)}
@@ -101,6 +110,8 @@ export function App({ page }: { page: string | undefined }) {
         key={sampleLaunch ?? 'none'}
         suggested={sampleLaunch}
         launch={shown?.launch ?? null}
+        hasRoster={roster.length > 0}
+        slowCalls={slowCalls}
         run={run}
         viewing={viewing && runNumber(runs, viewing.id)}
         back={() => setViewing(null)}
@@ -115,6 +126,7 @@ export function App({ page }: { page: string | undefined }) {
             leftOut={shown?.run?.exclusions ?? []}
             demographics={shown?.demographics ?? null}
             topic={shown?.topic ?? null}
+            failed={roster.filter((s) => s.resolution === 'failed' && !s.excluded).map((s) => s.name)}
             running={run?.status === 'running'}
             openCall={openCall}
             opened={opened?.call ?? null}
@@ -134,6 +146,7 @@ export function App({ page }: { page: string | undefined }) {
                   : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
               </p>
             )}
+            {!viewing && <RosterFailures roster={roster} />}
             {!viewing && (
               <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
             )}
@@ -141,6 +154,7 @@ export function App({ page }: { page: string | undefined }) {
               roster={roster}
               selected={viewing ? null : (show?.name ?? null)}
               select={viewing ? null : setSelected}
+              slowCalls={slowCalls}
               openCall={openCall}
               opened={opened?.call ?? null}
             />
@@ -216,6 +230,8 @@ const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id
 function LaunchHeader({
   suggested,
   launch,
+  hasRoster,
+  slowCalls,
   run,
   viewing,
   back,
@@ -225,6 +241,8 @@ function LaunchHeader({
 }: {
   suggested: string | null // the sample launch, prefilled for the visitor to start
   launch: Launch | null
+  hasRoster: boolean
+  slowCalls: SlowCall[]
   run: Run | null
   viewing: number | null // the number of the earlier run shown
   back: () => void
@@ -254,7 +272,8 @@ function LaunchHeader({
           ? { name: launch.name }
           : null
       : null
-  const current = run?.notes.findLast((n) => n.status === 'running')?.text
+  // The current step is the latest note still running; between tool calls, Claude is choosing the next.
+  const step = run ? run.notes.findLastIndex((n) => n.status === 'running') : -1
   return (
     <section className="hd" aria-label="Launch">
       <div className="hd-row">
@@ -266,10 +285,23 @@ function LaunchHeader({
           {launchComps.length > 0 && (
             <LaunchComps comps={launchComps} running={running} openCall={openCall} opened={opened} />
           )}
+          {!launch && (
+            <StateLine kind="empty">
+              {hasRoster
+                ? 'No launch yet. Name a released launch below and start a run to rank the roster.'
+                : 'No launch yet. Import a roster first, then name a released launch to rank it.'}
+            </StateLine>
+          )}
         </div>
         {run && (
           <div className="status" role="status">
-            <b>{runLabel[run.status]}</b>
+            {run.status === 'failed' || run.status === 'stopped' ? (
+              <StateLine kind="error" word={runLabel[run.status]}>
+                {run.error}
+              </StateLine>
+            ) : (
+              <b>{runLabel[run.status]}</b>
+            )}
             {run.replayed && (
               <>
                 {' '}
@@ -280,9 +312,11 @@ function LaunchHeader({
                 </p>
               </>
             )}
-            {run.status === 'running' && <p>{current ?? 'Waiting for Claude'}</p>}
+            {run.status === 'running' && (
+              <p>{step >= 0 ? `${run.notes[step].text} · step ${step + 1}` : 'Waiting for Claude'}</p>
+            )}
+            <SlowCalls calls={slowCalls.filter((c) => c.run === run.id)} />
             {run.status === 'waiting' && <p>Answer the agent's question to go on.</p>}
-            {(run.status === 'failed' || run.status === 'stopped') && <p>{run.error}</p>}
           </div>
         )}
       </div>
@@ -353,11 +387,7 @@ function LaunchHeader({
           )}
         </form>
       )}
-      {action.error && (
-        <p className="err" role="alert">
-          {action.error}
-        </p>
-      )}
+      <Alert error={action.error} />
     </section>
   )
 }
@@ -384,9 +414,11 @@ function LaunchMatch({
       ) : match.resolution === 'ambiguous' ? (
         <span>Ambiguous: {match.candidates.map((c) => c.name).join(', ')}</span>
       ) : match.resolution === 'failed' ? (
-        <span className="tg">Lookup failed: {match.error}</span>
+        <StateLine kind="failed">
+          The launch isn&apos;t resolved, so nothing can be ranked: {sentence(match.error ?? 'the lookup failed')}
+        </StateLine>
       ) : (
-        <span className="tg">No show by this name in Qloo.</span>
+        <StateLine kind="missed">No show by this name in Qloo.</StateLine>
       )}{' '}
       <button
         type="button"
@@ -796,6 +828,7 @@ function FitChart({
   leftOut,
   demographics,
   topic,
+  failed,
   running,
   openCall,
   opened
@@ -804,6 +837,7 @@ function FitChart({
   leftOut: string[] // shows the run's exclusions answer left out
   demographics: DemographicCheck | null // the finalists checked against the launch's listeners
   topic: Topic | null
+  failed: string[] // roster shows whose Qloo lookup failed
   running: boolean
   openCall: (call: string) => void
   opened: string | null
@@ -811,11 +845,17 @@ function FitChart({
   // The climber whose "why it moved" line is open.
   const [why, setWhy] = useState<string | null>(null)
   if (!ranking)
-    return running ? <p className="help sec">The fit chart appears here once the agent ranks the roster.</p> : null
+    return running ? (
+      <div className="sec">
+        <StateLine kind="loading">The fit chart appears here once the agent ranks the roster.</StateLine>
+      </div>
+    ) : null
   const comps = ranking.anchors.length > 1
   const tagged = ranking.rows.some((r) => r.sharedTags)
   const moves = topic?.status === 'ranked' ? new Map(topic.moves.map((m) => [m.show, m])) : null
   const climbers = topic?.moves.some((m) => m.climber) ?? false
+  // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
+  const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   return (
     <section className="sec fit" aria-labelledby="fit-h">
       <div className="mh">
@@ -845,23 +885,27 @@ function FitChart({
       {demographics && !ranking.error && (
         <DemographicSummary check={demographics} ranking={ranking} openCall={openCall} opened={opened} />
       )}
-      {topic && topic.status !== 'ranked' && !ranking.error && (
-        <p className="help sec-help" role="status">
-          {topic.status === 'ranking'
-            ? 'Ranking the roster by topic alone for the last-week column…'
-            : `No topic column: ${topic.error}. The fit ranking stands without it.`}
-        </p>
-      )}
+      {topic &&
+        !ranking.error &&
+        (topic.status === 'ranking' ? (
+          <StateLine kind="loading">Ranking the roster by topic alone for the last-week column…</StateLine>
+        ) : topic.status !== 'ranked' ? (
+          <StateLine kind="error">No topic column: {topic.error}. The fit ranking stands without it.</StateLine>
+        ) : null)}
       {moves && climbers && !ranking.error && (
         <p className="legend">
           <i className="bul" aria-hidden="true" />
           Bullet: up 3+ places on topic rank. Select a climber for why it moved.
         </p>
       )}
+      {missing.length > 0 && (
+        <StateLine kind="failed">
+          Partial ranking: {listOf(missing)} {missing.length === 1 ? "isn't" : "aren't"} in it, because{' '}
+          {missing.length === 1 ? 'its Qloo lookup' : 'their Qloo lookups'} failed.
+        </StateLine>
+      )}
       {ranking.error ? (
-        <p className="err" role="alert">
-          Not scored: {ranking.error}. Nothing is ranked.
-        </p>
+        <StateLine kind="failed">Nothing is ranked: {sentence(ranking.error)}</StateLine>
       ) : (
         <table className="chart fit-chart" aria-labelledby="fit-h">
           <colgroup>
@@ -1060,9 +1104,9 @@ function DemographicSummary({
   )
   if (!check.profile)
     return (
-      <p className="err demo-sum" role="alert">
+      <StateLine kind="failed" role="alert">
         Demographics {cite} not checked: {check.error}.
-      </p>
+      </StateLine>
     )
   const { from, ages, skew } = check.profile
   const who = [
@@ -1161,16 +1205,46 @@ const resolutionLabel: Record<Show['resolution'], string> = {
   failed: 'Lookup failed'
 }
 
+// The shows Qloo failed to look up, which no ranking can score until they're looked up again.
+function RosterFailures({ roster }: { roster: Show[] }) {
+  const failed = roster.filter((s) => s.resolution === 'failed' && !s.excluded).map((s) => s.name)
+  if (failed.length === 0) return null
+  const one = failed.length === 1
+  return (
+    <StateLine kind="failed">
+      {failed.length} {one ? 'show' : 'shows'} couldn&apos;t be looked up in Qloo, so {one ? 'it' : 'they'} can&apos;t
+      be scored: {failed.join(', ')}. Import the roster again to retry {one ? 'it' : 'them'}; shows already found come
+      from the cache.
+    </StateLine>
+  )
+}
+
+// A show's match chip, marked when its match is in trouble: slow, failed, or missed in Qloo.
+function MatchChip({ show, slow }: { show: Show; slow: boolean }) {
+  const state = slow
+    ? 'slow'
+    : show.resolution === 'failed' || show.resolution === 'missed'
+      ? show.resolution
+      : undefined
+  return (
+    <span className="chip" data-state={state}>
+      {slow ? 'Slow Qloo' : resolutionLabel[show.resolution]}
+    </span>
+  )
+}
+
 function RosterTable({
   roster,
   selected,
   select,
+  slowCalls,
   openCall,
   opened
 }: {
   roster: Show[]
   selected: string | null
   select: ((name: string) => void) | null // null while an earlier run is viewed, read-only
+  slowCalls: SlowCall[]
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -1185,7 +1259,7 @@ function RosterTable({
       </caption>
       <colgroup>
         <col style={{ width: '28%' }} />
-        <col style={{ width: 128 }} />
+        <col style={{ width: 144 }} />
         <col />
         <col style={{ width: 96 }} />
         <col style={{ width: 88 }} />
@@ -1238,12 +1312,19 @@ function RosterTable({
             </td>
             <td>
               <span className="chips">
-                <span className="chip">{resolutionLabel[show.resolution]}</span>
+                <MatchChip
+                  show={show}
+                  slow={show.resolution === 'pending' && slowCalls.some((c) => c.call === show.evidence)}
+                />
                 {show.excluded && <span className="chip">Excluded</span>}
               </span>
             </td>
             <td>
-              <Match show={show} settle={select && (() => select(show.name))} />
+              <Match
+                show={show}
+                slow={slowCalls.filter((c) => c.call === show.evidence)}
+                settle={select && (() => select(show.name))}
+              />
             </td>
             <td className="r">
               {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
@@ -1277,8 +1358,9 @@ function RosterTable({
   )
 }
 
-function Match({ show, settle }: { show: Show; settle: (() => void) | null }) {
-  if (show.resolution === 'pending') return <span className="tg">Looking it up in Qloo…</span>
+function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (() => void) | null }) {
+  if (show.resolution === 'pending')
+    return <span className="tg">{slow.length > 0 ? slowText(slow) : 'Looking it up in Qloo…'}</span>
   const action = show.excluded ? null : show.resolution === 'ambiguous' ? 'Pick the match' : 'Map a comp or leave out'
   if ((show.resolution === 'resolved' || show.resolution === 'mapped') && show.entity)
     return (
@@ -1307,7 +1389,11 @@ function Match({ show, settle }: { show: Show; settle: (() => void) | null }) {
     )
   return (
     <>
-      <span className="tg">{show.resolution === 'failed' ? show.error : 'No show by this name in Qloo.'}</span>{' '}
+      {show.resolution === 'failed' ? (
+        <span className="tg">{sentence(show.error ?? 'The lookup failed')} Not scored.</span>
+      ) : (
+        <span className="tg">No show by this name in Qloo.</span>
+      )}{' '}
       {settleButton}
     </>
   )
@@ -1324,7 +1410,7 @@ function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close:
           Show
         </span>
         <span className="chips">
-          <span className="chip">{resolutionLabel[show.resolution]}</span>
+          <MatchChip show={show} slow={false} />
           {show.excluded && <span className="chip">Excluded</span>}
           <button type="button" className="lnk" onClick={close}>
             Close
@@ -1413,11 +1499,12 @@ function CompSearch({
         (found.status === 'pending' ? (
           <p className="help" role="status">
             Searching Qloo for “{found.query}”… <code className="call">{found.call}</code>
+            <SlowCalls calls={(agent.state?.slowCalls ?? []).filter((c) => c.call === found.call)} />
           </p>
         ) : found.status === 'failed' ? (
-          <p className="err" role="alert">
+          <StateLine kind="failed" role="alert">
             The search for “{found.query}” failed: {found.error} <code className="call">{found.call}</code>
-          </p>
+          </StateLine>
         ) : found.results.length > 0 ? (
           <PickOne
             key={found.call}

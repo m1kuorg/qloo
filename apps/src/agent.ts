@@ -5,7 +5,7 @@ import type { DemographicCheck } from './demographics'
 import { callNumber, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import type { QlooGateway, QlooResult } from './gateway'
+import { IN_FLIGHT, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -136,6 +136,9 @@ export type RunSummary = {
 // A progress note code writes for a tool call, such as "Resolving The Big Picture".
 export type Note = { text: string; status: 'running' | 'done' | 'failed' }
 
+// A Qloo call still waiting after QLOO_SLOW_MS, the TRD's worst case per call, so the UI can say so.
+export type SlowCall = { call: string; run: string | null; waitedMs: number }
+
 // Everything the UI renders, synced to every connection of this session. Later tickets add
 // their own fields; the evidence log stays out of it and is fetched with getEvidence.
 export type State = {
@@ -151,6 +154,7 @@ export type State = {
   sample: Sample | null // the sample network the session opened on, until it's cleared or a roster is imported
   booking: Booking | null // the latest guest pitch run's show, past guests, and ranked lists
   insertionOrder: InsertionOrder | null // the current run's order, once drafted; only the programmer edits or approves it
+  slowCalls: SlowCall[] // this session's Qloo calls still waiting longer than they should
 }
 
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
@@ -180,8 +184,12 @@ export class CrossfeedAgent extends Agent<Env, State> {
     inbox: null,
     sample: null,
     booking: null,
-    insertionOrder: null
+    insertionOrder: null,
+    slowCalls: []
   }
+
+  // This session's Qloo calls still out, oldest first; a call being timed holds its timer.
+  private out: { call: string; run: string | null; timer?: ReturnType<typeof setTimeout> }[] = []
 
   async onStart() {
     // Only this method creates the evidence table, so a session without it is starting for the first time.
@@ -224,6 +232,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
       })
     const inbox = this.state.inbox
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
+    // Calls are timed in memory, so none is still waiting after a restart.
+    if (this.state.slowCalls?.length) this.setState({ ...this.state, slowCalls: [] })
     // A new session opens on the sample network, looked up like an import; tests turn this off.
     if (firstStart && this.env.SAMPLE_NETWORK === 'on') this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample })
   }
@@ -1032,11 +1042,43 @@ export class CrossfeedAgent extends Agent<Env, State> {
     seq = this.numberCall()
   ) {
     const call = callNumber(seq)
-    const result = (await request(this.env.QlooGateway.getByName('global'))) as QlooResult<T>
+    const settled = this.watch(call, run)
+    let result: QlooResult<T>
+    try {
+      result = (await request(this.env.QlooGateway.getByName('global'))) as QlooResult<T>
+    } finally {
+      settled()
+    }
     const record: Evidence = { call, run, ...result.evidence }
     this.sql`UPDATE evidence SET record = ${JSON.stringify(record)} WHERE seq = ${seq}`
     if (run && record.cacheHit) this.sql`UPDATE runs SET cache_hits = cache_hits + 1 WHERE id = ${run}`
     return { call, result }
+  }
+
+  // Times a Qloo call until it settles, and returns what to call then. Only the session's IN_FLIGHT
+  // oldest calls are timed: the gateway sends that many at once, first come first served, so a later
+  // call is still queued behind them, and time spent queued isn't Qloo being slow.
+  private watch(call: string, run: string | null) {
+    const entry: (typeof this.out)[number] = { call, run }
+    this.out.push(entry)
+    this.timeOldest()
+    return () => {
+      clearTimeout(entry.timer)
+      this.out = this.out.filter((e) => e !== entry)
+      const slow = this.state.slowCalls ?? []
+      if (slow.some((c) => c.call === call))
+        this.setState({ ...this.state, slowCalls: slow.filter((c) => c.call !== call) })
+      this.timeOldest()
+    }
+  }
+
+  private timeOldest() {
+    const waitedMs = Number(this.env.QLOO_SLOW_MS)
+    for (const entry of this.out.slice(0, IN_FLIGHT))
+      entry.timer ??= setTimeout(() => {
+        const slowCalls = [...(this.state.slowCalls ?? []), { call: entry.call, run: entry.run, waitedMs }]
+        this.setState({ ...this.state, slowCalls })
+      }, waitedMs)
   }
 }
 
