@@ -191,6 +191,11 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
               cpm={shown.cpm}
               sampleCpm={shown.sample?.cpm ?? false}
               budget={run?.id === shown.insertionOrder.run ? run.budget : null}
+              cites={Object.fromEntries(
+                (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags.call]] : []))
+              )}
+              openCall={openCall}
+              opened={opened?.call ?? null}
               actions={
                 viewing ||
                 (run?.id === shown.insertionOrder.run && (run.status === 'running' || run.status === 'waiting'))

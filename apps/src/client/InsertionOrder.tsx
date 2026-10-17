@@ -13,7 +13,10 @@ export function InsertionOrderPanel({
   sampleCpm,
   budget,
   actions,
-  readOnly
+  readOnly,
+  cites,
+  openCall,
+  opened
 }: {
   order: InsertionOrder
   roster: Show[] // for the live totals while editing, and the sample labels
@@ -22,6 +25,9 @@ export function InsertionOrderPanel({
   budget: Budget | null
   actions: { edit: (lines: LineInput[]) => Promise<void>; approve: () => Promise<void> } | null
   readOnly: string | null // why there are no actions, such as an earlier run being viewed
+  cites: Record<string, string> // by show, the compare call behind the shared tags its angle draws on
+  openCall: (call: string) => void
+  opened: string | null
 }) {
   const [editing, setEditing] = useState(false)
   const { busy, error, run } = useAction()
@@ -68,7 +74,24 @@ export function InsertionOrderPanel({
                 <tr key={line.show}>
                   <td>
                     <div className="nm">{line.show}</div>
-                    <div className="tg angle">{line.angle}</div>
+                    <div className="tg angle">
+                      {line.angle}
+                      {cites[line.show] && (
+                        <>
+                          {' '}
+                          <button
+                            type="button"
+                            className="call"
+                            aria-pressed={cites[line.show] === opened}
+                            aria-controls="evidence"
+                            aria-label={`Evidence for the tags ${line.show} shares: call ${cites[line.show]}`}
+                            onClick={() => openCall(cites[line.show])}
+                          >
+                            {cites[line.show]}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                   <td>{line.slots}</td>
                   <td>

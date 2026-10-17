@@ -1,7 +1,10 @@
 import { exports } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Reply, State } from '../src/agent'
-import { fakeClaude, fakeInsights, fakeQloo, modelRequests, text, toolUse, turn } from './fake'
+import { Workspace, type Session as Agent } from '../src/client/App'
+import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, text, toolUse, turn } from './fake'
 import { openSession, type Session } from './session'
 
 // A made-up network: Night Shift is the launch, from the roster, and the others are ranked against it.
@@ -189,6 +192,37 @@ describe('the insertion order', () => {
     const names = modelRequests()[0].tools.map((t: { name: string }) => t.name)
     expect(names).toContain('draft_insertion_order')
     expect(names.filter((n: string) => /approv|edit|export|csv/i.test(n))).toEqual([])
+  })
+
+  it('cites, beside each angle, the compare call its shared tags came from', async () => {
+    // Made-up tags, one per finalist, with scores unlike any other figure here.
+    const finalists = fit.slice(0, 5).map((f) => f.entity_id)
+    fakeCompare(
+      Object.fromEntries(
+        finalists.map((id, i) => [
+          id,
+          [{ tag_id: 'urn:tag:keyword:media:night_owls', name: 'Night Owls', score: 0.6131 + i / 1000 }]
+        ])
+      )
+    )
+    const { state } = await plan({ slots: 20 }, [
+      turn(toolUse('shared_tags', { anchor_ids: ['e-0500'], candidate_ids: finalists })),
+      turn(fourShows)
+    ])
+
+    // The rail as the browser renders it: each line's row cites the call behind its show's tags.
+    const html = renderToStaticMarkup(
+      createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent })
+    )
+    const rows = html.match(/<section class="mod io-mod"[\s\S]*?<\/section>/)![0].split('<tr')
+    const cited = state.insertionOrder!.lines.map((line) => {
+      const row = rows.find((r) => r.includes(`<div class="nm">${line.show}</div>`))
+      return row?.match(/<button[^>]*class="call"[^>]*>(C-\d+)<\/button>/)?.[1]
+    })
+    expect(cited).toEqual(
+      state.insertionOrder!.lines.map((line) => state.ranking!.rows.find((r) => r.show === line.show)!.sharedTags!.call)
+    )
+    expect(new Set(cited).size).toBe(4)
   })
 
   it('shows the gap for a show without downloads, and an incomplete total, never a made-up figure', async () => {
