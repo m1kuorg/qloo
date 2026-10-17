@@ -185,12 +185,13 @@ describe('standing comps in for an unreleased launch', () => {
     expect(state.ranking?.anchors.map((a) => a.name)).toEqual(['Matinee Club', 'Frame by Frame'])
   })
 
+  const askComps = toolUse('ask_human', {
+    question: 'Qloo has no show named Untitled Film Show. If it is unreleased, which shows are like it?',
+    kind: 'comps',
+    options: []
+  })
+
   it('asks for comps when the launch name misses, and ranks on the comps the programmer names', async () => {
-    const askComps = toolUse('ask_human', {
-      question: 'Qloo has no show named Untitled Film Show. If it is unreleased, which shows are like it?',
-      kind: 'comps',
-      options: []
-    })
     const s = await withRoster([
       turn(resolve(['Untitled Film Show'])),
       turn(askComps),
@@ -230,5 +231,24 @@ describe('standing comps in for an unreleased launch', () => {
     expect(resumed.at(-1)).toEqual({ type: 'text', text: 'Comps: Matinee Club, Reel Talk.' })
     // The prompt tells Claude to ask for comps when the launch's name misses.
     expect(JSON.stringify(modelRequests()[0].system)).toMatch(/comes back missed[^"]*kind comps/)
+  })
+
+  it('takes a name given in place of comps as the name Qloo lists the launch under', async () => {
+    const s = await withRoster([
+      turn(resolve(['Untitled Film Show'])),
+      turn(askComps),
+      turn(resolve(['Matinee Club'])),
+      turn(text('The launch is Matinee Club.'))
+    ])
+    await s.call('startLaunch', { name: 'Untitled Film Show' })
+    const asked = await waiting(s)
+    await s.call('answer', question(asked).id, { comps: ['', ' '], text: 'Matinee Club' })
+    expect(s.state()?.launch).toEqual({ name: 'Matinee Club', match: null, comps: [] })
+    const state = await finished(s)
+
+    expect(state.launch?.match).toMatchObject({ resolution: 'resolved', entity: { id: 'e-0301' } })
+    const [notice, answer] = modelRequests()[2].messages.at(-1).content
+    expect(notice.content).toContain('Code renamed the launch "Matinee Club"; resolve that name.')
+    expect(answer).toEqual({ type: 'text', text: 'Look it up as "Matinee Club".' })
   })
 })

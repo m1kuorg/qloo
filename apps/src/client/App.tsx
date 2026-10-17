@@ -668,11 +668,13 @@ function OpenQuestion({ question, launch, agent }: { question: Question; launch:
                 ? question.options.length > 0
                   ? 'Or the name Qloo lists it under'
                   : 'The name Qloo lists it under'
-                : question.kind !== 'choice'
-                  ? 'Note for the agent, optional'
-                  : question.options.length > 0
-                    ? 'Or type your own answer'
-                    : 'Your answer'}
+                : question.kind === 'comps' && launch?.name
+                  ? 'Or the name Qloo lists it under'
+                  : question.kind !== 'choice'
+                    ? 'Note for the agent, optional'
+                    : question.options.length > 0
+                      ? 'Or type your own answer'
+                      : 'Your answer'}
             </span>
             <span className="in">
               <input
