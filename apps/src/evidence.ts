@@ -21,6 +21,7 @@ export type Evidence = {
     affinity: number | null
     explainability: { id: string; score: number }[]
   }[]
+  replayed?: true // copied from the stored sample run by a replay: no request was made for it
 }
 
 export type CallEvidence = Omit<Evidence, 'call' | 'run'>

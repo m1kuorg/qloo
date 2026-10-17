@@ -98,6 +98,17 @@ export function fakeQloo({
   )
 }
 
+// Answers every Qloo request, on any endpoint, with `status` and an error body in Qloo's shape, as
+// when Qloo is down. Registered after other Qloo fakes, it overrides them.
+export function fakeQlooDown(status = 503) {
+  network.use(
+    http.all(`${env.QLOO_BASE_URL}/*`, async ({ request }) => {
+      await record(request)
+      return HttpResponse.json({ error: { message: 'fake failure', code: status } }, { status })
+    })
+  )
+}
+
 // One result of a closed-list ranking. `explainability` lists each anchor's share; left out, the
 // fake splits the score evenly across the request's anchors, and `null` leaves it off the result.
 export type Insight = {

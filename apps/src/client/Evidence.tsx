@@ -22,7 +22,10 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
         <span className="lbl" id="evidence-h">
           {opened ? `Evidence · ${opened.call}` : 'Evidence'}
         </span>
-        <Source of="qloo" />
+        <span className="chips">
+          {opened?.status === 'loaded' && opened.record?.replayed && <span className="chip">Replayed</span>}
+          <Source of="qloo" />
+        </span>
       </div>
       {!opened && (
         <p className="help">
@@ -57,6 +60,9 @@ function EvidenceRecord({ record }: { record: Evidence }) {
   return (
     <>
       <dl className="rec kv">
+        {record.replayed && (
+          <Row label="Replayed">From the stored sample run, as Qloo answered it then; no new request</Row>
+        )}
         <Row label="Request">
           <code>
             {record.method} {record.endpoint}

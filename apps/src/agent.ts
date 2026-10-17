@@ -94,6 +94,7 @@ export type Run = {
   question: Question | null // the open question, from ask_human
   budget: Budget | null // the slot budget the programmer gave this run; only their answer sets it
   exclusions: string[] | null // show names left out of this run only; null until answered
+  replayed?: string // why the stored sample run was replayed instead of run, such as the daily cap
 }
 
 export type Budget = { slots: number } | { dollars: number }
@@ -129,6 +130,7 @@ export type RunSummary = {
   pitchesFor?: string // a guest pitch run's show
   status: Run['status']
   startedAt: string // ISO time
+  replayed?: true // the stored sample run, replayed
 }
 
 // A progress note code writes for a tool call, such as "Resolving The Big Picture".
@@ -153,6 +155,13 @@ export type State = {
 
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
 export type RunSnapshot = Omit<State, 'runs'>
+
+// A completed sample run any session can replay while Qloo can't be called: what it ended with,
+// less the visitor's own guest pitches, and every evidence record that cites. The gateway keeps the latest.
+type SampleRun = { state: Omit<RunSnapshot, 'inbox' | 'booking'>; evidence: Evidence[] }
+
+// A call number wherever it appears in state, such as "C-07".
+const CALL = /\bC-\d+\b/g
 
 // Pitches read at once: each is one model call, then one Qloo search the gateway paces.
 const READ_CONCURRENCY = 5
@@ -322,6 +331,11 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (comps?.length === 0) throw new Error('Name at least one comp to start a run.')
     const name = comps ? null : 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
     if (name === '') throw new Error('Name the launch to start a run.')
+    // Decided before anything runs: while Qloo can't be called, the unchanged sample launch replays
+    // the stored sample run and any other run stops, so neither calls Qloo or Claude.
+    const gateway = this.env.QlooGateway.getByName('global')
+    const down = await gateway.health()
+    const stored = down && onSampleLaunch(this.state, name) ? await gateway.sampleRun() : null
     const { run, startedAt } = this.beginRun()
     this.setState({
       ...this.state,
@@ -334,9 +348,22 @@ export class CrossfeedAgent extends Agent<Env, State> {
       ],
       ranking: null,
       demographics: null,
-      topic: { status: 'ranking', order: [], error: null, moves: [] },
+      // A start that replays or stops runs no topic baseline.
+      topic: down ? null : { status: 'ranking', order: [], error: null, moves: [] },
       insertionOrder: null
     })
+    if (down) {
+      if (stored && onSampleLaunch(this.state, name)) this.replay(run, JSON.parse(stored), down.reason)
+      else
+        this.finish(
+          run,
+          onSampleLaunch(this.state, name)
+            ? `${down.reason}, and no sample run is stored to replay yet. Start it again once Qloo answers.`
+            : `${down.reason}, so runs on your own data wait until Qloo answers again. Only the sample launch, on the unchanged sample network, replays its stored run.`,
+          down.capped ? 'stopped' : 'failed'
+        )
+      return { runId: run }
+    }
     // Beside the agent loop, not a tool of it: it needs no Qloo data.
     const imported = this.state.roster
     // A launch from comps is described to the topic baseline by its comps.
@@ -627,6 +654,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (ended?.snapshot) {
       const snapshot = withMoves({ ...(JSON.parse(ended.snapshot) as RunSnapshot), topic })
       this.sql`UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}`
+      // A sample run kept before its baseline landed is kept again with it.
+      if (snapshot.run?.status === 'completed' && !snapshot.run.replayed) this.keepSampleRun(run, snapshot)
     }
   }
 
@@ -928,7 +957,49 @@ export class CrossfeedAgent extends Agent<Env, State> {
       UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}
       RETURNING started_at, turns, qloo_calls, cache_hits`
     // A run started before run limits has no row to summarize.
-    if (spent) log(summary(run, ended.status, spent))
+    if (spent) log({ ...summary(run, ended.status, spent), ...(ended.replayed && { replayed: true }) })
+    if (ended.status === 'completed' && !ended.replayed) this.keepSampleRun(run, snapshot)
+  }
+
+  // Keeps a completed sample launch run, answered with the sample answers, for any session to
+  // replay while Qloo can't be called. Only a run whose every cited Qloo call was answered is kept;
+  // a tool error Claude recovered from, such as a second question in one turn, doesn't count. The
+  // guest pitch flow's fields are the visitor's own, not the run's, so they stay out.
+  private keepSampleRun(run: string, { inbox: _, booking: __, ...state }: RunSnapshot) {
+    const { sample, launch, run: ended } = state
+    if (!sample || !launch?.name || !ended || !onSampleLaunch(state, launch.name)) return
+    const { budget, exclusions } = sample.answers
+    if (JSON.stringify([ended.budget, ended.exclusions]) !== JSON.stringify([budget, exclusions])) return
+    const cited = new Set(JSON.stringify(state).match(CALL))
+    const evidence = this.getEvidence().filter((e) => cited.has(e.call))
+    if (evidence.length < cited.size || evidence.some((e) => e.error)) return
+    const sampleRun: SampleRun = { state, evidence }
+    void this.keepAliveWhile(() => this.env.QlooGateway.getByName('global').keepSampleRun(JSON.stringify(sampleRun)))
+      .then(() => log({ event: 'sample_run', run, calls: evidence.length }))
+      .catch((e) => log({ event: 'sample_run', run, error: message(e) }))
+  }
+
+  // Replays the stored sample run as this run: what it ended with, roster and all, with the calls
+  // it cites copied into this session's log under new numbers and labelled replayed. Nothing calls
+  // Qloo or Claude.
+  private replay(run: string, stored: SampleRun, reason: string) {
+    const seqs = stored.evidence.map(() => this.numberCall())
+    const numbers = new Map(stored.evidence.map((e, i) => [e.call, callNumber(seqs[i])]))
+    const renumbered = JSON.stringify(stored)
+      .replace(CALL, (call) => numbers.get(call) ?? call)
+      .replaceAll(stored.state.run!.id, run)
+    const { state, evidence }: SampleRun = JSON.parse(renumbered)
+    evidence.forEach((e, i) => {
+      const record: Evidence = { ...e, replayed: true }
+      this.sql`UPDATE evidence SET record = ${JSON.stringify(record)} WHERE seq = ${seqs[i]}`
+    })
+    this.setState({
+      ...this.state,
+      ...state,
+      run: { ...state.run!, replayed: reason },
+      runs: this.state.runs.map((s) => (s.id === run ? { ...s, replayed: true } : s))
+    })
+    this.finish(run, null)
   }
 
   // Pauses or resumes the run, here and in the session's list of runs.
@@ -971,6 +1042,15 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+// Whether this is the sample launch on the unchanged sample network: the sample's CPM and every
+// show's sample figures untouched (#44). Settling or mapping shows doesn't change it.
+function onSampleLaunch({ sample, roster }: Pick<State, 'sample' | 'roster'>, name: string | null) {
+  if (!sample?.cpm || !('name' in sample.launch) || sample.launch.name !== name) return false
+  return roster.every((show) =>
+    sampleRoster.find((r) => r.name === show.name)?.sample.every((f) => show.sample?.includes(f))
+  )
+}
+
 // A pitch run's first message: the show, the past guests' works that can anchor its rankings, and the
 // pitches that can be ranked, by ID. Guest names and pitch text stay out of it.
 function pitchBrief({ show, pastGuests }: Booking, inbox: Inbox) {
@@ -998,8 +1078,9 @@ function pitchBrief({ show, pastGuests }: Booking, inbox: Inbox) {
 }
 
 // One structured line in Workers Logs, like the gateway's qloo_call lines.
-const log = (line: { event: 'model_call' | 'run_summary' | 'topic_baseline' } & Record<string, unknown>) =>
-  console.log(JSON.stringify(line))
+const log = (
+  line: { event: 'model_call' | 'run_summary' | 'topic_baseline' | 'sample_run' } & Record<string, unknown>
+) => console.log(JSON.stringify(line))
 
 // What a run has spent against its limits, from its row in `runs`.
 type Spent = { started_at: number; turns: number; qloo_calls: number; cache_hits: number }
