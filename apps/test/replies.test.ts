@@ -228,6 +228,46 @@ describe('drafting replies to pitches', () => {
     ])
   })
 
+  it("gives the whole run's verdict counts in each draft_replies result, so the closing can quote them", async () => {
+    // Two calls in one turn, as Haiku drafts 40 replies in two calls of 20.
+    const { agentRequests } = await pitchRun([
+      turn(rankPitches),
+      turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
+      turn(draftReplies(replies.slice(0, 3)), draftReplies(replies.slice(3))),
+      turn(text('Drafted.'))
+    ])
+
+    const [first, second] = agentRequests()[3]
+      .messages.at(-1)
+      .content.map((r: { content: string }) => JSON.parse(r.content))
+    expect(first).toMatchObject({
+      stored: 3,
+      verdictsSoFar: { book: 1, later: 1, decline: 1 },
+      withoutReply: ['pitch-04', 'pitch-05', 'pitch-06', 'pitch-07']
+    })
+    expect(first.next).not.toContain('Every pitch')
+    expect(second).toEqual({
+      stored: 4,
+      verdictsSoFar: { book: 3, later: 2, decline: 2 },
+      withoutReply: [],
+      next: 'Every pitch has a draft reply: 3 book, 2 later, and 2 decline, counting every call. If your closing gives counts, use these. The booker approves, edits, or discards each reply in the UI.'
+    })
+  })
+
+  it('counts a redrafted reply once, with its new verdict', async () => {
+    const { state, agentRequests } = await pitchRun([
+      turn(rankPitches),
+      turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
+      turn(draftReplies(replies.slice(0, 3))),
+      turn(draftReplies([{ ...replies[0], verdict: 'book' }, ...replies.slice(3)])),
+      turn(text('Drafted.'))
+    ])
+
+    const [result] = agentRequests()[4].messages.at(-1).content
+    expect(JSON.parse(result.content).verdictsSoFar).toEqual({ book: 4, later: 1, decline: 2 })
+    expect(state.booking?.replies?.filter((r) => r.verdict === 'book')).toHaveLength(4)
+  })
+
   it('refuses tags and replies before the ranking, tags for anything but the show and its top pitches, and ungrounded angles', async () => {
     const { state, agentRequests } = await pitchRun([
       turn(sharedTags(['e-0001'], ['pitch-02']), draftReplies(replies)),
