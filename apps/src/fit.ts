@@ -1,7 +1,9 @@
 // The fit ranking as the chart shows it: the TRD's derived values, worked out from one Qloo
-// closed-list ranking of the roster. Raw affinities stay in the evidence; the chart gets ranks.
+// closed-list ranking of the roster, and the pitch lists, one per work type. Raw affinities stay in
+// the evidence; the charts get ranks.
 import type { Show } from './agent'
 import type { QlooResult, Ranked } from './gateway'
+import type { Pitch, Work, WorkCandidate, WorkMatch, WorkType } from './inbox'
 import type { Candidate } from './resolve'
 
 export type Anchor = { id: string; name: string }
@@ -33,6 +35,30 @@ export type Ranking = {
   notScored: NotScored[] // every other roster show, in roster order, with the reason
 }
 
+// One pitched work in its type's list. Pitches of the same work share its score.
+export type PitchRow = {
+  pitch: string // the pitch's ID, such as "pitch-07"
+  entity: WorkCandidate // the work Qloo scored
+  rank: number // from 1, within this list only
+  band: Band
+}
+
+export type PitchNotScored = { pitch: string; reason: string }
+
+// The pitched works of one type, ranked against the show by one Qloo call. Another type's list comes
+// from another call, so its scores can't be compared with these.
+export type PitchList = {
+  type: WorkType
+  // show: against the show and the past guests' works. same_type: against only the past guests'
+  // works of this type, because Qloo scored none of them against the show. unranked: not ranked.
+  path: 'show' | 'same_type' | 'unranked'
+  anchors: Anchor[] // what its last ranking call ranked against
+  calls: string[] // its ranking calls, in the order made
+  error: string | null // why it's unranked
+  rows: PitchRow[] // in fit order
+  notScored: PitchNotScored[] // this type's other pitches, in inbox order, with the reason
+}
+
 const FINALISTS = 5
 const LEAD = 0.05 // how far the top anchor's share must beat the next one's to name it
 
@@ -55,12 +81,11 @@ export function rankRoster(
     .filter((s) => scorable(s) && !isAnchor(s) && scores.has(s.entity!.id))
     .map((s) => ({ show: s, score: scores.get(s.entity!.id)! }))
     .sort((a, b) => b.score.affinity - a.score.affinity)
-  const bands: Band[] = ['top', 'middle', 'bottom']
   const rows = ranked.map(({ show, score }, i) => ({
     show: show.name,
     entity: show.entity!,
     rank: i + 1,
-    band: bands[Math.floor((i * 3) / ranked.length)],
+    band: band(i, ranked.length),
     leadingComp: leadingComp(anchors, score.explainability),
     finalist: i < FINALISTS,
     sharedTags: null
@@ -82,6 +107,48 @@ export function rankRoster(
     .filter((s) => !rows.some((r) => r.show === s.name))
     .map((s) => ({ show: s.name, reason: reason(s) }))
   return { call, anchors, error: result.ok ? null : result.error, rows, notScored }
+}
+
+const bands: Band[] = ['top', 'middle', 'bottom']
+const band = (i: number, n: number) => bands[Math.floor((i * 3) / n)]
+
+// A pitch a ranking can score: read, with a public work matched to one Qloo entity. A pitch set aside
+// with no public work, unreadable, or failed never is.
+export const rankable = (p: Pitch): p is Pitch & { work: Work; match: WorkMatch & { entity: WorkCandidate } } =>
+  p.status === 'read' && p.work !== null && p.match?.resolution === 'resolved' && p.match.entity !== null
+
+// Builds one type's list from `pitches`, the read pitches of that type, and the outcome of its last
+// ranking call: the scored results, or why there's no ranking. Ties keep inbox order.
+export function listPitches(
+  type: WorkType,
+  pitches: Pitch[],
+  { path, anchors, calls }: Pick<PitchList, 'path' | 'anchors' | 'calls'>,
+  outcome: Ranked['scored'] | string
+): PitchList {
+  const isAnchor = (p: Pitch) => anchors.some((a) => a.id === p.match?.entity?.id)
+  const scores = new Map(typeof outcome === 'string' ? [] : outcome.map((s) => [s.id, s.affinity]))
+  const ranked = pitches
+    .filter(rankable)
+    .filter((p) => !isAnchor(p) && scores.has(p.match.entity.id))
+    .sort((a, b) => scores.get(b.match.entity.id)! - scores.get(a.match.entity.id)!)
+  const rows = ranked.map((p, i) => ({
+    pitch: p.id,
+    entity: p.match.entity,
+    rank: i + 1,
+    band: band(i, ranked.length)
+  }))
+  const reason = (p: Pitch) => {
+    if (p.match?.resolution === 'ambiguous') return 'Ambiguous in Qloo search: confirm its match in the inbox'
+    if (p.match?.resolution === 'missed') return 'Not in Qloo'
+    if (p.match?.resolution === 'failed') return `Its Qloo lookup failed: ${p.match.error}`
+    if (isAnchor(p)) return "A past guest's work: not ranked against itself"
+    if (typeof outcome === 'string') return 'Not ranked, with the rest of this list'
+    return 'Qloo returned no score for it against these anchors'
+  }
+  const notScored = pitches
+    .filter((p) => !rows.some((r) => r.pitch === p.id))
+    .map((p) => ({ pitch: p.id, reason: reason(p) }))
+  return { type, path, anchors, calls, error: typeof outcome === 'string' ? outcome : null, rows, notScored }
 }
 
 // Marks the top five by fit as finalists, after the shows the run left out in its exclusions answer.

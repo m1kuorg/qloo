@@ -80,6 +80,7 @@ describe('loading a pasted pitch', () => {
       id: expect.any(String),
       sample: false,
       notice: null,
+      show: null,
       status: 'done',
       pitches: [
         {

@@ -4,9 +4,19 @@ import { claude } from './claude'
 import type { DemographicCheck } from './demographics'
 import { callNumber, type Evidence } from './evidence'
 import { pitchReader } from './extract'
-import { markFinalists, scorable, type Ranking } from './fit'
+import { markFinalists, rankable, scorable, type Ranking } from './fit'
 import type { QlooGateway, QlooResult } from './gateway'
-import { qlooType, readInbox, type Inbox, type Pitch } from './inbox'
+import {
+  qlooType,
+  readInbox,
+  readPastGuests,
+  workNoun,
+  type Booking,
+  type Inbox,
+  type Pitch,
+  type Work,
+  type WorkMatch
+} from './inbox'
 import { MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
 import { candidateLabels, lookup, lookupWork, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
@@ -93,7 +103,8 @@ export type Reply = { choice?: string; text?: string; slots?: number; dollars?: 
 // One run in the session's list of runs. Its results, once it ends, come from getRun.
 export type RunSummary = {
   id: string
-  launch: string | null // the launch's name; null for a launch run from comps
+  launch: string | null // the launch's name; null for a launch run from comps, or a pitch run
+  pitchesFor?: string // a guest pitch run's show
   status: Run['status']
   startedAt: string // ISO time
 }
@@ -114,6 +125,7 @@ export type State = {
   topic: Topic | null // the current run's topic baseline, the chart's last-week column
   inbox: Inbox | null // the booker's guest pitches, when GUEST_PITCHES is on
   sample: Sample | null // the sample network the session opened on, until it's cleared or a roster is imported
+  booking: Booking | null // the latest guest pitch run's show, past guests, and ranked lists
 }
 
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
@@ -134,7 +146,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
     demographics: null,
     topic: null,
     inbox: null,
-    sample: null
+    sample: null,
+    booking: null
   }
 
   async onStart() {
@@ -282,22 +295,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if ('comps' in given) throw new Error("Starting from comps isn't available yet. Name a released launch.")
     const name = 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
     if (!name) throw new Error('Name the launch to start a run.')
-    if (this.state.run?.status === 'running') throw new Error('A run is already in progress. Wait for it to finish.')
-    const [{ started }] = this.sql<{ started: number }>`
-      SELECT COUNT(*) AS started FROM runs WHERE started_at >= ${startOfUtcDay()}`
-    if (started >= MAX_RUNS_PER_DAY)
-      throw new Error(
-        `This session has started its ${MAX_RUNS_PER_DAY} runs for today. Runs reset at 00:00 UTC; earlier runs stay viewable.`
-      )
-
-    // A run left waiting on a question ends unanswered, and its paused turn with it.
-    const waiting = this.state.run
-    if (waiting?.status === 'waiting') this.finish(waiting.id, 'Left unanswered: a new run started instead.')
-    this.sql`DELETE FROM paused`
-
-    const run = crypto.randomUUID()
-    const startedAt = Date.now()
-    this.sql`INSERT INTO runs (id, started_at) VALUES (${run}, ${startedAt})`
+    const { run, startedAt } = this.beginRun()
     this.setState({
       ...this.state,
       launch: { name, match: null },
@@ -326,6 +324,51 @@ export class CrossfeedAgent extends Agent<Env, State> {
       content: `The launch is a released show named "${name}". Plan its promos.\n\n${roster}`
     })
     void this.keepAliveWhile(() => this.runLoop(run)).catch((e) => this.finish(run, `The run stopped: ${message(e)}`))
+    return { runId: run }
+  }
+
+  // Starts a guest pitch run and returns at once. The past guests' works are looked up in Qloo like
+  // pitched works, then Claude ranks the inbox's pitches against the show and those works, one list
+  // per work type. The run's progress and lists arrive in synced state.
+  @callable()
+  startPitches(input: unknown) {
+    this.guestPitches()
+    const given = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>
+    const inbox = this.state.inbox
+    if (!inbox) throw new Error('Load an inbox first.')
+    if (inbox.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
+    if (typeof given.show !== 'string' || !given.show) throw new Error('Pick the roster show the pitches are for.')
+    const show = this.show(given.show)
+    // A show left out of launches can still be booked.
+    if (!show.entity || (show.resolution !== 'resolved' && show.resolution !== 'mapped'))
+      throw new Error(`${show.name} isn't matched in Qloo. Settle it in the roster first.`)
+    const pastGuests = readPastGuests(given.pastGuests)
+    if (!inbox.pitches.some(rankable))
+      throw new Error('No pitched work is matched in Qloo, so there is nothing to rank. Confirm the ambiguous matches.')
+    const { run, startedAt } = this.beginRun()
+    this.setState({
+      ...this.state,
+      booking: {
+        run,
+        show: { name: show.name, entity: show.entity! },
+        pastGuests: pastGuests.map((g) => ({ ...g, match: null })),
+        lists: null
+      },
+      run: { id: run, status: 'running', notes: [], error: null, question: null, budget: null, exclusions: null },
+      runs: [
+        ...(this.state.runs ?? []),
+        {
+          id: run,
+          launch: null,
+          pitchesFor: show.name,
+          status: 'running',
+          startedAt: new Date(startedAt).toISOString()
+        }
+      ]
+    })
+    void this.keepAliveWhile(() => this.runPitches(run)).catch((e) =>
+      this.finish(run, `The run stopped: ${message(e)}`)
+    )
     return { runId: run }
   }
 
@@ -386,8 +429,11 @@ export class CrossfeedAgent extends Agent<Env, State> {
   loadInbox(source: unknown) {
     this.guestPitches()
     if (this.state.inbox?.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
+    if (this.state.run?.status === 'running' && this.state.booking?.run === this.state.run.id)
+      throw new Error('The pitches are being ranked. Wait for the run to finish.')
     const inbox: Inbox = { id: crypto.randomUUID(), status: 'reading', ...readInbox(source) }
-    this.setState({ ...this.state, inbox })
+    // The last pitch run's lists name the old inbox's pitches, so they go with it.
+    this.setState({ ...this.state, inbox, booking: null })
     void this.keepAliveWhile(() => this.readPitches(inbox)).catch((e) =>
       this.finishInbox(inbox.id, `Reading stopped: ${message(e)}`)
     )
@@ -508,6 +554,54 @@ export class CrossfeedAgent extends Agent<Env, State> {
       const snapshot = withMoves({ ...(JSON.parse(ended.snapshot) as RunSnapshot), topic })
       this.sql`UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}`
     }
+  }
+
+  // Checks the run limits, ends a run left waiting on a question, and records a new run.
+  private beginRun() {
+    if (this.state.run?.status === 'running') throw new Error('A run is already in progress. Wait for it to finish.')
+    const [{ started }] = this.sql<{ started: number }>`
+      SELECT COUNT(*) AS started FROM runs WHERE started_at >= ${startOfUtcDay()}`
+    if (started >= MAX_RUNS_PER_DAY)
+      throw new Error(
+        `This session has started its ${MAX_RUNS_PER_DAY} runs for today. Runs reset at 00:00 UTC; earlier runs stay viewable.`
+      )
+
+    // A run left waiting on a question ends unanswered, and its paused turn with it.
+    const waiting = this.state.run
+    if (waiting?.status === 'waiting') this.finish(waiting.id, 'Left unanswered: a new run started instead.')
+    this.sql`DELETE FROM paused`
+
+    const run = crypto.randomUUID()
+    const startedAt = Date.now()
+    this.sql`INSERT INTO runs (id, started_at) VALUES (${run}, ${startedAt})`
+    return { run, startedAt }
+  }
+
+  // A pitch run: looks up the past guests' works by title and type, as pitched works are, then gives
+  // Claude the show, the works that resolved, and the pitches it can rank. Guest names are compared
+  // here and never sent.
+  private async runPitches(run: string) {
+    const { pastGuests } = this.state.booking!
+    if (pastGuests.length > 0) {
+      const count = pastGuests.length
+      const note = this.addNote(run, `Looking up ${count} past ${count === 1 ? "guest's work" : "guests' works"}`)
+      // They count toward the run's Qloo call limit, which a handful of searches can't reach.
+      this.sql`UPDATE runs SET qloo_calls = qloo_calls + ${count} WHERE id = ${run}`
+      const matches = await Promise.all(
+        pastGuests.map(async ({ guest, work }) => {
+          const { call, result } = await this.qloo((gateway) => gateway.search(work.title, qlooType[work.type], 5), run)
+          return lookupWork(work, guest, call, result)
+        })
+      )
+      const booking = this.state.booking!
+      this.setState({
+        ...this.state,
+        booking: { ...booking, pastGuests: booking.pastGuests.map((g, i) => ({ ...g, match: matches[i] })) }
+      })
+      this.updateRun(run, (r) => ({ ...r, notes: r.notes.map((n, i) => (i === note ? { ...n, status: 'done' } : n)) }))
+    }
+    this.append(run, { role: 'user', content: pitchBrief(this.state.booking!, this.state.inbox!) })
+    await this.runLoop(run)
   }
 
   // Reserves the next call number, before the call is made.
@@ -773,6 +867,32 @@ export class CrossfeedAgent extends Agent<Env, State> {
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+// A pitch run's first message: the show, the past guests' works that can anchor its rankings, and the
+// pitches that can be ranked, by ID. Guest names and pitch text stay out of it.
+function pitchBrief({ show, pastGuests }: Booking, inbox: Inbox) {
+  const work = (w: Work) => `${w.title} (${workNoun[w.type]})`
+  const unmatched: Record<WorkMatch['resolution'], string> = {
+    resolved: 'resolved',
+    ambiguous: 'ambiguous in Qloo search',
+    missed: 'not in Qloo',
+    failed: 'its lookup failed'
+  }
+  const anchors = pastGuests.filter((g) => g.match?.resolution === 'resolved' && g.match.entity)
+  const others = pastGuests.filter((g) => !anchors.includes(g))
+  const pitches = inbox.pitches.filter(rankable)
+  return [
+    `This is a guest pitch run for the roster show "${show.name}", Qloo ID ${show.entity.id}. Rank the inbox's pitched works against it.`,
+    anchors.length > 0
+      ? `The past guests' works that resolved, as work: Qloo ID:\n${anchors.map((g) => `- ${work(g.work)}: ${g.match!.entity!.id}`).join('\n')}`
+      : "No past guest's work resolved in Qloo, so the show is the only anchor.",
+    others.length > 0 &&
+      `Past guests' works that can't be anchors: ${others.map((g) => `${work(g.work)}, ${g.match ? unmatched[g.match.resolution] : 'not looked up'}`).join('; ')}.`,
+    `The pitches whose works can be ranked, as pitch ID: work:\n${pitches.map((p) => `- ${p.id}: ${work(p.work)}`).join('\n')}`
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
 
 // One structured line in Workers Logs, like the gateway's qloo_call lines.
 const log = (line: { event: 'model_call' | 'run_summary' | 'topic_baseline' } & Record<string, unknown>) =>

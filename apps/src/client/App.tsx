@@ -15,13 +15,13 @@ import type {
   State
 } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
-import type { Band, Ranking } from '../fit'
+import type { Ranking } from '../fit'
 import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import { sameName } from '../resolve'
 import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
 import type { Move, Topic } from '../topic'
-import { Alert, percentile, PickOne, useAction } from './controls'
+import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
 import { InboxPage } from './Inbox'
 import { Source } from './Source'
@@ -37,7 +37,8 @@ export function App({ page }: { page: string | undefined }) {
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
   const shown = viewing?.state ?? agent.state
   const roster = shown?.roster ?? []
-  const run = shown?.run ?? null
+  // The latest run, unless it's a guest pitch run, which the inbox page shows instead.
+  const run = shown?.run && shown.booking?.run !== shown.run.id ? shown.run : null
   const runs = agent.state?.runs ?? []
   const sample = agent.state?.sample ?? null
   const sampleLaunch = sample && 'name' in sample.launch ? sample.launch.name : null
@@ -60,19 +61,36 @@ export function App({ page }: { page: string | undefined }) {
     }
   }
   const shell = sample && <SampleShell sample={sample} />
-  if (page === 'inbox')
+  if (page === 'inbox') {
+    const lastRun = agent.state?.run
+    const pitchRun = lastRun && agent.state?.booking?.run === lastRun.id ? lastRun : null
     return (
       <>
         {shell}
         <InboxPage
           inbox={agent.state?.inbox ?? null}
+          roster={agent.state?.roster ?? []}
+          booking={agent.state?.booking ?? null}
+          ranking={pitchRun?.status === 'running'}
+          runLog={
+            pitchRun && (
+              <>
+                {pitchRun.status === 'waiting' && pitchRun.question && (
+                  <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} agent={agent} />
+                )}
+                <RunLog run={pitchRun} />
+              </>
+            )
+          }
           loadInbox={(source) => agent.stub.loadInbox(source)}
           confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
+          startPitches={(input) => agent.stub.startPitches(input)}
           openCall={openCall}
           opened={opened}
         />
       </>
     )
+  }
   return (
     <>
       {shell}
@@ -520,7 +538,7 @@ function RunList({
             return (
               <li key={r.id} aria-current={shown || undefined}>
                 <span>
-                  <b>Run {r.n}</b> · {r.launch ?? 'From comps'}{' '}
+                  <b>Run {r.n}</b> · {r.pitchesFor ? `Pitches for ${r.pitchesFor}` : (r.launch ?? 'From comps')}{' '}
                   <span className="tg">
                     {new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -553,16 +571,6 @@ function RunList({
     </section>
   )
 }
-
-// Fit bands as the chart words them: a meter of three bars filled from the left, then the word.
-const bandMeter: Record<Band, { bars: number; word: string }> = {
-  top: { bars: 3, word: 'Strong' },
-  middle: { bars: 2, word: 'Good' },
-  bottom: { bars: 1, word: 'Fair' }
-}
-
-const listOf = (names: string[]) =>
-  names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')}, and ${names.at(-1)}`
 
 // A move as the chart sets it: ▲ for a climb over topic rank, ▼ for a fall, = for none.
 const moveGlyph = ({ move }: Move) => (move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '=')

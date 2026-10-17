@@ -11,7 +11,10 @@ export type QlooEntity = {
 
 // What every gateway method returns. A failure comes back as a value, not a throw, so its
 // evidence survives the RPC hop and the session can log it.
-export type QlooResult<T> = { evidence: CallEvidence } & ({ ok: true; data: T } | { ok: false; error: string })
+// `unscored` marks a ranking that scored no candidate, so a caller can try other anchors.
+export type QlooResult<T> = { evidence: CallEvidence } & (
+  { ok: true; data: T } | { ok: false; error: string; unscored?: true }
+)
 
 type Params = Record<string, string | number | boolean>
 
@@ -70,8 +73,9 @@ export class QlooGateway extends DurableObject<Env> {
 
   // Ranks a closed list of candidates against the anchors, sent together as one signal, each ID
   // once. Qloo silently ignores parameters it doesn't apply, so a result outside the list or one
-  // without explainability is an error, not a ranking; so are all-null affinities, which mean the
-  // anchors gave no signal. A candidate left out of the results, or scored null, is unscored.
+  // without explainability is an error, not a ranking; so are all-null affinities, marked `unscored`:
+  // the anchors gave no signal, or no candidate has one. A candidate left out of the results, or
+  // scored null, is unscored.
   async rank(anchors: string[], candidates: string[], type: string): Promise<QlooResult<Ranked>> {
     const ids = [...new Set(candidates)]
     const result = await this.request('POST', '/v2/insights', {
@@ -103,8 +107,10 @@ export class QlooGateway extends DurableObject<Env> {
     const scored = affinities
       .filter((a): a is Ranked['scored'][number] => a.affinity !== null)
       .sort((a, b) => b.affinity - a.affinity)
-    if (scored.length === 0)
-      return this.fail(evidence, "Qloo returned no affinity for any candidate, so the anchors' signal didn't score")
+    if (scored.length === 0) {
+      evidence.error = "Qloo returned no affinity for any candidate, so the anchors' signal didn't score"
+      return { ok: false, error: evidence.error, unscored: true, evidence }
+    }
     const unscored = ids.filter((id) => !scored.some((s) => s.id === id))
     return { ok: true, data: { scored, unscored }, evidence }
   }
