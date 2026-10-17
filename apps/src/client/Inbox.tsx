@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { Run, Show, SlowCall } from '../agent'
 import type { PitchList, SharedTags } from '../fit'
 import {
@@ -14,7 +14,7 @@ import {
 } from '../inbox'
 import { MAX_PAST_GUESTS } from '../limits'
 import { sameName } from '../resolve'
-import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
+import { Alert, bandMeter, listOf, percentile, PickOne, ScrollTable, useAction, useIntoView } from './controls'
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
 import { SlowCalls, StateLine } from './states'
@@ -863,8 +863,7 @@ function PitchTable({
   // One shaded row: the pitch open in the rail or, with none open, the one whose evidence is.
   const hot = selected ?? pitches.find((p) => p.match && p.match.evidence === opened)?.id
   return (
-    // Narrow screens scroll the table sideways inside this, never the page.
-    <div className="scroll-x" role="region" aria-label="Pitch table" tabIndex={0}>
+    <ScrollTable label="Pitch table">
       <table className="chart pitches">
         <caption>
           {/* A block of its own, so it wraps within a phone's screen while the table scrolls wider. */}
@@ -935,7 +934,7 @@ function PitchTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   )
 }
 
@@ -1001,14 +1000,9 @@ function PitchDetail({
 }) {
   const { busy, error, run } = useAction()
   const match = p.match
-  // Opened from a pitch's row, it can sit far from it; bring it into view and move focus to it.
-  const ref = useRef<HTMLElement>(null)
+  // Brought into view, with focus on its heading.
   const heading = useRef<HTMLSpanElement>(null)
-  // A block body: newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
-  useEffect(() => {
-    ref.current?.scrollIntoView({ block: 'nearest' })
-    heading.current?.focus({ preventScroll: true })
-  }, [])
+  const ref = useIntoView<HTMLElement>(heading)
   return (
     <section className="mod ed" ref={ref} aria-labelledby="pitch-ed">
       <div className="mh">

@@ -127,8 +127,47 @@ const surnames = (guest: string) => people(guest).flatMap((name) => words(name).
 export function personalIn(title: string, names: (string | null)[]): 'email' | 'name' | null {
   if (/\S+@\S+\.\S+/.test(title)) return 'email'
   const found = ` ${words(title).join(' ')} `
-  const named = names.flatMap((n) => (n ? people(n.replace(/<[^>]*>/g, '')) : [])).map((n) => words(n).join(' '))
-  return named.some((n) => n && (found.includes(` ${n} `) || found.includes(` ${n}s `))) ? 'name' : null
+  const named = names.flatMap((n) => (n ? wholeNames(n) : []))
+  return named.some((n) => found.includes(` ${n} `) || found.includes(` ${n}s `)) ? 'name' : null
+}
+
+// Words that come with a name without being it, as in "Dr. Ada Quill, PhD".
+const notName = new Set([
+  'dr',
+  'mr',
+  'mrs',
+  'ms',
+  'mx',
+  'prof',
+  'professor',
+  'sir',
+  'dame',
+  'rev',
+  'jr',
+  'sr',
+  'ii',
+  'iii',
+  'phd',
+  'md'
+])
+
+// Each whole name a guest or sender string gives, two words or more: "Dr. Ada Quill" and "Quill, Ada"
+// both give "ada quill", and "Jason and Travis Kelce" gives "jason kelce" and "travis kelce". A name
+// left with one word, such as a first name alone, is dropped, so it never sets a title aside.
+function wholeNames(given: string) {
+  const text = given.replace(/<[^>]*>/g, '')
+  const parts = text
+    .split(/,|&|\band\b/i)
+    .map((part) => words(part).filter((w) => !notName.has(w)))
+    .filter((part) => part.length > 0)
+  if (parts.length === 0) return []
+  // A surname, a comma, then the given names, with no one else named.
+  if (parts.length === 2 && parts[0].length === 1 && !/&|\band\b/i.test(text))
+    return [[...parts[1], ...parts[0]].join(' ')]
+  // A couple sharing the last-named person's surname.
+  const last = parts.at(-1)!
+  const shared = parts.length > 1 && last.length > 1 ? last.at(-1)! : null
+  return parts.flatMap((part) => (part.length > 1 ? [part.join(' ')] : shared ? [[...part, shared].join(' ')] : []))
 }
 
 // Qloo's work names can drop or add a subtitle ("Wake Up Dead Man"), carry a series suffix ("Onyx

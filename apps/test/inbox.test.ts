@@ -291,6 +291,45 @@ describe("a pitched work's title", () => {
   })
 })
 
+describe("a guest's whole name", () => {
+  it('keeps a title holding it from Qloo however the guest is written, but not a title holding a first name alone', async () => {
+    fakeQloo({ search: {} })
+    // Each pitch's text, and how Claude reads its guest and title.
+    const read: Record<string, Extracted> = {
+      'Dr. Ada Quill on her novel.': {
+        guest: 'Dr. Ada Quill',
+        work: { title: "Ada Quill's Night Ferry", type: 'book', year: null }
+      },
+      'Quill, Ada on her novel.': {
+        guest: 'Quill, Ada',
+        work: { title: "Ada Quill's Night Ferry", type: 'book', year: null }
+      },
+      'Ada Quill, PhD, on her novel.': {
+        guest: 'Ada Quill, PhD',
+        work: { title: "Ada Quill's Night Ferry", type: 'book', year: null }
+      },
+      'Ada Quill on a book for her niece.': {
+        guest: 'Ada Quill',
+        work: { title: 'Night Ferry for Ada', type: 'book', year: null }
+      }
+    }
+    fakeReader(4, (text) => extraction(Object.entries(read).find(([pitch]) => text.includes(pitch))![1]))
+    const s = await session()
+
+    await s.call('loadInbox', { text: Object.keys(read).join('\n---\n') })
+    const { inbox } = await loaded(s)
+
+    expect(inbox!.pitches.map((p) => [p.status, p.error])).toEqual([
+      ...Array.from({ length: 3 }, () => [
+        'unreadable',
+        "The work's title holds the guest's or sender's name, so it isn't sent to Qloo."
+      ]),
+      ['read', null]
+    ])
+    expect(qlooRequests().map((r) => r.url.searchParams.get('query'))).toEqual(['Night Ferry for Ada'])
+  })
+})
+
 // Three synthetic pitches pasted together: a book, a private person, and one Claude refuses.
 const book = 'Ada Quill would love to talk about her novel Night Ferry.'
 const person = 'I ran a projection booth for thirty years and have stories to tell. No book, just stories.'

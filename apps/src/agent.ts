@@ -2,10 +2,10 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
 import { claude, declined } from './claude'
 import type { DemographicCheck } from './demographics'
-import { callNumber, type Evidence } from './evidence'
+import { callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import { IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
+import { blankEvidence, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -18,12 +18,14 @@ import {
   type Work,
   type WorkMatch
 } from './inbox'
-import { MAX_COMPS, MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
-import { lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
+import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
+import { dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
+import { listOf } from './text'
 import { tools, type ToolContext, type ToolResult } from './tools'
+import { takesText } from './tools/ask-human'
 import { rankByTopic, topicRequest, withMoves, type Topic } from './topic'
 
 export type Show = {
@@ -510,6 +512,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
       this.setState({ ...this.state, ranking })
       const finalists = finalistsOf(ranking).map((r) => r.show)
       notice += ` Code has left those shows out of the fit ranking ${ranking.call}; the finalists are now ${finalists.join(', ') || 'none'}.`
+      notice += this.dropFromDraft(run.id, finalists)
     }
     const [paused] = this.sql<{ assistant: string; results: string }>`
       SELECT assistant, results FROM paused WHERE run = ${run.id}`
@@ -526,6 +529,23 @@ export class CrossfeedAgent extends Agent<Env, State> {
     void this.keepAliveWhile(() => this.runLoop(run.id)).catch((e) =>
       this.finish(run.id, `The run stopped: ${message(e)}`)
     )
+  }
+
+  // A draft from before an exclusions answer loses the lines of the shows it leaves out, so no draft
+  // holds one (PRD story 19), and the rest is priced again. Returns code's line for the tool result.
+  private dropFromDraft(run: string, finalists: string[]) {
+    const order = this.state.insertionOrder
+    if (order?.run !== run) return ''
+    const kept = order.lines.filter((l) => finalists.includes(l.show))
+    if (kept.length === order.lines.length) return ''
+    if (kept.length === 0) {
+      this.setState({ ...this.state, insertionOrder: null })
+      return ` Code discarded the draft insertion order ${order.id}, as every show on it is now left out; draft it again.`
+    }
+    const priced = priceLines(kept, this.state.roster, this.state.cpm)
+    this.setState({ ...this.state, insertionOrder: { ...order, ...priced } })
+    const dropped = order.lines.filter((l) => !kept.includes(l)).map((l) => `${l.show}'s`)
+    return ` Code dropped ${listOf(dropped)} ${dropped.length === 1 ? 'line' : 'lines'} from the draft insertion order ${order.id}, now ${priced.slots} slots for ${dollars(priced.total)}${priced.complete ? '' : ' so far'}.`
   }
 
   // The programmer's edit of the current insertion order: slot counts, dropped shows, and reworded
@@ -665,21 +685,34 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
   private async lookUpShow(name: string, seq: number) {
-    const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
-    const match = lookup(name, call, result)
+    let match: Lookup
+    try {
+      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
+      match = lookup(name, call, result)
+    } catch (e) {
+      // Anything else that breaks still settles the show, so the import can't stay pending.
+      const error = `The lookup failed: ${message(e)}`
+      match = { resolution: 'failed', entity: null, candidates: [], evidence: callNumber(seq), error }
+    }
     this.editShow(name, (show) => ({ ...show, ...match }))
   }
 
   // Runs a pending comp search and fills it in, unless a newer search or an import replaced it.
   private async findComps(name: string, search: CompSearch, seq: number) {
-    const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
-    const landed: CompSearch = result.ok
-      ? {
-          ...search,
-          status: 'done',
-          results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
-        }
-      : { ...search, status: 'failed', error: result.error }
+    let landed: CompSearch
+    try {
+      const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
+      landed = result.ok
+        ? {
+            ...search,
+            status: 'done',
+            results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
+          }
+        : { ...search, status: 'failed', error: result.error }
+    } catch (e) {
+      // Anything else that breaks still settles the search, so it can't stay pending.
+      landed = { ...search, status: 'failed', error: `The search failed: ${message(e)}` }
+    }
     const show = this.state.roster.find((s) => s.name === name)
     if (show?.compSearch?.call === search.call) this.editShow(name, (s) => ({ ...s, compSearch: landed }))
   }
@@ -776,7 +809,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
   private editableOrder(id: string) {
     const order = this.state.insertionOrder
     if (!order || order.id !== id) throw new Error(`${id} isn't the current insertion order. Reload to see the latest.`)
-    if (this.inProgress(order.run))
+    if (inProgress(this.state.run, order.run))
       throw new Error('The agent is still working on this run. Edit or approve the order once the run has ended.')
     return order
   }
@@ -805,12 +838,6 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return seq
   }
 
-  // Whether `run` is the latest run and the agent is still working on it, or waiting on an answer.
-  private inProgress(run: string) {
-    const r = this.state.run
-    return r?.id === run && (r.status === 'running' || r.status === 'waiting')
-  }
-
   private show(name: string) {
     const show = this.state.roster.find((s) => s.name === name)
     if (!show) throw new Error(`No show named "${name}" in the roster.`)
@@ -833,7 +860,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     const booking = this.state.booking
     const reply = booking?.replies?.find((r) => r.pitch === pitchId)
     if (!booking || !reply) throw new Error(`There's no drafted reply to ${pitchId}. Reload to see the latest.`)
-    if (this.inProgress(booking.run))
+    if (inProgress(this.state.run, booking.run))
       throw new Error('The agent is still drafting replies. Approve, edit, or discard them once the run has ended.')
     return reply
   }
@@ -1082,11 +1109,13 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // A baseline that lands after its sample run was kept goes into the kept copy, which is what the
   // run ended with, rather than the run's snapshot, where the programmer may since have edited the
-  // order. A copy another run has since replaced is left alone.
+  // order. The gateway writes it only while the copy is still this run's, so a run kept since stays.
   private async keepTopic(run: string, topic: Topic) {
-    const stored = await this.env.QlooGateway.getByName('global').sampleRun()
+    const gateway = this.env.QlooGateway.getByName('global')
+    const stored = await gateway.sampleRun()
     const kept: SampleRun | null = stored && JSON.parse(stored)
-    if (kept?.state.run?.id === run) this.storeSampleRun(run, { ...kept, state: withMoves({ ...kept.state, topic }) })
+    if (kept?.state.run?.id !== run) return
+    await gateway.patchSampleRun(run, JSON.stringify({ ...kept, state: withMoves({ ...kept.state, topic }) }))
   }
 
   // Replays the stored sample run as this run: what it ended with, roster and all, with the calls
@@ -1150,7 +1179,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     let asked: keyof typeof REQUESTS | undefined
     const gateway = new Proxy(this.env.QlooGateway.getByName('global'), {
       get: (stub, key) => {
-        if (typeof key === 'string' && key in REQUESTS) asked = key as keyof typeof REQUESTS
+        if (typeof key === 'string' && Object.hasOwn(REQUESTS, key)) asked = key as keyof typeof REQUESTS
         return Reflect.get(stub, key)
       }
     })
@@ -1158,19 +1187,15 @@ export class CrossfeedAgent extends Agent<Env, State> {
     try {
       result = (await request(gateway)) as QlooResult<T>
     } catch (e) {
+      // The request never reached a gateway method, so there's no call to record; the caller settles it.
+      if (!asked) throw e
       const error = `The Qloo gateway failed: ${message(e)}`
-      const evidence = {
+      // Its parameters are the gateway's to build, so the record names only the request.
+      const evidence: CallEvidence = {
+        ...blankEvidence(REQUESTS[asked], {}),
         at: new Date(started).toISOString(),
-        ...REQUESTS[asked!],
-        params: {},
-        status: null,
         latencyMs: Date.now() - started,
-        retries: 0,
-        cacheHit: false,
-        error,
-        entities: [],
-        tags: [],
-        affinities: []
+        error
       }
       result = { ok: false, error, evidence }
     } finally {
@@ -1292,8 +1317,7 @@ function settle(
   const typed = typeof reply.text === 'string' ? reply.text.trim() : ''
   const choice = reply.choice
   if (choice !== undefined && !question.options.includes(choice)) throw new Error("That isn't one of the options.")
-  // Code builds the other kinds' answers, so the programmer's own words reach Claude only here.
-  if (typed && question.kind !== 'choice' && question.kind !== 'launch' && question.kind !== 'comps')
+  if (typed && !takesText(question.kind, launch))
     throw new Error('This question is answered with its form, not typed text.')
   if (question.kind === 'launch') return settleLaunch(choice, typed, launch)
   if (question.kind === 'comps') {

@@ -3,7 +3,7 @@
 // what topic planning would have missed: the moves Qloo caused.
 import type { Show, State } from './agent'
 import { declined, structured } from './claude'
-import { sha256 } from './gateway'
+import { sha256 } from './text'
 import { sameName } from './resolve'
 
 export type Topic = {

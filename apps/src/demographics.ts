@@ -3,6 +3,7 @@
 // call's evidence; the chart gets each finalist's mismatches in words about its listeners.
 import { finalistsOf, type Ranking } from './fit'
 import type { Demographics, Profile, QlooResult } from './gateway'
+import { listOf } from './text'
 
 // The mismatch rule's thresholds: starting values, to tune on the demo network.
 export const MISMATCH = {
@@ -47,10 +48,6 @@ const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
 export const ageWords = (bucket: string) => bucket.replaceAll('_', ' ')
 
 const skewOf = (male: number): Skew | null => (Math.abs(male) < MISMATCH.skew ? null : male > 0 ? 'male' : 'female')
-
-// Items as a sentence lists them: "A and B", or "A, B, and C". The UI uses it too.
-export const listOf = (items: string[]) =>
-  items.length < 3 ? items.join(' and ') : `${items.slice(0, -1).join(', ')}, and ${items.at(-1)}`
 
 // Checks the ranking's finalists against the launch profile: the mean, per bucket, of the anchors
 // Qloo returned demographics for. Only a bucket above 0 is over-indexed, so a launch can have fewer

@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import type { CallEvidence } from './evidence'
+import { sha256 } from './text'
 
 export type QlooEntity = {
   id: string
@@ -56,6 +57,24 @@ export const REQUESTS = {
   demographics: { method: 'POST', endpoint: '/v2/insights' }
 } as const
 
+type QlooRequest = (typeof REQUESTS)[keyof typeof REQUESTS]
+
+// A call's record before anything has come back: the request alone, started now.
+export const blankEvidence = ({ method, endpoint }: QlooRequest, params: Params): CallEvidence => ({
+  at: new Date().toISOString(),
+  method,
+  endpoint,
+  params,
+  status: null,
+  latencyMs: 0,
+  retries: 0,
+  cacheHit: false,
+  error: null,
+  entities: [],
+  tags: [],
+  affinities: []
+})
+
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
   // At most IN_FLIGHT requests in flight across all sessions, each started at least
@@ -98,6 +117,16 @@ export class QlooGateway extends DurableObject<Env> {
   // Keeps a session's completed sample run, replacing the one kept before, for any session to replay.
   keepSampleRun(run: string) {
     this.ctx.storage.sql.exec('INSERT OR REPLACE INTO sample_run (id, run) VALUES (1, ?)', run)
+  }
+
+  // Replaces the kept sample run with `sampleRun` only while it's still run `run`'s, in one statement,
+  // so a newer run kept meanwhile is never lost.
+  patchSampleRun(run: string, sampleRun: string) {
+    this.ctx.storage.sql.exec(
+      "UPDATE sample_run SET run = ? WHERE id = 1 AND json_extract(run, '$.state.run.id') = ?",
+      sampleRun,
+      run
+    )
   }
 
   sampleRun(): string | null {
@@ -232,28 +261,16 @@ export class QlooGateway extends DurableObject<Env> {
   // GET sends the parameters in the query string; POST sends them as a JSON body of flat dotted
   // keys, such as {"filter.type": "urn:entity:podcast"}, because Qloo answers a nested body with 400.
   private async request(
-    { method, endpoint }: (typeof REQUESTS)[keyof typeof REQUESTS],
+    qlooRequest: QlooRequest,
     params: Params,
     cache: CacheUse = 'use'
   ): Promise<QlooResult<unknown>> {
+    const { method, endpoint } = qlooRequest
     const url = new URL(endpoint, this.env.QLOO_BASE_URL)
     const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
     if (method === 'GET') url.search = String(query)
     const payload = method === 'POST' ? JSON.stringify(params) : undefined
-    const evidence: CallEvidence = {
-      at: new Date().toISOString(),
-      method,
-      endpoint,
-      params,
-      status: null,
-      latencyMs: 0,
-      retries: 0,
-      cacheHit: false,
-      error: null,
-      entities: [],
-      tags: [],
-      affinities: []
-    }
+    const evidence = blankEvidence(qlooRequest, params)
     // Latency runs from the first request sent, so time queued behind other calls isn't blamed on Qloo.
     const started = Date.now()
     let sentAt: number | undefined
@@ -407,12 +424,6 @@ async function cacheKey(method: string, endpoint: string, params: URLSearchParam
   const sorted = new URLSearchParams(params)
   sorted.sort()
   return sha256(`${method} ${endpoint}?${sorted}`)
-}
-
-// The SHA-256 hash of `text`, in hex: the gateway's cache keys and the topic baselines' (topic.ts).
-export async function sha256(text: string) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))

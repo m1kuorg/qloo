@@ -69,6 +69,7 @@
 /* Tokens from docs/DESIGN.md (The Weekly Chart). Chart red marks a climb of 3+ places only. */
 :root {
   --ink: #111;
+  --ink-hover: #333; /* DESIGN.md's Ink Hover: Press Black's hover, and the top bar's divider */
   --red: #e3262e;
   --mid: #555;
   --grey: #6b6b6b;
@@ -234,7 +235,7 @@ textarea {
 .net {
   margin-left: 16px;
   padding-left: 16px;
-  border-left: 1px solid #333;
+  border-left: 1px solid var(--ink-hover);
   color: #b5b5b5;
   font-size: 12px;
   line-height: 20px;
@@ -602,8 +603,8 @@ button.call,
 }
 
 .btn.pri:hover:not(:disabled) {
-  background: #333;
-  border-color: #333;
+  background: var(--ink-hover);
+  border-color: var(--ink-hover);
 }
 
 .nav a:hover {

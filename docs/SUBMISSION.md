@@ -101,7 +101,7 @@ The run made 27 Qloo calls. Every ranking, tag, and flag on screen cites its cal
 The guest flow runs the same way ([live check]):
 
 - **Reading:** the 40-pitch sample inbox was read in 11.5 seconds.
-- **Ranking:** the pitch run made 18 Qloo calls: 3 searches for past guests' works, 4 rankings, and 11 compares.
+- **Ranking:** the pitch run made 18 Qloo calls: 3 searches for past guests' works, 4 rankings, and 11 compares ([pitch run check]).
 - **Replies:** it drafted 40 replies, and the run completed in 30.8 seconds.
 
 ### Engineering around Qloo
@@ -135,7 +135,8 @@ A judge opens the demo with no login and lands on a working screen, not a chat:
   - Selecting a climber opens its "why it moved" line, which cites the ranking and the compare.
 - **Rank and band, not decimals:** Qloo normalizes affinity per query, so the chart shows Strong, Good, or Fair by thirds of the ranking. Raw scores stay in the evidence.
 - **Data and agent kept apart:** Qloo results are labelled "Qloo data", and the agent's text "Agent", wherever they appear.
-- **A rail beside the chart:** it holds a guide through the sample launch and the agent's open question as a form. Below them come the progress notes with the agent's closing line, the insertion order with its totals, and the evidence for any call.
+- **Slot value beside fit:** each charted show's slot value, its downloads per episode × CPM ÷ 1,000, has its own column, labelled "sample" while its figures are. It comes from the same formula that prices the insertion order, so the two never disagree. On a narrow chart, it moves into the show's cell.
+- **A rail beside the chart:** the agent's open question sits at its top, as a form. Under it come the guide through the sample launch, the selected show, the evidence for any call, the insertion order with its totals, and the progress notes with the agent's closing line. In one column, the question comes before the chart, and the roster follows the rail.
 - **Honest states:** loading, slow, failed, missed, not scored, and replayed each have their own wording. A Qloo call still waiting after 8 seconds is named as slow ([wrangler.jsonc]).
 - **The booker's inbox:** each pitch shows its guest, the public work, and the work's Qloo match. Pitched works are ranked in one list per type. Every pitch gets a drafted reply under Book, Later, or Decline. The booker approves, edits, or discards each reply, then copies it to send.
 
@@ -185,14 +186,18 @@ A judge opens the demo with no login and lands on a working screen, not a chat:
 - **Recent works often go unscored.** Qloo left out most works released since about May 2025 ([TRD demo data]). In the sample inbox, Atmosphere, Hamnet, The Bride!, and Pluribus are listed as not scored. Digger waits for the booker to pick the right match.
 - **Shared tags between podcasts are mostly style.** Host and style tags such as Conversational and Insightful dominate, topical tags are rare, and some compares share no distinctive tags.
 - **Explainability rarely names a leading comp.** In a three-comp run, a comp clearly led on 2 of 16 shows, and the others were even ([#53]).
-- **One comparison holds at most 50 shows,** Qloo's page limit. A larger roster is refused, rather than split into scores that can't be compared.
-- **Agent text varies.** Haiku's reading of pitches and its drafts change a little between runs. One pitch run's closing line miscounted its own verdicts ([#116]).
+- **One comparison holds at most 50 shows,** Qloo's page limit ([TRD gateway rules]). A larger roster is refused, rather than split into scores that can't be compared.
+- **Agent text varies.** Haiku's reading of pitches and its drafts change a little between runs.
+- **Insertion order totals vary by run.** Haiku spreads the 20 slots across the finalists differently each time, so the same sample launch came to $167,200 in one live check ([live check]) and $162,800 in another ([#126 check]).
+- **A podcast named after its guest is set aside.** A work title holding the guest's or sender's whole name never reaches Qloo, so a pitch for "Conan O'Brien Needs a Friend" is set aside as unreadable rather than ranked ([#117 check]).
 - **Guest pitches are live.** They were switched on in production after their live check ([#57]). Drafted replies name no guest, because the model never sees names; the booker adds them before sending.
 - **No integrations.** Nothing is emailed or pushed to an ad server. Downloads are typed in or uploaded as CSV, and pitches are pasted or loaded from the sample.
 - **No accounts.** A session is one browser's cookie, limited to 10 runs a day. If Qloo can't be called, only the sample launch replays; other runs stop and say why.
 
 [TRD demo data]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#demo-data
-[#116]: https://github.com/m1kuorg/qloo/issues/116
+[pitch run check]: https://github.com/m1kuorg/qloo/issues/133#issuecomment-6233620198
+[#126 check]: https://github.com/m1kuorg/qloo/issues/126#issuecomment-6233324338
+[#117 check]: https://github.com/m1kuorg/qloo/issues/117#issuecomment-6233255471
 [#57]: https://github.com/m1kuorg/qloo/issues/57#issuecomment-6232519697
 [live check]: https://github.com/m1kuorg/qloo/issues/60#issuecomment-6232713502
 [#53]: https://github.com/m1kuorg/qloo/issues/53#issuecomment-6232531399
