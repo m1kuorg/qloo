@@ -3,6 +3,7 @@ import type { State } from '../agent'
 import type { QlooGateway, QlooResult } from '../gateway'
 import { askHuman } from './ask-human'
 import { checkDemographics } from './check-demographics'
+import { draftInsertionOrder } from './draft-insertion-order'
 import { rankCandidates } from './rank-candidates'
 import { rankPitches } from './rank-pitches'
 import { resolveEntities } from './resolve-entities'
@@ -34,7 +35,15 @@ export type Tool<Input = any> = {
 }
 
 // Every tool the agent has. A tool ticket adds its tool here and fills its step in prompt.ts.
-export const tools: Tool[] = [resolveEntities, rankCandidates, askHuman, sharedTags, checkDemographics, rankPitches]
+export const tools: Tool[] = [
+  resolveEntities,
+  rankCandidates,
+  askHuman,
+  sharedTags,
+  checkDemographics,
+  rankPitches,
+  draftInsertionOrder
+]
 
 // The tool list every model call sends: sorted by name and never changed, so the cached prefix holds.
 export const toolDefinitions: Anthropic.Tool[] = tools

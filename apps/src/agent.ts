@@ -18,6 +18,7 @@ import {
   type WorkMatch
 } from './inbox'
 import { MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
+import { lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
 import { candidateLabels, lookup, lookupWork, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
@@ -126,6 +127,7 @@ export type State = {
   inbox: Inbox | null // the booker's guest pitches, when GUEST_PITCHES is on
   sample: Sample | null // the sample network the session opened on, until it's cleared or a roster is imported
   booking: Booking | null // the latest guest pitch run's show, past guests, and ranked lists
+  insertionOrder: InsertionOrder | null // the current run's order, once drafted; only the programmer edits or approves it
 }
 
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
@@ -147,7 +149,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
     topic: null,
     inbox: null,
     sample: null,
-    booking: null
+    booking: null,
+    insertionOrder: null
   }
 
   async onStart() {
@@ -277,6 +280,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
       if (show.sample) next.sample = show.sample.filter((f) => next[f] === show[f])
       return next
     })
+    if (patch.downloads !== undefined) this.repriceOrder()
   }
 
   // The network's CPM in dollars, which prices every promo slot.
@@ -286,6 +290,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
       throw new Error('The CPM must be a dollar amount above 0.')
     const s = this.state.sample
     this.setState({ ...this.state, cpm, sample: s && { ...s, cpm: s.cpm && cpm === this.state.cpm } })
+    this.repriceOrder()
   }
 
   // Starts a launch run and returns at once; the run's progress arrives in synced state.
@@ -307,7 +312,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
       ],
       ranking: null,
       demographics: null,
-      topic: { status: 'ranking', order: [], error: null, moves: [] }
+      topic: { status: 'ranking', order: [], error: null, moves: [] },
+      insertionOrder: null
     })
     // Beside the agent loop, not a tool of it: it needs no Qloo data.
     const imported = this.state.roster
@@ -422,6 +428,39 @@ export class CrossfeedAgent extends Agent<Env, State> {
     void this.keepAliveWhile(() => this.runLoop(run.id)).catch((e) =>
       this.finish(run.id, `The run stopped: ${message(e)}`)
     )
+  }
+
+  // The programmer's edit of the current insertion order: slot counts, dropped shows, and reworded
+  // angles, priced again in code. Editing an approved order returns it to draft. The budget bounds
+  // the agent's draft, not this: the final plan is the programmer's, and the UI shows it over budget.
+  @callable()
+  editInsertionOrder(id: string, lines: LineInput[]) {
+    const order = this.editableOrder(id)
+    const finalists = this.state.ranking?.rows.filter((r) => r.finalist).map((r) => r.show) ?? []
+    const problem = lineProblem(lines, finalists)
+    if (problem) throw new Error(problem)
+    const edited = lines.map(({ show, slots, angle }) => ({ show, slots, angle: angle.trim() }))
+    this.saveOrder({ ...order, ...priceLines(edited, this.state.roster, this.state.cpm), status: 'draft' })
+  }
+
+  // The programmer's approval: only an approved order exports.
+  @callable()
+  approveInsertionOrder(id: string) {
+    this.saveOrder({ ...this.editableOrder(id), status: 'approved' })
+  }
+
+  // An approved order from this session as CSV, the current one or an earlier run's, for the export
+  // route. It's an RPC method for the Worker, not a callable, and refuses a draft. An earlier order
+  // is read from the run that drafted it, which keeps it as the programmer left it.
+  exportInsertionOrder(id: string): { status: 200; csv: string } | { status: 404 | 409; error: string } {
+    const [earlier] = this.sql<{ order: string }>`
+      SELECT json_extract(snapshot, '$.insertionOrder') AS "order" FROM runs
+      WHERE json_extract(snapshot, '$.insertionOrder.id') = ${id} AND json_extract(snapshot, '$.insertionOrder.run') = id`
+    const order =
+      this.state.insertionOrder?.id === id ? this.state.insertionOrder : earlier && JSON.parse(earlier.order)
+    if (!order) return { status: 404, error: `This session has no insertion order ${id}.` }
+    if (order.status !== 'approved') return { status: 409, error: `${id} is a draft. Approve it before exporting.` }
+    return { status: 200, csv: toCsv(order) }
   }
 
   // What an earlier run ended with, roster and all, to compare with a re-run.
@@ -613,6 +652,35 @@ export class CrossfeedAgent extends Agent<Env, State> {
     }
     this.append(run, { role: 'user', content: pitchBrief(this.state.booking!, this.state.inbox!) })
     await this.runLoop(run)
+  }
+
+  // The current order, if it's the one the programmer means and its run has ended: until then the
+  // agent can still redraft it. A guest pitch run since then doesn't hold it up.
+  private editableOrder(id: string) {
+    const order = this.state.insertionOrder
+    if (!order || order.id !== id) throw new Error(`${id} isn't the current insertion order. Reload to see the latest.`)
+    const run = this.state.run
+    if (run?.id === order.run && (run.status === 'running' || run.status === 'waiting'))
+      throw new Error('The agent is still working on this run. Edit or approve the order once the run has ended.')
+    return order
+  }
+
+  // Stores the current order, and puts it in its run's snapshot once the run has ended, so an
+  // earlier run shows, and exports, its order as the programmer left it.
+  private saveOrder(order: InsertionOrder) {
+    this.setState({ ...this.state, insertionOrder: order })
+    this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.insertionOrder', json(${JSON.stringify(order)}))
+      WHERE id = ${order.run} AND snapshot IS NOT NULL`
+  }
+
+  // Prices the current order again after a figure it uses changed. An approved order whose price
+  // changes returns to draft, so nothing the programmer approved changes under them.
+  private repriceOrder() {
+    const order = this.state.insertionOrder
+    if (!order) return
+    const priced = priceLines(order.lines, this.state.roster, this.state.cpm)
+    const same = priced.cpm === order.cpm && priced.lines.every((l, i) => l.slotValue === order.lines[i].slotValue)
+    if (!same) this.saveOrder({ ...order, ...priced, status: 'draft' })
   }
 
   // Reserves the next call number, before the call is made.

@@ -1111,3 +1111,134 @@ fieldset {
 .plist .row-open .nm {
   white-space: normal;
 }
+
+/* Insertion order: hairline lines, the total under a solid ink rule, as the sketch sets it. */
+.io {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.io th {
+  text-align: left;
+  padding: 0 0 4px;
+  border-bottom: 1px solid var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+
+.io td {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.io th + th,
+.io td + td {
+  padding-left: 12px;
+}
+
+.io th:nth-child(2),
+.io td:nth-child(2) {
+  width: 56px;
+  text-align: right;
+}
+
+.io th:last-child,
+.io td:last-child {
+  width: 104px;
+  text-align: right;
+  font-weight: 500;
+}
+
+.io td small {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--grey);
+}
+
+.io .nm {
+  white-space: normal;
+}
+
+.io .angle {
+  margin-top: 2px;
+}
+
+.io .gap {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.io tr.tot th,
+.io tr.tot td {
+  padding-top: 8px;
+  border-top: 1px solid var(--ink);
+  border-bottom: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.io-note {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.io-note:not(.help) {
+  font-weight: 600;
+}
+
+.io-mod .acts {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.io-mod .btn {
+  white-space: nowrap;
+}
+
+/* A link that acts as a button, such as a download. */
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.io.editing textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  resize: vertical;
+  background: #fff;
+}
+
+.io.editing input {
+  width: 48px;
+  height: 28px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 0 6px;
+  text-align: right;
+  background: #fff;
+}
+
+.io.editing input[aria-invalid] {
+  border-color: var(--ink);
+  border-width: 2px;
+}
+
+.io.editing .lnk {
+  margin-top: 4px;
+}

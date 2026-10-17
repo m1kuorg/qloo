@@ -24,6 +24,7 @@ import type { Move, Topic } from '../topic'
 import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
 import { InboxPage } from './Inbox'
+import { InsertionOrderPanel } from './InsertionOrder'
 import { Source } from './Source'
 
 // The session's agent; the server picks the instance from the session cookie.
@@ -146,6 +147,30 @@ export function App({ page }: { page: string | undefined }) {
         <aside className="rail" aria-label="Details">
           {run?.status === 'waiting' && run.question && (
             <OpenQuestion key={run.question.id} question={run.question} agent={agent} />
+          )}
+          {shown?.insertionOrder && (
+            <InsertionOrderPanel
+              key={`${viewing?.id ?? 'latest'} ${shown.insertionOrder.id}`}
+              order={shown.insertionOrder}
+              roster={roster}
+              cpm={shown.cpm}
+              sampleCpm={shown.sample?.cpm ?? false}
+              budget={run?.id === shown.insertionOrder.run ? run.budget : null}
+              actions={
+                viewing ||
+                (run?.id === shown.insertionOrder.run && (run.status === 'running' || run.status === 'waiting'))
+                  ? null
+                  : {
+                      edit: (lines) => agent.stub.editInsertionOrder(shown.insertionOrder!.id, lines),
+                      approve: () => agent.stub.approveInsertionOrder(shown.insertionOrder!.id)
+                    }
+              }
+              readOnly={
+                viewing
+                  ? `Run ${runNumber(runs, viewing.id)}'s order, read-only.`
+                  : 'Edit and approve it once the run ends.'
+              }
+            />
           )}
           {run && <RunLog run={run} />}
           {runs.length > 0 && (
