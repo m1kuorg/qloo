@@ -270,6 +270,16 @@ function LaunchHeader({
         {run && (
           <div className="status" role="status">
             <b>{runLabel[run.status]}</b>
+            {run.replayed && (
+              <>
+                {' '}
+                <span className="chip">Replayed</span>
+                <p>
+                  {run.replayed}, so this is the stored sample run, replayed with its answers. Nothing new was asked of
+                  Qloo or Claude.
+                </p>
+              </>
+            )}
             {run.status === 'running' && <p>{current ?? 'Waiting for Claude'}</p>}
             {run.status === 'waiting' && <p>Answer the agent's question to go on.</p>}
             {(run.status === 'failed' || run.status === 'stopped') && <p>{run.error}</p>}
@@ -458,7 +468,10 @@ function RunLog({ run }: { run: Run }) {
         <span className="lbl" id="run-log">
           Run
         </span>
-        <span className="chip">{runLabel[run.status]}</span>
+        <span className="chips">
+          {run.replayed && <span className="chip">Replayed</span>}
+          <span className="chip">{runLabel[run.status]}</span>
+        </span>
       </div>
       <ol className="notes">
         {run.notes.map((n, i) => (
@@ -740,6 +753,7 @@ function RunList({
                 </span>
                 <span className="tg">
                   {runLabel[r.status]}
+                  {r.replayed && ' · Replayed'}
                   {' · '}
                   {shown ? (
                     'Shown'

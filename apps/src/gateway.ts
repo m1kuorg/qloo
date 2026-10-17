@@ -34,6 +34,12 @@ export type Profile = { id: string; age: Record<string, number>; male: number }
 // A demographics call: a profile per entity Qloo returned, and the IDs it returned none for.
 export type Demographics = { profiles: Profile[]; missing: string[] }
 
+// Why Qloo can't be called now: today's cap is reached, or Qloo is failing.
+export type QlooDown = { capped: boolean; reason: string }
+
+// How long a request that failed after its retries marks Qloo as failing, unless one succeeds sooner.
+const FAILING_FOR_MS = 5 * 60_000
+
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
   // At most 3 requests in flight across all sessions, each started at least QLOO_MIN_INTERVAL_MS
@@ -50,6 +56,37 @@ export class QlooGateway extends DurableObject<Env> {
     )
     // Requests sent to Qloo per UTC day, retries included, against QLOO_DAILY_CALL_CAP.
     ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_calls (day TEXT PRIMARY KEY, count INTEGER NOT NULL)')
+    // The latest request that failed after its retries, until a request succeeds.
+    ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS failing (id INTEGER PRIMARY KEY CHECK (id = 1), at INTEGER NOT NULL, error TEXT NOT NULL)'
+    )
+    // The sample run any session replays while Qloo can't be called, as the session stored it.
+    ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS sample_run (id INTEGER PRIMARY KEY CHECK (id = 1), run TEXT NOT NULL)'
+    )
+  }
+
+  // Why Qloo can't be called now, or null when it can: today's cap is reached, or the latest request
+  // sent failed after its retries in the last few minutes. Cache hits say nothing either way.
+  health(): QlooDown | null {
+    const cap = Number(this.env.QLOO_DAILY_CALL_CAP)
+    if (this.callsToday() >= cap) return { capped: true, reason: capReached(cap) }
+    const [failing] = this.ctx.storage.sql
+      .exec<{ at: number; error: string }>('SELECT at, error FROM failing')
+      .toArray()
+    if (failing && Date.now() - failing.at < FAILING_FOR_MS)
+      return { capped: false, reason: `Qloo is failing (${failing.error})` }
+    return null
+  }
+
+  // Keeps a session's completed sample run, replacing the one kept before, for any session to replay.
+  keepSampleRun(run: string) {
+    this.ctx.storage.sql.exec('INSERT OR REPLACE INTO sample_run (id, run) VALUES (1, ?)', run)
+  }
+
+  sampleRun(): string | null {
+    const [row] = this.ctx.storage.sql.exec<{ run: string }>('SELECT run FROM sample_run').toArray()
+    return row?.run ?? null
   }
 
   // Finds entities by name. Qloo's search is fuzzy, so deciding whether a result is the show is
@@ -201,13 +238,7 @@ export class QlooGateway extends DurableObject<Env> {
         return { ok: true, data: JSON.parse(hit.body), evidence }
       }
       for (;;) {
-        if (!this.spend()) {
-          const cap = this.env.QLOO_DAILY_CALL_CAP
-          return this.fail(
-            evidence,
-            `The daily cap of ${cap} Qloo calls is reached; it resets at 00:00 UTC` + retried(evidence)
-          )
-        }
+        if (!this.spend()) return this.fail(evidence, capReached(this.env.QLOO_DAILY_CALL_CAP) + retried(evidence))
         await this.takeSlot()
         sentAt ??= Date.now()
         const attempt = await this.attempt(url, payload, timeoutMs).finally(() => this.releaseSlot())
@@ -220,10 +251,21 @@ export class QlooGateway extends DurableObject<Env> {
             attempt.status,
             body
           )
+          this.ctx.storage.sql.exec('DELETE FROM failing')
           return { ok: true, data: attempt.data, evidence }
         }
         const delay = retryDelays[evidence.retries]
-        if (!attempt.retry || delay === undefined) return this.fail(evidence, attempt.error + retried(evidence))
+        if (!attempt.retry || delay === undefined) {
+          const error = attempt.error + retried(evidence)
+          // A 400 is Qloo refusing this request's parameters, which says nothing about Qloo itself.
+          if (attempt.status !== 400)
+            this.ctx.storage.sql.exec(
+              'INSERT OR REPLACE INTO failing (id, at, error) VALUES (1, ?, ?)',
+              Date.now(),
+              error
+            )
+          return this.fail(evidence, error)
+        }
         // About 1 then 3 seconds, give or take a fifth, so callers that failed together don't retry together.
         await sleep(delay * (0.8 + Math.random() * 0.4))
         evidence.retries++
@@ -238,15 +280,21 @@ export class QlooGateway extends DurableObject<Env> {
   // Counts one request against today's cap, or refuses it once the cap is reached. Counted when
   // queued rather than sent, so a refusal doesn't wait its turn; every queued request is sent.
   private spend() {
+    if (this.callsToday() >= Number(this.env.QLOO_DAILY_CALL_CAP)) return false
     const day = new Date().toISOString().slice(0, 10)
-    const sql = this.ctx.storage.sql
-    const [today] = sql.exec<{ count: number }>('SELECT count FROM daily_calls WHERE day = ?', day).toArray()
-    if ((today?.count ?? 0) >= Number(this.env.QLOO_DAILY_CALL_CAP)) return false
-    sql.exec(
+    this.ctx.storage.sql.exec(
       'INSERT INTO daily_calls (day, count) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET count = count + 1',
       day
     )
     return true
+  }
+
+  // Requests counted against today's cap so far.
+  private callsToday() {
+    const day = new Date().toISOString().slice(0, 10)
+    const sql = this.ctx.storage.sql
+    const [today] = sql.exec<{ count: number }>('SELECT count FROM daily_calls WHERE day = ?', day).toArray()
+    return today?.count ?? 0
   }
 
   // Waits for a free slot, first come first served, then for this request's turn to start.
@@ -312,6 +360,8 @@ export class QlooGateway extends DurableObject<Env> {
 
 type Attempt =
   { ok: true; status: number; data: unknown } | { ok: false; status: number | null; retry: boolean; error: string }
+
+const capReached = (cap: string | number) => `The daily cap of ${cap} Qloo calls is reached; it resets at 00:00 UTC`
 
 const retried = ({ retries }: CallEvidence) =>
   retries ? `, after ${retries} ${retries === 1 ? 'retry' : 'retries'}` : ''

@@ -200,7 +200,7 @@ Single calls with structured outputs (`output_config.format`), on the same model
 All storage is Durable Object SQLite: strongly consistent, private to each instance, and up to 10 GB per object ([Durable Object limits][cf-do-limits]).
 
 - **`CrossfeedAgent`:** tables for networks, shows (name, Qloo ID, resolution state, downloads, status, description), launches and comps, runs, ranked results, insertion orders and their lines, pitches, replies, the evidence log, and the conversation's messages.
-- **`QlooGateway`:** the response cache, keyed by a hash of the method, path, and sorted parameters, and the daily Qloo call counter.
+- **`QlooGateway`:** the response cache, keyed by a hash of the method, path, and sorted parameters, the daily Qloo call counter, the latest failure after retries, and the stored sample run.
 
 KV is a poor fit because writes take 60 seconds or more to propagate, and the Cache API doesn't replicate beyond its data center ([KV][cf-kv], [Cache API][cf-cache]).
 
@@ -220,6 +220,9 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 - **Cache:** Qloo responses are cached privately with no expiry, which the hackathon allows ([BRIEF](BRIEF.md#implications-for-our-entry)). The sample network, its launch, and the sample inbox are warmed before submission.
 - **Caps:** a daily cap on Qloo calls (`QLOO_DAILY_CALL_CAP`, default 1,000, counted in UTC days, retries included and cache hits not), plus the per-run and per-session limits under [Agent limits](#agent-limits). The default is a guess, because the Qloo quota is unknown ([CONTEXT](CONTEXT.md#unverified)). Model spend is bounded by a spend limit on the Anthropic account _(verify the Console setting)_, not by code.
 - **Replay:** the sample launch's completed run is stored server-side. When a cap is hit or Qloo keeps failing, sample runs replay from storage with a visible "replayed" label, and runs on visitors' own data stop with a clear message.
+  - **What's stored:** the latest completed run of the sample launch on the unchanged sample network, answered with the sample answers, whose every cited Qloo call was answered: its synced state, less the visitor's inbox, and the evidence records it cites. The latest replaces the last, so the stored run keeps up with what later code adds to a run.
+  - **When it replays:** decided when the run starts, so a replay makes no Qloo or model call. Qloo can't be called once the day's cap is reached, or for five minutes after a request fails after its retries (any failure but a 400), unless a request succeeds since. Cache hits don't count either way.
+  - **How:** the stored evidence is copied into the session's log under new call numbers, labelled replayed, and the stored state, renumbered to match, replaces the session's, roster included. A run that starts while Qloo can't be called, on anything but the unchanged sample launch, ends at once: stopped at the cap, or failed while Qloo fails.
 - **Health check:** a daily cron makes the health-check call and one cached sample ranking and logs a failure loudly.
 
 ## Security, privacy, and safe use
