@@ -1,6 +1,7 @@
 import type { Tool } from '.'
 import type { State } from '../agent'
 import { markFinalists, rankRoster, scorable, type Anchor } from '../fit'
+import { withMoves } from '../topic'
 
 type Input = { anchor_ids: string[]; candidate_ids: string[]; type: 'urn:entity:podcast' }
 
@@ -93,7 +94,7 @@ export const rankCandidates: Tool<Input> = {
       rankRoster(now.roster, anchors, now.launch?.match?.entity?.id ?? null, call, result),
       now.run?.exclusions ?? []
     )
-    update((state) => ({ ...state, ranking }))
+    update((state) => withMoves({ ...state, ranking }))
     if (!result.ok)
       return {
         isError: true,

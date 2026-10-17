@@ -1,5 +1,5 @@
 import { useAgent } from 'agents/react'
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   Budget,
@@ -20,6 +20,7 @@ import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import { sameName } from '../resolve'
 import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
+import type { Move, Topic } from '../topic'
 import { Alert, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
 import { InboxPage } from './Inbox'
@@ -92,6 +93,7 @@ export function App({ page }: { page: string | undefined }) {
             ranking={shown?.ranking ?? null}
             leftOut={shown?.run?.exclusions ?? []}
             demographics={shown?.demographics ?? null}
+            topic={shown?.topic ?? null}
             running={run?.status === 'running'}
             openCall={openCall}
             opened={opened?.call ?? null}
@@ -562,12 +564,21 @@ const bandMeter: Record<Band, { bars: number; word: string }> = {
 const listOf = (names: string[]) =>
   names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')}, and ${names.at(-1)}`
 
+// A move as the chart sets it: ▲ for a climb over topic rank, ▼ for a fall, = for none.
+const moveGlyph = ({ move }: Move) => (move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '=')
+const moveWords = ({ move }: Move) =>
+  move === 0
+    ? 'Same as topic rank'
+    : `${move > 0 ? 'Up' : 'Down'} ${Math.abs(move)} place${Math.abs(move) === 1 ? '' : 's'}`
+
 // The Weekly Chart: the roster ranked by listener overlap with the launch, position first, then band.
-// Raw affinities stay in the ranking call's evidence.
+// Raw affinities stay in the ranking call's evidence. Beside fit rank, last week is the rank a
+// topic-only plan gives each show, and the moves between them are what Qloo changed.
 function FitChart({
   ranking,
   leftOut,
   demographics,
+  topic,
   running,
   openCall,
   opened
@@ -575,14 +586,19 @@ function FitChart({
   ranking: Ranking | null
   leftOut: string[] // shows the run's exclusions answer left out
   demographics: DemographicCheck | null // the finalists checked against the launch's listeners
+  topic: Topic | null
   running: boolean
   openCall: (call: string) => void
   opened: string | null
 }) {
+  // The climber whose "why it moved" line is open.
+  const [why, setWhy] = useState<string | null>(null)
   if (!ranking)
     return running ? <p className="help sec">The fit chart appears here once the agent ranks the roster.</p> : null
   const comps = ranking.anchors.length > 1
   const tagged = ranking.rows.some((r) => r.sharedTags)
+  const moves = topic?.status === 'ranked' ? new Map(topic.moves.map((m) => [m.show, m])) : null
+  const climbers = topic?.moves.some((m) => m.climber) ?? false
   return (
     <section className="sec fit" aria-labelledby="fit-h">
       <div className="mh">
@@ -607,9 +623,23 @@ function FitChart({
         Ranked by how much each show&apos;s listeners overlap the listeners of{' '}
         {listOf(ranking.anchors.map((a) => a.name))}. Bands are thirds of this ranking, and the top five, after any
         shows left out, are finalists.
+        {moves && ' Last week is the rank a topic-only plan gives each show, from names and descriptions alone.'}
       </p>
       {demographics && !ranking.error && (
         <DemographicSummary check={demographics} ranking={ranking} openCall={openCall} opened={opened} />
+      )}
+      {topic && topic.status !== 'ranked' && !ranking.error && (
+        <p className="help sec-help" role="status">
+          {topic.status === 'ranking'
+            ? 'Ranking the roster by topic alone for the last-week column…'
+            : `No topic column: ${topic.error}. The fit ranking stands without it.`}
+        </p>
+      )}
+      {moves && climbers && !ranking.error && (
+        <p className="legend">
+          <i className="bul" aria-hidden="true" />
+          Bullet: up 3+ places on topic rank. Select a climber for why it moved.
+        </p>
       )}
       {ranking.error ? (
         <p className="err" role="alert">
@@ -619,6 +649,8 @@ function FitChart({
         <table className="chart fit-chart" aria-labelledby="fit-h">
           <colgroup>
             <col className="c-pos" />
+            {moves && <col className="c-lw" />}
+            {moves && <col className="c-mv" />}
             <col />
             <col className="c-band" />
           </colgroup>
@@ -627,6 +659,16 @@ function FitChart({
               <th scope="col">
                 This week<small>fit rank</small>
               </th>
+              {moves && (
+                <th scope="col">
+                  Last week<small>topic rank</small>
+                </th>
+              )}
+              {moves && (
+                <th scope="col">
+                  Move<small>vs topic</small>
+                </th>
+              )}
               <th scope="col">
                 Show
                 <small>
@@ -648,51 +690,104 @@ function FitChart({
               ].filter(Boolean)
               const shared = r.sharedTags ?? null // runs from before shared tags have none
               const flagged = r.finalist ? demographics?.rows.find((d) => d.show === r.show)?.reasons : null
-              return (
-                <tr
-                  key={r.show}
-                  data-finalist={r.finalist || undefined}
-                  data-left-out={leftOut.includes(r.show) || undefined}
+              const move = moves?.get(r.show)
+              const open = move?.climber && why === r.show
+              const callButton = (call: string, label: string) => (
+                <button
+                  type="button"
+                  className="call"
+                  aria-pressed={call === opened}
+                  aria-controls="evidence"
+                  aria-label={`${label}: call ${call}`}
+                  onClick={() => openCall(call)}
                 >
-                  <td className="pos">{r.rank}</td>
-                  <td>
-                    <div className="nm-row">
-                      <span className="nm">{r.show}</span>
-                      {r.finalist && <span className="chip">Finalist</span>}
-                      {leftOut.includes(r.show) && <span className="chip">Left out</span>}
-                      {flagged?.length ? <span className="chip flag">Listeners differ</span> : null}
-                    </div>
-                    {shared && (
-                      <div className="tg">
-                        {shared.error
-                          ? `Shared tags failed: ${shared.error}`
-                          : shared.tags.length > 0
-                            ? shared.tags.join('\u00a0· ') // a separator never starts a line
-                            : 'No distinctive shared tags'}{' '}
-                        <button
-                          type="button"
-                          className="call"
-                          aria-pressed={shared.call === opened}
-                          aria-controls="evidence"
-                          aria-label={`Evidence for the tags ${r.show} shares: call ${shared.call}`}
-                          onClick={() => openCall(shared.call)}
-                        >
-                          {shared.call}
-                        </button>
-                      </div>
+                  {call}
+                </button>
+              )
+              return (
+                <Fragment key={r.show}>
+                  <tr
+                    data-finalist={r.finalist || undefined}
+                    data-left-out={leftOut.includes(r.show) || undefined}
+                    className={open ? 'hot' : undefined}
+                  >
+                    <td className="pos">
+                      {r.rank}
+                      {move?.climber && <i className="bul" aria-hidden="true" />}
+                    </td>
+                    {moves && <td className="lw">{move?.topicRank ?? '–'}</td>}
+                    {moves && (
+                      <td className={`mv${!move || move.move < 0 ? ' dn' : move.move === 0 ? ' eq' : ''}`}>
+                        {move && (
+                          <>
+                            <span aria-hidden="true">{moveGlyph(move)}</span>
+                            <span className="vh">{moveWords(move)}</span>
+                          </>
+                        )}
+                      </td>
                     )}
-                    {notes.length > 0 && <div className="tg">{notes.join(' · ')}</div>}
-                    {flagged?.length ? <div className="flag-why">{flagged.join('. ')}.</div> : null}
-                  </td>
-                  <td>
-                    <span className={`band b${bars}`}>
-                      <i aria-hidden="true" />
-                      <i aria-hidden="true" />
-                      <i aria-hidden="true" />
-                      {word}
-                    </span>
-                  </td>
-                </tr>
+                    <td>
+                      <div className="nm-row">
+                        {move?.climber ? (
+                          <button
+                            type="button"
+                            className="row-open"
+                            aria-expanded={open}
+                            aria-controls={`why-${r.rank}`}
+                            onClick={() => setWhy(open ? null : r.show)}
+                          >
+                            <span className="nm">{r.show}</span>
+                          </button>
+                        ) : (
+                          <span className="nm">{r.show}</span>
+                        )}
+                        {r.finalist && <span className="chip">Finalist</span>}
+                        {leftOut.includes(r.show) && <span className="chip">Left out</span>}
+                        {flagged?.length ? <span className="chip flag">Listeners differ</span> : null}
+                      </div>
+                      {shared && (
+                        <div className="tg">
+                          {shared.error
+                            ? `Shared tags failed: ${shared.error}`
+                            : shared.tags.length > 0
+                              ? shared.tags.join('\u00a0· ') // a separator never starts a line
+                              : 'No distinctive shared tags'}{' '}
+                          {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
+                        </div>
+                      )}
+                      {notes.length > 0 && <div className="tg">{notes.join(' · ')}</div>}
+                      {flagged?.length ? <div className="flag-why">{flagged.join('. ')}.</div> : null}
+                    </td>
+                    <td>
+                      <span className={`band b${bars}`}>
+                        <i aria-hidden="true" />
+                        <i aria-hidden="true" />
+                        <i aria-hidden="true" />
+                        {word}
+                      </span>
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr className="why" id={`why-${r.rank}`}>
+                      <td colSpan={3} />
+                      {/* The show column and every column after it. */}
+                      <td colSpan={2}>
+                        <span className="lbl">Why it moved</span>
+                        <Source of="qloo" /> Topic alone ranks it {move.topicRank}; listener overlap with{' '}
+                        {listOf(ranking.anchors.map((a) => a.name))} ranks it {r.rank}.{' '}
+                        {callButton(ranking.call, `Evidence for ${r.show}'s fit`)}
+                        {r.leadingComp && ` Led by ${r.leadingComp.name}.`}
+                        {shared && !shared.error && shared.tags.length > 0 && (
+                          <>
+                            {' '}
+                            Shared tags: {listOf(shared.tags)}.{' '}
+                            {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
           </tbody>

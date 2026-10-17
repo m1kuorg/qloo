@@ -12,6 +12,7 @@ import { candidateLabels, lookup, lookupWork, type Candidate, type Lookup } from
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
 import { tools, type ToolContext, type ToolResult } from './tools'
+import { rankByTopic, topicRequest, withMoves, type Topic } from './topic'
 
 export type Show = {
   name: string
@@ -110,6 +111,7 @@ export type State = {
   runs: RunSummary[] // every run this session started, oldest first
   ranking: Ranking | null // the current run's fit chart, once the roster is ranked
   demographics: DemographicCheck | null // the current run's finalists checked against the launch's listeners
+  topic: Topic | null // the current run's topic baseline, the chart's last-week column
   inbox: Inbox | null // the booker's guest pitches, when GUEST_PITCHES is on
   sample: Sample | null // the sample network the session opened on, until it's cleared or a roster is imported
 }
@@ -130,6 +132,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     runs: [],
     ranking: null,
     demographics: null,
+    topic: null,
     inbox: null,
     sample: null
   }
@@ -146,6 +149,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
       turns INTEGER DEFAULT 0, qloo_calls INTEGER DEFAULT 0, cache_hits INTEGER DEFAULT 0, snapshot TEXT)`
     // The turn a run paused on and its tool results so far, until the answer completes them.
     this.sql`CREATE TABLE IF NOT EXISTS paused (run TEXT PRIMARY KEY, assistant TEXT, results TEXT)`
+    // Topic baselines by a hash of their request, so the same launch and roster rank the same way.
+    this.sql`CREATE TABLE IF NOT EXISTS topic_baselines (key TEXT PRIMARY KEY, ranking TEXT)`
     // A run is kept alive while its loop runs, so one still running at startup lost its loop.
     const run = this.state.run
     if (run?.status === 'running') this.finish(run.id, 'The run was interrupted. Start it again.')
@@ -164,6 +169,12 @@ export class CrossfeedAgent extends Agent<Env, State> {
         roster: this.state.roster.map((s) =>
           s.compSearch?.status === 'pending' ? { ...s, compSearch: { ...s.compSearch, ...stopped } } : s
         )
+      })
+    const topic = this.state.topic
+    if (topic?.status === 'ranking')
+      this.setState({
+        ...this.state,
+        topic: { ...topic, status: 'failed', error: 'The topic ranking was interrupted. Run the launch again' }
       })
     const inbox = this.state.inbox
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
@@ -297,8 +308,14 @@ export class CrossfeedAgent extends Agent<Env, State> {
         { id: run, launch: name, status: 'running', startedAt: new Date(startedAt).toISOString() }
       ],
       ranking: null,
-      demographics: null
+      demographics: null,
+      topic: { status: 'ranking', order: [], error: null, moves: [] }
     })
+    // Beside the agent loop, not a tool of it: it needs no Qloo data.
+    const imported = this.state.roster
+    void this.keepAliveWhile(() => this.rankRosterByTopic(run, name, imported)).catch((e) =>
+      this.landTopic(run, { status: 'failed', order: [], error: `The topic ranking stopped: ${message(e)}`, moves: [] })
+    )
     // The roster's IDs go in the run's first message, so the frozen system prompt stays session-free.
     const shows = this.state.roster.filter(scorable)
     const roster = shows.length
@@ -457,6 +474,40 @@ export class CrossfeedAgent extends Agent<Env, State> {
     }
     const show = this.state.roster.find((s) => s.name === name)
     if (show?.compSearch?.call === search.call) this.editShow(name, (s) => ({ ...s, compSearch: landed }))
+  }
+
+  // The run's topic baseline, from the cache when the same launch and roster were ranked before.
+  // Only a full ranking is kept, so a refused or failed one is tried again next run.
+  private async rankRosterByTopic(run: string, launch: string, roster: Show[]) {
+    const started = Date.now()
+    const request = await topicRequest(launch, roster)
+    const [cached] = this.sql<{ ranking: string }>`SELECT ranking FROM topic_baselines WHERE key = ${request.key}`
+    const topic = cached
+      ? { status: 'ranked' as const, order: JSON.parse(cached.ranking), error: null }
+      : await rankByTopic(this.env, request)
+    if (!cached && topic.status === 'ranked') {
+      const ranking = JSON.stringify(topic.order)
+      this.sql`INSERT OR REPLACE INTO topic_baselines (key, ranking) VALUES (${request.key}, ${ranking})`
+    }
+    log({
+      event: 'topic_baseline',
+      run,
+      status: topic.status,
+      cacheHit: Boolean(cached),
+      latencyMs: Date.now() - started
+    })
+    this.landTopic(run, { ...topic, moves: [] })
+  }
+
+  // A baseline lands in synced state while its run is the latest, and in what its run ended with,
+  // since the run can end first.
+  private landTopic(run: string, topic: Topic) {
+    if (this.state.run?.id === run) this.setState(withMoves({ ...this.state, topic }))
+    const [ended] = this.sql<{ snapshot: string | null }>`SELECT snapshot FROM runs WHERE id = ${run}`
+    if (ended?.snapshot) {
+      const snapshot = withMoves({ ...(JSON.parse(ended.snapshot) as RunSnapshot), topic })
+      this.sql`UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}`
+    }
   }
 
   // Reserves the next call number, before the call is made.
@@ -724,7 +775,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 // One structured line in Workers Logs, like the gateway's qloo_call lines.
-const log = (line: { event: 'model_call' | 'run_summary' } & Record<string, unknown>) =>
+const log = (line: { event: 'model_call' | 'run_summary' | 'topic_baseline' } & Record<string, unknown>) =>
   console.log(JSON.stringify(line))
 
 // What a run has spent against its limits, from its row in `runs`.

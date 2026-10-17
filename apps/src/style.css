@@ -800,9 +800,98 @@ fieldset {
   width: 128px;
 }
 
+/* Last week and the move: topic rank in Last-Week Grey, then the move glyph. */
+.fit-chart .c-lw {
+  width: 100px;
+}
+
+.fit-chart .c-mv {
+  width: 64px;
+}
+
+.lw {
+  font: 600 24px/1 var(--cond);
+  color: var(--topic);
+}
+
+.mv {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mv.dn,
+.mv.eq {
+  color: var(--grey);
+  font-weight: 600;
+}
+
+/* The gainer bullet: the one use of Chart Red, beside a climber's position and in its legend. */
+.bul {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--red);
+}
+
+.pos .bul {
+  vertical-align: top;
+  margin: 2px 0 0 5px;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 12px;
+  font-size: 12px;
+  color: var(--mid);
+}
+
+/* A selected climber and its "why it moved" line read as one Panel Grey block. */
+.fit-chart tr.hot td {
+  background: var(--panel);
+  border-bottom: 0;
+}
+
+.fit-chart tr.why td {
+  height: auto;
+  padding: 0 8px 12px;
+  background: var(--panel);
+  font-size: 12px;
+  color: var(--mid);
+}
+
+.why .lbl {
+  color: var(--ink);
+  margin-right: 8px;
+}
+
+.why .chip {
+  margin-right: 6px;
+}
+
+/* Read by screen readers, not shown. */
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 @media (max-width: 600px) {
   .fit-chart .c-pos {
     width: 64px;
+  }
+
+  .fit-chart .c-lw {
+    width: 40px;
+  }
+
+  .fit-chart .c-mv {
+    width: 40px;
   }
 
   .fit-chart .c-band {
@@ -811,6 +900,40 @@ fieldset {
 
   .fit-chart th {
     white-space: normal;
+  }
+
+  /* With the topic columns in, cells tighten, the band's word drops under its meter, and long
+     names hyphenate, so the show name stays readable beside position and move. */
+  .fit-chart th,
+  .fit-chart td {
+    padding-right: 4px;
+  }
+
+  .fit-chart th:not(:first-child),
+  .fit-chart td:not(:first-child) {
+    padding-left: 4px;
+  }
+
+  .fit-chart .c-pos:has(~ .c-lw) {
+    width: 60px;
+  }
+
+  .fit-chart .c-lw ~ .c-band {
+    width: 68px;
+  }
+
+  .fit-chart th {
+    letter-spacing: 0.02em;
+  }
+
+  .fit-chart .band {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .fit-chart .nm-row .nm {
+    hyphens: auto;
+    overflow-wrap: break-word;
   }
 }
 
