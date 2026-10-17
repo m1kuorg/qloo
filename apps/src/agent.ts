@@ -17,9 +17,9 @@ import {
   type Work,
   type WorkMatch
 } from './inbox'
-import { MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
+import { MAX_COMPS, MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
 import { lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
-import { candidateLabels, lookup, lookupWork, type Candidate, type Lookup } from './resolve'
+import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
 import { tools, type ToolContext, type ToolResult } from './tools'
@@ -73,6 +73,16 @@ export type LaunchInput = { name: string } | { comps: string[] }
 export type Launch = {
   name: string | null // null for a launch run from comps
   match: Lookup | null // how the launch resolved in Qloo; null until the run has looked it up
+  comps: Comp[] // up to three released shows standing in for an unreleased launch; empty otherwise
+}
+
+// A released show the programmer named to stand in for an unreleased launch. Only a comp they
+// confirmed is scored, as `entity`: its match, or the candidate they picked when it was ambiguous.
+export type Comp = {
+  name: string // as the programmer named it
+  match: Lookup | null // how the name resolved in Qloo; null until the run looks it up
+  status: 'unconfirmed' | 'confirmed' | 'rejected' // rejected: none of its matches is the comp
+  entity: Candidate | null
 }
 
 export type Run = {
@@ -89,17 +99,28 @@ export type Run = {
 export type Budget = { slots: number } | { dollars: number }
 
 // A question the agent put to the programmer. `choice` is a fork in the plan, answered with one of
-// its options or free text; `launch` picks the launch's candidate or renames it.
+// its options or free text; `launch` picks the launch's candidate or renames it. `comps` asks for
+// comps; `confirm_comps` confirms the comps named in `options`.
 export type Question = {
   id: string // the ask_human call's tool use ID
-  kind: 'choice' | 'launch' | 'budget' | 'exclusions'
+  kind: 'choice' | 'launch' | 'budget' | 'exclusions' | 'comps' | 'confirm_comps'
   question: string
   options: string[]
 }
 
 // How the programmer answers: `choice` or `text` for a choice question, `slots` or `dollars` for
-// the budget, `exclude` for exclusions, and free `text` as a note on any other kind.
-export type Reply = { choice?: string; text?: string; slots?: number; dollars?: number; exclude?: string[] }
+// the budget, `exclude` for exclusions, `comps` for comp names, `picks` for each comp to confirm in
+// the question's order (its entity's ID, or null for none of these), and free `text` as a note on
+// any other kind.
+export type Reply = {
+  choice?: string
+  text?: string
+  slots?: number
+  dollars?: number
+  exclude?: string[]
+  comps?: string[]
+  picks?: (string | null)[]
+}
 
 // One run in the session's list of runs. Its results, once it ends, come from getRun.
 export type RunSummary = {
@@ -297,13 +318,14 @@ export class CrossfeedAgent extends Agent<Env, State> {
   @callable()
   async startLaunch(input: LaunchInput) {
     const given = typeof input === 'object' && input !== null ? input : {} // it arrives as untrusted JSON
-    if ('comps' in given) throw new Error("Starting from comps isn't available yet. Name a released launch.")
-    const name = 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
-    if (!name) throw new Error('Name the launch to start a run.')
+    const comps = 'comps' in given ? readComps(given.comps) : null
+    if (comps?.length === 0) throw new Error('Name at least one comp to start a run.')
+    const name = comps ? null : 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
+    if (name === '') throw new Error('Name the launch to start a run.')
     const { run, startedAt } = this.beginRun()
     this.setState({
       ...this.state,
-      launch: { name, match: null },
+      launch: { name, match: null, comps: (comps ?? []).map(newComp) },
       run: { id: run, status: 'running', notes: [], error: null, question: null, budget: null, exclusions: null },
       // Sessions from before run limits have no list.
       runs: [
@@ -317,7 +339,9 @@ export class CrossfeedAgent extends Agent<Env, State> {
     })
     // Beside the agent loop, not a tool of it: it needs no Qloo data.
     const imported = this.state.roster
-    void this.keepAliveWhile(() => this.rankRosterByTopic(run, name, imported)).catch((e) =>
+    // A launch from comps is described to the topic baseline by its comps.
+    const topicLaunch = name ?? `an unreleased show like ${comps!.join(', ')}`
+    void this.keepAliveWhile(() => this.rankRosterByTopic(run, topicLaunch, imported)).catch((e) =>
       this.landTopic(run, { status: 'failed', order: [], error: `The topic ranking stopped: ${message(e)}`, moves: [] })
     )
     // The roster's IDs go in the run's first message, so the frozen system prompt stays session-free.
@@ -336,10 +360,10 @@ export class CrossfeedAgent extends Agent<Env, State> {
           : 'None can be ranked yet.'),
       ...(unranked.length ? [`These roster shows can't be ranked, and why:\n${unranked.join('\n')}`] : [])
     ].join('\n\n')
-    this.append(run, {
-      role: 'user',
-      content: `The launch is a released show named "${name}". Plan its promos.\n\n${roster}`
-    })
+    const launch = comps
+      ? `The launch is unreleased, so it has no listeners yet. The programmer named these released shows as its comps, to stand in for it: ${comps.map((c) => `"${c}"`).join(', ')}.`
+      : `The launch is a released show named "${name}".`
+    this.append(run, { role: 'user', content: `${launch} Plan its promos.\n\n${roster}` })
     void this.keepAliveWhile(() => this.runLoop(run)).catch((e) => this.finish(run, `The run stopped: ${message(e)}`))
     return { runId: run }
   }
@@ -399,14 +423,14 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (!run || !question || question.id !== questionId)
       throw new Error('That question is no longer open: it was already answered, or its run has ended.')
     const given = typeof reply === 'object' && reply !== null ? reply : {} // it arrives as untrusted JSON
-    const { answer, stored, launch } = settle(question, given, this.state.launch)
+    const { answer, stored, launch, record } = settle(question, given, this.state.launch)
     let notice = 'Asked the programmer. Their answer follows.'
-    if (launch) {
-      this.setState({ ...this.state, launch })
+    if (launch) this.setState({ ...this.state, launch })
+    if (record) notice += ` ${record}`
+    else if (launch)
       notice += launch.match
         ? ` Code set the launch to ${launch.match.entity!.name} (Qloo ID ${launch.match.entity!.id}), from ${launch.match.evidence}; don't resolve it again.`
         : ` Code renamed the launch "${launch.name}"; resolve that name.`
-    }
     if (stored.exclusions && this.state.ranking) {
       const ranking = markFinalists(this.state.ranking, stored.exclusions)
       this.setState({ ...this.state, ranking })
@@ -991,18 +1015,35 @@ const summary = (run: string, outcome: Run['status'], spent: Spent) => ({
   wallMs: Date.now() - spent.started_at
 })
 
-// The programmer's answer as Claude reads it, what code stores on the run from it, and the launch
-// it sets. Throws, changing nothing, when the reply doesn't fit the question.
+// The programmer's answer as Claude reads it, what code stores on the run from it, the launch it
+// sets, and for comps, code's record of it for the tool result. Throws, changing nothing, when the
+// reply doesn't fit the question.
 function settle(
   question: Question,
   reply: Reply,
   launch: Launch | null
-): { answer: string; stored: Partial<Run>; launch?: Launch } {
+): { answer: string; stored: Partial<Run>; launch?: Launch; record?: string } {
   const note = typeof reply.text === 'string' ? reply.text.trim() : ''
   const choice = reply.choice
   if (choice !== undefined && !question.options.includes(choice)) throw new Error("That isn't one of the options.")
   const withNote = (answer: string) => [answer, note].filter(Boolean).join('\n\n')
   if (question.kind === 'launch') return settleLaunch(choice, note, launch)
+  if (question.kind === 'comps') {
+    const comps = readComps(reply.comps ?? [])
+    // A name instead of comps is the name Qloo lists the launch under, as with a launch question.
+    if (comps.length === 0) {
+      if (!note || !launch?.name)
+        throw new Error(`Name up to ${MAX_COMPS} comps, or type the name Qloo lists the launch under.`)
+      return settleLaunch(undefined, note, launch)
+    }
+    return {
+      answer: withNote(`Comps: ${comps.join(', ')}.`),
+      stored: {},
+      launch: { ...launch!, comps: comps.map(newComp) },
+      record: `Code set the launch's comps to ${comps.join(', ')}; resolve them, then confirm their matches.`
+    }
+  }
+  if (question.kind === 'confirm_comps') return confirmComps(question.options, reply.picks, launch!, withNote)
   if (question.kind === 'budget') {
     const budget = readBudget(reply)
     const amount = 'slots' in budget ? `${budget.slots} promo slots` : `$${budget.dollars.toLocaleString('en-US')}`
@@ -1032,7 +1073,8 @@ function settleLaunch(
 ): { answer: string; stored: Partial<Run>; launch: Launch } {
   if (choice !== undefined && name) throw new Error('Pick a candidate or type a name, not both.')
   if (choice === undefined && !name) throw new Error('Pick a candidate or type the name Qloo lists it under.')
-  if (name) return { answer: `Look it up as "${name}".`, stored: {}, launch: { name, match: null } }
+  if (name)
+    return { answer: `Look it up as "${name}".`, stored: {}, launch: { name, match: null, comps: launch?.comps ?? [] } }
   const match = launch?.match
   const candidates = match?.resolution === 'ambiguous' ? match.candidates : []
   const entity = candidates[candidateLabels(candidates).indexOf(choice!)]
@@ -1060,6 +1102,51 @@ function readBudget({ slots, dollars }: Reply): Budget {
   if (typeof dollars !== 'number' || !Number.isFinite(dollars) || dollars <= 0)
     throw new Error('The dollar budget must be an amount above $0.')
   return { dollars }
+}
+
+// Comp names as the programmer gave them: trimmed, blanks dropped, and the same name once. Throws
+// past the limit.
+function readComps(names: unknown): string[] {
+  const given = Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : []
+  const comps: string[] = []
+  for (const name of given.map((n) => n.trim()).filter(Boolean))
+    if (!comps.some((c) => sameName(c, name))) comps.push(name)
+  if (comps.length > MAX_COMPS)
+    throw new Error(
+      `${comps.length} comps is over the limit of ${MAX_COMPS}. Name up to ${MAX_COMPS} released shows to stand in for the launch.`
+    )
+  return comps
+}
+
+const newComp = (name: string): Comp => ({ name, match: null, status: 'unconfirmed', entity: null })
+
+// The programmer's pick for each comp the question offered, in its order: one of its matches, which
+// becomes the comp's entity, or null for none of these.
+function confirmComps(
+  offered: string[],
+  picks: unknown,
+  launch: Launch,
+  withNote: (answer: string) => string
+): { answer: string; stored: Partial<Run>; launch: Launch; record: string } {
+  if (!Array.isArray(picks) || picks.length !== offered.length) throw new Error('Confirm or reject each comp.')
+  const comps = [...launch.comps]
+  const lines = offered.map((name, i) => {
+    const at = comps.findIndex((c) => c.name === name)
+    if (at < 0) throw new Error("The launch's comps have changed. Start the run again.")
+    if (picks[i] === null) {
+      comps[at] = { ...comps[at], status: 'rejected', entity: null }
+      return `${name}: none of these.`
+    }
+    const entity = offeredBy(comps[at].match).find((c) => c.id === picks[i])
+    if (!entity) throw new Error(`That isn't one of the matches for ${name}.`)
+    comps[at] = { ...comps[at], status: 'confirmed', entity }
+    return `${name}: ${candidateLabels([entity])[0]}.`
+  })
+  const confirmed = comps.filter((c) => c.status === 'confirmed')
+  const record = confirmed.length
+    ? `Code confirmed these comps: ${confirmed.map((c) => `${c.name} (Qloo ID ${c.entity!.id})`).join(', ')}.`
+    : 'No comp is confirmed.'
+  return { answer: withNote(lines.join('\n')), stored: {}, launch: { ...launch, comps }, record }
 }
 
 // The progress note a tool call shows, such as "Resolving The Big Picture".

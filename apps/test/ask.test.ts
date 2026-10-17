@@ -417,7 +417,8 @@ describe('asking which show the launch is', () => {
         candidates: [],
         evidence: call,
         error: null
-      }
+      },
+      comps: []
     })
     const state = await finished(s)
     // Code now knows which roster show is the launch, so the ranking leaves it out.
@@ -450,7 +451,7 @@ describe('asking which show the launch is', () => {
     )
 
     await s.call('answer', question(paused).id, { text: ' Glass Harbour ' })
-    expect(s.state()?.launch).toEqual({ name: 'Glass Harbour', match: null })
+    expect(s.state()?.launch).toEqual({ name: 'Glass Harbour', match: null, comps: [] })
     const state = await finished(s)
     expect(state.launch?.match).toMatchObject({
       resolution: 'resolved',

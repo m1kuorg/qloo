@@ -3,8 +3,10 @@ import { Fragment, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   Budget,
+  Comp,
   CrossfeedAgent,
   Launch,
+  LaunchInput,
   Question,
   Reply,
   Run,
@@ -16,8 +18,8 @@ import type {
 } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
 import type { Ranking } from '../fit'
-import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
-import { sameName } from '../resolve'
+import { MAX_COMPS, MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
+import { offeredBy, sameName } from '../resolve'
 import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
 import type { Move, Topic } from '../topic'
@@ -77,7 +79,7 @@ export function App({ page }: { page: string | undefined }) {
             pitchRun && (
               <>
                 {pitchRun.status === 'waiting' && pitchRun.question && (
-                  <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} agent={agent} />
+                  <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
                 )}
                 <RunLog run={pitchRun} />
               </>
@@ -102,7 +104,7 @@ export function App({ page }: { page: string | undefined }) {
         run={run}
         viewing={viewing && runNumber(runs, viewing.id)}
         back={() => setViewing(null)}
-        startLaunch={(name) => agent.stub.startLaunch({ name })}
+        startLaunch={(input) => agent.stub.startLaunch(input)}
         openCall={openCall}
         opened={opened?.call ?? null}
       />
@@ -146,7 +148,7 @@ export function App({ page }: { page: string | undefined }) {
         </div>
         <aside className="rail" aria-label="Details">
           {run?.status === 'waiting' && run.question && (
-            <OpenQuestion key={run.question.id} question={run.question} agent={agent} />
+            <OpenQuestion key={run.question.id} question={run.question} launch={shown?.launch ?? null} agent={agent} />
           )}
           {shown?.insertionOrder && (
             <InsertionOrderPanel
@@ -208,8 +210,9 @@ const runLabel: Record<Run['status'], string> = {
 // Runs are numbered in the order this session started them.
 const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id === id) + 1
 
-// The launch header: start a run from a released launch's name, then follow it here. While an
-// earlier run is viewed, it shows that run and a way back instead of the form.
+// The launch header: start a run from a released launch's name, or from up to three comps for an
+// unreleased one, then follow it here. While an earlier run is viewed, it shows that run and a way
+// back instead of the form.
 function LaunchHeader({
   suggested,
   launch,
@@ -225,28 +228,44 @@ function LaunchHeader({
   run: Run | null
   viewing: number | null // the number of the earlier run shown
   back: () => void
-  startLaunch: (name: string) => Promise<unknown>
+  startLaunch: (input: LaunchInput) => Promise<unknown>
   openCall: (call: string) => void
   opened: string | null
 }) {
   const [name, setName] = useState(suggested ?? '')
+  const [unreleased, setUnreleased] = useState(false)
+  const [comps, setComps] = useState<string[]>(Array(MAX_COMPS).fill(''))
   const action = useAction()
   const running = run?.status === 'running'
+  const named = comps.filter((c) => c.trim())
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await action.run(() => startLaunch(name))) setName('')
+    if (!unreleased) {
+      if (await action.run(() => startLaunch({ name }))) setName('')
+    } else if (await action.run(() => startLaunch({ comps: named }))) setComps(Array(MAX_COMPS).fill(''))
   }
-  // The launch to run again once its run has ended.
-  const again = run && !running ? (launch?.name ?? null) : null
+  // The launch to run again once its run has ended: from its comps, if it has any.
+  const launchComps = launch?.comps ?? [] // sessions from before comps have none
+  const again: LaunchInput | null =
+    run && !running && launch
+      ? launchComps.length
+        ? { comps: launchComps.map((c) => c.name) }
+        : launch.name
+          ? { name: launch.name }
+          : null
+      : null
   const current = run?.notes.findLast((n) => n.status === 'running')?.text
   return (
     <section className="hd" aria-label="Launch">
       <div className="hd-row">
         <div>
           <h1>
-            <span>Launch ·</span> {launch?.name ?? 'None yet'}
+            <span>Launch ·</span> {launch?.name ?? (launchComps.length ? 'Unreleased, from comps' : 'None yet')}
           </h1>
-          {launch && <LaunchMatch launch={launch} running={running} openCall={openCall} opened={opened} />}
+          {launch?.name && <LaunchMatch launch={launch} running={running} openCall={openCall} opened={opened} />}
+          {launchComps.length > 0 && (
+            <LaunchComps comps={launchComps} running={running} openCall={openCall} opened={opened} />
+          )}
         </div>
         {run && (
           <div className="status" role="status">
@@ -266,20 +285,49 @@ function LaunchHeader({
         </p>
       ) : (
         <form className="launch-form" onSubmit={submit}>
-          <label className="lbl" htmlFor="launch-name">
-            Released launch
-          </label>
-          <input
-            id="launch-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="The Big Picture"
-            disabled={action.busy || running}
-          />
-          <button className="btn pri" type="submit" disabled={action.busy || running || !name.trim()}>
+          <span className="launch-kind" role="radiogroup" aria-label="The launch is">
+            {[false, true].map((kind) => (
+              <label key={String(kind)}>
+                <input
+                  type="radio"
+                  name="launch-kind"
+                  checked={unreleased === kind}
+                  onChange={() => setUnreleased(kind)}
+                  disabled={action.busy || running}
+                />
+                <span>{kind ? 'Unreleased, from comps' : 'Released'}</span>
+              </label>
+            ))}
+          </span>
+          {unreleased ? (
+            comps.map((comp, i) => (
+              <input
+                key={i}
+                className="comp-name"
+                aria-label={`Comp ${i + 1}`}
+                value={comp}
+                onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
+                placeholder={['Blank Check', 'Filmspotting', 'You Must Remember This'][i]}
+                disabled={action.busy || running}
+              />
+            ))
+          ) : (
+            <input
+              aria-label="Released launch"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="The Big Picture"
+              disabled={action.busy || running}
+            />
+          )}
+          <button
+            className="btn pri"
+            type="submit"
+            disabled={action.busy || running || (unreleased ? named.length === 0 : !name.trim())}
+          >
             Start run
           </button>
-          {suggested && name === suggested && <small className="smp">Sample launch</small>}
+          {!unreleased && suggested && name === suggested && <small className="smp">Sample launch</small>}
           {again && (
             <>
               <button
@@ -344,6 +392,62 @@ function LaunchMatch({
   )
 }
 
+// The comps standing in for an unreleased launch: each confirmed one as its Qloo match, the rest
+// with what's still needed, and each with the search it came from.
+function LaunchComps({
+  comps,
+  running,
+  openCall,
+  opened
+}: {
+  comps: Comp[]
+  running: boolean
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  const state = (c: Comp) => {
+    if (c.status === 'rejected') return 'not confirmed'
+    if (!c.match) return running ? 'looking it up' : 'not looked up'
+    if (c.match.resolution === 'missed') return 'not in Qloo'
+    if (c.match.resolution === 'failed') return 'lookup failed'
+    return 'to confirm'
+  }
+  return (
+    <p className="sub-line comps">
+      <Source of="qloo" /> Comps:{' '}
+      {comps.map((c, i) => (
+        <span key={c.name}>
+          {i > 0 && ' · '}
+          {c.status === 'confirmed' && c.entity ? (
+            <span className="ent">
+              <b>{c.entity.name}</b> <span className="pop">{percentile(c.entity.popularity)}</span>
+            </span>
+          ) : (
+            <>
+              <b>{c.name}</b> <span className="tg">{state(c)}</span>
+            </>
+          )}
+          {c.match && (
+            <>
+              {' '}
+              <button
+                type="button"
+                className="call"
+                aria-pressed={c.match.evidence === opened}
+                aria-controls="evidence"
+                aria-label={`Evidence for the comp ${c.name}: call ${c.match.evidence}`}
+                onClick={() => openCall(c.match!.evidence)}
+              >
+                {c.match.evidence}
+              </button>
+            </>
+          )}
+        </span>
+      ))}
+    </p>
+  )
+}
+
 const noteLabel: Record<Run['notes'][number]['status'], string> = { running: 'Running', done: 'Done', failed: 'Failed' }
 
 // What the run has done so far: one note per tool call, then why it stopped if it failed.
@@ -391,16 +495,31 @@ function RunLog({ run }: { run: Run }) {
   )
 }
 
+// The confirm form's "None of these", until the reply sends it as null.
+const NONE = 'none'
+
 const budgetText = (b: Budget) => ('slots' in b ? `${b.slots} promo slots` : `$${b.dollars.toLocaleString('en-US')}`)
 
 // The agent's open question, the rail's primary action: the run waits here until it's answered.
-function OpenQuestion({ question, agent }: { question: Question; agent: Session }) {
+function OpenQuestion({ question, launch, agent }: { question: Question; launch: Launch | null; agent: Session }) {
   const { busy, error, run } = useAction()
   const [choice, setChoice] = useState<string | undefined>(undefined)
   const [text, setText] = useState('')
   const [unit, setUnit] = useState<'slots' | 'dollars'>('slots')
   const [amount, setAmount] = useState('')
   const [exclude, setExclude] = useState<string[]>([])
+  // Asked again for comps, the programmer edits the ones they gave.
+  const [comps, setComps] = useState(() => Array.from({ length: MAX_COMPS }, (_, i) => launch?.comps?.[i]?.name ?? ''))
+  // The comps to confirm, in the question's order, with what each offers; a single match starts picked.
+  const confirming = question.options.map((name) => ({
+    name,
+    offered: offeredBy(launch?.comps?.find((c) => c.name === name)?.match ?? null)
+  }))
+  const [picks, setPicks] = useState<Record<string, string>>(() =>
+    question.kind === 'confirm_comps'
+      ? Object.fromEntries(confirming.flatMap((c) => (c.offered.length === 1 ? [[c.name, c.offered[0].id]] : [])))
+      : {}
+  )
   const reply = (): Reply => {
     const note = text.trim() ? { text } : {}
     if (question.kind === 'budget') {
@@ -408,8 +527,12 @@ function OpenQuestion({ question, agent }: { question: Question; agent: Session 
       return { ...note, ...(digits && { [unit]: Number(digits) }) }
     }
     if (question.kind === 'exclusions') return { ...note, exclude }
+    if (question.kind === 'comps') return { ...note, comps: comps.filter((c) => c.trim()) }
+    if (question.kind === 'confirm_comps')
+      return { ...note, picks: question.options.map((name) => (picks[name] === NONE ? null : picks[name])) }
     return { ...note, ...(choice !== undefined && { choice }) }
   }
+  const unpicked = question.kind === 'confirm_comps' && question.options.some((name) => !picks[name])
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     void run(() => agent.stub.answer(question.id, reply()))
@@ -495,17 +618,63 @@ function OpenQuestion({ question, agent }: { question: Question; agent: Session 
             ) : (
               <p className="help">No roster show can be scored yet, so there's nothing to leave out.</p>
             ))}
+          {question.kind === 'comps' && (
+            <>
+              <p className="help">Released shows with listeners like the launch's. All of them are scored together.</p>
+              <div className="field comp-names" role="group" aria-labelledby="ask-comps">
+                <span className="lbl" id="ask-comps">
+                  Comps, up to {MAX_COMPS}
+                </span>
+                {comps.map((comp, i) => (
+                  <span className="in" key={i}>
+                    <input
+                      aria-label={`Comp ${i + 1}`}
+                      value={comp}
+                      onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
+                    />
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+          {question.kind === 'confirm_comps' &&
+            confirming.map(({ name, offered }, i) => (
+              <fieldset key={name} className="confirm">
+                <legend className="lbl">{name}</legend>
+                <div className="opts">
+                  {[...offered, null].map((c) => (
+                    <label key={c?.id ?? NONE}>
+                      <input
+                        type="radio"
+                        name={`confirm-${i}`}
+                        checked={picks[name] === (c?.id ?? NONE)}
+                        onChange={() => setPicks({ ...picks, [name]: c?.id ?? NONE })}
+                      />
+                      {c ? (
+                        <span>
+                          {c.name} <span className="pop">{percentile(c.popularity)}</span>
+                        </span>
+                      ) : (
+                        <span>None of these</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
           <label className="field">
             <span className="lbl">
               {question.kind === 'launch'
                 ? question.options.length > 0
                   ? 'Or the name Qloo lists it under'
                   : 'The name Qloo lists it under'
-                : question.kind !== 'choice'
-                  ? 'Note for the agent, optional'
-                  : question.options.length > 0
-                    ? 'Or type your own answer'
-                    : 'Your answer'}
+                : question.kind === 'comps' && launch?.name
+                  ? 'Or the name Qloo lists it under'
+                  : question.kind !== 'choice'
+                    ? 'Note for the agent, optional'
+                    : question.options.length > 0
+                      ? 'Or type your own answer'
+                      : 'Your answer'}
             </span>
             <span className="in">
               <input
@@ -518,10 +687,11 @@ function OpenQuestion({ question, agent }: { question: Question; agent: Session 
             </span>
           </label>
           <div className="acts">
-            <button className="btn pri" type="submit">
+            <button className="btn pri" type="submit" disabled={unpicked}>
               Answer
             </button>
             {question.kind === 'exclusions' && <small>Leave all unticked for no exclusions.</small>}
+            {question.kind === 'confirm_comps' && <small>Only the comps you confirm are scored.</small>}
           </div>
         </fieldset>
       </form>

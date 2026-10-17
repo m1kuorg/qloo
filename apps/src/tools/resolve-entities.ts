@@ -5,8 +5,8 @@ const types = ['urn:entity:podcast', 'urn:entity:book', 'urn:entity:movie', 'urn
 
 type Input = { names: string[]; type: (typeof types)[number] }
 
-// Looks names up in Qloo search. A name that is the run's launch also becomes the launch's match,
-// which the launch header shows.
+// Looks names up in Qloo search. A name that is the run's launch, or one of its comps, also becomes
+// that one's match, which the launch header shows; a comp's new match needs confirming again.
 export const resolveEntities: Tool<Input> = {
   definition: {
     name: 'resolve_entities',
@@ -36,11 +36,15 @@ export const resolveEntities: Tool<Input> = {
       const { call, result } = await qloo((gateway) => gateway.search(name, type))
       const match = lookup(name, call, result)
       results.push({ name, ...match })
-      update((state) =>
-        state.launch?.name && sameName(state.launch.name, name)
-          ? { ...state, launch: { ...state.launch, match } }
-          : state
-      )
+      update((state) => {
+        const launch = state.launch
+        if (launch?.name && sameName(launch.name, name)) return { ...state, launch: { ...launch, match } }
+        if (!launch?.comps.some((c) => sameName(c.name, name))) return state
+        const comps = launch.comps.map((c) =>
+          sameName(c.name, name) ? { ...c, match, status: 'unconfirmed' as const, entity: null } : c
+        )
+        return { ...state, launch: { ...launch, comps } }
+      })
     }
     const failed = results.filter((r) => r.resolution === 'failed')
     if (failed.length === 0) return { content: JSON.stringify(results) }

@@ -5,11 +5,13 @@ import { withMoves } from '../topic'
 
 type Input = { anchor_ids: string[]; candidate_ids: string[]; type: 'urn:entity:podcast' }
 
-// The entities a run can anchor on, by ID: the launch's match and the roster's matches, so an
-// anchor is always something this session resolved, never an invented ID.
+// The entities a run can anchor on, by ID: the launch's match, the comps the programmer confirmed,
+// and the roster's matches, so an anchor is always something this session resolved, never an
+// invented ID, and never a comp before the programmer confirmed it.
 function knownEntities({ launch, roster }: State) {
   const known = new Map<string, string>()
   if (launch?.match?.entity) known.set(launch.match.entity.id, launch.match.entity.name)
+  for (const c of launch?.comps ?? []) if (c.status === 'confirmed' && c.entity) known.set(c.entity.id, c.entity.name)
   for (const s of roster) if (s.entity) known.set(s.entity.id, s.entity.name)
   return known
 }
@@ -65,7 +67,7 @@ export const rankCandidates: Tool<Input> = {
     if (unknownAnchors.length > 0)
       return {
         isError: true,
-        content: `${unknownAnchors.join(', ')} isn't the launch or a roster show this session resolved. Call again with the launch's Qloo ID from resolve_entities as the anchor.`
+        content: `${unknownAnchors.join(', ')} isn't the launch, a comp the programmer confirmed, or a roster show this session resolved. Call again with the launch's Qloo ID from resolve_entities, or every confirmed comp's Qloo ID, as the anchors.`
       }
     const rosterIds = new Set(now.roster.flatMap((s) => (s.entity ? [s.entity.id] : [])))
     const unknown = candidate_ids.filter((id) => !rosterIds.has(id))

@@ -196,6 +196,7 @@ h1 span {
 
 .launch-form {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 12px;
@@ -216,6 +217,40 @@ h1 span {
 .launch-form small {
   font-size: 12px;
   color: var(--grey);
+}
+
+/* Released or unreleased: a launch from comps takes up to three comp names instead of its own. */
+.launch-kind {
+  display: flex;
+  gap: 12px;
+  margin-right: 4px;
+}
+
+.launch-kind label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.launch-form .launch-kind input {
+  accent-color: var(--ink);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  flex: none;
+}
+
+.launch-form input.comp-name {
+  width: 200px;
+}
+
+/* The comps under the launch title, as in the chosen sketch. */
+.comps b {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 /* In place of the launch form while an earlier run is viewed. */
@@ -719,6 +754,15 @@ fieldset {
 
 .ask .field,
 .ask .acts {
+  margin-top: 12px;
+}
+
+/* Comps the agent asked for, and each comp's match to confirm. */
+.ask .comp-names {
+  gap: 8px;
+}
+
+.ask .confirm {
   margin-top: 12px;
 }
 

@@ -270,7 +270,9 @@ describe('ranking the roster by fit to the launch', () => {
     const { state } = await launch([turn(resolveLaunch), turn(rank(['e-4242'])), turn(text('Stopped.'))])
 
     expect(rankResult()).toMatchObject({ is_error: true })
-    expect(rankResult().content).toContain("e-4242 isn't the launch or a roster show this session resolved.")
+    expect(rankResult().content).toContain(
+      "e-4242 isn't the launch, a comp the programmer confirmed, or a roster show this session resolved."
+    )
     expect(requests.filter((r) => r.url.pathname === '/v2/insights')).toEqual([])
     expect(state.ranking).toBeNull()
   })
