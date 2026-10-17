@@ -51,6 +51,7 @@ Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/clou
 
 - `fakeQloo({ search })` serves `/search` from hand-written results keyed by query. A number in place of results answers with that HTTP status, `{ status, body }` answers with that raw body, such as a proxy's HTML error page, and `'hang'` never answers, so the gateway times out.
 - `fakeQloo({ search, first: { 'Deep Cuts': [503, 503] } })` answers a query's first requests from `first`, in order, then from `search`. `latencyMs` delays every answer.
+- `fakeInsights(answer)` serves `POST /v2/insights` rankings: a list of `{ entity_id, name, affinity, explainability }`, an HTTP status, or a function of the request's flat-key body that returns either. Left out, `explainability` splits each score evenly across the request's anchors; `null` leaves it off the result.
 - `requests` records every request a fake served, in order, with the time it arrived (`at`) and how many Qloo requests were in flight (`inFlight`). `test/setup.ts` clears it after each test.
 - `test/session.ts` wipes every Durable Object after each test, so the gateway's shared cache and daily count start empty. Keep `cloudflare:test` out of `test/setup.ts`: imported there, it crashes the next test file's worker when files share one, as on CI.
 - Tests run with a 1-second Qloo timeout, retry delays of 10 and 30 ms, and no pacing (`vitest.config.ts`). A test that needs another value assigns it to `env` from `cloudflare:workers` and restores it afterwards, as `configure()` in `test/gateway.test.ts` does.
@@ -112,7 +113,8 @@ Done means the behaviour works against the real APIs, first locally and then on 
 1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo still failed after the gateway's retries, or the daily cap was reached; its reason is in the row.
 1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box.
 1.  Reload: the roster stays. A private window starts empty.
-1.  Type "The Big Picture" as the released launch and start a run. The header shows "Running" and "Resolving The Big Picture", then the Qloo match with its call number, and "Completed". The rail's Run module lists the progress note as done.
+1.  Type "The Big Picture" as the released launch and start a run. The header shows "Running" and "Resolving The Big Picture", then the Qloo match with its call number, and "Completed". The rail's Run module lists the progress notes as done.
+1.  The fit chart ranks the other scorable shows by position and band, with the top five marked Finalist. Under "Not scored" it lists The Big Picture as the launch, The Press Box as excluded, and any show still unsettled. Open the chart's call number: the evidence holds the anchor and candidates in its parameters and each show's raw affinity, which the chart never shows.
 1.  Include The Press Box again and select "Run again". The rail's Runs module lists both runs and today's count out of 10. "View" on the first run shows what it ended with, read-only, with The Press Box still left out; "Back to the latest run" returns.
 1.  Import the same names again: every log line says `"cacheHit":true`, and no new Qloo call is made.
 
@@ -128,9 +130,10 @@ Agent log lines show each model call's tokens and cache reads (`"event":"model_c
 - `src/claude.ts`: the model settings for every agent turn. Change them only with the TRD's model settings.
 - `src/prompt.ts`: the frozen system prompt. Its launch steps are in the PRD's order; a tool ticket fills its own step's `instruction`, and an empty step stays out of the prompt.
 - `src/tools/`: one file per tool, registered in `src/tools/index.ts`. A tool has a strict definition, the progress note it shows, and `run`, which reaches Qloo through `context.qloo` and returns an error that says what to do next.
-- `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. Each method returns its data or error together with an evidence record. Every request goes through `get`, which serves the shared cache, enforces the daily cap, paces and limits requests to 3 in flight, and retries; a new endpoint goes through it too.
+- `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. Each method returns its data or error together with an evidence record. Every request goes through `request`, which sends GET parameters in the query string and POST ones as a JSON body of flat dotted keys, serves the shared cache, enforces the daily cap, paces and limits requests to 3 in flight, and retries; a new endpoint goes through it too.
 - `src/evidence.ts`: the evidence record's shape. Fill its fields; don't reshape it.
 - `src/resolve.ts`: deciding whether a search result is the named entity.
+- `src/fit.ts`: the fit ranking's derived values, built from one ranking call: which roster shows are scorable, fit rank, band, leading comp, finalists, and each other show's reason for not being scored. Later tickets read `state.ranking` for finalists and leading comps.
 - `src/roster.ts`: reading an imported roster, pasted names or a CSV, into rows.
 - `src/client/`: the React island. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. It renders from `shown`, the latest state or an earlier run's while one is viewed; render a run's results from `shown` so an earlier run shows its own, and hide editing controls while `viewing` is set. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
 - `src/style.css`: the tokens and components from [DESIGN.md](/docs/DESIGN.md).
