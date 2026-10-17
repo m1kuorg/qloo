@@ -16,8 +16,8 @@
     // A call still waiting this long is shown as slow: the TRD's worst case per Qloo call.
     "QLOO_SLOW_MS": "8000",
     "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
-    // Guest pitches ship dark: "on" shows the inbox flow; #57 switches it on in production.
-    "GUEST_PITCHES": "off",
+    // "on" shows the guest pitch flow; "off" hides it. #57 switched it on after its live check.
+    "GUEST_PITCHES": "on",
     // A new session opens on the sample network (TRD demo data); tests turn it off.
     "SAMPLE_NETWORK": "on"
   },
