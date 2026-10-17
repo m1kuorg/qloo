@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { Band } from '../fit'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
@@ -37,7 +37,7 @@ export const bandMeter: Record<Band, { bars: number; word: string }> = {
   bottom: { bars: 1, word: 'Fair' }
 }
 
-export { listOf } from '../demographics'
+export { listOf } from '../text'
 
 export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
 
@@ -117,4 +117,23 @@ export function PickOne({
       </div>
     </form>
   )
+}
+
+// A wide table on a narrow screen scrolls sideways inside this, never the page.
+export const ScrollTable = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div className="scroll-x" role="region" aria-label={label} tabIndex={0}>
+    {children}
+  </div>
+)
+
+// A rail module opened from a table row can sit far from it, as in a single column: it's brought into
+// view once, and `focus`, if given, then takes focus without scrolling again. A block body, because
+// newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
+export function useIntoView<T extends HTMLElement>(focus?: RefObject<HTMLElement | null>) {
+  const ref = useRef<T>(null)
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: 'nearest' })
+    focus?.current?.focus({ preventScroll: true })
+  }, [])
+  return ref
 }

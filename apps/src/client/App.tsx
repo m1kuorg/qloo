@@ -23,10 +23,11 @@ import type { Ranking } from '../fit'
 import { inProgress, MAX_COMPS, MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import { dollars, slotPrice } from '../order'
 import { offeredBy, sameName } from '../resolve'
+import { takesText } from '../tools/ask-human'
 import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
 import type { Move, Topic } from '../topic'
-import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
+import { Alert, bandMeter, listOf, percentile, PickOne, ScrollTable, useAction, useIntoView } from './controls'
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Guide } from './Guide'
 import { InboxPage } from './Inbox'
@@ -639,9 +640,7 @@ function OpenQuestion({ question, launch, agent }: { question: Question; launch:
       ? Object.fromEntries(confirming.flatMap((c) => (c.offered.length === 1 ? [[c.name, c.offered[0].id]] : [])))
       : {}
   )
-  // Only a choice, or the name Qloo lists the launch under, is typed: code builds the other answers.
-  const typed =
-    question.kind === 'choice' || question.kind === 'launch' || (question.kind === 'comps' && !!launch?.name)
+  const typed = takesText(question.kind, launch)
   const reply = (): Reply => {
     const note = typed && text.trim() ? { text } : {}
     if (question.kind === 'budget') {
@@ -1400,8 +1399,7 @@ function RosterTable({
   // One selected row: the show open in the rail's editor or, with none open, the show whose evidence is open.
   const hot = selected ?? roster.find((s) => s.evidence === opened)?.name
   return (
-    // Narrow screens scroll the table sideways inside this, never the page.
-    <div className="scroll-x" role="region" aria-label="Roster table" tabIndex={0}>
+    <ScrollTable label="Roster table">
       <table className="chart roster">
         <caption>
           {/* A block of its own, so it wraps within a phone's screen while the table scrolls wider. */}
@@ -1505,7 +1503,7 @@ function RosterTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   )
 }
 
@@ -1554,12 +1552,7 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
 function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close: () => void }) {
   const { busy, error, run } = useAction()
   const update = (patch: ShowPatch) => run(() => agent.stub.updateShow(show.name, patch))
-  // Opened from a roster row, it can sit far below it, as in a single column; bring it into view.
-  const ref = useRef<HTMLElement>(null)
-  // A block body: newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
-  useEffect(() => {
-    ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [])
+  const ref = useIntoView<HTMLElement>()
   return (
     <section className="mod ed" ref={ref} aria-labelledby="show-ed">
       <div className="mh">

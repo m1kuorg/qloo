@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import type { CallEvidence } from './evidence'
+import { sha256 } from './text'
 
 export type QlooEntity = {
   id: string
@@ -423,12 +424,6 @@ async function cacheKey(method: string, endpoint: string, params: URLSearchParam
   const sorted = new URLSearchParams(params)
   sorted.sort()
   return sha256(`${method} ${endpoint}?${sorted}`)
-}
-
-// The SHA-256 hash of `text`, in hex: the gateway's cache keys and the topic baselines' (topic.ts).
-export async function sha256(text: string) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))

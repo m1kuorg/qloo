@@ -1,7 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
 import { claude, declined } from './claude'
-import { listOf, type DemographicCheck } from './demographics'
+import type { DemographicCheck } from './demographics'
 import { callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
@@ -23,7 +23,9 @@ import { dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type Line
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
+import { listOf } from './text'
 import { tools, type ToolContext, type ToolResult } from './tools'
+import { takesText } from './tools/ask-human'
 import { rankByTopic, topicRequest, withMoves, type Topic } from './topic'
 
 export type Show = {
@@ -1315,8 +1317,7 @@ function settle(
   const typed = typeof reply.text === 'string' ? reply.text.trim() : ''
   const choice = reply.choice
   if (choice !== undefined && !question.options.includes(choice)) throw new Error("That isn't one of the options.")
-  // Code builds the other kinds' answers, so the programmer's own words reach Claude only here.
-  if (typed && question.kind !== 'choice' && question.kind !== 'launch' && question.kind !== 'comps')
+  if (typed && !takesText(question.kind, launch))
     throw new Error('This question is answered with its form, not typed text.')
   if (question.kind === 'launch') return settleLaunch(choice, typed, launch)
   if (question.kind === 'comps') {

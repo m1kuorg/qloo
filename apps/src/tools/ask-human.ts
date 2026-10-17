@@ -1,9 +1,14 @@
 import type { Tool } from '.'
-import type { Question, State } from '../agent'
+import type { Launch, Question, State } from '../agent'
 import { scorable } from '../fit'
 import { candidateLabels, offeredBy, sameName } from '../resolve'
 
 const kinds = ['choice', 'launch', 'budget', 'exclusions', 'comps', 'confirm_comps'] as const
+
+// Whether a question takes the programmer's own typed words: a choice, or the name Qloo lists the
+// launch under, on a launch question or a named launch's comps question. Code builds the other answers.
+export const takesText = (kind: Question['kind'], launch: Launch | null) =>
+  kind === 'choice' || kind === 'launch' || (kind === 'comps' && !!launch?.name)
 
 type Input = { question: string; kind: Question['kind']; options: string[] }
 

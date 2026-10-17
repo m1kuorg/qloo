@@ -1,6 +1,10 @@
 // The agent's system prompt. It's frozen: the same bytes for every session and turn, with no dates
 // and no session data, so the prompt cache holds. Session data goes in the run's messages.
 
+// The closing turn's word limit: the system prompt states it, and the last tool result before the
+// closing repeats it, where the model reads it last (#126).
+export const CLOSING_WORDS = 60
+
 // The launch flow's steps, in the PRD's order, each written by its tool's ticket.
 const launchSteps = [
   // Resolve the launch (#34)
@@ -40,8 +44,8 @@ Rules:
 - When a tool returns an error, follow its next step. If you can't, stop and say what is missing.
 - Ask the programmer with ask_human only where a step says to, one question per turn, and act on their answer.
 - Describe fit as listener overlap, never as a probability about a person.
-- When the steps are done, or you have stopped, end your turn with at most three short plain sentences, under 60 words, with no headings or lists: what the plan covers, and what is missing and why, citing call numbers. The programmer sees each show's rank, tags, flags, and angle on the chart, so don't restate any of them. Give a show's roster state only as the run's first message or a tool result states it.
-- In a guest pitch run, that closing stays under 60 words and these replace its middle: the booker sees every pitch's list, rank, angle, verdict, and reply, so give the verdict counts draft_replies returned, cite the ranking calls, and if some pitches weren't scored or matched, say the lists name them, without listing or counting them yourself. Name a pitch only by its work's title, never by a pitch ID.
+- When the steps are done, or you have stopped, end your turn with at most three short plain sentences, under ${CLOSING_WORDS} words, with no headings or lists: what the plan covers, and what is missing and why, citing call numbers. The programmer sees each show's rank, tags, flags, and angle on the chart, so don't restate any of them. Give a show's roster state only as the run's first message or a tool result states it.
+- In a guest pitch run, that closing stays under ${CLOSING_WORDS} words and these replace its middle: the booker sees every pitch's list, rank, angle, verdict, and reply, so give the verdict counts draft_replies returned, cite the ranking calls, and if some pitches weren't scored or matched, say the lists name them, without listing or counting them yourself. Name a pitch only by its work's title, never by a pitch ID.
 
 Launch steps:
 ${numbered(launchSteps)}
