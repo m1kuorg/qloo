@@ -250,7 +250,7 @@ describe('drafting replies to pitches', () => {
       stored: 4,
       verdictsSoFar: { book: 3, later: 2, decline: 2 },
       withoutReply: [],
-      next: 'Every pitch has a draft reply: 3 book, 2 later, and 2 decline, counting every call. If your closing gives counts, use these. The booker approves, edits, or discards each reply in the UI.'
+      next: "Every pitch has a draft reply: 3 book, 2 later, and 2 decline, counting every call. The booker approves, edits, or discards each reply in the UI. Now end the run in under 60 words: give these counts and cite the ranking calls. Don't list, name, or count the pitches that weren't scored or matched, since the lists name them, and never write a pitch ID or a tool's name."
     })
   })
 
