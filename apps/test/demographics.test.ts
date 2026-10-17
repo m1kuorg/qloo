@@ -204,7 +204,9 @@ describe('flagging demographic mismatches among the finalists', () => {
     expect(state.demographics?.profile).toEqual({
       from: ['Small Screen Club', 'The Long Take', 'Credits Roll'],
       ages: ['25_to_29', '30_to_34'],
-      skew: null
+      skew: null,
+      // Small Screen Club skews male by 0.5 and Credits Roll female by 0.3.
+      disagree: ["Credits Roll's listeners skew female and Small Screen Club's male, so gender isn't checked"]
     })
     expect(flags(state)).toEqual({
       'Night Shift Cinema': ["Fewer listeners aged 25 to 29 than average, where the launch's listeners over-index"],
@@ -322,5 +324,105 @@ describe('flagging demographic mismatches among the finalists', () => {
 
     expect(state.demographics?.profile?.skew).toBeNull()
     expect(flags(state)['Pilot Season']).toEqual([])
+  })
+})
+
+describe('comps whose listeners disagree', () => {
+  // Three roster shows stand in as comps for the launch, and the other four are the finalists.
+  const comps = ['e-0203', 'e-0201', 'e-0207'] // Small Screen Club, The Long Take, Credits Roll
+  const others = ['e-0001', 'e-0205', 'e-0202', 'e-0208']
+  const finalistProfiles = [
+    profile('e-0001', [0, 0.2, 0.1, -0.5, 0, 0], 0.4), // fewer at 35 to 44 only
+    profile('e-0205', [0, 0.1, -0.2, 0.3, 0, 0], 0.3), // fewer at 30 to 34 only
+    profile('e-0202', [0, 0.2, 0.1, 0.1, 0, 0], -0.3), // skews female
+    profile('e-0208', [0, 0.1, 0.1, 0, 0, 0], 0.2)
+  ]
+
+  async function compsRun(compProfiles: Demographic[]) {
+    fakeInsights((body) =>
+      [{ entity_id: 'e-0001', name: 'Night Shift Cinema', affinity: 0.941 }, ...ranked].filter((r) =>
+        String(body['filter.results.entities']).split(',').includes(r.entity_id)
+      )
+    )
+    fakeDemographics([...compProfiles, ...finalistProfiles])
+    const { state } = await launch([turn(rank(comps, others)), turn(check(comps, others)), turn(text('Checked.'))])
+    const result = JSON.parse(modelRequests()[2].messages.at(-1).content[0].content)
+    return { state, result }
+  }
+
+  it('checks only the age bands most comps over-index on, and names a comp that alone pulls one in', async () => {
+    // Small Screen Club alone over-indexes at 35 to 44, strongly enough that the plain mean (+0.2)
+    // would make it a top band. 25 to 29 is shared by all three and 30 to 34 by two.
+    const { state, result } = await compsRun([
+      profile('e-0203', [-0.2, 0.3, -0.1, 0.8, -0.3, -0.4], 0.3),
+      profile('e-0201', [-0.1, 0.2, 0.1, -0.1, -0.1, -0.3], 0.25),
+      profile('e-0207', [0.1, 0.4, 0.2, -0.1, -0.2, -0.5], 0.35)
+    ])
+
+    expect(state.demographics?.profile).toEqual({
+      from: ['Small Screen Club', 'The Long Take', 'Credits Roll'],
+      ages: ['25_to_29', '30_to_34'],
+      skew: 'male',
+      disagree: ["only Small Screen Club's listeners over-index at ages 35 to 44, so that band isn't checked"]
+    })
+    expect(flags(state)).toEqual({
+      'Night Shift Cinema': [],
+      'Pilot Season': ["Fewer listeners aged 30 to 34 than average, where the launch's listeners over-index"],
+      'Box Office Brawl': ["Listeners skew female, where the launch's skew male"],
+      'Rerun Radio': []
+    })
+    expect(result.launchProfile.disagree).toEqual(state.demographics?.profile?.disagree)
+  })
+
+  it('leaves flags as the mean gives them when the comps agree', async () => {
+    // All three over-index at 25 to 29 and 35 to 44, the mean's top two, and skew male by 0.2 or more.
+    const { state } = await compsRun([
+      profile('e-0203', [-0.2, 0.3, 0.2, 0.4, -0.3, -0.4], 0.3),
+      profile('e-0201', [-0.1, 0.2, 0.1, 0.3, -0.1, -0.3], 0.25),
+      profile('e-0207', [0.1, 0.4, -0.1, 0.26, -0.2, -0.5], 0.35)
+    ])
+
+    expect(state.demographics?.profile).toEqual({
+      from: ['Small Screen Club', 'The Long Take', 'Credits Roll'],
+      ages: ['25_to_29', '35_to_44'],
+      skew: 'male',
+      disagree: []
+    })
+    expect(flags(state)).toEqual({
+      'Night Shift Cinema': ["Fewer listeners aged 35 to 44 than average, where the launch's listeners over-index"],
+      'Pilot Season': [],
+      'Box Office Brawl': ["Listeners skew female, where the launch's skew male"],
+      'Rerun Radio': []
+    })
+  })
+
+  // Every comp shares the same age bands here, so only gender differs.
+  const ages = [-0.1, 0.3, 0.1, -0.1, -0.2, -0.3]
+  it.each([
+    {
+      when: 'comps skew opposite ways and the mean is weak',
+      male: [0.5, -0.4, 0.1],
+      skew: null,
+      disagree: ["The Long Take's listeners skew female and Small Screen Club's male, so gender isn't checked"]
+    },
+    {
+      when: 'most comps skew male by 0.2 or more and one female',
+      male: [0.5, 0.4, -0.3],
+      skew: 'male',
+      disagree: ["Credits Roll's listeners skew female and Small Screen Club's and The Long Take's male"]
+    },
+    {
+      when: 'one comp alone pulls the mean past 0.2',
+      male: [0.9, 0.1, -0.1],
+      skew: null,
+      disagree: ["only Small Screen Club's listeners skew male, so gender isn't checked"]
+    }
+  ])('says so, and checks gender only with a majority, when $when', async ({ male, skew, disagree }) => {
+    const { state } = await compsRun(comps.map((id, i) => profile(id, ages, male[i])))
+
+    expect(state.demographics?.profile).toMatchObject({ ages: ['25_to_29', '30_to_34'], skew, disagree })
+    expect(flags(state)['Box Office Brawl']).toEqual(
+      skew ? ["Listeners skew female, where the launch's skew male"] : []
+    )
   })
 })

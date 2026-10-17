@@ -8,7 +8,8 @@ import type { Demographics, Profile, QlooResult } from './gateway'
 export const MISMATCH = {
   topAges: 2, // how many of the launch profile's most over-indexed age buckets each finalist is checked on
   under: 0, // a finalist below this on one of those buckets is flagged
-  skew: 0.2 // an opposite gender skew is flagged when both the launch's and the finalist's are at least this
+  skew: 0.2, // an opposite gender skew is flagged when both the launch's and the finalist's are at least this
+  most: 0.5 // with comps, an age band or a skew counts only when more than this share of them have it
 }
 
 // Qloo's age buckets, youngest first.
@@ -20,8 +21,9 @@ export type DemographicCheck = {
   call: string // the demographics call's evidence
   error: string | null // why there's no check; then `profile` is null and `rows` is empty
   // The launch profile in words: the anchors it's the mean of, its most over-indexed age buckets,
-  // youngest first, and its gender skew when that's strong enough to flag against.
-  profile: { from: string[]; ages: string[]; skew: Skew | null } | null
+  // youngest first, its gender skew when that's strong enough to flag against, and where the
+  // comps disagree, in words about their listeners. Runs from before #89 have no `disagree`.
+  profile: { from: string[]; ages: string[]; skew: Skew | null; disagree: string[] } | null
   // Every finalist, in fit order. `reasons` is empty when its listeners don't differ from the
   // launch's, and null when Qloo returned no demographics for it.
   rows: { show: string; reasons: string[] | null }[]
@@ -69,11 +71,36 @@ export function checkFinalists(
     age: Object.fromEntries(AGE_BUCKETS.map((b) => [b, round(mean(profiles.map((p) => p.age[b] ?? 0)))])),
     male: round(mean(profiles.map((p) => p.male)))
   }
-  const ages = AGE_BUCKETS.filter((b) => launch.age[b] > 0)
-    .sort((a, b) => launch.age[b] - launch.age[a])
-    .slice(0, MISMATCH.topAges)
-    .sort((a, b) => AGE_BUCKETS.indexOf(a) - AGE_BUCKETS.indexOf(b))
-  const skew = skewOf(launch.male)
+  // With comps, an age band or a skew counts only when most of them share it, so one comp whose
+  // listeners differ can't set the profile alone. With one anchor, nothing changes.
+  const names = anchors.map((a) => a.name)
+  const most = (count: number) => count > profiles.length * MISMATCH.most
+  const overAt = (b: string) => names.filter((_, i) => round(profiles[i].age[b] ?? 0) > 0)
+  const top = (buckets: string[]) =>
+    buckets
+      .filter((b) => launch.age[b] > 0)
+      .sort((a, b) => launch.age[b] - launch.age[a])
+      .slice(0, MISMATCH.topAges)
+  const ages = top(AGE_BUCKETS.filter((b) => most(overAt(b).length))).sort(
+    (a, b) => AGE_BUCKETS.indexOf(a) - AGE_BUCKETS.indexOf(b)
+  )
+  const skewing = (way: Skew) => names.filter((_, i) => skewOf(round(profiles[i].male)) === way)
+  const meanSkew = skewOf(launch.male)
+  const skew = meanSkew && most(skewing(meanSkew).length) ? meanSkew : null
+  const their = (shows: string[]) => listOf(shows.map((n) => (n.endsWith('s') ? `${n}'` : `${n}'s`)))
+  const gender =
+    skewing('male').length && skewing('female').length
+      ? `${their(skewing('female'))} listeners skew female and ${their(skewing('male'))} male`
+      : meanSkew && !skew
+        ? `only ${their(skewing(meanSkew))} listeners skew ${meanSkew}`
+        : null
+  const disagree = [
+    // A band the mean alone would have checked, which most comps don't over-index on.
+    ...top(AGE_BUCKETS)
+      .filter((b) => !ages.includes(b))
+      .map((b) => `only ${their(overAt(b))} listeners over-index at ages ${ageWords(b)}, so that band isn't checked`),
+    ...(gender ? [skew ? gender : `${gender}, so gender isn't checked`] : [])
+  ]
 
   const finalists: FinalistCheck[] = []
   const rows = ranking.rows
@@ -99,7 +126,7 @@ export function checkFinalists(
       return { show: r.show, reasons }
     })
   return {
-    check: { call, error: null, profile: { from: anchors.map((a) => a.name), ages, skew }, rows },
+    check: { call, error: null, profile: { from: names, ages, skew, disagree }, rows },
     finalists
   }
 }
