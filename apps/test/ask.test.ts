@@ -1,6 +1,9 @@
 import { abortAllDurableObjects } from 'cloudflare:test'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
+import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeInsights, fakeQloo, modelRequests, text, toolUse, turn } from './fake'
 import { openSession, type Session } from './session'
 
@@ -31,6 +34,15 @@ const finished = (s: Session) =>
   s.until((state) => state.run !== null && (state.run.status === 'completed' || state.run.status === 'failed'))
 const question = (state: State) => state.run!.question!
 
+// The text boxes the open question's card offers the programmer, as the page renders it.
+const textBoxes = (state: State) => {
+  const html = renderToStaticMarkup(
+    createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent })
+  )
+  const card = html.slice(html.indexOf('class="mod ask"'))
+  return card.slice(0, card.indexOf('</section>')).match(/<input(?![^>]*type=)[^>]*>/g) ?? []
+}
+
 describe('asking the programmer', () => {
   it('pauses the run on the question, and the answer resumes it as a separate text block', async () => {
     fakeQloo({ search })
@@ -39,6 +51,8 @@ describe('asking the programmer', () => {
     await s.call('startLaunch', { name: 'Late Reel' })
 
     const paused = await waiting(s)
+    // A choice can always be answered in the programmer's own words.
+    expect(textBoxes(paused)).toHaveLength(1)
     expect(paused.run).toMatchObject({
       status: 'waiting',
       notes: [{ text: 'Asking: Two shows in Qloo are named Late Reel. Which one is the launch?', status: 'done' }],
@@ -141,6 +155,8 @@ describe('asking the programmer', () => {
       question: { kind: 'budget', options: [] },
       budget: null
     })
+    // Its one text box is the amount: no note for the agent.
+    expect(textBoxes(paused).map((box) => box.match(/aria-label="([^"]*)"/)?.[1])).toEqual(['Promo slots'])
 
     for (const [reply, error] of [
       [{}, 'Give the budget as a number of promo slots or a dollar amount.'],
@@ -164,11 +180,15 @@ describe('asking the programmer', () => {
     await s.call('startLaunch', { name: 'Late Reel' })
     expect(s.state()?.run?.budget).toBeNull()
     await waiting(s)
-    await s.call('answer', 'toolu_3_1', { dollars: 150000, text: 'Keep it to the big shows.' })
+    // The form is the answer: no typed note reaches Claude with it.
+    await expect(s.call('answer', 'toolu_3_1', { dollars: 150000, text: 'Keep it to the big shows.' })).rejects.toThrow(
+      'This question is answered with its form, not typed text.'
+    )
+    await s.call('answer', 'toolu_3_1', { dollars: 150000 })
     expect((await finished(s)).run?.budget).toEqual({ dollars: 150000 })
     expect(modelRequests()[3].messages.at(-1).content.at(-1)).toEqual({
       type: 'text',
-      text: 'Slot budget: $150,000.\n\nKeep it to the big shows.'
+      text: 'Slot budget: $150,000.'
     })
   })
 
@@ -195,11 +215,13 @@ describe('asking the programmer', () => {
 
     // Quiet Hours is the launch, Long Table is already left out of every launch, and Glass Harbor,
     // a miss, can't be scored.
-    expect((await waiting(s)).run).toMatchObject({
+    const asked = await waiting(s)
+    expect(asked.run).toMatchObject({
       notes: [{ text: 'Asking for exclusions', status: 'done' }],
       question: { kind: 'exclusions', options: ['Late Reel Live', 'Static Bloom'] },
       exclusions: null
     })
+    expect(textBoxes(asked)).toEqual([])
     await expect(s.call('answer', 'toolu_1_1', { exclude: ['Glass Harbor'] })).rejects.toThrow(
       '"Glass Harbor" isn\'t one of the shows this launch can leave out.'
     )
@@ -207,6 +229,9 @@ describe('asking the programmer', () => {
       'List the shows to leave out, or none.'
     )
     await expect(s.call('answer', 'toolu_1_1', {})).rejects.toThrow('List the shows to leave out, or none.')
+    await expect(s.call('answer', 'toolu_1_1', { exclude: [], text: 'Static Bloom is mid-sale.' })).rejects.toThrow(
+      'This question is answered with its form, not typed text.'
+    )
 
     await s.call('answer', 'toolu_1_1', { exclude: ['Static Bloom'] })
     const state = await finished(s)

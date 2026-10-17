@@ -169,6 +169,9 @@ describe('standing comps in for an unreleased launch', () => {
     await expect(s.call('answer', id, { picks: ['e-0301', 'e-0302', 'e-0302'] })).rejects.toThrow(
       "That isn't one of the matches for Frame by Frame."
     )
+    await expect(
+      s.call('answer', id, { picks: ['e-0301', null, 'e-0303'], text: 'Reel Talk is close.' })
+    ).rejects.toThrow('This question is answered with its form, not typed text.')
     expect(s.state()?.run?.status).toBe('waiting')
     await s.call('answer', id, { picks: ['e-0301', null, 'e-0303'] })
     const state = await finished(s)
@@ -242,6 +245,9 @@ describe('standing comps in for an unreleased launch', () => {
     ])
     await s.call('startLaunch', { name: 'Untitled Film Show' })
     const asked = await waiting(s)
+    await expect(s.call('answer', question(asked).id, { comps: ['Reel Talk'], text: 'Matinee Club' })).rejects.toThrow(
+      'Name comps or type the name Qloo lists the launch under, not both.'
+    )
     await s.call('answer', question(asked).id, { comps: ['', ' '], text: 'Matinee Club' })
     expect(s.state()?.launch).toEqual({ name: 'Matinee Club', match: null, comps: [] })
     const state = await finished(s)
