@@ -143,7 +143,13 @@ describe('the insertion order', () => {
       'Late-night regulars, like "Night Shift" fans, stay up for the call-ins.'
     )
     expect(state.run?.notes.at(-1)).toEqual({ text: 'Drafting the insertion order: 4 shows, 20 slots', status: 'done' })
-    expect(JSON.parse(resultFor('toolu_4_1').content)).toMatchObject({ order: 'IO-0001', slots: 20, total: 19076 })
+    expect(JSON.parse(resultFor('toolu_4_1').content)).toMatchObject({
+      order: 'IO-0001',
+      slots: 20,
+      total: 19076,
+      // The closing turn comes next, so its limits are repeated where the model reads them last.
+      next: "Stored as a draft. The programmer edits and approves it in the UI. Now end the run in under 60 words and at most three short sentences: say the order is drafted at $19,076 and cite the ranking call, then, only if a show wasn't ranked or checked, say which and why. Name no finalist, not even a flagged one, and don't mention demographic flags, tags, slots, or angles: the chart and the order show them. Never write a tool's name."
+    })
   })
 
   it('refuses a draft until the exclusions are answered, storing nothing', async () => {
@@ -266,7 +272,7 @@ describe('the insertion order', () => {
     })
     expect(JSON.parse(resultFor('toolu_4_1').content)).toMatchObject({
       complete: false,
-      next: 'Stored as a draft with an incomplete total, because Back Lot: No downloads per episode. Say which figures the programmer must add. They edit and approve the order in the UI.'
+      next: "Stored as a draft with an incomplete total, because Back Lot: No downloads per episode. They edit and approve the order in the UI. Now end the run in under 60 words and at most three short sentences: say the order is drafted at $14,400 so far and which figures the programmer must add, naming only the shows that lack one, and cite the ranking call. Name no other finalist, not even a flagged one, and don't mention demographic flags, tags, slots, or angles: the chart and the order show them. Never write a tool's name."
     })
   })
 
