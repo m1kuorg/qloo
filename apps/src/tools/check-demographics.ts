@@ -1,10 +1,8 @@
 import type { Tool } from '.'
-import type { State } from '../agent'
 import { checkFinalists } from '../demographics'
+import { finalistsOf } from '../fit'
 
 type Input = { anchor_ids: string[]; candidate_ids: string[] }
-
-const finalistsOf = (state: State) => state.ranking?.rows.filter((r) => r.finalist) ?? []
 
 const listed = (entities: { id: string; name: string }[]) => entities.map((e) => `${e.name}: ${e.id}`).join(', ')
 
@@ -38,7 +36,7 @@ export const checkDemographics: Tool<Input> = {
   },
   note: (_, state) => {
     const anchors = state.ranking?.anchors.map((a) => a.name).join(', ') ?? 'the launch'
-    return `Checking demographics of ${finalistsOf(state).length} finalists against ${anchors}`
+    return `Checking demographics of ${finalistsOf(state.ranking).length} finalists against ${anchors}`
   },
   async run({ anchor_ids, candidate_ids }, { qloo, state, update }) {
     const now = state()
@@ -55,7 +53,7 @@ export const checkDemographics: Tool<Input> = {
         isError: true,
         content: `${unknownAnchors.join(', ')} isn't an anchor of the fit ranking ${ranking.call}. Call again with its anchors: ${listed(ranking.anchors)}.`
       }
-    const finalists = finalistsOf(now)
+    const finalists = finalistsOf(ranking)
     if (finalists.length === 0)
       return {
         isError: true,

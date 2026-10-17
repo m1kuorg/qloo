@@ -6,6 +6,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { qlooType, workTypes, type WorkType } from '../apps/src/inbox'
 import inbox from '../apps/src/sample-inbox.json'
 
 const BASE = 'https://hackathon.api.qloo.com'
@@ -15,12 +16,6 @@ const OUT = process.argv[2] ?? join(homedir(), '.cache/crossfeed/out/31')
 mkdirSync(join(OUT, 'raw'), { recursive: true })
 
 type Work = { title: string; type: string; year: number }
-const QLOO_TYPE: Record<string, string> = {
-  book: 'urn:entity:book',
-  film: 'urn:entity:movie',
-  tv_show: 'urn:entity:tv_show',
-  podcast: 'urn:entity:podcast'
-}
 
 // At most 3 calls in flight; retry 429, 502-504, and timeouts twice, per the TRD's gateway rules.
 let inFlight = 0
@@ -32,6 +27,7 @@ async function qloo(label: string, path: string, body?: object) {
     for (let attempt = 0; ; attempt++) {
       let status = 0
       let json: any = null
+      let error: string | undefined
       try {
         const res = await fetch(BASE + path, {
           method: body ? 'POST' : 'GET',
@@ -41,15 +37,16 @@ async function qloo(label: string, path: string, body?: object) {
         })
         status = res.status
         json = await res.json().catch(() => null)
-      } catch {
+      } catch (e) {
         status = 0 // timeout or network error
+        error = e instanceof Error ? e.message : String(e)
       }
       if ([0, 429, 502, 503, 504].includes(status) && attempt < 2) {
         await Bun.sleep([1000, 3000][attempt] + Math.random() * 500)
         continue
       }
-      writeFileSync(join(OUT, 'raw', `${label}.json`), JSON.stringify({ path, body, status, json }, null, 2))
-      return { status, json }
+      writeFileSync(join(OUT, 'raw', `${label}.json`), JSON.stringify({ path, body, status, error, json }, null, 2))
+      return { status, json, error }
     }
   } finally {
     inFlight--
@@ -80,7 +77,7 @@ const yearOf = (e: any): number | undefined => e.properties?.release_year ?? e.p
 // Returns the 1-based rank of the right entity among 5 results (name match, year within 1 when Qloo has one).
 async function resolve(label: string, work: Work) {
   const q = `query=${encodeURIComponent(work.title)}&take=5`
-  const { status, json } = await qloo(label, `/search?${q}&types=${QLOO_TYPE[work.type]}`)
+  const { status, json, error } = await qloo(label, `/search?${q}&types=${qlooType[work.type as WorkType]}`)
   const results: any[] = json?.results ?? []
   const rank = results.findIndex((e) => {
     const y = yearOf(e)
@@ -97,11 +94,12 @@ async function resolve(label: string, work: Work) {
         ? u.json.results
             .filter((e: any) => sameName(e.name, work.title))
             .map((e: any) => `${e.name} (${e.types.join('/')}, ${yearOf(e) ?? '?'})`)
-        : [`untyped search failed with status ${u.status}`]
+        : [`untyped search failed with status ${u.status}${u.error ? ` (${u.error})` : ''}`]
   }
   return {
     ...work,
     status,
+    error,
     rank: rank + 1,
     id: hit?.entity_id as string | undefined,
     found: hit && `${hit.name} (${yearOf(hit) ?? '?'})`,
@@ -113,7 +111,11 @@ async function resolve(label: string, work: Work) {
 
 async function rank(label: string, type: string, anchors: string[], candidates: { id?: string; title: string }[]) {
   const ids = candidates.flatMap((c) => (c.id ? [c.id] : []))
-  const { status, json } = await qloo(label, '/v2/insights', {
+  const {
+    status,
+    json,
+    error: failure
+  } = await qloo(label, '/v2/insights', {
     'filter.type': type,
     'signal.interests.entities': anchors.join(','),
     'filter.results.entities': ids.join(','),
@@ -125,7 +127,7 @@ async function rank(label: string, type: string, anchors: string[], candidates: 
     label,
     type,
     status,
-    error: status === 200 ? undefined : JSON.stringify(json)?.slice(0, 300),
+    error: status === 200 ? undefined : (failure ?? JSON.stringify(json)?.slice(0, 300)),
     candidates: ids.length,
     returned: entities.length,
     scored: entities.filter((e) => typeof e.query?.affinity === 'number').length,
@@ -146,11 +148,11 @@ const pitched = await Promise.all(
   )
 )
 
-const byType = Object.keys(QLOO_TYPE).map((type) => {
+const byType = workTypes.map((type) => {
   const rows = pitched.filter((r) => r.type === type)
   return {
     type,
-    searchType: QLOO_TYPE[type],
+    searchType: qlooType[type],
     works: rows.length,
     top1: rows.filter((r) => r.rank === 1).length,
     top3: rows.filter((r) => r.rank >= 1 && r.rank <= 3).length,
@@ -177,7 +179,7 @@ const rankings = await Promise.all([
   // The ticket's check: the podcast alone as the anchor, books as candidates.
   rank('rank-book-show-only', 'urn:entity:book', [show.id], books),
   // The TRD's rank_pitches design: the show plus past guests' works as anchors, one call per work type.
-  ...Object.entries(QLOO_TYPE).map(([type, urn]) =>
+  ...Object.entries(qlooType).map(([type, urn]) =>
     rank(
       `rank-${type}-show-and-guests`,
       urn,
@@ -188,7 +190,9 @@ const rankings = await Promise.all([
 ])
 
 // A failed search would otherwise read as a miss, so list every non-200 call.
-const failed = [...guests, ...pitched].filter((r) => r.status !== 200).map((r) => `${r.title}: ${r.status}`)
+const failed = [...guests, ...pitched]
+  .filter((r) => r.status !== 200)
+  .map((r) => `${r.title}: ${r.status}${r.error ? ` (${r.error})` : ''}`)
 const summary = { checkedAt: new Date().toISOString(), failed, show, guests, byType, bookMisses, rankings, pitched }
 writeFileSync(join(OUT, 'summary.json'), JSON.stringify(summary, null, 2))
 console.log(

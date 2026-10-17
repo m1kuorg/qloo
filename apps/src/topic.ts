@@ -2,7 +2,8 @@
 // descriptions, with no Qloo data. It's the without-Qloo counterfactual, so the chart can show
 // what topic planning would have missed: the moves Qloo caused.
 import type { Show, State } from './agent'
-import { structured } from './claude'
+import { declined, structured } from './claude'
+import { sha256 } from './gateway'
 import { sameName } from './resolve'
 
 export type Topic = {
@@ -30,9 +31,7 @@ export async function topicRequest(launch: string, roster: Show[]) {
   const shows = roster.filter((s) => s !== own)
   const line = (s: Show) => `- ${s.name}${s.description ? `: ${s.description}` : ''}`
   const input = `Launch: ${launch}.${own?.description ? ` ${own.description}` : ''}\n\nRank all ${shows.length} roster shows:\n${shows.map(line).join('\n')}`
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${instructions}\n\n${input}`))
-  const key = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
-  return { key, names: shows.map((s) => s.name), input }
+  return { key: await sha256(`${instructions}\n\n${input}`), names: shows.map((s) => s.name), input }
 }
 
 // Makes the one model call and checks that its answer ranks every show exactly once.
@@ -54,14 +53,8 @@ export async function rankByTopic(
     return failed(`The request to Claude failed: ${e instanceof Error ? e.message : String(e)}`)
   }
   // A refused reply may not follow the schema, so the stop reason is checked before the text.
-  if (reply.stop_reason === 'refusal') {
-    const category = reply.stop_details?.type === 'refusal' ? reply.stop_details.category : null
-    return {
-      status: 'refused',
-      order: [],
-      error: `Claude declined to rank the roster by topic${category ? ` (safety category: ${category})` : ''}`
-    }
-  }
+  if (reply.stop_reason === 'refusal')
+    return { status: 'refused', order: [], error: declined(reply, 'rank the roster by topic') }
   if (reply.stop_reason !== 'end_turn') return failed(`Claude stopped early (${reply.stop_reason})`)
   let order: string[]
   try {

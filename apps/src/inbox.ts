@@ -1,6 +1,7 @@
 // The booker's inbox of guest pitches: the sample inbox, or pitches pasted in, read into one row
 // per pitch. Anything it can't take is refused with a message, so an inbox never loads in part.
 import type { PitchList, SharedTags } from './fit'
+import { MAX_PAST_GUESTS } from './limits'
 import { personalIn, type Candidate } from './resolve'
 import sampleInbox from './sample-inbox.json'
 
@@ -131,8 +132,6 @@ export function readInbox(source: unknown): Pick<Inbox, 'sample' | 'notice' | 's
   }
 }
 
-// A show's past guests anchor its rankings, each one more Qloo search per run.
-const MAX_PAST_GUESTS = 5
 const YEARS = [1800, 2100]
 
 // The past guests the booker named, each with their public work. A guest's name is needed because a

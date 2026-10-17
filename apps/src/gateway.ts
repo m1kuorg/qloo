@@ -404,7 +404,12 @@ type CacheRow = { status: number; body: string }
 async function cacheKey(method: string, endpoint: string, params: URLSearchParams) {
   const sorted = new URLSearchParams(params)
   sorted.sort()
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${method} ${endpoint}?${sorted}`))
+  return sha256(`${method} ${endpoint}?${sorted}`)
+}
+
+// The SHA-256 hash of `text`, in hex: the gateway's cache keys and the topic baselines' (topic.ts).
+export async function sha256(text: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 

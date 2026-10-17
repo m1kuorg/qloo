@@ -37,8 +37,7 @@ export const bandMeter: Record<Band, { bars: number; word: string }> = {
   bottom: { bars: 1, word: 'Fair' }
 }
 
-export const listOf = (names: string[]) =>
-  names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')}, and ${names.at(-1)}`
+export { listOf } from '../demographics'
 
 export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
 

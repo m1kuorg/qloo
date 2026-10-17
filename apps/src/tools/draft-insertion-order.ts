@@ -1,4 +1,5 @@
 import type { Tool } from '.'
+import { finalistsOf } from '../fit'
 import { dollars, lineProblem, priceLines, type InsertionOrder, type LineInput } from '../order'
 
 type Input = { lines: LineInput[] }
@@ -42,7 +43,7 @@ export const draftInsertionOrder: Tool<Input> = {
     `Drafting the insertion order: ${lines.length} shows, ${lines.reduce((n, l) => n + l.slots, 0)} slots`,
   async run({ lines }, { run, state, update }) {
     const now = state()
-    const finalists = now.ranking?.rows.filter((r) => r.finalist).map((r) => r.show) ?? []
+    const finalists = finalistsOf(now.ranking).map((r) => r.show)
     if (finalists.length === 0)
       return {
         isError: true,

@@ -1,10 +1,10 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
-import { claude } from './claude'
+import { claude, declined } from './claude'
 import type { DemographicCheck } from './demographics'
 import { callNumber, type Evidence } from './evidence'
 import { pitchReader } from './extract'
-import { markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
+import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
 import { IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
@@ -526,7 +526,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (stored.exclusions && this.state.ranking) {
       const ranking = markFinalists(this.state.ranking, stored.exclusions)
       this.setState({ ...this.state, ranking })
-      const finalists = ranking.rows.filter((r) => r.finalist).map((r) => r.show)
+      const finalists = finalistsOf(ranking).map((r) => r.show)
       notice += ` Code has left those shows out of the fit ranking ${ranking.call}; the finalists are now ${finalists.join(', ') || 'none'}.`
     }
     const [paused] = this.sql<{ assistant: string; results: string }>`
@@ -552,7 +552,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
   @callable()
   editInsertionOrder(id: string, lines: LineInput[]) {
     const order = this.editableOrder(id)
-    const finalists = this.state.ranking?.rows.filter((r) => r.finalist).map((r) => r.show) ?? []
+    const finalists = finalistsOf(this.state.ranking).map((r) => r.show)
     const problem = lineProblem(lines, finalists)
     if (problem) throw new Error(problem)
     const edited = lines.map(({ show, slots, angle }) => ({ show, slots, angle: angle.trim() }))
@@ -934,7 +934,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
         latencyMs: Date.now() - started
       })
       // Check the stop reason before reading content: a refused or cut-off reply is discarded.
-      if (reply.stop_reason === 'refusal') return this.finish(run, refusalNotice(reply))
+      if (reply.stop_reason === 'refusal') return this.finish(run, `${declined(reply, 'continue this run')}.`)
       if (reply.stop_reason === 'max_tokens')
         return this.finish(run, "Claude's reply hit the output limit, so its tool calls were not run.")
       const assistant: Anthropic.MessageParam = { role: 'assistant', content: reply.content }
@@ -1435,10 +1435,4 @@ function confirmComps(
 function noteFor(call: Anthropic.ToolUseBlock, state: State) {
   const tool = tools.find((t) => t.definition.name === call.name)
   return tool ? tool.note(call.input, state) : `Calling ${call.name}`
-}
-
-// A refusal has no server-side fallback on this model, so the run stops and shows it.
-function refusalNotice(reply: Anthropic.Message) {
-  const category = reply.stop_details?.type === 'refusal' ? reply.stop_details.category : null
-  return `Claude declined to continue this run${category ? ` (safety category: ${category})` : ''}.`
 }

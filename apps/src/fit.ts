@@ -171,6 +171,9 @@ export function markFinalists(ranking: Ranking, exclusions: string[]): Ranking {
   return { ...ranking, rows }
 }
 
+// The ranking's finalists, in fit order: the one place they're read from.
+export const finalistsOf = (ranking: Ranking | null) => ranking?.rows.filter((r) => r.finalist) ?? []
+
 // The anchor whose explainability share beats the next one's by LEAD or more on this result. An
 // anchor a result doesn't list contributed nothing to it.
 function leadingComp(anchors: Anchor[], shares: { id: string; score: number }[]): Anchor | null {

@@ -1,6 +1,6 @@
 // The pitch reader: one structured-output call per pitch turns its text into the guest and the
 // public work it's about. The pitch goes to Anthropic; nothing here talks to Qloo.
-import { structured } from './claude'
+import { declined, structured } from './claude'
 import { workTypes, type Pitch, type Work } from './inbox'
 import { personalIn } from './resolve'
 
@@ -58,13 +58,7 @@ export function pitchReader(env: Env) {
       return failed('failed', `The request to Claude failed: ${e instanceof Error ? e.message : String(e)}`)
     }
     // A refused reply may not follow the schema, so the stop reason is checked before the text.
-    if (reply.stop_reason === 'refusal') {
-      const category = reply.stop_details?.type === 'refusal' ? reply.stop_details.category : null
-      return failed(
-        'unreadable',
-        `Claude declined to read this pitch${category ? ` (safety category: ${category})` : ''}.`
-      )
-    }
+    if (reply.stop_reason === 'refusal') return failed('unreadable', `${declined(reply, 'read this pitch')}.`)
     if (reply.stop_reason !== 'end_turn') return failed('failed', `Claude stopped early (${reply.stop_reason}).`)
     let answer: { guest: string; work: Work | null }
     try {
