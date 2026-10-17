@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { getAgentByName } from 'agents'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { renderer } from './renderer'
 
@@ -14,7 +14,8 @@ const app = new Hono<{ Bindings: Env }>()
 
 app.use(renderer)
 
-app.get('/', (c) => {
+// A page of the React island; `page` tells the island which one.
+const page = (c: Context<{ Bindings: Env }>, page: 'roster' | 'inbox') => {
   if (!getCookie(c, SESSION_COOKIE)) {
     setCookie(c, SESSION_COOKIE, crypto.randomUUID(), {
       httpOnly: true,
@@ -24,8 +25,12 @@ app.get('/', (c) => {
       maxAge: 60 * 60 * 24 * 30
     })
   }
-  return c.render(<div id="root" />)
-})
+  return c.render(<div id="root" data-page={page} />)
+}
+
+app.get('/', (c) => page(c, 'roster'))
+// Guest pitches ship dark: the inbox exists only while GUEST_PITCHES is on.
+app.get('/inbox', (c) => (c.env.GUEST_PITCHES === 'on' ? page(c, 'inbox') : c.notFound()))
 
 // The client connects here (`useAgent` with `basePath`), and the server picks the instance from
 // the cookie, so a visitor can only ever reach their own session.

@@ -2,10 +2,12 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
 import { claude } from './claude'
 import { callNumber, type Evidence } from './evidence'
+import { pitchReader } from './extract'
 import { scorable, type Ranking } from './fit'
 import type { QlooGateway, QlooResult } from './gateway'
+import { qlooType, readInbox, type Inbox, type Pitch } from './inbox'
 import { MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
-import { lookup, type Candidate, type Lookup } from './resolve'
+import { lookup, lookupWork, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat } from './roster'
 import { tools, type ToolContext, type ToolResult } from './tools'
 
@@ -75,14 +77,18 @@ export type State = {
   run: Run | null // the latest run
   runs: RunSummary[] // every run this session started, oldest first
   ranking: Ranking | null // the current run's fit chart, once the roster is ranked
+  inbox: Inbox | null // the booker's guest pitches, when GUEST_PITCHES is on
 }
 
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
 export type RunSnapshot = Omit<State, 'runs'>
 
+// Pitches read at once: each is one model call, then one Qloo search the gateway paces.
+const READ_CONCURRENCY = 5
+
 // One instance per visitor session, named by the session cookie.
 export class CrossfeedAgent extends Agent<Env, State> {
-  initialState: State = { roster: [], cpm: null, launch: null, run: null, runs: [], ranking: null }
+  initialState: State = { roster: [], cpm: null, launch: null, run: null, runs: [], ranking: null, inbox: null }
 
   async onStart() {
     this.sql`CREATE TABLE IF NOT EXISTS evidence (seq INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT)`
@@ -102,6 +108,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
         ...this.state,
         roster: this.state.roster.map((s) => (s.resolution === 'pending' ? { ...s, ...interrupted } : s))
       })
+    const inbox = this.state.inbox
+    if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
   }
 
   // State changes only through actions; a client can't write it directly.
@@ -251,6 +259,34 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return JSON.parse(row.snapshot)
   }
 
+  // Replaces the inbox with the sample inbox or pasted pitches and returns at once. Claude reads each
+  // pitch for its guest and public work, and each work's title and type are searched in Qloo; the
+  // pitches fill in through synced state.
+  @callable()
+  loadInbox(source: unknown) {
+    this.guestPitches()
+    if (this.state.inbox?.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
+    const inbox: Inbox = { id: crypto.randomUUID(), status: 'reading', ...readInbox(source) }
+    this.setState({ ...this.state, inbox })
+    void this.keepAliveWhile(() => this.readPitches(inbox)).catch((e) =>
+      this.finishInbox(inbox.id, `Reading stopped: ${message(e)}`)
+    )
+  }
+
+  // Confirms which of an ambiguous work's same-title candidates the pitch is about.
+  @callable()
+  confirmWork(pitchId: string, entityId: string) {
+    this.guestPitches()
+    const inbox = this.state.inbox
+    const pitch = inbox?.pitches.find((p) => p.id === pitchId)
+    if (!inbox || !pitch) throw new Error(`No pitch ${pitchId} in the inbox.`)
+    const entity = pitch.match?.candidates.find((c) => c.id === entityId)
+    if (!pitch.match || !entity)
+      throw new Error(`That isn't one of the candidates for ${pitch.work?.title ?? pitchId}.`)
+    const match = { ...pitch.match, resolution: 'resolved' as const, entity }
+    this.editPitch(inbox.id, pitchId, (p) => ({ ...p, match }))
+  }
+
   // The session's evidence log: one record per Qloo call, oldest first.
   @callable()
   getEvidence(): Evidence[] {
@@ -289,6 +325,58 @@ export class CrossfeedAgent extends Agent<Env, State> {
     const show = this.show(name)
     const next = edit(show)
     this.setState({ ...this.state, roster: this.state.roster.map((s) => (s === show ? next : s)) })
+  }
+
+  private guestPitches() {
+    if (this.env.GUEST_PITCHES !== 'on') throw new Error("Guest pitches aren't switched on.")
+  }
+
+  private async readPitches(inbox: Inbox) {
+    const read = pitchReader(this.env)
+    const today = new Date().toISOString().slice(0, 10)
+    const queue = [...inbox.pitches]
+    const next = async () => {
+      for (let pitch = queue.shift(); pitch; pitch = queue.shift()) {
+        try {
+          await this.readPitch(inbox.id, pitch, read, today)
+        } catch (e) {
+          this.editPitch(inbox.id, pitch.id, (p) => ({ ...p, status: 'failed', error: message(e) }))
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: READ_CONCURRENCY }, next))
+    this.finishInbox(inbox.id, null)
+  }
+
+  // Reads one pitch, then searches its work by title and type only: the guest's name, the sender,
+  // and the pitch text never reach Qloo. A pitch with no public work is set aside unsearched.
+  private async readPitch(inbox: string, pitch: Pitch, read: ReturnType<typeof pitchReader>, today: string) {
+    const reading = await read(pitch, today)
+    if (reading.status !== 'read') return this.editPitch(inbox, pitch.id, (p) => ({ ...p, ...reading }))
+    const { work } = reading
+    this.editPitch(inbox, pitch.id, (p) => ({ ...p, ...reading, status: 'looking_up' }))
+    const { call, result } = await this.qloo((gateway) => gateway.search(work.title, qlooType[work.type], 5))
+    const match = lookupWork(work, reading.guest, call, result)
+    this.editPitch(inbox, pitch.id, (p) => ({ ...p, status: 'read', match }))
+  }
+
+  // Marks the inbox read. With an error, any pitch still being read failed with it.
+  private finishInbox(inbox: string, error: string | null) {
+    const current = this.state.inbox
+    if (current?.id !== inbox) return
+    const unfinished = (p: Pitch) => p.status === 'reading' || p.status === 'looking_up'
+    const pitches = current.pitches.map((p) =>
+      error && unfinished(p) ? { ...p, status: 'failed' as const, error } : p
+    )
+    this.setState({ ...this.state, inbox: { ...current, status: 'done', pitches } })
+  }
+
+  // Changes one pitch of the current inbox; a pitch of an inbox since replaced is left alone.
+  private editPitch(inbox: string, pitchId: string, edit: (pitch: Pitch) => Pitch) {
+    const current = this.state.inbox
+    if (current?.id !== inbox) return
+    const pitches = current.pitches.map((p) => (p.id === pitchId ? edit(p) : p))
+    this.setState({ ...this.state, inbox: { ...current, pitches } })
   }
 
   // The agent loop: call Claude, run every tool it asks for at once, and send all the results back

@@ -5,14 +5,17 @@ import type { Band, Ranking } from '../fit'
 import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import { sameName } from '../resolve'
 import type { RosterFormat } from '../roster'
+import { Alert, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
+import { InboxPage } from './Inbox'
 import { Source } from './Source'
 
 // The session's agent; the server picks the instance from the session cookie.
 const useSession = () => useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgent', basePath: 'agents/session' })
 type Session = ReturnType<typeof useSession>
 
-export function App() {
+// `page` is the server's choice of page: "roster", or "inbox" while GUEST_PITCHES is on.
+export function App({ page }: { page: string | undefined }) {
   const agent = useSession()
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
@@ -38,6 +41,16 @@ export function App() {
         setOpened({ call, status: 'failed', error: err instanceof Error ? err.message : String(err) })
     }
   }
+  if (page === 'inbox')
+    return (
+      <InboxPage
+        inbox={agent.state?.inbox ?? null}
+        loadInbox={(source) => agent.stub.loadInbox(source)}
+        confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
+        openCall={openCall}
+        opened={opened}
+      />
+    )
   return (
     <>
       <LaunchHeader
@@ -467,33 +480,6 @@ function FitChart({
   )
 }
 
-// Runs one action at a time for a form, keeping its error for the form to show.
-function useAction() {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const run = async (action: () => Promise<unknown>) => {
-    setBusy(true)
-    setError(null)
-    try {
-      await action()
-      return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
-  return { busy, error, run }
-}
-
-const Alert = ({ error }: { error: string | null }) =>
-  error && (
-    <p className="err" role="alert">
-      {error}
-    </p>
-  )
-
 // The import answers at once, and each show fills in through synced state as its search settles.
 function RosterImport({
   roster,
@@ -677,8 +663,6 @@ function RosterTable({
   )
 }
 
-const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
-
 function Match({ show, settle }: { show: Show; settle: (() => void) | null }) {
   if (show.resolution === 'pending') return <span className="tg">Looking it up in Qloo…</span>
   const action = show.excluded ? null : show.resolution === 'ambiguous' ? 'Pick the match' : 'Map a comp or leave out'
@@ -763,62 +747,6 @@ function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close:
       </div>
       <Alert error={error} />
     </section>
-  )
-}
-
-// A radio list of Qloo entities with their popularity, and a button that commits the pick.
-function PickOne({
-  legend,
-  options,
-  current,
-  note,
-  submit,
-  busy,
-  pick
-}: {
-  legend: string
-  options: Show['candidates']
-  current: string | undefined
-  note: string
-  submit: string
-  busy: boolean
-  pick: (id: string) => Promise<unknown>
-}) {
-  const [choice, setChoice] = useState(current ?? '')
-  return (
-    <form
-      className="pick"
-      onSubmit={(e) => {
-        e.preventDefault()
-        void pick(choice)
-      }}
-    >
-      <fieldset>
-        <legend className="lbl">{legend}</legend>
-        <div className="opts">
-          {options.map((c) => (
-            <label key={c.id}>
-              <input
-                type="radio"
-                name={legend}
-                value={c.id}
-                checked={choice === c.id}
-                onChange={() => setChoice(c.id)}
-              />
-              <span>
-                {c.name} <span className="pop">{percentile(c.popularity)}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <div className="acts">
-        <button className="btn pri" type="submit" disabled={busy || !choice || choice === current}>
-          {submit}
-        </button>
-        <small>{note}</small>
-      </div>
-    </form>
   )
 }
 

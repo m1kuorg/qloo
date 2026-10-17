@@ -1,10 +1,11 @@
 import type { QlooEntity, QlooResult } from './gateway'
+import type { Work, WorkCandidate, WorkMatch } from './inbox'
 
 export type Candidate = { id: string; name: string; popularity: number | null }
 
-export type Resolution =
-  | { resolution: 'resolved'; entity: Candidate; candidates: [] }
-  | { resolution: 'ambiguous'; entity: null; candidates: Candidate[] }
+export type Resolution<C extends Candidate = Candidate> =
+  | { resolution: 'resolved'; entity: C; candidates: [] }
+  | { resolution: 'ambiguous'; entity: null; candidates: C[] }
   | { resolution: 'missed'; entity: null; candidates: [] }
 
 // Qloo's search is fuzzy and always returns its nearest names, so a name resolves only to a
@@ -33,6 +34,92 @@ export type Lookup = (Resolution | { resolution: 'failed'; entity: null; candida
 export function lookup(name: string, call: string, result: QlooResult<QlooEntity[]>): Lookup {
   if (!result.ok) return { resolution: 'failed', entity: null, candidates: [], evidence: call, error: result.error }
   return { ...resolveName(name, result.data), evidence: call, error: null }
+}
+
+// A pitched work resolves to the one search result with its title. A book is the guest's own: a
+// same-title book credited to someone else isn't it, and among the guest's, a year only tells
+// editions apart. Other works are told apart by the year Claude gave, if any: the same year first,
+// then a year either side (a TV show's run counts as a span), then results with no year. Among the
+// guest's books or same-year results, one with no popularity has never been in insights and can't
+// be ranked, so it gives way to one that has (#31); otherwise popularity decides nothing, since a
+// recent work often has none. Several left make the work ambiguous; none, a miss. The guest's name
+// is only compared here, in the session; it never reaches Qloo.
+export function resolveWork(
+  { title, type, year }: Work,
+  guest: string,
+  results: QlooEntity[]
+): Resolution<WorkCandidate> {
+  const named = results
+    .filter((r) => sameTitle(r.name, title))
+    .map(({ id, name, popularity, disambiguation }) => ({ id, name, popularity, disambiguation }))
+  const own = type === 'book' ? named.filter((c) => byGuest(c.disambiguation, guest)) : []
+  let pool: WorkCandidate[]
+  if (own.length > 0) {
+    const edition = year === null ? [] : own.filter((c) => fitsYear(c.disambiguation, year, 1))
+    pool = ranked(edition.length > 0 ? edition : own)
+  } else {
+    const open = type === 'book' ? named.filter((c) => !author(c.disambiguation)) : named
+    pool = year === null ? open : byYear(open, year)
+  }
+  if (pool.length === 1) return { resolution: 'resolved', entity: pool[0], candidates: [] }
+  if (pool.length > 1) return { resolution: 'ambiguous', entity: null, candidates: pool }
+  return { resolution: 'missed', entity: null, candidates: [] }
+}
+
+function byYear(named: WorkCandidate[], year: number) {
+  const near = (slack: number) => named.filter((c) => fitsYear(c.disambiguation, year, slack))
+  const dated = [near(0), near(1)].find((p) => p.length > 0)
+  return dated ? ranked(dated) : named.filter((c) => years(c.disambiguation).length === 0)
+}
+
+// The results that have popularity, if any do.
+function ranked(pool: WorkCandidate[]) {
+  const scored = pool.filter((c) => c.popularity !== null)
+  return scored.length > 0 ? scored : pool
+}
+
+export function lookupWork(work: Work, guest: string, call: string, result: QlooResult<QlooEntity[]>): WorkMatch {
+  if (!result.ok) return { resolution: 'failed', entity: null, candidates: [], evidence: call, error: result.error }
+  return { ...resolveWork(work, guest, result.data), evidence: call, error: null }
+}
+
+// A book's author is what its disambiguation names besides the year, as in "2022, Quentin Tarantino".
+const author = (disambiguation: string | null) =>
+  (disambiguation ?? '').replace(/\b(1[89]|20)\d{2}\b/g, '').replace(/^[\s,]+|[\s,]+$/g, '')
+
+// Whether a book's author is one of the guests, such as "Seth Rogen and Evan Goldberg", by surname.
+function byGuest(disambiguation: string | null, guest: string) {
+  const credited = words(author(disambiguation))
+  return guest
+    .split(/,|&|\band\b/)
+    .map((name) => words(name).at(-1))
+    .some((surname) => surname !== undefined && credited.includes(surname))
+}
+
+// Qloo's work names can drop or add a subtitle ("Wake Up Dead Man"), carry a series suffix ("Onyx
+// Storm (The Empyrean, #3)"), or end in "Podcast" ("Scriptnotes Podcast"); none of those count
+// against a match.
+function sameTitle(found: string, title: string) {
+  const [a, b] = [titleWords(found), titleWords(title)]
+  return a.full === b.full || a.main === b.full || a.full === b.main
+}
+
+function titleWords(title: string) {
+  const t = title.replace(/\s*\([^)]*#\d[^)]*\)\s*$/, '')
+  const join = (s: string) => {
+    const w = words(s)
+    return (w.at(-1) === 'podcast' ? w.slice(0, -1) : w).join(' ')
+  }
+  return { full: join(t), main: join(t.split(':')[0]) }
+}
+
+// The years in a result's disambiguation, such as "2025", "2022, Quentin Tarantino", or a TV run
+// "2006,2013".
+const years = (disambiguation: string | null) => (disambiguation?.match(/\b(1[89]|20)\d{2}\b/g) ?? []).map(Number)
+
+function fitsYear(disambiguation: string | null, year: number, slack: number) {
+  const span = years(disambiguation)
+  return span.length > 0 && year >= Math.min(...span) - slack && year <= Math.max(...span) + slack
 }
 
 // Whether two names name the same thing, ignoring case, accents, punctuation, and a leading "the".
