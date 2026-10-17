@@ -11,5 +11,6 @@ export default defineConfig({
       miniflare: { bindings: { QLOO_BASE_URL: 'https://qloo.test', QLOO_API_KEY: 'test-qloo-key' } }
     })
   ],
-  test: { setupFiles: ['./test/setup.ts'] }
+  // A file's first test loads the Worker and its agent cold: about 2 s locally, over 5 s on CI.
+  test: { setupFiles: ['./test/setup.ts'], testTimeout: 30_000 }
 })
