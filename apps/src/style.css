@@ -77,7 +77,7 @@
   --line: #e6e6e6;
   --edge: #d4d4d4;
   --empty: #dcdcdc;
-  /* State colors (#42), provisional: never Chart Red, and always beside the state's word. */
+  /* State colors (#42): never Chart Red, and always beside the state's word. */
   --slow: #8a6100;
   --fault: #a34700;
   --missed: #2f5d8a;
