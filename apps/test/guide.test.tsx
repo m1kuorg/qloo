@@ -17,9 +17,11 @@ const ids: Record<string, string> = {
   'The Ryen Russillo Podcast': 'e-0705',
   'Every Single Album': 'e-0715'
 }
-const search = Object.fromEntries(
-  Object.entries(ids).map(([name, entity_id]) => [name, [{ entity_id, name, popularity: 0.7 }]])
-)
+const search = {
+  ...Object.fromEntries(Object.entries(ids).map(([name, entity_id]) => [name, [{ entity_id, name, popularity: 0.7 }]])),
+  // A pitched book, for a guest pitch run.
+  'Night Ferry': [{ entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.5, disambiguation: '2019, Ada Quill' }]
+}
 // Fit order, made-up scores: The Bill Simmons Podcast is second here and fifth by topic alone, so it
 // is the run's one climber.
 const fit = [
@@ -67,6 +69,7 @@ const script = [
 
 // New sessions open on the sample network here, as deployed; other test files start empty.
 const saved = env.SAMPLE_NETWORK
+const savedPitches = env.GUEST_PITCHES
 beforeEach(() => {
   env.SAMPLE_NETWORK = 'on'
   fakeQloo({ search })
@@ -79,6 +82,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   env.SAMPLE_NETWORK = saved
+  env.GUEST_PITCHES = savedPitches
 })
 
 // The page renders in the tests' isolate, which has no DOM: the top bar's portals find no target.
@@ -123,6 +127,34 @@ const completed = (s: State) => s.run?.status === 'completed'
 async function visit() {
   const s = await session()
   return { s, state: await s.until(settled) }
+}
+
+// The guided sample launch, every step done, through to the approved order.
+async function guidedLaunch(s: Session) {
+  await s.call('startLaunch', { name: 'The Watch' })
+  await s.until(charted)
+  await s.call('markGuide', 'why')
+  await s.call('markGuide', 'evidence')
+  await s.until(waitingOn('budget'))
+  await s.call('answer', 'toolu_2_1', { slots: 20 })
+  await s.until(waitingOn('exclusions'))
+  await s.call('answer', 'toolu_3_1', { exclude: [] })
+  const { insertionOrder } = await s.until(completed)
+  await s.call('approveInsertionOrder', insertionOrder!.id)
+  return s.state()!
+}
+
+// A one-pitch inbox and a guest pitch run for The Big Picture, which becomes the session's latest run.
+async function pitchRun(s: Session) {
+  env.GUEST_PITCHES = 'on'
+  fakeClaude([
+    turn(text(JSON.stringify({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } }))),
+    turn(text('Nothing to rank yet.'))
+  ])
+  await s.call('loadInbox', { text: 'Ada Quill would love to talk about her novel Night Ferry.' })
+  await s.until((state) => state.inbox?.status === 'done')
+  await s.call('startPitches', { show: 'The Big Picture', pastGuests: [] })
+  return s.until((state) => state.booking?.run === state.run?.id && state.run?.status === 'completed')
 }
 
 describe('the guide through the sample launch', () => {
@@ -198,6 +230,22 @@ describe('the guide through the sample launch', () => {
 
     const stranger = await visit()
     expect(guide(stranger.state)).toContain('Step 1 of 5')
+  })
+
+  it('stays done after a guest pitch run replaces the guided launch as the latest run', async () => {
+    const { s } = await visit()
+    const launched = await guidedLaunch(s)
+    expect(guide(launched)).toMatch(/^Guide Done /)
+
+    const pitched = await pitchRun(s)
+    expect(pitched.runs.map((r) => r.pitchesFor ?? r.launch)).toEqual(['The Watch', 'The Big Picture'])
+    expect(guide(pitched)).toMatch(/^Guide Done Dismiss 1\. Start the sample launch Done .* 5\. .* Done/)
+    expect(guide(pitched)).not.toContain('Skipped')
+  })
+
+  it('starts at step 1 when the only run is a guest pitch run', async () => {
+    const { s } = await visit()
+    expect(guide(await pitchRun(s))).toContain('Step 1 of 5')
   })
 
   it("doesn't show once the roster isn't the sample network", async () => {
