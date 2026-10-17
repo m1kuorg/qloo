@@ -78,7 +78,7 @@ export const checkDemographics: Tool<Input> = {
         isError: true,
         content: `The demographic check ${call} failed: ${check.error}. Don't call check_demographics again in this run. Say the finalists' demographics weren't checked, and why, citing ${call}.`
       }
-    const { from, ages, skew } = check.profile!
+    const { from, ages, skew, disagree } = check.profile!
     return {
       content: JSON.stringify({
         call,
@@ -86,7 +86,8 @@ export const checkDemographics: Tool<Input> = {
           meanOf: from,
           noDemographics: ranking.anchors.filter((a) => !from.includes(a.name)).map((a) => a.name),
           topAgeBands: ages,
-          genderSkew: skew
+          genderSkew: skew,
+          disagree
         },
         finalists: checked,
         notChecked: check.rows

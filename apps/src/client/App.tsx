@@ -1109,6 +1109,7 @@ function DemographicSummary({
       </StateLine>
     )
   const { from, ages, skew } = check.profile
+  const disagree = check.profile.disagree ?? [] // runs from before #89 have none
   const who = [
     ages.length ? `over-index at ages ${listOf(ages.map(ageWords))}` : 'over-index at no age band',
     skew ? `skew ${skew}` : 'have no strong gender skew'
@@ -1120,6 +1121,7 @@ function DemographicSummary({
     <p className="help sec-help demo-sum">
       <b>Demographics</b> {cite} · Checked against the listeners of {listOf(from)}
       {from.length > 1 && ' on average'}, who {who.join(' and ')}.
+      {disagree.length > 0 && ` The comps disagree: ${disagree.join('; ')}.`}
       {noData.length > 0 && ` Qloo had no demographics for ${listOf(noData)}.`}{' '}
       <b>
         {flagged
