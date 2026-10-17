@@ -10,6 +10,7 @@ Contents:
     1.  [The fake HTTP seam](#the-fake-http-seam)
     1.  [Driving a session](#driving-a-session)
 1.  [Check types](#check-types)
+1.  [CI](#ci)
 1.  [Deploy](#deploy)
 1.  [Live check](#live-check)
 1.  [Where things go](#where-things-go)
@@ -71,6 +72,18 @@ bun run typecheck
 ```
 
 Client files under `src/client/` use React JSX. Server files that render the HTML shell use Hono JSX and start with `/** @jsxImportSource hono/jsx */`.
+
+## CI
+
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml) runs on every pull request, including a retitle, and on every push to `main`. One job installs both packages with `bun install --frozen-lockfile`, then runs these steps. Each step runs even when an earlier one fails, so one run reports every failure:
+
+1.  **Format:** `bun run lint` at the repo root, Prettier's check.
+1.  **Typecheck:** `bun run typecheck` in `apps/`.
+1.  **Test:** `bun run test` in `apps/`.
+1.  **PR title:** the title through `bunx commitlint`, on pull requests only.
+1.  **Secrets:** `gitleaks git` on the commits the pull request or push adds.
+
+Before merging, wait for green with `gh pr checks <pr> --watch`. Locally, run the listed commands where they're listed, check a title with `echo '<title>' | bunx commitlint` at the repo root, and check your commits with `gitleaks git --log-opts="origin/main..HEAD"`.
 
 ## Deploy
 
