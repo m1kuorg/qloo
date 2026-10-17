@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Crossfeed · L-0003 · Launches</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600&family=Courier+Prime:wght@400;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+    />
+    <style>
+      :root {
+        --g: #fcfcfa;
+        --i: #16181d;
+        --r: #d9d9d2;
+        --rt: rgba(22, 24, 29, 0.14);
+        --c: #fbefb0;
+        --p: #f6d9df;
+        --b: #2d3c96;
+        --s: #c23a2b;
+        --w: #d9a21b;
+        --m: #55585f;
+        --q: #4f5a78;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      .mut {
+        color: var(--m);
+      }
+      body {
+        width: 1440px;
+        height: 900px;
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: 48px 56px 676px 120px;
+        background: var(--g);
+        color: var(--i);
+        font:
+          13.5px/1.45 'Public Sans',
+          system-ui,
+          sans-serif;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+      }
+      .lab,
+      th {
+        font:
+          500 11px/1.2 'Archivo Narrow',
+          sans-serif;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--m);
+      }
+      .c {
+        font:
+          10.5px/1 ui-monospace,
+          'SF Mono',
+          Menlo,
+          monospace;
+        color: var(--q);
+        letter-spacing: 0.02em;
+      }
+      a {
+        color: var(--b);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        text-decoration-thickness: 1px;
+        cursor: pointer;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        height: 32px;
+        padding: 0 14px;
+        font:
+          600 13px/1 'Public Sans',
+          sans-serif;
+        color: var(--i);
+        background: var(--g);
+        border: 1px solid var(--i);
+        border-radius: 2px;
+        cursor: pointer;
+      }
+      .btn.pri {
+        background: var(--b);
+        border-color: var(--b);
+        color: #fff;
+      }
+      .btn.sm {
+        height: 26px;
+        padding: 0 10px;
+        font-size: 12.5px;
+        font-weight: 500;
+        border-color: var(--rt);
+        background: transparent;
+      }
+      .in {
+        height: 28px;
+        padding: 0 9px;
+        font:
+          13px 'Public Sans',
+          sans-serif;
+        color: var(--i);
+        background: #fff;
+        border: 1px solid var(--r);
+        border-radius: 2px;
+      }
+      .in::placeholder {
+        color: #75787f;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--r);
+      }
+      .wm {
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: -0.015em;
+      }
+      .sw {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--r);
+        border-radius: 2px;
+        font-size: 13px;
+      }
+      nav {
+        display: flex;
+        align-self: stretch;
+        margin-left: 6px;
+      }
+      nav a {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        color: var(--m);
+        font-weight: 500;
+        text-decoration: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      nav a.on {
+        color: var(--i);
+        border-color: var(--i);
+      }
+      .n {
+        font-size: 11px;
+        line-height: 16px;
+        padding: 0 5px;
+        border: 1px solid var(--r);
+        color: var(--i);
+      }
+      .tag {
+        margin-left: auto;
+        font-size: 11.5px;
+        color: var(--m);
+        border: 1px solid var(--r);
+        padding: 3px 8px;
+        border-radius: 2px;
+      }
+      .ls {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--r);
+      }
+      .ls h1 {
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 20px;
+      }
+      .ls h1 span {
+        color: var(--m);
+        font-weight: 500;
+      }
+      .run {
+        margin-left: auto;
+        width: 380px;
+        font-size: 12.5px;
+      }
+      .run > div:first-child {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+      .bar {
+        height: 2px;
+        background: var(--r);
+        margin-top: 7px;
+      }
+      .bar i {
+        display: block;
+        width: 58%;
+        height: 2px;
+        background: var(--i);
+      }
+      main {
+        display: grid;
+        grid-template-columns: 892px 548px;
+        min-height: 0;
+      }
+      .L {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-right: 1px solid var(--r);
+      }
+      .tb {
+        flex: none;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 20px;
+      }
+      .tb h2 {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .rt th {
+        height: 32px;
+        padding: 0 10px;
+        text-align: left;
+        border-top: 1px solid var(--r);
+        border-bottom: 1px solid var(--i);
+        white-space: nowrap;
+      }
+      .rt th span {
+        color: #8a8d93;
+        margin-left: 4px;
+      }
+      .rt th.on {
+        color: var(--i);
+      }
+      .rt th.on span {
+        color: var(--i);
+      }
+      .rt td {
+        height: 30px;
+        padding: 0 10px;
+        border-bottom: 1px solid var(--r);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        position: relative;
+      }
+      .rt th:first-child,
+      .rt td:first-child {
+        padding-left: 20px;
+      }
+      .rt th:last-child,
+      .rt td:last-child {
+        padding-right: 20px;
+        text-align: right;
+      }
+      .rt td:first-child {
+        font-weight: 600;
+      }
+      .rt td:nth-child(2) {
+        font-weight: 500;
+        font-size: 13px;
+      }
+      .rt td:nth-child(6) {
+        color: var(--m);
+        font-size: 12.5px;
+      }
+      .rt td:first-child::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        border-left: 2px solid var(--i);
+      }
+      .rt .sel td {
+        background: rgba(45, 60, 150, 0.06);
+      }
+      .rt .sel td:first-child::before {
+        border-left: 4px solid var(--b);
+      }
+      .rt .sel td:nth-child(2) {
+        font-weight: 600;
+      }
+      .rt .amb td:first-child::before {
+        border-left-style: dashed;
+      }
+      .rt .mis td:first-child::before {
+        display: none;
+      }
+      .rt .mis s {
+        text-decoration-thickness: 1.5px;
+      }
+      .rt .exc td {
+        color: #707379;
+      }
+      .rt .exc td:first-child::before {
+        top: 25%;
+        bottom: 25%;
+        border-left-color: #707379;
+      }
+      .rt td.sx {
+        text-align: left;
+        font-size: 12.5px;
+        color: var(--i);
+      }
+      .rt .exc td.sx {
+        color: #707379;
+      }
+      .sx a {
+        margin-left: 10px;
+      }
+      .dn {
+        color: var(--m);
+      }
+      .bd {
+        display: inline-block;
+        width: 50px;
+      }
+      .m {
+        display: inline-flex;
+        gap: 2px;
+        margin-right: 8px;
+        vertical-align: -1px;
+      }
+      .m i {
+        width: 9px;
+        height: 10px;
+        border: 1px solid var(--i);
+      }
+      .b4 i,
+      .b3 i:nth-child(-n + 3),
+      .b2 i:nth-child(-n + 2),
+      .b1 i:first-child {
+        background: var(--i);
+      }
+      .cap {
+        flex: none;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        font-size: 12px;
+        color: var(--m);
+      }
+      .ev {
+        flex: 1;
+        min-height: 0;
+        background: var(--p);
+        border-top: 1px solid var(--rt);
+        padding: 14px 20px 0;
+      }
+      .eh {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .eh h3 {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .rec {
+        color: var(--i);
+        border: 1px solid var(--i);
+        padding: 3px 6px 2px;
+      }
+      .ln {
+        display: grid;
+        grid-template-columns: 40px 1fr;
+        gap: 4px 12px;
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid var(--rt);
+        font:
+          13px/20px 'Courier Prime',
+          monospace;
+      }
+      .ln .c {
+        line-height: 20px;
+      }
+      .ef {
+        display: flex;
+        gap: 18px;
+        margin-top: 12px;
+        font-size: 12.5px;
+      }
+      .R {
+        background: var(--c);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .rh {
+        flex: none;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--rt);
+      }
+      .rh .lab:first-child {
+        color: var(--i);
+        font-weight: 600;
+      }
+      .rb {
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .nar p + p {
+        margin-top: 8px;
+      }
+      .q {
+        background: var(--g);
+        border: 1px solid var(--b);
+        padding: 14px 16px 16px;
+      }
+      .q .lab:first-child {
+        color: var(--b);
+      }
+      .q h4 {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 20px;
+        margin: 6px 0 12px;
+      }
+      .op {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .op label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 34px;
+        padding: 0 6px 0 10px;
+        border: 1px solid var(--r);
+        border-radius: 2px;
+        font-size: 13px;
+        background: #fff;
+      }
+      .op .in {
+        margin-left: auto;
+        width: 84px;
+        height: 24px;
+        font-size: 12.5px;
+      }
+      input[type='radio'] {
+        accent-color: var(--b);
+        margin: 0;
+        width: 14px;
+        height: 14px;
+      }
+      .hint {
+        font-size: 11.5px;
+        color: var(--m);
+        margin-left: auto;
+        padding-right: 4px;
+      }
+      .ex {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid var(--r);
+        font-size: 12.5px;
+      }
+      .qf {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 14px;
+        font-size: 12px;
+        color: var(--m);
+      }
+      .steps {
+        list-style: none;
+        margin-top: 8px;
+        border-top: 1px solid var(--rt);
+      }
+      .steps li {
+        position: relative;
+        display: grid;
+        grid-template-columns: 20px 1fr auto;
+        align-items: center;
+        height: 26px;
+        padding-left: 12px;
+        border-bottom: 1px solid var(--rt);
+        font-size: 12.5px;
+      }
+      .steps li::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        border-left: 2px solid var(--i);
+      }
+      .steps b {
+        font-weight: 500;
+        color: var(--m);
+      }
+      .steps .dg::before {
+        border-left: 3px solid var(--w);
+      }
+      .steps .now {
+        font-weight: 600;
+      }
+      .steps .now::before {
+        border-left-style: dashed;
+      }
+      .steps .pd {
+        color: var(--m);
+      }
+      .steps .pd::before {
+        display: none;
+      }
+      .io {
+        display: grid;
+        grid-template-columns: 280px 1fr 470px;
+        background: var(--c);
+        border-top: 1px solid var(--r);
+      }
+      .io > div {
+        padding: 11px 20px;
+        min-width: 0;
+      }
+      .io > div + div {
+        border-left: 1px solid var(--rt);
+      }
+      .io h3 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 4px 0 1px;
+      }
+      .tot {
+        font-size: 16px;
+        font-weight: 700;
+        margin-top: 8px;
+      }
+      .tot span {
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--m);
+      }
+      .iot th {
+        height: 18px;
+        padding: 0 12px 0 0;
+        text-align: left;
+        font-size: 10.5px;
+      }
+      .iot td {
+        height: 19px;
+        padding: 0 12px 0 0;
+        font:
+          12.5px/18px 'Courier Prime',
+          monospace;
+        border-top: 1px solid var(--rt);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .iot th:last-child,
+      .iot td:last-child {
+        text-align: right;
+        padding-right: 0;
+      }
+      .sg {
+        display: grid;
+        grid-template-columns: 250px 1fr;
+        gap: 24px;
+        align-items: center;
+      }
+      .cs {
+        height: 54px;
+        border: 1px solid var(--i);
+        padding: 6px 10px;
+        background: rgba(252, 252, 250, 0.45);
+      }
+      .cs em {
+        display: block;
+        margin-top: 5px;
+        padding-bottom: 2px;
+        border-bottom: 1px dotted var(--i);
+        font-size: 13px;
+        color: var(--m);
+      }
+      .act {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 8px;
+        font-size: 11.5px;
+        color: var(--m);
+      }
+      .stamp {
+        width: 150px;
+        height: 74px;
+        border: 2px dotted rgba(194, 58, 43, 0.5);
+        transform: rotate(-6deg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .stamp .lab {
+        text-align: center;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="wm">Crossfeed</span>
+      <span class="sw">The Ringer · sample network <span class="mut">▾</span></span>
+      <nav>
+        <a class="on">Launches</a><a>Roster</a><a>Inbox <span class="n">1</span></a
+        ><a>Evidence log</a>
+      </nav>
+      <span class="tag">Sample data · not affiliated with The Ringer</span>
+    </header>
+    <section class="ls">
+      <div>
+        <h1><span>L-0003 ·</span> Unreleased film show</h1>
+        <div class="mut" style="font-size: 12.5px">
+          Comps: Blank Check · Filmspotting · You Must Remember This <span class="c">C-01–C-03</span>
+        </div>
+      </div>
+      <div class="run">
+        <div>
+          <span><b style="font-weight: 600">Step 4 of 6</b> · Scoring 16 shows against 3 comps</span
+          ><span class="c">C-07 running</span>
+        </div>
+        <div class="bar"><i></i></div>
+      </div>
+    </section>
+    <main>
+      <section class="L">
+        <div class="tb">
+          <h2>Ranked roster</h2>
+          <span class="mut" style="font-size: 12.5px">16 shows · sorted by fit rank, then topic rank</span>
+          <input class="in" style="margin-left: auto; width: 200px" placeholder="Filter shows" />
+          <button class="btn sm" style="border-color: var(--r)">Export CSV</button>
+        </div>
+        <table class="rt">
+          <colgroup>
+            <col style="width: 82px" />
+            <col />
+            <col style="width: 80px" />
+            <col style="width: 56px" />
+            <col style="width: 148px" />
+            <col style="width: 180px" />
+            <col style="width: 100px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="on">Fit rank<span>↓</span></th>
+              <th>Show<span>⇅</span></th>
+              <th>Topic rank<span>⇅</span></th>
+              <th>Move<span>⇅</span></th>
+              <th>Fit band<span>⇅</span></th>
+              <th>Shared tags</th>
+              <th>Slot value<span>⇅</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td>The Big Picture</td>
+              <td>1</td>
+              <td class="dn">—</td>
+              <td>
+                <span class="m b4"><i></i><i></i><i></i><i></i></span><span class="bd">Strong</span
+                ><span class="c">C-07</span>
+              </td>
+              <td>film criticism, new releases</td>
+              <td>$8,000</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>The Rewatchables</td>
+              <td>2</td>
+              <td class="dn">—</td>
+              <td>
+                <span class="m b4"><i></i><i></i><i></i><i></i></span><span class="bd">Strong</span
+                ><span class="c">C-07</span>
+              </td>
+              <td>rewatch, film nostalgia</td>
+              <td>$9,600</td>
+            </tr>
+            <tr class="sel">
+              <td>3</td>
+              <td>60 Songs That Explain the &rsquo;90s</td>
+              <td>9</td>
+              <td>▲6</td>
+              <td>
+                <span class="m b4"><i></i><i></i><i></i><i></i></span><span class="bd">Strong</span
+                ><span class="c">C-07</span>
+              </td>
+              <td>nostalgia, cultural history</td>
+              <td>$5,200</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td>Every Single Album</td>
+              <td>11</td>
+              <td>▲7</td>
+              <td>
+                <span class="m b3"><i></i><i></i><i></i><i></i></span><span class="bd">Good</span
+                ><span class="c">C-07</span>
+              </td>
+              <td>music criticism, deep dives</td>
+              <td>$3,400</td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td>The Bill Simmons Podcast</td>
+              <td>3</td>
+              <td class="dn">▼2</td>
+              <td>
+                <span class="m b3"><i></i><i></i><i></i><i></i></span><span class="bd">Good</span
+                ><span class="c">C-07</span>
+              </td>
+              <td>pop culture, sports</td>
+              <td>$14,000</td>
+            </tr>
+            <tr>
+              <td>6</td>
+              <td>The Watch</td>
+              <td>4</td>
+              <td class="dn">▼2</td>
+              <td>
+                <span class="m b3"><i></i><i></i><i></i><i></i></span><span class="bd">Good</span
+                ><span class="c">C-07</span>
+              </td>
+              <td>TV criticism</td>
+              <td>$6,800</td>
+            </tr>
+            <tr>
+              <td>7</td>
+              <td>Pod Meets World</td>
+              <td>6</td>
+              <td class="dn">▼1</td>
+              <td>
+                <span class="m b2"><i></i><i></i><i></i><i></i></span><span class="bd">Fair</span
+                ><span class="c">C-07</span>
+              </td>
+              <td>sitcom rewatch</td>
+              <td>$2,600</td>
+            </tr>
+            <tr>
+              <td>8</td>
+              <td>Plain English with Derek Thompson</td>
+              <td>12</td>
+              <td>▲4</td>
+              <td>
+                <span class="m b2"><i></i><i></i><i></i><i></i></span><span class="bd">Fair</span
+                ><span class="c">C-07</span>
+              </td>
+              <td>culture explainers</td>
+              <td>$4,400</td>
+            </tr>
+            <tr class="amb">
+              <td>—</td>
+              <td>Binge Mode</td>
+              <td>5</td>
+              <td class="sx" colspan="4">Ambiguous — 2 feeds <span class="c">C-05</span><a>Choose feed</a></td>
+            </tr>
+            <tr class="mis">
+              <td>—</td>
+              <td><s>The Zach Lowe Show</s></td>
+              <td>7</td>
+              <td class="sx" colspan="4">Missed — map to a comp? <span class="c">C-06</span><a>Choose comp</a></td>
+            </tr>
+            <tr class="exc">
+              <td>—</td>
+              <td>Higher Learning</td>
+              <td>8</td>
+              <td class="sx" colspan="4">Excluded · mid-sale</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="cap">
+          <span>Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures</span
+          ><span>Showing 11 of 16 · <a>Show all</a></span>
+        </div>
+        <section class="ev">
+          <div class="eh">
+            <h3>Evidence · 60 Songs That Explain the &rsquo;90s</h3>
+            <span class="lab rec">Qloo record — not model output</span>
+            <span class="c" style="margin-left: auto">C-07 · 200 OK · 14:02:11 · 412 ms</span>
+            <button class="btn sm">Close</button>
+          </div>
+          <div class="ln">
+            <span class="c">C-07</span
+            ><span
+              >POST /v2/insights · filter.type urn:entity:podcast · signal.interests.entities Blank Check, Filmspotting,
+              You Must Remember This</span
+            >
+            <span class="c">C-07</span><span>Returned 16 entities · affinity 0.731–0.874 · this show rank 3</span>
+            <span class="c">C-07</span><span>Shared tags: nostalgia · cultural history · music criticism</span>
+            <span class="c">C-07</span><span>Leading comp: You Must Remember This (+0.06 explainability)</span>
+          </div>
+          <div class="ef"><a>Open C-07 in Evidence log</a><a>Copy request</a></div>
+        </section>
+      </section>
+      <aside class="R">
+        <div class="rh">
+          <span class="lab">Agent · draft, not data</span><span class="lab">Updated 14:02 · step 4</span>
+        </div>
+        <div class="rb">
+          <div class="nar">
+            <p>
+              60 Songs moved up six places over topic order: its listeners share nostalgia and cultural-history tags
+              with all three comps <span class="c">[C-07]</span>.
+            </p>
+            <p>
+              The Bill Simmons Podcast drops two despite the largest slot value; its overlap runs through sports tags
+              none of the comps carry <span class="c">[C-07]</span>. Binge Mode needs a feed before it can be scored
+              <span class="c">[C-05]</span>.
+            </p>
+          </div>
+          <div class="q">
+            <div class="lab">Open question · blocks step 5</div>
+            <h4>How many promo slots can this launch spend?</h4>
+            <div class="op">
+              <label><input type="radio" name="s" /> 12 slots</label>
+              <label><input type="radio" name="s" /> 20 slots <span class="hint">draft assumes</span></label>
+              <label><input type="radio" name="s" /> 30 slots</label>
+              <label><input type="radio" name="s" /> A dollar budget <input class="in" placeholder="$ amount" /></label>
+            </div>
+            <div class="ex"><span>Exclusions: Higher Learning (mid-sale)</span><a>Edit exclusions</a></div>
+            <div class="qf">
+              <span>Your answer re-drafts IO-0003 below.</span><button class="btn pri">Answer</button>
+            </div>
+          </div>
+          <div>
+            <div class="lab">Run · L-0003</div>
+            <ol class="steps">
+              <li><b>1</b><span>Resolve comps · 3 of 3 matched</span><span class="c">C-01–C-03</span></li>
+              <li class="dg">
+                <b>2</b><span>Match roster to Qloo · partial, 14 of 16</span><span class="c">C-04–C-06</span>
+              </li>
+              <li><b>3</b><span>Apply exclusions · 1 show held out</span><span class="c">—</span></li>
+              <li class="now"><b>4</b><span>Score fit against comps · running</span><span class="c">C-07</span></li>
+              <li class="pd">
+                <b>5</b><span>Draft insertion order · waiting on your answer</span><span class="c">—</span>
+              </li>
+              <li class="pd"><b>6</b><span>Countersign · waiting on you</span><span class="c">—</span></li>
+            </ol>
+          </div>
+        </div>
+      </aside>
+    </main>
+    <footer class="io">
+      <div>
+        <div class="lab">Draft · agent output</div>
+        <h3>IO-0003 · Insertion order draft</h3>
+        <div class="mut" style="font-size: 12px">Not approved · not sent to sales</div>
+        <div class="tot">20 slots · $139,000 <span>inventory</span></div>
+      </div>
+      <div>
+        <table class="iot">
+          <colgroup>
+            <col style="width: 240px" />
+            <col style="width: 50px" />
+            <col />
+            <col style="width: 90px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Show</th>
+              <th>Slots</th>
+              <th>Angle</th>
+              <th>Line value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>The Rewatchables</td>
+              <td>6</td>
+              <td>Rewatch crowd: pitch it as the show that tells you which old films earn a second look</td>
+              <td>$57,600</td>
+            </tr>
+            <tr>
+              <td>60 Songs That Explain the &rsquo;90s</td>
+              <td>6</td>
+              <td>Nostalgia overlap: frame the launch as the film-history companion to a decade they love</td>
+              <td>$31,200</td>
+            </tr>
+            <tr>
+              <td>The Big Picture</td>
+              <td>5</td>
+              <td>New-release critics: premiere-week host read beside the weekly box-office segment</td>
+              <td>$40,000</td>
+            </tr>
+            <tr>
+              <td>Every Single Album</td>
+              <td>3</td>
+              <td>Deep-dive listeners: a long-form canon series for people who finish the discography</td>
+              <td>$10,200</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="sg">
+        <div>
+          <div class="cs"><span class="lab">Countersign · ad ops</span><em>Awaiting your countersign</em></div>
+          <div class="act"><button class="btn pri">Approve IO-0003</button><span>Locks the draft</span></div>
+        </div>
+        <div class="stamp">
+          <span class="lab">Approved stamp<br />lands here</span>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
