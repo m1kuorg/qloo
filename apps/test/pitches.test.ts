@@ -6,6 +6,7 @@ import {
   fakeClaude,
   fakeInsights,
   fakeQloo,
+  modelRequests,
   requests,
   text,
   toolUse,
@@ -271,6 +272,31 @@ describe('ranking pitched works against the show', () => {
     expect(rankingBody('urn:entity:book').map((b) => b['signal.interests.entities'])).toEqual([
       'e-0001,f-0101,b-0101',
       'b-0101'
+    ])
+  })
+})
+
+describe("the model's view of the ranking", () => {
+  it('names every pitch in the tool result by its work, scored or not', async () => {
+    // Films score, except Low Tide, which Qloo leaves out; TV shows stay unranked.
+    fakeInsights((body) => {
+      const type = String(body['filter.type'])
+      if (type === 'urn:entity:movie') return scores[type].slice(0, 1)
+      if (type === 'urn:entity:tv_show') return []
+      return scores[type]
+    })
+    await rank([film], [turn(rankPitches(['f-0101'])), turn(text('Ranked.'))])
+
+    // The agent's second request carries the tool result; the reader's requests have no tools.
+    const [, second] = modelRequests().filter((r) => r.tools)
+    const lists = JSON.parse(second.messages.at(-1).content[0].content)
+    const entries = lists.flatMap((l: { ranked: object[]; notScored: object[] }) => [...l.ranked, ...l.notScored])
+    expect(entries.map((e: { pitch: string; work: string }) => [e.pitch, e.work]).toSorted()).toEqual([
+      ['pitch-01', 'Night Ferry'],
+      ['pitch-02', 'Paper Moons'],
+      ['pitch-03', 'Static Bloom'],
+      ['pitch-04', 'Low Tide'],
+      ['pitch-05', 'Dead Air']
     ])
   })
 })

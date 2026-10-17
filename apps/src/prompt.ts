@@ -46,7 +46,7 @@ const guestSteps: { step: string; instruction: string | null }[] = [
   {
     step: 'Rank the pitches (#49)',
     instruction:
-      "Rank the pitches: call rank_pitches once with the show's Qloo ID, every past guest work ID the run's first message lists, and every pitch ID it lists. Give a pitched work's fit as its rank and band within its own type's list, never as a raw score, and never compare ranks across lists, because each list comes from its own Qloo call."
+      "Rank the pitches: call rank_pitches once with the show's Qloo ID, every past guest work ID the run's first message lists, and every pitch ID it lists. Give a pitched work's fit as its rank and band within its own type's list, never as a raw score, and never compare ranks across lists, because each list comes from its own Qloo call. In your own text, name a pitch by its work's title, never by its pitch ID; tools still take pitch IDs."
   },
   { step: 'Propose episode angles (#52)', instruction: null },
   { step: 'Draft replies (#52)', instruction: null }

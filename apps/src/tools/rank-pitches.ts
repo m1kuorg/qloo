@@ -104,7 +104,7 @@ export const rankPitches: Tool<Input> = {
           calls: l.calls,
           error: l.error,
           ranked: l.rows.map((r) => ({ rank: r.rank, pitch: r.pitch, work: title(r.pitch), band: r.band })),
-          notScored: l.notScored
+          notScored: l.notScored.map((n) => ({ ...n, work: title(n.pitch) }))
         }))
       )
     }
