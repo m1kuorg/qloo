@@ -248,20 +248,48 @@ describe('asking the programmer', () => {
     expect(after.messages.at(-1).content.at(-1)).toEqual({ type: 'text', text: 'Late Reel (popularity 88.0)' })
   })
 
-  it('asks one question at a time, and returns every result of the paused turn with the answer', async () => {
+  it('asks two questions from one turn one after the other, with no failed note, and returns every result', async () => {
     fakeQloo({ search })
     const resolve = toolUse('resolve_entities', { names: ['Late Reel'], type: 'urn:entity:podcast' })
     const askBudget = toolUse('ask_human', { question: 'What is the slot budget?', kind: 'budget', options: [] })
-    fakeClaude([turn(resolve, askLaunch, askBudget), turn(text('Done.'))])
+    const askExclusions = toolUse('ask_human', {
+      question: 'Which shows should this launch leave out?',
+      kind: 'exclusions',
+      options: []
+    })
+    // Haiku sometimes asks for the budget and the exclusions in the same turn.
+    fakeClaude([turn(resolve, askBudget, askExclusions), turn(askExclusions), turn(text('Done.'))])
     const s = await session()
     await s.call('startLaunch', { name: 'Late Reel' })
 
     const paused = await waiting(s)
-    expect(question(paused)).toMatchObject({ id: 'toolu_1_2', kind: 'choice' })
-    expect(paused.run?.notes.map((n) => n.status)).toEqual(['done', 'done', 'failed'])
-    await s.call('answer', 'toolu_1_2', { text: 'The popular one.' })
-    await finished(s)
+    expect(question(paused)).toMatchObject({ id: 'toolu_1_2', kind: 'budget' })
+    // The held question shows no note until it's really asked.
+    expect(paused.run?.notes).toEqual([
+      { text: 'Resolving Late Reel', status: 'done' },
+      { text: 'Asking for the slot budget', status: 'done' }
+    ])
+    await s.call('answer', 'toolu_1_2', { slots: 12 })
 
+    const next = await s.until((state) => state.run?.status === 'waiting' && state.run.question?.id === 'toolu_2_1')
+    expect(question(next)).toMatchObject({ kind: 'exclusions' })
+    await s.call('answer', 'toolu_2_1', { exclude: [] })
+    const state = await finished(s)
+    expect(state.run).toMatchObject({ status: 'completed', budget: { slots: 12 }, exclusions: [] })
+    expect(state.run?.notes.map((n) => [n.text, n.status])).toEqual([
+      ['Resolving Late Reel', 'done'],
+      ['Asking for the slot budget', 'done'],
+      ['Asking for exclusions', 'done']
+    ])
+    // No state the browser ever got showed a failed note.
+    const notes = s
+      .frames()
+      .map((f) => JSON.parse(f))
+      .filter((m) => m.type === 'cf_agent_state')
+      .flatMap((m) => m.state.run?.notes ?? [])
+    expect(notes.filter((n: { status: string }) => n.status === 'failed')).toEqual([])
+
+    // The held call gets a plain result, not an error, in the one message that answers the turn.
     const resumedWith = modelRequests()[1].messages.at(-1).content
     expect(resumedWith.map((b: { type: string; tool_use_id?: string }) => [b.type, b.tool_use_id])).toEqual([
       ['tool_result', 'toolu_1_1'],
@@ -270,8 +298,10 @@ describe('asking the programmer', () => {
       ['text', undefined]
     ])
     expect(JSON.parse(resumedWith[0].content)[0]).toMatchObject({ name: 'Late Reel', resolution: 'ambiguous' })
-    expect(resumedWith[2]).toMatchObject({ is_error: true })
-    expect(resumedWith[2].content).toContain('Ask one question at a time')
+    expect(resumedWith[2]).not.toHaveProperty('is_error')
+    expect(resumedWith[2].content).toBe(
+      'Not asked yet: the programmer answers one question at a time, and is answering another one from this turn. Ask this one again, on its own, after that answer.'
+    )
   })
 
   it('drops a finalist the programmer leaves out, and the next show by fit becomes a finalist', async () => {

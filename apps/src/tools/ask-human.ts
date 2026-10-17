@@ -39,7 +39,8 @@ export const askHuman: Tool<Input> = {
       additionalProperties: false
     }
   },
-  note: ({ question, kind }) => notes[kind](question),
+  // A question held behind another from the same turn shows no note until it's asked.
+  note: ({ question, kind }, state) => (state.run?.question ? null : notes[kind](question)),
   async run({ question, kind, options }, { run, call, state, update }) {
     if (!question.trim()) return { isError: true, content: 'The question is empty. Ask it again in plain words.' }
     const match = state().launch?.match
@@ -59,11 +60,11 @@ export const askHuman: Tool<Input> = {
       asked = { id: call, kind, question: question.trim(), options: offered(kind, options, state) }
       return { ...state, run: { ...state.run, question: asked } }
     })
+    // Not an error: the model asked well, just more than the programmer answers at once.
     if (!asked)
       return {
-        isError: true,
         content:
-          'Another question is already open in this turn. Ask one question at a time; ask this one after the answer.'
+          'Not asked yet: the programmer answers one question at a time, and is answering another one from this turn. Ask this one again, on its own, after that answer.'
       }
     return { content: 'Asked the programmer. Their answer follows.' }
   }
