@@ -1113,11 +1113,13 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // A baseline that lands after its sample run was kept goes into the kept copy, which is what the
   // run ended with, rather than the run's snapshot, where the programmer may since have edited the
-  // order. A copy another run has since replaced is left alone.
+  // order. The gateway writes it only while the copy is still this run's, so a run kept since stays.
   private async keepTopic(run: string, topic: Topic) {
-    const stored = await this.env.QlooGateway.getByName('global').sampleRun()
+    const gateway = this.env.QlooGateway.getByName('global')
+    const stored = await gateway.sampleRun()
     const kept: SampleRun | null = stored && JSON.parse(stored)
-    if (kept?.state.run?.id === run) this.storeSampleRun(run, { ...kept, state: withMoves({ ...kept.state, topic }) })
+    if (kept?.state.run?.id !== run) return
+    await gateway.patchSampleRun(run, JSON.stringify({ ...kept, state: withMoves({ ...kept.state, topic }) }))
   }
 
   // Replays the stored sample run as this run: what it ended with, roster and all, with the calls

@@ -118,6 +118,16 @@ export class QlooGateway extends DurableObject<Env> {
     this.ctx.storage.sql.exec('INSERT OR REPLACE INTO sample_run (id, run) VALUES (1, ?)', run)
   }
 
+  // Replaces the kept sample run with `sampleRun` only while it's still run `run`'s, in one statement,
+  // so a newer run kept meanwhile is never lost.
+  patchSampleRun(run: string, sampleRun: string) {
+    this.ctx.storage.sql.exec(
+      "UPDATE sample_run SET run = ? WHERE id = 1 AND json_extract(run, '$.state.run.id') = ?",
+      sampleRun,
+      run
+    )
+  }
+
   sampleRun(): string | null {
     const [row] = this.ctx.storage.sql.exec<{ run: string }>('SELECT run FROM sample_run').toArray()
     return row?.run ?? null
