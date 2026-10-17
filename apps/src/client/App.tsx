@@ -79,7 +79,7 @@ export function App({ page }: { page: string | undefined }) {
             pitchRun && (
               <>
                 {pitchRun.status === 'waiting' && pitchRun.question && (
-                  <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} agent={agent} />
+                  <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
                 )}
                 <RunLog run={pitchRun} />
               </>
