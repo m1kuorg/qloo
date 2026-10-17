@@ -885,18 +885,19 @@ function FitChart({
       {demographics && !ranking.error && (
         <DemographicSummary check={demographics} ranking={ranking} openCall={openCall} opened={opened} />
       )}
-      {topic && topic.status !== 'ranked' && !ranking.error && (
-        <p className="help sec-help" role="status">
-          {topic.status === 'ranking'
-            ? 'Ranking the roster by topic alone for the last-week column…'
-            : `No topic column: ${topic.error}. The fit ranking stands without it.`}
-        </p>
-      )}
+      {topic &&
+        !ranking.error &&
+        (topic.status === 'ranking' ? (
+          <StateLine kind="loading">Ranking the roster by topic alone for the last-week column…</StateLine>
+        ) : topic.status !== 'ranked' ? (
+          <StateLine kind="error">No topic column: {topic.error}. The fit ranking stands without it.</StateLine>
+        ) : null)}
       {moves && climbers && !ranking.error && (
         <p className="legend">
           <i className="bul" aria-hidden="true" />
           Bullet: up 3+ places on topic rank. Select a climber for why it moved.
         </p>
+      )}
       {missing.length > 0 && (
         <StateLine kind="failed">
           Partial ranking: {listOf(missing)} {missing.length === 1 ? "isn't" : "aren't"} in it, because{' '}
