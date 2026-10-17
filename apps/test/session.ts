@@ -23,6 +23,8 @@ export type Session = {
   // Imports a roster the way the UI does and resolves once every show's search has settled. The
   // call itself returns while the searches are still out.
   importRoster: (text: string, format?: RosterFormat) => Promise<State>
+  // Searches for a comp the way the show editor does and resolves once the search has settled.
+  searchComps: (name: string, query: string) => Promise<State>
   // Resolves with the synced state once it satisfies `ready`, such as a run that has finished.
   until: (ready: (state: State) => boolean) => Promise<State>
   // Sends a raw protocol frame and resolves with the next frame of type `reply`.
@@ -95,6 +97,10 @@ export async function openSession(cookie?: string): Promise<Session> {
     importRoster: async (text, format = 'lines') => {
       await call('importRoster', text, format)
       return until((s) => s.roster.every((show) => show.resolution !== 'pending'))
+    },
+    searchComps: async (name, query) => {
+      await call('searchComps', name, query)
+      return until((s) => s.roster.find((show) => show.name === name)?.compSearch?.status !== 'pending')
     },
     until,
     send: (frame, type) =>

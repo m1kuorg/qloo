@@ -959,7 +959,15 @@ function CompSearch({
       </form>
       <Alert error={searching.error} />
       {found &&
-        (found.results.length > 0 ? (
+        (found.status === 'pending' ? (
+          <p className="help" role="status">
+            Searching Qloo for “{found.query}”… <code className="call">{found.call}</code>
+          </p>
+        ) : found.status === 'failed' ? (
+          <p className="err" role="alert">
+            The search for “{found.query}” failed: {found.error} <code className="call">{found.call}</code>
+          </p>
+        ) : found.results.length > 0 ? (
           <PickOne
             key={found.call}
             legend={`Results for “${found.query}”`}

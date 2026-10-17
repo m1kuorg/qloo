@@ -115,6 +115,33 @@ describe('a slow or failing Qloo', () => {
       ['Deep Cuts', 'failed', "Qloo didn't answer within 0.1 s, after 2 retries"]
     ])
   })
+
+  it('answers a comp search at once, then shows why it failed', async () => {
+    configure({ QLOO_TIMEOUT_MS: '100' })
+    fakeQloo({ search: { ...search, 'Night Shift Movies': 'hang' } })
+    const s = await session()
+    await s.importRoster('Night Shift Cinema')
+    await s.call('searchComps', 'Night Shift Cinema', 'Night Shift Movies')
+
+    // The call is back while the search is out, so no client timeout can fire.
+    const comp = (state: State) => state.roster[0].compSearch
+    expect(comp(s.state()!)).toEqual({
+      query: 'Night Shift Movies',
+      call: 'C-02',
+      status: 'pending',
+      results: [],
+      error: null
+    })
+    const settled = await s.until((state) => comp(state)?.status !== 'pending')
+    expect(comp(settled)).toEqual({
+      query: 'Night Shift Movies',
+      call: 'C-02',
+      status: 'failed',
+      results: [],
+      error: "Qloo didn't answer within 0.1 s, after 2 retries"
+    })
+    expect(await evidenceFor(s, 'Night Shift Movies')).toMatchObject({ call: 'C-02', retries: 2 })
+  })
 })
 
 describe('the response cache', () => {
