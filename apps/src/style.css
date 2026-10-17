@@ -884,3 +884,23 @@ fieldset {
   max-height: 320px;
   overflow-y: auto;
 }
+
+/* A demographic mismatch marks a finalist without removing it: an ink chip, its reasons under the name. */
+.chip.flag {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.flag-why {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.demo-sum b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.demo-sum .call {
+  margin-right: 0;
+}

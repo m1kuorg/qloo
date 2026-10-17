@@ -14,6 +14,7 @@ import type {
   ShowPatch,
   State
 } from '../agent'
+import { ageWords, type DemographicCheck } from '../demographics'
 import type { Band, Ranking } from '../fit'
 import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import { sameName } from '../resolve'
@@ -90,6 +91,7 @@ export function App({ page }: { page: string | undefined }) {
           <FitChart
             ranking={shown?.ranking ?? null}
             leftOut={shown?.run?.exclusions ?? []}
+            demographics={shown?.demographics ?? null}
             running={run?.status === 'running'}
             openCall={openCall}
             opened={opened?.call ?? null}
@@ -565,12 +567,14 @@ const listOf = (names: string[]) =>
 function FitChart({
   ranking,
   leftOut,
+  demographics,
   running,
   openCall,
   opened
 }: {
   ranking: Ranking | null
   leftOut: string[] // shows the run's exclusions answer left out
+  demographics: DemographicCheck | null // the finalists checked against the launch's listeners
   running: boolean
   openCall: (call: string) => void
   opened: string | null
@@ -604,6 +608,9 @@ function FitChart({
         {listOf(ranking.anchors.map((a) => a.name))}. Bands are thirds of this ranking, and the top five, after any
         shows left out, are finalists.
       </p>
+      {demographics && !ranking.error && (
+        <DemographicSummary check={demographics} ranking={ranking} openCall={openCall} opened={opened} />
+      )}
       {ranking.error ? (
         <p className="err" role="alert">
           Not scored: {ranking.error}. Nothing is ranked.
@@ -640,6 +647,7 @@ function FitChart({
                 comps && (r.leadingComp ? `Led by ${r.leadingComp.name}` : 'Comps contributed evenly')
               ].filter(Boolean)
               const shared = r.sharedTags ?? null // runs from before shared tags have none
+              const flagged = r.finalist ? demographics?.rows.find((d) => d.show === r.show)?.reasons : null
               return (
                 <tr
                   key={r.show}
@@ -652,6 +660,7 @@ function FitChart({
                       <span className="nm">{r.show}</span>
                       {r.finalist && <span className="chip">Finalist</span>}
                       {leftOut.includes(r.show) && <span className="chip">Left out</span>}
+                      {flagged?.length ? <span className="chip flag">Listeners differ</span> : null}
                     </div>
                     {shared && (
                       <div className="tg">
@@ -673,6 +682,7 @@ function FitChart({
                       </div>
                     )}
                     {notes.length > 0 && <div className="tg">{notes.join(' · ')}</div>}
+                    {flagged?.length ? <div className="flag-why">{flagged.join('. ')}.</div> : null}
                   </td>
                   <td>
                     <span className={`band b${bars}`}>
@@ -708,6 +718,61 @@ function FitChart({
         </table>
       )}
     </section>
+  )
+}
+
+// The demographic check in one line, citing its call: who the launch's listeners are, in words,
+// and how many finalists' listeners differ. The values stay in the call's evidence.
+function DemographicSummary({
+  check,
+  ranking,
+  openCall,
+  opened
+}: {
+  check: DemographicCheck
+  ranking: Ranking
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  const cite = (
+    <button
+      type="button"
+      className="call"
+      aria-pressed={check.call === opened}
+      aria-controls="evidence"
+      aria-label={`Evidence for the demographic check: call ${check.call}`}
+      onClick={() => openCall(check.call)}
+    >
+      {check.call}
+    </button>
+  )
+  if (!check.profile)
+    return (
+      <p className="err demo-sum" role="alert">
+        Demographics {cite} not checked: {check.error}.
+      </p>
+    )
+  const { from, ages, skew } = check.profile
+  const who = [
+    ages.length ? `over-index at ages ${listOf(ages.map(ageWords))}` : 'over-index at no age band',
+    skew ? `skew ${skew}` : 'have no strong gender skew'
+  ]
+  const noData = ranking.anchors.filter((a) => !from.includes(a.name)).map((a) => a.name)
+  const unchecked = check.rows.filter((r) => r.reasons === null).map((r) => r.show)
+  const flagged = check.rows.filter((r) => r.reasons?.length).length
+  return (
+    <p className="help sec-help demo-sum">
+      <b>Demographics</b> {cite} · Checked against the listeners of {listOf(from)}
+      {from.length > 1 && ' on average'}, who {who.join(' and ')}.
+      {noData.length > 0 && ` Qloo had no demographics for ${listOf(noData)}.`}{' '}
+      <b>
+        {flagged
+          ? `${flagged} of ${check.rows.length} finalists' listeners differ.`
+          : `No demographic mismatches among the ${check.rows.length} finalists.`}
+      </b>
+      {unchecked.length > 0 &&
+        ` Qloo had no demographics for ${listOf(unchecked)}, so ${unchecked.length > 1 ? "they weren't" : "it wasn't"} checked.`}
+    </p>
   )
 }
 

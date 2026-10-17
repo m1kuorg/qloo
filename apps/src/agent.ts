@@ -1,6 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
 import { claude } from './claude'
+import type { DemographicCheck } from './demographics'
 import { callNumber, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { markFinalists, scorable, type Ranking } from './fit'
@@ -108,6 +109,7 @@ export type State = {
   run: Run | null // the latest run
   runs: RunSummary[] // every run this session started, oldest first
   ranking: Ranking | null // the current run's fit chart, once the roster is ranked
+  demographics: DemographicCheck | null // the current run's finalists checked against the launch's listeners
   inbox: Inbox | null // the booker's guest pitches, when GUEST_PITCHES is on
   sample: Sample | null // the sample network the session opened on, until it's cleared or a roster is imported
 }
@@ -127,6 +129,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     run: null,
     runs: [],
     ranking: null,
+    demographics: null,
     inbox: null,
     sample: null
   }
@@ -293,7 +296,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
         ...(this.state.runs ?? []),
         { id: run, launch: name, status: 'running', startedAt: new Date(startedAt).toISOString() }
       ],
-      ranking: null
+      ranking: null,
+      demographics: null
     })
     // The roster's IDs go in the run's first message, so the frozen system prompt stays session-free.
     const shows = this.state.roster.filter(scorable)
