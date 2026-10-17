@@ -377,3 +377,118 @@ describe('asking the programmer', () => {
     expect(modelRequests()[2].messages).toHaveLength(3)
   })
 })
+
+describe('asking which show the launch is', () => {
+  const resolveLateReel = toolUse('resolve_entities', { names: ['Late Reel'], type: 'urn:entity:podcast' })
+  const askWhich = toolUse('ask_human', { question: 'Which show is the launch?', kind: 'launch', options: [] })
+
+  it('sets the launch to the candidate the programmer picks, citing the original search', async () => {
+    fakeQloo({
+      search: { ...search, 'Static Bloom': [{ entity_id: 'e-0302', name: 'Static Bloom', popularity: 0.6 }] }
+    })
+    fakeInsights([{ entity_id: 'e-0302', name: 'Static Bloom', affinity: 0.9 }])
+    const rank = toolUse('rank_candidates', {
+      anchor_ids: ['e-0201'],
+      candidate_ids: ['e-0302'],
+      type: 'urn:entity:podcast'
+    })
+    fakeClaude([turn(resolveLateReel), turn(askWhich), turn(rank), turn(text('Ranked.'))])
+    const s = await session()
+    // The network's own feed of the launch, settled in the roster to the popular candidate.
+    await s.importRoster('Late Reel\nStatic Bloom')
+    await s.call('updateShow', 'Late Reel', { entityId: 'e-0201' })
+    await s.call('startLaunch', { name: 'Late Reel' })
+
+    const paused = await waiting(s)
+    const call = paused.launch!.match!.evidence
+    expect(paused.launch?.match).toMatchObject({ resolution: 'ambiguous' })
+    expect(question(paused)).toMatchObject({
+      kind: 'launch',
+      options: ['Late Reel, popularity 88.0', 'Late Reel, popularity 31.0']
+    })
+    expect(paused.run?.notes.at(-1)).toEqual({ text: 'Asking which show the launch is', status: 'done' })
+
+    await s.call('answer', question(paused).id, { choice: 'Late Reel, popularity 88.0' })
+    expect(s.state()?.launch).toEqual({
+      name: 'Late Reel',
+      match: {
+        resolution: 'resolved',
+        entity: { id: 'e-0201', name: 'Late Reel', popularity: 0.88 },
+        candidates: [],
+        evidence: call,
+        error: null
+      }
+    })
+    const state = await finished(s)
+    // Code now knows which roster show is the launch, so the ranking leaves it out.
+    expect(state.ranking?.notScored).toContainEqual({
+      show: 'Late Reel',
+      reason: 'The launch: not ranked against itself'
+    })
+    expect(modelRequests()[2].messages.at(-1).content).toEqual([
+      {
+        type: 'tool_result',
+        tool_use_id: 'toolu_2_1',
+        content: `Asked the programmer. Their answer follows. Code set the launch to Late Reel (Qloo ID e-0201), from ${call}; don't resolve it again.`
+      },
+      { type: 'text', text: 'The launch is Late Reel, popularity 88.0.' }
+    ])
+  })
+
+  it('renames a missed launch to the name the programmer gives, and the lookup of that name is the launch', async () => {
+    fakeQloo({ search: { 'Glass Harbour': [{ entity_id: 'e-0501', name: 'Glass Harbour', popularity: 0.42 }] } })
+    const resolve = (name: string) => toolUse('resolve_entities', { names: [name], type: 'urn:entity:podcast' })
+    fakeClaude([turn(resolve('Glass Harbor')), turn(askWhich), turn(resolve('Glass Harbour')), turn(text('Done.'))])
+    const s = await session()
+    await s.call('startLaunch', { name: 'Glass Harbor' })
+
+    const paused = await waiting(s)
+    expect(paused.launch?.match).toMatchObject({ resolution: 'missed' })
+    expect(question(paused)).toMatchObject({ kind: 'launch', options: [] })
+    await expect(s.call('answer', question(paused).id, {})).rejects.toThrow(
+      'Pick a candidate or type the name Qloo lists it under.'
+    )
+
+    await s.call('answer', question(paused).id, { text: ' Glass Harbour ' })
+    expect(s.state()?.launch).toEqual({ name: 'Glass Harbour', match: null })
+    const state = await finished(s)
+    expect(state.launch?.match).toMatchObject({
+      resolution: 'resolved',
+      entity: { id: 'e-0501', name: 'Glass Harbour' }
+    })
+    // The runs list keeps the name the run started with.
+    expect(state.runs.at(-1)?.launch).toBe('Glass Harbor')
+    expect(modelRequests()[2].messages.at(-1).content).toEqual([
+      {
+        type: 'tool_result',
+        tool_use_id: 'toolu_2_1',
+        content:
+          'Asked the programmer. Their answer follows. Code renamed the launch "Glass Harbour"; resolve that name.'
+      },
+      { type: 'text', text: 'Look it up as "Glass Harbour".' }
+    ])
+  })
+
+  it('asks which show the launch is only when its lookup was ambiguous or missed, and takes one answer', async () => {
+    fakeQloo({ search: { ...search, 'Quiet Hours': [{ entity_id: 'e-0301', name: 'Quiet Hours', popularity: 0.7 }] } })
+    fakeClaude([
+      turn(toolUse('resolve_entities', { names: ['Quiet Hours'], type: 'urn:entity:podcast' })),
+      turn(askWhich),
+      turn(text('Stopped.'))
+    ])
+    const s = await session()
+    await s.call('startLaunch', { name: 'Quiet Hours' })
+    await finished(s)
+    const refused = modelRequests()[2].messages.at(-1).content[0]
+    expect(refused).toMatchObject({ tool_use_id: 'toolu_2_1', is_error: true })
+    expect(refused.content).toContain("The launch's lookup came back resolved, so there is no pick to ask about.")
+
+    fakeClaude([turn(resolveLateReel), turn(askWhich), turn(text('Done.'))])
+    await s.call('startLaunch', { name: 'Late Reel' })
+    const paused = await waiting(s)
+    await expect(
+      s.call('answer', question(paused).id, { choice: 'Late Reel, popularity 31.0', text: 'Late Reel' })
+    ).rejects.toThrow('Pick a candidate or type a name, not both.')
+    expect(s.state()?.launch?.match).toMatchObject({ resolution: 'ambiguous' })
+  })
+})

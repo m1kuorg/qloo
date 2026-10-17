@@ -7,7 +7,7 @@ const launchSteps: { step: string; instruction: string | null }[] = [
   {
     step: 'Resolve the launch (#34)',
     instruction:
-      "Resolve the launch: call resolve_entities with the launch name exactly as the programmer gave it, as type urn:entity:podcast. If it comes back ambiguous, ask the programmer which candidate is the launch (kind choice), offering each candidate by name and popularity percentile. If it comes back missed, ask what name Qloo might list it under (kind choice, no options), then resolve that name. If they can't say, or the lookup fails twice, say so and stop."
+      "Resolve the launch: call resolve_entities with the launch name exactly as the programmer gave it, as type urn:entity:podcast. If it comes back ambiguous or missed, ask the programmer which show the launch is (kind launch). If they pick a candidate, code sets it as the launch and the tool result gives its Qloo ID; use that ID and don't resolve the launch again. If they give a name instead, resolve that name. If the lookup fails twice, say so and stop."
   },
   { step: 'Confirm comps (#40)', instruction: null },
   {
