@@ -187,7 +187,7 @@ From the [brief](BRIEF.md#submission-checklist), plus our own choices:
 
 - The live demo URL, with free, unrestricted access through 2026-11-16.
 - A public repository. It is private today and must be made public before submitting.
-- An open-source license file, detected in the repository's About section. There is none yet; it will be MIT.
+- An open-source license file, detected in the repository's About section: MIT, in [LICENSE](/LICENSE).
 - A description with one heading per judging criterion that leads with what breaks without Qloo, names the endpoints, walks one request through to its result, states known limitations, and pitches Crossfeed as a company for the Calacanis bonus ([CONTEXT](CONTEXT.md#strategy-for-our-entry)).
 - Screenshots and a demo video, optional but read first by judges.
 
