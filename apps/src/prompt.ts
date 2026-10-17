@@ -48,8 +48,16 @@ const guestSteps: { step: string; instruction: string | null }[] = [
     instruction:
       "Rank the pitches: call rank_pitches once with the show's Qloo ID, every past guest work ID the run's first message lists, and every pitch ID it lists. Give a pitched work's fit as its rank and band within its own type's list, never as a raw score, and never compare ranks across lists, because each list comes from its own Qloo call. In your own text, name a pitch by its work's title, never by its pitch ID; tools still take pitch IDs."
   },
-  { step: 'Propose episode angles (#52)', instruction: null },
-  { step: 'Draft replies (#52)', instruction: null }
+  {
+    step: 'Propose episode angles (#52)',
+    instruction:
+      "Once the pitches are ranked, call shared_tags with the show's Qloo ID as the only anchor and the ID of every pitch in the top band of its list. Build each top pitch's episode angle, one or two sentences on the episode its work could make for the show, from its shared tags, using only tags the tool returned. When its tags only describe style, such as Conversational or Insightful, or it has none, say its overlap with the show is in its listeners' taste rather than its topic."
+  },
+  {
+    step: 'Draft replies (#52)',
+    instruction:
+      "Then call draft_replies with a reply to every pitch the run's first message lists, at most 20 per call, calling it again in your next turn for the rest. Give each a verdict from its band in its own list: book for the top band, later for the middle band and for a pitch that wasn't scored or read, and decline for the bottom band and for a pitch with no public work. Give each top pitch its angle, and every other pitch a null angle. Write each draft as a short, warm reply to the publicist who sent the pitch, two to four plain sentences that name the work and the show and say what happens next. You don't know the guest's or the sender's names, so never use or invent one. The draft goes to the sender, so never give the reason for a verdict or mention a rank, band, score, call number, year, Qloo, a catalog, or whether a work was found, matched, or scored: a later reply says you'll follow up, and a decline thanks them and passes. The booker approves, edits, or discards each reply in the UI and sends it themselves; you can't."
+  }
 ]
 
 const numbered = (steps: { instruction: string | null }[]) =>

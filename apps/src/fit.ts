@@ -41,6 +41,7 @@ export type PitchRow = {
   entity: WorkCandidate // the work Qloo scored
   rank: number // from 1, within this list only
   band: Band
+  sharedTags?: SharedTags // a top pitch's tags in common with the show, once shared_tags has run
 }
 
 export type PitchNotScored = { pitch: string; reason: string }

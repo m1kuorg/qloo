@@ -1,6 +1,6 @@
 // The booker's inbox of guest pitches: the sample inbox, or pitches pasted in, read into one row
 // per pitch. Anything it can't take is refused with a message, so an inbox never loads in part.
-import type { PitchList } from './fit'
+import type { PitchList, SharedTags } from './fit'
 import type { Candidate } from './resolve'
 import sampleInbox from './sample-inbox.json'
 
@@ -73,6 +73,20 @@ export type Booking = {
   show: { name: string; entity: Candidate } // the roster show, named as imported
   pastGuests: PastGuest[]
   lists: PitchList[] | null
+  replies: PitchReply[] | null // one per pitch, in inbox order, as draft_replies drafts them
+}
+
+export type Verdict = 'book' | 'decline' | 'later'
+
+// A drafted reply to one pitch, with the agent's verdict. Only the booker approves, edits, or
+// discards it, and only an approved reply can be copied out.
+export type PitchReply = {
+  pitch: string // the pitch's ID
+  verdict: Verdict
+  angle: string | null // the episode angle, for a pitch whose work shared_tags compared with the show
+  sharedTags: SharedTags | null // that compare, which the angle is built from
+  draft: string
+  status: 'draft' | 'approved' | 'discarded'
 }
 
 // The sample inbox, or pasted text with pitches separated by lines of three or more dashes.
