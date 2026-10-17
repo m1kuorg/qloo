@@ -2,6 +2,7 @@
 import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
+import { checkHealth } from './health'
 import { renderer } from './renderer'
 
 export { CrossfeedAgent } from './agent'
@@ -58,8 +59,8 @@ app.get('/api/insertion-orders/:file{.+\\.csv}', async (c) => {
 
 export default {
   fetch: app.fetch,
-  // Daily cron stub; the Qloo health check (#51) goes here.
-  async scheduled(controller: ScheduledController) {
-    console.log(JSON.stringify({ event: 'cron', cron: controller.cron }))
+  // The daily cron in wrangler.jsonc: the Qloo health check.
+  async scheduled(_controller, env) {
+    await checkHealth(env)
   }
 } satisfies ExportedHandler<Env>

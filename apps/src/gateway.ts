@@ -18,6 +18,10 @@ export type QlooResult<T> = { evidence: CallEvidence } & (
 
 type Params = Record<string, string | number | boolean>
 
+// How a call uses the shared cache: answered from it when it can; never, so the answer is Qloo's
+// today; or only from it, never reaching Qloo. The health check uses the last two.
+export type CacheUse = 'use' | 'bypass' | 'only'
+
 // One ranked result: its raw affinity and each anchor's share of it, from explainability.
 export type Affinity = CallEvidence['affinities'][number]
 
@@ -94,8 +98,8 @@ export class QlooGateway extends DurableObject<Env> {
 
   // Finds entities by name. Qloo's search is fuzzy, so deciding whether a result is the show is
   // the caller's job (see resolve.ts).
-  async search(query: string, type: string, take = 3): Promise<QlooResult<QlooEntity[]>> {
-    const result = await this.request('GET', '/search', { query, types: type, take })
+  async search(query: string, type: string, take = 3, cache: CacheUse = 'use'): Promise<QlooResult<QlooEntity[]>> {
+    const result = await this.request('GET', '/search', { query, types: type, take }, cache)
     if (!result.ok) return result
     const raw = (result.data as { results?: SearchResult[] } | null)?.results ?? []
     const entities = raw.map((r) => ({
@@ -116,15 +120,25 @@ export class QlooGateway extends DurableObject<Env> {
   // without explainability is an error, not a ranking; so are all-null affinities, marked `unscored`:
   // the anchors gave no signal, or no candidate has one. A candidate left out of the results, or
   // scored null, is unscored.
-  async rank(anchors: string[], candidates: string[], type: string): Promise<QlooResult<Ranked>> {
+  async rank(
+    anchors: string[],
+    candidates: string[],
+    type: string,
+    cache: CacheUse = 'use'
+  ): Promise<QlooResult<Ranked>> {
     const ids = [...new Set(candidates)]
-    const result = await this.request('POST', '/v2/insights', {
-      'filter.type': type,
-      'signal.interests.entities': anchors.join(','),
-      'filter.results.entities': ids.join(','),
-      'feature.explainability': true,
-      take: 50
-    })
+    const result = await this.request(
+      'POST',
+      '/v2/insights',
+      {
+        'filter.type': type,
+        'signal.interests.entities': anchors.join(','),
+        'filter.results.entities': ids.join(','),
+        'feature.explainability': true,
+        take: 50
+      },
+      cache
+    )
     if (!result.ok) return result
     const raw = (result.data as { results?: { entities?: InsightResult[] } } | null)?.results?.entities ?? []
     const affinities = raw.map((r) => ({
@@ -208,7 +222,12 @@ export class QlooGateway extends DurableObject<Env> {
 
   // GET sends the parameters in the query string; POST sends them as a JSON body of flat dotted
   // keys, such as {"filter.type": "urn:entity:podcast"}, because Qloo answers a nested body with 400.
-  private async request(method: 'GET' | 'POST', endpoint: string, params: Params): Promise<QlooResult<unknown>> {
+  private async request(
+    method: 'GET' | 'POST',
+    endpoint: string,
+    params: Params,
+    cache: CacheUse = 'use'
+  ): Promise<QlooResult<unknown>> {
     const url = new URL(endpoint, this.env.QLOO_BASE_URL)
     const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
     if (method === 'GET') url.search = String(query)
@@ -234,12 +253,16 @@ export class QlooGateway extends DurableObject<Env> {
     const timeoutMs = Number(this.env.QLOO_TIMEOUT_MS)
     const retryDelays = this.env.QLOO_RETRY_DELAYS_MS.split(',').map(Number)
     try {
-      const [hit] = this.ctx.storage.sql.exec<CacheRow>('SELECT status, body FROM cache WHERE key = ?', key).toArray()
+      const [hit] =
+        cache === 'bypass'
+          ? []
+          : this.ctx.storage.sql.exec<CacheRow>('SELECT status, body FROM cache WHERE key = ?', key).toArray()
       if (hit) {
         evidence.status = hit.status
         evidence.cacheHit = true
         return { ok: true, data: JSON.parse(hit.body), evidence }
       }
+      if (cache === 'only') return this.fail(evidence, 'Not in the cache')
       for (;;) {
         if (!this.spend()) return this.fail(evidence, capReached(this.env.QLOO_DAILY_CALL_CAP) + retried(evidence))
         await this.takeSlot()

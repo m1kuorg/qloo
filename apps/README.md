@@ -62,6 +62,7 @@ Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/clou
 - `fakeClaude(script)` is the scripted model. Each Messages API request gets the next turn, streamed as the API streams it, after an empty thinking block like Haiku 5.5's. Build turns with `turn(toolUse(name, input), text(...))`, which ends in tool calls if it has any, or `refusal(category)`. Tool use IDs are `toolu_<turn>_<block>`. A script entry can be an async function of the request, to hold a turn while the test looks at a running run. A request past the end of the script gets a 400.
 - `modelRequests()` returns the body of every request the scripted model got, to check model settings and history.
 - A run's topic baseline request doesn't take a scripted turn, and `modelRequests()` leaves it out. `fakeClaude` answers it from `fakeTopic(answer)`: show names in topic order, a scripted turn such as `refusal(...)`, an HTTP status, or a function of the request, which can hold its answer. By default it ranks the shows in the order the request lists them, `topicNames(request)`. `topicRequests()` returns each baseline request's body.
+- To run the daily cron, call the Worker's `scheduled` handler with `createScheduledController()` and `createExecutionContext()` from `cloudflare:test`, as `test/health.test.ts` does, and spy on `console.log` and `console.error` for its log lines.
 - Add a fake for a new endpoint or API to `test/fake.ts` the same way.
 
 Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo response into a test.
@@ -154,17 +155,25 @@ To cap the deployed Worker without a code change, deploy from up-to-date `main` 
 
 Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status, latency, retries, and cache hit, in the dev server's output, in Workers Logs, and live with `bunx wrangler tail --format json`. To see failures in the running app, add `QLOO_TIMEOUT_MS=1` or a low `QLOO_DAILY_CALL_CAP` to `.dev.vars` and restart the dev server. To see a slow call named, add a low `QLOO_SLOW_MS`, such as `500`, so a normal call passes it.
 
+The daily cron (`triggers.crons` in `wrangler.jsonc`, 12:00 UTC) runs the health check and logs one `"event":"health_check"` line per check, at error level with the reason when it fails:
+
+- `qloo_search`: the TRD's health-check search, sent to Qloo past the cache. A 401 means the key stopped working.
+- `sample_ranking_cached`: the sample launch, The Watch against the other 15 resolved sample shows with nothing settled, answers from the cache. It reads the cache only and never calls Qloo, so it fails until a fresh session has started the sample launch before settling anything. Settling Binge Mode or mapping a miss first sends a different ranking.
+
+Run it locally with `curl 'http://localhost:5128/cdn-cgi/local/scheduled?cron=0+12+*+*+*'` against the dev server, which prints `ok` and logs the lines in the server's output. Wrangler can't run the deployed cron on demand: `bunx wrangler deploy` lists `schedule: 0 12 * * *`, and `bunx wrangler tail --format json` across 12:00 UTC shows the run.
+
 Agent log lines show each model call's tokens and cache reads (`"event":"model_call"`), each run's topic baseline with its status and whether it came from the cache (`"event":"topic_baseline"`), and one summary per run with its outcome (`"event":"run_summary"`). To see a run stopped at a limit, lower a limit in `src/limits.ts` while the dev server runs, and put it back afterwards.
 
 ## Where things go
 
 - `src/index.tsx`: the Worker's routes, the session cookie, and the cron handler.
+- `src/health.ts`: the daily health check the cron runs. A new check logs its own `health_check` line through `report`.
 - `src/agent.ts`: `CrossfeedAgent`. Its synced `State` type and its `@callable` actions are the client protocol. `startLaunch` returns at once and runs the Claude tool loop in the background, writing a progress note per tool call. When a run ends, the agent keeps the state it ended with, which `getRun` returns. A completed sample launch run answered with the sample answers is also kept in the gateway, and while Qloo can't be called, `startLaunch` replays it instead of running, or stops any other run. The replay copies whatever state the stored run holds, except the session's own `inbox` and `runs`; a new session-level field that a launch run doesn't own joins `inbox` in `keepSampleRun`.
 - `src/limits.ts`: the run limits, shared by the agent and the UI.
 - `src/claude.ts`: the model settings for every agent turn. Change them only with the TRD's model settings.
 - `src/prompt.ts`: the frozen system prompt. Its launch steps are in the PRD's order; a tool ticket fills its own step's `instruction`, and an empty step stays out of the prompt.
 - `src/tools/`: one file per tool, registered in `src/tools/index.ts`. A tool has a strict definition, the progress note it shows, and `run`, which reaches Qloo through `context.qloo` and returns an error that says what to do next.
-- `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. It also keeps the stored sample run, and `health()` says whether Qloo can be called: not once the day's cap is reached, nor for five minutes after a request fails after its retries, unless one succeeds since. Each method returns its data or error together with an evidence record. Every request goes through `request`, which sends GET parameters in the query string and POST ones as a JSON body of flat dotted keys, serves the shared cache, enforces the daily cap, paces and limits requests to 3 in flight, and retries; a new endpoint goes through it too.
+- `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. It also keeps the stored sample run, and `health()` says whether Qloo can be called: not once the day's cap is reached, nor for five minutes after a request fails after its retries, unless one succeeds since. Each method returns its data or error together with an evidence record. Every request goes through `request`, which sends GET parameters in the query string and POST ones as a JSON body of flat dotted keys, serves the shared cache, enforces the daily cap, paces and limits requests to 3 in flight, and retries; a new endpoint goes through it too. A call can skip the cache or read only from it, as the health check does.
 - `src/evidence.ts`: the evidence record's shape. Fill its fields; don't reshape it.
 - `src/resolve.ts`: deciding whether a search result is the named entity: a roster show by name, a pitched work by title, then its author or year.
 - `src/demographics.ts`: the demographic check's derived values and its thresholds, built from one demographics call: the launch profile and each finalist's mismatches in words. Read `state.demographics`.
