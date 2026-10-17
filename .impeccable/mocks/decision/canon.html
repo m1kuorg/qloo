@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Crossfeed · L-0003 Unreleased film show</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        width: 1440px;
+        height: 900px;
+        overflow: hidden;
+        display: flex;
+        background: #fff;
+        color: #111827;
+        font:
+          14px/20px Inter,
+          system-ui,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        font-feature-settings: 'cv11', 'ss01';
+      }
+      svg {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        border: 0;
+        background: none;
+        cursor: pointer;
+      }
+      b {
+        font-weight: 600;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+      }
+      .mark {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: #2563eb;
+        color: #fff;
+        display: grid;
+        place-items: center;
+        flex: none;
+      }
+      .mark svg {
+        width: 14px;
+        height: 14px;
+        stroke-width: 2.25;
+      }
+      .av {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        display: grid;
+        place-items: center;
+        font-size: 10.5px;
+        font-weight: 600;
+        color: #4b5563;
+        flex: none;
+      }
+      /* sidebar */
+      aside {
+        width: 240px;
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        padding: 16px 12px;
+        background: #f9fafb;
+        border-right: 1px solid #e5e7eb;
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 8px 18px;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .ws {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px;
+        margin-bottom: 24px;
+      }
+      .ws div {
+        flex: 1;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 16px;
+      }
+      .ws small {
+        display: block;
+        font-size: 12px;
+        font-weight: 400;
+        color: #6b7280;
+      }
+      .ws > svg {
+        color: #9ca3af;
+      }
+      .lbl {
+        padding: 0 8px 6px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6b7280;
+      }
+      nav {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      nav a {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 6px;
+        color: #4b5563;
+        font-size: 13.5px;
+        font-weight: 500;
+        text-decoration: none;
+      }
+      nav a svg {
+        color: #9ca3af;
+      }
+      nav a.on {
+        background: #fff;
+        color: #111827;
+        box-shadow:
+          0 0 0 1px #e5e7eb,
+          0 1px 2px rgba(17, 24, 39, 0.05);
+      }
+      nav a.on svg {
+        color: #2563eb;
+      }
+      .n {
+        margin-left: auto;
+        min-width: 20px;
+        text-align: center;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: #1d4ed8;
+        background: #dbeafe;
+        border-radius: 999px;
+        line-height: 18px;
+      }
+      .bottom {
+        margin-top: auto;
+      }
+      /* main */
+      main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        height: 64px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 24px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .crumb {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .crumb .sep {
+        color: #6b7280;
+      }
+      .crumb .mut {
+        color: #6b7280;
+      }
+      .id {
+        font-size: 12px;
+        font-weight: 500;
+        color: #4b5563;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        padding: 0 6px;
+        line-height: 20px;
+      }
+      .ago {
+        font-size: 12.5px;
+        color: #6b7280;
+        margin-right: 6px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 32px;
+        padding: 0 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        background: #fff;
+        font-size: 13.5px;
+        font-weight: 500;
+        box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05);
+      }
+      .btn svg {
+        width: 15px;
+        height: 15px;
+        color: #6b7280;
+      }
+      .btn.pri {
+        background: #2563eb;
+        border-color: #1d4ed8;
+        color: #fff;
+        box-shadow: 0 1px 2px rgba(37, 99, 235, 0.25);
+      }
+      .btn.pri svg {
+        color: #fff;
+      }
+      .content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 24px;
+      }
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      .kpi {
+        padding: 16px 20px;
+      }
+      .kpi .l {
+        font-size: 13px;
+        font-weight: 500;
+        color: #6b7280;
+      }
+      .kpi .v {
+        margin: 6px 0 2px;
+        font-size: 28px;
+        line-height: 36px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .kpi .s {
+        font-size: 12.5px;
+        color: #6b7280;
+      }
+      .grid {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 1fr 392px;
+        gap: 16px;
+      }
+      /* table */
+      .tcard {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .th {
+        padding: 16px 20px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .th h2 {
+        font-size: 15px;
+        line-height: 22px;
+        font-weight: 600;
+      }
+      .th p {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .tw {
+        flex: 1;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+      }
+      thead th {
+        height: 36px;
+        padding: 0 16px;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6b7280;
+        text-align: left;
+        white-space: nowrap;
+      }
+      td {
+        height: 57px;
+        padding: 0 16px;
+        border-bottom: 1px solid #f3f4f6;
+        font-size: 13.5px;
+        white-space: nowrap;
+      }
+      th:first-child,
+      td:first-child {
+        padding-left: 20px;
+      }
+      th:last-child,
+      td:last-child {
+        padding-right: 20px;
+      }
+      td:first-child {
+        color: #6b7280;
+        font-weight: 500;
+      }
+      .r {
+        text-align: right;
+      }
+      tr.sel td {
+        background: #f5f8ff;
+      }
+      tr.sel td:first-child {
+        box-shadow: inset 2px 0 #2563eb;
+        color: #1d4ed8;
+      }
+      .show {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 500;
+      }
+      .chg {
+        display: inline-block;
+        min-width: 34px;
+        padding: 0 6px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 20px;
+        text-align: center;
+      }
+      .up {
+        background: #ecfdf5;
+        color: #047857;
+      }
+      .dn {
+        background: #fef2f2;
+        color: #b91c1c;
+      }
+      .eq {
+        color: #6b7280;
+      }
+      .fit {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+      }
+      .fit.f {
+        color: #6b7280;
+      }
+      .m {
+        display: flex;
+        gap: 2px;
+      }
+      .m i {
+        width: 12px;
+        height: 6px;
+        border-radius: 2px;
+        background: #e5e7eb;
+      }
+      .m i.on {
+        background: #2563eb;
+      }
+      .tf {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 20px;
+        border-top: 1px solid #e5e7eb;
+        font-size: 12.5px;
+        color: #6b7280;
+      }
+      /* chat */
+      .chat {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .ch {
+        height: 56px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 16px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .ch div {
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 16px;
+      }
+      .ch small {
+        display: block;
+        font-size: 12px;
+        font-weight: 400;
+        color: #6b7280;
+      }
+      .st {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 8px;
+        border: 1px solid #fde68a;
+        border-radius: 999px;
+        background: #fffbeb;
+        color: #b45309;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 20px;
+      }
+      .st i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #f59e0b;
+      }
+      .msgs {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 14px;
+        padding: 16px;
+      }
+      .ev {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+        color: #6b7280;
+      }
+      .ev:before,
+      .ev:after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: #e5e7eb;
+      }
+      .msg {
+        display: flex;
+        gap: 10px;
+      }
+      .msg .mark {
+        width: 28px;
+        height: 28px;
+      }
+      .body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .who {
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 16px;
+      }
+      .who span {
+        margin-left: 6px;
+        font-weight: 400;
+        color: #6b7280;
+      }
+      .bub {
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: #f3f4f6;
+        font-size: 13.5px;
+        line-height: 20px;
+      }
+      .evi {
+        margin-top: 10px;
+        padding: 8px 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        background: #fff;
+        font-size: 12.5px;
+      }
+      .evi .h {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 500;
+        color: #374151;
+      }
+      .evi .h svg {
+        width: 14px;
+        height: 14px;
+        color: #2563eb;
+      }
+      .evi .h a {
+        margin-left: auto;
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .tag {
+        display: inline-block;
+        margin: 6px 4px 0 0;
+        padding: 0 6px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        background: #f9fafb;
+        font-size: 12px;
+        line-height: 20px;
+        color: #374151;
+      }
+      .qr {
+        display: flex;
+        gap: 8px;
+      }
+      .qr button {
+        flex: 1;
+        height: 32px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        background: #fff;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+      }
+      .qr button span {
+        color: #6b7280;
+        font-weight: 400;
+        margin-left: 4px;
+      }
+      .note {
+        font-size: 12px;
+        color: #6b7280;
+      }
+      .inp {
+        flex: none;
+        padding: 12px 16px 16px;
+        border-top: 1px solid #e5e7eb;
+      }
+      .field {
+        display: flex;
+        align-items: center;
+        height: 44px;
+        padding: 0 6px 0 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        color: #6b7280;
+        box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+      }
+      .send {
+        margin-left: auto;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        background: #2563eb;
+        color: #fff;
+        display: grid;
+        place-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <div class="logo">
+        <span class="mark"
+          ><svg viewBox="0 0 24 24">
+            <path
+              d="m18 14 4 4-4 4M18 2l4 4-4 4M2 18h2a4 4 0 0 0 3.3-1.7l5.4-7.6A4 4 0 0 1 16 7h6M2 6h2a4 4 0 0 1 3.6 2.2M22 18h-6a4 4 0 0 1-3.3-1.8l-.4-.5"
+            /></svg></span
+        >Crossfeed
+      </div>
+      <div class="ws card">
+        <span class="av">TR</span>
+        <div>The Ringer (sample)<small>Network workspace</small></div>
+        <svg viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5" /></svg>
+      </div>
+      <div class="lbl">Workspace</div>
+      <nav>
+        <a class="on" href="#"
+          ><svg viewBox="0 0 24 24"><path d="M4 22V4h13l-2.5 4.5L17 13H4" /></svg>Launches</a
+        >
+        <a href="#"
+          ><svg viewBox="0 0 24 24">
+            <rect x="9" y="2" width="6" height="12" rx="3" />
+            <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4" /></svg
+          >Roster</a
+        >
+        <a href="#"
+          ><svg viewBox="0 0 24 24">
+            <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+            <path
+              d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"
+            /></svg
+          >Inbox<span class="n">1</span></a
+        >
+        <a href="#"
+          ><svg viewBox="0 0 24 24">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <path d="M14 2v6h6M8 13h8M8 17h5" /></svg
+          >Evidence log</a
+        >
+      </nav>
+      <nav class="bottom">
+        <a href="#"
+          ><svg viewBox="0 0 24 24">
+            <path d="M20 7h-9M14 17H5" />
+            <circle cx="17" cy="17" r="3" />
+            <circle cx="7" cy="7" r="3" /></svg
+          >Settings</a
+        >
+      </nav>
+    </aside>
+    <main>
+      <header>
+        <div class="crumb">
+          <span class="mut">Launches</span><span class="sep">/</span><span class="id">L-0003</span
+          ><b>Unreleased film show</b>
+        </div>
+        <span class="ago">Scored 2 min ago</span>
+        <button class="btn">
+          <svg viewBox="0 0 24 24">
+            <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+            <path d="M21 3v5h-5" /></svg
+          >Re-run
+        </button>
+        <button class="btn pri">
+          <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>Approve plan
+        </button>
+      </header>
+      <div class="content">
+        <section class="kpis">
+          <div class="card kpi">
+            <div class="l">Shows scored</div>
+            <div class="v">16</div>
+            <div class="s">Against 3 comps</div>
+          </div>
+          <div class="card kpi">
+            <div class="l">Moves vs topic</div>
+            <div class="v">6</div>
+            <div class="s">3 up, 3 down</div>
+          </div>
+          <div class="card kpi">
+            <div class="l">Slot budget</div>
+            <div class="v">20</div>
+            <div class="s">Default, awaiting your answer</div>
+          </div>
+          <div class="card kpi">
+            <div class="l">Inventory value</div>
+            <div class="v">$139,000</div>
+            <div class="s">Downloads × CPM</div>
+          </div>
+        </section>
+        <div class="grid">
+          <section class="card tcard">
+            <div class="th">
+              <h2>Ranked roster</h2>
+              <p>Ordered by Qloo listener overlap with your 3 comps. Change is versus topic rank.</p>
+            </div>
+            <div class="tw">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 72px">Rank</th>
+                    <th>Show</th>
+                    <th class="r" style="width: 104px">Topic rank</th>
+                    <th class="r" style="width: 88px">Change</th>
+                    <th style="width: 136px; padding-left: 28px">Fit</th>
+                    <th class="r" style="width: 120px">Slot value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1</td>
+                    <td>
+                      <div class="show"><span class="av">BP</span>The Big Picture</div>
+                    </td>
+                    <td class="r">1</td>
+                    <td class="r"><span class="chg eq">—</span></td>
+                    <td style="padding-left: 28px">
+                      <div class="fit">
+                        <span class="m"><i class="on"></i><i class="on"></i><i class="on"></i></span>Strong
+                      </div>
+                    </td>
+                    <td class="r">$8,000</td>
+                  </tr>
+                  <tr>
+                    <td>2</td>
+                    <td>
+                      <div class="show"><span class="av">RW</span>The Rewatchables</div>
+                    </td>
+                    <td class="r">2</td>
+                    <td class="r"><span class="chg eq">—</span></td>
+                    <td style="padding-left: 28px">
+                      <div class="fit">
+                        <span class="m"><i class="on"></i><i class="on"></i><i class="on"></i></span>Strong
+                      </div>
+                    </td>
+                    <td class="r">$9,600</td>
+                  </tr>
+                  <tr class="sel">
+                    <td>3</td>
+                    <td>
+                      <div class="show"><span class="av">60</span>60 Songs That Explain the &rsquo;90s</div>
+                    </td>
+                    <td class="r">9</td>
+                    <td class="r"><span class="chg up">+6</span></td>
+                    <td style="padding-left: 28px">
+                      <div class="fit">
+                        <span class="m"><i class="on"></i><i class="on"></i><i class="on"></i></span>Strong
+                      </div>
+                    </td>
+                    <td class="r">$5,200</td>
+                  </tr>
+                  <tr>
+                    <td>4</td>
+                    <td>
+                      <div class="show"><span class="av">ES</span>Every Single Album</div>
+                    </td>
+                    <td class="r">11</td>
+                    <td class="r"><span class="chg up">+7</span></td>
+                    <td style="padding-left: 28px">
+                      <div class="fit">
+                        <span class="m"><i class="on"></i><i class="on"></i><i></i></span>Good
+                      </div>
+                    </td>
+                    <td class="r">$3,400</td>
+                  </tr>
+                  <tr>
+                    <td>5</td>
+                    <td>
+                      <div class="show"><span class="av">BS</span>The Bill Simmons Podcast</div>
+                    </td>
+                    <td class="r">3</td>
+                    <td class="r"><span class="chg dn">−2</span></td>
+                    <td style="padding-left: 28px">
+                      <div class="fit">
+                        <span class="m"><i class="on"></i><i class="on"></i><i></i></span>Good
+                      </div>
+                    </td>
+                    <td class="r">$14,000</td>
+                  </tr>
+                  <tr>
+                    <td>6</td>
+                    <td>
+                      <div class="show"><span class="av">TW</span>The Watch</div>
+                    </td>
+                    <td class="r">4</td>
+                    <td class="r"><span class="chg dn">−2</span></td>
+                    <td style="padding-left: 28px">
+                      <div class="fit">
+                        <span class="m"><i class="on"></i><i class="on"></i><i></i></span>Good
+                      </div>
+                    </td>
+                    <td class="r">$6,800</td>
+                  </tr>
+                  <tr>
+                    <td>7</td>
+                    <td>
+                      <div class="show"><span class="av">PM</span>Pod Meets World</div>
+                    </td>
+                    <td class="r">6</td>
+                    <td class="r"><span class="chg dn">−1</span></td>
+                    <td style="padding-left: 28px">
+                      <div class="fit f">
+                        <span class="m"><i class="on"></i><i></i><i></i></span>Fair
+                      </div>
+                    </td>
+                    <td class="r">$2,600</td>
+                  </tr>
+                  <tr>
+                    <td>8</td>
+                    <td>
+                      <div class="show"><span class="av">PE</span>Plain English</div>
+                    </td>
+                    <td class="r">12</td>
+                    <td class="r"><span class="chg up">+4</span></td>
+                    <td style="padding-left: 28px">
+                      <div class="fit f">
+                        <span class="m"><i class="on"></i><i></i><i></i></span>Fair
+                      </div>
+                    </td>
+                    <td class="r">$4,400</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="tf"><span>Sample figures</span><span>Showing 8 of 16 shows</span></div>
+          </section>
+          <section class="card chat">
+            <div class="ch">
+              <span class="mark"
+                ><svg viewBox="0 0 24 24">
+                  <path
+                    d="m18 14 4 4-4 4M18 2l4 4-4 4M2 18h2a4 4 0 0 0 3.3-1.7l5.4-7.6A4 4 0 0 1 16 7h6M2 6h2a4 4 0 0 1 3.6 2.2M22 18h-6a4 4 0 0 1-3.3-1.8l-.4-.5"
+                  /></svg
+              ></span>
+              <div>Crossfeed<small>Launch agent</small></div>
+              <span class="st"><i></i>Needs your input</span>
+            </div>
+            <div class="msgs">
+              <div class="ev">Run complete · 2:14 PM</div>
+              <div class="msg">
+                <span class="mark"
+                  ><svg viewBox="0 0 24 24">
+                    <path
+                      d="m18 14 4 4-4 4M18 2l4 4-4 4M2 18h2a4 4 0 0 0 3.3-1.7l5.4-7.6A4 4 0 0 1 16 7h6M2 6h2a4 4 0 0 1 3.6 2.2M22 18h-6a4 4 0 0 1-3.3-1.8l-.4-.5"
+                    /></svg
+                ></span>
+                <div class="body">
+                  <div class="who">Crossfeed<span>2:14 PM</span></div>
+                  <div class="bub">
+                    I scored 16 shows against your 3 comps. <b>60 Songs That Explain the &rsquo;90s</b> moved up 6
+                    places — its listeners share nostalgia and cultural-history tags with all three comps.
+                    <div class="evi">
+                      <div class="h">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M3 3v18h18" />
+                          <path d="m7 15 4-4 3 3 5-6" /></svg
+                        >Qloo evidence · 3 of 3 comps<a href="#">View</a>
+                      </div>
+                      <span class="tag">nostalgia</span><span class="tag">cultural history</span>
+                    </div>
+                  </div>
+                  <div class="bub">How many promo slots can this launch spend?</div>
+                  <div class="qr">
+                    <button>12<span>slots</span></button><button>20<span>slots</span></button
+                    ><button>30<span>slots</span></button>
+                  </div>
+                  <div class="note">Sets the slot budget for the insertion order.</div>
+                </div>
+              </div>
+            </div>
+            <div class="inp">
+              <div class="field">
+                Ask Crossfeed…<span class="send"
+                  ><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" /></svg
+                ></span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

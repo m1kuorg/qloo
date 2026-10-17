@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Crossfeed · L-0003 · Fit chart</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Libre+Franklin:wght@400;500;600;700&display=swap"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --ink: #111;
+        --red: #e3262e;
+        --grey: #6b6b6b;
+        --topic: #8a8a8a;
+        --mid: #555;
+        --panel: #f2f2f2;
+        --line: #e6e6e6;
+        --edge: #d4d4d4;
+        --cond: 'Barlow Condensed', sans-serif;
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      body {
+        width: 1440px;
+        height: 900px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        color: var(--ink);
+        font:
+          400 13px/1.4 'Libre Franklin',
+          sans-serif;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button,
+      input {
+        font: inherit;
+        color: inherit;
+      }
+      .lbl {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--grey);
+      }
+      .top {
+        height: 48px;
+        flex: none;
+        background: var(--ink);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        padding: 0 32px;
+      }
+      .wm {
+        font: 800 22px/1 var(--cond);
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+      .net {
+        margin-left: 16px;
+        padding-left: 16px;
+        border-left: 1px solid #333;
+        color: #b5b5b5;
+        font-size: 12px;
+        line-height: 20px;
+      }
+      .nav {
+        display: flex;
+        align-self: stretch;
+        margin-left: 28px;
+      }
+      .nav a {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 12px 0;
+        color: #a3a3a3;
+        font-weight: 500;
+        border-bottom: 2px solid transparent;
+      }
+      .nav a.on {
+        color: #fff;
+        border-bottom-color: #fff;
+      }
+      .nav small {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink);
+        background: #a3a3a3;
+        border-radius: 3px;
+        padding: 0 5px;
+        line-height: 16px;
+      }
+      .tag {
+        margin-left: auto;
+        font-size: 11px;
+        color: #b5b5b5;
+        border: 1px solid #3a3a3a;
+        border-radius: 3px;
+        padding: 4px 8px;
+      }
+      .hd {
+        flex: none;
+        padding: 18px 32px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .hd-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+      }
+      h1 {
+        font-size: 22px;
+        line-height: 28px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      h1 span {
+        color: var(--grey);
+        font-weight: 500;
+      }
+      .comps {
+        margin-top: 4px;
+        color: var(--mid);
+      }
+      .comps b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .status {
+        text-align: right;
+        font-size: 12px;
+        color: var(--mid);
+      }
+      .status b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .steps {
+        display: flex;
+        gap: 4px;
+        justify-content: flex-end;
+        margin-bottom: 8px;
+      }
+      .steps i {
+        width: 40px;
+        height: 4px;
+        background: var(--line);
+      }
+      .steps .d {
+        background: var(--ink);
+      }
+      .steps .a {
+        background: var(--grey);
+      }
+      .sub {
+        display: flex;
+        gap: 24px;
+        margin-top: 14px;
+      }
+      .sub a {
+        padding: 10px 0;
+        margin-bottom: -1px;
+        font-weight: 500;
+        color: var(--grey);
+        border-bottom: 2px solid transparent;
+      }
+      .sub a.on {
+        color: var(--ink);
+        font-weight: 600;
+        border-bottom-color: var(--ink);
+      }
+      .sub small {
+        font-size: 12px;
+        color: var(--grey);
+        margin-left: 5px;
+        font-weight: 500;
+      }
+      .main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 448px;
+        gap: 24px;
+        padding: 0 32px;
+        min-height: 0;
+      }
+      .left {
+        padding-top: 16px;
+      }
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .in {
+        height: 32px;
+        border: 1px solid var(--edge);
+        border-radius: 4px;
+        padding: 0 8px 0 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #fff;
+      }
+      .in input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: none;
+      }
+      .in input::placeholder {
+        color: var(--grey);
+      }
+      .in .pre {
+        color: var(--grey);
+      }
+      kbd {
+        font: 500 11px var(--mono);
+        color: var(--grey);
+        border: 1px solid var(--edge);
+        border-radius: 3px;
+        padding: 0 5px;
+        line-height: 16px;
+      }
+      .btn {
+        height: 32px;
+        padding: 0 12px;
+        border: 1px solid var(--edge);
+        border-radius: 4px;
+        background: #fff;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+      }
+      .btn em {
+        font-style: normal;
+        color: var(--grey);
+        font-size: 10px;
+      }
+      .btn.pri {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: #fff;
+        font-weight: 600;
+      }
+      .legend {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--mid);
+      }
+      .bul {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--red);
+      }
+      .chart {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .chart th {
+        text-align: left;
+        vertical-align: bottom;
+        padding: 8px;
+        border-bottom: 1px solid var(--ink);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--mid);
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      .chart th:hover,
+      .chart th.s {
+        color: var(--ink);
+      }
+      .chart th i {
+        font-style: normal;
+        color: #c2c2c2;
+        margin-left: 3px;
+        letter-spacing: 0;
+      }
+      .chart th.s i {
+        color: var(--ink);
+      }
+      .chart th small {
+        display: block;
+        margin-top: 2px;
+        font-size: 11px;
+        font-weight: 400;
+        letter-spacing: 0;
+        text-transform: none;
+        color: var(--grey);
+      }
+      .chart td {
+        height: 64px;
+        padding: 0 8px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+      }
+      .chart th:first-child,
+      .chart td:first-child {
+        padding-left: 12px;
+      }
+      .chart .r {
+        text-align: right;
+      }
+      .pos {
+        font: 800 40px/1 var(--cond);
+        white-space: nowrap;
+      }
+      .pos .bul {
+        vertical-align: top;
+        margin: 2px 0 0 5px;
+      }
+      .lw {
+        font: 600 24px/1 var(--cond);
+        color: var(--topic);
+      }
+      .mv {
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .mv.dn,
+      .mv.eq {
+        color: var(--grey);
+        font-weight: 600;
+      }
+      .nm {
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tg {
+        font-size: 12px;
+        color: var(--grey);
+        margin-top: 2px;
+      }
+      .band {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        font-weight: 500;
+      }
+      .band i {
+        width: 5px;
+        height: 12px;
+        background: #dcdcdc;
+      }
+      .band i:nth-of-type(3) {
+        margin-right: 7px;
+      }
+      .b3 i,
+      .b2 i:nth-of-type(-n + 2),
+      .b1 i:first-of-type {
+        background: var(--ink);
+      }
+      .val {
+        font-weight: 600;
+      }
+      .val small {
+        display: block;
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--grey);
+      }
+      .chart tr.hot td {
+        background: var(--panel);
+        border-bottom: 0;
+      }
+      .chart tr.why td {
+        height: auto;
+        padding: 0 8px 12px;
+        background: var(--panel);
+        font-size: 12px;
+        color: var(--mid);
+        white-space: nowrap;
+      }
+      .why .lbl {
+        color: var(--ink);
+        margin-right: 8px;
+      }
+      .why a {
+        color: var(--ink);
+        font-weight: 600;
+        border-bottom: 1px solid var(--edge);
+        margin-left: 6px;
+      }
+      .cap {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--grey);
+      }
+      .rail {
+        border-left: 1px solid var(--line);
+        padding-left: 24px;
+        display: flex;
+        flex-direction: column;
+      }
+      .mod {
+        padding: 16px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .mod:last-child {
+        border-bottom: 0;
+      }
+      .ask {
+        background: var(--panel);
+        margin: 0 -32px 0 -24px;
+        padding: 16px 32px 16px 24px;
+      }
+      .mh {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .mh .lbl {
+        color: var(--ink);
+      }
+      .chip {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--mid);
+        border: 1px solid var(--edge);
+        border-radius: 3px;
+        padding: 2px 6px;
+        background: #fff;
+      }
+      .q {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 20px;
+      }
+      .help {
+        margin-top: 2px;
+        font-size: 12px;
+        color: var(--mid);
+      }
+      .opts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px 16px;
+        margin: 12px 0 10px;
+      }
+      .opts label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 26px;
+        cursor: pointer;
+      }
+      .opts input {
+        accent-color: var(--ink);
+        width: 14px;
+        height: 14px;
+        margin: 0;
+      }
+      .acts {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .acts small {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--grey);
+      }
+      .sub-t {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .rec {
+        display: grid;
+        grid-template-columns: 88px 1fr;
+        font-size: 12px;
+      }
+      .rec dt,
+      .rec dd {
+        padding: 5px 0;
+        border-top: 1px solid var(--line);
+      }
+      .rec dt {
+        color: var(--grey);
+      }
+      .rec code {
+        font: 500 12px var(--mono);
+      }
+      .io {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .io td {
+        height: 28px;
+        border-bottom: 1px solid var(--line);
+      }
+      .io td:nth-child(2) {
+        width: 72px;
+        color: var(--mid);
+      }
+      .io td:last-child {
+        width: 92px;
+        text-align: right;
+        font-weight: 500;
+      }
+      .io tr.tot td {
+        height: 34px;
+        border-bottom: 0;
+        border-top: 1px solid var(--ink);
+        font-weight: 700;
+        color: var(--ink);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <span class="wm">Crossfeed</span>
+      <span class="net">The Ringer · sample network</span>
+      <nav class="nav">
+        <a class="on">Launches</a><a>Roster</a><a>Inbox <small>2</small></a
+        ><a>Evidence log</a>
+      </nav>
+      <span class="tag">Sample data · not affiliated with The Ringer</span>
+    </header>
+    <section class="hd">
+      <div class="hd-row">
+        <div>
+          <h1><span>Launch L-0003 ·</span> Unreleased film show</h1>
+          <p class="comps">Comps: <b>Blank Check</b> · <b>Filmspotting</b> · <b>You Must Remember This</b></p>
+        </div>
+        <div class="status">
+          <div class="steps"><i class="d"></i><i class="d"></i><i class="d"></i><i class="a"></i><i></i><i></i></div>
+          <p>Scoring 16 shows against 3 comps · <b>step 4 of 6</b></p>
+        </div>
+      </div>
+      <nav class="sub">
+        <a class="on">Fit chart</a><a>Evidence<small>16</small></a
+        ><a>Decisions<small>3</small></a
+        ><a>Insertion order</a><a>Brief</a>
+      </nav>
+    </section>
+    <main class="main">
+      <section class="left">
+        <div class="bar">
+          <label class="in" style="width: 272px"><input placeholder="Filter shows or tags" /><kbd>/</kbd></label>
+          <button class="btn">Fit band: All <em>▼</em></button>
+          <button class="btn">Top 8 of 16 <em>▼</em></button>
+          <span class="legend"><i class="bul"></i>Bullet: up 3+ places on topic rank</span>
+        </div>
+        <table class="chart">
+          <colgroup>
+            <col style="width: 104px" />
+            <col style="width: 100px" />
+            <col style="width: 64px" />
+            <col />
+            <col style="width: 108px" />
+            <col style="width: 120px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="s">This week<i>↑</i><small>fit rank</small></th>
+              <th>Last week<i>↕</i><small>topic rank</small></th>
+              <th>Move<i>↕</i><small>vs topic</small></th>
+              <th>Show<i>↕</i><small>shared Qloo tags</small></th>
+              <th>Fit band<i>↕</i></th>
+              <th class="r">Slot value<i>↕</i><small>per episode</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="pos">1</td>
+              <td class="lw">1</td>
+              <td class="mv eq">=</td>
+              <td>
+                <div class="nm">The Big Picture</div>
+                <div class="tg">film criticism · awards season · cinephile</div>
+              </td>
+              <td>
+                <span class="band b3"><i></i><i></i><i></i>Strong</span>
+              </td>
+              <td class="r val">$8,000<small>400K downloads</small></td>
+            </tr>
+            <tr>
+              <td class="pos">2</td>
+              <td class="lw">2</td>
+              <td class="mv eq">=</td>
+              <td>
+                <div class="nm">The Rewatchables</div>
+                <div class="tg">film rewatch · nostalgia · film criticism</div>
+              </td>
+              <td>
+                <span class="band b3"><i></i><i></i><i></i>Strong</span>
+              </td>
+              <td class="r val">$9,600<small>480K downloads</small></td>
+            </tr>
+            <tr class="hot">
+              <td class="pos">3<i class="bul"></i></td>
+              <td class="lw">9</td>
+              <td class="mv">▲6</td>
+              <td>
+                <div class="nm">60 Songs That Explain the '90s</div>
+                <div class="tg">nostalgia · cultural history</div>
+              </td>
+              <td>
+                <span class="band b3"><i></i><i></i><i></i>Strong</span>
+              </td>
+              <td class="r val">$5,200<small>260K downloads</small></td>
+            </tr>
+            <tr class="why">
+              <td colspan="3"></td>
+              <td colspan="3">
+                <span class="lbl">Why it moved · agent</span>Overlaps the comps on nostalgia + cultural history; topic
+                rank saw only music.<a>C-07</a>
+              </td>
+            </tr>
+            <tr>
+              <td class="pos">4<i class="bul"></i></td>
+              <td class="lw">11</td>
+              <td class="mv">▲7</td>
+              <td>
+                <div class="nm">Every Single Album</div>
+                <div class="tg">music criticism · cultural history</div>
+              </td>
+              <td>
+                <span class="band b2"><i></i><i></i><i></i>Good</span>
+              </td>
+              <td class="r val">$3,400<small>170K downloads</small></td>
+            </tr>
+            <tr>
+              <td class="pos">5</td>
+              <td class="lw">3</td>
+              <td class="mv dn">▼2</td>
+              <td>
+                <div class="nm">The Bill Simmons Podcast</div>
+                <div class="tg">pop culture · sports</div>
+              </td>
+              <td>
+                <span class="band b2"><i></i><i></i><i></i>Good</span>
+              </td>
+              <td class="r val">$14,000<small>700K downloads</small></td>
+            </tr>
+            <tr>
+              <td class="pos">6</td>
+              <td class="lw">4</td>
+              <td class="mv dn">▼2</td>
+              <td>
+                <div class="nm">The Watch</div>
+                <div class="tg">tv criticism · pop culture</div>
+              </td>
+              <td>
+                <span class="band b2"><i></i><i></i><i></i>Good</span>
+              </td>
+              <td class="r val">$6,800<small>340K downloads</small></td>
+            </tr>
+            <tr>
+              <td class="pos">7</td>
+              <td class="lw">6</td>
+              <td class="mv dn">▼1</td>
+              <td>
+                <div class="nm">Pod Meets World</div>
+                <div class="tg">tv rewatch · nostalgia</div>
+              </td>
+              <td>
+                <span class="band b1"><i></i><i></i><i></i>Fair</span>
+              </td>
+              <td class="r val">$2,600<small>130K downloads</small></td>
+            </tr>
+            <tr>
+              <td class="pos">8<i class="bul"></i></td>
+              <td class="lw">12</td>
+              <td class="mv">▲4</td>
+              <td>
+                <div class="nm">Plain English with Derek Thompson</div>
+                <div class="tg">cultural history · explainers</div>
+              </td>
+              <td>
+                <span class="band b1"><i></i><i></i><i></i>Fair</span>
+              </td>
+              <td class="r val">$4,400<small>220K downloads</small></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="cap">
+          <span>Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures</span
+          ><span>8 more shows below fit cutoff</span>
+        </p>
+      </section>
+      <aside class="rail">
+        <section class="mod ask">
+          <div class="mh"><span class="lbl">Agent asks</span><span class="chip">Waiting on you</span></div>
+          <p class="q">How many promo slots can this launch spend?</p>
+          <p class="help">Sets how far down the chart the insertion order reaches.</p>
+          <div class="opts">
+            <label><input type="radio" name="slots" />12 slots</label>
+            <label><input type="radio" name="slots" checked />20 slots</label>
+            <label><input type="radio" name="slots" />30 slots</label>
+            <label><input type="radio" name="slots" />A dollar budget</label>
+          </div>
+          <label class="in"><span class="pre">$</span><input placeholder="Budget, e.g. 150,000" /></label>
+          <div class="acts">
+            <button class="btn pri">Answer</button><small>Draft IO uses 20 until you answer</small>
+          </div>
+        </section>
+        <section class="mod">
+          <div class="mh"><span class="lbl">Evidence · C-07</span><span class="chip">Qloo record</span></div>
+          <p class="sub-t">60 Songs That Explain the '90s vs 3 comps</p>
+          <dl class="rec">
+            <dt>Request</dt>
+            <dd><code>POST /v2/insights</code></dd>
+            <dt>Entities</dt>
+            <dd>16</dd>
+            <dt>Affinity</dt>
+            <dd>0.731–0.874</dd>
+            <dt>Shared tags</dt>
+            <dd>nostalgia, cultural history, music criticism</dd>
+          </dl>
+        </section>
+        <section class="mod">
+          <div class="mh"><span class="lbl">Insertion order draft · IO-0003</span><span class="chip">Draft</span></div>
+          <table class="io">
+            <tr>
+              <td>The Rewatchables</td>
+              <td>6 slots</td>
+              <td>$57,600</td>
+            </tr>
+            <tr>
+              <td>60 Songs That Explain the '90s</td>
+              <td>6 slots</td>
+              <td>$31,200</td>
+            </tr>
+            <tr>
+              <td>The Big Picture</td>
+              <td>5 slots</td>
+              <td>$40,000</td>
+            </tr>
+            <tr>
+              <td>Every Single Album</td>
+              <td>3 slots</td>
+              <td>$10,200</td>
+            </tr>
+            <tr class="tot">
+              <td>Total</td>
+              <td>20 slots</td>
+              <td>$139,000</td>
+            </tr>
+          </table>
+          <div class="acts">
+            <button class="btn pri">Approve</button><button class="btn">Edit lines</button><small>$20 sample CPM</small>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </body>
+</html>

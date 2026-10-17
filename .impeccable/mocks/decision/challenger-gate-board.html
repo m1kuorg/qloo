@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Crossfeed · L-0003 · Gate Board</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #0b0d10;
+        --slate: #1c2127;
+        --steel: #6b7178;
+        --panel: #e6e8eb;
+        --surf: #fff;
+        --alert: #ffd400;
+        --fog: #a3a9b0;
+        --line: #2a3037;
+        --rule: #3a424b;
+        --mute: #8f959c;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        width: 1440px;
+        height: 900px;
+        overflow: hidden;
+        background: var(--ink);
+        color: var(--panel);
+        font:
+          400 14px/1.4 Barlow,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .mono {
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .lbl,
+      th {
+        font:
+          600 12px/1 'Barlow Condensed',
+          sans-serif;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--mute);
+      }
+      .btn {
+        height: 30px;
+        padding: 0 12px;
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+        background: transparent;
+        color: #fff;
+        font:
+          500 13px Barlow,
+          sans-serif;
+      }
+      .btn.pri {
+        background: #fff;
+        border-color: #fff;
+        color: var(--ink);
+        font-weight: 600;
+        padding: 0 20px;
+        height: 34px;
+      }
+      .btn.dark {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: #fff;
+        font-weight: 600;
+        font-size: 14px;
+        padding: 0 24px;
+        height: 38px;
+      }
+      .chip {
+        display: inline-block;
+        font:
+          600 12px/18px 'Barlow Condensed',
+          sans-serif;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0 6px;
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+        color: var(--fog);
+      }
+      .chip.mv {
+        background: var(--alert);
+        border-color: var(--alert);
+        color: var(--ink);
+      }
+      .chip.seen {
+        color: var(--panel);
+      }
+      .chip.lt {
+        color: #4a5057;
+        border-color: #c9cdd2;
+      }
+      .top {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        padding: 0 24px;
+        border-bottom: 1px solid var(--line);
+      }
+      .brand {
+        font:
+          600 19px/1 'Barlow Condensed',
+          sans-serif;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #fff;
+      }
+      .net {
+        margin-left: 14px;
+        padding-left: 14px;
+        border-left: 1px solid var(--line);
+        color: var(--fog);
+        font-size: 13px;
+      }
+      .tabs {
+        display: flex;
+        margin-left: 28px;
+        height: 48px;
+      }
+      .tabs a {
+        padding: 0 14px;
+        line-height: 48px;
+        color: var(--fog);
+        font-weight: 500;
+      }
+      .tabs a.on {
+        color: #fff;
+        box-shadow: inset 0 -2px 0 #fff;
+      }
+      .ct {
+        font:
+          500 11px/16px 'JetBrains Mono',
+          monospace;
+        background: var(--line);
+        color: var(--panel);
+        padding: 0 5px;
+        margin-left: 6px;
+        border-radius: 2px;
+      }
+      .tag {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--fog);
+        border: 1px solid var(--line);
+        padding: 4px 8px;
+        border-radius: 2px;
+      }
+      .launch {
+        height: 76px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid var(--line);
+      }
+      h1 {
+        font:
+          600 22px/1.2 Barlow,
+          sans-serif;
+        color: #fff;
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+      }
+      h1 .mono {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--fog);
+      }
+      .comps {
+        margin-top: 6px;
+        color: var(--fog);
+        font-size: 13px;
+      }
+      .comps .lbl {
+        margin-right: 8px;
+      }
+      .step {
+        text-align: right;
+      }
+      .step .lbl {
+        color: var(--fog);
+      }
+      .bars {
+        display: flex;
+        gap: 4px;
+        justify-content: flex-end;
+        margin-bottom: 9px;
+      }
+      .bars i {
+        width: 28px;
+        height: 4px;
+        background: var(--line);
+      }
+      .bars i.d {
+        background: var(--steel);
+      }
+      .bars i.c {
+        background: #fff;
+      }
+      main {
+        display: grid;
+        grid-template-columns: 1fr 480px;
+        gap: 16px;
+        padding: 20px 24px;
+        height: 776px;
+      }
+      .col {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-height: 0;
+      }
+      .board {
+        background: var(--slate);
+        border-radius: 4px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .bhead {
+        height: 52px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--line);
+      }
+      h2 {
+        font:
+          600 16px/1 'Barlow Condensed',
+          sans-serif;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #fff;
+      }
+      h2 span {
+        color: var(--mute);
+        margin-left: 6px;
+      }
+      .seg {
+        display: flex;
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+      }
+      .seg a {
+        padding: 0 10px;
+        line-height: 24px;
+        font-size: 13px;
+        color: var(--fog);
+      }
+      .seg a.on {
+        background: #2f363e;
+        color: #fff;
+      }
+      .notice {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--fog);
+        font-size: 13px;
+      }
+      .notice b {
+        color: #fff;
+        font-weight: 500;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      th {
+        height: 34px;
+        padding: 0 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+      }
+      th.on {
+        color: #fff;
+      }
+      th i {
+        font-style: normal;
+        margin-left: 4px;
+        opacity: 0.45;
+      }
+      th.on i {
+        opacity: 1;
+      }
+      th:nth-child(1) {
+        width: 64px;
+      }
+      th:nth-child(2) {
+        width: 68px;
+      }
+      th:nth-child(4) {
+        width: 80px;
+      }
+      th:nth-child(5) {
+        width: 140px;
+      }
+      th:nth-child(6) {
+        width: 104px;
+      }
+      th:nth-child(7) {
+        width: 156px;
+      }
+      td {
+        height: 40px;
+        padding: 0 12px;
+        border-bottom: 1px solid #242a31;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      th:first-child,
+      td:first-child {
+        padding-left: 20px;
+      }
+      th:last-child,
+      td:last-child {
+        padding-right: 20px;
+      }
+      .f {
+        font:
+          600 20px/1 'Barlow Condensed',
+          sans-serif;
+        color: #fff;
+      }
+      .t,
+      .v {
+        font:
+          400 13px 'JetBrains Mono',
+          monospace;
+      }
+      .t {
+        color: var(--mute);
+      }
+      .v,
+      th.r {
+        text-align: right;
+      }
+      .sh {
+        color: #fff;
+        font-weight: 500;
+      }
+      .tg {
+        color: var(--fog);
+        font-size: 13px;
+      }
+      .b {
+        font:
+          600 13px 'Barlow Condensed',
+          sans-serif;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .b.s {
+        color: #fff;
+      }
+      .b.g {
+        color: var(--fog);
+      }
+      .b.r {
+        color: var(--mute);
+      }
+      tr.lit td:first-child {
+        box-shadow: inset 3px 0 0 var(--alert);
+      }
+      tr.sel td {
+        background: #262d35;
+      }
+      tr.grp td {
+        height: 30px;
+        background: #181c21;
+      }
+      tr.un .sh {
+        color: var(--fog);
+      }
+      .cap {
+        margin-top: auto;
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 20px;
+        color: var(--mute);
+        font-size: 12px;
+      }
+      .cap a {
+        color: var(--panel);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        margin-left: 8px;
+      }
+      .evid {
+        background: var(--slate);
+        border-radius: 4px;
+        padding: 14px 20px 16px;
+        flex: none;
+      }
+      .eh {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .eh b {
+        color: #fff;
+        font-weight: 500;
+        font-size: 13px;
+      }
+      .eh a {
+        margin-left: auto;
+        font-size: 13px;
+        color: var(--fog);
+      }
+      .eg {
+        display: grid;
+        grid-template-columns: 1.35fr 1fr;
+        gap: 24px;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: 108px 1fr;
+        row-gap: 4px;
+        font:
+          400 12.5px/18px 'JetBrains Mono',
+          monospace;
+        margin-top: 8px;
+      }
+      .kv dt {
+        color: var(--mute);
+      }
+      .interp {
+        border-left: 1px solid var(--line);
+        padding-left: 24px;
+      }
+      .interp p {
+        color: var(--fog);
+        font-size: 13px;
+        line-height: 1.5;
+        margin-top: 8px;
+      }
+      .ask {
+        background: var(--slate);
+        border-radius: 4px;
+        padding: 18px 20px 20px;
+        flex: none;
+      }
+      .ah {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .ah .mono {
+        font-size: 12px;
+        color: var(--fog);
+      }
+      h3 {
+        font:
+          600 20px/1.3 Barlow,
+          sans-serif;
+        color: #fff;
+      }
+      .ctx {
+        color: var(--fog);
+        font-size: 13px;
+        margin-top: 6px;
+      }
+      .opts {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .opts .lbl {
+        display: block;
+        margin-bottom: 8px;
+      }
+      .rg {
+        display: flex;
+        gap: 6px;
+      }
+      .opt {
+        height: 38px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .opt i {
+        width: 14px;
+        height: 14px;
+        border: 1.5px solid var(--steel);
+        border-radius: 50%;
+      }
+      .opt.on {
+        border-color: #fff;
+        color: #fff;
+        background: #262d35;
+      }
+      .opt.on i {
+        border: 4px solid #fff;
+      }
+      .or {
+        line-height: 38px;
+        color: var(--mute);
+        font-size: 13px;
+      }
+      .fill {
+        flex: 1;
+      }
+      .money {
+        height: 38px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+        background: var(--ink);
+        padding: 0 10px;
+        font:
+          400 13px 'JetBrains Mono',
+          monospace;
+        color: var(--steel);
+      }
+      .money input {
+        background: none;
+        border: 0;
+        outline: 0;
+        width: 100%;
+        font: inherit;
+        color: #fff;
+      }
+      .money input::placeholder {
+        color: var(--steel);
+      }
+      .af {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 18px;
+      }
+      .af span {
+        font-size: 12px;
+        color: var(--mute);
+      }
+      .io {
+        background: var(--surf);
+        color: var(--ink);
+        border-radius: 4px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .ioh {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 18px 20px 14px;
+      }
+      .ioid {
+        font:
+          600 24px/1 'Barlow Condensed',
+          sans-serif;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .ioid span {
+        color: var(--steel);
+        margin-left: 6px;
+      }
+      .sub {
+        font-size: 13px;
+        color: var(--steel);
+        margin-top: 6px;
+      }
+      .ioc,
+      .sg {
+        display: grid;
+        grid-template-columns: 1fr 64px 104px;
+        gap: 12px;
+        align-items: center;
+        padding: 0 20px;
+      }
+      .ioc {
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--panel);
+      }
+      .ioc .lbl:last-child {
+        text-align: right;
+      }
+      .sg {
+        height: 60px;
+      }
+      .sg + .sg {
+        border-top: 1px dashed #c3c8cd;
+      }
+      .sg b {
+        display: block;
+        font:
+          600 15px/1.2 Barlow,
+          sans-serif;
+      }
+      .sg small {
+        display: block;
+        font:
+          400 12px/1.4 'JetBrains Mono',
+          monospace;
+        color: var(--steel);
+        margin-top: 3px;
+      }
+      .sg input {
+        width: 64px;
+        height: 32px;
+        border: 1px solid #c9cdd2;
+        border-radius: 2px;
+        text-align: center;
+        font:
+          500 14px 'JetBrains Mono',
+          monospace;
+        color: var(--ink);
+        background: #fff;
+      }
+      .sg .m {
+        text-align: right;
+        font:
+          500 14px 'JetBrains Mono',
+          monospace;
+      }
+      .stub {
+        margin-top: auto;
+        border-top: 2px dashed #b4b9bf;
+        background: var(--panel);
+        padding: 14px 20px 16px;
+      }
+      .tot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .io .lbl {
+        color: var(--steel);
+      }
+      .stub .lbl,
+      .stub .sub {
+        color: #4f555c;
+      }
+      .big {
+        font:
+          600 32px/1 'Barlow Condensed',
+          sans-serif;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <span class="brand">Crossfeed</span><span class="net">The Ringer · sample network</span>
+      <nav class="tabs">
+        <a class="on">Launches</a><a>Roster</a><a>Inbox<span class="ct">3</span></a
+        ><a>Evidence log</a>
+      </nav>
+      <span class="tag">Sample data · not affiliated with The Ringer</span>
+    </header>
+    <section class="launch">
+      <div>
+        <h1><span class="mono">L-0003</span>Unreleased film show</h1>
+        <div class="comps"><span class="lbl">Comps</span>Blank Check · Filmspotting · You Must Remember This</div>
+      </div>
+      <div class="step">
+        <div class="bars"><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i></div>
+        <span class="lbl">Step 4 of 6 · 16 shows scored</span>
+      </div>
+    </section>
+    <main>
+      <div class="col">
+        <section class="board">
+          <div class="bhead">
+            <h2>Roster fit<span>16 scored</span></h2>
+            <div class="seg"><a class="on">Fit order</a><a>Topic order</a></div>
+            <div class="notice">
+              <span>Reranked from topic order · <b>4 moves unseen</b></span
+              ><button class="btn">Mark seen</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th class="on">Fit<i>↑</i></th>
+                <th>Topic<i>↕</i></th>
+                <th>Show<i>↕</i></th>
+                <th>Band<i>↕</i></th>
+                <th>Shared tags</th>
+                <th class="r">Slot value<i>↕</i></th>
+                <th>Status<i>↕</i></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="f">01</td>
+                <td class="t">01</td>
+                <td class="sh">The Big Picture</td>
+                <td class="b s">Strong</td>
+                <td class="tg">film criticism</td>
+                <td class="v">$8,000</td>
+                <td><span class="chip">On plan</span></td>
+              </tr>
+              <tr>
+                <td class="f">02</td>
+                <td class="t">02</td>
+                <td class="sh">The Rewatchables</td>
+                <td class="b s">Strong</td>
+                <td class="tg">rewatch</td>
+                <td class="v">$9,600</td>
+                <td><span class="chip">On plan</span></td>
+              </tr>
+              <tr class="lit sel">
+                <td class="f">03</td>
+                <td class="t">09</td>
+                <td class="sh">60 Songs That Explain the '90s</td>
+                <td class="b s">Strong</td>
+                <td class="tg">nostalgia</td>
+                <td class="v">$5,200</td>
+                <td><span class="chip mv">Moved ▲6</span></td>
+              </tr>
+              <tr class="lit">
+                <td class="f">04</td>
+                <td class="t">11</td>
+                <td class="sh">Every Single Album</td>
+                <td class="b g">Good</td>
+                <td class="tg">music criticism</td>
+                <td class="v">$3,400</td>
+                <td><span class="chip mv">Moved ▲7</span></td>
+              </tr>
+              <tr>
+                <td class="f">05</td>
+                <td class="t">03</td>
+                <td class="sh">The Bill Simmons Podcast</td>
+                <td class="b g">Good</td>
+                <td class="tg">pop culture</td>
+                <td class="v">$14,000</td>
+                <td><span class="chip seen">Moved ▼2</span></td>
+              </tr>
+              <tr class="lit">
+                <td class="f">06</td>
+                <td class="t">04</td>
+                <td class="sh">The Watch</td>
+                <td class="b g">Good</td>
+                <td class="tg">TV criticism</td>
+                <td class="v">$6,800</td>
+                <td><span class="chip mv">Moved ▼2</span></td>
+              </tr>
+              <tr>
+                <td class="f">07</td>
+                <td class="t">06</td>
+                <td class="sh">Pod Meets World</td>
+                <td class="b r">Fair</td>
+                <td class="tg">—</td>
+                <td class="v">$2,600</td>
+                <td class="t">—</td>
+              </tr>
+              <tr class="lit">
+                <td class="f">08</td>
+                <td class="t">12</td>
+                <td class="sh">Plain English</td>
+                <td class="b r">Fair</td>
+                <td class="tg">—</td>
+                <td class="v">$4,400</td>
+                <td><span class="chip mv">Moved ▲4</span></td>
+              </tr>
+              <tr class="grp">
+                <td colspan="7" class="lbl">Not ranked · 2 need a human</td>
+              </tr>
+              <tr class="un">
+                <td class="f">—</td>
+                <td class="t">05</td>
+                <td class="sh">Binge Mode</td>
+                <td class="t">—</td>
+                <td class="tg">—</td>
+                <td class="v">—</td>
+                <td><span class="chip seen">Ambiguous · 2 feeds</span></td>
+              </tr>
+              <tr class="un">
+                <td class="f">—</td>
+                <td class="t">16</td>
+                <td class="sh">The Zach Lowe Show</td>
+                <td class="t">—</td>
+                <td class="tg">—</td>
+                <td class="v">—</td>
+                <td><span class="chip seen">Missed</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="cap">
+            <span>Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures</span
+            ><span>Fit 01–08 of 14 ranked<a>Show all</a></span>
+          </div>
+        </section>
+        <section class="evid">
+          <div class="eh">
+            <span class="lbl">Evidence</span><b>Fit 03 · 60 Songs That Explain the '90s</b><a>Open in evidence log</a>
+          </div>
+          <div class="eg">
+            <div>
+              <span class="lbl">Qloo record</span>
+              <dl class="kv">
+                <dt>Call</dt>
+                <dd>C-07 · POST /v2/insights</dd>
+                <dt>Result</dt>
+                <dd>16 entities · affinity 0.731–0.874</dd>
+                <dt>Shared tags</dt>
+                <dd>nostalgia, cultural history, music criticism</dd>
+              </dl>
+            </div>
+            <div class="interp">
+              <span class="lbl">Agent interpretation · not Qloo data</span>
+              <p>
+                Comp listeners lean toward '90s nostalgia and music criticism, so this show outranks closer film topics.
+                A read of the record, not a measurement.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+      <aside class="col">
+        <section class="ask">
+          <div class="ah">
+            <span class="lbl">Agent asks · fork 4 of 6</span><span class="mono">waiting on you</span>
+          </div>
+          <h3>How many promo slots can this launch spend?</h3>
+          <p class="ctx">The draft below previews 20. Nothing goes to ad ops until you approve.</p>
+          <div class="opts">
+            <div>
+              <span class="lbl">Promo slots</span>
+              <div class="rg">
+                <label class="opt"><i></i>12 slots</label><label class="opt on"><i></i>20 slots</label
+                ><label class="opt"><i></i>30 slots</label>
+              </div>
+            </div>
+            <span class="or">or</span>
+            <div class="fill">
+              <span class="lbl">Dollar budget</span><label class="money">$<input placeholder="139,000" /></label>
+            </div>
+          </div>
+          <div class="af">
+            <span>Your answer is logged as a human decision</span><button class="btn pri">Answer</button>
+          </div>
+        </section>
+        <section class="io">
+          <div class="ioh">
+            <div>
+              <div class="ioid">IO-0003<span>Draft</span></div>
+              <div class="sub">The Ringer ad ops · preview at 20 slots</div>
+            </div>
+            <span class="chip lt">Not sent</span>
+          </div>
+          <div class="ioc">
+            <span class="lbl">Show</span><span class="lbl">Slots</span><span class="lbl">Line total</span>
+          </div>
+          <div class="sg">
+            <div><b>The Rewatchables</b><small>Fit 02 · $9,600 / slot</small></div>
+            <input value="6" aria-label="Slots" /><span class="m">$57,600</span>
+          </div>
+          <div class="sg">
+            <div><b>60 Songs That Explain the '90s</b><small>Fit 03 · $5,200 / slot</small></div>
+            <input value="6" aria-label="Slots" /><span class="m">$31,200</span>
+          </div>
+          <div class="sg">
+            <div><b>The Big Picture</b><small>Fit 01 · $8,000 / slot</small></div>
+            <input value="5" aria-label="Slots" /><span class="m">$40,000</span>
+          </div>
+          <div class="sg">
+            <div><b>Every Single Album</b><small>Fit 04 · $3,400 / slot</small></div>
+            <input value="3" aria-label="Slots" /><span class="m">$10,200</span>
+          </div>
+          <div class="stub">
+            <span class="lbl">Total · 4 shows</span>
+            <div class="tot"><span class="big">20 slots · $139,000</span><button class="btn dark">Approve</button></div>
+            <div class="sub">Priced from network downloads × $20 sample CPM · autosaved</div>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </body>
+</html>

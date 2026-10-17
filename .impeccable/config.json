@@ -1,0 +1,69 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [".impeccable/mocks/decision/assigned.html", ".impeccable/mocks/decision/canon.html"],
+        "createdAt": "2026-10-17T04:36:52.093Z",
+        "reason": "Unchosen direction-round sketch kept as the round's record; never built or shipped"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [".impeccable/mocks/decision/assigned.html"],
+        "createdAt": "2026-10-17T04:36:52.104Z",
+        "reason": "Unchosen direction-round sketch kept as the round's record; never built or shipped"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [".impeccable/mocks/decision/assigned.html", ".impeccable/mocks/decision/challenger-gate-board.html"],
+        "createdAt": "2026-10-17T04:36:52.115Z",
+        "reason": "Unchosen direction-round sketch kept as the round's record; never built or shipped"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [".impeccable/mocks/decision/assigned.html"],
+        "createdAt": "2026-10-17T04:36:52.126Z",
+        "reason": "Unchosen direction-round sketch kept as the round's record; never built or shipped"
+      },
+      {
+        "rule": "em-dash-overuse",
+        "value": "*",
+        "files": [".impeccable/mocks/decision/assigned.html", ".impeccable/mocks/decision/challenger-gate-board.html"],
+        "createdAt": "2026-10-17T04:36:52.137Z",
+        "reason": "Unchosen direction-round sketch kept as the round's record; never built or shipped"
+      },
+      {
+        "rule": "overused-font",
+        "value": "*",
+        "files": [".impeccable/mocks/decision/canon.html"],
+        "createdAt": "2026-10-17T04:36:52.148Z",
+        "reason": "Category-standard card plays the canon straight (Inter); never built"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [".impeccable/mocks/decision/canon.html"],
+        "createdAt": "2026-10-17T04:36:52.159Z",
+        "reason": "Category-standard card plays the canon straight; never built"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html",
+          ".impeccable/mocks/decision/canon.html",
+          ".impeccable/mocks/decision/challenger-gate-board.html",
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-10-17T04:36:52.171Z",
+        "reason": "Tab strips and table rows sit on their divider rules by design in decision sketches; the build gets its own detector pass"
+      }
+    ]
+  }
+}
