@@ -9,10 +9,6 @@ import { Source } from './Source'
 const useSession = () => useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgent', basePath: 'agents/session' })
 type Session = ReturnType<typeof useSession>
 
-// One search per show, one at a time until #35 paces the gateway: 50 shows can outlast the
-// client's default 30-second call timeout.
-const IMPORT_TIMEOUT_MS = 120_000
-
 export function App() {
   const agent = useSession()
   const roster = agent.state?.roster ?? []
@@ -52,9 +48,7 @@ export function App() {
       </section>
       <main className="main">
         <section className="chart-col" aria-label="Roster">
-          <RosterImport
-            importRoster={(text, format) => agent.call('importRoster', [text, format], { timeout: IMPORT_TIMEOUT_MS })}
-          />
+          <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
           <RosterTable
             roster={roster}
             selected={show?.name ?? null}
@@ -238,10 +232,20 @@ const Alert = ({ error }: { error: string | null }) =>
     </p>
   )
 
-function RosterImport({ importRoster }: { importRoster: (text: string, format: RosterFormat) => Promise<void> }) {
+// The import answers at once, and each show fills in through synced state as its search settles.
+function RosterImport({
+  roster,
+  importRoster
+}: {
+  roster: Show[]
+  importRoster: (text: string, format: RosterFormat) => Promise<void>
+}) {
   const [text, setText] = useState('')
   const [importing, setImporting] = useState<string | null>(null)
-  const { busy, error, run } = useAction()
+  const action = useAction()
+  const { error, run } = action
+  const pending = roster.filter((s) => s.resolution === 'pending').length
+  const busy = action.busy || pending > 0
   const file = useRef<HTMLInputElement>(null)
   const count = text.split('\n').filter((l) => l.trim()).length
   const submit = async (e: React.FormEvent) => {
@@ -271,7 +275,11 @@ function RosterImport({ importRoster }: { importRoster: (text: string, format: R
       />
       <div className="acts">
         <button className="btn pri" type="submit" disabled={busy || count === 0}>
-          {busy ? importing : 'Import roster'}
+          {pending > 0
+            ? `Looked up ${roster.length - pending} of ${roster.length}…`
+            : busy
+              ? importing
+              : 'Import roster'}
         </button>
         <button className="btn" type="button" disabled={busy} onClick={() => file.current?.click()}>
           Upload CSV
@@ -289,6 +297,7 @@ function RosterImport({ importRoster }: { importRoster: (text: string, format: R
 }
 
 const resolutionLabel: Record<Show['resolution'], string> = {
+  pending: 'Looking up',
   resolved: 'Resolved',
   mapped: 'Mapped',
   ambiguous: 'Ambiguous',
@@ -348,6 +357,7 @@ function RosterTable({
             className={show.evidence === opened ? 'on' : undefined}
             data-selected={show.name === selected || undefined}
             data-excluded={show.excluded || undefined}
+            aria-busy={show.resolution === 'pending' || undefined}
           >
             <td>
               <button
@@ -376,16 +386,21 @@ function RosterTable({
             <td className="r">{show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}</td>
             <td>{show.status ?? '–'}</td>
             <td className="r">
-              <button
-                type="button"
-                className="call"
-                aria-pressed={show.evidence === opened}
-                aria-controls="evidence"
-                aria-label={`Evidence for ${show.name}: call ${show.evidence}`}
-                onClick={() => openCall(show.evidence)}
-              >
-                {show.evidence}
-              </button>
+              {/* A pending call has no evidence record yet, so it opens once the search settles. */}
+              {show.resolution === 'pending' ? (
+                <code className="call">{show.evidence}</code>
+              ) : (
+                <button
+                  type="button"
+                  className="call"
+                  aria-pressed={show.evidence === opened}
+                  aria-controls="evidence"
+                  aria-label={`Evidence for ${show.name}: call ${show.evidence}`}
+                  onClick={() => openCall(show.evidence)}
+                >
+                  {show.evidence}
+                </button>
+              )}
             </td>
           </tr>
         ))}
@@ -397,6 +412,7 @@ function RosterTable({
 const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
 
 function Match({ show, settle }: { show: Show; settle: () => void }) {
+  if (show.resolution === 'pending') return <span className="tg">Looking it up in Qloo…</span>
   const action = show.excluded ? null : show.resolution === 'ambiguous' ? 'Pick the match' : 'Map a comp or leave out'
   if ((show.resolution === 'resolved' || show.resolution === 'mapped') && show.entity)
     return (
@@ -462,7 +478,12 @@ function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close:
           pick={(entityId) => update({ entityId })}
         />
       )}
-      {show.resolution !== 'resolved' && <CompSearch show={show} agent={agent} update={update} busy={busy} />}
+      {show.resolution === 'pending' && (
+        <p className="help">Looking it up in Qloo. You can edit its figures or leave it out meanwhile.</p>
+      )}
+      {show.resolution !== 'resolved' && show.resolution !== 'pending' && (
+        <CompSearch show={show} agent={agent} update={update} busy={busy} />
+      )}
       <ShowFields show={show} update={update} busy={busy} />
       <div className="acts">
         <button type="button" className="btn" disabled={busy} onClick={() => update({ excluded: !show.excluded })}>
@@ -641,6 +662,7 @@ function ShowFields({
 function RosterCheck({ roster }: { roster: Show[] }) {
   const count = (r: Show['resolution']) => roster.filter((s) => s.resolution === r && !s.excluded).length
   const rows: [string, number][] = [
+    ...(count('pending') > 0 ? [['Looking up', count('pending')] as [string, number]] : []),
     ['Resolved', count('resolved')],
     ['Mapped to a comp', count('mapped')],
     ['Ambiguous', count('ambiguous')],

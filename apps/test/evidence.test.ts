@@ -24,7 +24,7 @@ describe('the evidence behind each Qloo call', () => {
       }
     })
     const s = await session()
-    await s.call('importRoster', 'The Ghost Signal Show\nNight Shift Cinema\nDeep Cuts')
+    await s.importRoster('The Ghost Signal Show\nNight Shift Cinema\nDeep Cuts')
     const log = await s.call<Evidence[]>('getEvidence')
     const opened = (name: string) =>
       log.find((e) => e.call === s.state()?.roster.find((r) => r.name === name)?.evidence)
@@ -53,8 +53,8 @@ describe('the evidence behind each Qloo call', () => {
     fakeQloo({ search: {} })
     const first = await session()
     const second = await session()
-    await first.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
-    await second.call('importRoster', 'The Ghost Signal Show')
+    await first.importRoster('Night Shift Cinema\nDeep Cuts')
+    await second.importRoster('The Ghost Signal Show')
 
     const queries = async (s: Session) => (await s.call<Evidence[]>('getEvidence')).map((e) => [e.call, e.params.query])
     expect(await queries(first)).toEqual([
@@ -86,7 +86,7 @@ describe('the evidence behind each Qloo call', () => {
       }
     })
     const s = await session()
-    await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts\nThe Ghost Signal Show')
+    await s.importRoster('Night Shift Cinema\nDeep Cuts\nThe Ghost Signal Show')
     await s.call<Evidence[]>('getEvidence')
 
     expect(s.state()?.roster.map((show) => [show.name, show.resolution, show.error])).toEqual([

@@ -4,6 +4,7 @@ import { reset } from 'cloudflare:test'
 import { exports } from 'cloudflare:workers'
 import { afterEach } from 'vitest'
 import type { State } from '../src/agent'
+import type { RosterFormat } from '../src/roster'
 
 // After each test of every file that drives sessions, wipe every Durable Object's storage and
 // memory, so the gateway's shared cache, daily count, and slots start fresh. It's here, not in
@@ -19,6 +20,9 @@ export type Session = {
   // Every frame the server sent, raw, in order: everything this visitor's browser would receive.
   frames: () => string[]
   call: <T = unknown>(method: string, ...args: unknown[]) => Promise<T>
+  // Imports a roster the way the UI does and resolves once every show's search has settled. The
+  // call itself returns while the searches are still out.
+  importRoster: (text: string, format?: RosterFormat) => Promise<State>
   // Resolves with the synced state once it satisfies `ready`, such as a run that has finished.
   until: (ready: (state: State) => boolean) => Promise<State>
   // Sends a raw protocol frame and resolves with the next frame of type `reply`.
@@ -65,27 +69,34 @@ export async function openSession(cookie?: string): Promise<Session> {
   })
   await seenState.promise
 
+  const call: Session['call'] = (method, ...args) =>
+    new Promise((resolve, reject) => {
+      const id = crypto.randomUUID()
+      pending.set(id, { resolve: resolve as (v: unknown) => void, reject })
+      ws.send(JSON.stringify({ type: 'rpc', id, method, args }))
+    })
+  const until: Session['until'] = (ready) =>
+    new Promise((resolve) => {
+      const check = () => {
+        if (state && ready(state)) {
+          watchers.delete(check)
+          resolve(state)
+        }
+      }
+      watchers.add(check)
+      check()
+    })
+
   return {
     cookie,
     state: () => state,
     frames: () => frames,
-    call: (method, ...args) =>
-      new Promise((resolve, reject) => {
-        const id = crypto.randomUUID()
-        pending.set(id, { resolve: resolve as (v: unknown) => void, reject })
-        ws.send(JSON.stringify({ type: 'rpc', id, method, args }))
-      }),
-    until: (ready) =>
-      new Promise((resolve) => {
-        const check = () => {
-          if (state && ready(state)) {
-            watchers.delete(check)
-            resolve(state)
-          }
-        }
-        watchers.add(check)
-        check()
-      }),
+    call,
+    importRoster: async (text, format = 'lines') => {
+      await call('importRoster', text, format)
+      return until((s) => s.roster.every((show) => show.resolution !== 'pending'))
+    },
+    until,
     send: (frame, type) =>
       new Promise((resolve) => {
         waiting.push({ type, resolve })

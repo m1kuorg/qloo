@@ -31,7 +31,7 @@ describe('importing a CSV', () => {
       '"The Ghost Signal Show",,,"A ""signal"" show"'
     ].join('\r\n')
 
-    await s.call('importRoster', csv, 'csv')
+    await s.importRoster(csv, 'csv')
 
     expect(
       s.state()?.roster.map(({ name, resolution, downloads, status, description, excluded }) => ({
@@ -73,10 +73,10 @@ describe('importing a CSV', () => {
   it('refuses a CSV without a name column, and keeps the current roster', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', 'Night Shift Cinema')
+    await s.importRoster('Night Shift Cinema')
     requests.length = 0
 
-    await expect(s.call('importRoster', 'Show,Downloads\nDeep Cuts,45000', 'csv')).rejects.toThrow(
+    await expect(s.importRoster('Show,Downloads\nDeep Cuts,45000', 'csv')).rejects.toThrow(
       'The CSV needs a "name" column. Its first row has "Show", "Downloads".'
     )
     expect(requests).toEqual([])
@@ -86,7 +86,7 @@ describe('importing a CSV', () => {
   it('reads a spreadsheet export: a byte-order mark, a line break inside quotes, extra columns', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', '\uFEFFnotes,name\n"two\nlines",Deep Cuts\n', 'csv')
+    await s.importRoster('\uFEFFnotes,name\n"two\nlines",Deep Cuts\n', 'csv')
     expect(s.state()?.roster.map((show) => show.name)).toEqual(['Deep Cuts'])
   })
 
@@ -94,7 +94,7 @@ describe('importing a CSV', () => {
     fakeQloo({ search })
     const s = await session()
     await expect(
-      s.call('importRoster', 'name,downloads\nDeep Cuts,1\nNight Shift Cinema,2\ndeep cuts,3', 'csv')
+      s.importRoster('name,downloads\nDeep Cuts,1\nNight Shift Cinema,2\ndeep cuts,3', 'csv')
     ).rejects.toThrow('Rows 2 and 4 of the CSV both name "deep cuts".')
     expect(requests).toEqual([])
   })
@@ -102,7 +102,7 @@ describe('importing a CSV', () => {
   it('refuses a row whose downloads are not a whole number', async () => {
     fakeQloo({ search })
     const s = await session()
-    await expect(s.call('importRoster', 'name,downloads\nDeep Cuts,lots', 'csv')).rejects.toThrow(
+    await expect(s.importRoster('name,downloads\nDeep Cuts,lots', 'csv')).rejects.toThrow(
       'Row 2 of the CSV: downloads "lots" isn\'t a whole number.'
     )
     expect(requests).toEqual([])
@@ -115,12 +115,12 @@ describe('the 50-show limit', () => {
   it('refuses 51 shows, pasted or in a CSV, before any lookup', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', 'Night Shift Cinema')
+    await s.importRoster('Night Shift Cinema')
     requests.length = 0
 
     const limit = /51 shows is over the 50-show limit: one comparison scores at most 50 shows/
-    await expect(s.call('importRoster', names(51).join('\n'))).rejects.toThrow(limit)
-    await expect(s.call('importRoster', ['name', ...names(51)].join('\n'), 'csv')).rejects.toThrow(limit)
+    await expect(s.importRoster(names(51).join('\n'))).rejects.toThrow(limit)
+    await expect(s.importRoster(['name', ...names(51)].join('\n'), 'csv')).rejects.toThrow(limit)
     expect(requests).toEqual([])
     expect(s.state()?.roster.map((show) => show.name)).toEqual(['Night Shift Cinema'])
   })
@@ -128,7 +128,7 @@ describe('the 50-show limit', () => {
   it('counts a show once however often it repeats', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', [...names(50), 'show 1', 'SHOW 2'].join('\n'))
+    await s.importRoster([...names(50), 'show 1', 'SHOW 2'].join('\n'))
     expect(s.state()?.roster).toHaveLength(50)
   })
 })
@@ -140,7 +140,7 @@ describe('settling matches', () => {
   it('resolves an ambiguous show to the candidate the programmer picks, across a reload', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     await s.call('updateShow', 'Deep Cuts', { entityId: 'e-0102' })
 
@@ -164,7 +164,7 @@ describe('settling matches', () => {
       }
     })
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     await s.call('searchComps', 'The Ghost Signal Show', 'Ghost Hour')
     expect(show(s, 'The Ghost Signal Show')).toMatchObject({
@@ -202,7 +202,7 @@ describe('settling matches', () => {
   it('leaves a show out by marking it excluded, kept in the roster across a reload', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     await s.call('updateShow', 'The Ghost Signal Show', { excluded: true })
 
@@ -219,7 +219,7 @@ describe('settling matches', () => {
   it("refuses a pick that is not among the show's candidates or comps", async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     await expect(s.call('updateShow', 'Deep Cuts', { entityId: 'e-0001' })).rejects.toThrow(
       "That isn't one of the candidates for Deep Cuts."
@@ -236,7 +236,7 @@ describe('editing shows and the CPM', () => {
   it('saves downloads, status, and the CPM in synced state, across a reload', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', 'name,downloads,status\nNight Shift Cinema,120000,active', 'csv')
+    await s.importRoster('name,downloads,status\nNight Shift Cinema,120000,active', 'csv')
     expect(s.state()?.cpm).toBeNull()
 
     await s.call('updateShow', 'Night Shift Cinema', { downloads: 95000, status: ' hiatus ' })
@@ -253,7 +253,7 @@ describe('editing shows and the CPM', () => {
   it('refuses a bad value and changes nothing', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', 'name,downloads,status\nNight Shift Cinema,120000,active', 'csv')
+    await s.importRoster('name,downloads,status\nNight Shift Cinema,120000,active', 'csv')
     await s.call('setCpm', 20)
 
     const refusals: [string, unknown[], string][] = [

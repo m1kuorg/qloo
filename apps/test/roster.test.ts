@@ -1,7 +1,8 @@
 import { env, exports } from 'cloudflare:workers'
+import { http } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Evidence } from '../src/evidence'
-import { fakeQloo, requests } from './fake'
+import { fakeQloo, network, requests } from './fake'
 import { openSession, type Session } from './session'
 
 // Synthetic shows: one exact match, one name shared by two spin-off feeds, one Qloo doesn't have.
@@ -40,7 +41,7 @@ describe('importing a pasted roster', () => {
     const s = await session()
     expect(s.state()?.roster).toEqual([])
 
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     expect(s.state()?.roster).toEqual([
       {
@@ -80,7 +81,7 @@ describe('importing a pasted roster', () => {
   it('searches Qloo once per show with the key header and the podcast type', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     expect(requests.map((r) => r.url.searchParams.get('query')).sort()).toEqual(
       ['Deep Cuts', 'Night Shift Cinema', 'The Ghost Signal Show'].sort()
@@ -96,7 +97,7 @@ describe('importing a pasted roster', () => {
   it('keeps the roster for the session and starts a new session empty', async () => {
     fakeQloo({ search })
     const first = await session()
-    await first.call('importRoster', roster)
+    await first.importRoster(roster)
     first.close()
 
     const reloaded = await session(first.cookie)
@@ -114,7 +115,7 @@ describe('importing a pasted roster', () => {
   it('appends an evidence record for every Qloo call, to the calling session only', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     const log = await s.call<Evidence[]>('getEvidence')
     expect(log.map((e) => e.call)).toEqual(['C-01', 'C-02', 'C-03'])
@@ -146,7 +147,7 @@ describe('importing a pasted roster', () => {
   it('treats an empty search, or the 404 Qloo documents for one, as a miss', async () => {
     fakeQloo({ search: { 'Gone Pod': 404 } })
     const s = await session()
-    await s.call('importRoster', 'Unknown Pod\nGone Pod')
+    await s.importRoster('Unknown Pod\nGone Pod')
 
     expect(s.state()?.roster).toEqual([
       {
@@ -169,7 +170,7 @@ describe('importing a pasted roster', () => {
   it('marks a show whose search failed as failed, with the reason, and logs the call', async () => {
     fakeQloo({ search: { ...search, 'Deep Cuts': 500 } })
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     expect(s.state()?.roster.map((show) => [show.name, show.resolution, show.error])).toEqual([
       ['Night Shift Cinema', 'resolved', null],
@@ -184,10 +185,53 @@ describe('importing a pasted roster', () => {
     })
   })
 
+  it('refuses another import while the first is still looking up its shows', async () => {
+    fakeQloo({ search })
+    // Holds every search until released; returning nothing hands the request on to fakeQloo.
+    const held = Promise.withResolvers<void>()
+    network.use(http.get(`${env.QLOO_BASE_URL}/search`, () => held.promise))
+    const s = await session()
+    await s.call('importRoster', roster)
+
+    await expect(s.call('importRoster', 'Some Other Show')).rejects.toThrow(
+      'The last import is still looking up its shows. Wait for it to finish.'
+    )
+    held.resolve()
+    const settled = await s.until((state) => state.roster.every((show) => show.resolution !== 'pending'))
+    expect(settled.roster.map((show) => [show.name, show.resolution])).toEqual([
+      ['Night Shift Cinema', 'resolved'],
+      ['Deep Cuts', 'ambiguous'],
+      ['The Ghost Signal Show', 'missed']
+    ])
+    expect(requests).toHaveLength(3)
+  })
+
+  it('keeps a change made while a show is looked up, but takes a comp only once its search lands', async () => {
+    fakeQloo({ search })
+    const held = Promise.withResolvers<void>()
+    network.use(
+      http.get(`${env.QLOO_BASE_URL}/search`, ({ request }) =>
+        new URL(request.url).searchParams.get('query') === 'Deep Cuts' ? held.promise : undefined
+      )
+    )
+    const s = await session()
+    await s.call('importRoster', 'Deep Cuts')
+
+    await expect(s.call('searchComps', 'Deep Cuts', 'Cut Deep')).rejects.toThrow(
+      'Deep Cuts is still being looked up in Qloo.'
+    )
+    await s.call('updateShow', 'Deep Cuts', { excluded: true })
+    held.resolve()
+    const settled = await s.until((state) => state.roster.every((show) => show.resolution !== 'pending'))
+    expect(settled.roster).toMatchObject([
+      { name: 'Deep Cuts', resolution: 'ambiguous', excluded: true, compSearch: null }
+    ])
+  })
+
   it('refuses state written by the client', async () => {
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', roster)
+    await s.importRoster(roster)
 
     const forged = { roster: [{ name: 'Forged', resolution: 'resolved' }] }
     const reply = await s.send({ type: 'cf_agent_state', state: forged }, 'cf_agent_state_error')
