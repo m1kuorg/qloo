@@ -19,7 +19,7 @@ A podcast network grows new shows mostly on its own roster: host-read promos on 
 
 - **User:** the head of programming or audience at a podcast network, and the network's bookers.
 - **Buyer:** the network, per seat. Independent shows doing feed swaps are a wider second tier.
-- **Cost today:** at the generator's order-of-magnitude estimate of $18 to $25 CPM, one 30-second slot on a 500,000-download episode is about $9,000 to $12,000 of foregone revenue, so a 20-slot launch commits around $200,000 of inventory. The CPM range is unsourced; see [risks](#risks-and-open-questions).
+- **Cost today:** at the generator's order-of-magnitude estimate of $18 to $25 CPM, one 30-second slot on a 500,000-download episode is about $9,000 to $12,500 of foregone revenue, so a 20-slot launch commits around $200,000 of inventory. The CPM range is unsourced; see [risks](#risks-and-open-questions).
 
 ## Agent loop
 
