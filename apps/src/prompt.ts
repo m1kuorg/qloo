@@ -20,7 +20,11 @@ const launchSteps: { step: string; instruction: string | null }[] = [
     instruction:
       'Ask for the slot budget (kind budget), then, after that answer, for the shows to leave out of this launch (kind exclusions), both with an empty options list. Code stores both answers on the run and checks the plan against them, so never assume, suggest, or change a budget or an exclusion yourself.'
   },
-  { step: 'Check demographics (#46)', instruction: null },
+  {
+    step: 'Check demographics (#46)',
+    instruction:
+      "Once the exclusions are answered, check the finalists' demographics: call check_demographics with the fit ranking's anchor IDs and the finalists' Qloo IDs. A flag marks a finalist whose listeners differ from the launch's by age band or gender; it never removes the finalist, so keep every finalist. Say why in words about listeners, never about a person, and never quote a demographic value."
+  },
   {
     step: 'Find shared tags (#47)',
     instruction:

@@ -108,12 +108,14 @@ export type Insight = {
 }
 
 // Serves `POST /v2/insights` from `answer`, given the request's flat dotted-key body: the results
-// to return, or an HTTP status that answers with an error body in Qloo's shape.
+// to return, or an HTTP status that answers with an error body in Qloo's shape. Demographics
+// requests are left to `fakeDemographics`.
 export function fakeInsights(answer: Insight[] | number | ((body: Record<string, unknown>) => Insight[] | number)) {
   network.use(
     http.post(`${env.QLOO_BASE_URL}/v2/insights`, async ({ request }) => {
-      await record(request)
       const body = JSON.parse(await request.clone().text())
+      if (body['filter.type'] === 'urn:demographics') return
+      await record(request)
       const results = typeof answer === 'function' ? answer(body) : answer
       if (typeof results === 'number')
         return HttpResponse.json({ error: { message: 'fake failure', code: results } }, { status: results })
@@ -174,6 +176,34 @@ export function fakeCompare(answer: Record<string, SharedTag[] | number>, { late
       } finally {
         inFlight--
       }
+    })
+  )
+}
+
+// One entity's demographics, as Qloo returns them: each age bucket and gender relative to average.
+export type Demographic = {
+  entity_id: string
+  age: Record<string, number>
+  gender: { male: number; female: number }
+}
+
+// Serves `POST /v2/insights` with `filter.type=urn:demographics`: the entries of `answer` whose
+// entity the request's signal names, in `answer`'s order rather than the request's, as Qloo does;
+// or an HTTP status that answers with an error body in Qloo's shape. Other insights requests are
+// left to `fakeInsights`.
+export function fakeDemographics(answer: Demographic[] | number) {
+  network.use(
+    http.post(`${env.QLOO_BASE_URL}/v2/insights`, async ({ request }) => {
+      const body = JSON.parse(await request.clone().text())
+      if (body['filter.type'] !== 'urn:demographics') return
+      await record(request)
+      if (typeof answer === 'number')
+        return HttpResponse.json({ error: { message: 'fake failure', code: answer } }, { status: answer })
+      const ids = String(body['signal.interests.entities'] ?? '').split(',')
+      const demographics = answer
+        .filter((d) => ids.includes(d.entity_id))
+        .map(({ entity_id, age, gender }) => ({ entity_id, query: { age, gender } }))
+      return HttpResponse.json({ success: true, results: { demographics }, duration: 12 })
     })
   )
 }

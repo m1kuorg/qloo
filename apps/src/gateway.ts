@@ -24,6 +24,13 @@ export type Ranked = { scored: (Affinity & { affinity: number })[]; unscored: st
 // One tag two signals share, from compare.
 export type SharedTag = CallEvidence['tags'][number]
 
+// One entity's listeners relative to average: by age bucket, such as `25_to_29`, and how far they
+// skew male, which is the negative of how far they skew female in every response seen.
+export type Profile = { id: string; age: Record<string, number>; male: number }
+
+// A demographics call: a profile per entity Qloo returned, and the IDs it returned none for.
+export type Demographics = { profiles: Profile[]; missing: string[] }
+
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
   // At most 3 requests in flight across all sessions, each started at least QLOO_MIN_INTERVAL_MS
@@ -115,6 +122,42 @@ export class QlooGateway extends DurableObject<Env> {
     const raw = (result.data as { results?: { tags?: CompareTag[] } } | null)?.results?.tags ?? []
     const tags = raw.map((t) => ({ id: t.tag_id, name: t.name, score: t.query?.score ?? null }))
     return { ok: true, data: tags, evidence: { ...result.evidence, tags } }
+  }
+
+  // Each entity's listeners by age bucket and gender, relative to average, in one call for every
+  // entity, sent as one signal. Qloo answers one entry per entity, by ID only and in no set order,
+  // so the caller names them. An entry for an entity not asked about means Qloo ignored the signal.
+  // The record has no demographics list, so each entity goes in `affinities` with no overall
+  // affinity and one score per bucket, such as `age.25_to_29`, as Qloo calls them affinity scores.
+  async demographics(entities: { id: string; name: string }[]): Promise<QlooResult<Demographics>> {
+    const ids = [...new Set(entities.map((e) => e.id))]
+    const result = await this.request('POST', '/v2/insights', {
+      'filter.type': 'urn:demographics',
+      'signal.interests.entities': ids.join(',')
+    })
+    if (!result.ok) return result
+    const raw =
+      (result.data as { results?: { demographics?: DemographicResult[] } } | null)?.results?.demographics ?? []
+    const name = (id: string) => entities.find((e) => e.id === id)?.name ?? id
+    const affinities = raw.map((r) => ({
+      id: r.entity_id,
+      name: name(r.entity_id),
+      affinity: null,
+      explainability: [
+        ...Object.entries(r.query?.age ?? {}).map(([bucket, score]) => ({ id: `age.${bucket}`, score })),
+        ...Object.entries(r.query?.gender ?? {}).map(([gender, score]) => ({ id: `gender.${gender}`, score }))
+      ]
+    }))
+    const evidence = { ...result.evidence, affinities }
+    const outside = raw.filter((r) => !ids.includes(r.entity_id))
+    if (outside.length > 0)
+      return this.fail(
+        evidence,
+        `Qloo returned demographics for ${outside.map((r) => r.entity_id).join(', ')}, which wasn't asked about, so it ignored the signal`
+      )
+    const profiles = raw.map((r) => ({ id: r.entity_id, age: r.query?.age ?? {}, male: r.query?.gender?.male ?? 0 }))
+    const missing = ids.filter((id) => !raw.some((r) => r.entity_id === id))
+    return { ok: true, data: { profiles, missing }, evidence }
   }
 
   // GET sends the parameters in the query string; POST sends them as a JSON body of flat dotted
@@ -297,6 +340,11 @@ type InsightResult = {
 }
 
 type CompareTag = { tag_id: string; name: string; query?: { score?: number } }
+
+type DemographicResult = {
+  entity_id: string
+  query?: { age?: Record<string, number>; gender?: Record<string, number> }
+}
 
 // Qloo errors look like {"error": {"message": "..."}}, or {"error_msg": "..."} for a 429. Any other
 // body, such as a proxy's HTML error page, is left out: raw response bodies never reach the browser.
