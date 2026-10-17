@@ -94,7 +94,8 @@ describe('importing a pasted roster', () => {
     }
   })
 
-  it('keeps the roster for the session and starts a new session empty', async () => {
+  // A new session opens on the sample network instead; see sample.test.ts.
+  it('keeps the roster for the session', async () => {
     fakeQloo({ search })
     const first = await session()
     await first.importRoster(roster)
@@ -106,10 +107,6 @@ describe('importing a pasted roster', () => {
       'Deep Cuts',
       'The Ghost Signal Show'
     ])
-
-    const stranger = await session()
-    expect(stranger.cookie).not.toBe(first.cookie)
-    expect(stranger.state()?.roster).toEqual([])
   })
 
   it('appends an evidence record for every Qloo call, to the calling session only', async () => {

@@ -3,6 +3,7 @@
   "notice": "Sample network for the Crossfeed demo. Show names are public; the CPM, downloads, statuses, and descriptions are arbitrary sample figures chosen by Crossfeed, not The Ringer's. Crossfeed isn't affiliated with The Ringer.",
   "cpm": { "value": 20, "sample": true },
   "launch": { "name": "The Watch" },
+  "answers": { "budget": { "slots": 20 }, "exclusions": [] },
   "shows": [
     {
       "name": "The Bill Simmons Podcast",

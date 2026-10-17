@@ -15,7 +15,9 @@
     "QLOO_MIN_INTERVAL_MS": "400",
     "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
     // Guest pitches ship dark: "on" shows the inbox flow; #57 switches it on in production.
-    "GUEST_PITCHES": "off"
+    "GUEST_PITCHES": "off",
+    // A new session opens on the sample network (TRD demo data); tests turn it off.
+    "SAMPLE_NETWORK": "on"
   },
   "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY"] },
   "durable_objects": {

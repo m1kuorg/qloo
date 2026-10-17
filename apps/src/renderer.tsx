@@ -33,6 +33,8 @@ export const renderer = jsxRenderer(({ children }, c) => {
       <body>
         <header class="top">
           <span class="wm">Crossfeed</span>
+          {/* The React island fills these while the session is on the sample network. */}
+          <span id="shell-network" />
           <nav class="nav" aria-label="Sections">
             {sections.map(({ href, label }) => {
               const current = c.req.path === href
@@ -43,6 +45,7 @@ export const renderer = jsxRenderer(({ children }, c) => {
               )
             })}
           </nav>
+          <span id="shell-notice" class="shell-notice" />
         </header>
         {children}
       </body>

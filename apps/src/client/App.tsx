@@ -1,5 +1,6 @@
 import { useAgent } from 'agents/react'
 import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type {
   Budget,
   CrossfeedAgent,
@@ -17,6 +18,7 @@ import type { Band, Ranking } from '../fit'
 import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import { sameName } from '../resolve'
 import type { RosterFormat } from '../roster'
+import type { Sample, SampleFigure } from '../sample'
 import { Alert, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
 import { InboxPage } from './Inbox'
@@ -35,6 +37,8 @@ export function App({ page }: { page: string | undefined }) {
   const roster = shown?.roster ?? []
   const run = shown?.run ?? null
   const runs = agent.state?.runs ?? []
+  const sample = agent.state?.sample ?? null
+  const sampleLaunch = sample && 'name' in sample.launch ? sample.launch.name : null
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
   const [opened, setOpened] = useState<Opened | null>(null)
@@ -53,19 +57,26 @@ export function App({ page }: { page: string | undefined }) {
         setOpened({ call, status: 'failed', error: err instanceof Error ? err.message : String(err) })
     }
   }
+  const shell = sample && <SampleShell sample={sample} />
   if (page === 'inbox')
     return (
-      <InboxPage
-        inbox={agent.state?.inbox ?? null}
-        loadInbox={(source) => agent.stub.loadInbox(source)}
-        confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
-        openCall={openCall}
-        opened={opened}
-      />
+      <>
+        {shell}
+        <InboxPage
+          inbox={agent.state?.inbox ?? null}
+          loadInbox={(source) => agent.stub.loadInbox(source)}
+          confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
+          openCall={openCall}
+          opened={opened}
+        />
+      </>
     )
   return (
     <>
+      {shell}
       <LaunchHeader
+        key={sampleLaunch ?? 'none'}
+        suggested={sampleLaunch}
         launch={shown?.launch ?? null}
         run={run}
         viewing={viewing && runNumber(runs, viewing.id)}
@@ -89,11 +100,15 @@ export function App({ page }: { page: string | undefined }) {
                 Roster
               </h2>
             </div>
-            <p className="help sec-help">
-              {viewing
-                ? `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
-                : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
-            </p>
+            {sample && !viewing ? (
+              <SampleNotice sample={sample} clear={() => agent.stub.clearSample()} />
+            ) : (
+              <p className="help sec-help">
+                {viewing
+                  ? `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
+                  : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
+              </p>
+            )}
             {!viewing && (
               <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
             )}
@@ -121,7 +136,14 @@ export function App({ page }: { page: string | undefined }) {
           {show && !viewing && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
           <RosterCheck roster={roster} />
           <EvidencePanel opened={opened} />
-          {!viewing && <NetworkCpm key={agent.state?.cpm ?? 'none'} cpm={agent.state?.cpm ?? null} agent={agent} />}
+          {!viewing && (
+            <NetworkCpm
+              key={agent.state?.cpm ?? 'none'}
+              cpm={agent.state?.cpm ?? null}
+              sample={sample?.cpm ?? false}
+              agent={agent}
+            />
+          )}
         </aside>
       </main>
     </>
@@ -142,6 +164,7 @@ const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id
 // The launch header: start a run from a released launch's name, then follow it here. While an
 // earlier run is viewed, it shows that run and a way back instead of the form.
 function LaunchHeader({
+  suggested,
   launch,
   run,
   viewing,
@@ -150,6 +173,7 @@ function LaunchHeader({
   openCall,
   opened
 }: {
+  suggested: string | null // the sample launch, prefilled for the visitor to start
   launch: Launch | null
   run: Run | null
   viewing: number | null // the number of the earlier run shown
@@ -158,7 +182,7 @@ function LaunchHeader({
   openCall: (call: string) => void
   opened: string | null
 }) {
-  const [name, setName] = useState('')
+  const [name, setName] = useState(suggested ?? '')
   const action = useAction()
   const running = run?.status === 'running'
   const submit = async (e: React.FormEvent) => {
@@ -208,6 +232,7 @@ function LaunchHeader({
           <button className="btn pri" type="submit" disabled={action.busy || running || !name.trim()}>
             Start run
           </button>
+          {suggested && name === suggested && <small className="smp">Sample launch</small>}
           {again && (
             <>
               <button
@@ -791,7 +816,7 @@ function RosterTable({
               )}
               {show.description && (
                 <div className="tg desc" title={show.description}>
-                  {show.description}
+                  <SampleLabel show={show} figure="description" text="Sample:" /> {show.description}
                 </div>
               )}
             </td>
@@ -804,8 +829,14 @@ function RosterTable({
             <td>
               <Match show={show} settle={select && (() => select(show.name))} />
             </td>
-            <td className="r">{show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}</td>
-            <td>{show.status ?? '–'}</td>
+            <td className="r">
+              {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
+              <SampleLabel show={show} figure="downloads" block />
+            </td>
+            <td>
+              {show.status ?? '–'}
+              <SampleLabel show={show} figure="status" block />
+            </td>
             <td className="r">
               {/* A pending call has no evidence record yet, so it opens once the search settles. */}
               {show.resolution === 'pending' ? (
@@ -885,7 +916,11 @@ function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close:
         </span>
       </div>
       <p className="q">{show.name}</p>
-      {show.description && <p className="help">{show.description}</p>}
+      {show.description && (
+        <p className="help">
+          <SampleLabel show={show} figure="description" text="Sample:" /> {show.description}
+        </p>
+      )}
       {show.candidates.length > 0 && (
         <PickOne
           legend={`Which Qloo show is ${show.name}?`}
@@ -1009,13 +1044,17 @@ function ShowFields({
   return (
     <form className="fields" onSubmit={save}>
       <label className="field">
-        <span className="lbl">Downloads per episode</span>
+        <span className="lbl">
+          Downloads per episode <SampleLabel show={show} figure="downloads" />
+        </span>
         <span className="in">
           <input inputMode="numeric" value={downloads} onChange={(e) => setDownloads(e.target.value)} />
         </span>
       </label>
       <label className="field">
-        <span className="lbl">Status</span>
+        <span className="lbl">
+          Status <SampleLabel show={show} figure="status" />
+        </span>
         <span className="in">
           <input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="active, hiatus" />
         </span>
@@ -1065,7 +1104,7 @@ function RosterCheck({ roster }: { roster: Show[] }) {
   )
 }
 
-function NetworkCpm({ cpm, agent }: { cpm: number | null; agent: Session }) {
+function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample: boolean; agent: Session }) {
   const [value, setValue] = useState(cpm == null ? '' : String(cpm))
   const { busy, error, run } = useAction()
   const save = (e: React.FormEvent) => {
@@ -1096,7 +1135,56 @@ function NetworkCpm({ cpm, agent }: { cpm: number | null; agent: Session }) {
           Save
         </button>
       </form>
+      {sample && <small className="smp">Arbitrary sample figure, not the network's. Enter your own.</small>}
       <Alert error={error} />
     </section>
+  )
+}
+
+// Labels a show's figure as an arbitrary sample figure, beside it, while it still holds the sample's value.
+function SampleLabel({
+  show,
+  figure,
+  text = 'sample',
+  block = false
+}: {
+  show: Show
+  figure: SampleFigure
+  text?: string
+  block?: boolean
+}) {
+  if (!show.sample?.includes(figure)) return null
+  return <small className={block ? 'smp blk' : 'smp'}>{text}</small>
+}
+
+// The sample network's name and not-affiliated notice, in the top bar the server renders.
+function SampleShell({ sample }: { sample: Sample }) {
+  const network = document.getElementById('shell-network')
+  const notice = document.getElementById('shell-notice')
+  return (
+    <>
+      {network && createPortal(<span className="net">{sample.network} · sample network</span>, network)}
+      {notice &&
+        createPortal(<span className="sample-tag">Sample data · not affiliated with {sample.network}</span>, notice)}
+    </>
+  )
+}
+
+// The roster's notice while it is the sample network, and a way back to an empty roster.
+function SampleNotice({ sample, clear }: { sample: Sample; clear: () => Promise<void> }) {
+  const { busy, error, run } = useAction()
+  return (
+    <div className="sample-notice">
+      <p className="help">
+        <b>{sample.network}.</b> {sample.notice}
+      </p>
+      <div className="acts">
+        <button type="button" className="btn" disabled={busy} onClick={() => void run(clear)}>
+          Clear sample network
+        </button>
+        <small>Empties the roster so you can import your own. Or edit any figure.</small>
+      </div>
+      <Alert error={error} />
+    </div>
   )
 }
