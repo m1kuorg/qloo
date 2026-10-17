@@ -15,8 +15,11 @@ export function Guide({
 }) {
   const { sample, ranking, topic, insertionOrder } = state
   if (!sample || state.guide?.dismissed) return null
-  // The latest launch run, not a guest pitch run.
-  const run = state.run && state.booking?.run !== state.run.id ? state.run : null
+  // The session's latest launch run. A guest pitch run after it replaces it as `state.run`, but not
+  // its order, so the guide keeps what the launch run did.
+  const launchRun = state.runs?.findLast((r) => !r.pitchesFor) ?? null
+  const run = launchRun && state.run?.id === launchRun.id ? state.run : null
+  const order = launchRun && insertionOrder?.run === launchRun.id ? insertionOrder : null
   const seen = (mark: GuideMark) => state.guide?.seen.includes(mark) ?? false
   const launch = 'name' in sample.launch ? sample.launch.name : 'The sample launch'
   // The highest-placed climber: the moves are in fit order.
@@ -26,7 +29,7 @@ export function Guide({
     {
       title: 'Start the sample launch',
       how: `${launch} is in the launch field. Select Start run.`,
-      done: run !== null
+      done: launchRun !== null
     },
     {
       title: 'Find the climber',
@@ -43,12 +46,13 @@ export function Guide({
     {
       title: 'Answer the agent',
       how: `In the agent's question, give the slot budget, then the shows to leave out, selecting Answer each time. Sample answers: ${budget.slots} promo slots, then ${exclusions.length ? `leave out ${listOf(exclusions)}` : 'leave every show unticked'}.`,
-      done: run?.budget != null && run.exclusions !== null
+      // The draft tool stores an order only once both are answered.
+      done: (run?.budget != null && run.exclusions !== null) || order !== null
     },
     {
       title: 'Approve the insertion order',
       how: 'When the run completes, select Approve on the insertion order draft.',
-      done: insertionOrder?.status === 'approved' && insertionOrder.run === run?.id
+      done: order?.status === 'approved'
     }
   ]
   // The step after the furthest one done, so a visitor who goes ahead is never sent back.
