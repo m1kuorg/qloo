@@ -27,14 +27,19 @@ export type InsertionOrder = Priced & {
   status: 'draft' | 'approved'
 }
 
+// One promo slot's value on a show, or the figure it's missing: the insertion order prices its lines
+// with it, and the fit chart shows it per show.
+export function slotPrice(downloads: number | null, cpm: number | null): Pick<OrderLine, 'slotValue' | 'gap'> {
+  if (cpm === null) return { slotValue: null, gap: 'No network CPM' }
+  if (downloads === null) return { slotValue: null, gap: 'No downloads per episode' }
+  return { slotValue: Math.round((downloads * cpm) / 1000), gap: null }
+}
+
 // Prices each line from its show's downloads and the CPM. A missing figure leaves a gap, never a guess.
 export function priceLines(lines: LineInput[], roster: Show[], cpm: number | null): Priced {
   const priced = lines.map((line): OrderLine => {
-    const downloads = roster.find((s) => s.name === line.show)?.downloads ?? null
-    if (cpm === null) return { ...line, slotValue: null, value: null, gap: 'No network CPM' }
-    if (downloads === null) return { ...line, slotValue: null, value: null, gap: 'No downloads per episode' }
-    const slotValue = Math.round((downloads * cpm) / 1000)
-    return { ...line, slotValue, value: slotValue * line.slots, gap: null }
+    const { slotValue, gap } = slotPrice(roster.find((s) => s.name === line.show)?.downloads ?? null, cpm)
+    return { ...line, slotValue, value: slotValue === null ? null : slotValue * line.slots, gap }
   })
   return {
     lines: priced,
