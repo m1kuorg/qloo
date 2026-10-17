@@ -1,3 +1,335 @@
+/* Tokens from docs/DESIGN.md (The Weekly Chart). Chart red marks a climb of 3+ places only. */
+:root {
+  --ink: #111;
+  --red: #e3262e;
+  --mid: #555;
+  --grey: #6b6b6b;
+  --topic: #8a8a8a;
+  --panel: #f2f2f2;
+  --line: #e6e6e6;
+  --edge: #d4d4d4;
+  --empty: #dcdcdc;
+  --body: 'Libre Franklin', sans-serif;
+  --cond: 'Barlow Condensed', sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #fff;
+  color: var(--ink);
+  font:
+    400 13px/1.4 var(--body),
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Label: module headings and chips. */
+.lbl {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
+.chip {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mid);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  padding: 2px 6px;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.help,
+.tg {
+  font-size: 12px;
+  color: var(--mid);
+}
+
+/* Top bar: the one filled black region besides primary buttons. */
+.top {
+  height: 48px;
+  background: var(--ink);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+}
+
+.wm {
+  font: 800 22px/1 var(--cond);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.nav {
+  display: flex;
+  align-self: stretch;
+  margin-left: 28px;
+}
+
+.nav a {
+  display: flex;
+  align-items: center;
+  padding: 2px 12px 0;
+  color: #a3a3a3;
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.nav a.on {
+  color: #fff;
+  border-bottom-color: #fff;
+}
+
+.hd {
+  padding: 18px 32px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
 h1 {
-  font-family: Arial, Helvetica, sans-serif;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Work area: the chart column and the 448px rail. */
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 448px;
+  gap: 24px;
+  padding: 0 32px 32px;
+}
+
+.chart-col {
+  padding-top: 16px;
+  min-width: 0;
+}
+
+.rail {
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mod {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.mod:last-child {
+  border-bottom: 0;
+}
+
+.mh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.mh .lbl {
+  color: var(--ink);
+}
+
+.rec {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.rec-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+
+.rec dt {
+  color: var(--grey);
+}
+
+.rec dd {
+  font-weight: 600;
+  text-align: right;
+}
+
+@media (max-width: 960px) {
+  .main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* Controls. */
+.import {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+  max-width: 560px;
+}
+
+.import textarea {
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 8px 10px;
+  resize: vertical;
+  background: #fff;
+}
+
+.import textarea::placeholder {
+  color: var(--grey);
+}
+
+.acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.acts small {
+  font-size: 12px;
+  color: var(--grey);
+}
+
+.btn {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  background: #fff;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn.pri {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.err {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.empty {
+  padding: 24px 0;
+  color: var(--mid);
+}
+
+/* Tables: hairline rows under a solid black header rule. */
+.chart {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.chart caption {
+  text-align: left;
+  font-size: 12px;
+  color: var(--grey);
+  padding-bottom: 8px;
+}
+
+.chart th {
+  text-align: left;
+  vertical-align: bottom;
+  padding: 8px;
+  border-bottom: 1px solid var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+  white-space: nowrap;
+}
+
+.chart th small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--grey);
+}
+
+.chart td {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.chart th:first-child,
+.chart td:first-child {
+  padding-left: 12px;
+}
+
+.chart .r {
+  text-align: right;
+}
+
+.roster td {
+  height: 44px;
+}
+
+.nm {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pop {
+  color: var(--grey);
+  margin-left: 4px;
+}
+
+.cands {
+  list-style: none;
+}
+
+.call {
+  font: 500 12px var(--mono);
 }

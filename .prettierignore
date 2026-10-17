@@ -1,2 +1,5 @@
 .agents/
 .claude/
+apps/worker-configuration.d.ts
+apps/dist/
+apps/.wrangler/

@@ -60,9 +60,9 @@ Worker (Hono) ──── routes /agents/* ──► CrossfeedAgent  (Durable O
 
 ### Components
 
-- **Worker:** a Hono app that serves the server-rendered shell, routes `/agents/*` to agents through `hono-agents`' `agentsMiddleware` ([routing][cf-routing]), serves CSV export, and runs the cron health check.
-- **`CrossfeedAgent`:** one instance per visitor session, named by a random session ID kept in a cookie. It owns the Claude loop, the session's roster, launches, runs, insertion orders, pitches, replies, and evidence log.
-- **`QlooGateway`:** one global instance, the only code that calls Qloo. Session agents reach it over Durable Object RPC. It owns the key, the request shape, retries, the concurrency limit, the response cache, the daily caps, and evidence records.
+- **Worker:** a Hono app that serves the server-rendered shell, routes `/agents/session` to the visitor's agent, serves CSV export, and runs the cron health check. `GET /` sets the session cookie, and `/agents/session` picks the `CrossfeedAgent` instance from it, which the client reaches with `useAgent`'s `basePath` ([custom routing][cf-routing]). The Worker doesn't use `hono-agents`' `agentsMiddleware`, because its `/agents/<binding>/<name>` routes would let a client open any session or reach `QlooGateway`.
+- **`CrossfeedAgent`:** one instance per visitor session, named by a random session ID kept in an HttpOnly cookie. It owns the Claude loop, the session's roster, launches, runs, insertion orders, pitches, replies, and evidence log. Clients can't write its state; it changes only through actions.
+- **`QlooGateway`:** one global instance, the only code that calls Qloo. Session agents reach it over Durable Object RPC. It owns the key, the request shape, retries, the concurrency limit, the response cache, the daily caps, and evidence records. Each method returns its data or its error as a value, together with the call's evidence record, so a failure's evidence survives the RPC hop.
 - **UI:** a server-rendered Hono JSX shell with a React client island that connects through `useAgent` from `agents/react`, the Agents SDK's documented client path.
 
 [cf-routing]: https://developers.cloudflare.com/agents/runtime/communication/routing/
@@ -101,7 +101,8 @@ Not used: `/entities?external.spotify.ids=` is accepted but found no podcast by 
 - **Silently ignored parameters:** a ranking that returns an entity outside the candidate list, or no explainability when it was requested, is an error.
 - **Unscored candidates:** a ranking silently leaves out any candidate the signal gave no score, which happened to most works released since about May 2025 ([demo data](#demo-data)). The gateway reports each one as unscored.
 - **Size:** at most 50 candidates per ranking, since `take` maxes out at 50 and scores from separate calls aren't comparable.
-- **Evidence:** every call, cached or not, appends a record to the calling session's evidence log.
+- **Evidence:** every call, cached or not, appends a record to the calling session's evidence log. The gateway builds the record, and the session's one path to the gateway numbers it (`C-01`, in the order calls start) and appends it, success or failure. Its shape is fixed in [`apps/src/evidence.ts`](/apps/src/evidence.ts): call number, run, time, method, endpoint, parameters, status, latency, retries, cache hit, error, and lists of entities, tags, and affinities, which each endpoint fills.
+- **Rate:** on 2026-10-17 Qloo answered 429 "Rate limit exceeded" to bursts of three searches that each took about 300 ms, with other clients sharing the key, while three calls in flight of about 1 second each passed. The limit is on request rate, not only concurrency, so the gateway paces calls as well as capping them. Until it does, the roster import searches one show at a time.
 
 ### Call budget per run
 
@@ -221,11 +222,11 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 
 Changes to the [`apps/`](/apps/) scaffold:
 
-- **Dependencies:** `agents`, `hono-agents`, `@anthropic-ai/sdk`, `react`, `react-dom`, and `@vitejs/plugin-react`.
+- **Dependencies:** `agents` (pinned, since it ships minor releases every few days), `@anthropic-ai/sdk`, `react`, `react-dom`, and `@vitejs/plugin-react`; for tests, `vitest`, `@cloudflare/vitest-plugin`, `msw`, and `@msw/cloudflare`.
 - **`wrangler.jsonc`:** add `"compatibility_flags": ["nodejs_compat"]`, which the Agents SDK requires. Add Durable Object bindings for `CrossfeedAgent` and `QlooGateway`, a migration with `"new_sqlite_classes": ["CrossfeedAgent", "QlooGateway"]`, and a daily cron under `triggers.crons` ([configuration][cf-config], [cron triggers][cf-cron]). Rename the Worker from `apps` to `crossfeed`, and move `compatibility_date` forward.
 - **`vite.config.ts`:** add the `agents/vite` and React plugins.
 - **Plan:** upgrade the Cloudflare account to Workers Paid before the first deploy that runs a full launch.
-- **Deploy:** `bun run deploy` from `apps/` builds and runs `wrangler deploy`, serving on the `workers.dev` URL unless a custom domain is added.
+- **Deploy:** `bun run deploy` from `apps/` builds and runs `wrangler deploy` to the `qloo` Cloudflare account, serving on <https://crossfeed.m1kuorg.workers.dev> unless a custom domain is added. The [apps README](/apps/README.md) is the how-to.
 
 [cf-cron]: https://developers.cloudflare.com/workers/configuration/cron-triggers/
 
@@ -238,10 +239,14 @@ Changes to the [`apps/`](/apps/) scaffold:
 
 Per the [PRD](PRD.md#testing-decisions), tests drive the public interface with Qloo and Anthropic replaced at the network boundary:
 
-- **Seam:** `QLOO_BASE_URL` and `ANTHROPIC_BASE_URL` are configuration, and the Anthropic SDK takes a `baseURL`. Tests point both at an in-process fake HTTP server that serves synthetic Qloo responses, replays scripted model turns, and records every request.
-- **Runner:** Vitest with Cloudflare's Workers pool (`@cloudflare/vitest-pool-workers`), which runs Durable Objects locally _(verify: how the pool reaches a fake server outside the Workers runtime)_.
+- **Seam:** `QLOO_BASE_URL` and `ANTHROPIC_BASE_URL` are configuration, and the Anthropic SDK takes a `baseURL`. Tests point both at fake hosts served by an in-process fake that serves synthetic Qloo responses, replays scripted model turns, and records every request.
+- **Runner:** Vitest with Cloudflare's Workers integration, `@cloudflare/vitest-plugin` (the renamed `@cloudflare/vitest-pool-workers`). The Worker and its Durable Objects run in the same isolate as the tests ([test APIs][cf-test-apis]).
+- **How the fake is reached:** settled on 2026-10-17. The fake runs inside the Workers runtime as [`@msw/cloudflare`][cf-msw] handlers, Cloudflare's documented way to mock outbound requests with the plugin. It patches `fetch` in the tests' isolate, so it sees every call the gateway makes, and each test file gets its own fake and request log. A request no handler serves fails the test. Two alternatives lost: a Node HTTP server started in Vitest's `globalSetup` and passed by port, whose one shared memory would need every request keyed to a test, though a Qloo request carries no session or test ID; and an auxiliary Worker, which must be prebuilt JavaScript and can't share the tests' fixtures. The Anthropic SDK captures `fetch` when its client is built, so build it with `fetch: (...args) => fetch(...args)` to let the patched `fetch` reach it. [`apps/README.md`](/apps/README.md#test) says how to use the harness.
 - **Through the interface:** tests connect to the agent as the UI does, call its actions, and assert on synced state and HTTP responses.
 - **Live check:** each feature is done only after it runs on the deployed Worker against the real Qloo API, checked by hand.
+
+[cf-test-apis]: https://developers.cloudflare.com/workers/testing/vitest-integration/test-apis/
+[cf-msw]: https://developers.cloudflare.com/workers/testing/vitest-integration/mock-outbound-requests/
 
 ## Demo data
 
@@ -260,7 +265,6 @@ Per the [PRD](PRD.md#testing-decisions), tests drive the public interface with Q
 ## Open technical questions
 
 - Whether a roster with misses mapped to comps ranks sensibly next to resolved shows.
-- How the Workers Vitest pool reaches a fake server, or whether the fake should run as an auxiliary Worker.
 
 ## See also
 

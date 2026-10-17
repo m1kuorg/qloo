@@ -1,6 +1,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "apps",
-  "compatibility_date": "2025-08-03",
-  "main": "./src/index.tsx"
+  "name": "crossfeed",
+  "account_id": "f0621d6622ac79af0e8e6f3520f78063",
+  "compatibility_date": "2026-10-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./src/index.tsx",
+  "observability": { "enabled": true },
+  "triggers": { "crons": ["0 12 * * *"] },
+  "vars": { "QLOO_BASE_URL": "https://hackathon.api.qloo.com" },
+  "secrets": { "required": ["QLOO_API_KEY"] },
+  "durable_objects": {
+    "bindings": [
+      { "name": "CrossfeedAgent", "class_name": "CrossfeedAgent" },
+      { "name": "QlooGateway", "class_name": "QlooGateway" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CrossfeedAgent", "QlooGateway"] }]
 }

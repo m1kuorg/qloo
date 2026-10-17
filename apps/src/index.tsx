@@ -1,12 +1,45 @@
+/** @jsxImportSource hono/jsx */
+import { getAgentByName } from 'agents'
 import { Hono } from 'hono'
+import { getCookie, setCookie } from 'hono/cookie'
 import { renderer } from './renderer'
 
-const app = new Hono()
+export { CrossfeedAgent } from './agent'
+export { QlooGateway } from './gateway'
+
+// The visitor session: a random ID in a cookie names the session's CrossfeedAgent.
+const SESSION_COOKIE = 'crossfeed_session'
+
+const app = new Hono<{ Bindings: Env }>()
 
 app.use(renderer)
 
 app.get('/', (c) => {
-  return c.render(<h1>Hello!</h1>)
+  if (!getCookie(c, SESSION_COOKIE)) {
+    setCookie(c, SESSION_COOKIE, crypto.randomUUID(), {
+      httpOnly: true,
+      secure: new URL(c.req.url).protocol === 'https:',
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30
+    })
+  }
+  return c.render(<div id="root" />)
 })
 
-export default app
+// The client connects here (`useAgent` with `basePath`), and the server picks the instance from
+// the cookie, so a visitor can only ever reach their own session.
+app.all('/agents/session', async (c) => {
+  const session = getCookie(c, SESSION_COOKIE)
+  if (!session) return c.text('No session; load / first.', 401)
+  const agent = await getAgentByName(c.env.CrossfeedAgent, session)
+  return agent.fetch(c.req.raw)
+})
+
+export default {
+  fetch: app.fetch,
+  // Daily cron stub; the Qloo health check (#51) goes here.
+  async scheduled(controller: ScheduledController) {
+    console.log(JSON.stringify({ event: 'cron', cron: controller.cron }))
+  }
+} satisfies ExportedHandler<Env>
