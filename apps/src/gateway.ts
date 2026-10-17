@@ -23,6 +23,8 @@ export class QlooGateway extends DurableObject<Env> {
       type: r.types?.[0] ?? type,
       popularity: r.popularity ?? null
     }))
+    // Search fills only `entities`: each result's genre tags describe that result, not the call, so
+    // `tags` stays empty here.
     return { ok: true, data: entities, evidence: { ...result.evidence, entities } }
   }
 
@@ -51,8 +53,13 @@ export class QlooGateway extends DurableObject<Env> {
       evidence.latencyMs = Date.now() - started
       // Qloo documents 404 as "No results" for search; live it answers 200 with an empty list.
       if (response.status === 404) return { ok: true, data: null, evidence }
-      if (!response.ok) return this.fail(evidence, `Qloo returned ${response.status}: ${errorMessage(body)}`)
-      return { ok: true, data: JSON.parse(body), evidence }
+      if (!response.ok) {
+        const message = errorMessage(body)
+        return this.fail(evidence, `Qloo returned ${response.status}${message ? `: ${message}` : ''}`)
+      }
+      const data = parseJson(body)
+      if (data === undefined) return this.fail(evidence, `Qloo returned ${response.status} with a body that isn't JSON`)
+      return { ok: true, data, evidence }
     } catch (e) {
       evidence.latencyMs = Date.now() - started
       return this.fail(evidence, `Qloo request failed: ${e instanceof Error ? e.message : String(e)}`)
@@ -70,12 +77,19 @@ export class QlooGateway extends DurableObject<Env> {
 
 type SearchResult = { entity_id: string; name: string; types?: string[]; popularity?: number }
 
-// Qloo errors look like {"error": {"message": "..."}}, or {"error_msg": "..."} for a 429; else raw text.
-function errorMessage(body: string) {
+// Qloo errors look like {"error": {"message": "..."}}, or {"error_msg": "..."} for a 429. Any other
+// body, such as a proxy's HTML error page, is left out: raw response bodies never reach the browser.
+function errorMessage(body: string): string | null {
+  const json = parseJson(body) as { error?: { message?: unknown }; error_msg?: unknown; message?: unknown } | null
+  const message = json?.error?.message ?? json?.error_msg ?? json?.message
+  return typeof message === 'string' ? message : null
+}
+
+// The parsed body, or undefined when it isn't JSON. JSON.parse's own error quotes the body.
+function parseJson(body: string): unknown {
   try {
-    const json = JSON.parse(body)
-    return json?.error?.message ?? json?.error_msg ?? json?.message ?? body.slice(0, 200)
+    return JSON.parse(body)
   } catch {
-    return body.slice(0, 200)
+    return undefined
   }
 }
