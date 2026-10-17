@@ -126,6 +126,14 @@ const book = { guest: 'Ivo Marsh', work: { title: 'Salt Roads', type: 'book', ye
 // A session with the show imported, the pitches loaded, and a pitch run started with `pastGuests`
 // and scripted through `script`.
 async function rank(pastGuests: unknown[], script: Parameters<typeof fakeClaude>[0]) {
+  const s = await loaded()
+  fakeClaude(script)
+  await s.call('startPitches', { show: 'Night Shift Cinema', pastGuests })
+  return { s, state: await finished(s) }
+}
+
+// A session with the show imported and the pitches loaded.
+async function loaded() {
   fakeQloo({ search })
   fakeReader(pitches.length + 2, (t) => {
     if (t.includes(declined)) return 'refuse'
@@ -137,9 +145,7 @@ async function rank(pastGuests: unknown[], script: Parameters<typeof fakeClaude>
   await s.importRoster('Night Shift Cinema')
   await s.call('loadInbox', { text: inboxText })
   await s.until((state) => state.inbox?.status === 'done')
-  fakeClaude(script)
-  await s.call('startPitches', { show: 'Night Shift Cinema', pastGuests })
-  return { s, state: await finished(s) }
+  return s
 }
 
 // The model passes every pitch, the set-aside ones included; the tool must leave those out.
@@ -309,6 +315,21 @@ describe('starting a pitch run', () => {
       "Guest pitches aren't switched on."
     )
     expect(requests).toEqual([])
+  })
+
+  it("refuses a past guest whose work title holds an email address or the guest's name, and sends nothing", async () => {
+    const s = await loaded()
+    const sent = requests.length
+    const start = (title: string) =>
+      s.call('startPitches', { show: 'Night Shift Cinema', pastGuests: [{ ...film, work: { ...film.work, title } }] })
+    await expect(start('Glass Harbor mae@example.com')).rejects.toThrow(
+      "Past guest 1's work title holds an email address."
+    )
+    await expect(start("Mae Ford's Glass Harbor")).rejects.toThrow(
+      "Past guest 1's work title holds their name, so it isn't sent to Qloo."
+    )
+    expect(s.state()?.booking).toBeNull()
+    expect(requests).toHaveLength(sent)
   })
 })
 
