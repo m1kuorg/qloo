@@ -69,6 +69,7 @@ Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo 
 
 - `call(method, ...args)` calls a `@callable` action and resolves with its result, after the state it set has arrived.
 - `importRoster(text, format?)` imports a roster and resolves once every show's search has settled. `call('importRoster', ...)` resolves as soon as the shows are pending, before any search returns.
+- `searchComps(name, query)` searches for a comp and resolves once the search has settled; `call('searchComps', ...)` resolves while it's still pending.
 - `state()` is the latest synced state, and `until(ready)` waits for synced state that passes `ready`, such as a finished run.
 - `frames()` is every raw frame the server sent, which is everything the visitor's browser receives.
 - `openSession(cookie)` reconnects as the same visitor, like a reload; `openSession()` is a new visitor.

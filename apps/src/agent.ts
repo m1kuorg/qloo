@@ -20,11 +20,21 @@ export type Show = {
   candidates: Candidate[] // up to three when the name was ambiguous, kept after a pick
   evidence: string // the call number of the search behind the resolution
   error: string | null // why the search failed
-  compSearch: { query: string; call: string; results: Candidate[] } | null // the latest search for a comp
+  compSearch: CompSearch | null // the latest search for a comp
   downloads: number | null // per episode
   status: string | null // the network's own word, such as "active" or "hiatus"
   description: string | null
   excluded: boolean // never proposed for a launch, such as a show mid-sale
+}
+
+// A search for a comp: pending until Qloo answers, then done with its results, or failed with the
+// reason.
+export type CompSearch = {
+  query: string
+  call: string
+  status: 'pending' | 'done' | 'failed'
+  results: Candidate[]
+  error: string | null
 }
 
 // What the programmer can change about a show; a field left out stays as it is. `entityId` picks
@@ -129,6 +139,15 @@ export class CrossfeedAgent extends Agent<Env, State> {
         ...this.state,
         roster: this.state.roster.map((s) => (s.resolution === 'pending' ? { ...s, ...interrupted } : s))
       })
+    // And for a comp search.
+    const stopped = { status: 'failed', error: 'The search was interrupted. Search again.' } as const
+    if (this.state.roster.some((s) => s.compSearch?.status === 'pending'))
+      this.setState({
+        ...this.state,
+        roster: this.state.roster.map((s) =>
+          s.compSearch?.status === 'pending' ? { ...s, compSearch: { ...s.compSearch, ...stopped } } : s
+        )
+      })
     const inbox = this.state.inbox
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
   }
@@ -171,18 +190,18 @@ export class CrossfeedAgent extends Agent<Env, State> {
     void this.keepAliveWhile(() => Promise.all(rows.map(({ name }, i) => this.lookUpShow(name, calls[i]))))
   }
 
-  // Searches Qloo for a comparable show to stand in for one it can't match, such as a miss.
+  // Searches Qloo for a comparable show to stand in for one it can't match, such as a miss. It
+  // returns once the search is pending, and the search fills in when Qloo answers.
   @callable()
-  async searchComps(name: string, query: string) {
+  searchComps(name: string, query: string) {
     // A comp mapped now would be overwritten when the show's own search lands.
     if (this.show(name).resolution === 'pending') throw new Error(`${name} is still being looked up in Qloo.`)
     const q = query.trim()
     if (!q) throw new Error('Type the name of a comparable show.')
-    const { call, result } = await this.qloo((gateway) => gateway.search(q, 'urn:entity:podcast', 5))
-    if (!result.ok) throw new Error(`The search for "${q}" failed: ${result.error}`)
-    const results = result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
-    // Read the show again: the roster may have changed while Qloo answered.
-    this.editShow(name, (show) => ({ ...show, compSearch: { query: q, call, results } }))
+    const seq = this.numberCall()
+    const compSearch: CompSearch = { query: q, call: callNumber(seq), status: 'pending', results: [], error: null }
+    this.editShow(name, (show) => ({ ...show, compSearch }))
+    void this.keepAliveWhile(() => this.findComps(name, compSearch, seq))
   }
 
   // Settles or edits one show, named as imported. A patch that fails changes nothing.
@@ -368,6 +387,25 @@ export class CrossfeedAgent extends Agent<Env, State> {
       match = { resolution: 'failed', entity: null, candidates: [], evidence: callNumber(seq), error }
     }
     this.editShow(name, (show) => ({ ...show, ...match }))
+  }
+
+  // Runs a pending comp search and fills it in, unless a newer search or an import replaced it.
+  private async findComps(name: string, search: CompSearch, seq: number) {
+    let landed: CompSearch
+    try {
+      const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
+      landed = result.ok
+        ? {
+            ...search,
+            status: 'done',
+            results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
+          }
+        : { ...search, status: 'failed', error: result.error }
+    } catch (e) {
+      landed = { ...search, status: 'failed', error: `The search failed: ${message(e)}` }
+    }
+    const show = this.state.roster.find((s) => s.name === name)
+    if (show?.compSearch?.call === search.call) this.editShow(name, (s) => ({ ...s, compSearch: landed }))
   }
 
   // Reserves the next call number, before the call is made.

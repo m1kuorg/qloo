@@ -1,5 +1,8 @@
+import { env } from 'cloudflare:workers'
+import { http } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
-import { fakeQloo, requests } from './fake'
+import type { Evidence } from '../src/evidence'
+import { fakeQloo, network, requests } from './fake'
 import { openSession, type Session } from './session'
 
 // Synthetic shows: one exact match, one name shared by spin-off feeds, one Qloo doesn't have.
@@ -166,13 +169,14 @@ describe('settling matches', () => {
     const s = await session()
     await s.importRoster(roster)
 
-    await s.call('searchComps', 'The Ghost Signal Show', 'Ghost Hour')
+    await s.searchComps('The Ghost Signal Show', 'Ghost Hour')
     expect(show(s, 'The Ghost Signal Show')).toMatchObject({
       resolution: 'missed',
       evidence: 'C-03',
       compSearch: {
         query: 'Ghost Hour',
         call: 'C-04',
+        status: 'done',
         results: [
           { id: 'e-0201', name: 'The Ghost Hour Show', popularity: 0.88 },
           { id: 'e-0202', name: 'Ghost Hour Live', popularity: 0.31 }
@@ -190,12 +194,41 @@ describe('settling matches', () => {
     })
 
     // A later search that isn't used leaves the mapping and its evidence alone.
-    await s.call('searchComps', 'The Ghost Signal Show', 'Nothing Like It')
+    await s.searchComps('The Ghost Signal Show', 'Nothing Like It')
     expect(show(s, 'The Ghost Signal Show')).toMatchObject({
       resolution: 'mapped',
       entity: { id: 'e-0201' },
       evidence: 'C-04',
-      compSearch: { query: 'Nothing Like It', call: 'C-05', results: [] }
+      compSearch: { query: 'Nothing Like It', call: 'C-05', status: 'done', results: [] }
+    })
+  })
+
+  it('keeps the latest comp search when an earlier one answers after it', async () => {
+    fakeQloo({
+      search: { ...search, 'Ghost Hour': [{ entity_id: 'e-0201', name: 'The Ghost Hour Show', popularity: 0.88 }] }
+    })
+    const s = await session()
+    await s.importRoster(roster)
+    // Holds the first query until released; returning nothing hands the request on to fakeQloo.
+    const held = Promise.withResolvers<void>()
+    network.use(
+      http.get(`${env.QLOO_BASE_URL}/search`, ({ request }) =>
+        new URL(request.url).searchParams.get('query') === 'Ghost Signal' ? held.promise : undefined
+      )
+    )
+
+    await s.call('searchComps', 'The Ghost Signal Show', 'Ghost Signal')
+    await s.searchComps('The Ghost Signal Show', 'Ghost Hour')
+    held.resolve()
+    // The held search has landed, or been dropped, by the time its evidence is logged.
+    while (!(await s.call<Evidence[]>('getEvidence')).some((e) => e.call === 'C-04'))
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(show(s, 'The Ghost Signal Show')?.compSearch).toMatchObject({
+      query: 'Ghost Hour',
+      call: 'C-05',
+      status: 'done',
+      results: [{ id: 'e-0201' }]
     })
   })
 

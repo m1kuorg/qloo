@@ -233,7 +233,7 @@ describe('ranking the roster by fit to the launch', () => {
     const s = await session()
     await s.importRoster(roster)
     await s.call('updateShow', 'Overtime Desk', { excluded: true })
-    await s.call('searchComps', 'Ghost Signal', 'Long Take')
+    await s.searchComps('Ghost Signal', 'Long Take')
     await s.call('updateShow', 'Ghost Signal', { compId: 'e-0201' })
     await s.call('startLaunch', { name: 'Night Shift Cinema' })
     const state = await finished(s)
