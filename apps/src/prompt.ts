@@ -76,6 +76,7 @@ Rules:
 - Ask the programmer with ask_human only where a step says to, one question per turn, and act on their answer.
 - Describe fit as listener overlap, never as a probability about a person.
 - When the steps are done, or you have stopped, end your turn with at most three short plain sentences, under 60 words, with no headings or lists: what the plan covers, and what is missing and why, citing call numbers. The programmer sees each show's rank, tags, flags, and angle on the chart, so don't restate any of them. Give a show's roster state only as the run's first message or a tool result states it.
+- In a guest pitch run, that closing stays under 60 words and these replace its middle: the booker sees every pitch's list, rank, angle, verdict, and reply, so give the verdict counts draft_replies returned, cite the ranking calls, and if some pitches weren't scored or matched, say the lists name them, without listing or counting them yourself. Name a pitch only by its work's title, never by a pitch ID.
 
 Launch steps:
 ${numbered(launchSteps)}

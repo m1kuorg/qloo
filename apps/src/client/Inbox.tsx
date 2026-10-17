@@ -192,7 +192,14 @@ function PitchSetup({
 }: Pick<Page, 'roster' | 'booking' | 'ranking'> & { inbox: Inbox; startPitches: Actions['startPitches'] }) {
   const shows = roster.filter((s) => s.entity && (s.resolution === 'resolved' || s.resolution === 'mapped'))
   const suggested = inbox.show ? shows.find((s) => sameName(s.name, inbox.show!.name))?.name : undefined
-  const [show, setShow] = useState(booking?.show.name ?? suggested ?? '')
+  // The sample's show while its Qloo lookup is still out: a fresh session's roster can still be resolving
+  // when the sample inbox loads, and a run started now would go to another show.
+  const awaited = inbox.show
+    ? roster.find((s) => s.resolution === 'pending' && sameName(s.name, inbox.show!.name))?.name
+    : undefined
+  // The booker's own pick, seeded with the last run's show. Until they pick, the default follows the
+  // roster as it resolves, so it's never fixed before the sample's show is matched.
+  const [show, setShow] = useState<string | null>(booking?.show.name ?? null)
   const [rows, setRows] = useState<GuestRow[]>(() =>
     booking
       ? rowsOf(booking.pastGuests)
@@ -202,7 +209,7 @@ function PitchSetup({
   )
   const [invalid, setInvalid] = useState<string | null>(null)
   const { busy, error, run } = useAction()
-  const chosen = shows.some((s) => s.name === show) ? show : (shows[0]?.name ?? '')
+  const chosen = show !== null && shows.some((s) => s.name === show) ? show : (suggested ?? shows[0]?.name ?? '')
   const edit = (i: number, change: Partial<GuestRow>) =>
     setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)))
   const locked = busy || ranking || inbox.status === 'reading'
@@ -315,15 +322,17 @@ function PitchSetup({
             )}
           </fieldset>
           <div className="acts">
-            <button className="btn pri" type="submit" disabled={locked || !chosen}>
+            <button className="btn pri" type="submit" disabled={locked || !chosen || Boolean(awaited)}>
               Rank pitches
             </button>
             <small>
               {ranking
                 ? 'Ranking the pitches…'
-                : inbox.show
-                  ? "Filled in from the sample show's episode feed."
-                  : 'A new run: earlier runs stay in Runs.'}
+                : awaited
+                  ? `Waiting for ${awaited}'s Qloo lookup…`
+                  : inbox.show
+                    ? "Filled in from the sample show's episode feed."
+                    : 'A new run: earlier runs stay in Runs.'}
             </small>
           </div>
           <Alert error={invalid ?? error} />

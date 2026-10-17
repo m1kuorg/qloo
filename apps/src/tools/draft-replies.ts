@@ -120,7 +120,7 @@ export const draftReplies: Tool<Input> = {
         withoutReply: missing,
         next: missing.length
           ? `Draft replies for ${missing.join(', ')} too. verdictsSoFar already counts every call so far, so never add results together.`
-          : `Every pitch has a draft reply: ${verdictsSoFar.book} book, ${verdictsSoFar.later} later, and ${verdictsSoFar.decline} decline, counting every call. If your closing gives counts, use these. The booker approves, edits, or discards each reply in the UI.`
+          : `Every pitch has a draft reply: ${verdictsSoFar.book} book, ${verdictsSoFar.later} later, and ${verdictsSoFar.decline} decline, counting every call. The booker approves, edits, or discards each reply in the UI. Now end the run in under 60 words: give these counts and cite the ranking calls. Don't list, name, or count the pitches that weren't scored or matched, since the lists name them, and never write a pitch ID or a tool's name.`
       })
     }
   }
