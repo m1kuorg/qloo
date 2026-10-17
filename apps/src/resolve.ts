@@ -55,7 +55,13 @@ export function resolveWork(
 ): Resolution<WorkCandidate> {
   const named = results
     .filter((r) => sameTitle(r.name, title) || (type === 'podcast' && hostedBy(r.name, title, guest)))
-    .map(({ id, name, popularity, disambiguation }) => ({ id, name, popularity, disambiguation }))
+    .map(({ id, name, popularity, disambiguation, description }) => ({
+      id,
+      name,
+      popularity,
+      disambiguation,
+      description
+    }))
   const own = type === 'book' ? named.filter((c) => byGuest(c.disambiguation, guest)) : []
   let pool: WorkCandidate[]
   if (own.length > 0) {

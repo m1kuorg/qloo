@@ -856,6 +856,20 @@ fieldset {
   flex: none;
 }
 
+/* A work candidate's line on what it is, or its Qloo ID, under its name; the radio stays on the name. */
+.opt-desc {
+  display: block;
+}
+
+.opts label:has(.opt-desc) {
+  align-items: flex-start;
+  padding: 3px 0;
+}
+
+.opts label:has(.opt-desc) input {
+  margin-top: 3px;
+}
+
 .bar {
   display: flex;
   align-items: center;
