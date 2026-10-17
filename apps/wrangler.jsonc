@@ -7,8 +7,8 @@
   "main": "./src/index.tsx",
   "observability": { "enabled": true },
   "triggers": { "crons": ["0 12 * * *"] },
-  "vars": { "QLOO_BASE_URL": "https://hackathon.api.qloo.com" },
-  "secrets": { "required": ["QLOO_API_KEY"] },
+  "vars": { "QLOO_BASE_URL": "https://hackathon.api.qloo.com", "ANTHROPIC_BASE_URL": "https://api.anthropic.com" },
+  "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY"] },
   "durable_objects": {
     "bindings": [
       { "name": "CrossfeedAgent", "class_name": "CrossfeedAgent" },

@@ -11,6 +11,8 @@ export type Session = {
   // Every frame the server sent, raw, in order: everything this visitor's browser would receive.
   frames: () => string[]
   call: <T = unknown>(method: string, ...args: unknown[]) => Promise<T>
+  // Resolves with the synced state once it satisfies `ready`, such as a run that has finished.
+  until: (ready: (state: State) => boolean) => Promise<State>
   // Sends a raw protocol frame and resolves with the next frame of type `reply`.
   send: (frame: object, reply: string) => Promise<Record<string, unknown>>
   close: () => void
@@ -36,6 +38,7 @@ export async function openSession(cookie?: string): Promise<Session> {
   const seenState = Promise.withResolvers<void>()
   const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   const waiting: { type: string; resolve: (frame: Record<string, unknown>) => void }[] = []
+  const watchers = new Set<() => void>()
   ws.addEventListener('message', (event) => {
     frames.push(String(event.data))
     const message = JSON.parse(String(event.data))
@@ -44,6 +47,7 @@ export async function openSession(cookie?: string): Promise<Session> {
     if (message.type === 'cf_agent_state') {
       state = message.state
       seenState.resolve()
+      watchers.forEach((check) => check())
     } else if (message.type === 'rpc' && pending.has(message.id)) {
       const call = pending.get(message.id)!
       pending.delete(message.id)
@@ -62,6 +66,17 @@ export async function openSession(cookie?: string): Promise<Session> {
         const id = crypto.randomUUID()
         pending.set(id, { resolve: resolve as (v: unknown) => void, reject })
         ws.send(JSON.stringify({ type: 'rpc', id, method, args }))
+      }),
+    until: (ready) =>
+      new Promise((resolve) => {
+        const check = () => {
+          if (state && ready(state)) {
+            watchers.delete(check)
+            resolve(state)
+          }
+        }
+        watchers.add(check)
+        check()
       }),
     send: (frame, type) =>
       new Promise((resolve) => {

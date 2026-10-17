@@ -47,11 +47,13 @@ Tests run in the Workers runtime through `@cloudflare/vitest-plugin`, configured
 
 ### The fake HTTP seam
 
-Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/cloudflare`][msw-cf] serves by intercepting `fetch` inside the runtime. `QLOO_BASE_URL` points at `https://qloo.test` in tests, and a request no fake serves fails the test.
+Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/cloudflare`][msw-cf] serves by intercepting `fetch` inside the runtime. `QLOO_BASE_URL` points at `https://qloo.test` and `ANTHROPIC_BASE_URL` at `https://anthropic.test` in tests, and a request no fake serves fails the test.
 
 - `fakeQloo({ search })` serves `/search` from hand-written results keyed by query. A number in place of results answers with that HTTP status, and `{ status, body }` answers with that raw body, such as a proxy's HTML error page.
 - `requests` records every request a fake served, in order, and `test/setup.ts` clears it after each test.
-- Add a fake for a new endpoint or API, such as the scripted Anthropic model, to `test/fake.ts` the same way.
+- `fakeClaude(script)` is the scripted model. Each Messages API request gets the next turn, streamed as the API streams it, after an empty thinking block like Haiku 5.5's. Build turns with `turn(toolUse(name, input), text(...))`, which ends in tool calls if it has any, or `refusal(category)`. Tool use IDs are `toolu_<turn>_<block>`. A script entry can be an async function of the request, to hold a turn while the test looks at a running run. A request past the end of the script gets a 400.
+- `modelRequests()` returns the body of every request the scripted model got, to check model settings and history.
+- Add a fake for a new endpoint or API to `test/fake.ts` the same way.
 
 Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo response into a test.
 
@@ -62,7 +64,7 @@ Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo 
 `openSession()` in `test/session.ts` is a visitor. It loads `/` for a session cookie, then opens the agent's WebSocket the way `useAgent` does:
 
 - `call(method, ...args)` calls a `@callable` action and resolves with its result, after the state it set has arrived.
-- `state()` is the latest synced state.
+- `state()` is the latest synced state, and `until(ready)` waits for synced state that passes `ready`, such as a finished run.
 - `frames()` is every raw frame the server sent, which is everything the visitor's browser receives.
 - `openSession(cookie)` reconnects as the same visitor, like a reload; `openSession()` is a new visitor.
 
@@ -106,13 +108,17 @@ Done means the behaviour works against the real APIs, first locally and then on 
 1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo answered with an error, such as a 429; its reason is in the row.
 1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box.
 1.  Reload: the roster stays. A private window starts empty.
+1.  Type "The Big Picture" as the released launch and start a run. The header shows "Running" and "Resolving The Big Picture", then the Qloo match with its call number, and "Completed". The rail's Run module lists the progress note as done.
 
 Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status, and latency, in the dev server's output and in Workers Logs.
 
 ## Where things go
 
 - `src/index.tsx`: the Worker's routes, the session cookie, and the cron handler.
-- `src/agent.ts`: `CrossfeedAgent`. Its synced `State` type and its `@callable` actions are the client protocol.
+- `src/agent.ts`: `CrossfeedAgent`. Its synced `State` type and its `@callable` actions are the client protocol. `startLaunch` returns at once and runs the Claude tool loop in the background, writing a progress note per tool call.
+- `src/claude.ts`: the model settings for every agent turn. Change them only with the TRD's model settings.
+- `src/prompt.ts`: the frozen system prompt. Its launch steps are in the PRD's order; a tool ticket fills its own step's `instruction`, and an empty step stays out of the prompt.
+- `src/tools/`: one file per tool, registered in `src/tools/index.ts`. A tool has a strict definition, the progress note it shows, and `run`, which reaches Qloo through `context.qloo` and returns an error that says what to do next.
 - `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. Each method returns its data or error together with an evidence record.
 - `src/evidence.ts`: the evidence record's shape. Fill its fields; don't reshape it.
 - `src/resolve.ts`: deciding whether a search result is the named entity.

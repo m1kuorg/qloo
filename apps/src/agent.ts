@@ -1,8 +1,11 @@
+import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
+import { claude } from './claude'
 import { callNumber, type Evidence } from './evidence'
 import type { QlooGateway, QlooResult } from './gateway'
-import { resolveName, type Candidate } from './resolve'
+import { resolveName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat } from './roster'
+import { tools, type ToolContext, type ToolResult } from './tools'
 
 export type Show = {
   name: string
@@ -33,16 +36,45 @@ const PATCH_KEYS = ['entityId', 'compId', 'downloads', 'status', 'excluded']
 // One Qloo comparison ranks at most 50 candidates, and scores from separate calls aren't comparable.
 const MAX_SHOWS = 50
 
+// What a launch run starts from: a released launch's name, or up to three comps standing in for an
+// unreleased one (#40).
+export type LaunchInput = { name: string } | { comps: string[] }
+
+export type Launch = {
+  name: string | null // null for a launch run from comps
+  match: Lookup | null // how the launch resolved in Qloo; null until the run has looked it up
+}
+
+export type Run = {
+  id: string
+  status: 'running' | 'completed' | 'failed'
+  notes: Note[] // one per tool call, in the order the calls started
+  error: string | null // why the run failed
+}
+
+// A progress note code writes for a tool call, such as "Resolving The Big Picture".
+export type Note = { text: string; status: 'running' | 'done' | 'failed' }
+
 // Everything the UI renders, synced to every connection of this session. Later tickets add
 // their own fields; the evidence log stays out of it and is fetched with getEvidence.
-export type State = { roster: Show[]; cpm: number | null } // CPM in dollars; no default for a real network
+export type State = {
+  roster: Show[]
+  cpm: number | null // CPM in dollars; no default for a real network
+  launch: Launch | null
+  run: Run | null
+}
 
 // One instance per visitor session, named by the session cookie.
 export class CrossfeedAgent extends Agent<Env, State> {
-  initialState: State = { roster: [], cpm: null }
+  initialState: State = { roster: [], cpm: null, launch: null, run: null }
 
   async onStart() {
     this.sql`CREATE TABLE IF NOT EXISTS evidence (seq INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT)`
+    // Each run's conversation with Claude, append-only: one row per message, thinking blocks kept.
+    this.sql`CREATE TABLE IF NOT EXISTS conversation (seq INTEGER PRIMARY KEY AUTOINCREMENT, run TEXT, message TEXT)`
+    // A run is kept alive while its loop runs, so one still running at startup lost its loop.
+    const run = this.state.run
+    if (run?.status === 'running') this.finish(run.id, 'The run was interrupted. Start it again.')
   }
 
   // State changes only through actions; a client can't write it directly.
@@ -131,6 +163,26 @@ export class CrossfeedAgent extends Agent<Env, State> {
     this.setState({ ...this.state, cpm })
   }
 
+  // Starts a launch run and returns at once; the run's progress arrives in synced state.
+  @callable()
+  async startLaunch(input: LaunchInput) {
+    const given = typeof input === 'object' && input !== null ? input : {} // it arrives as untrusted JSON
+    if ('comps' in given) throw new Error("Starting from comps isn't available yet. Name a released launch.")
+    const name = 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
+    if (!name) throw new Error('Name the launch to start a run.')
+    if (this.state.run?.status === 'running') throw new Error('A run is already in progress. Wait for it to finish.')
+
+    const run = crypto.randomUUID()
+    this.setState({
+      ...this.state,
+      launch: { name, match: null },
+      run: { id: run, status: 'running', notes: [], error: null }
+    })
+    this.append(run, { role: 'user', content: `The launch is a released show named "${name}". Plan its promos.` })
+    void this.keepAliveWhile(() => this.runLoop(run)).catch((e) => this.finish(run, `The run stopped: ${message(e)}`))
+    return { runId: run }
+  }
+
   // The session's evidence log: one record per Qloo call, oldest first.
   @callable()
   getEvidence(): Evidence[] {
@@ -151,6 +203,111 @@ export class CrossfeedAgent extends Agent<Env, State> {
     this.setState({ ...this.state, roster: this.state.roster.map((s) => (s === show ? next : s)) })
   }
 
+  // The agent loop: call Claude, run every tool it asks for at once, and send all the results back
+  // in one message, until it ends its turn. Any failure ends the run as failed, with the reason.
+  private async runLoop(run: string) {
+    const model = claude(this.env)
+    for (;;) {
+      let reply: Anthropic.Message
+      try {
+        reply = await model(this.history(run))
+      } catch (e) {
+        return this.finish(run, `The request to Claude failed: ${message(e)}`)
+      }
+      // Check the stop reason before reading content: a refused or cut-off reply is discarded.
+      if (reply.stop_reason === 'refusal') return this.finish(run, refusalNotice(reply))
+      if (reply.stop_reason === 'max_tokens')
+        return this.finish(run, "Claude's reply hit the output limit, so its tool calls were not run.")
+      const assistant: Anthropic.MessageParam = { role: 'assistant', content: reply.content }
+      if (reply.stop_reason === 'end_turn') {
+        this.append(run, assistant)
+        return this.finish(run, null)
+      }
+      const calls = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+      if (reply.stop_reason !== 'tool_use' || calls.length === 0)
+        return this.finish(run, `Claude stopped unexpectedly (${reply.stop_reason}).`)
+      const results = await Promise.all(calls.map((call) => this.callTool(run, call)))
+      // The turn and its results are stored together, so history never ends on an unanswered call.
+      this.append(run, assistant, { role: 'user', content: results })
+    }
+  }
+
+  private async callTool(run: string, call: Anthropic.ToolUseBlock): Promise<Anthropic.ToolResultBlockParam> {
+    const tool = tools.find((t) => t.definition.name === call.name)
+    const note = this.addNote(run, tool ? tool.note(call.input) : `Calling ${call.name}`)
+    const context: ToolContext = {
+      run,
+      qloo: (request) => this.qloo(request, run),
+      update: (change) => {
+        const next = change(this.state)
+        if (next !== this.state) this.setState(next)
+      }
+    }
+    let result: ToolResult
+    try {
+      result = tool
+        ? await tool.run(call.input, context)
+        : {
+            isError: true,
+            content: `There is no tool named ${call.name}. Use one of: ${tools.map((t) => t.definition.name).join(', ')}.`
+          }
+    } catch (e) {
+      result = {
+        isError: true,
+        content: `${call.name} failed: ${message(e)}. Try once more; if it fails again, stop and say what is missing.`
+      }
+    }
+    this.updateRun(run, (r) => ({
+      ...r,
+      notes: r.notes.map((n, i) => (i === note ? { ...n, status: result.isError ? 'failed' : 'done' } : n))
+    }))
+    return {
+      type: 'tool_result',
+      tool_use_id: call.id,
+      content: result.content,
+      ...(result.isError && { is_error: true })
+    }
+  }
+
+  // Adds a running note to the run and returns its index.
+  private addNote(run: string, text: string) {
+    let index = -1
+    this.updateRun(run, (r) => {
+      index = r.notes.length
+      return { ...r, notes: [...r.notes, { text, status: 'running' }] }
+    })
+    return index
+  }
+
+  // Ends the run: completed when `error` is null, else failed with the reason and any unfinished
+  // notes marked failed.
+  private finish(run: string, error: string | null) {
+    this.updateRun(run, (r) =>
+      error === null
+        ? { ...r, status: 'completed' }
+        : {
+            ...r,
+            status: 'failed',
+            error,
+            notes: r.notes.map((n) => (n.status === 'running' ? { ...n, status: 'failed' } : n))
+          }
+    )
+  }
+
+  private updateRun(run: string, change: (r: Run) => Run) {
+    if (this.state.run?.id === run) this.setState({ ...this.state, run: change(this.state.run) })
+  }
+
+  private history(run: string): Anthropic.MessageParam[] {
+    return this.sql<{ message: string }>`SELECT message FROM conversation WHERE run = ${run} ORDER BY seq`.map((r) =>
+      JSON.parse(r.message)
+    )
+  }
+
+  private append(run: string, ...messages: Anthropic.MessageParam[]) {
+    for (const m of messages) this.sql`INSERT INTO conversation (run, message) VALUES (${run}, ${JSON.stringify(m)})`
+  }
+
   // The session's only path to Qloo. It numbers the call when the call starts, so numbers follow
   // the order calls were made, and appends the gateway's evidence, success or failure.
   private async qloo<T>(
@@ -164,4 +321,12 @@ export class CrossfeedAgent extends Agent<Env, State> {
     this.sql`UPDATE evidence SET record = ${JSON.stringify(record)} WHERE seq = ${seq}`
     return { call, result }
   }
+}
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+// A refusal has no server-side fallback on this model, so the run stops and shows it.
+function refusalNotice(reply: Anthropic.Message) {
+  const category = reply.stop_details?.type === 'refusal' ? reply.stop_details.category : null
+  return `Claude declined to continue this run${category ? ` (safety category: ${category})` : ''}.`
 }
