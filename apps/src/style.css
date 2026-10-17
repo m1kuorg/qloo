@@ -120,6 +120,55 @@ h1 {
   letter-spacing: -0.01em;
 }
 
+h1 span {
+  color: var(--grey);
+  font-weight: 500;
+}
+
+/* Launch header: the launch and its Qloo match on the left, the run's status on the right. */
+.hd-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.sub-line {
+  margin-top: 4px;
+  color: var(--mid);
+}
+
+.status {
+  text-align: right;
+  font-size: 12px;
+  color: var(--mid);
+  max-width: 420px;
+}
+
+.status b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.launch-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.launch-form input {
+  height: 32px;
+  width: 272px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 0 10px;
+}
+
+.launch-form input::placeholder {
+  color: var(--grey);
+}
+
 /* Work area: the chart column and the 448px rail. */
 .main {
   display: grid;
@@ -598,4 +647,22 @@ fieldset {
     margin: 0 -32px;
     padding: 16px 32px;
   }
+}
+
+/* Run log: one hairline row per progress note. */
+.notes {
+  list-style: none;
+  font-size: 12px;
+}
+
+.notes li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+
+.notes li[data-status='failed'] span:first-child {
+  font-weight: 600;
 }

@@ -1,6 +1,6 @@
 import { useAgent } from 'agents/react'
 import { useRef, useState } from 'react'
-import type { CrossfeedAgent, Show, ShowPatch, State } from '../agent'
+import type { CrossfeedAgent, Launch, Run, Show, ShowPatch, State } from '../agent'
 import type { RosterFormat } from '../roster'
 import { EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
@@ -16,6 +16,7 @@ const IMPORT_TIMEOUT_MS = 120_000
 export function App() {
   const agent = useSession()
   const roster = agent.state?.roster ?? []
+  const run = agent.state?.run ?? null
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
   const [opened, setOpened] = useState<Opened | null>(null)
@@ -36,6 +37,13 @@ export function App() {
   }
   return (
     <>
+      <LaunchHeader
+        launch={agent.state?.launch ?? null}
+        run={run}
+        startLaunch={(name) => agent.stub.startLaunch({ name })}
+        openCall={openCall}
+        opened={opened?.call ?? null}
+      />
       <section className="hd">
         <h1>Roster</h1>
         <p className="help">
@@ -56,6 +64,7 @@ export function App() {
           />
         </section>
         <aside className="rail" aria-label="Details">
+          {run && <RunLog run={run} />}
           {show && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
           <RosterCheck roster={roster} />
           <EvidencePanel opened={opened} />
@@ -63,6 +72,142 @@ export function App() {
         </aside>
       </main>
     </>
+  )
+}
+
+const runLabel: Record<Run['status'], string> = { running: 'Running', completed: 'Completed', failed: 'Failed' }
+
+// The launch header: start a run from a released launch's name, then follow it here.
+function LaunchHeader({
+  launch,
+  run,
+  startLaunch,
+  openCall,
+  opened
+}: {
+  launch: Launch | null
+  run: Run | null
+  startLaunch: (name: string) => Promise<unknown>
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  const [name, setName] = useState('')
+  const action = useAction()
+  const running = run?.status === 'running'
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (await action.run(() => startLaunch(name))) setName('')
+  }
+  const current = run?.notes.findLast((n) => n.status === 'running')?.text
+  return (
+    <section className="hd" aria-label="Launch">
+      <div className="hd-row">
+        <div>
+          <h1>
+            <span>Launch ·</span> {launch?.name ?? 'None yet'}
+          </h1>
+          {launch && <LaunchMatch launch={launch} running={running} openCall={openCall} opened={opened} />}
+        </div>
+        {run && (
+          <div className="status" role="status">
+            <b>{runLabel[run.status]}</b>
+            {run.status === 'running' && <p>{current ?? 'Waiting for Claude'}</p>}
+            {run.status === 'failed' && <p>{run.error}</p>}
+          </div>
+        )}
+      </div>
+      <form className="launch-form" onSubmit={submit}>
+        <label className="lbl" htmlFor="launch-name">
+          Released launch
+        </label>
+        <input
+          id="launch-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="The Big Picture"
+          disabled={action.busy || running}
+        />
+        <button className="btn pri" type="submit" disabled={action.busy || running || !name.trim()}>
+          Start run
+        </button>
+      </form>
+      {action.error && (
+        <p className="err" role="alert">
+          {action.error}
+        </p>
+      )}
+    </section>
+  )
+}
+
+function LaunchMatch({
+  launch: { name, match },
+  running,
+  openCall,
+  opened
+}: {
+  launch: Launch
+  running: boolean
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  if (!match) return <p className="sub-line tg">{running ? 'Looking it up in Qloo…' : 'Not looked up.'}</p>
+  return (
+    <p className="sub-line">
+      <Source of="qloo" />{' '}
+      {match.resolution === 'resolved' && match.entity ? (
+        <span className="ent">
+          {match.entity.name} <span className="pop">{percentile(match.entity.popularity)}</span>
+        </span>
+      ) : match.resolution === 'ambiguous' ? (
+        <span>Ambiguous: {match.candidates.map((c) => c.name).join(', ')}</span>
+      ) : match.resolution === 'failed' ? (
+        <span className="tg">Lookup failed: {match.error}</span>
+      ) : (
+        <span className="tg">No show by this name in Qloo.</span>
+      )}{' '}
+      <button
+        type="button"
+        className="call"
+        aria-pressed={match.evidence === opened}
+        aria-controls="evidence"
+        aria-label={`Evidence for ${name ?? 'the launch'}: call ${match.evidence}`}
+        onClick={() => openCall(match.evidence)}
+      >
+        {match.evidence}
+      </button>
+    </p>
+  )
+}
+
+const noteLabel: Record<Run['notes'][number]['status'], string> = { running: 'Running', done: 'Done', failed: 'Failed' }
+
+// What the run has done so far: one note per tool call, then why it stopped if it failed.
+function RunLog({ run }: { run: Run }) {
+  return (
+    <section className="mod" aria-labelledby="run-log">
+      <div className="mh">
+        <span className="lbl" id="run-log">
+          Run
+        </span>
+        <span className="chip">{runLabel[run.status]}</span>
+      </div>
+      <ol className="notes">
+        {run.notes.map((n, i) => (
+          <li key={i} data-status={n.status}>
+            <span>{n.text}</span>
+            <span className="tg">{noteLabel[n.status]}</span>
+          </li>
+        ))}
+        {run.status === 'failed' && (
+          <li data-status="failed">
+            <span>{run.error}</span>
+            <span className="tg">Stopped</span>
+          </li>
+        )}
+      </ol>
+      {run.notes.length === 0 && run.status === 'running' && <p className="help">Waiting for Claude.</p>}
+    </section>
   )
 }
 

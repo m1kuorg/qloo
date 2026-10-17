@@ -1,4 +1,4 @@
-import type { QlooEntity } from './gateway'
+import type { QlooEntity, QlooResult } from './gateway'
 
 export type Candidate = { id: string; name: string; popularity: number | null }
 
@@ -22,6 +22,21 @@ export function resolveName(name: string, results: QlooEntity[]): Resolution {
   if (related) return { resolution: 'ambiguous', entity: null, candidates }
   return { resolution: 'missed', entity: null, candidates: [] }
 }
+
+// How a name's search resolved, citing the search's call number. A failed search is "failed", with
+// Qloo's reason, so the name is never mistaken for a miss.
+export type Lookup = (Resolution | { resolution: 'failed'; entity: null; candidates: [] }) & {
+  evidence: string
+  error: string | null
+}
+
+export function lookup(name: string, call: string, result: QlooResult<QlooEntity[]>): Lookup {
+  if (!result.ok) return { resolution: 'failed', entity: null, candidates: [], evidence: call, error: result.error }
+  return { ...resolveName(name, result.data), evidence: call, error: null }
+}
+
+// Whether two names name the same thing, ignoring case, accents, punctuation, and a leading "the".
+export const sameName = (a: string, b: string) => words(a).join(' ') === words(b).join(' ')
 
 // Lowercase words without accents, punctuation, or a leading "the"; "&" reads as "and".
 function words(name: string) {
