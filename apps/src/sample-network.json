@@ -1,0 +1,176 @@
+{
+  "network": "The Ringer",
+  "notice": "Sample network for the Crossfeed demo. Show names are public; the CPM, downloads, statuses, and descriptions are arbitrary sample figures chosen by Crossfeed, not The Ringer's. Crossfeed isn't affiliated with The Ringer.",
+  "cpm": { "value": 20, "sample": true },
+  "launch": { "name": "The Watch" },
+  "shows": [
+    {
+      "name": "The Bill Simmons Podcast",
+      "downloadsPerEpisode": { "value": 700000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Bill Simmons talks sports with a rotating crew of athletes, celebrities, media figures, and longtime friends.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Rewatchables",
+      "downloadsPerEpisode": { "value": 480000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Bill Simmons and a roundtable of Ringer movie lovers discuss films they can't stop rewatching, from Pulp Fiction to John Wick.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Big Picture",
+      "downloadsPerEpisode": { "value": 400000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Sean Fennessey and Amanda Dobbins review the movies you need to see, with Top 5 lists, movie drafts, and Oscars analysis.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Zach Lowe Show",
+      "downloadsPerEpisode": { "value": 300000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Zach Lowe breaks down NBA games and news twice a week, with guests who cover and shape the league.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Ryen Russillo Podcast",
+      "downloadsPerEpisode": { "value": 280000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": { "value": "Ryen Russillo breaks down the week's biggest topics in sports.", "sample": true }
+    },
+    {
+      "name": "The Watch",
+      "downloadsPerEpisode": { "value": 340000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts, break down the week's TV, movies, and music.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Press Box",
+      "downloadsPerEpisode": { "value": 90000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Bryan Curtis, David Shoemaker, and Joel Anderson cover the biggest media stories, from sports to politics.",
+        "sample": true
+      }
+    },
+    {
+      "name": "Plain English with Derek Thompson",
+      "downloadsPerEpisode": { "value": 220000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Writer Derek Thompson and his guests cut through the noise on the big questions and headlines in tech, culture, and politics.",
+        "sample": true
+      }
+    },
+    {
+      "name": "Higher Learning with Van Lathan and Rachel Lindsay",
+      "downloadsPerEpisode": { "value": 150000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Van Lathan and Rachel Lindsay dissect the biggest topics in Black culture, politics, and sports, often with guests.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Prestige TV Podcast",
+      "downloadsPerEpisode": { "value": 200000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Ringer hosts give instant reactions, deep dives, and creator interviews on the best prestige television each week.",
+        "sample": true
+      }
+    },
+    {
+      "name": "House of R",
+      "downloadsPerEpisode": { "value": 180000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Mallory Rubin and Joanna Robinson deep-dive fantasy and sci-fi universes, from Game of Thrones and Star Wars to Marvel.",
+        "sample": true
+      }
+    },
+    {
+      "name": "Binge Mode",
+      "downloadsPerEpisode": { "value": 120000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Mallory Rubin and Jason Concepcion take film-by-film deep dives into fan-favorite universes such as Marvel's.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Mismatch",
+      "downloadsPerEpisode": { "value": 140000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Chris Vernon and David Jacoby discuss NBA news, trends, and transactions, with on-court analysis and the odd heated debate.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Town with Matthew Belloni",
+      "downloadsPerEpisode": { "value": 160000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Puck's Matthew Belloni and Hollywood dealmakers explain the business of show business, from streaming wars to what gets made and why.",
+        "sample": true
+      }
+    },
+    {
+      "name": "Every Single Album",
+      "downloadsPerEpisode": { "value": 170000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Nora Princiotti and Nathan Hubbard break down every album by pop stars such as Taylor Swift, Adele, and Harry Styles.",
+        "sample": true
+      }
+    },
+    {
+      "name": "60 Songs That Explain the '90s",
+      "downloadsPerEpisode": { "value": 260000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Rob Harvilla revisits one song per episode that explains the music of the 1990s, and now the 2000s.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Ringer NFL Show",
+      "downloadsPerEpisode": { "value": 250000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Tom Pelissero, Sheil Kapadia, and Billy Gil analyze the NFL's biggest stories three times a week.",
+        "sample": true
+      }
+    },
+    {
+      "name": "The Ringer Fantasy Football Show",
+      "downloadsPerEpisode": { "value": 230000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Danny Heifetz, Danny Kelly, and Craig Horlbeck talk fantasy football, the NFL Draft, free agency, and trades.",
+        "sample": true
+      }
+    },
+    {
+      "name": "Book of Basketball 2.0",
+      "downloadsPerEpisode": { "value": 110000, "sample": true },
+      "status": { "value": "active", "sample": true },
+      "description": {
+        "value": "Bill Simmons revisits his bestselling NBA book, breaking down the league's most important games, players, and teams.",
+        "sample": true
+      }
+    }
+  ]
+}
