@@ -78,6 +78,17 @@ export function rankRoster(
   return { call, anchors, error: result.ok ? null : result.error, rows, notScored }
 }
 
+// Marks the top five by fit as finalists, after the shows the run left out in its exclusions answer.
+export function markFinalists(ranking: Ranking, exclusions: string[]): Ranking {
+  let picked = 0
+  const rows = ranking.rows.map((r) => {
+    const finalist = !exclusions.includes(r.show) && picked < FINALISTS
+    if (finalist) picked++
+    return { ...r, finalist }
+  })
+  return { ...ranking, rows }
+}
+
 // The anchor whose explainability share beats the next one's by LEAD or more on this result. An
 // anchor a result doesn't list contributed nothing to it.
 function leadingComp(anchors: Anchor[], shares: { id: string; score: number }[]): Anchor | null {

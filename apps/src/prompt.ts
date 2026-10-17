@@ -7,7 +7,7 @@ const launchSteps: { step: string; instruction: string | null }[] = [
   {
     step: 'Resolve the launch (#34)',
     instruction:
-      'Resolve the launch: call resolve_entities with the launch name exactly as the programmer gave it, as type urn:entity:podcast. If it comes back ambiguous or missed, or the lookup fails twice, say so and stop.'
+      "Resolve the launch: call resolve_entities with the launch name exactly as the programmer gave it, as type urn:entity:podcast. If it comes back ambiguous, ask the programmer which candidate is the launch (kind choice), offering each candidate by name and popularity percentile. If it comes back missed, ask what name Qloo might list it under (kind choice, no options), then resolve that name. If they can't say, or the lookup fails twice, say so and stop."
   },
   { step: 'Confirm comps (#40)', instruction: null },
   {
@@ -15,7 +15,11 @@ const launchSteps: { step: string; instruction: string | null }[] = [
     instruction:
       "Once the launch is resolved, rank the roster: call rank_candidates with the launch's Qloo ID as the only anchor, every roster ID the run's first message lists as candidates, and type urn:entity:podcast. Give a show's fit as its rank and band, never as a raw affinity."
   },
-  { step: 'Ask for the slot budget and exclusions (#39)', instruction: null },
+  {
+    step: 'Ask for the slot budget and exclusions (#39)',
+    instruction:
+      'Ask for the slot budget (kind budget), then, after that answer, for the shows to leave out of this launch (kind exclusions), both with an empty options list. Code stores both answers on the run and checks the plan against them, so never assume, suggest, or change a budget or an exclusion yourself.'
+  },
   { step: 'Check demographics (#46)', instruction: null },
   { step: 'Find shared tags (#47)', instruction: null },
   { step: 'Draft the insertion order (#48)', instruction: null }
@@ -34,6 +38,7 @@ Rules:
 - Make independent tool calls in the same turn, and give a tool every item it needs in one call.
 - State only what tool results say. Never invent an ID, a score, or a match.
 - When a tool returns an error, follow its next step. If you can't, stop and say what is missing.
+- Ask the programmer with ask_human only where a step says to, one question per turn, and act on their answer.
 - Describe fit as listener overlap, never as a probability about a person.
 - When the steps are done, or you have stopped, end your turn with one or two plain sentences on what you did and what is missing, citing call numbers.
 

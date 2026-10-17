@@ -115,6 +115,7 @@ Done means the behaviour works against the real APIs, first locally and then on 
 1.  Reload: the roster stays. A private window starts empty.
 1.  Type "The Big Picture" as the released launch and start a run. The header shows "Running" and "Resolving The Big Picture", then the Qloo match with its call number, and "Completed". The rail's Run module lists the progress notes as done.
 1.  The fit chart ranks the other scorable shows by position and band, with the top five marked Finalist. Under "Not scored" it lists The Big Picture as the launch, The Press Box as excluded, and any show still unsettled. Open the chart's call number: the evidence holds the anchor and candidates in its parameters and each show's raw affinity, which the chart never shows.
+1.  The run stops at "Waiting on you", and the rail's "Agent asks" module asks for the slot budget. Reload: the question stays. Answer with a slot count or a dollar amount. The next question asks which shows to leave out of this launch, in fit order: tick a finalist and answer. The chart drops its Finalist mark and gives it to the next show by fit, the header shows "Completed", and the Run module lists the budget and the shows left out.
 1.  Include The Press Box again and select "Run again". The rail's Runs module lists both runs and today's count out of 10. "View" on the first run shows what it ended with, read-only, with The Press Box still left out; "Back to the latest run" returns.
 1.  Import the same names again: every log line says `"cacheHit":true`, and no new Qloo call is made.
 

@@ -1,12 +1,14 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type { State } from '../agent'
 import type { QlooGateway, QlooResult } from '../gateway'
+import { askHuman } from './ask-human'
 import { rankCandidates } from './rank-candidates'
 import { resolveEntities } from './resolve-entities'
 
 // What a tool gets from the run that calls it.
 export type ToolContext = {
   run: string
+  call: string // this call's tool use ID
   // The session's one path to Qloo: it numbers the call and logs its evidence against the run.
   qloo: <T>(
     request: (gateway: DurableObjectStub<QlooGateway>) => Promise<QlooResult<T>>
@@ -29,7 +31,7 @@ export type Tool<Input = any> = {
 }
 
 // Every tool the agent has. A tool ticket adds its tool here and fills its step in prompt.ts.
-export const tools: Tool[] = [resolveEntities, rankCandidates]
+export const tools: Tool[] = [resolveEntities, rankCandidates, askHuman]
 
 // The tool list every model call sends: sorted by name and never changed, so the cached prefix holds.
 export const toolDefinitions: Anthropic.Tool[] = tools

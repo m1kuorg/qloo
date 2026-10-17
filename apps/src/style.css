@@ -549,7 +549,8 @@ button.call[aria-pressed='true'] {
   line-height: 20px;
 }
 
-/* Like the mock's open question: Panel Grey bled to the rail's edges. */
+/* The open question, and the show editor like it: Panel Grey bled to the rail's edges. */
+.ask,
 .ed {
   background: var(--panel);
   margin: 0 -32px 0 -24px;
@@ -657,7 +658,28 @@ fieldset {
   margin-top: 8px;
 }
 
+/* A show the run's exclusions left out keeps its place but reads as set aside. */
+.fit-chart tr[data-left-out] .nm,
+.fit-chart tr[data-left-out] .pos {
+  color: var(--mid);
+}
+
+/* The open question: its title, any options, the answer field, then Answer. */
+.ask legend {
+  padding: 0;
+}
+
+.ask .help {
+  margin-top: 2px;
+}
+
+.ask .field,
+.ask .acts {
+  margin-top: 12px;
+}
+
 @media (max-width: 960px) {
+  .ask,
   .ed {
     margin: 0 -32px;
     padding: 16px 32px;
