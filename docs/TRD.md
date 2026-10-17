@@ -1,6 +1,6 @@
 # TRD
 
-How Crossfeed is built: its architecture, its Qloo calls, the agent, storage, limits, deployment, and tests. The [PRD](PRD.md) says what ships and why, and [PRODUCT.md](PRODUCT.md#terminology) defines the terms used here. Facts marked _(unconfirmed default)_ follow the recommended answers to the unanswered 2026-10-17 grilling round; those marked _(verify)_ were not checked against a primary source or a live call.
+How Crossfeed is built: its architecture, its Qloo calls, the agent, storage, limits, deployment, and tests. The [PRD](PRD.md) says what ships and why, and [PRODUCT.md](PRODUCT.md#terminology) defines the terms used here. Facts marked _(verify)_ were not checked against a primary source or a live call.
 
 Contents:
 
@@ -49,11 +49,9 @@ Worker (Hono) ──── routes /agents/* ──► CrossfeedAgent  (Durable O
 
 ### Why this stack
 
-_(unconfirmed default)_
-
 - **Cloudflare Workers** is already scaffolded in [`apps/`](/apps/) with Hono and Vite. Time spent waiting on `fetch()` doesn't count toward CPU time, and HTTP-triggered Workers have no hard duration limit, which suits slow Qloo calls ([Workers limits][cf-limits]).
 - **The Cloudflare Agents SDK** (`agents` 0.28.1) is the agent framework the rules ask for ([BRIEF](BRIEF.md#challenge)). Its `Agent` class runs on a Durable Object and gives per-session state synced to clients, embedded SQLite, WebSockets, and schedules ([Agents API][cf-agent]).
-- **Claude through the official Anthropic SDK** (`@anthropic-ai/sdk`, which supports Cloudflare Workers). We use the base `Agent` class, not `AIChatAgent`, because `AIChatAgent` runs on the Vercel AI SDK, and the official SDK exposes the Claude features below (effort, server-side fallbacks, strict tools) directly.
+- **Claude through the official Anthropic SDK** (`@anthropic-ai/sdk`, which supports Cloudflare Workers). We use the base `Agent` class, not `AIChatAgent`, because `AIChatAgent` runs on the Vercel AI SDK, and the official SDK exposes the Claude features below (effort, adaptive thinking, strict tools) directly.
 - **Direct REST to Qloo**, not the hackathon kit's `qloo mcp` harness, which can't run serverless ([CONTEXT](CONTEXT.md#hackathon-kit)).
 - **The Workers Paid plan is required.** Free allows 50 subrequests and 10 ms of CPU per invocation; a cold guest run needs about 50 Qloo calls plus model calls. Paid allows 10,000 subrequests and 30 s of CPU by default, for $5 a month ([Workers limits][cf-limits]).
 
@@ -121,15 +119,16 @@ The launch and guest flows follow fixed steps, so the agent works from a short s
 
 ### Model settings
 
-- **Model:** `claude-opus-5-5`, streamed through `client.beta.messages.stream`.
-- **Thinking:** adaptive, which is always on for this model.
+- **Model:** `claude-haiku-5-5`, streamed through `client.messages.stream`.
+- **Thinking:** adaptive, on by default. A response can start with `thinking` blocks whose text is omitted, and thinking counts toward `max_tokens`, so code reads content blocks by type and passes thinking blocks back unchanged with tool results.
 - **Effort:** `output_config.effort` set explicitly to `medium`, this model's default.
-- **Refusals:** `fallbacks: "default"` with beta `server-side-fallback-2026-07-01`. Check `stop_reason` before reading content.
-- **Tools:** `strict: true` and `additionalProperties: false` on every tool, and `tool_choice` `auto`, because this model rejects forced tool choice.
+- **Sampling and prefill:** no `temperature`, `top_p`, `top_k`, or assistant prefill; this model rejects them with a 400.
+- **Refusals:** safety classifiers can decline with `stop_reason: "refusal"`, and this model has no server-side fallback. Check `stop_reason` before reading content, and stop the run with the refusal shown as a failed step.
+- **Tools:** `strict: true` and `additionalProperties: false` on every tool, and `tool_choice` `auto`, because a forced tool choice skips thinking on this model.
 - **Parallel calls:** execute every `tool_use` block in a turn concurrently, and return all results in one user message. A failed tool returns `is_error: true` with a message that says what to do next.
-- **History is append-only.** Never edit or delete earlier turns; a resumed run appends the human's answer as a tool result. This model ties thinking blocks to an unedited history.
-- **Prompt caching:** a frozen system prompt and a fixed, sorted tool list sit before a `cache_control` breakpoint; session data goes after it.
-- **Later, if time allows:** streaming the model's own progress notes with `thinking.display: "updates"`, an effort sweep on the demo scenarios, and checking cache reads.
+- **History is append-only.** Never edit or delete earlier turns; a resumed run appends the human's answer as a tool result. Editing an earlier turn invalidates the thinking blocks replayed after it on this model.
+- **Prompt caching:** a frozen system prompt and a fixed, sorted tool list sit before a `cache_control` breakpoint, above this model's 512-token minimum; session data goes after it.
+- **Later, if time allows:** an effort sweep on the demo scenarios, and checking cache reads.
 
 ### Tools
 
@@ -211,7 +210,7 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 - **Pitch text goes to Anthropic** for extraction and drafting. The sample inbox is synthetic; real use would need the network's consent.
 - **Safe-use wording:** fit describes listener overlap, never a probability about a person, and nothing infers politics, health, or eligibility ([kit safe use][kit-safe]).
 - **Public demo:** no accounts, so the session limits, the Qloo cap, and the Anthropic spend limit bound what visitors can spend.
-- **Trademarks:** the sample network uses public show names, with a notice that Crossfeed isn't affiliated with The Ringer _(unconfirmed default)_.
+- **Trademarks:** the sample network uses public show names, with a notice that Crossfeed isn't affiliated with The Ringer.
 
 [cf-secrets]: https://developers.cloudflare.com/workers/configuration/secrets/
 [kit-safe]: https://github.com/qloo/qloo-hackathon-kit/blob/0db91b8d9c5aae2160d53596e57ea6c9da251cde/docs/SAFE_USE.md
@@ -248,7 +247,7 @@ Per the [PRD](PRD.md#testing-decisions), tests drive the public interface with Q
 - **Sample inputs:** downloads per episode, CPM, and one-line show descriptions are ours, chosen at build time, labelled as arbitrary sample figures the visitor can edit, and not The Ringer's.
 - **Choosing the launch:** before 2026-10-20, a private script runs every roster show as a leave-one-out launch, plus three-comp launches such as Blank Check, Filmspotting, and You Must Remember This, against the topic baseline. It picks the launch with the clearest topic move that shared tags explain. Its output stays out of the repo. The Big Picture alone ranked two same-genre shows first, from 0.798 to 0.953 across 16 candidate shows; its three comps put the two music shows above Bill Simmons, from 0.731 to 0.874.
 - **Sample show for pitches:** one roster show with the public works of three of its past guests, picked at build time from its public episode list.
-- **Sample inbox:** about 40 synthetic pitches about real public works, from fictional publicists at `example.com` addresses, including a few with no public work, labelled as sample data _(unconfirmed default)_.
+- **Sample inbox:** about 40 synthetic pitches about real public works, from fictional publicists at `example.com` addresses, including a few with no public work, labelled as sample data.
 
 ## Open technical questions
 

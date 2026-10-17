@@ -1,6 +1,6 @@
 # PRD
 
-What Crossfeed ships for the Qloo Agentic Hackathon by 2026-10-30, written from the user's side. [PRODUCT.md](PRODUCT.md) holds the durable product record and its terminology, and [TRD.md](TRD.md) holds the technical design. Facts marked _(unconfirmed default)_ were inferred because the 2026-10-17 grilling round went unanswered; [PRODUCT.md](PRODUCT.md#decisions-to-confirm) lists them.
+What Crossfeed ships for the Qloo Agentic Hackathon by 2026-10-30, written from the user's side. [PRODUCT.md](PRODUCT.md) holds the durable product record and its terminology, and [TRD.md](TRD.md) holds the technical design. The choices it rests on were confirmed on 2026-10-17; [PRODUCT.md](PRODUCT.md#decisions) lists them.
 
 Contents:
 
@@ -39,7 +39,7 @@ The programmer names the launch, or up to three comps if it's unreleased. Crossf
 
 ### Guest pitches
 
-The booker picks the show, names the public works of its best past guests, and loads the inbox. Crossfeed extracts each guest's public work, resolves the work in Qloo, and sets aside any pitch without one. It ranks the pitched works against the show and those past guests in one list per work type, because Qloo scores from separate calls can't be compared, then proposes an episode angle, and drafts book, decline, or later replies for the booker to approve one by one. This flow ships second and is cut if it isn't working end to end by 2026-10-26 _(unconfirmed default)_.
+The booker picks the show, names the public works of its best past guests, and loads the inbox. Crossfeed extracts each guest's public work, resolves the work in Qloo, and sets aside any pitch without one. It ranks the pitched works against the show and those past guests in one list per work type, because Qloo scores from separate calls can't be compared, then proposes an episode angle, and drafts book, decline, or later replies for the booker to approve one by one. This flow ships second and is cut if it isn't working end to end by 2026-10-26.
 
 ### Evidence and approval
 
@@ -141,7 +141,7 @@ The [TRD](TRD.md) gives call parameters, storage, limits, and configuration. The
 - **Bands, not decimals.** A result's band comes from its rank within the list (top, middle, or bottom third), because Qloo normalizes affinity per query and live scores sit in a narrow range. Raw affinity appears only in the evidence.
 - **Comp shares only when they mean something.** Qloo explainability scores every result 1 when there's one anchor, so the UI names a leading comp only when there are two or more anchors and one clearly leads.
 - **Roster cap.** One comparison scores at most 50 candidates, Qloo's maximum page size, because scores from separate calls aren't comparable.
-- **Agent framework and model** _(unconfirmed default)_: the Cloudflare Agents SDK on Workers, with Claude through the official Anthropic SDK. The [TRD](TRD.md#architecture) gives the reasons.
+- **Agent framework and model:** the Cloudflare Agents SDK on Workers, with Claude Haiku 5.5 through the official Anthropic SDK. The [TRD](TRD.md#architecture) gives the reasons.
 
 ## Testing Decisions
 
@@ -160,13 +160,13 @@ The [TRD](TRD.md) gives call parameters, storage, limits, and configuration. The
 
 ## Out of Scope
 
-- Swap partners: recommending podcasts outside the roster for feed swaps _(unconfirmed default)_. It overlaps 2026 neighbors that scout partnerships and dilutes the closed-list pitch.
+- Swap partners: recommending podcasts outside the roster for feed swaps. It overlaps 2026 neighbors that scout partnerships and dilutes the closed-list pitch.
 - Sending email, or connecting a real inbox such as Gmail. Approved replies are copied out by hand.
 - Accounts, seats, billing, and isolating one network's data from another's beyond the visitor session.
 - Spotify, RSS, or podcast-analytics integrations. Qloo doesn't resolve podcasts by Spotify ID, and downloads are typed in or uploaded.
 - Scheduling flights, booking dates, or pushing orders into ad servers.
 - Measuring a launch's results after the promos run.
-- Wiring Qloo into OpenClaw or another existing agent, and a second hackathon entry _(unconfirmed default)_.
+- Wiring Qloo into OpenClaw or another existing agent, and a second hackathon entry.
 - Native mobile apps.
 
 ## Further Notes
@@ -187,7 +187,7 @@ From the [brief](BRIEF.md#submission-checklist), plus our own choices:
 
 - The live demo URL, with free, unrestricted access through 2026-11-16.
 - A public repository. It is private today and must be made public before submitting.
-- An open-source license file, detected in the repository's About section. There is none yet; MIT is the default _(unconfirmed default)_.
+- An open-source license file, detected in the repository's About section. There is none yet; it will be MIT.
 - A description with one heading per judging criterion that leads with what breaks without Qloo, names the endpoints, walks one request through to its result, states known limitations, and pitches Crossfeed as a company for the Calacanis bonus ([CONTEXT](CONTEXT.md#strategy-for-our-entry)).
 - Screenshots and a demo video, optional but read first by judges.
 

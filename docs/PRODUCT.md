@@ -4,7 +4,7 @@
 
 Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want, by scoring the network's own lists in Qloo. This is the durable product record that design and build work start from. The [PRD](PRD.md) says what ships for the Qloo Agentic Hackathon, and the [TRD](TRD.md) says how.
 
-Facts marked _(unconfirmed default)_ were inferred from [IDEA.md](IDEA.md), [BRIEF.md](BRIEF.md), and [CONTEXT.md](CONTEXT.md), because the grilling round of 2026-10-17 went unanswered. Each one is listed under [Decisions to confirm](#decisions-to-confirm).
+The choices it rests on were confirmed on 2026-10-17 and are listed under [Decisions](#decisions).
 
 Contents:
 
@@ -21,7 +21,7 @@ Contents:
 1.  [Brand Commitments](#brand-commitments)
 1.  [Evidence on Hand](#evidence-on-hand)
 1.  [Product Principles](#product-principles)
-1.  [Decisions to confirm](#decisions-to-confirm)
+1.  [Decisions](#decisions)
 1.  [See also](#see-also)
 
 ## Platform
@@ -30,7 +30,7 @@ web
 
 ## Stack
 
-Delegated _(unconfirmed default)_: the existing Hono and Vite scaffold in [`apps/`](/apps/) on Cloudflare Workers, the Cloudflare Agents SDK as the agent framework, Claude as the model, and direct REST calls to Qloo. The [TRD](TRD.md#architecture) gives the reasons.
+The existing Hono and Vite scaffold in [`apps/`](/apps/) on Cloudflare Workers, the Cloudflare Agents SDK as the agent framework, Claude Haiku 5.5 as the model, and direct REST calls to Qloo. The [TRD](TRD.md#architecture) gives the reasons.
 
 ## Users
 
@@ -54,7 +54,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - **Launch planning:** happens once per launch. Inputs are the roster, each show's downloads per episode, the network's CPM, the slot budget, and exclusions such as shows mid-sale. The output is an insertion order the programmer edits and approves.
 - **Unreleased launches:** have no listeners yet, so the programmer names up to three comparable released shows (comps) that stand in for the launch.
 - **Booking:** happens daily. Pitches arrive as email text; each names a guest and the public work they're promoting, such as a book, show, film, or podcast.
-- **Demo:** judges open a hosted URL with no login and see a sample network, built from The Ringer's public show names, that answers from a warm cache ([BRIEF](BRIEF.md#implications-for-our-entry)). Its downloads and CPM are labelled sample inputs, not The Ringer's figures _(unconfirmed default)_.
+- **Demo:** judges open a hosted URL with no login and see a sample network, built from The Ringer's public show names, that answers from a warm cache ([BRIEF](BRIEF.md#implications-for-our-entry)). Its downloads and CPM are labelled sample inputs, not The Ringer's figures.
 
 ## Capabilities and Constraints
 
@@ -65,7 +65,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - Flag demographic mismatches between the launch and its top roster shows.
 - Draft a host-read angle per finalist from the tags it shares with the launch.
 - Write an insertion order that prices each slot from the network's own downloads and CPM.
-- Read a booking inbox, resolve each guest through their public work, rank the pitched works against the show and its best past guests, and draft book, decline, or later replies. This ships second, after launch promos _(unconfirmed default)_.
+- Read a booking inbox, resolve each guest through their public work, rank the pitched works against the show and its best past guests, and draft book, decline, or later replies. This ships second, after launch promos.
 - Show the evidence behind every claim: the Qloo call, its entities and tags, and the affinities it returned, kept apart from the model's interpretation.
 
 ### Constraints
@@ -119,15 +119,16 @@ Crossfeed uses Qloo's own words (entity, tag, signal, filter, affinity) as defin
 1.  **Price the decision.** A launch plan is shown in the inventory dollars it spends, from the network's own numbers.
 1.  **Nothing ships without a human.** The agent proposes; the human approves.
 
-## Decisions to confirm
+## Decisions
 
-Inferred from the docs because the 2026-10-17 grilling round went unanswered. Each is the recommended answer from that round:
+Confirmed on 2026-10-17 in [#20](https://github.com/m1kuorg/qloo/issues/20). Each is the grilling round's recommended answer, except the model, which is Claude Haiku 5.5:
 
 1.  **Prize and entries:** Crossfeed is the only entry. It is built for the four scored criteria, and its description also pitches Crossfeed as a company for the Calacanis bonus.
 1.  **Scope:** launch promos ship first. Guest pitches ship second, with a cut date in the [PRD](PRD.md#release-plan). Swap partners outside the roster are out of scope.
-1.  **Stack:** Workers, the Agents SDK, and Claude, as in [Stack](#stack).
+1.  **Stack:** Workers, the Agents SDK, and Claude Haiku 5.5, as in [Stack](#stack).
 1.  **Demo inbox:** synthetic pitches about real public works, from fictional publicists at `example.com` addresses, labelled as sample data.
 1.  **Demo network:** The Ringer, from public show names, with sample downloads and CPM and a not-affiliated notice, per the [TRD](TRD.md#demo-data). Calacanis has two shows, This Week in Startups and All-In, not a roster, so his network can't be the demo.
+1.  **License:** MIT.
 
 ## See also
 
