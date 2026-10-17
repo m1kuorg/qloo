@@ -182,12 +182,15 @@ describe('sharing Qloo between sessions', () => {
     configure({ QLOO_MIN_INTERVAL_MS: '40' })
     fakeQloo({ search })
     const s = await session()
+    const before = Date.now()
     await s.importRoster(names.slice(0, 4).join('\n'))
 
     expect(requests).toHaveLength(4)
-    const starts = requests.map((r) => r.at)
-    // Timers fire late, never early; the slack covers how late each request reaches the fake.
-    for (let i = 1; i < starts.length; i++) expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(30)
+    // The gateway starts the nth request at least n intervals after the first, which starts after
+    // `before`. A request can reach the fake late but never early, so measuring each arrival from
+    // `before` gives a floor that arrival delays can't push down, unlike the gap between two arrivals.
+    const arrivals = requests.map((r) => r.at - before).sort((a, b) => a - b)
+    arrivals.forEach((ms, n) => expect(ms).toBeGreaterThanOrEqual(40 * n))
     // The fake answers at once, so latency is well under one interval though the last call waited three.
     const log = await s.call<Evidence[]>('getEvidence')
     expect(log.map((e) => e.latencyMs).filter((ms) => ms >= 40)).toEqual([])
