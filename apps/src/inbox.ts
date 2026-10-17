@@ -1,5 +1,6 @@
 // The booker's inbox of guest pitches: the sample inbox, or pitches pasted in, read into one row
 // per pitch. Anything it can't take is refused with a message, so an inbox never loads in part.
+import type { PitchList } from './fit'
 import type { Candidate } from './resolve'
 import sampleInbox from './sample-inbox.json'
 
@@ -12,6 +13,14 @@ export const qlooType: Record<WorkType, string> = {
   film: 'urn:entity:movie',
   tv_show: 'urn:entity:tv_show',
   podcast: 'urn:entity:podcast'
+}
+
+// How a work type reads in a sentence, such as "no past guest's work is a TV show".
+export const workNoun: Record<WorkType, string> = {
+  book: 'book',
+  film: 'film',
+  tv_show: 'TV show',
+  podcast: 'podcast'
 }
 
 // The guest's public work, as read from the pitch. Only its title and type ever reach Qloo.
@@ -47,8 +56,23 @@ export type Inbox = {
   id: string
   sample: boolean // the synthetic sample inbox, labelled as sample data
   notice: string | null // the sample's notice
+  // The show the sample inbox was written for and its past guests, to rank against; null when pasted.
+  show: { name: string; pastGuests: Omit<PastGuest, 'match'>[] } | null
   status: 'reading' | 'done'
   pitches: Pitch[]
+}
+
+// One of the show's best past guests, named by the booker, and how their work resolved in Qloo; null
+// until it has been searched. Only the work's title and type reach Qloo.
+export type PastGuest = { guest: string; work: Work; match: WorkMatch | null }
+
+// A guest pitch run: the roster show the pitches are ranked against, its past guests, and the
+// ranked lists, one per work type, once rank_pitches has run.
+export type Booking = {
+  run: string // the pitch run that made it
+  show: { name: string; entity: Candidate } // the roster show, named as imported
+  pastGuests: PastGuest[]
+  lists: PitchList[] | null
 }
 
 // The sample inbox, or pasted text with pitches separated by lines of three or more dashes.
@@ -58,12 +82,19 @@ export type InboxSource = { sample: true } | { text: string }
 const MAX_PITCHES = 50
 const MAX_PITCH_CHARS = 10_000
 
-export function readInbox(source: unknown): Pick<Inbox, 'sample' | 'notice' | 'pitches'> {
+export function readInbox(source: unknown): Pick<Inbox, 'sample' | 'notice' | 'show' | 'pitches'> {
   const given = (typeof source === 'object' && source !== null ? source : {}) as Record<string, unknown>
   if (given.sample === true)
     return {
       sample: true,
       notice: sampleInbox.notice,
+      show: {
+        name: sampleInbox.show.name,
+        pastGuests: sampleInbox.show.pastGuests.map(({ guest, work }) => ({
+          guest,
+          work: { ...work, type: work.type as WorkType }
+        }))
+      },
       // The answer key in each pitch's `expected` is for checking extraction, so it's left out.
       pitches: sampleInbox.pitches.map((p) => pitch(p.id, p.body, `${p.senderName} <${p.senderEmail}>`, p.subject))
     }
@@ -81,8 +112,34 @@ export function readInbox(source: unknown): Pick<Inbox, 'sample' | 'notice' | 'p
   return {
     sample: false,
     notice: null,
+    show: null,
     pitches: texts.map((body, i) => pitch(`pitch-${String(i + 1).padStart(2, '0')}`, body))
   }
+}
+
+// A show's past guests anchor its rankings, each one more Qloo search per run.
+const MAX_PAST_GUESTS = 5
+const YEARS = [1800, 2100]
+
+// The past guests the booker named, each with their public work. A guest's name is needed because a
+// book is matched by its author. Anything else is refused, so a run never starts on part of them.
+export function readPastGuests(given: unknown): Omit<PastGuest, 'match'>[] {
+  if (!Array.isArray(given)) throw new Error("Name the show's best past guests and their public works.")
+  if (given.length > MAX_PAST_GUESTS) throw new Error(`Name at most ${MAX_PAST_GUESTS} past guests.`)
+  return given.map((g, i) => {
+    const { guest, work } = (typeof g === 'object' && g !== null ? g : {}) as Record<string, any>
+    const name = typeof guest === 'string' ? guest.trim() : ''
+    const title = typeof work?.title === 'string' ? work.title.trim() : ''
+    if (!name || !title) throw new Error(`Past guest ${i + 1} needs a name and a work title.`)
+    if (!workTypes.includes(work.type))
+      throw new Error(`Past guest ${i + 1}'s work needs a type: book, film, TV show, or podcast.`)
+    const year = work.year ?? null
+    if (year !== null && !(Number.isInteger(year) && year >= YEARS[0] && year <= YEARS[1]))
+      throw new Error(`Past guest ${i + 1}'s year must be a whole year, such as 2024, or left empty.`)
+    // Only a title reaches Qloo, so one holding an address is never sent.
+    if (/\S+@\S+\.\S+/.test(title)) throw new Error(`Past guest ${i + 1}'s work title holds an email address.`)
+    return { guest: name, work: { title, type: work.type, year } }
+  })
 }
 
 const pitch = (id: string, body: string, from: string | null = null, subject: string | null = null): Pitch => ({

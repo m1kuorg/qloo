@@ -32,6 +32,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
   color: inherit;
@@ -1026,4 +1027,87 @@ fieldset {
 
 .demo-sum .call {
   margin-right: 0;
+}
+
+/* Pitch setup: the show, then one row per past guest's work. */
+.setup {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.setup select {
+  height: 32px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 0 6px;
+  background: #fff;
+}
+
+.show-pick {
+  max-width: 320px;
+}
+
+.setup select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.setup .btn {
+  flex: none;
+}
+
+.pg .lnk {
+  justify-self: start;
+}
+
+.pg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 104px 64px auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.pg-head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+  margin-top: 8px;
+}
+
+.setup fieldset > .lnk {
+  margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .pg {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .pg-head {
+    display: none;
+  }
+}
+
+/* Ranked pitches: one chart per type of work, stacked. */
+.plist {
+  margin-top: 16px;
+}
+
+.plist + .plist {
+  margin-top: 32px;
+}
+
+.plist > .help {
+  margin-bottom: 8px;
+}
+
+/* Work titles wrap, like show names in the fit chart, so they stay readable at 375px. */
+.plist .row-open .nm {
+  white-space: normal;
 }

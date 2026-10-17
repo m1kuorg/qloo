@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { Band } from '../fit'
 import type { Candidate } from '../resolve'
 
 // Runs one action at a time for a form, keeping its error for the form to show.
@@ -27,6 +28,16 @@ export const Alert = ({ error }: { error: string | null }) =>
       {error}
     </p>
   )
+
+// Fit bands as the charts word them: a meter of three bars filled from the left, then the word.
+export const bandMeter: Record<Band, { bars: number; word: string }> = {
+  top: { bars: 3, word: 'Strong' },
+  middle: { bars: 2, word: 'Good' },
+  bottom: { bars: 1, word: 'Fair' }
+}
+
+export const listOf = (names: string[]) =>
+  names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')}, and ${names.at(-1)}`
 
 export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
 

@@ -1,19 +1,32 @@
-import { useState } from 'react'
-import type { Inbox, InboxSource, Pitch, WorkType } from '../inbox'
-import { Alert, percentile, PickOne, useAction } from './controls'
+import { useState, type ReactNode } from 'react'
+import type { Show } from '../agent'
+import type { PitchList } from '../fit'
+import type { Booking, Inbox, InboxSource, PastGuest, Pitch, WorkType } from '../inbox'
+import { sameName } from '../resolve'
+import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
   confirmWork: (pitchId: string, entityId: string) => Promise<unknown>
+  startPitches: (input: { show: string; pastGuests: Omit<PastGuest, 'match'>[] }) => Promise<unknown>
   openCall: (call: string) => void
   opened: Opened | null
 }
 
+type Page = {
+  inbox: Inbox | null
+  roster: Show[]
+  booking: Booking | null
+  ranking: boolean // a pitch run is running
+  runLog: ReactNode // the latest run, when it's a pitch run
+}
+
 // The booker's inbox page, shown only while GUEST_PITCHES is on: load pitches, see what Claude read
-// from each and how Qloo matched its work, and confirm ambiguous matches.
-export function InboxPage({ inbox, ...actions }: { inbox: Inbox | null } & Actions) {
+// from each and how Qloo matched its work, confirm ambiguous matches, and rank the pitched works
+// against a roster show and its past guests.
+export function InboxPage({ inbox, roster, booking, ranking, runLog, ...actions }: Page & Actions) {
   const [selected, setSelected] = useState<string | null>(null)
   const pitch = inbox?.pitches.find((p) => p.id === selected)
   const reading = inbox?.status === 'reading'
@@ -46,6 +59,26 @@ export function InboxPage({ inbox, ...actions }: { inbox: Inbox | null } & Actio
       </section>
       <main className="main">
         <section className="chart-col" aria-label="Pitches">
+          {inbox && (
+            <PitchSetup
+              key={inbox.id}
+              inbox={inbox}
+              roster={roster}
+              booking={booking}
+              ranking={ranking}
+              startPitches={actions.startPitches}
+            />
+          )}
+          {booking?.lists && (
+            <PitchLists
+              booking={booking}
+              lists={booking.lists}
+              pitches={inbox?.pitches ?? []}
+              select={setSelected}
+              openCall={actions.openCall}
+              opened={actions.opened?.call ?? null}
+            />
+          )}
           <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
           <PitchTable
             pitches={inbox?.pitches ?? []}
@@ -56,6 +89,7 @@ export function InboxPage({ inbox, ...actions }: { inbox: Inbox | null } & Actio
           />
         </section>
         <aside className="rail" aria-label="Details">
+          {runLog}
           {pitch && (
             <PitchDetail
               key={pitch.id}
@@ -64,6 +98,7 @@ export function InboxPage({ inbox, ...actions }: { inbox: Inbox | null } & Actio
               close={() => setSelected(null)}
             />
           )}
+          {booking && <Anchors booking={booking} openCall={actions.openCall} opened={actions.opened?.call ?? null} />}
           <InboxCheck pitches={inbox?.pitches ?? []} />
           <EvidencePanel opened={actions.opened} />
         </aside>
@@ -117,6 +152,394 @@ export const typeLabel: Record<WorkType, string> = {
   film: 'Film',
   tv_show: 'TV show',
   podcast: 'Podcast'
+}
+
+// The types in their usual order, kept here so the page doesn't load inbox.ts and its sample data.
+const workTypes = Object.keys(typeLabel) as WorkType[]
+
+// One past guest as the booker types them: the year stays text until the run starts.
+type GuestRow = { guest: string; title: string; type: WorkType; year: string }
+
+const MAX_PAST_GUESTS = 5
+
+const rowsOf = (guests: Omit<PastGuest, 'match'>[]): GuestRow[] =>
+  guests.map(({ guest, work }) => ({ guest, title: work.title, type: work.type, year: work.year?.toString() ?? '' }))
+
+// The show the pitches are for and its best past guests' works, which anchor the rankings with it.
+// The sample inbox comes with its show's past guests filled in; otherwise the last run's are kept.
+function PitchSetup({
+  inbox,
+  roster,
+  booking,
+  ranking,
+  startPitches
+}: Pick<Page, 'roster' | 'booking' | 'ranking'> & { inbox: Inbox; startPitches: Actions['startPitches'] }) {
+  const shows = roster.filter((s) => s.entity && (s.resolution === 'resolved' || s.resolution === 'mapped'))
+  const suggested = inbox.show ? shows.find((s) => sameName(s.name, inbox.show!.name))?.name : undefined
+  const [show, setShow] = useState(booking?.show.name ?? suggested ?? '')
+  const [rows, setRows] = useState<GuestRow[]>(() =>
+    booking
+      ? rowsOf(booking.pastGuests)
+      : inbox.show
+        ? rowsOf(inbox.show.pastGuests)
+        : [{ guest: '', title: '', type: 'book', year: '' }]
+  )
+  const [invalid, setInvalid] = useState<string | null>(null)
+  const { busy, error, run } = useAction()
+  const chosen = shows.some((s) => s.name === show) ? show : (shows[0]?.name ?? '')
+  const edit = (i: number, change: Partial<GuestRow>) =>
+    setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)))
+  const locked = busy || ranking || inbox.status === 'reading'
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const year = rows.findIndex((r) => r.year.trim() && !/^\d{4}$/.test(r.year.trim()))
+    if (year >= 0) return setInvalid(`Past guest ${year + 1}'s year must be four digits, such as 2024, or left empty.`)
+    setInvalid(null)
+    const pastGuests = rows.map((r) => ({
+      guest: r.guest,
+      work: { title: r.title, type: r.type, year: r.year.trim() ? Number(r.year) : null }
+    }))
+    void run(() => startPitches({ show: chosen, pastGuests }))
+  }
+  return (
+    <section className="sec" aria-labelledby="setup-h">
+      <div className="mh">
+        <h2 className="lbl" id="setup-h">
+          Rank against a show
+        </h2>
+      </div>
+      <p className="help sec-help">
+        Pick the roster show the pitches are for, and name its best past guests&apos; public works. Each type of pitched
+        work is ranked against the show and those works in its own Qloo call. Only titles and types reach Qloo.
+      </p>
+      {shows.length === 0 ? (
+        <p className="empty">
+          No roster show is matched in Qloo yet. <a href="/">Import the roster</a> first: the pitches are ranked against
+          one of its shows.
+        </p>
+      ) : (
+        <form className="setup" onSubmit={submit}>
+          <label className="field show-pick">
+            <span className="lbl">Show</span>
+            <select value={chosen} onChange={(e) => setShow(e.target.value)} disabled={locked}>
+              {shows.map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <fieldset>
+            <legend className="lbl">Past guests&apos; public works</legend>
+            <div className="pg pg-head" aria-hidden="true">
+              <span>Guest</span>
+              <span>Work title</span>
+              <span>Type</span>
+              <span>Year</span>
+              <span />
+            </div>
+            {rows.map((r, i) => (
+              <div className="pg" key={i}>
+                <span className="in">
+                  <input
+                    aria-label={`Past guest ${i + 1}`}
+                    value={r.guest}
+                    onChange={(e) => edit(i, { guest: e.target.value })}
+                    disabled={locked}
+                  />
+                </span>
+                <span className="in">
+                  <input
+                    aria-label={`Past guest ${i + 1}'s work title`}
+                    value={r.title}
+                    onChange={(e) => edit(i, { title: e.target.value })}
+                    disabled={locked}
+                  />
+                </span>
+                <select
+                  aria-label={`Past guest ${i + 1}'s work type`}
+                  value={r.type}
+                  onChange={(e) => edit(i, { type: e.target.value as WorkType })}
+                  disabled={locked}
+                >
+                  {workTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {typeLabel[t]}
+                    </option>
+                  ))}
+                </select>
+                <span className="in">
+                  <input
+                    aria-label={`Past guest ${i + 1}'s work year`}
+                    inputMode="numeric"
+                    value={r.year}
+                    onChange={(e) => edit(i, { year: e.target.value })}
+                    disabled={locked}
+                  />
+                </span>
+                <button
+                  type="button"
+                  className="lnk"
+                  onClick={() => setRows(rows.filter((_, j) => j !== i))}
+                  disabled={locked}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            {rows.length < MAX_PAST_GUESTS && (
+              <button
+                type="button"
+                className="lnk"
+                onClick={() => setRows([...rows, { guest: '', title: '', type: 'book', year: '' }])}
+                disabled={locked}
+              >
+                Add a past guest
+              </button>
+            )}
+          </fieldset>
+          <div className="acts">
+            <button className="btn pri" type="submit" disabled={locked || !chosen}>
+              Rank pitches
+            </button>
+            <small>
+              {ranking
+                ? 'Ranking the pitches…'
+                : inbox.show
+                  ? "Filled in from the sample show's episode feed."
+                  : 'A new run: earlier runs stay in Runs.'}
+            </small>
+          </div>
+          <Alert error={invalid ?? error} />
+        </form>
+      )}
+    </section>
+  )
+}
+
+const typePlural: Record<WorkType, string> = { book: 'Books', film: 'Films', tv_show: 'TV shows', podcast: 'Podcasts' }
+
+// The pitched works ranked against the show, one list per work type, by position and band. Raw
+// scores stay in each ranking call's evidence, and lists from separate calls aren't compared.
+function PitchLists({
+  booking,
+  lists,
+  pitches,
+  select,
+  openCall,
+  opened
+}: {
+  booking: Booking
+  lists: PitchList[]
+  pitches: Pitch[]
+  select: (id: string) => void
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  const setAside = pitches.filter((p) => p.status === 'no_work' || p.status === 'unreadable' || p.status === 'failed')
+  return (
+    <section className="sec fit" aria-labelledby="lists-h">
+      <div className="mh">
+        <h2 className="lbl" id="lists-h">
+          Pitches for {booking.show.name}
+        </h2>
+        <Source of="qloo" />
+      </div>
+      <p className="help sec-help">
+        One list per type of work, each from its own Qloo call, so a rank in one list can&apos;t be compared with a rank
+        in another. Bands are thirds of their own list.
+        {setAside.length > 0 && ` ${setAside.length} set-aside pitches were never sent to Qloo.`}
+      </p>
+      {lists.map((list) => (
+        <RankedPitches
+          key={list.type}
+          list={list}
+          pitches={pitches}
+          select={select}
+          openCall={openCall}
+          opened={opened}
+        />
+      ))}
+    </section>
+  )
+}
+
+function RankedPitches({
+  list,
+  pitches,
+  select,
+  openCall,
+  opened
+}: {
+  list: PitchList
+  pitches: Pitch[]
+  select: (id: string) => void
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  const id = `list-${list.type}`
+  const pitch = (id: string) => pitches.find((p) => p.id === id)
+  const names = listOf(list.anchors.map((a) => a.name))
+  const noun = typeLabel[list.type].toLowerCase()
+  const against =
+    list.path === 'same_type'
+      ? `Ranked against the past guests' ${noun}s alone: ${names}. Qloo scored no ${noun} against the show and every past guest (${list.calls[0]}).`
+      : list.path === 'show'
+        ? `Ranked against ${names}.`
+        : null
+  return (
+    <div className="plist" role="group" aria-labelledby={id}>
+      <div className="mh">
+        <h3 className="lbl" id={id}>
+          {typePlural[list.type]} · {list.rows.length} ranked
+        </h3>
+        <span className="chips">
+          {list.calls.map((call) => (
+            <button
+              key={call}
+              type="button"
+              className="call"
+              aria-pressed={call === opened}
+              aria-controls="evidence"
+              aria-label={`Evidence for the ${noun} ranking: call ${call}`}
+              onClick={() => openCall(call)}
+            >
+              {call}
+            </button>
+          ))}
+        </span>
+      </div>
+      {against && <p className="help">{against}</p>}
+      {list.error ? (
+        <p className="err" role="alert">
+          Not ranked: {list.error}.
+        </p>
+      ) : (
+        <table className="chart fit-chart" aria-labelledby={id}>
+          <colgroup>
+            <col className="c-pos" />
+            <col />
+            <col className="c-band" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">
+                Rank<small>in this list</small>
+              </th>
+              <th scope="col">
+                Public work<small>Qloo match · guest</small>
+              </th>
+              <th scope="col">
+                Fit band<small>confidence</small>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.rows.map((r) => {
+              const { bars, word } = bandMeter[r.band]
+              const p = pitch(r.pitch)
+              return (
+                <tr key={r.pitch}>
+                  <td className="pos">{r.rank}</td>
+                  <td>
+                    <button type="button" className="row-open" onClick={() => select(r.pitch)}>
+                      <span className="nm">{r.entity.name}</span>
+                    </button>
+                    {p?.guest && <div className="tg">{p.guest}</div>}
+                  </td>
+                  <td>
+                    <span className={`band b${bars}`}>
+                      <i aria-hidden="true" />
+                      <i aria-hidden="true" />
+                      <i aria-hidden="true" />
+                      {word}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+      {list.notScored.length > 0 && (
+        <table className="ev not-scored">
+          <caption>Not scored · {list.notScored.length}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Pitch</th>
+              <th scope="col">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.notScored.map((n) => {
+              const p = pitch(n.pitch)
+              return (
+                <tr key={n.pitch}>
+                  <td>{p?.work?.title ?? n.pitch}</td>
+                  <td>{n.reason}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+const pastMatch = { resolved: 'Matched', ambiguous: 'Ambiguous', missed: 'Not in Qloo', failed: 'Lookup failed' }
+
+// What the latest pitch run ranked against: the show, and how each past guest's work resolved.
+function Anchors({
+  booking,
+  openCall,
+  opened
+}: {
+  booking: Booking
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  return (
+    <section className="mod" aria-labelledby="anchors-h">
+      <div className="mh">
+        <span className="lbl" id="anchors-h">
+          Ranked against
+        </span>
+        <Source of="qloo" />
+      </div>
+      <dl className="rec kv">
+        <div className="rec-row">
+          <dt>Show</dt>
+          <dd>{booking.show.entity.name}</dd>
+        </div>
+        {booking.pastGuests.map((g, i) => (
+          <div className="rec-row" key={i}>
+            <dt>{g.guest}</dt>
+            <dd>
+              {g.work.title} <span className="tg">· {g.match ? pastMatch[g.match.resolution] : 'Looking up…'}</span>{' '}
+              {g.match && (
+                <button
+                  type="button"
+                  className="call"
+                  aria-pressed={g.match.evidence === opened}
+                  aria-controls="evidence"
+                  aria-label={`Evidence for ${g.work.title}: call ${g.match.evidence}`}
+                  onClick={() => openCall(g.match!.evidence)}
+                >
+                  {g.match.evidence}
+                </button>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {booking.pastGuests.some((g) => g.match && g.match.resolution !== 'resolved') && (
+        <p className="help">
+          A past guest&apos;s work that didn&apos;t match isn&apos;t an anchor. Edit it and rank again.
+        </p>
+      )}
+    </section>
+  )
 }
 
 // A pitch's state in one word: still being read, its work's match, or why it was set aside.
