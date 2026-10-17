@@ -44,7 +44,7 @@ describe('the evidence behind each Qloo call', () => {
     expect(opened('Deep Cuts')).toMatchObject({
       call: 'C-03',
       status: 429,
-      error: 'Qloo returned 429: fake failure',
+      error: 'Qloo returned 429: Rate limit exceeded, after 2 retries',
       entities: []
     })
   })

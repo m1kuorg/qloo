@@ -11,6 +11,22 @@ type Params = Record<string, string | number>
 
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
+  // At most 3 requests in flight across all sessions, each started at least QLOO_MIN_INTERVAL_MS
+  // after the last: Qloo rate-limits bursts of fast calls, not only concurrent ones.
+  private free = 3
+  private waiting: (() => void)[] = []
+  private nextStart = 0
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env)
+    // Qloo's answers, shared by every session and kept with no expiry. Only successes are kept.
+    ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, status INTEGER NOT NULL, body TEXT NOT NULL)'
+    )
+    // Requests sent to Qloo per UTC day, retries included, against QLOO_DAILY_CALL_CAP.
+    ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS daily_calls (day TEXT PRIMARY KEY, count INTEGER NOT NULL)')
+  }
+
   // Finds entities by name. Qloo's search is fuzzy, so deciding whether a result is the show is
   // the caller's job (see resolve.ts).
   async search(query: string, type: string, take = 3): Promise<QlooResult<QlooEntity[]>> {
@@ -45,27 +61,115 @@ export class QlooGateway extends DurableObject<Env> {
       tags: [],
       affinities: []
     }
+    // Latency runs from the first request sent, so time queued behind other calls isn't blamed on Qloo.
     const started = Date.now()
+    let sentAt: number | undefined
+    const key = await cacheKey('GET', endpoint, url.searchParams)
+    const timeoutMs = Number(this.env.QLOO_TIMEOUT_MS)
+    const retryDelays = this.env.QLOO_RETRY_DELAYS_MS.split(',').map(Number)
     try {
-      const response = await fetch(url, { headers: { 'X-Api-Key': this.env.QLOO_API_KEY } })
-      evidence.status = response.status
-      const body = await response.text()
-      evidence.latencyMs = Date.now() - started
-      // Qloo documents 404 as "No results" for search; live it answers 200 with an empty list.
-      if (response.status === 404) return { ok: true, data: null, evidence }
-      if (!response.ok) {
-        const message = errorMessage(body)
-        return this.fail(evidence, `Qloo returned ${response.status}${message ? `: ${message}` : ''}`)
+      const [hit] = this.ctx.storage.sql.exec<CacheRow>('SELECT status, body FROM cache WHERE key = ?', key).toArray()
+      if (hit) {
+        evidence.status = hit.status
+        evidence.cacheHit = true
+        return { ok: true, data: JSON.parse(hit.body), evidence }
       }
-      const data = parseJson(body)
-      if (data === undefined) return this.fail(evidence, `Qloo returned ${response.status} with a body that isn't JSON`)
-      return { ok: true, data, evidence }
-    } catch (e) {
-      evidence.latencyMs = Date.now() - started
-      return this.fail(evidence, `Qloo request failed: ${e instanceof Error ? e.message : String(e)}`)
+      for (;;) {
+        if (!this.spend()) {
+          const cap = this.env.QLOO_DAILY_CALL_CAP
+          return this.fail(
+            evidence,
+            `The daily cap of ${cap} Qloo calls is reached; it resets at 00:00 UTC` + retried(evidence)
+          )
+        }
+        await this.takeSlot()
+        sentAt ??= Date.now()
+        const attempt = await this.attempt(url, timeoutMs).finally(() => this.releaseSlot())
+        evidence.status = attempt.status
+        if (attempt.ok) {
+          const body = JSON.stringify(attempt.data)
+          this.ctx.storage.sql.exec(
+            'INSERT OR REPLACE INTO cache (key, status, body) VALUES (?, ?, ?)',
+            key,
+            attempt.status,
+            body
+          )
+          return { ok: true, data: attempt.data, evidence }
+        }
+        const delay = retryDelays[evidence.retries]
+        if (!attempt.retry || delay === undefined) return this.fail(evidence, attempt.error + retried(evidence))
+        // About 1 then 3 seconds, give or take a fifth, so callers that failed together don't retry together.
+        await sleep(delay * (0.8 + Math.random() * 0.4))
+        evidence.retries++
+      }
     } finally {
+      evidence.latencyMs = Date.now() - (sentAt ?? started)
       const { endpoint: e, status, latencyMs, retries, cacheHit } = evidence
       console.log(JSON.stringify({ event: 'qloo_call', endpoint: e, status, latencyMs, retries, cacheHit }))
+    }
+  }
+
+  // Counts one request against today's cap, or refuses it once the cap is reached. Counted when
+  // queued rather than sent, so a refusal doesn't wait its turn; every queued request is sent.
+  private spend() {
+    const day = new Date().toISOString().slice(0, 10)
+    const sql = this.ctx.storage.sql
+    const [today] = sql.exec<{ count: number }>('SELECT count FROM daily_calls WHERE day = ?', day).toArray()
+    if ((today?.count ?? 0) >= Number(this.env.QLOO_DAILY_CALL_CAP)) return false
+    sql.exec(
+      'INSERT INTO daily_calls (day, count) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET count = count + 1',
+      day
+    )
+    return true
+  }
+
+  // Waits for a free slot, first come first served, then for this request's turn to start.
+  private async takeSlot() {
+    if (this.free > 0) this.free--
+    else await new Promise<void>((resolve) => this.waiting.push(resolve))
+    const now = Date.now()
+    const start = Math.max(now, this.nextStart)
+    this.nextStart = start + Number(this.env.QLOO_MIN_INTERVAL_MS)
+    if (start > now) await sleep(start - now)
+  }
+
+  // Hands the slot straight to the next waiter, so a newcomer can't jump the queue.
+  private releaseSlot() {
+    const next = this.waiting.shift()
+    if (next) next()
+    else this.free++
+  }
+
+  // One request to Qloo. Rate limits, gateway errors, and timeouts are worth retrying; a 400 or
+  // any other error is not, and keeps Qloo's message.
+  private async attempt(url: URL, timeoutMs: number): Promise<Attempt> {
+    try {
+      const response = await fetch(url, {
+        headers: { 'X-Api-Key': this.env.QLOO_API_KEY },
+        signal: AbortSignal.timeout(timeoutMs)
+      })
+      const { status } = response
+      const body = await response.text()
+      // Qloo documents 404 as "No results" for search; live it answers 200 with an empty list.
+      if (status === 404) return { ok: true, status, data: null }
+      if (!response.ok) {
+        const message = errorMessage(body)
+        const retry = [429, 502, 503, 504].includes(status)
+        return { ok: false, status, retry, error: `Qloo returned ${status}${message ? `: ${message}` : ''}` }
+      }
+      const data = parseJson(body)
+      if (data === undefined)
+        return { ok: false, status, retry: false, error: `Qloo returned ${status} with a body that isn't JSON` }
+      return { ok: true, status, data }
+    } catch (e) {
+      if (e instanceof Error && e.name === 'TimeoutError')
+        return { ok: false, status: null, retry: true, error: `Qloo didn't answer within ${timeoutMs / 1000} s` }
+      return {
+        ok: false,
+        status: null,
+        retry: false,
+        error: `Qloo request failed: ${e instanceof Error ? e.message : String(e)}`
+      }
     }
   }
 
@@ -74,6 +178,24 @@ export class QlooGateway extends DurableObject<Env> {
     return { ok: false, error, evidence }
   }
 }
+
+type Attempt =
+  { ok: true; status: number; data: unknown } | { ok: false; status: number | null; retry: boolean; error: string }
+
+const retried = ({ retries }: CallEvidence) =>
+  retries ? `, after ${retries} ${retries === 1 ? 'retry' : 'retries'}` : ''
+
+type CacheRow = { status: number; body: string }
+
+// A hash of the method, path, and parameters sorted by name, so one request is one entry.
+async function cacheKey(method: string, endpoint: string, params: URLSearchParams) {
+  const sorted = new URLSearchParams(params)
+  sorted.sort()
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${method} ${endpoint}?${sorted}`))
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 type SearchResult = { entity_id: string; name: string; types?: string[]; popularity?: number }
 

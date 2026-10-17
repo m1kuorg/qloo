@@ -7,7 +7,14 @@
   "main": "./src/index.tsx",
   "observability": { "enabled": true },
   "triggers": { "crons": ["0 12 * * *"] },
-  "vars": { "QLOO_BASE_URL": "https://hackathon.api.qloo.com", "ANTHROPIC_BASE_URL": "https://api.anthropic.com" },
+  "vars": {
+    "QLOO_BASE_URL": "https://hackathon.api.qloo.com",
+    "QLOO_DAILY_CALL_CAP": "1000",
+    "QLOO_TIMEOUT_MS": "20000",
+    "QLOO_RETRY_DELAYS_MS": "1000,3000",
+    "QLOO_MIN_INTERVAL_MS": "400",
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com"
+  },
   "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY"] },
   "durable_objects": {
     "bindings": [

@@ -93,16 +93,16 @@ export class CrossfeedAgent extends Agent<Env, State> {
       throw new Error(
         `${rows.length} shows is over the ${MAX_SHOWS}-show limit: one comparison scores at most ${MAX_SHOWS} shows, Qloo's largest page, and scores from separate comparisons can't be compared. Import ${MAX_SHOWS} shows or fewer.`
       )
-    // One search at a time: Qloo answered 429 to bursts of three fast searches. #35 moves pacing
-    // and retries into the gateway.
-    const roster: Show[] = []
-    for (const { name, ...fields } of rows) {
-      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'))
-      const match = result.ok
-        ? { ...resolveName(name, result.data), error: null }
-        : { resolution: 'failed' as const, entity: null, candidates: [], error: result.error }
-      roster.push({ name, ...match, evidence: call, compSearch: null, ...fields, excluded: false })
-    }
+    // All at once: the gateway paces, limits, and retries the calls.
+    const roster = await Promise.all(
+      rows.map(async ({ name, ...fields }): Promise<Show> => {
+        const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'))
+        const match = result.ok
+          ? { ...resolveName(name, result.data), error: null }
+          : { resolution: 'failed' as const, entity: null, candidates: [], error: result.error }
+        return { name, ...match, evidence: call, compSearch: null, ...fields, excluded: false }
+      })
+    )
     this.setState({ ...this.state, roster })
   }
 
