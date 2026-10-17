@@ -7,6 +7,7 @@ export type QlooEntity = {
   type: string
   popularity: number | null
   disambiguation: string | null // a work's year, plus the author for a book, such as "2022, Quentin Tarantino"
+  description: string | null // one line on what it is, to tell same-title results apart
 }
 
 // What every gateway method returns. A failure comes back as a value, not a throw, so its
@@ -115,11 +116,12 @@ export class QlooGateway extends DurableObject<Env> {
       name: r.name,
       type: r.types?.[0] ?? type,
       popularity: r.popularity ?? null,
-      disambiguation: r.disambiguation ?? null
+      disambiguation: r.disambiguation ?? null,
+      description: describe(r.properties)
     }))
     // Search fills only `entities`: each result's genre tags describe that result, not the call, so
     // `tags` stays empty here.
-    const evidence = { ...result.evidence, entities: entities.map(({ disambiguation, ...e }) => e) }
+    const evidence = { ...result.evidence, entities: entities.map(({ disambiguation, description, ...e }) => e) }
     return { ok: true, data: entities, evidence }
   }
 
@@ -421,6 +423,27 @@ type SearchResult = {
   types?: string[]
   popularity?: number
   disambiguation?: string | null
+  properties?: {
+    short_descriptions?: unknown // [{ language, value }] for films and TV
+    short_description?: unknown // podcasts
+    description?: unknown // books, and most films
+  }
+}
+
+// A search result's description in one line: the English short description, a podcast's short
+// description, or the full description, cut to about 200 characters. Same-title works can share
+// everything else, such as one film Qloo lists twice (#128).
+function describe(properties: SearchResult['properties']): string | null {
+  const shorts = Array.isArray(properties?.short_descriptions) ? properties.short_descriptions : []
+  const english = shorts.find((d) => d?.language === 'en')?.value
+  const text = [english, properties?.short_description, properties?.description]
+    .map((d) => (typeof d === 'string' ? d.replace(/\s+/g, ' ').trim() : ''))
+    .find(Boolean)
+  if (!text) return null
+  if (text.length <= 200) return text
+  const cut = text.slice(0, 200)
+  const space = cut.lastIndexOf(' ')
+  return `${(space > 100 ? cut.slice(0, space) : cut).replace(/[\s,.;:]+$/, '')}…`
 }
 
 type InsightResult = {

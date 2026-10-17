@@ -1,7 +1,10 @@
 import { env, exports } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
-import type { WorkMatch } from '../src/inbox'
+import { PickOne } from '../src/client/controls'
+import type { WorkCandidate, WorkMatch } from '../src/inbox'
 import sample from '../src/sample-inbox.json'
 import {
   fakeClaude,
@@ -93,7 +96,13 @@ describe('loading a pasted pitch', () => {
           work: { title: 'Night Ferry', type: 'book', year: 2019 },
           match: {
             resolution: 'resolved',
-            entity: { id: 'b-0001', name: 'Night Ferry', popularity: 0.81, disambiguation: '2019, Ada Quill' },
+            entity: {
+              id: 'b-0001',
+              name: 'Night Ferry',
+              popularity: 0.81,
+              disambiguation: '2019, Ada Quill',
+              description: null
+            },
             candidates: [],
             evidence: 'C-01',
             error: null
@@ -189,8 +198,8 @@ describe('loading the sample inbox', () => {
         resolution: 'ambiguous',
         entity: null,
         candidates: [
-          { id: 'w-digger-a', name: 'Digger', popularity: null, disambiguation: '2026' },
-          { id: 'w-digger-b', name: 'Digger', popularity: null, disambiguation: '2026' }
+          { id: 'w-digger-a', name: 'Digger', popularity: null, disambiguation: '2026', description: null },
+          { id: 'w-digger-b', name: 'Digger', popularity: null, disambiguation: '2026', description: null }
         ]
       }
     }
@@ -353,14 +362,105 @@ describe('confirming an ambiguous work', () => {
 
     expect(reloaded.state()?.inbox?.pitches[0].match).toEqual({
       resolution: 'resolved',
-      entity: { id: 'f-2025', name: 'Frankenstein', popularity: 0.89, disambiguation: '2025' },
+      entity: { id: 'f-2025', name: 'Frankenstein', popularity: 0.89, disambiguation: '2025', description: null },
       candidates: [
-        { id: 'f-1931', name: 'Frankenstein', popularity: 0.97, disambiguation: '1931' },
-        { id: 'f-2025', name: 'Frankenstein', popularity: 0.89, disambiguation: '2025' }
+        { id: 'f-1931', name: 'Frankenstein', popularity: 0.97, disambiguation: '1931', description: null },
+        { id: 'f-2025', name: 'Frankenstein', popularity: 0.89, disambiguation: '2025', description: null }
       ],
       evidence: 'C-01',
       error: null
     })
+  })
+})
+
+// The confirm picker as the browser renders it from synced candidates: each option's text, in order,
+// and the picker's whole text.
+function picker(options: WorkCandidate[]) {
+  const html = renderToStaticMarkup(
+    createElement(PickOne, {
+      legend: 'Which Qloo film is Lantern?',
+      options,
+      current: undefined,
+      note: '',
+      submit: 'Use this match',
+      busy: false,
+      pick: async () => {}
+    })
+  )
+  const plain = (s: string) =>
+    s
+      .replace(/<!--.*?-->|<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  return { labels: [...html.matchAll(/<label>(.*?)<\/label>/gs)].map(([, label]) => plain(label)), text: plain(html) }
+}
+
+// Loads one pasted pitch for the film "Lantern" (2026), whose search returns `results`.
+async function lantern(results: QlooEntity[]) {
+  fakeQloo({ search: { Lantern: results } })
+  fakeReader(1, () => extraction({ guest: 'Ida Moss', work: { title: 'Lantern', type: 'film', year: 2026 } }))
+  const s = await session()
+  await s.call('loadInbox', { text: 'Ida Moss on her film Lantern.' })
+  const { inbox } = await loaded(s)
+  const match = inbox!.pitches[0].match!
+  expect(match.resolution).toBe('ambiguous')
+  return match.candidates
+}
+
+describe('telling same-title candidates apart in the confirm picker', () => {
+  it("shows each candidate's description from Qloo, and says when one has none", async () => {
+    const long = 'A lighthouse keeper on a remote island writes letters to the sea, and the sea writes back. '.repeat(4)
+    const candidates = await lantern([
+      {
+        entity_id: 'l-0001',
+        name: 'Lantern',
+        popularity: null,
+        disambiguation: '2026',
+        properties: {
+          short_descriptions: [
+            { language: 'fr', value: 'Un veilleur de nuit.' },
+            { language: 'en', value: ' A night watchman keeps a lighthouse burning. ' }
+          ]
+        }
+      },
+      { entity_id: 'l-0002', name: 'Lantern', popularity: null, disambiguation: '2026', properties: {} },
+      {
+        entity_id: 'l-0003',
+        name: 'Lantern',
+        popularity: null,
+        disambiguation: '2026',
+        properties: { description: long }
+      }
+    ])
+
+    expect(candidates.map((c) => c.description)).toEqual([
+      'A night watchman keeps a lighthouse burning.',
+      null,
+      expect.stringMatching(/^A lighthouse keeper on a remote island .{100,}…$/)
+    ])
+    expect(candidates[2].description!.length).toBeLessThanOrEqual(201)
+    const { labels, text } = picker(candidates)
+    expect(new Set(labels).size).toBe(3)
+    expect(labels[0]).toContain('A night watchman keeps a lighthouse burning.')
+    expect(labels[1]).toContain('No description in Qloo')
+    expect(text).not.toContain('nothing else')
+  })
+
+  it('shows Qloo IDs, and says Qloo gave nothing else, when candidates are otherwise identical', async () => {
+    const candidates = await lantern([
+      { entity_id: 'D1661E40-AAAA-0000', name: 'Lantern', popularity: null, disambiguation: '2026' },
+      { entity_id: 'D1661E40-BBBB-0000', name: 'Lantern', popularity: null, disambiguation: '2026' }
+    ])
+
+    const { labels, text } = picker(candidates)
+    expect(labels).toEqual([
+      expect.stringContaining('Qloo ID D1661E40-A'),
+      expect.stringContaining('Qloo ID D1661E40-B')
+    ])
+    expect(text).toContain('Qloo gives nothing else to tell these apart')
+    expect(text).not.toContain('No description')
+    // Candidates synced before descriptions existed have no such field, and read the same.
+    expect(picker(candidates.map(({ description, ...c }) => c as WorkCandidate)).labels).toEqual(labels)
   })
 })
 

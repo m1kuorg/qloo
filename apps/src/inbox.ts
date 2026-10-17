@@ -27,8 +27,9 @@ export const workNoun: Record<WorkType, string> = {
 // The guest's public work, as read from the pitch. Only its title and type ever reach Qloo.
 export type Work = { title: string; type: WorkType; year: number | null }
 
-// A search result for a work, with its year (and a book's author) to tell same-title works apart.
-export type WorkCandidate = Candidate & { disambiguation: string | null }
+// A search result for a work, with its year (and a book's author) and a line on what it is, to
+// tell same-title works apart. Candidates synced before #128 have no `description`.
+export type WorkCandidate = Candidate & { disambiguation: string | null; description: string | null }
 
 // How a work's search resolved. Same-title candidates are kept after the booker confirms one.
 export type WorkMatch = {
