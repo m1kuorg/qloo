@@ -139,7 +139,7 @@ The launch and guest flows follow fixed steps, so the agent works from a short s
 Each tool returns names alongside IDs, and errors the model can act on ([Writing effective tools for agents][anthropic-tools]):
 
 - **`resolve_entities(names, type)`:** each name comes back resolved, ambiguous with up to three candidates, or missed.
-- **`rank_candidates(anchor_ids, candidate_ids, type)`:** ranks, bands, raw affinities, comp shares, and the evidence ID.
+- **`rank_candidates(anchor_ids, candidate_ids, type)`:** ranks, bands, raw affinities, comp shares, and the evidence ID. The run's first message lists the roster's scorable shows with their IDs. The roster is the closed list, so the tool ranks every scorable show even when the model leaves one out, refuses an ID that isn't a roster show or an anchor the session never resolved, and leaves an anchor that is itself a roster show out of the candidates.
 - **`check_demographics(anchor_ids, candidate_ids)`:** age-band and gender deltas and mismatch flags per candidate.
 - **`shared_tags(anchor_ids, candidate_ids)`:** the top non-generic shared tags per candidate, from parallel compare calls.
 - **`ask_human(question, options)`:** pauses the run until the human answers in the UI.

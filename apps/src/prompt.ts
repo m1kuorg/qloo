@@ -10,7 +10,11 @@ const launchSteps: { step: string; instruction: string | null }[] = [
       'Resolve the launch: call resolve_entities with the launch name exactly as the programmer gave it, as type urn:entity:podcast. If it comes back ambiguous or missed, or the lookup fails twice, say so and stop.'
   },
   { step: 'Confirm comps (#40)', instruction: null },
-  { step: 'Rank the roster (#38)', instruction: null },
+  {
+    step: 'Rank the roster (#38)',
+    instruction:
+      "Once the launch is resolved, rank the roster: call rank_candidates with the launch's Qloo ID as the only anchor, every roster ID the run's first message lists as candidates, and type urn:entity:podcast. Give a show's fit as its rank and band, never as a raw affinity."
+  },
   { step: 'Ask for the slot budget and exclusions (#39)', instruction: null },
   { step: 'Check demographics (#46)', instruction: null },
   { step: 'Find shared tags (#47)', instruction: null },

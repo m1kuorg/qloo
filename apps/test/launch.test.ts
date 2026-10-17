@@ -154,7 +154,7 @@ describe('starting a launch run', () => {
     expect(failedSearch.content).toContain('"Night Shift Cinema" (Qloo returned 500: fake failure)')
     expect(failedSearch.content).toContain('Call resolve_entities again with only the failed names')
     expect(unknownTool).toMatchObject({ type: 'tool_result', tool_use_id: 'toolu_1_2', is_error: true })
-    expect(unknownTool.content).toBe('There is no tool named rank_everything. Use one of: resolve_entities.')
+    expect(unknownTool.content).toMatch(/^There is no tool named rank_everything\. Use one of: .*resolve_entities/)
   })
 
   it('calls Claude with the model settings, a frozen prompt and tool list, and append-only history', async () => {

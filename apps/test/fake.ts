@@ -97,6 +97,45 @@ export function fakeQloo({
   )
 }
 
+// One result of a closed-list ranking. `explainability` lists each anchor's share; left out, the
+// fake splits the score evenly across the request's anchors, and `null` leaves it off the result.
+export type Insight = {
+  entity_id: string
+  name: string
+  affinity: number | null
+  explainability?: { entity_id: string; score: number }[] | null
+}
+
+// Serves `POST /v2/insights` from `answer`, given the request's flat dotted-key body: the results
+// to return, or an HTTP status that answers with an error body in Qloo's shape.
+export function fakeInsights(answer: Insight[] | number | ((body: Record<string, unknown>) => Insight[] | number)) {
+  network.use(
+    http.post(`${env.QLOO_BASE_URL}/v2/insights`, async ({ request }) => {
+      await record(request)
+      const body = JSON.parse(await request.clone().text())
+      const results = typeof answer === 'function' ? answer(body) : answer
+      if (typeof results === 'number')
+        return HttpResponse.json({ error: { message: 'fake failure', code: results } }, { status: results })
+      const anchors = String(body['signal.interests.entities'] ?? '').split(',')
+      const entities = results.map(({ entity_id, name, affinity, explainability }) => {
+        const shares = explainability ?? anchors.map((id) => ({ entity_id: id, score: 1 / anchors.length }))
+        return {
+          entity_id,
+          name,
+          types: null,
+          popularity: 0.5,
+          query: {
+            affinity,
+            measurements: { audience_growth: 0 },
+            ...(explainability !== null && { explainability: { 'signal.interests.entities': shares } })
+          }
+        }
+      })
+      return HttpResponse.json({ success: true, results: { entities } })
+    })
+  )
+}
+
 // The scripted model: each request to the Messages API gets the next turn of `script`, streamed
 // as server-sent events the way the API streams them. Every turn opens with a thinking block whose
 // text is omitted and only its signature sent, as Haiku 5.5's are. A script entry can be a function
