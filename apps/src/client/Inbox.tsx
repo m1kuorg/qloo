@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import type { Show, SlowCall } from '../agent'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { Run, Show, SlowCall } from '../agent'
 import type { PitchList, SharedTags } from '../fit'
 import {
   workTypes,
@@ -34,7 +34,8 @@ type Page = {
   inbox: Inbox | null
   roster: Show[]
   booking: Booking | null
-  ranking: boolean // a pitch run is running
+  pitchRunStatus: Run['status'] | null // the latest run's, when it's a pitch run
+  question: ReactNode // the pitch run's open question, while it waits on one
   runLog: ReactNode // the latest run, when it's a pitch run
   slowCalls: SlowCall[] // Qloo calls still waiting past the slow mark
 }
@@ -42,11 +43,23 @@ type Page = {
 // The booker's inbox page, shown only while GUEST_PITCHES is on: load pitches, see what Claude read
 // from each and how Qloo matched its work, confirm ambiguous matches, and rank the pitched works
 // against a roster show and its past guests, then clear the inbox reply by reply.
-export function InboxPage({ inbox, roster, booking, ranking, runLog, slowCalls, ...actions }: Page & Actions) {
+export function InboxPage({
+  inbox,
+  roster,
+  booking,
+  pitchRunStatus,
+  question,
+  runLog,
+  slowCalls,
+  ...actions
+}: Page & Actions) {
   const [selected, setSelected] = useState<string | null>(null)
   const pitch = inbox?.pitches.find((p) => p.id === selected)
   const reading = inbox?.status === 'reading'
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
+  const running = pitchRunStatus === 'running'
+  // The agent refuses reply actions until its run ends, and a run waiting on a question hasn't ended.
+  const drafting = running || pitchRunStatus === 'waiting'
   return (
     <>
       <section className="hd" aria-label="Inbox">
@@ -75,14 +88,16 @@ export function InboxPage({ inbox, roster, booking, ranking, runLog, slowCalls, 
         )}
       </section>
       <main className="main">
-        <section className="chart-col" aria-label="Pitches">
+        {/* Before the lists, so a single column reaches it first; the grid sets it atop the rail when wide. */}
+        {question}
+        <div className="chart-col">
           {inbox && (
             <PitchSetup
               key={inbox.id}
               inbox={inbox}
               roster={roster}
               booking={booking}
-              ranking={ranking}
+              running={running}
               startPitches={actions.startPitches}
             />
           )}
@@ -101,22 +116,29 @@ export function InboxPage({ inbox, roster, booking, ranking, runLog, slowCalls, 
               show={booking.show.name}
               replies={booking.replies}
               pitches={inbox?.pitches ?? []}
-              locked={ranking}
+              locked={drafting}
               actions={actions}
               opened={actions.opened?.call ?? null}
             />
           )}
-          <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
-          <PitchTable
-            pitches={inbox?.pitches ?? []}
-            selected={pitch?.id ?? null}
-            select={setSelected}
-            openCall={actions.openCall}
-            opened={actions.opened?.call ?? null}
-          />
-        </section>
+          <section className="sec" aria-labelledby="pitches-h">
+            <div className="mh">
+              <h2 className="lbl" id="pitches-h">
+                Pitches
+              </h2>
+            </div>
+            <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
+            <PitchTable
+              pitches={inbox?.pitches ?? []}
+              selected={pitch?.id ?? null}
+              select={setSelected}
+              openCall={actions.openCall}
+              opened={actions.opened?.call ?? null}
+            />
+          </section>
+        </div>
+        {/* As the launch page's rail: the selected pitch and its evidence first, then the run and the checks. */}
         <aside className="rail" aria-label="Details">
-          {runLog}
           {pitch && (
             <PitchDetail
               key={pitch.id}
@@ -125,9 +147,10 @@ export function InboxPage({ inbox, roster, booking, ranking, runLog, slowCalls, 
               close={() => setSelected(null)}
             />
           )}
+          <EvidencePanel opened={actions.opened} />
+          {runLog}
           {booking && <Anchors booking={booking} openCall={actions.openCall} opened={actions.opened?.call ?? null} />}
           <InboxCheck pitches={inbox?.pitches ?? []} />
-          <EvidencePanel opened={actions.opened} />
         </aside>
       </main>
     </>
@@ -145,7 +168,7 @@ function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; re
   return (
     <form className="import" onSubmit={paste}>
       <label className="lbl" htmlFor="pitches">
-        Pitches
+        Pitch emails
       </label>
       <textarea
         id="pitches"
@@ -193,9 +216,9 @@ function PitchSetup({
   inbox,
   roster,
   booking,
-  ranking,
+  running,
   startPitches
-}: Pick<Page, 'roster' | 'booking' | 'ranking'> & { inbox: Inbox; startPitches: Actions['startPitches'] }) {
+}: Pick<Page, 'roster' | 'booking'> & { inbox: Inbox; running: boolean; startPitches: Actions['startPitches'] }) {
   const shows = roster.filter((s) => s.entity && (s.resolution === 'resolved' || s.resolution === 'mapped'))
   const suggested = inbox.show ? shows.find((s) => sameName(s.name, inbox.show!.name))?.name : undefined
   // The sample's show while its Qloo lookup is still out: a fresh session's roster can still be resolving
@@ -218,7 +241,7 @@ function PitchSetup({
   const chosen = show !== null && shows.some((s) => s.name === show) ? show : (suggested ?? shows[0]?.name ?? '')
   const edit = (i: number, change: Partial<GuestRow>) =>
     setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)))
-  const locked = busy || ranking || inbox.status === 'reading'
+  const locked = busy || running || inbox.status === 'reading'
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     const year = rows.findIndex((r) => r.year.trim() && !/^\d{4}$/.test(r.year.trim()))
@@ -332,7 +355,7 @@ function PitchSetup({
               Rank pitches
             </button>
             <small>
-              {ranking
+              {running
                 ? 'Ranking the pitches…'
                 : awaited
                   ? `Waiting for ${awaited}'s Qloo lookup…`
@@ -412,6 +435,7 @@ function RankedPitches({
   const pitch = (id: string) => pitches.find((p) => p.id === id)
   const names = listOf(list.anchors.map((a) => a.name))
   const noun = typeLabel[list.type].toLowerCase()
+  const tagged = list.rows.some((r) => r.sharedTags)
   const against =
     list.path === 'same_type'
       ? `Ranked against the past guests' ${noun}s alone: ${names}. Qloo scored no ${noun} against the show and every past guest (${list.calls[0]}).`
@@ -454,10 +478,12 @@ function RankedPitches({
                 Rank<small>in this list</small>
               </th>
               <th scope="col">
-                Public work<small>Qloo match · guest</small>
+                Public work
+                {/* The guest is Claude's reading of the pitch, not Qloo data. */}
+                <small>Qloo match · guest as Claude read it{tagged && ' · shared Qloo tags'}</small>
               </th>
               <th scope="col">
-                Fit band<small>confidence</small>
+                Fit band<small>listener overlap</small>
               </th>
             </tr>
           </thead>
@@ -634,7 +660,7 @@ function ReplyItem({
         <span className="nm">{name}</span>
         {pitch?.guest && <span className="tg"> · {pitch.guest}</span>}
       </span>
-      <span className="chip" data-state={reply.status}>
+      <span className="chip">
         {reply.status === 'approved' ? 'Approved' : reply.status === 'discarded' ? 'Discarded' : 'Draft'}
       </span>
     </div>
@@ -745,7 +771,7 @@ function ReplyItem({
   )
 }
 
-const pastMatch = { resolved: 'Matched', ambiguous: 'Ambiguous', missed: 'Not in Qloo', failed: 'Lookup failed' }
+const matchLabel = { resolved: 'Matched', ambiguous: 'Ambiguous', missed: 'Not in Qloo', failed: 'Lookup failed' }
 
 // What the latest pitch run ranked against: the show, and how each past guest's work resolved.
 function Anchors({
@@ -774,7 +800,7 @@ function Anchors({
           <div className="rec-row" key={i}>
             <dt>{g.guest}</dt>
             <dd>
-              {g.work.title} <span className="tg">· {g.match ? pastMatch[g.match.resolution] : 'Looking up…'}</span>{' '}
+              {g.work.title} <span className="tg">· {g.match ? matchLabel[g.match.resolution] : 'Looking up…'}</span>{' '}
               {g.match && (
                 <CallButton
                   call={g.match.evidence}
@@ -807,8 +833,6 @@ const stateLabel = (p: Pitch) =>
     read: p.match ? matchLabel[p.match.resolution] : 'Looking up'
   })[p.status]
 
-const matchLabel = { resolved: 'Matched', ambiguous: 'Ambiguous', missed: 'Not in Qloo', failed: 'Lookup failed' }
-
 // A pitch's subject, or the first line of a pasted one.
 const title = (p: Pitch) => p.subject ?? p.body.split('\n').find((l) => l.trim()) ?? p.id
 
@@ -827,78 +851,81 @@ function PitchTable({
 }) {
   if (pitches.length === 0)
     return <p className="empty">No pitches yet. Load the sample inbox, or paste pitches above.</p>
+  // One shaded row: the pitch open in the rail or, with none open, the one whose evidence is.
+  const hot = selected ?? pitches.find((p) => p.match && p.match.evidence === opened)?.id
   return (
-    <table className="chart pitches">
-      <caption>
-        <Source of="agent" /> Guest and work as Claude read them from each pitch. <Source of="qloo" /> Matches from Qloo
-        search, one call per work. Select a pitch to read it or confirm its match.
-      </caption>
-      <colgroup>
-        <col style={{ width: '27%' }} />
-        <col style={{ width: '17%' }} />
-        <col style={{ width: '22%' }} />
-        <col />
-        <col style={{ width: 64 }} />
-      </colgroup>
-      <thead>
-        <tr>
-          <th scope="col">Pitch</th>
-          <th scope="col">Guest</th>
-          <th scope="col">
-            Public work<small>type · year</small>
-          </th>
-          <th scope="col">
-            Qloo match<small>popularity percentile</small>
-          </th>
-          <th scope="col" className="r">
-            Call
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {pitches.map((p) => (
-          <tr
-            key={p.id}
-            data-status={p.status}
-            className={p.match && p.match.evidence === opened ? 'on' : undefined}
-            data-selected={p.id === selected || undefined}
-          >
-            <td>
-              <button
-                type="button"
-                className="row-open"
-                aria-current={p.id === selected || undefined}
-                onClick={() => select(p.id)}
-              >
-                <span className="nm">{title(p)}</span>
-              </button>
-              {p.from && (
-                <div className="tg desc" title={p.from}>
-                  {p.from}
-                </div>
-              )}
-            </td>
-            <td>{p.guest ?? '–'}</td>
-            <td>
-              <WorkCell pitch={p} />
-            </td>
-            <td>
-              <MatchCell pitch={p} settle={() => select(p.id)} />
-            </td>
-            <td className="r">
-              {p.match && (
-                <CallButton
-                  call={p.match.evidence}
-                  label={`Evidence for ${p.work?.title ?? p.id}`}
-                  opened={opened}
-                  openCall={openCall}
-                />
-              )}
-            </td>
+    // Narrow screens scroll the table sideways inside this, never the page.
+    <div className="scroll-x" role="region" aria-label="Pitch table" tabIndex={0}>
+      <table className="chart pitches">
+        <caption>
+          {/* A block of its own, so it wraps within a phone's screen while the table scrolls wider. */}
+          <span className="cap">
+            <Source of="agent" /> Guest and work as Claude read them from each pitch. <Source of="qloo" /> Matches from
+            Qloo search, one call per work. Select a pitch to read it or confirm its match.
+          </span>
+        </caption>
+        <colgroup>
+          <col className="c-pitch" />
+          <col className="c-guest" />
+          <col className="c-work" />
+          <col />
+          <col className="c-call" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Pitch</th>
+            <th scope="col">Guest</th>
+            <th scope="col">
+              Public work<small>type · year</small>
+            </th>
+            <th scope="col">
+              Qloo match<small>popularity percentile</small>
+            </th>
+            <th scope="col" className="r">
+              Call
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {pitches.map((p) => (
+            <tr key={p.id} data-status={p.status} data-selected={p.id === hot || undefined}>
+              <td>
+                <button
+                  type="button"
+                  className="row-open"
+                  aria-current={p.id === selected || undefined}
+                  onClick={() => select(p.id)}
+                >
+                  <span className="nm">{title(p)}</span>
+                </button>
+                {p.from && (
+                  <div className="tg desc" title={p.from}>
+                    {p.from}
+                  </div>
+                )}
+              </td>
+              <td>{p.guest ?? '–'}</td>
+              <td>
+                <WorkCell pitch={p} />
+              </td>
+              <td>
+                <MatchCell pitch={p} settle={() => select(p.id)} />
+              </td>
+              <td className="r">
+                {p.match && (
+                  <CallButton
+                    call={p.match.evidence}
+                    label={`Evidence for ${p.work?.title ?? p.id}`}
+                    opened={opened}
+                    openCall={openCall}
+                  />
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -964,8 +991,14 @@ function PitchDetail({
 }) {
   const { busy, error, run } = useAction()
   const match = p.match
+  // Opened from a pitch's row, it can sit far below it, as in a single column; bring it into view.
+  const ref = useRef<HTMLElement>(null)
+  // A block body: newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [])
   return (
-    <section className="mod ed" aria-labelledby="pitch-ed">
+    <section className="mod ed" ref={ref} aria-labelledby="pitch-ed">
       <div className="mh">
         <span className="lbl" id="pitch-ed">
           Pitch
