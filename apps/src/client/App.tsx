@@ -21,6 +21,7 @@ import type {
 import { ageWords, type DemographicCheck } from '../demographics'
 import type { Ranking } from '../fit'
 import { MAX_COMPS, MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
+import { dollars, slotPrice } from '../order'
 import { offeredBy, sameName } from '../resolve'
 import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
@@ -177,6 +178,9 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
             openCall={openCall}
             opened={opened?.call ?? null}
             markSeen={markSeen}
+            roster={roster}
+            cpm={shown?.cpm ?? null}
+            sampleCpm={shown?.sample?.cpm ?? false}
           />
           {!oneColumn && rosterSection}
         </div>
@@ -897,7 +901,10 @@ function FitChart({
   running,
   openCall,
   opened,
-  markSeen
+  markSeen,
+  roster,
+  cpm,
+  sampleCpm
 }: {
   ranking: Ranking | null
   leftOut: string[] // shows the run's exclusions answer left out
@@ -908,6 +915,9 @@ function FitChart({
   openCall: (call: string) => void
   opened: string | null
   markSeen: (mark: GuideMark) => void // tells the guide its step was done
+  roster: Show[] // for each show's downloads and its sample labels
+  cpm: number | null
+  sampleCpm: boolean // the CPM is still the sample network's
 }) {
   // The climber whose "why it moved" line is open.
   const [why, setWhy] = useState<string | null>(null)
@@ -923,6 +933,7 @@ function FitChart({
   const climbers = topic?.moves.some((m) => m.climber) ?? false
   // Each climber's place among them, top down, so their bullets land down the chart in turn.
   const landing = new Map(topic?.moves.filter((m) => m.climber).map((m, i) => [m.show, i] as const))
+  const show = (name: string) => roster.find((s) => s.name === name)
   // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
   const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   return (
@@ -974,6 +985,7 @@ function FitChart({
             {moves && <col className="c-mv" />}
             <col />
             <col className="c-band" />
+            <col className="c-val" />
           </colgroup>
           <thead>
             <tr>
@@ -999,6 +1011,9 @@ function FitChart({
               </th>
               <th scope="col">
                 Fit band<small>listener overlap</small>
+              </th>
+              <th scope="col" className="r val">
+                Slot value<small>per episode</small>
               </th>
             </tr>
           </thead>
@@ -1087,6 +1102,12 @@ function FitChart({
                       )}
                       {notes.length > 0 && <div className="tg">{notes.join(' · ')}</div>}
                       {flagged?.length ? <div className="flag-why">{flagged.join('. ')}.</div> : null}
+                      {/* Shown in place of the slot value column when the chart is too narrow for it. */}
+                      {cpm !== null && (
+                        <div className="tg val-inline">
+                          <SlotValue show={show(r.show)} cpm={cpm} sampleCpm={sampleCpm} inline />
+                        </div>
+                      )}
                     </td>
                     <td>
                       <span className={`band b${bars}`}>
@@ -1096,12 +1117,15 @@ function FitChart({
                         {word}
                       </span>
                     </td>
+                    <td className="r val">
+                      <SlotValue show={show(r.show)} cpm={cpm} sampleCpm={sampleCpm} />
+                    </td>
                   </tr>
                   {open && (
                     <tr className="why" id={`why-${r.rank}`}>
                       <td colSpan={3} />
                       {/* The show column and every column after it. */}
-                      <td colSpan={2}>
+                      <td colSpan={3}>
                         <span className="lbl">Why it moved</span>
                         {/* Topic rank is Claude's baseline, fit rank Qloo's: each labelled, neither wrapped off its words. */}
                         <Source of="agent" /> Topic alone ranks it{'\u00a0'}
@@ -1125,6 +1149,13 @@ function FitChart({
           </tbody>
         </table>
       )}
+      {!ranking.error && (
+        <p className="help chart-foot">
+          {cpm === null
+            ? 'Slot values need the network’s CPM: set it under Network CPM.'
+            : `Slot value = downloads × ${dollars(cpm)}${sampleCpm ? ' sample' : ''} CPM ÷ 1,000${sampleCpm ? ' · sample figures' : ''}`}
+        </p>
+      )}
       {ranking.notScored.length > 0 && (
         <table className="ev not-scored">
           <caption>Not scored · {ranking.notScored.length}</caption>
@@ -1145,6 +1176,47 @@ function FitChart({
         </table>
       )}
     </section>
+  )
+}
+
+// What one promo slot on a show displaces, from its downloads and the CPM, labelled sample while a sample
+// figure prices it; or the figure it's missing. `inline` is the one-line form set under the show's name.
+function SlotValue({
+  show,
+  cpm,
+  sampleCpm,
+  inline = false
+}: {
+  show: Show | undefined
+  cpm: number | null
+  sampleCpm: boolean
+  inline?: boolean
+}) {
+  const downloads = show?.downloads ?? null // shows from before downloads have none
+  const { slotValue, gap } = slotPrice(downloads, cpm)
+  const sample = (sampleCpm || show?.sample?.includes('downloads')) && <small className="smp">sample</small>
+  if (inline)
+    return slotValue === null ? (
+      gap
+    ) : (
+      <>
+        {dollars(slotValue)} a slot{sample}
+      </>
+    )
+  if (slotValue === null)
+    return (
+      <>
+        <span aria-hidden="true">–</span>
+        {/* Every row lacks the CPM alike, so the chart's footnote says it once. */}
+        {cpm === null ? <span className="vh">{gap}</span> : <small>{gap}</small>}
+      </>
+    )
+  return (
+    <>
+      {dollars(slotValue)}
+      <small>{downloads!.toLocaleString('en-US')} downloads</small>
+      {sample}
+    </>
   )
 }
 

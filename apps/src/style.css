@@ -380,6 +380,8 @@ h1 span {
   grid-row: 1 / span 2;
   padding-top: 16px;
   min-width: 0;
+  /* The fit chart's slot value column fits by this column's width, not the window's. */
+  container-type: inline-size;
 }
 
 .rail {
@@ -1060,7 +1062,52 @@ fieldset {
 }
 
 .fit-chart .c-band {
-  width: 128px;
+  width: 112px;
+}
+
+/* Slot value, last, as the sketch sets it: the dollars over the downloads they're priced from. */
+.fit-chart .c-val {
+  width: 136px;
+}
+
+.fit-chart td.val {
+  font-weight: 600;
+}
+
+.fit-chart td.val small {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  white-space: nowrap;
+  color: var(--grey);
+}
+
+.val-inline {
+  display: none;
+}
+
+/* Under about 680px of chart, names would be squeezed: the value moves under the show's name instead. */
+@container (max-width: 679px) {
+  .fit-chart .c-val {
+    width: 0;
+  }
+
+  .fit-chart .val {
+    display: none;
+  }
+
+  .val-inline {
+    display: block;
+  }
+
+  .val-inline .smp::before {
+    content: ' · ' / '';
+  }
+}
+
+.chart-foot {
+  margin-top: 8px;
 }
 
 /* Last week and the move: topic rank in Last-Week Grey, then the move glyph. */
