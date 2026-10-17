@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { fakeClaude, fakeQloo, modelRequests, requests, text, turn } from './fake'
+import type { RunSnapshot } from '../src/agent'
+import { fakeClaude, fakeQloo, modelRequests, refusal, requests, text, turn } from './fake'
 import { openSession, type Session } from './session'
 
 // A synthetic roster with one show in each state: resolved, mapped to a comp, ambiguous, missed,
@@ -53,5 +54,47 @@ These roster shows can't be ranked, and why:
     // A left-out show's Qloo ID never reaches the model or Qloo after its lookup.
     expect(JSON.stringify(modelRequests())).not.toContain('e-3005')
     expect(requests.filter((r) => r.url.href.includes('e-3005'))).toEqual([])
+  })
+})
+
+describe("a run's closing line", () => {
+  // A session with a one-show roster, so a run needs no Qloo call before the model ends it.
+  async function session() {
+    fakeQloo({ search })
+    const s = await openSession()
+    open.push(s)
+    await s.importRoster('Back Row')
+    return s
+  }
+  const ended = (s: Session, id: string) =>
+    s.until((state) => state.run?.id === id && !['running', 'waiting'].includes(state.run.status))
+
+  it("keeps the model's closing text on the run, and each earlier run keeps its own", async () => {
+    fakeClaude([
+      turn(text('Nothing to rank yet: resolve the launch first (C-01).')),
+      turn(text('Still nothing to rank.'), text('Import a roster to start.'))
+    ])
+    const s = await session()
+    const first = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
+    await ended(s, first.runId)
+    const second = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
+    const state = await ended(s, second.runId)
+
+    expect(state.run).toMatchObject({
+      status: 'completed',
+      closing: 'Still nothing to rank.\n\nImport a roster to start.'
+    })
+    const earlier = await s.call<RunSnapshot>('getRun', first.runId)
+    expect(earlier.run?.closing).toBe('Nothing to rank yet: resolve the launch first (C-01).')
+  })
+
+  it('leaves no closing line on a refused run or a failed one', async () => {
+    // The refusal carries text, which is discarded; the second run's model call gets a 400.
+    fakeClaude([refusal('cyber', text('I can'))])
+    const s = await session()
+    const refused = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
+    expect((await ended(s, refused.runId)).run).toMatchObject({ status: 'failed', closing: null })
+    const failed = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
+    expect((await ended(s, failed.runId)).run).toMatchObject({ status: 'failed', closing: null })
   })
 })

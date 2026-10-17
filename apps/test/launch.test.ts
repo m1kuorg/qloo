@@ -51,7 +51,8 @@ describe('starting a launch run', () => {
       error: null,
       question: null,
       budget: null,
-      exclusions: null
+      exclusions: null,
+      closing: null
     })
 
     firstTurn.resolve()
@@ -74,7 +75,8 @@ describe('starting a launch run', () => {
       error: null,
       question: null,
       budget: null,
-      exclusions: null
+      exclusions: null,
+      closing: 'Night Shift Cinema is resolved in Qloo.'
     })
     expect(modelRequests()).toHaveLength(2)
     expect(await s.call<Evidence[]>('getEvidence')).toMatchObject([
