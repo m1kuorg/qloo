@@ -104,6 +104,7 @@ Done means the behaviour works against the real APIs, first locally and then on 
 1.  Open the app in a fresh browser session.
 1.  Paste The Ringer's 19 show names from `src/sample-network.json` and import them.
 1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo answered with an error, such as a 429; its reason is in the row.
+1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box.
 1.  Reload: the roster stays. A private window starts empty.
 
 Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status, and latency, in the dev server's output and in Workers Logs.
@@ -115,6 +116,7 @@ Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status
 - `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. Each method returns its data or error together with an evidence record.
 - `src/evidence.ts`: the evidence record's shape. Fill its fields; don't reshape it.
 - `src/resolve.ts`: deciding whether a search result is the named entity.
+- `src/roster.ts`: reading an imported roster, pasted names or a CSV, into rows.
 - `src/client/`: the React island. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
 - `src/style.css`: the tokens and components from [DESIGN.md](/docs/DESIGN.md).
 

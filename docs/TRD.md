@@ -79,6 +79,7 @@ Base URL `https://hackathon.api.qloo.com`, header `X-Api-Key`. The calls below w
 - **Rank pitched works:** the same, once per work type, with `filter.type` set to that type and the show plus past guests' works as anchors. Rankings across categories return scores and explainability, as for books ranked against a podcast ([demo data](#demo-data)).
 - **Demographics:** `POST /v2/insights` with `filter.type=urn:demographics` and `signal.interests.entities=<launch or comp IDs, and finalist IDs>`. It returns one entry per entity.
 - **Shared tags:** `GET /v2/analysis/compare?a.signal.interests.entities=<launch or comps>&b.signal.interests.entities=<finalist>&take=50` _(verify: several comps on side `a`)_.
+- **Find a comp for a roster show:** `GET /search?query=<what the programmer typed>&types=urn:entity:podcast&take=5`.
 - **Health check:** `GET /search?query=The%20Rewatchables&types=urn:entity:podcast&take=1`.
 
 POST bodies use flat dotted keys, such as `{"filter.type": "urn:entity:podcast", "take": 50}`; a nested body returns 400 ([BRIEF](BRIEF.md#live-api-checks)).
@@ -150,7 +151,8 @@ Each tool returns names alongside IDs, and errors the model can act on ([Writing
 
 ### Questions and approvals
 
-- **Questions:** when the model calls `ask_human`, the agent stores the open question in its state and ends the loop. The UI renders the question card. When the human answers, the next user message holds that call's tool result, a neutral "asked the human" notice, followed by the answer as a separate text block, and the loop resumes. The answer never goes inside the tool result, because this model can treat user text there as untrusted and ignore it. The system prompt requires a question for every ambiguous match, every miss, comps for an unreleased launch, the slot budget, and exclusions.
+- **Questions:** when the model calls `ask_human`, the agent stores the open question in its state and ends the loop. The UI renders the question card. When the human answers, the next user message holds that call's tool result, a neutral "asked the human" notice, followed by the answer as a separate text block, and the loop resumes. The answer never goes inside the tool result, because this model can treat user text there as untrusted and ignore it. The system prompt requires a question for every ambiguous match and every miss among the matches it makes during a run (the launch, its comps, and pitched works), comps for an unreleased launch, the slot budget, and exclusions.
+- **Roster matches:** settled by the programmer in the roster view, not by the agent's questions. Through `updateShow`, they pick an ambiguous show's candidate, map a missed show to a comp found with `searchComps`, or leave the show out, which marks it excluded. A show still ambiguous, missed, or failed when a launch runs is never scored, and the ranking lists it as not scored, with the reason. Two shows can be mapped to the same comp, so a ranking sends each entity ID once.
 - **Approvals:** approving or editing an insertion order and approving, editing, or discarding a reply are client actions handled in code, and no tool can perform them. Export refuses any insertion order that isn't approved.
 - Runs are short and the human gates sit between turns, so the agent's own SQLite state is enough; the Agents SDK's Workflow approval pattern isn't needed ([human in the loop][cf-hitl]).
 
@@ -195,7 +197,7 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 ## Client protocol
 
 - **State:** the agent's synced state carries what the UI renders: the roster with resolution states, the current run's status and the progress notes code writes for each tool call, such as "Scoring 16 shows against The Big Picture", the open question, rankings with the topic baseline, the insertion order draft, the inbox, and draft replies. The evidence log is fetched on demand, not synced.
-- **Actions:** `@callable` methods on the agent: `importRoster`, `updateShow`, `setCpm`, `startLaunch`, `answer`, `editInsertionOrder`, `approveInsertionOrder`, `loadInbox`, `startPitches` (with the show and its past guests' works), `editReply`, `approveReply`, `discardReply`, and `getEvidence`. `@callable` needs the `agents/vite` plugin ([configuration][cf-config]).
+- **Actions:** `@callable` methods on the agent: `importRoster` (pasted names, or a CSV with `name` and optional `downloads`, `status`, and `description` columns), `updateShow`, `searchComps`, `setCpm`, `startLaunch`, `answer`, `editInsertionOrder`, `approveInsertionOrder`, `loadInbox`, `startPitches` (with the show and its past guests' works), `editReply`, `approveReply`, `discardReply`, and `getEvidence`. `@callable` needs the `agents/vite` plugin ([configuration][cf-config]).
 - **HTTP:** `GET /` serves the shell, and `GET /api/insertion-orders/:id.csv` exports an approved order, returning 409 for a draft.
 
 ## Caching, caps, and replay

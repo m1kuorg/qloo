@@ -425,3 +425,177 @@ button.call[aria-pressed='true'] {
 .chart tr.on td {
   background: var(--panel);
 }
+
+/* Roster setup: the selected row opens in the rail, where its match is settled. */
+.roster tr[data-selected] td {
+  background: var(--panel);
+}
+
+.roster tr[data-excluded] .nm,
+.roster tr[data-excluded] .ent {
+  color: var(--mid);
+}
+
+.row-open {
+  display: block;
+  max-width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-open:hover .nm {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.row-open .nm {
+  display: block;
+}
+
+.desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.lnk {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.q {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+/* Like the mock's open question: Panel Grey bled to the rail's edges. */
+.ed {
+  background: var(--panel);
+  margin: 0 -32px 0 -24px;
+  padding: 16px 32px 16px 24px;
+}
+
+.pick,
+.comp,
+.fields {
+  margin-top: 16px;
+}
+
+fieldset {
+  border: 0;
+  min-width: 0;
+}
+
+.opts {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0 4px;
+}
+
+.opts label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  cursor: pointer;
+}
+
+.opts input {
+  accent-color: var(--ink);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: none;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.in {
+  flex: 1;
+  height: 32px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 0 8px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+}
+
+.in input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+}
+
+.in:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.in input::placeholder {
+  color: var(--grey);
+}
+
+.in .pre {
+  color: var(--grey);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  border-top: 1px solid var(--edge);
+  padding-top: 16px;
+}
+
+.fields .acts,
+.fields .err {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.comp .help,
+.import .help {
+  margin-top: 8px;
+}
+
+.err {
+  margin-top: 8px;
+}
+
+@media (max-width: 960px) {
+  .ed {
+    margin: 0 -32px;
+    padding: 16px 32px;
+  }
+}

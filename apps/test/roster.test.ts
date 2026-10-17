@@ -23,6 +23,9 @@ const search = {
 
 const roster = 'Night Shift Cinema\n\n  Deep Cuts  \nThe Ghost Signal Show\n'
 
+// A pasted name carries no figures, has no comp search yet, and starts included.
+const pasted = { compSearch: null, downloads: null, status: null, description: null, excluded: false }
+
 const open: Session[] = []
 const session = async (cookie?: string) => {
   const s = await openSession(cookie)
@@ -46,7 +49,8 @@ describe('importing a pasted roster', () => {
         entity: { id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.91 },
         candidates: [],
         evidence: 'C-01',
-        error: null
+        error: null,
+        ...pasted
       },
       {
         name: 'Deep Cuts',
@@ -58,7 +62,8 @@ describe('importing a pasted roster', () => {
           { id: 'e-0103', name: 'Cut Deep', popularity: 0.12 }
         ],
         evidence: 'C-02',
-        error: null
+        error: null,
+        ...pasted
       },
       {
         name: 'The Ghost Signal Show',
@@ -66,7 +71,8 @@ describe('importing a pasted roster', () => {
         entity: null,
         candidates: [],
         evidence: 'C-03',
-        error: null
+        error: null,
+        ...pasted
       }
     ])
   })
@@ -143,8 +149,16 @@ describe('importing a pasted roster', () => {
     await s.call('importRoster', 'Unknown Pod\nGone Pod')
 
     expect(s.state()?.roster).toEqual([
-      { name: 'Unknown Pod', resolution: 'missed', entity: null, candidates: [], evidence: 'C-01', error: null },
-      { name: 'Gone Pod', resolution: 'missed', entity: null, candidates: [], evidence: 'C-02', error: null }
+      {
+        name: 'Unknown Pod',
+        resolution: 'missed',
+        entity: null,
+        candidates: [],
+        evidence: 'C-01',
+        error: null,
+        ...pasted
+      },
+      { name: 'Gone Pod', resolution: 'missed', entity: null, candidates: [], evidence: 'C-02', error: null, ...pasted }
     ])
     expect(await s.call<Evidence[]>('getEvidence')).toMatchObject([
       { status: 200, error: null, entities: [] },
