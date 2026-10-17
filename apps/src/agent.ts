@@ -3,6 +3,7 @@ import { Agent, callable, type Connection } from 'agents'
 import { claude } from './claude'
 import { callNumber, type Evidence } from './evidence'
 import type { QlooGateway, QlooResult } from './gateway'
+import { MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
 import { lookup, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat } from './roster'
 import { tools, type ToolContext, type ToolResult } from './tools'
@@ -48,9 +49,17 @@ export type Launch = {
 
 export type Run = {
   id: string
-  status: 'running' | 'completed' | 'failed'
+  status: 'running' | 'completed' | 'stopped' | 'failed' // stopped: at a turn or Qloo call limit
   notes: Note[] // one per tool call, in the order the calls started
-  error: string | null // why the run failed
+  error: string | null // why the run failed or stopped
+}
+
+// One run in the session's list of runs. Its results, once it ends, come from getRun.
+export type RunSummary = {
+  id: string
+  launch: string | null // the launch's name; null for a launch run from comps
+  status: Run['status']
+  startedAt: string // ISO time
 }
 
 // A progress note code writes for a tool call, such as "Resolving The Big Picture".
@@ -62,17 +71,25 @@ export type State = {
   roster: Show[]
   cpm: number | null // CPM in dollars; no default for a real network
   launch: Launch | null
-  run: Run | null
+  run: Run | null // the latest run
+  runs: RunSummary[] // every run this session started, oldest first
 }
+
+// What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
+export type RunSnapshot = Omit<State, 'runs'>
 
 // One instance per visitor session, named by the session cookie.
 export class CrossfeedAgent extends Agent<Env, State> {
-  initialState: State = { roster: [], cpm: null, launch: null, run: null }
+  initialState: State = { roster: [], cpm: null, launch: null, run: null, runs: [] }
 
   async onStart() {
     this.sql`CREATE TABLE IF NOT EXISTS evidence (seq INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT)`
     // Each run's conversation with Claude, append-only: one row per message, thinking blocks kept.
     this.sql`CREATE TABLE IF NOT EXISTS conversation (seq INTEGER PRIMARY KEY AUTOINCREMENT, run TEXT, message TEXT)`
+    // One row per run: its start in epoch ms, what it has spent against the run limits, and, once it
+    // has ended, the state it ended with.
+    this.sql`CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, started_at INTEGER,
+      turns INTEGER DEFAULT 0, qloo_calls INTEGER DEFAULT 0, cache_hits INTEGER DEFAULT 0, snapshot TEXT)`
     // A run is kept alive while its loop runs, so one still running at startup lost its loop.
     const run = this.state.run
     if (run?.status === 'running') this.finish(run.id, 'The run was interrupted. Start it again.')
@@ -189,16 +206,38 @@ export class CrossfeedAgent extends Agent<Env, State> {
     const name = 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
     if (!name) throw new Error('Name the launch to start a run.')
     if (this.state.run?.status === 'running') throw new Error('A run is already in progress. Wait for it to finish.')
+    const [{ started }] = this.sql<{ started: number }>`
+      SELECT COUNT(*) AS started FROM runs WHERE started_at >= ${startOfUtcDay()}`
+    if (started >= MAX_RUNS_PER_DAY)
+      throw new Error(
+        `This session has started its ${MAX_RUNS_PER_DAY} runs for today. Runs reset at 00:00 UTC; earlier runs stay viewable.`
+      )
 
     const run = crypto.randomUUID()
+    const startedAt = Date.now()
+    this.sql`INSERT INTO runs (id, started_at) VALUES (${run}, ${startedAt})`
     this.setState({
       ...this.state,
       launch: { name, match: null },
-      run: { id: run, status: 'running', notes: [], error: null }
+      run: { id: run, status: 'running', notes: [], error: null },
+      // Sessions from before run limits have no list.
+      runs: [
+        ...(this.state.runs ?? []),
+        { id: run, launch: name, status: 'running', startedAt: new Date(startedAt).toISOString() }
+      ]
     })
     this.append(run, { role: 'user', content: `The launch is a released show named "${name}". Plan its promos.` })
     void this.keepAliveWhile(() => this.runLoop(run)).catch((e) => this.finish(run, `The run stopped: ${message(e)}`))
     return { runId: run }
+  }
+
+  // What an earlier run ended with, roster and all, to compare with a re-run.
+  @callable()
+  getRun(id: string): RunSnapshot {
+    const [row] = this.sql<{ snapshot: string | null }>`SELECT snapshot FROM runs WHERE id = ${id}`
+    if (!row) throw new Error('This session has no run with that ID.')
+    if (!row.snapshot) throw new Error("That run hasn't ended yet.")
+    return JSON.parse(row.snapshot)
   }
 
   // The session's evidence log: one record per Qloo call, oldest first.
@@ -246,12 +285,28 @@ export class CrossfeedAgent extends Agent<Env, State> {
   private async runLoop(run: string) {
     const model = claude(this.env)
     for (;;) {
+      const [{ turns }] = this.sql<{ turns: number }>`
+        UPDATE runs SET turns = turns + 1 WHERE id = ${run} RETURNING turns`
       let reply: Anthropic.Message
+      const started = Date.now()
       try {
         reply = await model(this.history(run))
       } catch (e) {
+        log({ event: 'model_call', run, turn: turns, latencyMs: Date.now() - started, error: message(e) })
         return this.finish(run, `The request to Claude failed: ${message(e)}`)
       }
+      const { usage } = reply
+      log({
+        event: 'model_call',
+        run,
+        turn: turns,
+        stopReason: reply.stop_reason,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        cacheReadInputTokens: usage.cache_read_input_tokens,
+        cacheCreationInputTokens: usage.cache_creation_input_tokens,
+        latencyMs: Date.now() - started
+      })
       // Check the stop reason before reading content: a refused or cut-off reply is discarded.
       if (reply.stop_reason === 'refusal') return this.finish(run, refusalNotice(reply))
       if (reply.stop_reason === 'max_tokens')
@@ -264,18 +319,44 @@ export class CrossfeedAgent extends Agent<Env, State> {
       const calls = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
       if (reply.stop_reason !== 'tool_use' || calls.length === 0)
         return this.finish(run, `Claude stopped unexpectedly (${reply.stop_reason}).`)
+      // The last turn's calls aren't run: their results would need one more turn to reach Claude.
+      if (turns >= MAX_TURNS)
+        return this.finish(
+          run,
+          `Stopped at the limit of ${MAX_TURNS} Claude turns per run, before Claude finished, so this plan is incomplete. Not run: ${calls.map(noteFor).join(', ')}.`,
+          'stopped'
+        )
       const results = await Promise.all(calls.map((call) => this.callTool(run, call)))
       // The turn and its results are stored together, so history never ends on an unanswered call.
-      this.append(run, assistant, { role: 'user', content: results })
+      this.append(run, assistant, { role: 'user', content: results.map((r) => r.block) })
+      const cut = calls.filter((_, i) => results[i].cutOff)
+      if (cut.length > 0)
+        return this.finish(
+          run,
+          `Stopped at the limit of ${MAX_QLOO_CALLS} Qloo calls per run, before Claude finished, so this plan is incomplete. Cut off: ${cut.map(noteFor).join(', ')}.`,
+          'stopped'
+        )
     }
   }
 
-  private async callTool(run: string, call: Anthropic.ToolUseBlock): Promise<Anthropic.ToolResultBlockParam> {
+  // Runs one tool call. `cutOff` says the run's Qloo call limit refused one of its calls.
+  private async callTool(run: string, call: Anthropic.ToolUseBlock) {
     const tool = tools.find((t) => t.definition.name === call.name)
-    const note = this.addNote(run, tool ? tool.note(call.input) : `Calling ${call.name}`)
+    const note = this.addNote(run, noteFor(call))
+    let cutOff = false
     const context: ToolContext = {
       run,
-      qloo: (request) => this.qloo(request, run),
+      qloo: async (request) => {
+        // Checked and counted before any await, so concurrent tools can't pass the limit together.
+        const counted = this.sql`
+          UPDATE runs SET qloo_calls = qloo_calls + 1 WHERE id = ${run} AND qloo_calls < ${MAX_QLOO_CALLS}
+          RETURNING id`
+        if (counted.length === 0) {
+          cutOff = true
+          throw new Error(`the run reached its limit of ${MAX_QLOO_CALLS} Qloo calls`)
+        }
+        return this.qloo(request, run)
+      },
       update: (change) => {
         const next = change(this.state)
         if (next !== this.state) this.setState(next)
@@ -297,14 +378,15 @@ export class CrossfeedAgent extends Agent<Env, State> {
     }
     this.updateRun(run, (r) => ({
       ...r,
-      notes: r.notes.map((n, i) => (i === note ? { ...n, status: result.isError ? 'failed' : 'done' } : n))
+      notes: r.notes.map((n, i) => (i === note ? { ...n, status: result.isError || cutOff ? 'failed' : 'done' } : n))
     }))
-    return {
+    const block: Anthropic.ToolResultBlockParam = {
       type: 'tool_result',
       tool_use_id: call.id,
       content: result.content,
       ...(result.isError && { is_error: true })
     }
+    return { block, cutOff }
   }
 
   // Adds a running note to the run and returns its index.
@@ -317,19 +399,37 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return index
   }
 
-  // Ends the run: completed when `error` is null, else failed with the reason and any unfinished
-  // notes marked failed.
-  private finish(run: string, error: string | null) {
-    this.updateRun(run, (r) =>
+  // Ends the run: completed when `error` is null, else failed, or stopped at a limit, with the
+  // reason and any unfinished notes marked failed. Keeps what it ended with for getRun.
+  private finish(run: string, error: string | null, status: 'failed' | 'stopped' = 'failed') {
+    const r = this.state.run
+    if (r?.id !== run) return
+    const ended: Run =
       error === null
         ? { ...r, status: 'completed' }
         : {
             ...r,
-            status: 'failed',
+            status,
             error,
             notes: r.notes.map((n) => (n.status === 'running' ? { ...n, status: 'failed' } : n))
           }
-    )
+    const runs = (this.state.runs ?? []).map((s) => (s.id === run ? { ...s, status: ended.status } : s))
+    this.setState({ ...this.state, run: ended, runs })
+    const { runs: _, ...snapshot } = this.state
+    const [spent] = this.sql<{ started_at: number; turns: number; qloo_calls: number; cache_hits: number }>`
+      UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}
+      RETURNING started_at, turns, qloo_calls, cache_hits`
+    // A run started before run limits has no row to summarize.
+    if (spent)
+      log({
+        event: 'run_summary',
+        run,
+        outcome: ended.status,
+        turns: spent.turns,
+        qlooCalls: spent.qloo_calls,
+        cacheHits: spent.cache_hits,
+        wallMs: Date.now() - spent.started_at
+      })
   }
 
   private updateRun(run: string, change: (r: Run) => Run) {
@@ -358,11 +458,22 @@ export class CrossfeedAgent extends Agent<Env, State> {
     const result = (await request(this.env.QlooGateway.getByName('global'))) as QlooResult<T>
     const record: Evidence = { call, run, ...result.evidence }
     this.sql`UPDATE evidence SET record = ${JSON.stringify(record)} WHERE seq = ${seq}`
+    if (run && record.cacheHit) this.sql`UPDATE runs SET cache_hits = cache_hits + 1 WHERE id = ${run}`
     return { call, result }
   }
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+// One structured line in Workers Logs, like the gateway's qloo_call lines.
+const log = (line: { event: 'model_call' | 'run_summary' } & Record<string, unknown>) =>
+  console.log(JSON.stringify(line))
+
+// The progress note a tool call shows, such as "Resolving The Big Picture".
+function noteFor(call: Anthropic.ToolUseBlock) {
+  const tool = tools.find((t) => t.definition.name === call.name)
+  return tool ? tool.note(call.input) : `Calling ${call.name}`
+}
 
 // A refusal has no server-side fallback on this model, so the run stops and shows it.
 function refusalNotice(reply: Anthropic.Message) {

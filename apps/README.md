@@ -113,14 +113,18 @@ Done means the behaviour works against the real APIs, first locally and then on 
 1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box.
 1.  Reload: the roster stays. A private window starts empty.
 1.  Type "The Big Picture" as the released launch and start a run. The header shows "Running" and "Resolving The Big Picture", then the Qloo match with its call number, and "Completed". The rail's Run module lists the progress note as done.
+1.  Include The Press Box again and select "Run again". The rail's Runs module lists both runs and today's count out of 10. "View" on the first run shows what it ended with, read-only, with The Press Box still left out; "Back to the latest run" returns.
 1.  Import the same names again: every log line says `"cacheHit":true`, and no new Qloo call is made.
 
 Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status, latency, retries, and cache hit, in the dev server's output, in Workers Logs, and live with `bunx wrangler tail --format json`. To see failures in the running app, add `QLOO_TIMEOUT_MS=1` or a low `QLOO_DAILY_CALL_CAP` to `.dev.vars` and restart the dev server.
 
+Agent log lines show each model call's tokens and cache reads (`"event":"model_call"`) and one summary per run with its outcome (`"event":"run_summary"`). To see a run stopped at a limit, lower a limit in `src/limits.ts` while the dev server runs, and put it back afterwards.
+
 ## Where things go
 
 - `src/index.tsx`: the Worker's routes, the session cookie, and the cron handler.
-- `src/agent.ts`: `CrossfeedAgent`. Its synced `State` type and its `@callable` actions are the client protocol. `startLaunch` returns at once and runs the Claude tool loop in the background, writing a progress note per tool call.
+- `src/agent.ts`: `CrossfeedAgent`. Its synced `State` type and its `@callable` actions are the client protocol. `startLaunch` returns at once and runs the Claude tool loop in the background, writing a progress note per tool call. When a run ends, the agent keeps the state it ended with, which `getRun` returns.
+- `src/limits.ts`: the run limits, shared by the agent and the UI.
 - `src/claude.ts`: the model settings for every agent turn. Change them only with the TRD's model settings.
 - `src/prompt.ts`: the frozen system prompt. Its launch steps are in the PRD's order; a tool ticket fills its own step's `instruction`, and an empty step stays out of the prompt.
 - `src/tools/`: one file per tool, registered in `src/tools/index.ts`. A tool has a strict definition, the progress note it shows, and `run`, which reaches Qloo through `context.qloo` and returns an error that says what to do next.
@@ -128,7 +132,7 @@ Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status
 - `src/evidence.ts`: the evidence record's shape. Fill its fields; don't reshape it.
 - `src/resolve.ts`: deciding whether a search result is the named entity.
 - `src/roster.ts`: reading an imported roster, pasted names or a CSV, into rows.
-- `src/client/`: the React island. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
+- `src/client/`: the React island. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. It renders from `shown`, the latest state or an earlier run's while one is viewed; render a run's results from `shown` so an earlier run shows its own, and hide editing controls while `viewing` is set. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
 - `src/style.css`: the tokens and components from [DESIGN.md](/docs/DESIGN.md).
 
 ## See also
