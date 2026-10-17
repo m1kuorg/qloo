@@ -385,6 +385,50 @@ describe('telling same-title books apart', () => {
   })
 })
 
+describe('matching a podcast named with its hosts', () => {
+  it('matches "<title> with <hosts>" when a host is one of the guests, and nothing else named that way', async () => {
+    fakeQloo({
+      search: {
+        // Synthetic shows: the pitched podcast with its hosts, another podcast with someone else's
+        // name, and a film that only looks like the podcast pattern.
+        'High Tide': [
+          { entity_id: 'p-sea', name: 'Seaside Radio', popularity: 0.97, disambiguation: '' },
+          { entity_id: 'p-tide', name: 'High Tide with Cal & Rory Brennan', popularity: 0.92, disambiguation: '' }
+        ],
+        Dinner: [{ entity_id: 'p-dinner', name: 'Dinner with Friends', popularity: 0.8, disambiguation: '' }],
+        'Talking with Ghosts': [
+          { entity_id: 'p-ghosts', name: 'Talking with Ghosts with Mo Reyes', popularity: 0.6, disambiguation: '' }
+        ],
+        'Night Ferry': [
+          { entity_id: 'f-ferry', name: 'Night Ferry with Ada Quill', popularity: 0.5, disambiguation: '2019' }
+        ]
+      }
+    })
+    const works: Record<string, Extracted> = {
+      'High Tide': { guest: 'Cal and Rory Brennan', work: { title: 'High Tide', type: 'podcast', year: 2020 } },
+      Dinner: { guest: 'Ada Quill', work: { title: 'Dinner', type: 'podcast', year: null } },
+      'Talking with Ghosts': { guest: 'Mo Reyes', work: { title: 'Talking with Ghosts', type: 'podcast', year: null } },
+      'Night Ferry': { guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'film', year: 2019 } }
+    }
+    fakeReader(4, (text) => extraction(Object.entries(works).find(([title]) => text.includes(`on ${title}.`))![1]))
+    const s = await session()
+
+    await s.call('loadInbox', {
+      text: Object.keys(works)
+        .map((title) => `A pitch on ${title}.`)
+        .join('\n---\n')
+    })
+    const { inbox } = await loaded(s)
+
+    expect(inbox!.pitches.map((p) => [p.work!.title, p.match])).toMatchObject([
+      ['High Tide', { resolution: 'resolved', entity: { id: 'p-tide' } }],
+      ['Dinner', { resolution: 'missed', entity: null }],
+      ['Talking with Ghosts', { resolution: 'resolved', entity: { id: 'p-ghosts' } }],
+      ['Night Ferry', { resolution: 'missed', entity: null }]
+    ])
+  })
+})
+
 describe('with GUEST_PITCHES off', () => {
   it('has no inbox page or link, and refuses inbox actions', async () => {
     env.GUEST_PITCHES = 'off'
