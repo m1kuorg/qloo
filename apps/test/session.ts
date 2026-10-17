@@ -1,7 +1,15 @@
 // A visitor session driven the way the UI drives it: load the page for a session cookie, then
 // talk to the session's agent over the same WebSocket and JSON protocol `useAgent` uses.
+import { reset } from 'cloudflare:test'
 import { exports } from 'cloudflare:workers'
+import { afterEach } from 'vitest'
 import type { State } from '../src/agent'
+
+// After each test of every file that drives sessions, wipe every Durable Object's storage and
+// memory, so the gateway's shared cache, daily count, and slots start fresh. It's here, not in
+// setup.ts, because a reset registered from a setup file crashes the next file's worker with
+// "Message is too large" when files share a worker, as on CI.
+afterEach(() => reset())
 
 const origin = 'https://crossfeed.test'
 

@@ -49,8 +49,11 @@ Tests run in the Workers runtime through `@cloudflare/vitest-plugin`, configured
 
 Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/cloudflare`][msw-cf] serves by intercepting `fetch` inside the runtime. `QLOO_BASE_URL` points at `https://qloo.test` and `ANTHROPIC_BASE_URL` at `https://anthropic.test` in tests, and a request no fake serves fails the test.
 
-- `fakeQloo({ search })` serves `/search` from hand-written results keyed by query. A number in place of results answers with that HTTP status, and `{ status, body }` answers with that raw body, such as a proxy's HTML error page.
-- `requests` records every request a fake served, in order, and `test/setup.ts` clears it after each test.
+- `fakeQloo({ search })` serves `/search` from hand-written results keyed by query. A number in place of results answers with that HTTP status, `{ status, body }` answers with that raw body, such as a proxy's HTML error page, and `'hang'` never answers, so the gateway times out.
+- `fakeQloo({ search, first: { 'Deep Cuts': [503, 503] } })` answers a query's first requests from `first`, in order, then from `search`. `latencyMs` delays every answer.
+- `requests` records every request a fake served, in order, with the time it arrived (`at`) and how many Qloo requests were in flight (`inFlight`). `test/setup.ts` clears it after each test.
+- `test/session.ts` wipes every Durable Object after each test, so the gateway's shared cache and daily count start empty. Keep `cloudflare:test` out of `test/setup.ts`: imported there, it crashes the next test file's worker when files share one, as on CI.
+- Tests run with a 1-second Qloo timeout, retry delays of 10 and 30 ms, and no pacing (`vitest.config.ts`). A test that needs another value assigns it to `env` from `cloudflare:workers` and restores it afterwards, as `configure()` in `test/gateway.test.ts` does.
 - `fakeClaude(script)` is the scripted model. Each Messages API request gets the next turn, streamed as the API streams it, after an empty thinking block like Haiku 5.5's. Build turns with `turn(toolUse(name, input), text(...))`, which ends in tool calls if it has any, or `refusal(category)`. Tool use IDs are `toolu_<turn>_<block>`. A script entry can be an async function of the request, to hold a turn while the test looks at a running run. A request past the end of the script gets a 400.
 - `modelRequests()` returns the body of every request the scripted model got, to check model settings and history.
 - Add a fake for a new endpoint or API to `test/fake.ts` the same way.
@@ -105,12 +108,13 @@ Done means the behaviour works against the real APIs, first locally and then on 
 
 1.  Open the app in a fresh browser session.
 1.  Paste The Ringer's 19 show names from `src/sample-network.json` and import them.
-1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo answered with an error, such as a 429; its reason is in the row.
+1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo still failed after the gateway's retries, or the daily cap was reached; its reason is in the row.
 1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box.
 1.  Reload: the roster stays. A private window starts empty.
 1.  Type "The Big Picture" as the released launch and start a run. The header shows "Running" and "Resolving The Big Picture", then the Qloo match with its call number, and "Completed". The rail's Run module lists the progress note as done.
+1.  Import the same names again: every log line says `"cacheHit":true`, and no new Qloo call is made.
 
-Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status, and latency, in the dev server's output and in Workers Logs.
+Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status, latency, retries, and cache hit, in the dev server's output, in Workers Logs, and live with `bunx wrangler tail --format json`. To see failures in the running app, add `QLOO_TIMEOUT_MS=1` or a low `QLOO_DAILY_CALL_CAP` to `.dev.vars` and restart the dev server.
 
 ## Where things go
 
@@ -119,7 +123,7 @@ Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status
 - `src/claude.ts`: the model settings for every agent turn. Change them only with the TRD's model settings.
 - `src/prompt.ts`: the frozen system prompt. Its launch steps are in the PRD's order; a tool ticket fills its own step's `instruction`, and an empty step stays out of the prompt.
 - `src/tools/`: one file per tool, registered in `src/tools/index.ts`. A tool has a strict definition, the progress note it shows, and `run`, which reaches Qloo through `context.qloo` and returns an error that says what to do next.
-- `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. Each method returns its data or error together with an evidence record.
+- `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. Each method returns its data or error together with an evidence record. Every request goes through `get`, which serves the shared cache, enforces the daily cap, paces and limits requests to 3 in flight, and retries; a new endpoint goes through it too.
 - `src/evidence.ts`: the evidence record's shape. Fill its fields; don't reshape it.
 - `src/resolve.ts`: deciding whether a search result is the named entity.
 - `src/roster.ts`: reading an imported roster, pasted names or a CSV, into rows.

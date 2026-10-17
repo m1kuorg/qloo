@@ -3,14 +3,23 @@
 // the gateway makes. Fixtures are hand-written with made-up IDs and scores, never Qloo data.
 import { setupNetwork } from '@msw/cloudflare'
 import { env } from 'cloudflare:workers'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 
 export const network = setupNetwork()
 
-export type RecordedRequest = { method: string; url: URL; headers: Headers; body: string }
+export type RecordedRequest = {
+  method: string
+  url: URL
+  headers: Headers
+  body: string
+  at: number // Date.now() when it arrived
+  inFlight: number // Qloo requests the fake was answering when it arrived, itself included
+}
 
 // Every request a fake served, in order. Cleared after each test by setup.ts.
 export const requests: RecordedRequest[] = []
+
+let inFlight = 0
 
 // Typed structurally, because MSW's DOM Request and the Workers Request types differ.
 const record = async (request: {
@@ -23,7 +32,9 @@ const record = async (request: {
     method: request.method,
     url: new URL(request.url),
     headers: request.headers,
-    body: await request.clone().text()
+    body: await request.clone().text(),
+    at: Date.now(),
+    inFlight
   })
 
 // `properties` stands in for the fields Qloo returns that the app doesn't use.
@@ -38,22 +49,50 @@ export type QlooEntity = {
 // A response with a raw text body, such as an HTML error page from a proxy in front of Qloo.
 export type RawResponse = { status: number; body: string }
 
-// Serves `/search` from `search`, keyed by the exact query string. A number answers with that
-// HTTP status and an error body in Qloo's shape, a `RawResponse` answers as written, and a query
-// with no fixture finds nothing.
-export function fakeQloo({ search }: { search: Record<string, QlooEntity[] | number | RawResponse> }) {
+// How the fake answers one search request: with results; with that HTTP status and an error body
+// in Qloo's shape for it; with a `RawResponse` as written; or 'hang': never, until the caller gives up.
+type Answer = QlooEntity[] | number | RawResponse | 'hang'
+
+// Serves `/search` from `search`, keyed by the exact query string; a query with no fixture finds
+// nothing. `first` scripts the answers to a query's first requests, in order, before `search`
+// answers the rest. `latencyMs` delays every answer.
+export function fakeQloo({
+  search,
+  first = {},
+  latencyMs = 0
+}: {
+  search: Record<string, Answer>
+  first?: Record<string, Answer[]>
+  latencyMs?: number
+}) {
+  const asked = new Map<string, number>()
   network.use(
     http.get(`${env.QLOO_BASE_URL}/search`, async ({ request }) => {
-      await record(request)
-      const url = new URL(request.url)
-      const take = Number(url.searchParams.get('take') ?? 20)
-      const results = search[url.searchParams.get('query') ?? '']
-      if (!results) return HttpResponse.json({ results: [] })
-      if (typeof results === 'number')
-        return HttpResponse.json({ error: { message: 'fake failure', code: results } }, { status: results })
-      if (!Array.isArray(results)) return HttpResponse.text(results.body, { status: results.status })
-      const types = [url.searchParams.get('types') ?? 'urn:entity:podcast']
-      return HttpResponse.json({ results: results.slice(0, take).map((r) => ({ types, ...r })) })
+      inFlight++
+      try {
+        await record(request)
+        const url = new URL(request.url)
+        const query = url.searchParams.get('query') ?? ''
+        const n = asked.get(query) ?? 0
+        asked.set(query, n + 1)
+        const answer = first[query]?.[n] ?? search[query]
+        if (latencyMs) await delay(latencyMs)
+        if (answer === 'hang') {
+          await new Promise((resolve) => request.signal.addEventListener('abort', resolve, { once: true }))
+          return HttpResponse.error()
+        }
+        if (!answer) return HttpResponse.json({ results: [] })
+        // Qloo's 429 body differs from its other errors.
+        if (answer === 429) return HttpResponse.json({ error_msg: 'Rate limit exceeded' }, { status: 429 })
+        if (typeof answer === 'number')
+          return HttpResponse.json({ error: { message: 'fake failure', code: answer } }, { status: answer })
+        if (!Array.isArray(answer)) return HttpResponse.text(answer.body, { status: answer.status })
+        const take = Number(url.searchParams.get('take') ?? 20)
+        const types = [url.searchParams.get('types') ?? 'urn:entity:podcast']
+        return HttpResponse.json({ results: answer.slice(0, take).map((r) => ({ types, ...r })) })
+      } finally {
+        inFlight--
+      }
     })
   )
 }

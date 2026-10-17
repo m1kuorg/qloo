@@ -96,14 +96,14 @@ Not used: `/entities?external.spotify.ids=` is accepted but found no podcast by 
 ### Gateway rules
 
 - **Request shape:** GET for `/search` and compare, POST with flat keys for `/v2/insights`.
-- **Timeout and retries:** a 20-second timeout per call. Retry 429, 502, 503, 504, and timeouts at most twice, after about 1 and 3 seconds with jitter. A 400 is never retried; Qloo's message goes back to the caller.
+- **Timeout and retries:** a 20-second timeout per request. Retry 429, 502, 503, 504, and timeouts at most twice, after about 1 and 3 seconds with jitter. A 400 is never retried; Qloo's message goes back to the caller. A call that fails after retries says how many, such as "Qloo returned 429: Rate limit exceeded, after 2 retries". Its latency runs from its first request, so time spent queued behind other calls isn't blamed on Qloo.
 - **Concurrency:** at most 3 Qloo calls in flight across all sessions. The idea's bets report that about 5 concurrent calls trip the rate limit ([IDEA](IDEA.md#bets-to-test)) _(verify)_, and Workers allow six connections per invocation waiting on headers.
 - **Unscored signal:** a ranking whose affinities are all null means the anchors didn't resolve, so the gateway returns an error, not a result ([BRIEF](BRIEF.md#gotchas-beyond-the-developer-guide)).
 - **Silently ignored parameters:** a ranking that returns an entity outside the candidate list, or no explainability when it was requested, is an error.
 - **Unscored candidates:** a ranking silently leaves out any candidate the signal gave no score, which happened to most works released since about May 2025 ([demo data](#demo-data)). The gateway reports each one as unscored.
 - **Size:** at most 50 candidates per ranking, since `take` maxes out at 50 and scores from separate calls aren't comparable.
 - **Evidence:** every call, cached or not, appends a record to the calling session's evidence log. The gateway builds the record, and the session's one path to the gateway numbers it (`C-01`, in the order calls start) and appends it, success or failure. Its shape is fixed in [`apps/src/evidence.ts`](/apps/src/evidence.ts): call number, run, time, method, endpoint, parameters, status, latency, retries, cache hit, error, and lists of entities, tags, and affinities, which each endpoint fills.
-- **Rate:** on 2026-10-17 Qloo answered 429 "Rate limit exceeded" to bursts of three searches that each took about 300 ms, with other clients sharing the key, while three calls in flight of about 1 second each passed. The limit is on request rate, not only concurrency, so the gateway paces calls as well as capping them. Until it does, the roster import searches one show at a time.
+- **Rate:** on 2026-10-17 Qloo answered 429 "Rate limit exceeded" to bursts of three searches that each took about 300 ms, with other clients sharing the key, while three calls in flight of about 1 second each passed. The limit is on request rate, not only concurrency, so the gateway paces calls as well as capping them: each request starts at least 400 ms after the last, about 2.5 a second, between the sequential import's 2 a second and the 3 a second that passed. The roster import searches all its shows at once and leaves the pacing to the gateway; on 2026-10-17 the 19 Ringer shows took about 8 seconds with no 429.
 
 ### Call budget per run
 
@@ -203,7 +203,7 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 ## Caching, caps, and replay
 
 - **Cache:** Qloo responses are cached privately with no expiry, which the hackathon allows ([BRIEF](BRIEF.md#implications-for-our-entry)). The sample network, its launch, and the sample inbox are warmed before submission.
-- **Caps:** a daily cap on Qloo calls (`QLOO_DAILY_CALL_CAP`, default 1,000, counted in UTC days), plus the per-run and per-session limits under [Agent limits](#agent-limits). The default is a guess, because the Qloo quota is unknown ([CONTEXT](CONTEXT.md#unverified)). Model spend is bounded by a spend limit on the Anthropic account _(verify the Console setting)_, not by code.
+- **Caps:** a daily cap on Qloo calls (`QLOO_DAILY_CALL_CAP`, default 1,000, counted in UTC days, retries included and cache hits not), plus the per-run and per-session limits under [Agent limits](#agent-limits). The default is a guess, because the Qloo quota is unknown ([CONTEXT](CONTEXT.md#unverified)). Model spend is bounded by a spend limit on the Anthropic account _(verify the Console setting)_, not by code.
 - **Replay:** the sample launch's completed run is stored server-side. When a cap is hit or Qloo keeps failing, sample runs replay from storage with a visible "replayed" label, and runs on visitors' own data stop with a clear message.
 - **Health check:** a daily cron makes the health-check call and one cached sample ranking and logs a failure loudly.
 
@@ -225,7 +225,7 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 Changes to the [`apps/`](/apps/) scaffold:
 
 - **Dependencies:** `agents` (pinned, since it ships minor releases every few days), `@anthropic-ai/sdk`, `react`, `react-dom`, and `@vitejs/plugin-react`; for tests, `vitest`, `@cloudflare/vitest-plugin`, `msw`, and `@msw/cloudflare`.
-- **`wrangler.jsonc`:** add `"compatibility_flags": ["nodejs_compat"]`, which the Agents SDK requires. Add Durable Object bindings for `CrossfeedAgent` and `QlooGateway`, a migration with `"new_sqlite_classes": ["CrossfeedAgent", "QlooGateway"]`, and a daily cron under `triggers.crons` ([configuration][cf-config], [cron triggers][cf-cron]). Rename the Worker from `apps` to `crossfeed`, and move `compatibility_date` forward.
+- **`wrangler.jsonc`:** add `"compatibility_flags": ["nodejs_compat"]`, which the Agents SDK requires. Add Durable Object bindings for `CrossfeedAgent` and `QlooGateway`, a migration with `"new_sqlite_classes": ["CrossfeedAgent", "QlooGateway"]`, and a daily cron under `triggers.crons` ([configuration][cf-config], [cron triggers][cf-cron]). Rename the Worker from `apps` to `crossfeed`, and move `compatibility_date` forward. The gateway's limits are `vars`: `QLOO_DAILY_CALL_CAP` (1000), `QLOO_TIMEOUT_MS` (20000), `QLOO_RETRY_DELAYS_MS` (`1000,3000`, one delay per retry), and `QLOO_MIN_INTERVAL_MS` (400, the pacing).
 - **`vite.config.ts`:** add the `agents/vite` and React plugins.
 - **Plan:** upgrade the Cloudflare account to Workers Paid before the first deploy that runs a full launch.
 - **Deploy:** `bun run deploy` from `apps/` builds and runs `wrangler deploy` to the `qloo` Cloudflare account, serving on <https://crossfeed.m1kuorg.workers.dev> unless a custom domain is added. The [apps README](/apps/README.md) is the how-to.

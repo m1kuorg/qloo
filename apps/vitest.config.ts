@@ -9,10 +9,15 @@ export default defineConfig({
       wrangler: { configPath: './wrangler.jsonc' },
       // Tests never reach the real APIs: Qloo and Anthropic point at hosts only the fakes in
       // test/fake.ts serve, and these keys override the real ones tests would load from .dev.vars.
+      // Qloo retry delays are cut to milliseconds and pacing is off, so failure paths run fast. A
+      // test that needs a short timeout or pacing sets it for itself.
       miniflare: {
         bindings: {
           QLOO_BASE_URL: 'https://qloo.test',
           QLOO_API_KEY: 'test-qloo-key',
+          QLOO_TIMEOUT_MS: '1000',
+          QLOO_RETRY_DELAYS_MS: '10,30',
+          QLOO_MIN_INTERVAL_MS: '0',
           ANTHROPIC_BASE_URL: 'https://anthropic.test',
           ANTHROPIC_API_KEY: 'test-anthropic-key'
         }
