@@ -814,7 +814,8 @@ fieldset {
 }
 
 /* A call cited mid-sentence keeps the line height even; WCAG's inline exception covers its size. */
-.closing button.call {
+.closing button.call,
+.io .angle button.call {
   min-height: 0;
 }
 
