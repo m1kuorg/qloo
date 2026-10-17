@@ -3,7 +3,7 @@
     "graph": "graphify update .",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
-    "prepare": "git config core.hooksPath .husky"
+    "prepare": "[ ! -e .git ] || git config core.hooksPath .husky"
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown"
