@@ -36,6 +36,10 @@ export function lookup(name: string, call: string, result: QlooResult<QlooEntity
   return { ...resolveName(name, result.data), evidence: call, error: null }
 }
 
+// The entities a lookup offers the programmer to confirm: its one match, or its candidates.
+export const offeredBy = (lookup: Lookup | null): Candidate[] =>
+  lookup?.entity ? [lookup.entity] : (lookup?.candidates ?? [])
+
 // A pitched work resolves to the one search result with its title. A book is the guest's own: a
 // same-title book credited to someone else isn't it, and among the guest's, a year only tells
 // editions apart. Other works are told apart by the year Claude gave, if any: the same year first,

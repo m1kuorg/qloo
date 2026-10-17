@@ -43,7 +43,7 @@ describe('starting a launch run', () => {
     const s = await session()
 
     const { runId } = await s.call<{ runId: string }>('startLaunch', { name: 'Night Shift Cinema' })
-    expect(s.state()?.launch).toEqual({ name: 'Night Shift Cinema', match: null })
+    expect(s.state()?.launch).toEqual({ name: 'Night Shift Cinema', match: null, comps: [] })
     expect(s.state()?.run).toEqual({
       id: runId,
       status: 'running',
@@ -64,7 +64,8 @@ describe('starting a launch run', () => {
         candidates: [],
         evidence: 'C-01',
         error: null
-      }
+      },
+      comps: []
     })
     expect(state.run).toEqual({
       id: runId,
@@ -213,7 +214,7 @@ describe('starting a launch run', () => {
     expect(second.messages.at(-1).role).toBe('user')
   })
 
-  it('refuses comps until they are supported, a blank name, and a second run at once', async () => {
+  it('refuses a blank name, and a second run at once', async () => {
     fakeQloo({ search })
     const firstTurn = Promise.withResolvers<void>()
     fakeClaude([
@@ -223,9 +224,6 @@ describe('starting a launch run', () => {
       }
     ])
     const s = await session()
-    await expect(s.call('startLaunch', { comps: ['Deep Cuts'] })).rejects.toThrow(
-      "Starting from comps isn't available yet. Name a released launch."
-    )
     await expect(s.call('startLaunch', { name: '  ' })).rejects.toThrow('Name the launch to start a run.')
     expect(s.state()?.run).toBeNull()
     expect(modelRequests()).toEqual([])

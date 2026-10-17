@@ -7,13 +7,17 @@ const launchSteps: { step: string; instruction: string | null }[] = [
   {
     step: 'Resolve the launch (#34)',
     instruction:
-      "Resolve the launch: call resolve_entities with the launch name exactly as the programmer gave it, as type urn:entity:podcast. If it comes back ambiguous or missed, ask the programmer which show the launch is (kind launch). If they pick a candidate, code sets it as the launch and the tool result gives its Qloo ID; use that ID and don't resolve the launch again. If they give a name instead, resolve that name. If the lookup fails twice, say so and stop."
+      "Resolve the launch: call resolve_entities with the launch name exactly as the programmer gave it, or, when the run starts from comps, with every comp's name in one call, as type urn:entity:podcast. If the launch comes back ambiguous, ask the programmer which show the launch is (kind launch). If they pick a candidate, code sets it as the launch and the tool result gives its Qloo ID; use that ID and don't resolve the launch again. If it comes back missed, it may be unreleased: ask for comps (kind comps), saying Qloo has no show by that name. If they give a name instead of comps, resolve that name. If the lookup fails twice, say so and stop."
   },
-  { step: 'Confirm comps (#40)', instruction: null },
+  {
+    step: 'Confirm comps (#40)',
+    instruction:
+      "When the launch has comps, confirm them before ranking. If any comp comes back missed, first ask for comps again (kind comps), saying which ones Qloo doesn't have; the answer replaces the comps, so resolve them all again. Then ask the programmer to confirm the comps' matches in one question (kind confirm_comps): code offers each comp's Qloo match, or an ambiguous comp's candidates, and records their picks. Rank only on the comps code confirmed. If none is confirmed, ask for comps again, or stop if the programmer has none."
+  },
   {
     step: 'Rank the roster (#38)',
     instruction:
-      "Once the launch is resolved, rank the roster: call rank_candidates with the launch's Qloo ID as the only anchor, every roster ID the run's first message lists as candidates, and type urn:entity:podcast. Give a show's fit as its rank and band, never as a raw affinity."
+      "Once the launch is resolved, or its comps are confirmed, rank the roster: call rank_candidates with the launch's Qloo ID as the only anchor, or every confirmed comp's Qloo ID as the anchors in one call, every roster ID the run's first message lists as candidates, and type urn:entity:podcast. Give a show's fit as its rank and band, never as a raw affinity."
   },
   {
     step: 'Ask for the slot budget and exclusions (#39)',
