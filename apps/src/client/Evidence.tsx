@@ -9,6 +9,33 @@ export type Opened =
   | { call: string; status: 'loaded'; record: Evidence | undefined }
   | { call: string; status: 'failed'; error: string }
 
+// A cited call number: opens that call's evidence in the rail, or closes it when it's open. `label`
+// says what it's evidence for, and screen readers hear it before the number.
+export function CallButton({
+  call,
+  label,
+  opened,
+  openCall
+}: {
+  call: string
+  label: string
+  opened: string | null
+  openCall: (call: string) => void
+}) {
+  return (
+    <button
+      type="button"
+      className="call"
+      aria-pressed={call === opened}
+      aria-controls="evidence"
+      aria-label={`${label}: call ${call}`}
+      onClick={() => openCall(call)}
+    >
+      {call}
+    </button>
+  )
+}
+
 // The rail's evidence module: the Qloo request behind a call number, and what Qloo returned.
 export function EvidencePanel({ opened }: { opened: Opened | null }) {
   const ref = useRef<HTMLElement>(null)

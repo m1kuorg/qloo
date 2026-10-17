@@ -19,12 +19,6 @@ export const renderer = jsxRenderer(({ children }, c) => {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Crossfeed</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Libre+Franklin:wght@400;500;600;700&display=swap"
-        />
         <ViteClient />
         {import.meta.env.DEV && <script type="module" dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
         <Link href="/src/style.css" rel="stylesheet" />

@@ -1,5 +1,5 @@
 import { useAgent } from 'agents/react'
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   Budget,
@@ -26,7 +26,7 @@ import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
 import type { Move, Topic } from '../topic'
 import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
-import { EvidencePanel, type Opened } from './Evidence'
+import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Guide } from './Guide'
 import { InboxPage } from './Inbox'
 import { InsertionOrderPanel } from './InsertionOrder'
@@ -59,10 +59,11 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
   const show = roster.find((s) => s.name === selected)
   const [opened, setOpened] = useState<Opened | null>(null)
   const latest = useRef<string | null>(null)
+  const oneColumn = useOneColumn()
   // The guide's page steps, marked once each while it shows.
   const guiding = useAction()
   const guide = agent.state?.guide
-  const seen = (mark: GuideMark) => {
+  const markSeen = (mark: GuideMark) => {
     if (sample && !guide?.dismissed && !guide?.seen.includes(mark)) void guiding.run(() => agent.stub.markGuide(mark))
   }
   // Opens a call's evidence, or closes it when it's already open. Only the latest click's answer lands.
@@ -114,6 +115,36 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
       </>
     )
   }
+  const rosterSection = (
+    <section className="sec" aria-labelledby="roster-h">
+      <div className="mh">
+        <h2 className="lbl" id="roster-h">
+          Roster
+        </h2>
+      </div>
+      {sample && !viewing ? (
+        <SampleNotice sample={sample} clear={() => agent.stub.clearSample()} />
+      ) : (
+        <p className="help sec-help">
+          {viewing
+            ? `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
+            : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
+        </p>
+      )}
+      {!viewing && <RosterFailures roster={roster} />}
+      {!viewing && (
+        <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
+      )}
+      <RosterTable
+        roster={roster}
+        selected={viewing ? null : (show?.name ?? null)}
+        select={viewing ? null : setSelected}
+        slowCalls={slowCalls}
+        openCall={openCall}
+        opened={opened?.call ?? null}
+      />
+    </section>
+  )
   return (
     <>
       {shell}
@@ -131,6 +162,10 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
         opened={opened?.call ?? null}
       />
       <main className="main">
+        {/* Before the chart, so a single column reaches it first; the grid sets it atop the rail when wide. */}
+        {run?.status === 'waiting' && run.question && (
+          <OpenQuestion key={run.question.id} question={run.question} launch={shown?.launch ?? null} agent={agent} />
+        )}
         <div className="chart-col">
           <FitChart
             ranking={shown?.ranking ?? null}
@@ -141,41 +176,12 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
             running={run?.status === 'running'}
             openCall={openCall}
             opened={opened?.call ?? null}
-            seen={seen}
+            markSeen={markSeen}
           />
-          <section className="sec" aria-labelledby="roster-h">
-            <div className="mh">
-              <h2 className="lbl" id="roster-h">
-                Roster
-              </h2>
-            </div>
-            {sample && !viewing ? (
-              <SampleNotice sample={sample} clear={() => agent.stub.clearSample()} />
-            ) : (
-              <p className="help sec-help">
-                {viewing
-                  ? `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
-                  : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
-              </p>
-            )}
-            {!viewing && <RosterFailures roster={roster} />}
-            {!viewing && (
-              <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
-            )}
-            <RosterTable
-              roster={roster}
-              selected={viewing ? null : (show?.name ?? null)}
-              select={viewing ? null : setSelected}
-              slowCalls={slowCalls}
-              openCall={openCall}
-              opened={opened?.call ?? null}
-            />
-          </section>
+          {!oneColumn && rosterSection}
         </div>
+        {/* The contract's rail: the open question, the selected show and its evidence, the order to approve. */}
         <aside className="rail" aria-label="Details">
-          {run?.status === 'waiting' && run.question && (
-            <OpenQuestion key={run.question.id} question={run.question} launch={shown?.launch ?? null} agent={agent} />
-          )}
           {agent.state && !viewing && (
             <Guide
               state={agent.state}
@@ -183,6 +189,8 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
               error={guiding.error}
             />
           )}
+          {show && !viewing && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
+          <EvidencePanel opened={opened} />
           {shown?.insertionOrder && (
             <InsertionOrderPanel
               key={`${viewing?.id ?? 'latest'} ${shown.insertionOrder.id}`}
@@ -220,9 +228,7 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
               view={async (id) => setViewing(id === null ? null : { id, state: await agent.stub.getRun(id) })}
             />
           )}
-          {show && !viewing && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
           <RosterCheck roster={roster} />
-          <EvidencePanel opened={opened} />
           {!viewing && (
             <NetworkCpm
               key={agent.state?.cpm ?? 'none'}
@@ -232,9 +238,25 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
             />
           )}
         </aside>
+        {/* In one column the roster follows the rail, so the evidence and the order come right after the chart. */}
+        {oneColumn && <div className="chart-col">{rosterSection}</div>}
       </main>
     </>
   )
+}
+
+// Whether the page is one column, as style.css lays it out below 960px. Rendered without a window,
+// as in tests, it's two.
+const ONE_COLUMN = '(max-width: 960px)'
+function useOneColumn() {
+  const [one, setOne] = useState(() => typeof window !== 'undefined' && window.matchMedia(ONE_COLUMN).matches)
+  useEffect(() => {
+    const media = window.matchMedia(ONE_COLUMN)
+    const change = () => setOne(media.matches)
+    media.addEventListener('change', change)
+    return () => media.removeEventListener('change', change)
+  }, [])
+  return one
 }
 
 const runLabel: Record<Run['status'], string> = {
@@ -444,16 +466,12 @@ function LaunchMatch({
       ) : (
         <StateLine kind="missed">No show by this name in Qloo.</StateLine>
       )}{' '}
-      <button
-        type="button"
-        className="call"
-        aria-pressed={match.evidence === opened}
-        aria-controls="evidence"
-        aria-label={`Evidence for ${name ?? 'the launch'}: call ${match.evidence}`}
-        onClick={() => openCall(match.evidence)}
-      >
-        {match.evidence}
-      </button>
+      <CallButton
+        call={match.evidence}
+        label={`Evidence for ${name ?? 'the launch'}`}
+        opened={opened}
+        openCall={openCall}
+      />
     </p>
   )
 }
@@ -496,16 +514,12 @@ function LaunchComps({
           {c.match && (
             <>
               {' '}
-              <button
-                type="button"
-                className="call"
-                aria-pressed={c.match.evidence === opened}
-                aria-controls="evidence"
-                aria-label={`Evidence for the comp ${c.name}: call ${c.match.evidence}`}
-                onClick={() => openCall(c.match!.evidence)}
-              >
-                {c.match.evidence}
-              </button>
+              <CallButton
+                call={c.match.evidence}
+                label={`Evidence for the comp ${c.name}`}
+                opened={opened}
+                openCall={openCall}
+              />
             </>
           )}
         </span>
@@ -528,23 +542,15 @@ function ClosingLine({
   return (
     <p className="closing">
       <Source of="agent" />{' '}
-      {text.split(/\b(C-\d+)\b/).map((part, i) =>
-        i % 2 ? (
-          <button
-            key={i}
-            type="button"
-            className="call"
-            aria-pressed={part === opened}
-            aria-controls="evidence"
-            aria-label={`Evidence Claude cites: call ${part}`}
-            onClick={() => openCall(part)}
-          >
-            {part}
-          </button>
-        ) : (
-          part
-        )
-      )}
+      {text
+        .split(/\b(C-\d+)\b/)
+        .map((part, i) =>
+          i % 2 ? (
+            <CallButton key={i} call={part} label="Evidence Claude cites" opened={opened} openCall={openCall} />
+          ) : (
+            part
+          )
+        )}
     </p>
   )
 }
@@ -646,11 +652,9 @@ function OpenQuestion({ question, launch, agent }: { question: Question; launch:
   const toggle = (name: string) =>
     setExclude((names) => (names.includes(name) ? names.filter((n) => n !== name) : [...names, name]))
   return (
-    <section className="mod ask" aria-labelledby="ask-h">
+    // The question itself is the module's heading, under the chips that say who asks and that the run waits.
+    <section className="mod ask" aria-label="Agent asks">
       <div className="mh">
-        <span className="lbl" id="ask-h">
-          Agent asks
-        </span>
         <span className="chips">
           <Source of="agent" />
           <span className="chip">Waiting on you</span>
@@ -893,7 +897,7 @@ function FitChart({
   running,
   openCall,
   opened,
-  seen
+  markSeen
 }: {
   ranking: Ranking | null
   leftOut: string[] // shows the run's exclusions answer left out
@@ -903,7 +907,7 @@ function FitChart({
   running: boolean
   openCall: (call: string) => void
   opened: string | null
-  seen: (mark: GuideMark) => void // tells the guide its step was done
+  markSeen: (mark: GuideMark) => void // tells the guide its step was done
 }) {
   // The climber whose "why it moved" line is open.
   const [why, setWhy] = useState<string | null>(null)
@@ -917,6 +921,8 @@ function FitChart({
   const tagged = ranking.rows.some((r) => r.sharedTags)
   const moves = topic?.status === 'ranked' ? new Map(topic.moves.map((m) => [m.show, m])) : null
   const climbers = topic?.moves.some((m) => m.climber) ?? false
+  // Each climber's place among them, top down, so their bullets land down the chart in turn.
+  const landing = new Map(topic?.moves.filter((m) => m.climber).map((m, i) => [m.show, i] as const))
   // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
   const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   return (
@@ -927,16 +933,7 @@ function FitChart({
         </h2>
         <span className="chips">
           <Source of="qloo" />
-          <button
-            type="button"
-            className="call"
-            aria-pressed={ranking.call === opened}
-            aria-controls="evidence"
-            aria-label={`Evidence for the fit ranking: call ${ranking.call}`}
-            onClick={() => openCall(ranking.call)}
-          >
-            {ranking.call}
-          </button>
+          <CallButton call={ranking.call} label="Evidence for the fit ranking" opened={opened} openCall={openCall} />
         </span>
       </div>
       <p className="help sec-help">
@@ -1018,19 +1015,15 @@ function FitChart({
               const open = move?.climber && why === r.show
               // `cited`: the why-it-moved line cites it, which is a step of the guide.
               const callButton = (call: string, label: string, cited = false) => (
-                <button
-                  type="button"
-                  className="call"
-                  aria-pressed={call === opened}
-                  aria-controls="evidence"
-                  aria-label={`${label}: call ${call}`}
-                  onClick={() => {
-                    openCall(call)
-                    if (cited) seen('evidence')
+                <CallButton
+                  call={call}
+                  label={label}
+                  opened={opened}
+                  openCall={(c) => {
+                    openCall(c)
+                    if (cited) markSeen('evidence')
                   }}
-                >
-                  {call}
-                </button>
+                />
               )
               return (
                 <Fragment key={r.show}>
@@ -1041,7 +1034,13 @@ function FitChart({
                   >
                     <td className="pos">
                       {r.rank}
-                      {move?.climber && <i className="bul" aria-hidden="true" />}
+                      {move?.climber && (
+                        <i
+                          className="bul"
+                          aria-hidden="true"
+                          style={{ '--landing': Math.min(landing.get(r.show) ?? 0, 6) } as React.CSSProperties}
+                        />
+                      )}
                     </td>
                     {moves && <td className="lw">{move?.topicRank ?? '–'}</td>}
                     {moves && (
@@ -1064,7 +1063,7 @@ function FitChart({
                             aria-controls={`why-${r.rank}`}
                             onClick={() => {
                               setWhy(open ? null : r.show)
-                              if (!open) seen('why')
+                              if (!open) markSeen('why')
                             }}
                           >
                             <span className="nm">{r.show}</span>
@@ -1104,9 +1103,11 @@ function FitChart({
                       {/* The show column and every column after it. */}
                       <td colSpan={2}>
                         <span className="lbl">Why it moved</span>
-                        <Source of="qloo" /> Topic alone ranks it {move.topicRank}; listener overlap with{' '}
-                        {listOf(ranking.anchors.map((a) => a.name))} ranks it {r.rank}.{' '}
-                        {callButton(ranking.call, `Evidence for ${r.show}'s fit`, true)}
+                        {/* Topic rank is Claude's baseline, fit rank Qloo's: each labelled, neither wrapped off its words. */}
+                        <Source of="agent" /> Topic alone ranks it{'\u00a0'}
+                        {move.topicRank}. <Source of="qloo" /> Listener overlap with{' '}
+                        {listOf(ranking.anchors.map((a) => a.name))} ranks it{'\u00a0'}
+                        {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}'s fit`, true)}
                         {r.leadingComp && ` Led by ${r.leadingComp.name}.`}
                         {shared && !shared.error && shared.tags.length > 0 && (
                           <>
@@ -1161,16 +1162,7 @@ function DemographicSummary({
   opened: string | null
 }) {
   const cite = (
-    <button
-      type="button"
-      className="call"
-      aria-pressed={check.call === opened}
-      aria-controls="evidence"
-      aria-label={`Evidence for the demographic check: call ${check.call}`}
-      onClick={() => openCall(check.call)}
-    >
-      {check.call}
-    </button>
+    <CallButton call={check.call} label="Evidence for the demographic check" opened={opened} openCall={openCall} />
   )
   if (!check.profile)
     return (
@@ -1321,112 +1313,115 @@ function RosterTable({
   opened: string | null
 }) {
   if (roster.length === 0) return <p className="empty">No roster yet. Paste show names above to import one.</p>
+  // One selected row: the show open in the rail's editor or, with none open, the show whose evidence is open.
+  const hot = selected ?? roster.find((s) => s.evidence === opened)?.name
   return (
-    <table className="chart roster">
-      <caption>
-        <Source of="qloo" /> Matches from Qloo search, one call per show.{' '}
-        {select
-          ? 'Select a show to settle or edit it, or open a call for its evidence.'
-          : 'Open a call for its evidence.'}
-      </caption>
-      <colgroup>
-        <col style={{ width: '28%' }} />
-        <col style={{ width: 144 }} />
-        <col />
-        <col style={{ width: 96 }} />
-        <col style={{ width: 88 }} />
-        <col style={{ width: 64 }} />
-      </colgroup>
-      <thead>
-        <tr>
-          <th scope="col">Show</th>
-          <th scope="col">Match</th>
-          <th scope="col">
-            Qloo entity<small>popularity percentile</small>
-          </th>
-          <th scope="col" className="r">
-            Downloads<small>per episode</small>
-          </th>
-          <th scope="col">Status</th>
-          <th scope="col" className="r">
-            Call
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {roster.map((show) => (
-          <tr
-            key={show.name}
-            data-resolution={show.resolution}
-            className={show.evidence === opened ? 'on' : undefined}
-            data-selected={show.name === selected || undefined}
-            data-excluded={show.excluded || undefined}
-            aria-busy={show.resolution === 'pending' || undefined}
-          >
-            <td>
-              {select ? (
-                <button
-                  type="button"
-                  className="row-open"
-                  aria-current={show.name === selected || undefined}
-                  onClick={() => select(show.name)}
-                >
-                  <span className="nm">{show.name}</span>
-                </button>
-              ) : (
-                <span className="nm row-open">{show.name}</span>
-              )}
-              {show.description && (
-                <div className="tg desc" title={show.description}>
-                  <SampleLabel show={show} figure="description" text="Sample:" /> {show.description}
-                </div>
-              )}
-            </td>
-            <td>
-              <span className="chips">
-                <MatchChip
-                  show={show}
-                  slow={show.resolution === 'pending' && slowCalls.some((c) => c.call === show.evidence)}
-                />
-                {show.excluded && <span className="chip">Excluded</span>}
-              </span>
-            </td>
-            <td>
-              <Match
-                show={show}
-                slow={slowCalls.filter((c) => c.call === show.evidence)}
-                settle={select && (() => select(show.name))}
-              />
-            </td>
-            <td className="r">
-              {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
-              <SampleLabel show={show} figure="downloads" block />
-            </td>
-            <td>
-              {show.status ?? '–'}
-              <SampleLabel show={show} figure="status" block />
-            </td>
-            <td className="r">
-              {/* A pending call has no evidence record yet, so it opens once the search settles. */}
-              {show.resolution === 'pending' ? (
-                <code className="call">{show.evidence}</code>
-              ) : (
-                <button
-                  type="button"
-                  className="call"
-                  aria-pressed={show.evidence === opened}
-                  aria-controls="evidence"
-                  aria-label={`Evidence for ${show.name}: call ${show.evidence}`}
-                  onClick={() => openCall(show.evidence)}
-                >
-                  {show.evidence}
-                </button>
-              )}
-            </td>
+    // Narrow screens scroll the table sideways inside this, never the page.
+    <div className="scroll-x" role="region" aria-label="Roster table" tabIndex={0}>
+      <table className="chart roster">
+        <caption>
+          {/* A block of its own, so it wraps within a phone's screen while the table scrolls wider. */}
+          <span className="cap">
+            <Source of="qloo" /> Matches from Qloo search, one call per show.{' '}
+            {select
+              ? 'Select a show to settle or edit it, or open a call for its evidence.'
+              : 'Open a call for its evidence.'}
+          </span>
+        </caption>
+        <colgroup>
+          <col className="c-show" />
+          <col className="c-match" />
+          <col />
+          <col className="c-dl" />
+          <col className="c-status" />
+          <col className="c-call" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Show</th>
+            <th scope="col">Match</th>
+            <th scope="col">
+              Qloo entity<small>popularity percentile</small>
+            </th>
+            <th scope="col" className="r">
+              Downloads<small>per episode</small>
+            </th>
+            <th scope="col">Status</th>
+            <th scope="col" className="r">
+              Call
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {roster.map((show) => (
+            <tr
+              key={show.name}
+              data-resolution={show.resolution}
+              data-selected={show.name === hot || undefined}
+              data-excluded={show.excluded || undefined}
+              aria-busy={show.resolution === 'pending' || undefined}
+            >
+              <td>
+                {select ? (
+                  <button
+                    type="button"
+                    className="row-open"
+                    aria-current={show.name === selected || undefined}
+                    onClick={() => select(show.name)}
+                  >
+                    <span className="nm">{show.name}</span>
+                  </button>
+                ) : (
+                  <span className="nm row-open">{show.name}</span>
+                )}
+                {show.description && (
+                  <div className="tg desc" title={show.description}>
+                    <SampleLabel show={show} figure="description" text="Sample:" /> {show.description}
+                  </div>
+                )}
+              </td>
+              <td>
+                <span className="chips">
+                  <MatchChip
+                    show={show}
+                    slow={show.resolution === 'pending' && slowCalls.some((c) => c.call === show.evidence)}
+                  />
+                  {show.excluded && <span className="chip">Excluded</span>}
+                </span>
+              </td>
+              <td>
+                <Match
+                  show={show}
+                  slow={slowCalls.filter((c) => c.call === show.evidence)}
+                  settle={select && (() => select(show.name))}
+                />
+              </td>
+              <td className="r">
+                {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
+                <SampleLabel show={show} figure="downloads" block />
+              </td>
+              <td>
+                {show.status ?? '–'}
+                <SampleLabel show={show} figure="status" block />
+              </td>
+              <td className="r">
+                {/* A pending call has no evidence record yet, so it opens once the search settles. */}
+                {show.resolution === 'pending' ? (
+                  <code className="call">{show.evidence}</code>
+                ) : (
+                  <CallButton
+                    call={show.evidence}
+                    label={`Evidence for ${show.name}`}
+                    opened={opened}
+                    openCall={openCall}
+                  />
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -1475,8 +1470,14 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
 function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close: () => void }) {
   const { busy, error, run } = useAction()
   const update = (patch: ShowPatch) => run(() => agent.stub.updateShow(show.name, patch))
+  // Opened from a roster row, it can sit far below it, as in a single column; bring it into view.
+  const ref = useRef<HTMLElement>(null)
+  // A block body: newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [])
   return (
-    <section className="mod ed" aria-labelledby="show-ed">
+    <section className="mod ed" ref={ref} aria-labelledby="show-ed">
       <div className="mh">
         <span className="lbl" id="show-ed">
           Show
