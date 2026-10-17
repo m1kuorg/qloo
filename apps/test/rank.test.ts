@@ -203,6 +203,14 @@ describe('ranking the roster by fit to the launch', () => {
     })
   })
 
+  it('sends an anchor the model names twice once', async () => {
+    fakeInsights(ranked)
+    await launch([turn(resolveLaunch), turn(rank(['e-0001', 'e-0001'])), turn(text('Ranked.'))])
+    expect(JSON.parse(requests.find((r) => r.url.pathname === '/v2/insights')!.body)).toMatchObject({
+      'signal.interests.entities': 'e-0001'
+    })
+  })
+
   it("keeps raw affinities out of synced state, and in the ranking call's evidence with its anchors and candidates", async () => {
     fakeInsights(ranked)
     const { s } = await launch([turn(resolveLaunch), turn(rank(['e-0001'])), turn(text('Ranked.'))])

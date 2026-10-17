@@ -961,7 +961,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
           VALUES (${run}, ${JSON.stringify(assistant)}, ${JSON.stringify(results.map((r) => r.block))})`
         this.setStatus(run, 'waiting')
         const [spent] = this.sql<Spent>`SELECT started_at, turns, qloo_calls, cache_hits FROM runs WHERE id = ${run}`
-        if (spent) log(summary(run, 'waiting', spent))
+        if (spent) log(summary(run, 'paused', spent))
         return
       }
       // The turn and its results are stored together, so history never ends on an unanswered call.
@@ -1284,8 +1284,8 @@ const log = (
 // What a run has spent against its limits, from its row in `runs`.
 type Spent = { started_at: number; turns: number; qloo_calls: number; cache_hits: number }
 
-// The summary line for a run that ended, or paused on a question.
-const summary = (run: string, outcome: Run['status'], spent: Spent) => ({
+// The summary line for a run that ended, or paused on a question (TRD observability).
+const summary = (run: string, outcome: Run['status'] | 'paused', spent: Spent) => ({
   event: 'run_summary' as const,
   run,
   outcome,
