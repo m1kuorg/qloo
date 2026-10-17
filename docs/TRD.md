@@ -78,7 +78,7 @@ Base URL `https://hackathon.api.qloo.com`, header `X-Api-Key`. The calls below w
 - **Rank a closed list:** `POST /v2/insights` with `filter.type=urn:entity:podcast`, `signal.interests.entities=<anchor IDs>`, `filter.results.entities=<candidate IDs>`, `feature.explainability=true`, and `take=50`. With comps, all of them go in as one comma-separated signal.
 - **Rank pitched works:** the same, once per work type, with `filter.type` set to that type and the show plus past guests' works as anchors. Rankings across categories return scores and explainability, as for books ranked against a podcast ([demo data](#demo-data)).
 - **Demographics:** `POST /v2/insights` with `filter.type=urn:demographics` and `signal.interests.entities=<launch or comp IDs, and finalist IDs>`. It returns one entry per entity.
-- **Shared tags:** `GET /v2/analysis/compare?a.signal.interests.entities=<launch or comps>&b.signal.interests.entities=<finalist>&take=50` _(verify: several comps on side `a`)_.
+- **Shared tags:** `GET /v2/analysis/compare?a.signal.interests.entities=<launch or comps>&b.signal.interests.entities=<finalist>&take=50`, once per finalist. Several comps on side `a` go in as one comma-separated signal: on 2026-10-17, three shows on side `a` gave a shared set that was the union of each show's own shared tags, and side `a`'s own tags counted up to 3, so no per-comp call and merge is needed.
 - **Find a comp for a roster show:** `GET /search?query=<what the programmer typed>&types=urn:entity:podcast&take=5`.
 - **Health check:** `GET /search?query=The%20Rewatchables&types=urn:entity:podcast&take=1`.
 
@@ -91,7 +91,7 @@ Not used: `/entities?external.spotify.ids=` is accepted but found no podcast by 
 - **Search:** each result's entity ID, name, and popularity, shown as candidates for ambiguous matches.
 - **Ranking:** each result's `query.affinity` and its `query.explainability["signal.interests.entities"]`, a list of `{entity_id, score}` per anchor. The top-level `effect_on_top3_recs` through `effect_on_all_recs` summaries are logged but not shown. `query.measurements.audience_growth` was always 0 and is ignored.
 - **Demographics:** `results.demographics[]`, one entry per entity, with `query.age` over the buckets `24_and_younger`, `25_to_29`, `30_to_34`, `35_to_44`, `45_to_54`, and `55_and_older`, and `query.gender.male` and `female`. Values are relative to average and ran from −0.9 to +0.69.
-- **Compare:** `results.tags[]`, each with `tag_id`, `name`, and `query.score`. Scores sat between 0.700 and 0.731, so tags are used as words, not ranked by score, and generic tags such as "Podcasts" are dropped through a stoplist.
+- **Compare:** `results.tags[]`, each with `tag_id`, `name`, and `query.score`. Scores sat between 0.700 and 0.731, so tags are used as words, not ranked by score, and generic tags such as "Podcasts" are dropped through a stoplist. A name Qloo lists under two subtypes, such as Engaging as a host and a content tag, is kept once, and a finalist shows its first five remaining tags in Qloo's order. Host and style descriptors such as Insightful and Conversational stay: between podcasts they are most of the shared tags, and dropping them would leave some finalists with none.
 
 ### Gateway rules
 
@@ -141,7 +141,7 @@ Each tool returns names alongside IDs, and errors the model can act on ([Writing
 - **`resolve_entities(names, type)`:** each name comes back resolved, ambiguous with up to three candidates, or missed.
 - **`rank_candidates(anchor_ids, candidate_ids, type)`:** ranks, bands, raw affinities, comp shares, and the evidence ID. The run's first message lists the roster's scorable shows with their IDs. The roster is the closed list, so the tool ranks every scorable show even when the model leaves one out, refuses an ID that isn't a roster show or an anchor the session never resolved, and leaves an anchor that is itself a roster show out of the candidates.
 - **`check_demographics(anchor_ids, candidate_ids)`:** age-band and gender deltas and mismatch flags per candidate.
-- **`shared_tags(anchor_ids, candidate_ids)`:** the top non-generic shared tags per candidate, from parallel compare calls.
+- **`shared_tags(anchor_ids, candidate_ids)`:** the top non-generic shared tags per finalist, from parallel compare calls. The anchors must be the ranking's, and like the ranking it compares every finalist even when the model leaves one out, and refuses an ID that isn't a finalist.
 - **`ask_human(question, kind, options)`:** pauses the run until the human answers in the UI. `kind` is `choice` for a fork answered with one of `options` or free text, or `budget` or `exclusions`, whose answer forms code builds.
 - **`draft_insertion_order(lines)`:** takes finalists, slot counts, and angles, computes slot values in code, rejects a draft over the slot budget, and stores the rest as a draft for the UI.
 - **`rank_pitches(show_id, past_guest_work_ids, pitch_ids)`:** groups pitched works by type and returns one ranked list per type.

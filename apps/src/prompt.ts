@@ -21,7 +21,11 @@ const launchSteps: { step: string; instruction: string | null }[] = [
       'Ask for the slot budget (kind budget), then, after that answer, for the shows to leave out of this launch (kind exclusions), both with an empty options list. Code stores both answers on the run and checks the plan against them, so never assume, suggest, or change a budget or an exclusion yourself.'
   },
   { step: 'Check demographics (#46)', instruction: null },
-  { step: 'Find shared tags (#47)', instruction: null },
+  {
+    step: 'Find shared tags (#47)',
+    instruction:
+      "Once the finalists are set, call shared_tags with the anchors rank_candidates used and every finalist's Qloo ID. Build each finalist's host-read angle from its shared tags, using only tags the tool returned. When a finalist's tags only describe style or hosts, such as Conversational or Insightful, or it has none, say its overlap with the launch is in its listeners' taste rather than its topic."
+  },
   { step: 'Draft the insertion order (#48)', instruction: null }
 ]
 

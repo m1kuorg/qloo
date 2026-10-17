@@ -137,6 +137,47 @@ export function fakeInsights(answer: Insight[] | number | ((body: Record<string,
   )
 }
 
+// One tag a compare answer says both sides share, with its score.
+export type SharedTag = { tag_id: string; name: string; score: number }
+
+// Serves `GET /v2/analysis/compare` from `answer`, keyed by the side-b entity ID: the shared tags
+// to return, in Qloo's order, or an HTTP status that answers with an error body in Qloo's shape. A
+// side b with no entry shares no tags. `latencyMs` delays every answer.
+export function fakeCompare(answer: Record<string, SharedTag[] | number>, { latencyMs = 0 } = {}) {
+  network.use(
+    http.get(`${env.QLOO_BASE_URL}/v2/analysis/compare`, async ({ request }) => {
+      inFlight++
+      try {
+        await record(request)
+        const b = new URL(request.url).searchParams.get('b.signal.interests.entities') ?? ''
+        const tags = answer[b] ?? []
+        if (latencyMs) await delay(latencyMs)
+        if (typeof tags === 'number')
+          return HttpResponse.json({ error: { message: 'fake failure', code: tags } }, { status: tags })
+        // Each side's own tags (`a`, `b`) aren't used, so they stay empty here.
+        return HttpResponse.json({
+          duration: 0.4,
+          results: {
+            a: [],
+            b: [],
+            matchEntities: [],
+            tags: tags.map(({ tag_id, name, score }) => ({
+              tag_id,
+              name,
+              type: 'urn:tag',
+              subtype: tag_id.split(':').slice(0, -1).join(':'),
+              popularity: 0.9,
+              query: { score }
+            }))
+          }
+        })
+      } finally {
+        inFlight--
+      }
+    })
+  )
+}
+
 // The scripted model: each request to the Messages API gets the next turn of `script`, streamed
 // as server-sent events the way the API streams them. Every turn opens with a thinking block whose
 // text is omitted and only its signature sent, as Haiku 5.5's are. A script entry can be a function

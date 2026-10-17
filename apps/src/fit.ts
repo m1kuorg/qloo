@@ -16,7 +16,12 @@ export type FitRow = {
   band: Band
   leadingComp: Anchor | null // the anchor that clearly drove this show's fit; never with one anchor
   finalist: boolean // one of the top five by fit
+  sharedTags: SharedTags | null // a finalist's, once shared_tags has run
 }
+
+// The tags a finalist's listeners share with the launch's, from one compare call: words in Qloo's
+// order, generic ones dropped, never scores.
+export type SharedTags = { call: string; tags: string[]; error: string | null }
 
 export type NotScored = { show: string; reason: string }
 
@@ -57,7 +62,8 @@ export function rankRoster(
     rank: i + 1,
     band: bands[Math.floor((i * 3) / ranked.length)],
     leadingComp: leadingComp(anchors, score.explainability),
-    finalist: i < FINALISTS
+    finalist: i < FINALISTS,
+    sharedTags: null
   }))
   const reason = (s: Show) => {
     if (s.excluded) return 'Excluded: never proposed for a launch'
