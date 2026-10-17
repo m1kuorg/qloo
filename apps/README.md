@@ -67,6 +67,7 @@ Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo 
 `openSession()` in `test/session.ts` is a visitor. It loads `/` for a session cookie, then opens the agent's WebSocket the way `useAgent` does:
 
 - `call(method, ...args)` calls a `@callable` action and resolves with its result, after the state it set has arrived.
+- `importRoster(text, format?)` imports a roster and resolves once every show's search has settled. `call('importRoster', ...)` resolves as soon as the shows are pending, before any search returns.
 - `state()` is the latest synced state, and `until(ready)` waits for synced state that passes `ready`, such as a finished run.
 - `frames()` is every raw frame the server sent, which is everything the visitor's browser receives.
 - `openSession(cookie)` reconnects as the same visitor, like a reload; `openSession()` is a new visitor.
@@ -107,7 +108,7 @@ Secrets live on the `crossfeed` Worker in the `qloo` Cloudflare account, and are
 Done means the behaviour works against the real APIs, first locally and then on <https://crossfeed.m1kuorg.workers.dev>, checked by hand or with `playwright-cli`:
 
 1.  Open the app in a fresh browser session.
-1.  Paste The Ringer's 19 show names from `src/sample-network.json` and import them.
+1.  Paste The Ringer's 19 show names from `src/sample-network.json` and import them. Every row says "Looking it up in Qloo…", then fills in as its search returns, and the button counts the shows looked up.
 1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo still failed after the gateway's retries, or the daily cap was reached; its reason is in the row.
 1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box.
 1.  Reload: the roster stays. A private window starts empty.

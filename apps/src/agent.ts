@@ -3,14 +3,15 @@ import { Agent, callable, type Connection } from 'agents'
 import { claude } from './claude'
 import { callNumber, type Evidence } from './evidence'
 import type { QlooGateway, QlooResult } from './gateway'
-import { resolveName, type Candidate, type Lookup } from './resolve'
+import { lookup, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat } from './roster'
 import { tools, type ToolContext, type ToolResult } from './tools'
 
 export type Show = {
   name: string
   // `mapped`: the programmer stood a comparable show in for one Qloo doesn't have.
-  resolution: 'resolved' | 'mapped' | 'ambiguous' | 'missed' | 'failed'
+  // `pending`: its search hasn't settled yet.
+  resolution: 'pending' | 'resolved' | 'mapped' | 'ambiguous' | 'missed' | 'failed'
   entity: Candidate | null // the matched Qloo entity, or the comp's once mapped
   candidates: Candidate[] // up to three when the name was ambiguous, kept after a pick
   evidence: string // the call number of the search behind the resolution
@@ -75,6 +76,13 @@ export class CrossfeedAgent extends Agent<Env, State> {
     // A run is kept alive while its loop runs, so one still running at startup lost its loop.
     const run = this.state.run
     if (run?.status === 'running') this.finish(run.id, 'The run was interrupted. Start it again.')
+    // The same goes for a show still waiting on its search.
+    const interrupted = { resolution: 'failed', error: 'The lookup was interrupted. Import the roster again.' } as const
+    if (this.state.roster.some((s) => s.resolution === 'pending'))
+      this.setState({
+        ...this.state,
+        roster: this.state.roster.map((s) => (s.resolution === 'pending' ? { ...s, ...interrupted } : s))
+      })
   }
 
   // State changes only through actions; a client can't write it directly.
@@ -84,8 +92,10 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // Replaces the roster with pasted show names, one per line, or a CSV with a `name` column and
   // optional `downloads`, `status`, and `description` columns. Each show is resolved through Qloo.
+  // It returns once every show is pending, and each show fills in as its search settles: one search
+  // can take a minute when Qloo hangs, past the client's 30-second call timeout.
   @callable()
-  async importRoster(text: string, format: RosterFormat = 'lines') {
+  importRoster(text: string, format: RosterFormat = 'lines') {
     const rows = parseRoster(text, format)
     if (rows.length === 0)
       throw new Error(format === 'csv' ? 'The CSV has no show rows.' : 'Paste at least one show name, one per line.')
@@ -93,23 +103,31 @@ export class CrossfeedAgent extends Agent<Env, State> {
       throw new Error(
         `${rows.length} shows is over the ${MAX_SHOWS}-show limit: one comparison scores at most ${MAX_SHOWS} shows, Qloo's largest page, and scores from separate comparisons can't be compared. Import ${MAX_SHOWS} shows or fewer.`
       )
-    // All at once: the gateway paces, limits, and retries the calls.
-    const roster = await Promise.all(
-      rows.map(async ({ name, ...fields }): Promise<Show> => {
-        const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'))
-        const match = result.ok
-          ? { ...resolveName(name, result.data), error: null }
-          : { resolution: 'failed' as const, entity: null, candidates: [], error: result.error }
-        return { name, ...match, evidence: call, compSearch: null, ...fields, excluded: false }
-      })
-    )
+    if (this.state.roster.some((s) => s.resolution === 'pending'))
+      throw new Error('The last import is still looking up its shows. Wait for it to finish.')
+    // Numbered now, in roster order, so a pending show cites the call it waits on.
+    const calls = rows.map(() => this.numberCall())
+    const roster = rows.map(({ name, ...fields }, i): Show => ({
+      name,
+      resolution: 'pending',
+      entity: null,
+      candidates: [],
+      evidence: callNumber(calls[i]),
+      error: null,
+      compSearch: null,
+      ...fields,
+      excluded: false
+    }))
     this.setState({ ...this.state, roster })
+    // All at once: the gateway paces, limits, and retries the calls.
+    void this.keepAliveWhile(() => Promise.all(rows.map(({ name }, i) => this.lookUpShow(name, calls[i]))))
   }
 
   // Searches Qloo for a comparable show to stand in for one it can't match, such as a miss.
   @callable()
   async searchComps(name: string, query: string) {
-    this.show(name)
+    // A comp mapped now would be overwritten when the show's own search lands.
+    if (this.show(name).resolution === 'pending') throw new Error(`${name} is still being looked up in Qloo.`)
     const q = query.trim()
     if (!q) throw new Error('Type the name of a comparable show.')
     const { call, result } = await this.qloo((gateway) => gateway.search(q, 'urn:entity:podcast', 5))
@@ -189,6 +207,26 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return this.sql<{ record: string }>`SELECT record FROM evidence WHERE record IS NOT NULL ORDER BY seq`.map((r) =>
       JSON.parse(r.record)
     )
+  }
+
+  // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
+  private async lookUpShow(name: string, seq: number) {
+    let match: Lookup
+    try {
+      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
+      match = lookup(name, call, result)
+    } catch (e) {
+      // The gateway itself failed; the show still settles, so the import can't stay pending.
+      const error = `The lookup failed: ${message(e)}`
+      match = { resolution: 'failed', entity: null, candidates: [], evidence: callNumber(seq), error }
+    }
+    this.editShow(name, (show) => ({ ...show, ...match }))
+  }
+
+  // Reserves the next call number, before the call is made.
+  private numberCall() {
+    const [{ seq }] = this.sql<{ seq: number }>`INSERT INTO evidence (record) VALUES (NULL) RETURNING seq`
+    return seq
   }
 
   private show(name: string) {
@@ -308,13 +346,14 @@ export class CrossfeedAgent extends Agent<Env, State> {
     for (const m of messages) this.sql`INSERT INTO conversation (run, message) VALUES (${run}, ${JSON.stringify(m)})`
   }
 
-  // The session's only path to Qloo. It numbers the call when the call starts, so numbers follow
-  // the order calls were made, and appends the gateway's evidence, success or failure.
+  // The session's only path to Qloo. It numbers the call when the call starts, unless the caller
+  // numbered it earlier, so numbers follow the order calls were made, and appends the gateway's
+  // evidence, success or failure.
   private async qloo<T>(
     request: (gateway: DurableObjectStub<QlooGateway>) => Promise<QlooResult<T>>,
-    run: string | null = null
+    run: string | null = null,
+    seq = this.numberCall()
   ) {
-    const [{ seq }] = this.sql<{ seq: number }>`INSERT INTO evidence (record) VALUES (NULL) RETURNING seq`
     const call = callNumber(seq)
     const result = (await request(this.env.QlooGateway.getByName('global'))) as QlooResult<T>
     const record: Evidence = { call, run, ...result.evidence }

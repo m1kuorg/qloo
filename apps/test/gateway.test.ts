@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { State } from '../src/agent'
 import type { Evidence } from '../src/evidence'
 import { fakeQloo, requests } from './fake'
 import { openSession, type Session } from './session'
@@ -39,7 +40,7 @@ describe('a slow or failing Qloo', () => {
   it('retries a 503 twice and resolves the show on the third request', async () => {
     fakeQloo({ search, first: { 'Deep Cuts': [503, 503] } })
     const s = await session()
-    await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
+    await s.importRoster('Night Shift Cinema\nDeep Cuts')
 
     expect(rows(s)).toEqual([
       ['Night Shift Cinema', 'resolved', null],
@@ -52,7 +53,7 @@ describe('a slow or failing Qloo', () => {
   it("gives up on a rate limit after two retries, with Qloo's message and what was retried", async () => {
     fakeQloo({ search: { ...search, 'Deep Cuts': 429 } })
     const s = await session()
-    await s.call('importRoster', 'Deep Cuts')
+    await s.importRoster('Deep Cuts')
 
     const failure = 'Qloo returned 429: Rate limit exceeded, after 2 retries'
     expect(rows(s)).toEqual([['Deep Cuts', 'failed', failure]])
@@ -63,7 +64,7 @@ describe('a slow or failing Qloo', () => {
   it("never retries a 400, and shows Qloo's message on the show", async () => {
     fakeQloo({ search: { ...search, 'Deep Cuts': 400 } })
     const s = await session()
-    await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
+    await s.importRoster('Night Shift Cinema\nDeep Cuts')
 
     expect(rows(s)).toEqual([
       ['Night Shift Cinema', 'resolved', null],
@@ -76,7 +77,7 @@ describe('a slow or failing Qloo', () => {
     configure({ QLOO_TIMEOUT_MS: '100' })
     fakeQloo({ search: { ...search, 'Deep Cuts': 'hang' } })
     const s = await session()
-    await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
+    await s.importRoster('Night Shift Cinema\nDeep Cuts')
 
     const failure = "Qloo didn't answer within 0.1 s, after 2 retries"
     expect(rows(s)).toEqual([
@@ -86,8 +87,33 @@ describe('a slow or failing Qloo', () => {
     expect(asked('Deep Cuts')).toHaveLength(3)
     expect(await evidenceFor(s, 'Deep Cuts')).toMatchObject({ status: null, retries: 2, error: failure })
 
-    await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
+    await s.importRoster('Night Shift Cinema\nDeep Cuts')
     expect(asked('Deep Cuts')).toHaveLength(6)
+  })
+
+  it('answers the import at once, then fills in each show as its search settles', async () => {
+    configure({ QLOO_TIMEOUT_MS: '100' })
+    fakeQloo({ search: { ...search, 'Deep Cuts': 'hang' } })
+    const s = await session()
+    await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
+
+    // The call is back while both searches are out, so no client timeout can fire; each row cites
+    // the call it waits on.
+    const cited = (state: State) => state.roster.map((show) => [show.name, show.resolution, show.evidence])
+    expect(cited(s.state()!)).toEqual([
+      ['Night Shift Cinema', 'pending', 'C-01'],
+      ['Deep Cuts', 'pending', 'C-02']
+    ])
+    const first = await s.until((state) => state.roster.some((show) => show.resolution !== 'pending'))
+    expect(cited(first)).toEqual([
+      ['Night Shift Cinema', 'resolved', 'C-01'],
+      ['Deep Cuts', 'pending', 'C-02']
+    ])
+    await s.until((state) => state.roster.every((show) => show.resolution !== 'pending'))
+    expect(rows(s)).toEqual([
+      ['Night Shift Cinema', 'resolved', null],
+      ['Deep Cuts', 'failed', "Qloo didn't answer within 0.1 s, after 2 retries"]
+    ])
   })
 })
 
@@ -96,11 +122,11 @@ describe('the response cache', () => {
     fakeQloo({ search })
     const roster = 'Night Shift Cinema\nDeep Cuts'
     const first = await session()
-    await first.call('importRoster', roster)
+    await first.importRoster(roster)
     expect(requests).toHaveLength(2)
 
     const second = await session()
-    await second.call('importRoster', roster)
+    await second.importRoster(roster)
 
     expect(requests).toHaveLength(2)
     expect(rows(second)).toEqual(rows(first))
@@ -118,10 +144,7 @@ describe('sharing Qloo between sessions', () => {
   it('keeps at most 3 requests in flight while two sessions import at once', async () => {
     fakeQloo({ search, latencyMs: 60 })
     const [a, b] = await Promise.all([session(), session()])
-    await Promise.all([
-      a.call('importRoster', names.slice(0, 3).join('\n')),
-      b.call('importRoster', names.slice(3).join('\n'))
-    ])
+    await Promise.all([a.importRoster(names.slice(0, 3).join('\n')), b.importRoster(names.slice(3).join('\n'))])
 
     expect([...rows(a)!, ...rows(b)!].map(([, resolution]) => resolution)).toEqual(Array(6).fill('resolved'))
     expect(requests).toHaveLength(6)
@@ -132,7 +155,7 @@ describe('sharing Qloo between sessions', () => {
     configure({ QLOO_MIN_INTERVAL_MS: '40' })
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', names.slice(0, 4).join('\n'))
+    await s.importRoster(names.slice(0, 4).join('\n'))
 
     expect(requests).toHaveLength(4)
     const starts = requests.map((r) => r.at)
@@ -153,7 +176,7 @@ describe('the daily cap', () => {
     vi.setSystemTime(new Date('2026-10-17T23:59:00Z'))
     fakeQloo({ search })
     const s = await session()
-    await s.call('importRoster', names.join('\n'))
+    await s.importRoster(names.join('\n'))
 
     const capped = 'The daily cap of 5 Qloo calls is reached; it resets at 00:00 UTC'
     expect(requests).toHaveLength(5)
@@ -167,7 +190,7 @@ describe('the daily cap', () => {
     })
 
     vi.setSystemTime(new Date('2026-10-18T00:01:00Z'))
-    await s.call('importRoster', names.join('\n'))
+    await s.importRoster(names.join('\n'))
 
     expect(requests).toHaveLength(6)
     expect(asked(refused[0].name)).toHaveLength(1)
