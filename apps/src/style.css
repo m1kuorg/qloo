@@ -295,6 +295,11 @@ h1 span {
   font-weight: 600;
 }
 
+/* The inbox's pitch count keeps to one line, so a narrow header doesn't stack it word by word. */
+.status .count {
+  white-space: nowrap;
+}
+
 .launch-form {
   display: flex;
   flex-wrap: wrap;

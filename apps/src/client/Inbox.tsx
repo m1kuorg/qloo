@@ -55,6 +55,18 @@ export function InboxPage({
 }: Page & Actions) {
   const [selected, setSelected] = useState<string | null>(null)
   const pitch = inbox?.pitches.find((p) => p.id === selected)
+  // The control a pitch was opened from, so closing it returns the booker to their place.
+  const opener = useRef<HTMLElement | null>(null)
+  const select = (id: string, from: HTMLElement) => {
+    opener.current = from
+    setSelected(id)
+  }
+  const close = (id: string) => {
+    setSelected(null)
+    // A settled match's "Confirm the match" is gone by then; the pitch's row is still there.
+    const back = opener.current?.isConnected ? opener.current : document.getElementById(`open-${id}`)
+    back?.focus()
+  }
   const reading = inbox?.status === 'reading'
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
   const running = pitchRunStatus === 'running'
@@ -76,7 +88,9 @@ export function InboxPage({
           {inbox && (
             <div className="status" role="status">
               <b>{reading ? 'Reading' : 'Read'}</b>
-              <p>{reading ? `${done} of ${inbox.pitches.length} pitches read` : `${inbox.pitches.length} pitches`}</p>
+              <p className="count">
+                {reading ? `${done} of ${inbox.pitches.length} pitches read` : `${inbox.pitches.length} pitches`}
+              </p>
               <SlowCalls calls={slowCalls} />
             </div>
           )}
@@ -106,7 +120,7 @@ export function InboxPage({
               booking={booking}
               lists={booking.lists}
               pitches={inbox?.pitches ?? []}
-              select={setSelected}
+              select={select}
               openCall={actions.openCall}
               opened={actions.opened?.call ?? null}
             />
@@ -131,7 +145,7 @@ export function InboxPage({
             <PitchTable
               pitches={inbox?.pitches ?? []}
               selected={pitch?.id ?? null}
-              select={setSelected}
+              select={select}
               openCall={actions.openCall}
               opened={actions.opened?.call ?? null}
             />
@@ -140,12 +154,7 @@ export function InboxPage({
         {/* As the launch page's rail: the selected pitch and its evidence first, then the run and the checks. */}
         <aside className="rail" aria-label="Details">
           {pitch && (
-            <PitchDetail
-              key={pitch.id}
-              pitch={pitch}
-              confirmWork={actions.confirmWork}
-              close={() => setSelected(null)}
-            />
+            <PitchDetail key={pitch.id} pitch={pitch} confirmWork={actions.confirmWork} close={() => close(pitch.id)} />
           )}
           <EvidencePanel opened={actions.opened} />
           {runLog}
@@ -167,11 +176,9 @@ function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; re
   }
   return (
     <form className="import" onSubmit={paste}>
-      <label className="lbl" htmlFor="pitches">
-        Pitch emails
-      </label>
+      {/* The section's "Pitches" heading names the field. */}
       <textarea
-        id="pitches"
+        aria-labelledby="pitches-h"
         rows={6}
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -386,7 +393,7 @@ function PitchLists({
   booking: Booking
   lists: PitchList[]
   pitches: Pitch[]
-  select: (id: string) => void
+  select: (id: string, from: HTMLElement) => void
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -427,7 +434,7 @@ function RankedPitches({
 }: {
   list: PitchList
   pitches: Pitch[]
-  select: (id: string) => void
+  select: (id: string, from: HTMLElement) => void
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -480,7 +487,9 @@ function RankedPitches({
               <th scope="col">
                 Public work
                 {/* The guest is Claude's reading of the pitch, not Qloo data. */}
-                <small>Qloo match · guest as Claude read it{tagged && ' · shared Qloo tags'}</small>
+                <small>
+                  Qloo match · <Source of="agent" /> guest as Claude read it{tagged && ' · shared Qloo tags'}
+                </small>
               </th>
               <th scope="col">
                 Fit band<small>listener overlap</small>
@@ -495,7 +504,7 @@ function RankedPitches({
                 <tr key={r.pitch}>
                   <td className="pos">{r.rank}</td>
                   <td>
-                    <button type="button" className="row-open" onClick={() => select(r.pitch)}>
+                    <button type="button" className="row-open" onClick={(e) => select(r.pitch, e.currentTarget)}>
                       <span className="nm">{r.entity.name}</span>
                     </button>
                     {p?.guest && <div className="tg">{p.guest}</div>}
@@ -845,7 +854,7 @@ function PitchTable({
 }: {
   pitches: Pitch[]
   selected: string | null
-  select: (id: string) => void
+  select: (id: string, from: HTMLElement) => void
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -892,9 +901,10 @@ function PitchTable({
               <td>
                 <button
                   type="button"
+                  id={`open-${p.id}`}
                   className="row-open"
                   aria-current={p.id === selected || undefined}
-                  onClick={() => select(p.id)}
+                  onClick={(e) => select(p.id, e.currentTarget)}
                 >
                   <span className="nm">{title(p)}</span>
                 </button>
@@ -909,7 +919,7 @@ function PitchTable({
                 <WorkCell pitch={p} />
               </td>
               <td>
-                <MatchCell pitch={p} settle={() => select(p.id)} />
+                <MatchCell pitch={p} settle={(from) => select(p.id, from)} />
               </td>
               <td className="r">
                 {p.match && (
@@ -943,7 +953,7 @@ function WorkCell({ pitch: { work, status } }: { pitch: Pitch }) {
   )
 }
 
-function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: () => void }) {
+function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElement) => void }) {
   const chip = <span className="chip">{stateLabel(p)}</span>
   const why = (text: string) => (
     <>
@@ -966,7 +976,7 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: () => void }) {
     return (
       <>
         {chip}{' '}
-        <button type="button" className="lnk" onClick={settle}>
+        <button type="button" className="lnk" onClick={(e) => settle(e.currentTarget)}>
           Confirm the match
         </button>
         <span className="tg"> · {match.candidates.length} with this title</span>
@@ -991,16 +1001,18 @@ function PitchDetail({
 }) {
   const { busy, error, run } = useAction()
   const match = p.match
-  // Opened from a pitch's row, it can sit far below it, as in a single column; bring it into view.
+  // Opened from a pitch's row, it can sit far from it; bring it into view and move focus to it.
   const ref = useRef<HTMLElement>(null)
+  const heading = useRef<HTMLSpanElement>(null)
   // A block body: newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
   useEffect(() => {
     ref.current?.scrollIntoView({ block: 'nearest' })
+    heading.current?.focus({ preventScroll: true })
   }, [])
   return (
     <section className="mod ed" ref={ref} aria-labelledby="pitch-ed">
       <div className="mh">
-        <span className="lbl" id="pitch-ed">
+        <span className="lbl" id="pitch-ed" ref={heading} tabIndex={-1}>
           Pitch
         </span>
         <span className="chips">
