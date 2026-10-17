@@ -1,7 +1,13 @@
 import { DurableObject } from 'cloudflare:workers'
 import type { CallEvidence } from './evidence'
 
-export type QlooEntity = { id: string; name: string; type: string; popularity: number | null }
+export type QlooEntity = {
+  id: string
+  name: string
+  type: string
+  popularity: number | null
+  disambiguation: string | null // a work's year, plus the author for a book, such as "2022, Quentin Tarantino"
+}
 
 // What every gateway method returns. A failure comes back as a value, not a throw, so its
 // evidence survives the RPC hop and the session can log it.
@@ -43,11 +49,13 @@ export class QlooGateway extends DurableObject<Env> {
       id: r.entity_id,
       name: r.name,
       type: r.types?.[0] ?? type,
-      popularity: r.popularity ?? null
+      popularity: r.popularity ?? null,
+      disambiguation: r.disambiguation ?? null
     }))
     // Search fills only `entities`: each result's genre tags describe that result, not the call, so
     // `tags` stays empty here.
-    return { ok: true, data: entities, evidence: { ...result.evidence, entities } }
+    const evidence = { ...result.evidence, entities: entities.map(({ disambiguation, ...e }) => e) }
+    return { ok: true, data: entities, evidence }
   }
 
   // Ranks a closed list of candidates against the anchors, sent together as one signal, each ID
@@ -253,7 +261,13 @@ async function cacheKey(method: string, endpoint: string, params: URLSearchParam
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-type SearchResult = { entity_id: string; name: string; types?: string[]; popularity?: number }
+type SearchResult = {
+  entity_id: string
+  name: string
+  types?: string[]
+  popularity?: number
+  disambiguation?: string | null
+}
 
 type InsightResult = {
   entity_id: string

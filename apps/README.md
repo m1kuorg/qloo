@@ -22,10 +22,10 @@ Run these in `apps/`, with `QLOO_API_KEY` and `ANTHROPIC_API_KEY` in your enviro
 
 ```sh
 bun install
-printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" > .dev.vars
+printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nGUEST_PITCHES=on\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" > .dev.vars
 ```
 
-`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response.
+`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `GUEST_PITCHES=on` shows the guest pitch flow locally; `wrangler.jsonc` keeps it `off` in production until #57 switches it on. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself.
 
 After changing `wrangler.jsonc`, run `bun run cf-typegen` to regenerate `Env` in `worker-configuration.d.ts`.
 
@@ -118,6 +118,13 @@ Done means the behaviour works against the real APIs, first locally and then on 
 1.  Include The Press Box again and select "Run again". The rail's Runs module lists both runs and today's count out of 10. "View" on the first run shows what it ended with, read-only, with The Press Box still left out; "Back to the latest run" returns.
 1.  Import the same names again: every log line says `"cacheHit":true`, and no new Qloo call is made.
 
+With `GUEST_PITCHES=on`, check the inbox too:
+
+1.  Open Inbox in the top bar and load the sample inbox. Within about 30 seconds every pitch shows its guest and work: 30 matched, Digger ambiguous, 5 not in Qloo (Hollywood, Ending; One Helluva Ride; Look at Me; Katabasis; New Heights), and 4 set aside with no public work. Claude's reading varies a little from run to run.
+1.  Select Digger, pick the 2026 film, and reload: the match stays.
+1.  Open a pitch's call: its parameters are only the work's title, type, and `take`.
+1.  With `GUEST_PITCHES` off, as deployed, there's no Inbox link and `/inbox` is a 404.
+
 Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status, latency, retries, and cache hit, in the dev server's output, in Workers Logs, and live with `bunx wrangler tail --format json`. To see failures in the running app, add `QLOO_TIMEOUT_MS=1` or a low `QLOO_DAILY_CALL_CAP` to `.dev.vars` and restart the dev server.
 
 Agent log lines show each model call's tokens and cache reads (`"event":"model_call"`) and one summary per run with its outcome (`"event":"run_summary"`). To see a run stopped at a limit, lower a limit in `src/limits.ts` while the dev server runs, and put it back afterwards.
@@ -132,10 +139,12 @@ Agent log lines show each model call's tokens and cache reads (`"event":"model_c
 - `src/tools/`: one file per tool, registered in `src/tools/index.ts`. A tool has a strict definition, the progress note it shows, and `run`, which reaches Qloo through `context.qloo` and returns an error that says what to do next.
 - `src/gateway.ts`: `QlooGateway`, the only code that calls Qloo. Each method returns its data or error together with an evidence record. Every request goes through `request`, which sends GET parameters in the query string and POST ones as a JSON body of flat dotted keys, serves the shared cache, enforces the daily cap, paces and limits requests to 3 in flight, and retries; a new endpoint goes through it too.
 - `src/evidence.ts`: the evidence record's shape. Fill its fields; don't reshape it.
-- `src/resolve.ts`: deciding whether a search result is the named entity.
+- `src/resolve.ts`: deciding whether a search result is the named entity: a roster show by name, a pitched work by title, then its author or year.
 - `src/fit.ts`: the fit ranking's derived values, built from one ranking call: which roster shows are scorable, fit rank, band, leading comp, finalists, and each other show's reason for not being scored. Later tickets read `state.ranking` for finalists and leading comps.
 - `src/roster.ts`: reading an imported roster, pasted names or a CSV, into rows.
-- `src/client/`: the React island. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. It renders from `shown`, the latest state or an earlier run's while one is viewed; render a run's results from `shown` so an earlier run shows its own, and hide editing controls while `viewing` is set. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
+- `src/inbox.ts`: the inbox's types, and reading the sample inbox or pasted pitches into rows. `loadInbox` returns at once and reads the pitches in the background, five at a time.
+- `src/extract.ts`: the pitch reader, one structured-output call per pitch. Single model calls beside the agent loop, such as the topic baseline, use `structured` from `src/claude.ts`.
+- `src/client/`: the React island. `main.tsx` passes the server's `data-page` to `App.tsx`, which renders the roster page or `Inbox.tsx`. `controls.tsx` holds the shared form pieces, such as `useAction` and `PickOne`. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. It renders from `shown`, the latest state or an earlier run's while one is viewed; render a run's results from `shown` so an earlier run shows its own, and hide editing controls while `viewing` is set. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
 - `src/style.css`: the tokens and components from [DESIGN.md](/docs/DESIGN.md).
 
 ## See also

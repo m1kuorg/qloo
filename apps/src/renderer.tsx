@@ -9,8 +9,10 @@ window.$RefreshReg$ = () => {}
 window.$RefreshSig$ = () => (type) => type
 window.__vite_plugin_react_preamble_installed__ = true`
 
-// The server-rendered shell: the black top bar, then the React island in #root.
-export const renderer = jsxRenderer(({ children }) => {
+// The server-rendered shell: the black top bar with the app's sections, then the React island in #root.
+export const renderer = jsxRenderer(({ children }, c) => {
+  const sections = [{ href: '/', label: 'Roster' }]
+  if (c.env.GUEST_PITCHES === 'on') sections.push({ href: '/inbox', label: 'Inbox' })
   return (
     <html lang="en">
       <head>
@@ -32,9 +34,14 @@ export const renderer = jsxRenderer(({ children }) => {
         <header class="top">
           <span class="wm">Crossfeed</span>
           <nav class="nav" aria-label="Sections">
-            <a class="on" href="/" aria-current="page">
-              Roster
-            </a>
+            {sections.map(({ href, label }) => {
+              const current = c.req.path === href
+              return (
+                <a class={current ? 'on' : undefined} href={href} aria-current={current ? 'page' : undefined}>
+                  {label}
+                </a>
+              )
+            })}
           </nav>
         </header>
         {children}

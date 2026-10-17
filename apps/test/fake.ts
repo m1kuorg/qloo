@@ -41,8 +41,9 @@ const record = async (request: {
 export type QlooEntity = {
   entity_id: string
   name: string
-  popularity: number
+  popularity: number | null
   types?: string[]
+  disambiguation?: string | null // a work's year, plus the author for a book
   properties?: Record<string, unknown>
 }
 

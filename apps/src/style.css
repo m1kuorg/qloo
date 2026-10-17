@@ -786,3 +786,36 @@ fieldset {
   padding-right: 12px;
   font-weight: 600;
 }
+
+/* Inbox: one row per pitch, selected like a roster row; the pitch's own text sits in the rail. */
+.pitches td {
+  height: 44px;
+}
+
+.pitches tr[data-selected] td {
+  background: var(--panel);
+}
+
+.pitches tr[data-status='no_work'] .nm,
+.pitches tr[data-status='unreadable'] .nm {
+  color: var(--mid);
+}
+
+.wk {
+  font-weight: 600;
+}
+
+.notice {
+  margin-top: 10px;
+}
+
+.letter {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--edge);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 320px;
+  overflow-y: auto;
+}
