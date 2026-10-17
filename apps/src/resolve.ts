@@ -54,7 +54,7 @@ export function resolveWork(
   results: QlooEntity[]
 ): Resolution<WorkCandidate> {
   const named = results
-    .filter((r) => sameTitle(r.name, title))
+    .filter((r) => sameTitle(r.name, title) || (type === 'podcast' && hostedBy(r.name, title, guest)))
     .map(({ id, name, popularity, disambiguation }) => ({ id, name, popularity, disambiguation }))
   const own = type === 'book' ? named.filter((c) => byGuest(c.disambiguation, guest)) : []
   let pool: WorkCandidate[]
@@ -94,11 +94,22 @@ const author = (disambiguation: string | null) =>
 // Whether a book's author is one of the guests, such as "Seth Rogen and Evan Goldberg", by surname.
 function byGuest(disambiguation: string | null, guest: string) {
   const credited = words(author(disambiguation))
-  return guest
-    .split(/,|&|\band\b/)
-    .map((name) => words(name).at(-1))
-    .some((surname) => surname !== undefined && credited.includes(surname))
+  return surnames(guest).some((surname) => credited.includes(surname))
 }
+
+// A podcast's name can add its hosts, as in "New Heights with Jason & Travis Kelce". That counts only
+// when a host is one of the guests, so "Dinner with Friends" isn't "Dinner". A lone first name in
+// the guest, like Jason's, counts as a surname too; the title has to match first.
+function hostedBy(found: string, title: string, guest: string) {
+  const name = words(found)
+  const wanted = titleWords(title).full.split(' ')
+  if (!startsWith(name, wanted) || name[wanted.length] !== 'with') return false
+  const hosts = name.slice(wanted.length + 1)
+  return surnames(guest).some((surname) => hosts.includes(surname))
+}
+
+// The last word of each guest's name: "Jason and Travis Kelce" gives jason and kelce.
+const surnames = (guest: string) => guest.split(/,|&|\band\b/).flatMap((name) => words(name).slice(-1))
 
 // Qloo's work names can drop or add a subtitle ("Wake Up Dead Man"), carry a series suffix ("Onyx
 // Storm (The Empyrean, #3)"), or end in "Podcast" ("Scriptnotes Podcast"); none of those count

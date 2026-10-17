@@ -141,13 +141,13 @@ In a fresh browser session, check the guide through the sample launch:
 
 With `GUEST_PITCHES=on`, as deployed, check the inbox too:
 
-1.  Open Inbox in the top bar and load the sample inbox. Within about 30 seconds every pitch shows its guest and work: 30 matched, Digger ambiguous, 5 not in Qloo (Hollywood, Ending; One Helluva Ride; Look at Me; Katabasis; New Heights), and 4 set aside with no public work. Claude's reading varies a little from run to run.
+1.  Open Inbox in the top bar and load the sample inbox. Within about 30 seconds every pitch shows its guest and work: 31 matched, Digger ambiguous, 4 not in Qloo (Hollywood, Ending; One Helluva Ride; Look at Me; Katabasis), and 4 set aside with no public work. Claude's reading varies a little from run to run.
 1.  Select Digger, pick the 2026 film, and reload: the match stays.
 1.  Open a pitch's call: its parameters are only the work's title, type, and `take`.
-1.  With the roster imported, "Rank against a show" has The Big Picture and its three past guests' films filled in from the sample. Select "Rank pitches": the rail's Run module looks up the three films and ranks the pitches, and within about 20 seconds four lists appear, 10 books, 8 films, 5 TV shows, and 3 podcasts, each by rank and band with no decimals and its own call. Atmosphere, Hamnet, The Bride!, and Pluribus are not scored, nor are the misses and Digger until it's confirmed.
+1.  With the roster imported, "Rank against a show" has The Big Picture and its three past guests' films filled in from the sample. Select "Rank pitches": the rail's Run module looks up the three films and ranks the pitches, and within about 20 seconds four lists appear, 10 books, 8 films, 5 TV shows, and 4 podcasts (New Heights matches as New Heights with Jason & Travis Kelce), each by rank and band with no decimals and its own call. Atmosphere, Hamnet, The Bride!, and Pluribus are not scored, nor are the misses and Digger until it's confirmed.
 1.  Open a list's call: its parameters are entity IDs only, and its affinities hold the raw scores the list leaves out.
-1.  The run goes on to find the tags 10 top pitches share with The Big Picture, one compare call each, then drafts 40 replies in two calls. Under each top pitch in the lists, its tags follow as words with the compare's call; open one: side `a` is the show alone and side `b` the work, entity IDs only.
-1.  "Replies" lists every pitch under Book, Later, or Decline: about 10, 19, and 11. Each Book reply shows its episode angle, the tags it's built from with their call, the sender it goes to, and a draft that names no guest and gives no reason. Copy is disabled on every draft.
+1.  The run goes on to find the tags 11 top pitches share with The Big Picture, one compare call each, then drafts 40 replies in two calls. Under each top pitch in the lists, its tags follow as words with the compare's call; open one: side `a` is the show alone and side `b` the work, entity IDs only.
+1.  "Replies" lists every pitch under Book, Later, or Decline: about 11, 18, and 11. Each Book reply shows its episode angle, the tags it's built from with their call, the sender it goes to, and a draft that names no guest and gives no reason. Copy is disabled on every draft.
 1.  Approve one reply: only it shows Approved, and Copy puts its exact text on the clipboard. Edit another, discard a third, and reload: the edit and the discard stay, and Restore brings the discarded one back as a draft.
 1.  With `GUEST_PITCHES=off`, there's no Inbox link and `/inbox` is a 404.
 
