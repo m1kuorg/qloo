@@ -171,7 +171,13 @@ function stream({ content, stop_reason, category }: ScriptedTurn, n: number) {
           stop_reason: null,
           stop_sequence: null,
           stop_details: null,
-          usage: { input_tokens: 100, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+          // The first request writes the prompt cache and later ones read it, as a cached prefix does.
+          usage: {
+            input_tokens: 100,
+            output_tokens: 1,
+            cache_creation_input_tokens: n === 1 ? 900 : 0,
+            cache_read_input_tokens: n === 1 ? 0 : 900
+          }
         }
       }
     ]

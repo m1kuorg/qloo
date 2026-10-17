@@ -167,8 +167,12 @@ Single calls with structured outputs (`output_config.format`), on the same model
 
 ### Agent limits
 
-- At most 12 model turns and 60 Qloo calls per run. Past either limit, the run stops and says what is missing.
-- At most 10 runs per session per day.
+- At most 12 model turns and 60 Qloo calls per run. Past either limit, the run stops as "stopped at a limit", never as completed, and says what it hadn't done.
+  - **Turns:** the 12th model call is the last. If it asks for tools, they aren't run, because their results would need a 13th turn, and the run names them as not run.
+  - **Qloo calls:** every call the run makes counts, cache hits included, so a warm run and a cold one are bounded the same. The 61st is refused before it reaches the gateway or the evidence log, the tool call that made it is cut off, and the run stops once that turn's other calls finish.
+  - The limits live in [`apps/src/limits.ts`](/apps/src/limits.ts), and each run's counts in the agent's `runs` table, so a run paused on a question keeps its count.
+- At most 10 runs per session per UTC day, counting every run started. The 11th is refused with a message.
+- **Re-runs:** starting a run again, after changing comps, the budget, or exclusions, starts a new run with its own conversation. When a run ends, the agent keeps the synced state it ended with, roster included, and `getRun` returns it, so every earlier run stays viewable read-only. Later per-run results in the synced state are kept the same way.
 
 ## Derived values
 
@@ -197,7 +201,7 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 ## Client protocol
 
 - **State:** the agent's synced state carries what the UI renders: the roster with resolution states, the current run's status and the progress notes code writes for each tool call, such as "Scoring 16 shows against The Big Picture", the open question, rankings with the topic baseline, the insertion order draft, the inbox, and draft replies. The evidence log is fetched on demand, not synced.
-- **Actions:** `@callable` methods on the agent: `importRoster` (pasted names, or a CSV with `name` and optional `downloads`, `status`, and `description` columns), `updateShow`, `searchComps`, `setCpm`, `startLaunch`, `answer`, `editInsertionOrder`, `approveInsertionOrder`, `loadInbox`, `startPitches` (with the show and its past guests' works), `editReply`, `approveReply`, `discardReply`, and `getEvidence`. `@callable` needs the `agents/vite` plugin ([configuration][cf-config]).
+- **Actions:** `@callable` methods on the agent: `importRoster` (pasted names, or a CSV with `name` and optional `downloads`, `status`, and `description` columns), `updateShow`, `searchComps`, `setCpm`, `startLaunch`, `answer`, `editInsertionOrder`, `approveInsertionOrder`, `loadInbox`, `startPitches` (with the show and its past guests' works), `editReply`, `approveReply`, `discardReply`, `getEvidence`, and `getRun` (what an earlier run ended with). `@callable` needs the `agents/vite` plugin ([configuration][cf-config]).
 - **Call timeout:** `useAgent` rejects a call after 30 seconds, but one Qloo call can take about 64 seconds when Qloo hangs (three 20-second attempts plus backoff). An action that waits on many Qloo calls returns early and reports progress in synced state instead. `importRoster` sets every show to `pending`, citing the call it waits on, and returns; each show fills in as its search settles. A second import is refused until the first has settled, and a show still pending when the agent restarts is marked failed as interrupted.
 - **HTTP:** `GET /` serves the shell, and `GET /api/insertion-orders/:id.csv` exports an approved order, returning 409 for a draft.
 
@@ -235,8 +239,8 @@ Changes to the [`apps/`](/apps/) scaffold:
 
 ## Observability
 
-- One structured log line per Qloo call with the endpoint, status, latency, retries, and cache hit, and one per model call with tokens and cache reads, in Workers Logs.
-- One summary line per run: turns, Qloo calls, cache hits, wall time, and outcome (completed, paused on a question, stopped at a limit, or failed).
+- One structured log line per Qloo call with the endpoint, status, latency, retries, and cache hit (`"event":"qloo_call"`), and one per model call with the run, turn, stop reason, input and output tokens, cache reads and writes, and latency (`"event":"model_call"`), in Workers Logs.
+- One summary line per run (`"event":"run_summary"`): turns, Qloo calls, cache hits, wall time, and outcome (completed, paused on a question, stopped at a limit, or failed). It's written when the run ends; a run paused on a question writes it with outcome `paused`.
 
 ## Testing
 

@@ -169,6 +169,21 @@ h1 span {
   color: var(--grey);
 }
 
+.launch-form small {
+  font-size: 12px;
+  color: var(--grey);
+}
+
+/* In place of the launch form while an earlier run is viewed. */
+.viewing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin-top: 12px;
+  color: var(--mid);
+}
+
 /* Work area: the chart column and the 448px rail. */
 .main {
   display: grid;
@@ -665,4 +680,11 @@ fieldset {
 
 .notes li[data-status='failed'] span:first-child {
   font-weight: 600;
+}
+
+/* The session's runs: the one shown on the page is marked like a selected row. */
+.runs li[aria-current] {
+  background: var(--panel);
+  margin: 0 -8px;
+  padding: 5px 8px;
 }

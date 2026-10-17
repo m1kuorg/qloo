@@ -1,6 +1,7 @@
 import { useAgent } from 'agents/react'
 import { useRef, useState } from 'react'
-import type { CrossfeedAgent, Launch, Run, Show, ShowPatch, State } from '../agent'
+import type { CrossfeedAgent, Launch, Run, RunSnapshot, RunSummary, Show, ShowPatch, State } from '../agent'
+import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
 import type { RosterFormat } from '../roster'
 import { EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
@@ -11,8 +12,12 @@ type Session = ReturnType<typeof useSession>
 
 export function App() {
   const agent = useSession()
-  const roster = agent.state?.roster ?? []
-  const run = agent.state?.run ?? null
+  // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
+  const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
+  const shown = viewing?.state ?? agent.state
+  const roster = shown?.roster ?? []
+  const run = shown?.run ?? null
+  const runs = agent.state?.runs ?? []
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
   const [opened, setOpened] = useState<Opened | null>(null)
@@ -34,8 +39,10 @@ export function App() {
   return (
     <>
       <LaunchHeader
-        launch={agent.state?.launch ?? null}
+        launch={shown?.launch ?? null}
         run={run}
+        viewing={viewing && runNumber(runs, viewing.id)}
+        back={() => setViewing(null)}
         startLaunch={(name) => agent.stub.startLaunch({ name })}
         openCall={openCall}
         opened={opened?.call ?? null}
@@ -43,44 +50,68 @@ export function App() {
       <section className="hd">
         <h1>Roster</h1>
         <p className="help">
-          Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo.
+          {viewing
+            ? `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
+            : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
         </p>
       </section>
       <main className="main">
         <section className="chart-col" aria-label="Roster">
-          <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
+          {!viewing && (
+            <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
+          )}
           <RosterTable
             roster={roster}
-            selected={show?.name ?? null}
-            select={setSelected}
+            selected={viewing ? null : (show?.name ?? null)}
+            select={viewing ? null : setSelected}
             openCall={openCall}
             opened={opened?.call ?? null}
           />
         </section>
         <aside className="rail" aria-label="Details">
           {run && <RunLog run={run} />}
-          {show && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
+          {runs.length > 0 && (
+            <RunList
+              runs={runs}
+              viewing={viewing?.id ?? null}
+              view={async (id) => setViewing(id === null ? null : { id, state: await agent.stub.getRun(id) })}
+            />
+          )}
+          {show && !viewing && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
           <RosterCheck roster={roster} />
           <EvidencePanel opened={opened} />
-          <NetworkCpm key={agent.state?.cpm ?? 'none'} cpm={agent.state?.cpm ?? null} agent={agent} />
+          {!viewing && <NetworkCpm key={agent.state?.cpm ?? 'none'} cpm={agent.state?.cpm ?? null} agent={agent} />}
         </aside>
       </main>
     </>
   )
 }
 
-const runLabel: Record<Run['status'], string> = { running: 'Running', completed: 'Completed', failed: 'Failed' }
+const runLabel: Record<Run['status'], string> = {
+  running: 'Running',
+  completed: 'Completed',
+  stopped: 'Stopped at a limit',
+  failed: 'Failed'
+}
 
-// The launch header: start a run from a released launch's name, then follow it here.
+// Runs are numbered in the order this session started them.
+const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id === id) + 1
+
+// The launch header: start a run from a released launch's name, then follow it here. While an
+// earlier run is viewed, it shows that run and a way back instead of the form.
 function LaunchHeader({
   launch,
   run,
+  viewing,
+  back,
   startLaunch,
   openCall,
   opened
 }: {
   launch: Launch | null
   run: Run | null
+  viewing: number | null // the number of the earlier run shown
+  back: () => void
   startLaunch: (name: string) => Promise<unknown>
   openCall: (call: string) => void
   opened: string | null
@@ -92,6 +123,8 @@ function LaunchHeader({
     e.preventDefault()
     if (await action.run(() => startLaunch(name))) setName('')
   }
+  // The launch to run again once its run has ended.
+  const again = run && !running ? (launch?.name ?? null) : null
   const current = run?.notes.findLast((n) => n.status === 'running')?.text
   return (
     <section className="hd" aria-label="Launch">
@@ -106,25 +139,47 @@ function LaunchHeader({
           <div className="status" role="status">
             <b>{runLabel[run.status]}</b>
             {run.status === 'running' && <p>{current ?? 'Waiting for Claude'}</p>}
-            {run.status === 'failed' && <p>{run.error}</p>}
+            {(run.status === 'failed' || run.status === 'stopped') && <p>{run.error}</p>}
           </div>
         )}
       </div>
-      <form className="launch-form" onSubmit={submit}>
-        <label className="lbl" htmlFor="launch-name">
-          Released launch
-        </label>
-        <input
-          id="launch-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="The Big Picture"
-          disabled={action.busy || running}
-        />
-        <button className="btn pri" type="submit" disabled={action.busy || running || !name.trim()}>
-          Start run
-        </button>
-      </form>
+      {viewing ? (
+        <p className="viewing">
+          <span className="chip">Run {viewing}</span> An earlier run, read-only.{' '}
+          <button type="button" className="lnk" onClick={back}>
+            Back to the latest run
+          </button>
+        </p>
+      ) : (
+        <form className="launch-form" onSubmit={submit}>
+          <label className="lbl" htmlFor="launch-name">
+            Released launch
+          </label>
+          <input
+            id="launch-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="The Big Picture"
+            disabled={action.busy || running}
+          />
+          <button className="btn pri" type="submit" disabled={action.busy || running || !name.trim()}>
+            Start run
+          </button>
+          {again && (
+            <>
+              <button
+                className="btn"
+                type="button"
+                disabled={action.busy}
+                onClick={() => void action.run(() => startLaunch(again))}
+              >
+                Run again
+              </button>
+              <small>A new run; this one stays in Runs to compare.</small>
+            </>
+          )}
+        </form>
+      )}
       {action.error && (
         <p className="err" role="alert">
           {action.error}
@@ -193,7 +248,7 @@ function RunLog({ run }: { run: Run }) {
             <span className="tg">{noteLabel[n.status]}</span>
           </li>
         ))}
-        {run.status === 'failed' && (
+        {(run.status === 'failed' || run.status === 'stopped') && (
           <li data-status="failed">
             <span>{run.error}</span>
             <span className="tg">Stopped</span>
@@ -201,6 +256,73 @@ function RunLog({ run }: { run: Run }) {
         )}
       </ol>
       {run.notes.length === 0 && run.status === 'running' && <p className="help">Waiting for Claude.</p>}
+    </section>
+  )
+}
+
+// Every run this session started, newest first. An earlier run opens read-only, to compare its plan
+// with the latest.
+function RunList({
+  runs,
+  viewing,
+  view
+}: {
+  runs: RunSummary[]
+  viewing: string | null
+  view: (id: string | null) => Promise<void>
+}) {
+  const { busy, error, run } = useAction()
+  const today = runs.filter((r) => Date.parse(r.startedAt) >= startOfUtcDay()).length
+  const latest = runs.at(-1)?.id
+  return (
+    <section className="mod" aria-labelledby="runs-h">
+      <div className="mh">
+        <span className="lbl" id="runs-h">
+          Runs
+        </span>
+        <span className="chip">
+          {today} of {MAX_RUNS_PER_DAY} today
+        </span>
+      </div>
+      <ol className="notes runs">
+        {runs
+          .map((r, i) => ({ ...r, n: i + 1 }))
+          .reverse()
+          .map((r) => {
+            const shown = viewing === null ? r.id === latest : r.id === viewing
+            return (
+              <li key={r.id} aria-current={shown || undefined}>
+                <span>
+                  <b>Run {r.n}</b> · {r.launch ?? 'From comps'}{' '}
+                  <span className="tg">
+                    {new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </span>
+                <span className="tg">
+                  {runLabel[r.status]}
+                  {' · '}
+                  {shown ? (
+                    'Shown'
+                  ) : (
+                    <button
+                      type="button"
+                      className="lnk"
+                      disabled={busy}
+                      aria-label={`View run ${r.n}`}
+                      onClick={() => void run(() => view(r.id === latest ? null : r.id))}
+                    >
+                      View
+                    </button>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+      </ol>
+      <p className="help">
+        Each run starts fresh; earlier ones stay here to compare. A session can start {MAX_RUNS_PER_DAY} runs a UTC day.
+      </p>
+      <Alert error={error} />
     </section>
   )
 }
@@ -314,7 +436,7 @@ function RosterTable({
 }: {
   roster: Show[]
   selected: string | null
-  select: (name: string) => void
+  select: ((name: string) => void) | null // null while an earlier run is viewed, read-only
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -322,8 +444,10 @@ function RosterTable({
   return (
     <table className="chart roster">
       <caption>
-        <Source of="qloo" /> Matches from Qloo search, one call per show. Select a show to settle or edit it, or open a
-        call for its evidence.
+        <Source of="qloo" /> Matches from Qloo search, one call per show.{' '}
+        {select
+          ? 'Select a show to settle or edit it, or open a call for its evidence.'
+          : 'Open a call for its evidence.'}
       </caption>
       <colgroup>
         <col style={{ width: '28%' }} />
@@ -360,14 +484,18 @@ function RosterTable({
             aria-busy={show.resolution === 'pending' || undefined}
           >
             <td>
-              <button
-                type="button"
-                className="row-open"
-                aria-current={show.name === selected || undefined}
-                onClick={() => select(show.name)}
-              >
-                <span className="nm">{show.name}</span>
-              </button>
+              {select ? (
+                <button
+                  type="button"
+                  className="row-open"
+                  aria-current={show.name === selected || undefined}
+                  onClick={() => select(show.name)}
+                >
+                  <span className="nm">{show.name}</span>
+                </button>
+              ) : (
+                <span className="nm row-open">{show.name}</span>
+              )}
               {show.description && (
                 <div className="tg desc" title={show.description}>
                   {show.description}
@@ -381,7 +509,7 @@ function RosterTable({
               </span>
             </td>
             <td>
-              <Match show={show} settle={() => select(show.name)} />
+              <Match show={show} settle={select && (() => select(show.name))} />
             </td>
             <td className="r">{show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}</td>
             <td>{show.status ?? '–'}</td>
@@ -411,7 +539,7 @@ function RosterTable({
 
 const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
 
-function Match({ show, settle }: { show: Show; settle: () => void }) {
+function Match({ show, settle }: { show: Show; settle: (() => void) | null }) {
   if (show.resolution === 'pending') return <span className="tg">Looking it up in Qloo…</span>
   const action = show.excluded ? null : show.resolution === 'ambiguous' ? 'Pick the match' : 'Map a comp or leave out'
   if ((show.resolution === 'resolved' || show.resolution === 'mapped') && show.entity)
@@ -421,7 +549,7 @@ function Match({ show, settle }: { show: Show; settle: () => void }) {
         {show.entity.name} <span className="pop">{percentile(show.entity.popularity)}</span>
       </span>
     )
-  const settleButton = action && (
+  const settleButton = action && settle && (
     <button type="button" className="lnk" onClick={settle}>
       {action}
     </button>
