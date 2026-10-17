@@ -7,7 +7,7 @@ import { markFinalists, scorable, type Ranking } from './fit'
 import type { QlooGateway, QlooResult } from './gateway'
 import { qlooType, readInbox, type Inbox, type Pitch } from './inbox'
 import { MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
-import { lookup, lookupWork, type Candidate, type Lookup } from './resolve'
+import { candidateLabels, lookup, lookupWork, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
 import { tools, type ToolContext, type ToolResult } from './tools'
@@ -76,10 +76,10 @@ export type Run = {
 export type Budget = { slots: number } | { dollars: number }
 
 // A question the agent put to the programmer. `choice` is a fork in the plan, answered with one of
-// its options or free text.
+// its options or free text; `launch` picks the launch's candidate or renames it.
 export type Question = {
   id: string // the ask_human call's tool use ID
-  kind: 'choice' | 'budget' | 'exclusions'
+  kind: 'choice' | 'launch' | 'budget' | 'exclusions'
   question: string
   options: string[]
 }
@@ -318,8 +318,14 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (!run || !question || question.id !== questionId)
       throw new Error('That question is no longer open: it was already answered, or its run has ended.')
     const given = typeof reply === 'object' && reply !== null ? reply : {} // it arrives as untrusted JSON
-    const { answer, stored } = settle(question, given)
+    const { answer, stored, launch } = settle(question, given, this.state.launch)
     let notice = 'Asked the programmer. Their answer follows.'
+    if (launch) {
+      this.setState({ ...this.state, launch })
+      notice += launch.match
+        ? ` Code set the launch to ${launch.match.entity!.name} (Qloo ID ${launch.match.entity!.id}), from ${launch.match.evidence}; don't resolve it again.`
+        : ` Code renamed the launch "${launch.name}"; resolve that name.`
+    }
     if (stored.exclusions && this.state.ranking) {
       const ranking = markFinalists(this.state.ranking, stored.exclusions)
       this.setState({ ...this.state, ranking })
@@ -731,13 +737,18 @@ const summary = (run: string, outcome: Run['status'], spent: Spent) => ({
   wallMs: Date.now() - spent.started_at
 })
 
-// The programmer's answer as Claude reads it, and what code stores on the run from it. Throws,
-// changing nothing, when the reply doesn't fit the question.
-function settle(question: Question, reply: Reply): { answer: string; stored: Partial<Run> } {
+// The programmer's answer as Claude reads it, what code stores on the run from it, and the launch
+// it sets. Throws, changing nothing, when the reply doesn't fit the question.
+function settle(
+  question: Question,
+  reply: Reply,
+  launch: Launch | null
+): { answer: string; stored: Partial<Run>; launch?: Launch } {
   const note = typeof reply.text === 'string' ? reply.text.trim() : ''
   const choice = reply.choice
   if (choice !== undefined && !question.options.includes(choice)) throw new Error("That isn't one of the options.")
   const withNote = (answer: string) => [answer, note].filter(Boolean).join('\n\n')
+  if (question.kind === 'launch') return settleLaunch(choice, note, launch)
   if (question.kind === 'budget') {
     const budget = readBudget(reply)
     const amount = 'slots' in budget ? `${budget.slots} promo slots` : `$${budget.dollars.toLocaleString('en-US')}`
@@ -756,6 +767,30 @@ function settle(question: Question, reply: Reply): { answer: string; stored: Par
   const answer = withNote(choice ?? '')
   if (!answer) throw new Error('Pick an option or type an answer.')
   return { answer, stored: {} }
+}
+
+// A launch pick sets the launch's match to that candidate, citing the search it came from; a name
+// renames the launch, for the agent to look up.
+function settleLaunch(
+  choice: string | undefined,
+  name: string,
+  launch: Launch | null
+): { answer: string; stored: Partial<Run>; launch: Launch } {
+  if (choice !== undefined && name) throw new Error('Pick a candidate or type a name, not both.')
+  if (choice === undefined && !name) throw new Error('Pick a candidate or type the name Qloo lists it under.')
+  if (name) return { answer: `Look it up as "${name}".`, stored: {}, launch: { name, match: null } }
+  const match = launch?.match
+  const candidates = match?.resolution === 'ambiguous' ? match.candidates : []
+  const entity = candidates[candidateLabels(candidates).indexOf(choice!)]
+  if (!match || !entity) throw new Error("The launch's candidates have changed. Start the run again.")
+  return {
+    answer: `The launch is ${choice}.`,
+    stored: {},
+    launch: {
+      ...launch!,
+      match: { resolution: 'resolved', entity, candidates: [], evidence: match.evidence, error: null }
+    }
+  }
 }
 
 function readBudget({ slots, dollars }: Reply): Budget {

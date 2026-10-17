@@ -383,7 +383,7 @@ function OpenQuestion({ question, agent }: { question: Question; agent: Session 
       <form onSubmit={submit}>
         <fieldset disabled={busy}>
           <legend className="q">{question.question}</legend>
-          {question.kind === 'choice' && question.options.length > 0 && (
+          {(question.kind === 'choice' || question.kind === 'launch') && question.options.length > 0 && (
             <div className="opts">
               {question.options.map((option) => (
                 <label key={option}>
@@ -391,7 +391,11 @@ function OpenQuestion({ question, agent }: { question: Question; agent: Session 
                     type="radio"
                     name="ask-choice"
                     checked={choice === option}
-                    onChange={() => setChoice(option)}
+                    onChange={() => {
+                      setChoice(option)
+                      // A launch is a pick or a name, never both.
+                      if (question.kind === 'launch') setText('')
+                    }}
                   />
                   <span>{option}</span>
                 </label>
@@ -446,14 +450,24 @@ function OpenQuestion({ question, agent }: { question: Question; agent: Session 
             ))}
           <label className="field">
             <span className="lbl">
-              {question.kind !== 'choice'
-                ? 'Note for the agent, optional'
-                : question.options.length > 0
-                  ? 'Or type your own answer'
-                  : 'Your answer'}
+              {question.kind === 'launch'
+                ? question.options.length > 0
+                  ? 'Or the name Qloo lists it under'
+                  : 'The name Qloo lists it under'
+                : question.kind !== 'choice'
+                  ? 'Note for the agent, optional'
+                  : question.options.length > 0
+                    ? 'Or type your own answer'
+                    : 'Your answer'}
             </span>
             <span className="in">
-              <input value={text} onChange={(e) => setText(e.target.value)} />
+              <input
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value)
+                  if (question.kind === 'launch') setChoice(undefined)
+                }}
+              />
             </span>
           </label>
           <div className="acts">

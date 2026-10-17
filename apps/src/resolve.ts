@@ -139,3 +139,13 @@ function words(name: string) {
 }
 
 const startsWith = (a: string[], prefix: string[]) => prefix.length > 0 && prefix.every((w, i) => a[i] === w)
+
+// How the programmer tells candidates apart: name and popularity percentile, plus the Qloo ID only
+// when two would otherwise read the same.
+export function candidateLabels(candidates: Candidate[]) {
+  const label = (c: Candidate) =>
+    `${c.name}, ${c.popularity === null ? 'no popularity' : `popularity ${(c.popularity * 100).toFixed(1)}`}`
+  return candidates.map((c) =>
+    candidates.filter((o) => label(o) === label(c)).length > 1 ? `${label(c)} (${c.id})` : label(c)
+  )
+}
