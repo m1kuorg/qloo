@@ -48,6 +48,7 @@ const rank = toolUse('rank_candidates', {
   type: 'urn:entity:podcast'
 })
 const askBudget = toolUse('ask_human', { question: 'What is the slot budget?', kind: 'budget', options: [] })
+const askExclusions = toolUse('ask_human', { question: 'Leave any shows out?', kind: 'exclusions', options: [] })
 const draft = (...lines: [show: string, slots: number, angle: string][]) =>
   toolUse('draft_insertion_order', { lines: lines.map(([show, slots, angle]) => ({ show, slots, angle })) })
 
@@ -68,18 +69,26 @@ const finished = (s: Session) =>
   s.until((state) => state.run !== null && state.run.status !== 'running' && state.run.status !== 'waiting')
 
 // Starts the launch the way the agent would run it: rank the roster, ask for the budget, answer it
-// with `budget`, then play `turns`, which draft the order, and end.
+// with `budget`, ask for exclusions, answer none, then play `turns`, which draft the order, and end.
 async function start(budget: Reply, turns: Script, cpm: number | null = 25) {
+  const s = await begin([turn(rank), turn(askBudget), turn(askExclusions), ...turns], cpm)
+  await s.call('answer', 'toolu_2_1', budget)
+  await s.until((state) => state.run?.question?.kind === 'exclusions')
+  await s.call('answer', 'toolu_3_1', { exclude: [] })
+  return s
+}
+
+// A session on the made-up network whose launch run plays `turns` and ends, paused on its first question.
+async function begin(turns: Script, cpm: number | null) {
   fakeQloo({ search })
   fakeInsights(fit)
-  fakeClaude([turn(rank), turn(askBudget), ...turns, turn(text('Drafted the insertion order.'))])
+  fakeClaude([...turns, turn(text('Drafted the insertion order.'))])
   const s = await openSession()
   open.push(s)
   await s.importRoster(csv, 'csv')
   if (cpm !== null) await s.call('setCpm', cpm)
   await s.call('startLaunch', { name: 'Night Shift' })
   await s.until((state) => state.run?.status === 'waiting')
-  await s.call('answer', 'toolu_2_1', budget)
   return s
 }
 
@@ -134,7 +143,23 @@ describe('the insertion order', () => {
       'Late-night regulars, like "Night Shift" fans, stay up for the call-ins.'
     )
     expect(state.run?.notes.at(-1)).toEqual({ text: 'Drafting the insertion order: 4 shows, 20 slots', status: 'done' })
-    expect(JSON.parse(resultFor('toolu_3_1').content)).toMatchObject({ order: 'IO-0001', slots: 20, total: 19076 })
+    expect(JSON.parse(resultFor('toolu_4_1').content)).toMatchObject({ order: 'IO-0001', slots: 20, total: 19076 })
+  })
+
+  it('refuses a draft until the exclusions are answered, storing nothing', async () => {
+    const s = await begin([turn(rank), turn(askBudget), turn(fourShows)], 25)
+    await s.call('answer', 'toolu_2_1', { slots: 20 })
+    const state = await finished(s)
+
+    expect(state.run?.status).toBe('completed')
+    expect(orders(s).every((order) => order === null)).toBe(true)
+    expect(resultFor('toolu_3_1')).toEqual({
+      type: 'tool_result',
+      tool_use_id: 'toolu_3_1',
+      is_error: true,
+      content:
+        "The programmer hasn't said which shows to leave out of this run yet. Ask for them with ask_human (kind exclusions), then draft the order."
+    })
   })
 
   it('rejects a draft over the count budget, storing nothing, and takes the corrected one', async () => {
@@ -149,9 +174,9 @@ describe('the insertion order', () => {
       )
     ])
 
-    expect(resultFor('toolu_3_1')).toEqual({
+    expect(resultFor('toolu_4_1')).toEqual({
       type: 'tool_result',
-      tool_use_id: 'toolu_3_1',
+      tool_use_id: 'toolu_4_1',
       is_error: true,
       content:
         'This draft uses 20 slots, over the budget of 18. Nothing was stored. Cut at least 2 slots and call draft_insertion_order again.'
@@ -164,7 +189,7 @@ describe('the insertion order', () => {
   it('rejects a draft over the dollar budget with each slot value, so the model can rebalance', async () => {
     const { state } = await plan({ dollars: 15000 }, [turn(fourShows)])
 
-    expect(resultFor('toolu_3_1')).toMatchObject({
+    expect(resultFor('toolu_4_1')).toMatchObject({
       is_error: true,
       content:
         'This draft costs $19,076, over the budget of $15,000. Nothing was stored. Slot values: Corner Booth $1,200, Slow Burn $1,000, Paper Route $650, Field Notes $438. Cut at least $4,076 and call draft_insertion_order again.'
@@ -178,7 +203,7 @@ describe('the insertion order', () => {
       turn(draft(['Corner Booth', 10, 'Regulars.'], ['Long Haul', 4, 'Drivers.']))
     ])
 
-    expect(resultFor('toolu_3_1')).toMatchObject({
+    expect(resultFor('toolu_4_1')).toMatchObject({
       is_error: true,
       content:
         '"Long Haul" isn\'t one of this run\'s finalists, which are Corner Booth, Slow Burn, Paper Route, Field Notes, Back Lot. Nothing was stored. Fix the lines and call draft_insertion_order again.'
@@ -239,7 +264,7 @@ describe('the insertion order', () => {
       total: 14400,
       complete: false
     })
-    expect(JSON.parse(resultFor('toolu_3_1').content)).toMatchObject({
+    expect(JSON.parse(resultFor('toolu_4_1').content)).toMatchObject({
       complete: false,
       next: 'Stored as a draft with an incomplete total, because Back Lot: No downloads per episode. Say which figures the programmer must add. They edit and approve the order in the UI.'
     })
