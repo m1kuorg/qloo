@@ -1,0 +1,666 @@
+{
+  "sample": true,
+  "notice": "Sample data for Crossfeed's guest pitches. Every pitch is synthetic: the senders and their firms are fictional, every address is at example.com, and no real person wrote or sent these emails. The works pitched are real public works, named with their public creators. The pitches without a public work are about fictional people. The past guests come from the show's public episode list. Crossfeed isn't affiliated with The Ringer. Each pitch's expected field is the answer key for checking extraction, not an input to it.",
+  "show": {
+    "name": "The Big Picture",
+    "network": "The Ringer",
+    "pastGuests": [
+      {
+        "guest": "Paul Thomas Anderson",
+        "episode": "'One Battle After Another' Is a Modern Masterpiece, With Leonardo DiCaprio and Paul Thomas Anderson!",
+        "published": "2025-09-26",
+        "work": {
+          "title": "One Battle After Another",
+          "type": "film",
+          "year": 2025
+        }
+      },
+      {
+        "guest": "Rian Johnson",
+        "episode": "The Movie Business Freak-Out Mailbag and 'Wake Up Dead Man: A Knives Out Mystery,' With Rian Johnson!",
+        "published": "2025-12-16",
+        "work": {
+          "title": "Wake Up Dead Man: A Knives Out Mystery",
+          "type": "film",
+          "year": 2025
+        }
+      },
+      {
+        "guest": "Josh Safdie",
+        "episode": "'Marty Supreme' Is the Moment, With Josh Safdie!",
+        "published": "2025-12-24",
+        "work": {
+          "title": "Marty Supreme",
+          "type": "film",
+          "year": 2025
+        }
+      }
+    ]
+  },
+  "pitches": [
+    {
+      "id": "pitch-01",
+      "senderName": "Maren Ostrowski",
+      "senderEmail": "maren.ostrowski@example.com",
+      "subject": "John Green's first novel for adults, Hollywood, Ending",
+      "body": "Hi Sean and Amanda,\n\nJohn Green's new novel, Hollywood, Ending, came out September 22 from Dutton. It's his first book for adults: two young actors and the cost of fame, told from both of their points of view. John is a lifelong movie lover and would enjoy talking about the films and performances behind the book, and why Hollywood keeps telling stories about itself.\n\nHe can record remotely or in studio through November. Happy to send a finished copy.\n\nBest,\nMaren Ostrowski\nLantern & Vine Publicity",
+      "expected": {
+        "guest": "John Green",
+        "work": {
+          "title": "Hollywood, Ending",
+          "type": "book",
+          "year": 2026
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-02",
+      "senderName": "Ines Calloway",
+      "senderEmail": "ines.calloway@example.com",
+      "subject": "Sean Baker on Anora",
+      "body": "Hi Big Picture team,\n\nSean Baker is doing a few long conversations looking back on Anora, from its Palme d'Or at Cannes to its Best Picture win, and on making independent films on small budgets with mostly unknown casts. He'd love to talk about Mikey Madison's performance, shooting in Brighton Beach and Las Vegas, and what the win has and hasn't changed for independent film.\n\nLet me know if a slot works in the coming weeks.\n\nThanks,\nInes Calloway\nSecond Reel Publicity",
+      "expected": {
+        "guest": "Sean Baker",
+        "work": {
+          "title": "Anora",
+          "type": "film",
+          "year": 2024
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-03",
+      "senderName": "Dolores Pruitt",
+      "senderEmail": "dolores.pruitt@example.com",
+      "subject": "Forty years in the projection booth",
+      "body": "Dear Sean and Amanda,\n\nI've listened since the early episodes. I ran the booth at a single-screen theater in Ohio for forty years, from changeover reels to the digital switch, and I have a story about every print that ever melted on me. I don't have a book or anything else to promote. I just think your listeners would enjoy hearing what the job was really like.\n\nWarmly,\nDolores Pruitt",
+      "expected": {
+        "guest": "Dolores Pruitt",
+        "work": null,
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-04",
+      "senderName": "Tobias Wrenfield",
+      "senderEmail": "tobias.wrenfield@example.com",
+      "subject": "Cockpit communication, and why copilots don't speak up",
+      "body": "Hello,\n\nCommercial aviation is one of the safest systems people have built, yet investigators keep finding the same failure: a first officer who sees a problem and doesn't say so forcefully enough to the captain. Nathan Fielder spent the second season of The Rehearsal on exactly this question, rehearsing hard conversations between pilots.\n\nNathan would be glad to discuss crew resource management, deference to authority, and what he learned from working pilots. Would this fit an upcoming episode?\n\nBest,\nTobias Wrenfield\nNorthlight Media Relations",
+      "expected": {
+        "guest": "Nathan Fielder",
+        "work": {
+          "title": "The Rehearsal",
+          "type": "tv_show",
+          "year": 2022
+        },
+        "offTopicWording": true
+      }
+    },
+    {
+      "id": "pitch-05",
+      "senderName": "Lucille Ferrante",
+      "senderEmail": "lucille.ferrante@example.com",
+      "subject": "Quentin Tarantino's Cinema Speculation",
+      "body": "Hi Sean,\n\nQuentin Tarantino's Cinema Speculation, his book on the movies he saw as a kid in 1970s Los Angeles, keeps finding new readers. Quentin would love to come back and go deep on the films in it, from Bullitt to Taxi Driver, and argue about which of them hold up.\n\nLet me know if you'd like to set something up.\n\nAll best,\nLucille Ferrante\nMarquee Lane PR",
+      "expected": {
+        "guest": "Quentin Tarantino",
+        "work": {
+          "title": "Cinema Speculation",
+          "type": "book",
+          "year": 2022
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-06",
+      "senderName": "Dev Kapoor-Haines",
+      "senderEmail": "dev.kapoor-haines@example.com",
+      "subject": "Coralie Fargeat on The Substance",
+      "body": "Hi Sean and Amanda,\n\nCoralie Fargeat's The Substance, with Demi Moore and Margaret Qualley, became the body horror movie everyone argued about. Coralie would love a spoiler-friendly conversation about the practical effects, writing a satire of beauty standards that's also a monster movie, and Demi's late-career turn.\n\nShe's free most weeks this month.\n\nCheers,\nDev Kapoor-Haines\nCutaway Communications",
+      "expected": {
+        "guest": "Coralie Fargeat",
+        "work": {
+          "title": "The Substance",
+          "type": "film",
+          "year": 2024
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-07",
+      "senderName": "Hattie Quarles",
+      "senderEmail": "hattie.quarles@example.com",
+      "subject": "Rebecca Yarros: Onyx Storm and the Empyrean series",
+      "body": "Hello Big Picture team,\n\nRebecca Yarros's Onyx Storm, the third Empyrean novel after Fourth Wing and Iron Flame, has been a phenomenon with readers. Rebecca would love to talk with your listeners about dragons, war college, and the fans who made the series what it is.\n\nPlease let me know if you have interest.\n\nWarm regards,\nHattie Quarles\nQuarles Literary Publicity",
+      "expected": {
+        "guest": "Rebecca Yarros",
+        "work": {
+          "title": "Onyx Storm",
+          "type": "book",
+          "year": 2025
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-08",
+      "senderName": "Carys Delahunt",
+      "senderEmail": "carys.delahunt@example.com",
+      "subject": "Karina Longworth and You Must Remember This",
+      "body": "Hi Sean and Amanda,\n\nKarina Longworth has spent more than a decade on You Must Remember This, her podcast about the secret and forgotten history of Hollywood's first century. She'd love to trade notes with you on old Hollywood, the stars and scandals her seasons have covered, and what it takes to keep a narrative history show going this long.\n\nThanks for considering,\nCarys Delahunt\nLantern & Vine Publicity",
+      "expected": {
+        "guest": "Karina Longworth",
+        "work": {
+          "title": "You Must Remember This",
+          "type": "podcast",
+          "year": 2014
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-09",
+      "senderName": "Felix Oyelaran",
+      "senderEmail": "felix.oyelaran@example.com",
+      "subject": "Guillermo del Toro: Frankenstein",
+      "body": "Hello,\n\nGuillermo del Toro wanted to make Frankenstein for most of his life, and his version, with Oscar Isaac as Victor and Jacob Elordi as the Creature, is now on Netflix. Guillermo would love to talk about designing the Creature, building the sets, and what Mary Shelley still has to say.\n\nWe can work around your recording schedule.\n\nBest,\nFelix Oyelaran\nMarquee Lane PR",
+      "expected": {
+        "guest": "Guillermo del Toro",
+        "work": {
+          "title": "Frankenstein",
+          "type": "film",
+          "year": 2025
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-10",
+      "senderName": "Otto Brandvold",
+      "senderEmail": "otto.brandvold@example.com",
+      "subject": "Who controls Los Angeles's water?",
+      "body": "Hi there,\n\nEvery drought revives the same fight over who gets California's water and who profits from moving it. Sam Wasson's The Big Goodbye follows the people who turned that fight into the best-known story Los Angeles tells about itself, and what it cost them. Sam would be a great guest on water rights, land grabs, power, and how a city mythologizes where its water comes from.\n\nLooking forward to hearing from you,\nOtto Brandvold\nCutaway Communications",
+      "expected": {
+        "guest": "Sam Wasson",
+        "work": {
+          "title": "The Big Goodbye",
+          "type": "book",
+          "year": 2020
+        },
+        "offTopicWording": true
+      }
+    },
+    {
+      "id": "pitch-11",
+      "senderName": "Wren Takahashi-Moore",
+      "senderEmail": "wren.takahashi-moore@example.com",
+      "subject": "Managing creative people when the numbers don't add up",
+      "body": "Hi Sean and Amanda,\n\nEvery manager eventually has to tell a talented person no. The Studio, which Seth Rogen co-created with Evan Goldberg, follows a newly promoted boss trying to keep his own bosses, his team, and the people he admires happy at once, and mostly failing. Seth and Evan would love to talk about leadership, people-pleasing, and life as the person stuck in the middle of a big organization.\n\nBest regards,\nWren Takahashi-Moore\nSecond Reel Publicity",
+      "expected": {
+        "guest": "Seth Rogen and Evan Goldberg",
+        "work": {
+          "title": "The Studio",
+          "type": "tv_show",
+          "year": 2025
+        },
+        "offTopicWording": true
+      }
+    },
+    {
+      "id": "pitch-12",
+      "senderName": "Juno Vasquez-Albright",
+      "senderEmail": "juno.vasquez-albright@example.com",
+      "subject": "Is binge-watching rewiring our brains?",
+      "body": "Hi Big Picture team,\n\nMy client Marcus Thelwell is a certified wellness coach who helps families build healthier screen habits. He doesn't have a book or show out yet, but he speaks often about attention spans, autoplay, and how to make movie night intentional again. I think he'd bring a fresh, practical angle for your listeners.\n\nBest,\nJuno Vasquez-Albright\nNorthlight Media Relations",
+      "expected": {
+        "guest": "Marcus Thelwell",
+        "work": null,
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-13",
+      "senderName": "Rafferty Moon",
+      "senderEmail": "rafferty.moon@example.com",
+      "subject": "Edward Berger on Conclave",
+      "body": "Hi Sean and Amanda,\n\nEdward Berger's Conclave, with Ralph Fiennes, Stanley Tucci, and Isabella Rossellini, turned a papal election into one of the most rewatched thrillers of recent years. Edward would welcome a long conversation about adapting Robert Harris's novel, building the Sistine Chapel sets, and making a talky movie play like a heist.\n\nLet me know what works.\n\nRafferty Moon\nFennimore & Hale",
+      "expected": {
+        "guest": "Edward Berger",
+        "work": {
+          "title": "Conclave",
+          "type": "film",
+          "year": 2024
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-14",
+      "senderName": "Lucille Ferrante",
+      "senderEmail": "lucille.ferrante@example.com",
+      "subject": "Michael Douglas: One Helluva Ride",
+      "body": "Hello Sean and Amanda,\n\nMichael Douglas's memoir, One Helluva Ride, is out now from Grand Central. It covers his whole career, from producing One Flew Over the Cuckoo's Nest to Wall Street, Basic Instinct, and Behind the Candelabra, and growing up as Kirk Douglas's son. Michael would love to talk about the movies, the deals behind them, and the era of the adult star vehicle.\n\nBest,\nLucille Ferrante\nMarquee Lane PR",
+      "expected": {
+        "guest": "Michael Douglas",
+        "work": {
+          "title": "One Helluva Ride",
+          "type": "book",
+          "year": 2026
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-15",
+      "senderName": "Bram Teodoro",
+      "senderEmail": "bram.teodoro@example.com",
+      "subject": "Noah Wyle on The Pitt",
+      "body": "Hi Big Picture team,\n\nThe Pitt is the rare hospital drama that streaming audiences watch week to week: one shift per season, one hour per episode. Noah Wyle, who stars and produces, would love to talk about making a season in real time, going back to an emergency room set after ER, and why procedurals feel prestige again.\n\nBest,\nBram Teodoro\nLong Lens PR",
+      "expected": {
+        "guest": "Noah Wyle",
+        "work": {
+          "title": "The Pitt",
+          "type": "tv_show",
+          "year": 2025
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-16",
+      "senderName": "Nadia Szabo-Kerr",
+      "senderEmail": "nadia.szabo-kerr@example.com",
+      "subject": "Italian home cooking and eating with the seasons",
+      "body": "Hi Sean and Amanda,\n\nEveryone wants to cook more simply and eat with the seasons, and few people write about it with as much warmth as Stanley Tucci. His book Taste: My Life Through Food moves from his family's kitchen in Westchester to the tables of Italy, with recipes, negronis, and the meals that marked each stage of his life. Stanley would be glad to talk about home cooking, Italian food traditions, and how a good meal holds a family together.\n\nWarmly,\nNadia Szabo-Kerr\nBrightwater Publicity",
+      "expected": {
+        "guest": "Stanley Tucci",
+        "work": {
+          "title": "Taste: My Life Through Food",
+          "type": "book",
+          "year": 2021
+        },
+        "offTopicWording": true
+      }
+    },
+    {
+      "id": "pitch-17",
+      "senderName": "Dev Kapoor-Haines",
+      "senderEmail": "dev.kapoor-haines@example.com",
+      "subject": "Chloé Zhao on Hamnet",
+      "body": "Hi Sean and Amanda,\n\nChloé Zhao's Hamnet, her adaptation of Maggie O'Farrell's novel with Jessie Buckley and Paul Mescal, has moved audiences everywhere it's played. Chloé would love to talk about writing the script with Maggie, staging the final sequence at the Globe, and returning to intimate filmmaking after Eternals.\n\nThanks so much,\nDev Kapoor-Haines\nCutaway Communications",
+      "expected": {
+        "guest": "Chloé Zhao",
+        "work": {
+          "title": "Hamnet",
+          "type": "film",
+          "year": 2025
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-18",
+      "senderName": "Juno Vasquez-Albright",
+      "senderEmail": "juno.vasquez-albright@example.com",
+      "subject": "Ashley Flowers, host of Crime Junkie",
+      "body": "Hello,\n\nAshley Flowers has hosted Crime Junkie, one of the most listened-to podcasts in the country, since 2017. She'd love to talk about how true crime storytelling has changed, the responsibility of covering real cases, and building her own podcast company from scratch.\n\nLet me know if you're interested.\n\nJuno Vasquez-Albright\nNorthlight Media Relations",
+      "expected": {
+        "guest": "Ashley Flowers",
+        "work": {
+          "title": "Crime Junkie",
+          "type": "podcast",
+          "year": 2017
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-19",
+      "senderName": "Rafferty Moon",
+      "senderEmail": "rafferty.moon@example.com",
+      "subject": "Al Pacino's Sonny Boy",
+      "body": "Hi Sean,\n\nAl Pacino's memoir, Sonny Boy, tells his story from the South Bronx to The Godfather, Dog Day Afternoon, Scarface, and Heat. Al would love to talk about the roles, the directors who shaped him, and the movies he almost didn't make.\n\nThanks,\nRafferty Moon\nFennimore & Hale",
+      "expected": {
+        "guest": "Al Pacino",
+        "work": {
+          "title": "Sonny Boy",
+          "type": "book",
+          "year": 2024
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-20",
+      "senderName": "Bram Teodoro",
+      "senderEmail": "bram.teodoro@example.com",
+      "subject": "Robert Eggers on Nosferatu",
+      "body": "Hey Sean and Amanda,\n\nRobert Eggers spent years trying to make Nosferatu, and his version, with Lily-Rose Depp, Bill Skarsgård, and Nicholas Hoult, is a full gothic nightmare. Robert would love to come on and talk about the practical effects, the research behind the period detail, and why he keeps returning to folklore.\n\nCheers,\nBram Teodoro\nLong Lens PR",
+      "expected": {
+        "guest": "Robert Eggers",
+        "work": {
+          "title": "Nosferatu",
+          "type": "film",
+          "year": 2024
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-21",
+      "senderName": "Teddy Okafor-Lind",
+      "senderEmail": "teddy.okafor-lind@example.com",
+      "subject": "A theory about why every sequel is a legacy sequel now",
+      "body": "Hi Sean and Amanda,\n\nI'm a second-year film studies student, and I've been building a spreadsheet of every studio sequel since 2000, tracking how many bring back an original star. I think I've found the pattern behind the legacy-sequel boom and I'd love to walk you through it. I don't have anything published yet. Thanks for reading this far!\n\nTeddy Okafor-Lind",
+      "expected": {
+        "guest": "Teddy Okafor-Lind",
+        "work": null,
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-22",
+      "senderName": "Wren Takahashi-Moore",
+      "senderEmail": "wren.takahashi-moore@example.com",
+      "subject": "Vince Gilligan on Pluribus",
+      "body": "Hello Big Picture team,\n\nVince Gilligan's Pluribus, starring Rhea Seehorn, is his first new world since Breaking Bad and Better Call Saul. Vince would love to talk about building an original science fiction series, working with Rhea again, and how he thinks about television versus film.\n\nAll best,\nWren Takahashi-Moore\nSecond Reel Publicity",
+      "expected": {
+        "guest": "Vince Gilligan",
+        "work": {
+          "title": "Pluribus",
+          "type": "tv_show",
+          "year": 2025
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-23",
+      "senderName": "Carys Delahunt",
+      "senderEmail": "carys.delahunt@example.com",
+      "subject": "Mark Seal on the making of The Godfather",
+      "body": "Hello,\n\nMark Seal's Leave the Gun, Take the Cannoli is the full story of how The Godfather got made: the fights with Paramount, the casting battles over Pacino and Brando, and the pressure from the mob. Mark would be a lively guest for anyone who loves the movie, and he has plenty of stories that didn't fit in the book.\n\nWith thanks,\nCarys Delahunt\nLantern & Vine Publicity",
+      "expected": {
+        "guest": "Mark Seal",
+        "work": {
+          "title": "Leave the Gun, Take the Cannoli",
+          "type": "book",
+          "year": 2021
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-24",
+      "senderName": "Otto Brandvold",
+      "senderEmail": "otto.brandvold@example.com",
+      "subject": "Maggie Gyllenhaal: The Bride!",
+      "body": "Hi Sean and Amanda,\n\nMaggie Gyllenhaal's The Bride!, with Jessie Buckley and Christian Bale, is one of the boldest studio swings of the year. Maggie would love to talk about reimagining the Bride of Frankenstein, making a big, strange movie inside the studio system, and the reactions it has provoked.\n\nBest,\nOtto Brandvold\nCutaway Communications",
+      "expected": {
+        "guest": "Maggie Gyllenhaal",
+        "work": {
+          "title": "The Bride!",
+          "type": "film",
+          "year": 2026
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-25",
+      "senderName": "Hattie Quarles",
+      "senderEmail": "hattie.quarles@example.com",
+      "subject": "Dustin Hoffman's memoir, Look at Me, this fall",
+      "body": "Hi Sean and Amanda,\n\nDustin Hoffman's memoir, Look at Me, written with Ariel Levy, publishes this fall from Simon & Schuster. It's an intimate book about art, ambition, family, and aging, from The Graduate to Tootsie to Rain Man. Dustin would love to come on around publication to talk about the films and the people who made them with him.\n\nWarm regards,\nHattie Quarles\nQuarles Literary Publicity",
+      "expected": {
+        "guest": "Dustin Hoffman",
+        "work": {
+          "title": "Look at Me",
+          "type": "book",
+          "year": 2026
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-26",
+      "senderName": "Tobias Wrenfield",
+      "senderEmail": "tobias.wrenfield@example.com",
+      "subject": "John August and Craig Mazin of Scriptnotes",
+      "body": "Hello,\n\nJohn August and Craig Mazin have hosted Scriptnotes, their podcast about screenwriting and things that are interesting to screenwriters, for more than a decade. They'd love to talk about the state of the business, what writers are seeing in the rooms right now, and the scripts they wish got made.\n\nBest,\nTobias Wrenfield\nNorthlight Media Relations",
+      "expected": {
+        "guest": "John August and Craig Mazin",
+        "work": {
+          "title": "Scriptnotes",
+          "type": "podcast",
+          "year": 2011
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-27",
+      "senderName": "Nadia Szabo-Kerr",
+      "senderEmail": "nadia.szabo-kerr@example.com",
+      "subject": "Mel Robbins: The Let Them Theory",
+      "body": "Hi Big Picture team,\n\nMel Robbins's The Let Them Theory has been one of the biggest self-help books of the last two years. Mel would love to talk with your listeners about letting go of what other people think, protecting your energy, and the two words that changed how millions of readers handle stress.\n\nWarmly,\nNadia Szabo-Kerr\nBrightwater Publicity",
+      "expected": {
+        "guest": "Mel Robbins",
+        "work": {
+          "title": "The Let Them Theory",
+          "type": "book",
+          "year": 2024
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-28",
+      "senderName": "Ines Calloway",
+      "senderEmail": "ines.calloway@example.com",
+      "subject": "Luca Guadagnino on Challengers",
+      "body": "Hi Sean and Amanda,\n\nLuca Guadagnino's Challengers, with Zendaya, Josh O'Connor, and Mike Faist, turned a tennis match into the sweatiest love triangle in years. Luca would love to talk about shooting tennis from impossible angles, the Trent Reznor and Atticus Ross score, and working from Justin Kuritzkes's script.\n\nThanks,\nInes Calloway\nSecond Reel Publicity",
+      "expected": {
+        "guest": "Luca Guadagnino",
+        "work": {
+          "title": "Challengers",
+          "type": "film",
+          "year": 2024
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-29",
+      "senderName": "Juno Vasquez-Albright",
+      "senderEmail": "juno.vasquez-albright@example.com",
+      "subject": "Love Is Blind creator Chris Coelen",
+      "body": "Hello,\n\nChris Coelen created Love Is Blind, Netflix's dating experiment in which couples get engaged before they ever see each other. He'd love to talk about the psychology of connection, casting, and what reality TV teaches us about modern relationships.\n\nBest,\nJuno Vasquez-Albright\nNorthlight Media Relations",
+      "expected": {
+        "guest": "Chris Coelen",
+        "work": {
+          "title": "Love Is Blind",
+          "type": "tv_show",
+          "year": 2020
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-30",
+      "senderName": "Felix Oyelaran",
+      "senderEmail": "felix.oyelaran@example.com",
+      "subject": "Alejandro G. Iñárritu on Digger",
+      "body": "Hello Sean and Amanda,\n\nAlejandro G. Iñárritu's Digger, starring Tom Cruise, has divided critics and audiences in the most interesting way. Alejandro would welcome a frank conversation about working with Tom, the film's reception, and making a star vehicle after Bardo.\n\nBest,\nFelix Oyelaran\nMarquee Lane PR",
+      "expected": {
+        "guest": "Alejandro G. Iñárritu",
+        "work": {
+          "title": "Digger",
+          "type": "film",
+          "year": 2026
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-31",
+      "senderName": "Otto Brandvold",
+      "senderEmail": "otto.brandvold@example.com",
+      "subject": "Making real science exciting for teenagers",
+      "body": "Hi there,\n\nAndy Weir's novel Project Hail Mary is built on real problem solving: a lone astronaut working out physics, chemistry, and biology from first principles to stay alive. Andy, a former software engineer, would love to talk about scientific accuracy in fiction, how he researches, and why problem solving makes such good storytelling for curious students.\n\nThanks for considering,\nOtto Brandvold\nCutaway Communications",
+      "expected": {
+        "guest": "Andy Weir",
+        "work": {
+          "title": "Project Hail Mary",
+          "type": "book",
+          "year": 2021
+        },
+        "offTopicWording": true
+      }
+    },
+    {
+      "id": "pitch-32",
+      "senderName": "Carys Delahunt",
+      "senderEmail": "carys.delahunt@example.com",
+      "subject": "Matthew McConaughey's Greenlights",
+      "body": "Hi Sean and Amanda,\n\nMatthew McConaughey's Greenlights, built from decades of his diaries, is part memoir and part philosophy, from Dazed and Confused to Dallas Buyers Club and True Detective. Matthew would love to talk about the roles he turned down, the ones he fought for, and the stretch fans call the McConaissance.\n\nBest,\nCarys Delahunt\nLantern & Vine Publicity",
+      "expected": {
+        "guest": "Matthew McConaughey",
+        "work": {
+          "title": "Greenlights",
+          "type": "book",
+          "year": 2020
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-33",
+      "senderName": "Dev Kapoor-Haines",
+      "senderEmail": "dev.kapoor-haines@example.com",
+      "subject": "The creators of Hacks",
+      "body": "Hi Big Picture team,\n\nLucia Aniello, Paul W. Downs, and Jen Statsky created Hacks, the comedy about a Las Vegas stand-up legend, played by Jean Smart, and the young writer she can't stand. They'd love to talk about writing jokes for a comic who's supposed to be great, working with Jean, and why stories about show business keep finding an audience.\n\nCheers,\nDev Kapoor-Haines\nCutaway Communications",
+      "expected": {
+        "guest": "Lucia Aniello, Paul W. Downs, and Jen Statsky",
+        "work": {
+          "title": "Hacks",
+          "type": "tv_show",
+          "year": 2021
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-34",
+      "senderName": "Bram Teodoro",
+      "senderEmail": "bram.teodoro@example.com",
+      "subject": "Jason and Travis Kelce of New Heights",
+      "body": "Hey team,\n\nJason and Travis Kelce's New Heights is one of the biggest sports podcasts around, and the brothers would be up for a fun crossover. They'd happily rank their all-time favorite sports movies with you.\n\nLet me know!\nBram Teodoro\nLong Lens PR",
+      "expected": {
+        "guest": "Jason and Travis Kelce",
+        "work": {
+          "title": "New Heights",
+          "type": "podcast",
+          "year": 2022
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-35",
+      "senderName": "Maren Ostrowski",
+      "senderEmail": "maren.ostrowski@example.com",
+      "subject": "Gabrielle Zevin's Tomorrow, and Tomorrow, and Tomorrow",
+      "body": "Dear Sean and Amanda,\n\nGabrielle Zevin's Tomorrow, and Tomorrow, and Tomorrow follows two friends who design video games together over thirty years. Gabrielle would be delighted to talk about creative partnerships, how games tell stories, and writing about people who make art for a living.\n\nKind regards,\nMaren Ostrowski\nLantern & Vine Publicity",
+      "expected": {
+        "guest": "Gabrielle Zevin",
+        "work": {
+          "title": "Tomorrow, and Tomorrow, and Tomorrow",
+          "type": "book",
+          "year": 2022
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-36",
+      "senderName": "Tobias Wrenfield",
+      "senderEmail": "tobias.wrenfield@example.com",
+      "subject": "Bong Joon Ho on Mickey 17",
+      "body": "Hi Sean and Amanda,\n\nBong Joon Ho's Mickey 17, with Robert Pattinson as an expendable worker who keeps getting reprinted, was his first film since Parasite. Bong would love to talk about adapting Edward Ashton's novel, Robert's double performance, and making a strange, funny science fiction movie at studio scale.\n\nBest,\nTobias Wrenfield\nNorthlight Media Relations",
+      "expected": {
+        "guest": "Bong Joon Ho",
+        "work": {
+          "title": "Mickey 17",
+          "type": "film",
+          "year": 2025
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-37",
+      "senderName": "Jun Halvorsen",
+      "senderEmail": "jun.halvorsen@example.com",
+      "subject": "The future of movie theater concessions",
+      "body": "Hi Sean and Amanda,\n\nI'm the founder of a concessions startup, still in stealth, that's working with independent theaters on better popcorn and shorter lines. We haven't launched anything publicly, but I'd love to talk about why theaters make their money at the snack bar and what that means for the movies they book.\n\nThanks,\nJun Halvorsen",
+      "expected": {
+        "guest": "Jun Halvorsen",
+        "work": null,
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-38",
+      "senderName": "Nadia Szabo-Kerr",
+      "senderEmail": "nadia.szabo-kerr@example.com",
+      "subject": "Taylor Jenkins Reid's Atmosphere",
+      "body": "Hi Big Picture team,\n\nTaylor Jenkins Reid's Atmosphere is a love story set in NASA's space shuttle program in the 1980s, following novels of hers that have headed to the screen, from Daisy Jones & the Six to The Seven Husbands of Evelyn Hugo. Taylor would love to talk about writing books that read like movies and what she's learned watching them get adapted.\n\nWarmly,\nNadia Szabo-Kerr\nBrightwater Publicity",
+      "expected": {
+        "guest": "Taylor Jenkins Reid",
+        "work": {
+          "title": "Atmosphere",
+          "type": "book",
+          "year": 2025
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-39",
+      "senderName": "Hattie Quarles",
+      "senderEmail": "hattie.quarles@example.com",
+      "subject": "R.F. Kuang's Katabasis",
+      "body": "Hello,\n\nR.F. Kuang, the author of Babel and Yellowface, returns with Katabasis, a dark academic fantasy about two graduate students who travel into Hell to rescue their adviser. She'd love to talk about academia, ambition, and myth.\n\nBest,\nHattie Quarles\nQuarles Literary Publicity",
+      "expected": {
+        "guest": "R.F. Kuang",
+        "work": {
+          "title": "Katabasis",
+          "type": "book",
+          "year": 2025
+        },
+        "offTopicWording": false
+      }
+    },
+    {
+      "id": "pitch-40",
+      "senderName": "Wren Takahashi-Moore",
+      "senderEmail": "wren.takahashi-moore@example.com",
+      "subject": "Brady Corbet on The Brutalist",
+      "body": "Hi Sean and Amanda,\n\nBrady Corbet's The Brutalist, with Adrien Brody as a Hungarian architect who survives the war and rebuilds his life in Pennsylvania, is an epic made on an independent budget, intermission included. Brady would love to talk about shooting in VistaVision, writing the script with Mona Fastvold, and how a three-and-a-half-hour film found its audience.\n\nAll best,\nWren Takahashi-Moore\nSecond Reel Publicity",
+      "expected": {
+        "guest": "Brady Corbet",
+        "work": {
+          "title": "The Brutalist",
+          "type": "film",
+          "year": 2024
+        },
+        "offTopicWording": false
+      }
+    }
+  ]
+}
