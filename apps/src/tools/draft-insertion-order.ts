@@ -1,4 +1,5 @@
 import type { Tool } from '.'
+import { finalistsOf } from '../fit'
 import { dollars, lineProblem, priceLines, type InsertionOrder, type LineInput } from '../order'
 
 type Input = { lines: LineInput[] }
@@ -42,19 +43,27 @@ export const draftInsertionOrder: Tool<Input> = {
     `Drafting the insertion order: ${lines.length} shows, ${lines.reduce((n, l) => n + l.slots, 0)} slots`,
   async run({ lines }, { run, state, update }) {
     const now = state()
-    const finalists = now.ranking?.rows.filter((r) => r.finalist).map((r) => r.show) ?? []
+    const finalists = finalistsOf(now.ranking).map((r) => r.show)
     if (finalists.length === 0)
       return {
         isError: true,
         content:
           'There are no finalists yet. Rank the roster with rank_candidates first, then draft the order for its finalists.'
       }
-    const budget = now.run?.id === run ? now.run.budget : null
+    const current = now.run?.id === run ? now.run : null
+    const budget = current?.budget
     if (!budget)
       return {
         isError: true,
         content:
           "The programmer hasn't given this run's slot budget yet. Ask for it with ask_human (kind budget), then draft the order."
+      }
+    // The plan is drawn after the exclusions (PRD story 19), so no draft holds a show they leave out.
+    if (!current.exclusions)
+      return {
+        isError: true,
+        content:
+          "The programmer hasn't said which shows to leave out of this run yet. Ask for them with ask_human (kind exclusions), then draft the order."
       }
     const problem = lineProblem(lines, finalists)
     if (problem)

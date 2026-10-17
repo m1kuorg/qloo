@@ -1,6 +1,6 @@
 import type { Tool, ToolContext, ToolResult } from '.'
 import type { State } from '../agent'
-import type { SharedTags } from '../fit'
+import { finalistsOf, type SharedTags } from '../fit'
 import type { SharedTag } from '../gateway'
 import type { Booking } from '../inbox'
 
@@ -15,8 +15,6 @@ const TOP_TAGS = 5
 // A finalist's tags as words: generic ones dropped, and a name Qloo lists under two subtypes once.
 const words = (tags: SharedTag[]) =>
   [...new Set(tags.map((t) => t.name))].filter((name) => !STOPLIST.includes(name.toLowerCase())).slice(0, TOP_TAGS)
-
-const finalists = (state: State) => state.ranking?.rows.filter((r) => r.finalist) ?? []
 
 // A guest pitch run's top pitches: the top band of each type's list, the works an episode angle is
 // proposed for.
@@ -91,7 +89,7 @@ export const sharedTags: Tool<Input> = {
     if (isPitchRun(state))
       return `Finding the tags ${topPitches(booking!).length} top pitches share with ${booking!.show.name}`
     return ranking
-      ? `Finding the tags ${ranking.rows.filter((r) => r.finalist).length} finalists share with ${ranking.anchors.map((a) => a.name).join(', ')}`
+      ? `Finding the tags ${finalistsOf(ranking).length} finalists share with ${ranking.anchors.map((a) => a.name).join(', ')}`
       : 'Finding shared tags'
   },
   async run(input, context) {
@@ -116,7 +114,7 @@ export const sharedTags: Tool<Input> = {
         isError: true,
         content: `The anchors must be the ones the ranking ${ranking.call} used: ${anchors.join(', ')}. Call again with those as anchor_ids.`
       }
-    const rows = finalists(state())
+    const rows = finalistsOf(state().ranking)
     const ids = [...new Set(rows.map((r) => r.entity.id))]
     const unknown = candidate_ids.filter((id) => !ids.includes(id))
     if (unknown.length > 0)

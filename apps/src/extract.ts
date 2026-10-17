@@ -1,7 +1,8 @@
 // The pitch reader: one structured-output call per pitch turns its text into the guest and the
 // public work it's about. The pitch goes to Anthropic; nothing here talks to Qloo.
-import { structured } from './claude'
+import { declined, structured } from './claude'
 import { workTypes, type Pitch, type Work } from './inbox'
+import { personalIn } from './resolve'
 
 const instructions = `You read guest pitches sent to a podcast's booker. From one pitch, extract the guest and the public work the pitch is about.
 
@@ -57,13 +58,7 @@ export function pitchReader(env: Env) {
       return failed('failed', `The request to Claude failed: ${e instanceof Error ? e.message : String(e)}`)
     }
     // A refused reply may not follow the schema, so the stop reason is checked before the text.
-    if (reply.stop_reason === 'refusal') {
-      const category = reply.stop_details?.type === 'refusal' ? reply.stop_details.category : null
-      return failed(
-        'unreadable',
-        `Claude declined to read this pitch${category ? ` (safety category: ${category})` : ''}.`
-      )
-    }
+    if (reply.stop_reason === 'refusal') return failed('unreadable', `${declined(reply, 'read this pitch')}.`)
     if (reply.stop_reason !== 'end_turn') return failed('failed', `Claude stopped early (${reply.stop_reason}).`)
     let answer: { guest: string; work: Work | null }
     try {
@@ -75,9 +70,11 @@ export function pitchReader(env: Env) {
     if (!answer.work) return { status: 'no_work', guest, work: null, error: null }
     const title = answer.work.title.trim()
     if (!title) return failed('failed', 'Claude named a work type but no title.')
-    // Only a title reaches Qloo, so one holding an address is never sent.
-    if (/\S+@\S+\.\S+/.test(title))
+    const personal = personalIn(title, [guest, pitch.from])
+    if (personal === 'email')
       return failed('unreadable', "The work's title holds an email address, so it isn't sent to Qloo.")
+    if (personal === 'name')
+      return failed('unreadable', "The work's title holds the guest's or sender's name, so it isn't sent to Qloo.")
     return { status: 'read', guest, work: { ...answer.work, title }, error: null }
   }
 }

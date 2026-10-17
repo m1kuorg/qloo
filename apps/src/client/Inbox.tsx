@@ -1,7 +1,18 @@
 import { useState, type ReactNode } from 'react'
 import type { Show, SlowCall } from '../agent'
 import type { PitchList, SharedTags } from '../fit'
-import type { Booking, Inbox, InboxSource, PastGuest, Pitch, PitchReply, Verdict, WorkType } from '../inbox'
+import {
+  workTypes,
+  type Booking,
+  type Inbox,
+  type InboxSource,
+  type PastGuest,
+  type Pitch,
+  type PitchReply,
+  type Verdict,
+  type WorkType
+} from '../inbox'
+import { MAX_PAST_GUESTS } from '../limits'
 import { sameName } from '../resolve'
 import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
@@ -170,13 +181,8 @@ export const typeLabel: Record<WorkType, string> = {
   podcast: 'Podcast'
 }
 
-// The types in their usual order, kept here so the page doesn't load inbox.ts and its sample data.
-const workTypes = Object.keys(typeLabel) as WorkType[]
-
 // One past guest as the booker types them: the year stays text until the run starts.
 type GuestRow = { guest: string; title: string; type: WorkType; year: string }
-
-const MAX_PAST_GUESTS = 5
 
 const rowsOf = (guests: Omit<PastGuest, 'match'>[]): GuestRow[] =>
   guests.map(({ guest, work }) => ({ guest, title: work.title, type: work.type, year: work.year?.toString() ?? '' }))

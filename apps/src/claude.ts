@@ -34,6 +34,13 @@ export function claude(env: Env) {
       .finalMessage()
 }
 
+// What Claude declined to do, such as "read this pitch", with the safety category when the reply
+// gives one. A refusal has no server-side fallback on this model, so the caller shows it.
+export function declined(reply: Anthropic.Message, what: string) {
+  const category = reply.stop_details?.type === 'refusal' ? reply.stop_details.category : null
+  return `Claude declined to ${what}${category ? ` (safety category: ${category})` : ''}`
+}
+
 // A single call beside the agent loop, such as reading a pitch: low effort, and a reply that
 // follows `schema` (TRD other model calls). The caller checks `stop_reason` before parsing.
 export function structured(env: Env, instructions: string, schema: Record<string, unknown>) {

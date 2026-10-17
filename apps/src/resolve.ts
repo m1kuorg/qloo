@@ -60,7 +60,7 @@ export function resolveWork(
   let pool: WorkCandidate[]
   if (own.length > 0) {
     const edition = year === null ? [] : own.filter((c) => fitsYear(c.disambiguation, year, 1))
-    pool = ranked(edition.length > 0 ? edition : own)
+    pool = withPopularity(edition.length > 0 ? edition : own)
   } else {
     const open = type === 'book' ? named.filter((c) => !author(c.disambiguation)) : named
     pool = year === null ? open : byYear(open, year)
@@ -73,11 +73,11 @@ export function resolveWork(
 function byYear(named: WorkCandidate[], year: number) {
   const near = (slack: number) => named.filter((c) => fitsYear(c.disambiguation, year, slack))
   const dated = [near(0), near(1)].find((p) => p.length > 0)
-  return dated ? ranked(dated) : named.filter((c) => years(c.disambiguation).length === 0)
+  return dated ? withPopularity(dated) : named.filter((c) => years(c.disambiguation).length === 0)
 }
 
 // The results that have popularity, if any do.
-function ranked(pool: WorkCandidate[]) {
+function withPopularity(pool: WorkCandidate[]) {
   const scored = pool.filter((c) => c.popularity !== null)
   return scored.length > 0 ? scored : pool
 }
@@ -108,8 +108,22 @@ function hostedBy(found: string, title: string, guest: string) {
   return surnames(guest).some((surname) => hosts.includes(surname))
 }
 
+// Each person a guest string names: "Jason and Travis Kelce" gives "Jason" and "Travis Kelce".
+const people = (guest: string) => guest.split(/,|&|\band\b/)
+
 // The last word of each guest's name: "Jason and Travis Kelce" gives jason and kelce.
-const surnames = (guest: string) => guest.split(/,|&|\band\b/).flatMap((name) => words(name).slice(-1))
+const surnames = (guest: string) => people(guest).flatMap((name) => words(name).slice(-1))
+
+// What keeps a work's title from being sent to Qloo, or null: only a title reaches Qloo, so one
+// holding an email address, or the whole name of anyone in `names`, such as the guest or the
+// sender ("Ada Quill <ada@example.com>"), is never sent. A name followed by "s", as in "Ada Quill's",
+// still counts.
+export function personalIn(title: string, names: (string | null)[]): 'email' | 'name' | null {
+  if (/\S+@\S+\.\S+/.test(title)) return 'email'
+  const found = ` ${words(title).join(' ')} `
+  const named = names.flatMap((n) => (n ? people(n.replace(/<[^>]*>/g, '')) : [])).map((n) => words(n).join(' '))
+  return named.some((n) => n && (found.includes(` ${n} `) || found.includes(` ${n}s `))) ? 'name' : null
+}
 
 // Qloo's work names can drop or add a subtitle ("Wake Up Dead Man"), carry a series suffix ("Onyx
 // Storm (The Empyrean, #3)"), or end in "Podcast" ("Scriptnotes Podcast"); none of those count

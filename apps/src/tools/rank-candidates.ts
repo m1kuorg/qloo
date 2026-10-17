@@ -88,7 +88,7 @@ export const rankCandidates: Tool<Input> = {
 
     const { call, result } = await qloo((gateway) =>
       gateway.rank(
-        anchor_ids,
+        anchors.map((a) => a.id),
         shows.map((s) => s.entity.id),
         type
       )

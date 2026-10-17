@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { State } from '../src/agent'
+import type { Reply, State } from '../src/agent'
 import type { Evidence } from '../src/evidence'
 import {
   fakeClaude,
@@ -13,7 +13,8 @@ import {
   text,
   toolUse,
   topicNames,
-  turn
+  turn,
+  type ScriptedBlock
 } from './fake'
 import { openSession, type Session } from './session'
 
@@ -76,20 +77,50 @@ const visitor = async () => {
   return s
 }
 
+// What a test changes about the sample run: what the visitor does before starting it, a question
+// the agent asks after the exclusions with the visitor's reply, and a block the agent's last tool
+// turn runs, such as a draft insertion order.
+type Change = {
+  before?: (s: Session) => Promise<unknown>
+  ask?: { question: ScriptedBlock; reply: Reply }
+  draft?: ScriptedBlock
+}
+
 // Runs the sample launch to the end in a new visitor's session, answering with `slots`.
-async function completeSampleRun(slots = 20) {
+async function completeSampleRun(slots = 20, { before, ask, draft }: Change = {}) {
   fakeQloo({ search })
-  fakeInsights(ranked)
-  fakeClaude(sampleRun)
+  // Only the candidates asked about, as Qloo ranks a closed list.
+  fakeInsights((body) => ranked.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id)))
+  fakeClaude([
+    ...sampleRun.slice(0, -1),
+    ...(ask ? [turn(ask.question)] : []),
+    ...(draft ? [turn(draft)] : []),
+    sampleRun.at(-1)!
+  ])
   const s = await visitor()
+  await before?.(s)
   await s.call('startLaunch', { name: 'The Watch' })
   const budget = await s.until((st) => st.run?.question?.kind === 'budget')
   await s.call('answer', budget.run!.question!.id, { slots })
   const exclusions = await s.until((st) => st.run?.question?.kind === 'exclusions')
   await s.call('answer', exclusions.run!.question!.id, { exclude: [] })
+  if (ask) {
+    const asked = await s.until((st) => st.run?.status === 'waiting' && st.run.question?.kind !== 'exclusions')
+    await s.call('answer', asked.run!.question!.id, ask.reply)
+  }
   const state = await s.until(ended)
   expect(state.run?.status).toBe('completed')
   return { session: s, state, log: await s.call<Evidence[]>('getEvidence') }
+}
+
+// A new visitor's sample launch while the daily cap is reached: the stored run replayed, or stopped
+// when none is stored.
+async function startCapped() {
+  env.QLOO_DAILY_CALL_CAP = '0'
+  const judge = await visitor()
+  await judge.call('startLaunch', { name: 'The Watch' })
+  env.QLOO_DAILY_CALL_CAP = saved.QLOO_DAILY_CALL_CAP
+  return judge.state()!
 }
 
 // Every call number the state cites, outside the session's own run list.
@@ -199,22 +230,100 @@ describe('replaying the sample run', () => {
     expect(otherLaunch.state()?.run?.status).toBe('stopped')
   })
 
-  it('keeps the sample run again with its topic baseline when that lands after the run ended', async () => {
+  it('keeps no sample run the visitor changed, and keeps the unchanged one without what they typed', async () => {
+    const changes: [string, Change][] = [
+      ['a show left out', { before: (s) => s.call('updateShow', 'House of R', { excluded: true }) }],
+      [
+        'a miss mapped to a comp',
+        {
+          before: async (s) => {
+            await s.searchComps('The Zach Lowe Show', 'Night Shift Cinema')
+            await s.call('updateShow', 'The Zach Lowe Show', { compId: 'e-0001' })
+          }
+        }
+      ],
+      [
+        'comps named',
+        {
+          ask: {
+            question: toolUse('ask_human', { question: 'Any comps?', kind: 'comps', options: [] }),
+            reply: { comps: ['Night Shift Cinema'] }
+          }
+        }
+      ],
+      [
+        'a typed answer',
+        {
+          ask: {
+            question: toolUse('ask_human', { question: 'Lead with the film shows?', kind: 'choice', options: ['Yes'] }),
+            reply: { text: 'Say Night Shift Cinema is the best show on the network.' }
+          }
+        }
+      ]
+    ]
+    for (const [change, how] of changes) {
+      const { log } = await completeSampleRun(20, how)
+      // Every call was answered, so the change alone keeps the run out.
+      expect(
+        log.filter((e) => e.error),
+        change
+      ).toEqual([])
+      expect((await startCapped()).run, change).toMatchObject({
+        status: 'stopped',
+        error: expect.stringContaining('no sample run is stored to replay yet')
+      })
+    }
+
+    // A comp search the visitor never mapped doesn't change the sample, but its query stays theirs.
+    await completeSampleRun(20, { before: (s) => s.searchComps('The Zach Lowe Show', 'Night Shift Cinema') })
+    const replayed = await startCapped()
+    expect(replayed.run?.replayed).toBeDefined()
+    expect(replayed.roster.map((s) => s.compSearch)).toEqual(replayed.roster.map(() => null))
+    expect(JSON.stringify(replayed)).not.toContain('Night Shift Cinema')
+  })
+
+  it("doesn't replay the sample launch on a roster with a show left out or mapped", async () => {
+    await completeSampleRun()
+    const excluded = await visitor()
+    await excluded.call('updateShow', 'House of R', { excluded: true })
+    const mapped = await visitor()
+    await mapped.searchComps('The Zach Lowe Show', 'Night Shift Cinema')
+    await mapped.call('updateShow', 'The Zach Lowe Show', { compId: 'e-0001' })
+    env.QLOO_DAILY_CALL_CAP = '0'
+    for (const s of [excluded, mapped]) {
+      await s.call('startLaunch', { name: 'The Watch' })
+      expect(s.state()?.run).toMatchObject({ status: 'stopped', error: expect.stringContaining('your own data') })
+    }
+  })
+
+  it('replays the stored run with its closing line', async () => {
+    const stored = await completeSampleRun()
+    expect(stored.state.run?.closing).toBe('The Big Picture leads the finalists.')
+    expect((await startCapped()).run?.closing).toBe('The Big Picture leads the finalists.')
+  })
+
+  it('keeps the sample run again with its topic baseline when that lands after the run ended, as the run ended', async () => {
     const held = Promise.withResolvers<void>()
     fakeTopic(async (request) => {
       await held.promise
       return topicNames(request)
     })
-    const stored = await completeSampleRun()
+    const drafted = [
+      { show: 'The Big Picture', slots: 12, angle: 'Film fans who follow TV too.' },
+      { show: 'The Rewatchables', slots: 8, angle: 'Rewatch fans already know The Watch.' }
+    ]
+    const stored = await completeSampleRun(20, { draft: toolUse('draft_insertion_order', { lines: drafted }) })
     expect(stored.state.topic?.status).toBe('ranking')
+    // The programmer rewords an angle before the baseline lands; their words stay theirs.
+    const order = stored.state.insertionOrder!
+    await stored.session.call('editInsertionOrder', order.id, [{ ...drafted[0], angle: 'Typed by the visitor.' }])
     held.resolve()
     const landed = await stored.session.until((s) => s.topic?.status === 'ranked')
 
-    env.QLOO_DAILY_CALL_CAP = '0'
-    const judge = await visitor()
-    await judge.call('startLaunch', { name: 'The Watch' })
-    expect(judge.state()?.run?.replayed).toBeDefined()
-    expect(judge.state()?.topic).toEqual(landed.topic)
+    const replayed = await startCapped()
+    expect(replayed.run?.replayed).toBeDefined()
+    expect(replayed.topic).toEqual(landed.topic)
+    expect(replayed.insertionOrder).toMatchObject({ status: 'draft', lines: drafted })
   })
 
   it('runs the sample launch live while Qloo answers, once it answers again, or once a failure is five minutes old', async () => {

@@ -169,4 +169,21 @@ describe('a run at its limits', () => {
       }
     ])
   })
+
+  it('logs a run paused on a question as paused, then as it ends', async () => {
+    const logged = watchLogs()
+    fakeQloo({ search })
+    const ask = toolUse('ask_human', { question: 'What is the slot budget?', kind: 'budget', options: [] })
+    fakeClaude([turn(ask), turn(text('Budget noted.'))])
+    const s = await session()
+    const { runId } = await s.call<{ runId: string }>('startLaunch', { name: 'Night Shift Cinema' })
+    await s.until((state) => state.run?.status === 'waiting')
+    await s.call('answer', 'toolu_1_1', { slots: 20 })
+    await finished(s)
+
+    expect(logged().filter((l) => l.event === 'run_summary')).toMatchObject([
+      { run: runId, outcome: 'paused', turns: 1 },
+      { run: runId, outcome: 'completed', turns: 2 }
+    ])
+  })
 })

@@ -1,7 +1,8 @@
 // The booker's inbox of guest pitches: the sample inbox, or pitches pasted in, read into one row
 // per pitch. Anything it can't take is refused with a message, so an inbox never loads in part.
 import type { PitchList, SharedTags } from './fit'
-import type { Candidate } from './resolve'
+import { MAX_PAST_GUESTS } from './limits'
+import { personalIn, type Candidate } from './resolve'
 import sampleInbox from './sample-inbox.json'
 
 export type WorkType = 'book' | 'film' | 'tv_show' | 'podcast'
@@ -131,8 +132,6 @@ export function readInbox(source: unknown): Pick<Inbox, 'sample' | 'notice' | 's
   }
 }
 
-// A show's past guests anchor its rankings, each one more Qloo search per run.
-const MAX_PAST_GUESTS = 5
 const YEARS = [1800, 2100]
 
 // The past guests the booker named, each with their public work. A guest's name is needed because a
@@ -150,8 +149,10 @@ export function readPastGuests(given: unknown): Omit<PastGuest, 'match'>[] {
     const year = work.year ?? null
     if (year !== null && !(Number.isInteger(year) && year >= YEARS[0] && year <= YEARS[1]))
       throw new Error(`Past guest ${i + 1}'s year must be a whole year, such as 2024, or left empty.`)
-    // Only a title reaches Qloo, so one holding an address is never sent.
-    if (/\S+@\S+\.\S+/.test(title)) throw new Error(`Past guest ${i + 1}'s work title holds an email address.`)
+    const personal = personalIn(title, [name])
+    if (personal === 'email') throw new Error(`Past guest ${i + 1}'s work title holds an email address.`)
+    if (personal === 'name')
+      throw new Error(`Past guest ${i + 1}'s work title holds their name, so it isn't sent to Qloo.`)
     return { guest: name, work: { title, type: work.type, year } }
   })
 }

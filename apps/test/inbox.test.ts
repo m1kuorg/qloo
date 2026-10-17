@@ -250,6 +250,38 @@ describe('loading the sample inbox', () => {
   })
 })
 
+describe("a pitched work's title", () => {
+  it("never reaches Qloo when Claude's reading puts the guest's or the sender's name in it", async () => {
+    fakeQloo({ search: sampleSearch })
+    const [byGuest, bySender, ...rest] = sample.pitches.filter((p) => p.expected.work)
+    // The model reads two titles wrong: one with the guest's name, as a possessive, and one with the sender's.
+    const titled: Record<string, string> = {
+      [byGuest.id]: `${byGuest.expected.guest}'s ${byGuest.expected.work!.title}`,
+      [bySender.id]: `${bySender.expected.work!.title}, pitched by ${bySender.senderName}`
+    }
+    fakeReader(sample.pitches.length, (text) => {
+      const p = sample.pitches.find((p) => text.includes(p.body))!
+      const work = p.expected.work && { ...p.expected.work, title: titled[p.id] ?? p.expected.work.title }
+      return extraction({ guest: p.expected.guest, work })
+    })
+    const s = await session()
+
+    await s.call('loadInbox', { sample: true })
+    const { inbox } = await loaded(s)
+
+    expect(inbox!.pitches.filter((p) => p.id in titled)).toMatchObject(
+      [byGuest, bySender].map((p) => ({
+        id: p.id,
+        status: 'unreadable',
+        match: null,
+        error: "The work's title holds the guest's or sender's name, so it isn't sent to Qloo."
+      }))
+    )
+    const searched = qlooRequests().map((r) => r.url.searchParams.get('query'))
+    expect(searched.toSorted()).toEqual(rest.map((p) => p.expected.work!.title).toSorted())
+  })
+})
+
 // Three synthetic pitches pasted together: a book, a private person, and one Claude refuses.
 const book = 'Ada Quill would love to talk about her novel Night Ferry.'
 const person = 'I ran a projection booth for thirty years and have stories to tell. No book, just stories.'

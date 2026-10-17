@@ -1,11 +1,11 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
-import { claude } from './claude'
+import { claude, declined } from './claude'
 import type { DemographicCheck } from './demographics'
 import { callNumber, type Evidence } from './evidence'
 import { pitchReader } from './extract'
-import { markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import { IN_FLIGHT, type QlooGateway, type QlooResult } from './gateway'
+import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
+import { IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -97,6 +97,7 @@ export type Run = {
   exclusions: string[] | null // show names left out of this run only; null until answered
   replayed?: string // why the stored sample run was replayed instead of run, such as the daily cap
   closing: string | null // Claude's closing text once the run completes; never kept from a refused or failed turn
+  typed?: true // the programmer typed an answer of their own, so the run isn't the unchanged sample's to keep
 }
 
 export type Budget = { slots: number } | { dollars: number }
@@ -113,8 +114,9 @@ export type Question = {
 
 // How the programmer answers: `choice` or `text` for a choice question, `slots` or `dollars` for
 // the budget, `exclude` for exclusions, `comps` for comp names, `picks` for each comp to confirm in
-// the question's order (its entity's ID, or null for none of these), and free `text` as a note on
-// any other kind.
+// the question's order (its entity's ID, or null for none of these), and `text` as the name Qloo
+// lists the launch under for a launch or comps question. Code builds every other answer, so it
+// takes no typed text.
 export type Reply = {
   choice?: string
   text?: string
@@ -384,16 +386,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     this.setState({
       ...this.state,
       launch: { name, match: null, comps: (comps ?? []).map(newComp) },
-      run: {
-        id: run,
-        status: 'running',
-        notes: [],
-        error: null,
-        question: null,
-        budget: null,
-        exclusions: null,
-        closing: null
-      },
+      run: newRun(run),
       // Sessions from before run limits have no list.
       runs: [
         ...(this.state.runs ?? []),
@@ -476,16 +469,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
         lists: null,
         replies: null
       },
-      run: {
-        id: run,
-        status: 'running',
-        notes: [],
-        error: null,
-        question: null,
-        budget: null,
-        exclusions: null,
-        closing: null
-      },
+      run: newRun(run),
       runs: [
         ...(this.state.runs ?? []),
         {
@@ -524,7 +508,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (stored.exclusions && this.state.ranking) {
       const ranking = markFinalists(this.state.ranking, stored.exclusions)
       this.setState({ ...this.state, ranking })
-      const finalists = ranking.rows.filter((r) => r.finalist).map((r) => r.show)
+      const finalists = finalistsOf(ranking).map((r) => r.show)
       notice += ` Code has left those shows out of the fit ranking ${ranking.call}; the finalists are now ${finalists.join(', ') || 'none'}.`
     }
     const [paused] = this.sql<{ assistant: string; results: string }>`
@@ -550,7 +534,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
   @callable()
   editInsertionOrder(id: string, lines: LineInput[]) {
     const order = this.editableOrder(id)
-    const finalists = this.state.ranking?.rows.filter((r) => r.finalist).map((r) => r.show) ?? []
+    const finalists = finalistsOf(this.state.ranking).map((r) => r.show)
     const problem = lineProblem(lines, finalists)
     if (problem) throw new Error(problem)
     const edited = lines.map(({ show, slots, angle }) => ({ show, slots, angle: angle.trim() }))
@@ -681,33 +665,21 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
   private async lookUpShow(name: string, seq: number) {
-    let match: Lookup
-    try {
-      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
-      match = lookup(name, call, result)
-    } catch (e) {
-      // The gateway itself failed; the show still settles, so the import can't stay pending.
-      const error = `The lookup failed: ${message(e)}`
-      match = { resolution: 'failed', entity: null, candidates: [], evidence: callNumber(seq), error }
-    }
+    const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
+    const match = lookup(name, call, result)
     this.editShow(name, (show) => ({ ...show, ...match }))
   }
 
   // Runs a pending comp search and fills it in, unless a newer search or an import replaced it.
   private async findComps(name: string, search: CompSearch, seq: number) {
-    let landed: CompSearch
-    try {
-      const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
-      landed = result.ok
-        ? {
-            ...search,
-            status: 'done',
-            results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
-          }
-        : { ...search, status: 'failed', error: result.error }
-    } catch (e) {
-      landed = { ...search, status: 'failed', error: `The search failed: ${message(e)}` }
-    }
+    const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
+    const landed: CompSearch = result.ok
+      ? {
+          ...search,
+          status: 'done',
+          results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
+        }
+      : { ...search, status: 'failed', error: result.error }
     const show = this.state.roster.find((s) => s.name === name)
     if (show?.compSearch?.call === search.call) this.editShow(name, (s) => ({ ...s, compSearch: landed }))
   }
@@ -744,7 +716,10 @@ export class CrossfeedAgent extends Agent<Env, State> {
       const snapshot = withMoves({ ...(JSON.parse(ended.snapshot) as RunSnapshot), topic })
       this.sql`UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}`
       // A sample run kept before its baseline landed is kept again with it.
-      if (snapshot.run?.status === 'completed' && !snapshot.run.replayed) this.keepSampleRun(run, snapshot)
+      if (snapshot.run?.status === 'completed' && !snapshot.run.replayed)
+        void this.keepAliveWhile(() => this.keepTopic(run, topic)).catch((e) =>
+          log({ event: 'sample_run', run, error: message(e) })
+        )
     }
   }
 
@@ -801,8 +776,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
   private editableOrder(id: string) {
     const order = this.state.insertionOrder
     if (!order || order.id !== id) throw new Error(`${id} isn't the current insertion order. Reload to see the latest.`)
-    const run = this.state.run
-    if (run?.id === order.run && (run.status === 'running' || run.status === 'waiting'))
+    if (this.inProgress(order.run))
       throw new Error('The agent is still working on this run. Edit or approve the order once the run has ended.')
     return order
   }
@@ -831,6 +805,12 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return seq
   }
 
+  // Whether `run` is the latest run and the agent is still working on it, or waiting on an answer.
+  private inProgress(run: string) {
+    const r = this.state.run
+    return r?.id === run && (r.status === 'running' || r.status === 'waiting')
+  }
+
   private show(name: string) {
     const show = this.state.roster.find((s) => s.name === name)
     if (!show) throw new Error(`No show named "${name}" in the roster.`)
@@ -853,8 +833,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     const booking = this.state.booking
     const reply = booking?.replies?.find((r) => r.pitch === pitchId)
     if (!booking || !reply) throw new Error(`There's no drafted reply to ${pitchId}. Reload to see the latest.`)
-    const run = this.state.run
-    if (run?.id === booking.run && (run.status === 'running' || run.status === 'waiting'))
+    if (this.inProgress(booking.run))
       throw new Error('The agent is still drafting replies. Approve, edit, or discard them once the run has ended.')
     return reply
   }
@@ -941,14 +920,14 @@ export class CrossfeedAgent extends Agent<Env, State> {
         latencyMs: Date.now() - started
       })
       // Check the stop reason before reading content: a refused or cut-off reply is discarded.
-      if (reply.stop_reason === 'refusal') return this.finish(run, refusalNotice(reply))
+      if (reply.stop_reason === 'refusal') return this.finish(run, `${declined(reply, 'continue this run')}.`)
       if (reply.stop_reason === 'max_tokens')
         return this.finish(run, "Claude's reply hit the output limit, so its tool calls were not run.")
       const assistant: Anthropic.MessageParam = { role: 'assistant', content: reply.content }
       if (reply.stop_reason === 'end_turn') {
         this.append(run, assistant)
         const texts = reply.content.flatMap((b) => (b.type === 'text' ? [b.text.trim()] : [])).filter(Boolean)
-        return this.finish(run, null, 'failed', texts.join('\n\n') || null)
+        return this.complete(run, texts.join('\n\n') || null)
       }
       const calls = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
       if (reply.stop_reason !== 'tool_use' || calls.length === 0)
@@ -968,7 +947,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
           VALUES (${run}, ${JSON.stringify(assistant)}, ${JSON.stringify(results.map((r) => r.block))})`
         this.setStatus(run, 'waiting')
         const [spent] = this.sql<Spent>`SELECT started_at, turns, qloo_calls, cache_hits FROM runs WHERE id = ${run}`
-        if (spent) log(summary(run, 'waiting', spent))
+        if (spent) log(summary(run, 'paused', spent))
         return
       }
       // The turn and its results are stored together, so history never ends on an unanswered call.
@@ -1045,26 +1024,27 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return index
   }
 
-  // Ends the run: completed when `error` is null, with Claude's closing text, else failed, or
-  // stopped at a limit, with the reason and any unfinished notes marked failed. Keeps what it ended
-  // with for getRun.
-  private finish(
-    run: string,
-    error: string | null,
-    status: 'failed' | 'stopped' = 'failed',
-    closing: string | null = null
-  ) {
+  // Ends the run as failed, or stopped at a limit, with the reason and any unfinished notes marked
+  // failed.
+  private finish(run: string, error: string, status: 'failed' | 'stopped' = 'failed') {
+    this.end(run, (r) => ({
+      ...r,
+      status,
+      error,
+      notes: r.notes.map((n) => (n.status === 'running' ? { ...n, status: 'failed' } : n))
+    }))
+  }
+
+  // Ends the run as completed, with Claude's closing text, in the same state change.
+  private complete(run: string, closing: string | null) {
+    this.end(run, (r) => ({ ...r, status: 'completed', closing }))
+  }
+
+  // Ends the run as `ending` says and keeps what it ended with for getRun.
+  private end(run: string, ending: (r: Run) => Run) {
     const r = this.state.run
     if (r?.id !== run) return
-    const ended: Run =
-      error === null
-        ? { ...r, status: 'completed', closing }
-        : {
-            ...r,
-            status,
-            error,
-            notes: r.notes.map((n) => (n.status === 'running' ? { ...n, status: 'failed' } : n))
-          }
+    const ended = ending(r)
     const runs = (this.state.runs ?? []).map((s) => (s.id === run ? { ...s, status: ended.status } : s))
     this.setState({ ...this.state, run: ended, runs })
     const { runs: _, guide: __, ...snapshot } = this.state
@@ -1076,22 +1056,37 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (ended.status === 'completed' && !ended.replayed) this.keepSampleRun(run, snapshot)
   }
 
-  // Keeps a completed sample launch run, answered with the sample answers, for any session to
-  // replay while Qloo can't be called. Only a run whose every cited Qloo call was answered is kept;
-  // a tool error Claude recovered from, such as a second question in one turn, doesn't count. The
-  // guest pitch flow's fields are the visitor's own, not the run's, so they stay out.
-  private keepSampleRun(run: string, { inbox: _, booking: __, ...state }: RunSnapshot) {
-    const { sample, launch, run: ended } = state
-    if (!sample || !launch?.name || !ended || !onSampleLaunch(state, launch.name)) return
+  // Keeps a completed sample launch run, answered with the sample answers and nothing the visitor
+  // typed, for any session to replay while Qloo can't be called. Only a run whose every cited Qloo
+  // call was answered is kept; a tool error Claude recovered from, such as a second question in one
+  // turn, doesn't count. The guest pitch flow's fields are the visitor's own, not the run's, so they
+  // stay out, and so does a comp search's query, which they typed.
+  private keepSampleRun(run: string, { inbox: _, booking: __, ...ended }: RunSnapshot) {
+    const state = { ...ended, roster: ended.roster.map((s) => ({ ...s, compSearch: null })) }
+    const { sample, launch, run: r } = state
+    if (!sample || !launch?.name || launch.comps.length > 0 || !r || r.typed || !onSampleLaunch(state, launch.name))
+      return
     const { budget, exclusions } = sample.answers
-    if (JSON.stringify([ended.budget, ended.exclusions]) !== JSON.stringify([budget, exclusions])) return
+    if (JSON.stringify([r.budget, r.exclusions]) !== JSON.stringify([budget, exclusions])) return
     const cited = new Set(JSON.stringify(state).match(CALL))
     const evidence = this.getEvidence().filter((e) => cited.has(e.call))
     if (evidence.length < cited.size || evidence.some((e) => e.error)) return
-    const sampleRun: SampleRun = { state, evidence }
+    this.storeSampleRun(run, { state, evidence })
+  }
+
+  private storeSampleRun(run: string, sampleRun: SampleRun) {
     void this.keepAliveWhile(() => this.env.QlooGateway.getByName('global').keepSampleRun(JSON.stringify(sampleRun)))
-      .then(() => log({ event: 'sample_run', run, calls: evidence.length }))
+      .then(() => log({ event: 'sample_run', run, calls: sampleRun.evidence.length }))
       .catch((e) => log({ event: 'sample_run', run, error: message(e) }))
+  }
+
+  // A baseline that lands after its sample run was kept goes into the kept copy, which is what the
+  // run ended with, rather than the run's snapshot, where the programmer may since have edited the
+  // order. A copy another run has since replaced is left alone.
+  private async keepTopic(run: string, topic: Topic) {
+    const stored = await this.env.QlooGateway.getByName('global').sampleRun()
+    const kept: SampleRun | null = stored && JSON.parse(stored)
+    if (kept?.state.run?.id === run) this.storeSampleRun(run, { ...kept, state: withMoves({ ...kept.state, topic }) })
   }
 
   // Replays the stored sample run as this run: what it ended with, roster and all, with the calls
@@ -1114,7 +1109,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
       run: { ...state.run!, replayed: reason },
       runs: this.state.runs.map((s) => (s.id === run ? { ...s, replayed: true } : s))
     })
-    this.finish(run, null)
+    // Runs stored before closing lines have none.
+    this.complete(run, state.run!.closing ?? null)
   }
 
   // Pauses or resumes the run, here and in the session's list of runs.
@@ -1140,17 +1136,43 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // The session's only path to Qloo. It numbers the call when the call starts, unless the caller
   // numbered it earlier, so numbers follow the order calls were made, and appends the gateway's
-  // evidence, success or failure.
+  // evidence, success or failure. A gateway that throws instead of answering, such as one reset by
+  // a deploy, fails the call like Qloo failing would, with its own record.
   private async qloo<T>(
     request: (gateway: DurableObjectStub<QlooGateway>) => Promise<QlooResult<T>>,
     run: string | null = null,
     seq = this.numberCall()
-  ) {
+  ): Promise<{ call: string; result: QlooResult<T> }> {
     const call = callNumber(seq)
     const settled = this.watch(call, run)
+    const started = Date.now()
+    // Every request calls one gateway method; noting which lets a failed record name its request.
+    let asked: keyof typeof REQUESTS | undefined
+    const gateway = new Proxy(this.env.QlooGateway.getByName('global'), {
+      get: (stub, key) => {
+        if (typeof key === 'string' && key in REQUESTS) asked = key as keyof typeof REQUESTS
+        return Reflect.get(stub, key)
+      }
+    })
     let result: QlooResult<T>
     try {
-      result = (await request(this.env.QlooGateway.getByName('global'))) as QlooResult<T>
+      result = (await request(gateway)) as QlooResult<T>
+    } catch (e) {
+      const error = `The Qloo gateway failed: ${message(e)}`
+      const evidence = {
+        at: new Date(started).toISOString(),
+        ...REQUESTS[asked!],
+        params: {},
+        status: null,
+        latencyMs: Date.now() - started,
+        retries: 0,
+        cacheHit: false,
+        error,
+        entities: [],
+        tags: [],
+        affinities: []
+      }
+      result = { ok: false, error, evidence }
     } finally {
       settled()
     }
@@ -1190,11 +1212,15 @@ export class CrossfeedAgent extends Agent<Env, State> {
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 // Whether this is the sample launch on the unchanged sample network: the sample's CPM and every
-// show's sample figures untouched (#44). Settling or mapping shows doesn't change it.
+// show's sample figures untouched (#44), and no show left out or mapped to a comp. Picking an
+// ambiguous show's candidate, one of Qloo's own, doesn't change it.
 function onSampleLaunch({ sample, roster }: Pick<State, 'sample' | 'roster'>, name: string | null) {
   if (!sample?.cpm || !('name' in sample.launch) || sample.launch.name !== name) return false
-  return roster.every((show) =>
-    sampleRoster.find((r) => r.name === show.name)?.sample.every((f) => show.sample?.includes(f))
+  return roster.every(
+    (show) =>
+      !show.excluded &&
+      show.resolution !== 'mapped' &&
+      sampleRoster.find((r) => r.name === show.name)?.sample.every((f) => show.sample?.includes(f))
   )
 }
 
@@ -1244,8 +1270,8 @@ const log = (
 // What a run has spent against its limits, from its row in `runs`.
 type Spent = { started_at: number; turns: number; qloo_calls: number; cache_hits: number }
 
-// The summary line for a run that ended, or paused on a question.
-const summary = (run: string, outcome: Run['status'], spent: Spent) => ({
+// The summary line for a run that ended, or paused on a question (TRD observability).
+const summary = (run: string, outcome: Run['status'] | 'paused', spent: Spent) => ({
   event: 'run_summary' as const,
   run,
   outcome,
@@ -1263,31 +1289,34 @@ function settle(
   reply: Reply,
   launch: Launch | null
 ): { answer: string; stored: Partial<Run>; launch?: Launch; record?: string } {
-  const note = typeof reply.text === 'string' ? reply.text.trim() : ''
+  const typed = typeof reply.text === 'string' ? reply.text.trim() : ''
   const choice = reply.choice
   if (choice !== undefined && !question.options.includes(choice)) throw new Error("That isn't one of the options.")
-  const withNote = (answer: string) => [answer, note].filter(Boolean).join('\n\n')
-  if (question.kind === 'launch') return settleLaunch(choice, note, launch)
+  // Code builds the other kinds' answers, so the programmer's own words reach Claude only here.
+  if (typed && question.kind !== 'choice' && question.kind !== 'launch' && question.kind !== 'comps')
+    throw new Error('This question is answered with its form, not typed text.')
+  if (question.kind === 'launch') return settleLaunch(choice, typed, launch)
   if (question.kind === 'comps') {
     const comps = readComps(reply.comps ?? [])
     // A name instead of comps is the name Qloo lists the launch under, as with a launch question.
     if (comps.length === 0) {
-      if (!note || !launch?.name)
+      if (!typed || !launch?.name)
         throw new Error(`Name up to ${MAX_COMPS} comps, or type the name Qloo lists the launch under.`)
-      return settleLaunch(undefined, note, launch)
+      return settleLaunch(undefined, typed, launch)
     }
+    if (typed) throw new Error('Name comps or type the name Qloo lists the launch under, not both.')
     return {
-      answer: withNote(`Comps: ${comps.join(', ')}.`),
+      answer: `Comps: ${comps.join(', ')}.`,
       stored: {},
       launch: { ...launch!, comps: comps.map(newComp) },
       record: `Code set the launch's comps to ${comps.join(', ')}; resolve them, then confirm their matches.`
     }
   }
-  if (question.kind === 'confirm_comps') return confirmComps(question.options, reply.picks, launch!, withNote)
+  if (question.kind === 'confirm_comps') return confirmComps(question.options, reply.picks, launch!)
   if (question.kind === 'budget') {
     const budget = readBudget(reply)
     const amount = 'slots' in budget ? `${budget.slots} promo slots` : `$${budget.dollars.toLocaleString('en-US')}`
-    return { answer: withNote(`Slot budget: ${amount}.`), stored: { budget } }
+    return { answer: `Slot budget: ${amount}.`, stored: { budget } }
   }
   if (question.kind === 'exclusions') {
     if (!Array.isArray(reply.exclude)) throw new Error('List the shows to leave out, or none.')
@@ -1297,11 +1326,11 @@ function settle(
     const answer = exclusions.length
       ? `Leave out of this launch: ${exclusions.join(', ')}.`
       : 'No exclusions for this launch.'
-    return { answer: withNote(answer), stored: { exclusions } }
+    return { answer, stored: { exclusions } }
   }
-  const answer = withNote(choice ?? '')
+  const answer = [choice, typed].filter(Boolean).join('\n\n')
   if (!answer) throw new Error('Pick an option or type an answer.')
-  return { answer, stored: {} }
+  return { answer, stored: typed ? { typed: true } : {} }
 }
 
 // A launch pick sets the launch's match to that candidate, citing the search it came from; a name
@@ -1360,13 +1389,24 @@ function readComps(names: unknown): string[] {
 
 const newComp = (name: string): Comp => ({ name, match: null, status: 'unconfirmed', entity: null })
 
+// A run as it starts: running, with nothing asked or answered yet.
+const newRun = (id: string): Run => ({
+  id,
+  status: 'running',
+  notes: [],
+  error: null,
+  question: null,
+  budget: null,
+  exclusions: null,
+  closing: null
+})
+
 // The programmer's pick for each comp the question offered, in its order: one of its matches, which
 // becomes the comp's entity, or null for none of these.
 function confirmComps(
   offered: string[],
   picks: unknown,
-  launch: Launch,
-  withNote: (answer: string) => string
+  launch: Launch
 ): { answer: string; stored: Partial<Run>; launch: Launch; record: string } {
   if (!Array.isArray(picks) || picks.length !== offered.length) throw new Error('Confirm or reject each comp.')
   const comps = [...launch.comps]
@@ -1386,17 +1426,11 @@ function confirmComps(
   const record = confirmed.length
     ? `Code confirmed these comps: ${confirmed.map((c) => `${c.name} (Qloo ID ${c.entity!.id})`).join(', ')}.`
     : 'No comp is confirmed.'
-  return { answer: withNote(lines.join('\n')), stored: {}, launch: { ...launch, comps }, record }
+  return { answer: lines.join('\n'), stored: {}, launch: { ...launch, comps }, record }
 }
 
 // The progress note a tool call shows, such as "Resolving The Big Picture".
 function noteFor(call: Anthropic.ToolUseBlock, state: State) {
   const tool = tools.find((t) => t.definition.name === call.name)
   return tool ? tool.note(call.input, state) : `Calling ${call.name}`
-}
-
-// A refusal has no server-side fallback on this model, so the run stops and shows it.
-function refusalNotice(reply: Anthropic.Message) {
-  const category = reply.stop_details?.type === 'refusal' ? reply.stop_details.category : null
-  return `Claude declined to continue this run${category ? ` (safety category: ${category})` : ''}.`
 }

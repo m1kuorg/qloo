@@ -1,7 +1,7 @@
 // The demographic check as the chart shows it: the TRD's derived values, worked out from one Qloo
 // demographics call covering the launch, or its comps, and the finalists. The values stay in the
 // call's evidence; the chart gets each finalist's mismatches in words about its listeners.
-import type { Ranking } from './fit'
+import { finalistsOf, type Ranking } from './fit'
 import type { Demographics, Profile, QlooResult } from './gateway'
 
 // The mismatch rule's thresholds: starting values, to tune on the demo network.
@@ -48,7 +48,8 @@ export const ageWords = (bucket: string) => bucket.replaceAll('_', ' ')
 
 const skewOf = (male: number): Skew | null => (Math.abs(male) < MISMATCH.skew ? null : male > 0 ? 'male' : 'female')
 
-const listOf = (items: string[]) =>
+// Items as a sentence lists them: "A and B", or "A, B, and C". The UI uses it too.
+export const listOf = (items: string[]) =>
   items.length < 3 ? items.join(' and ') : `${items.slice(0, -1).join(', ')}, and ${items.at(-1)}`
 
 // Checks the ranking's finalists against the launch profile: the mean, per bucket, of the anchors
@@ -103,28 +104,26 @@ export function checkFinalists(
   ]
 
   const finalists: FinalistCheck[] = []
-  const rows = ranking.rows
-    .filter((r) => r.finalist)
-    .map((r) => {
-      const p = byId.get(r.entity.id)
-      if (!p) return { show: r.show, reasons: null }
-      const under = ages.filter((b) => round(p.age[b] ?? 0) < MISMATCH.under)
-      const theirs = skewOf(round(p.male))
-      const reasons = [
-        under.length > 0 &&
-          `Fewer listeners aged ${listOf(under.map(ageWords))} than average, where the launch's listeners over-index`,
-        skew && theirs && theirs !== skew && `Listeners skew ${theirs}, where the launch's skew ${skew}`
-      ].filter((x): x is string => typeof x === 'string')
-      finalists.push({
-        show: r.show,
-        id: r.entity.id,
-        mismatch: reasons.length > 0,
-        reasons,
-        ageDeltas: Object.fromEntries(AGE_BUCKETS.map((b) => [b, round((p.age[b] ?? 0) - launch.age[b])])),
-        maleDelta: round(p.male - launch.male)
-      })
-      return { show: r.show, reasons }
+  const rows = finalistsOf(ranking).map((r) => {
+    const p = byId.get(r.entity.id)
+    if (!p) return { show: r.show, reasons: null }
+    const under = ages.filter((b) => round(p.age[b] ?? 0) < MISMATCH.under)
+    const theirs = skewOf(round(p.male))
+    const reasons = [
+      under.length > 0 &&
+        `Fewer listeners aged ${listOf(under.map(ageWords))} than average, where the launch's listeners over-index`,
+      skew && theirs && theirs !== skew && `Listeners skew ${theirs}, where the launch's skew ${skew}`
+    ].filter((x): x is string => typeof x === 'string')
+    finalists.push({
+      show: r.show,
+      id: r.entity.id,
+      mismatch: reasons.length > 0,
+      reasons,
+      ageDeltas: Object.fromEntries(AGE_BUCKETS.map((b) => [b, round((p.age[b] ?? 0) - launch.age[b])])),
+      maleDelta: round(p.male - launch.male)
     })
+    return { show: r.show, reasons }
+  })
   return {
     check: { call, error: null, profile: { from: names, ages, skew, disagree }, rows },
     finalists

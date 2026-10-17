@@ -636,16 +636,19 @@ function OpenQuestion({ question, launch, agent }: { question: Question; launch:
       ? Object.fromEntries(confirming.flatMap((c) => (c.offered.length === 1 ? [[c.name, c.offered[0].id]] : [])))
       : {}
   )
+  // Only a choice, or the name Qloo lists the launch under, is typed: code builds the other answers.
+  const typed =
+    question.kind === 'choice' || question.kind === 'launch' || (question.kind === 'comps' && !!launch?.name)
   const reply = (): Reply => {
-    const note = text.trim() ? { text } : {}
+    const note = typed && text.trim() ? { text } : {}
     if (question.kind === 'budget') {
       const digits = amount.replace(/[,\s$]/g, '')
-      return { ...note, ...(digits && { [unit]: Number(digits) }) }
+      return digits ? { [unit]: Number(digits) } : {}
     }
-    if (question.kind === 'exclusions') return { ...note, exclude }
+    if (question.kind === 'exclusions') return { exclude }
     if (question.kind === 'comps') return { ...note, comps: comps.filter((c) => c.trim()) }
     if (question.kind === 'confirm_comps')
-      return { ...note, picks: question.options.map((name) => (picks[name] === NONE ? null : picks[name])) }
+      return { picks: question.options.map((name) => (picks[name] === NONE ? null : picks[name])) }
     return { ...note, ...(choice !== undefined && { choice }) }
   }
   const unpicked = question.kind === 'confirm_comps' && question.options.some((name) => !picks[name])
@@ -776,30 +779,30 @@ function OpenQuestion({ question, launch, agent }: { question: Question; launch:
                 </div>
               </fieldset>
             ))}
-          <label className="field">
-            <span className="lbl">
-              {question.kind === 'launch'
-                ? question.options.length > 0
-                  ? 'Or the name Qloo lists it under'
-                  : 'The name Qloo lists it under'
-                : question.kind === 'comps' && launch?.name
-                  ? 'Or the name Qloo lists it under'
-                  : question.kind !== 'choice'
-                    ? 'Note for the agent, optional'
+          {typed && (
+            <label className="field">
+              <span className="lbl">
+                {question.kind === 'launch'
+                  ? question.options.length > 0
+                    ? 'Or the name Qloo lists it under'
+                    : 'The name Qloo lists it under'
+                  : question.kind === 'comps'
+                    ? 'Or the name Qloo lists it under'
                     : question.options.length > 0
                       ? 'Or type your own answer'
                       : 'Your answer'}
-            </span>
-            <span className="in">
-              <input
-                value={text}
-                onChange={(e) => {
-                  setText(e.target.value)
-                  if (question.kind === 'launch') setChoice(undefined)
-                }}
-              />
-            </span>
-          </label>
+              </span>
+              <span className="in">
+                <input
+                  value={text}
+                  onChange={(e) => {
+                    setText(e.target.value)
+                    if (question.kind === 'launch') setChoice(undefined)
+                  }}
+                />
+              </span>
+            </label>
+          )}
           <div className="acts">
             <button className="btn pri" type="submit" disabled={unpicked}>
               Answer
