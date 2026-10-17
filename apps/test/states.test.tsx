@@ -207,6 +207,18 @@ describe('a failing Qloo', () => {
     )
   })
 
+  it('says a run stopped because Qloo is failing, and what was retried', async () => {
+    fakeQloo({ search: { ...search, 'Deep Cuts': 503 } })
+    const s = await session()
+    await s.importRoster('Night Shift Cinema\nDeep Cuts')
+
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    const stopped = await s.until((st) => st.run?.status === 'failed')
+    expect(page(stopped)).toContain(
+      'Failed Qloo is failing (Qloo returned 503: fake failure, after 2 retries), so runs on your own data wait until Qloo answers again.'
+    )
+  })
+
   it("says the launch isn't resolved when its lookup fails", async () => {
     fakeQloo({ search: { ...search, 'Night Shift Cinema': 503 } })
     fakeClaude([turn(resolveLaunch), turn(text('The launch lookup failed.'))])
@@ -220,7 +232,8 @@ describe('a failing Qloo', () => {
   })
 
   it('says nothing is ranked when the ranking fails after its retries, and not that it is partial', async () => {
-    fakeQloo({ search: { ...search, 'Paper Trail': 503 } })
+    // A 400 refuses only that request, so it doesn't mark Qloo as failing and stop the run.
+    fakeQloo({ search: { ...search, 'Paper Trail': 400 } })
     fakeInsights(503)
     fakeClaude([turn(resolveLaunch), turn(rank(['e-0101', 'e-0201'])), turn(text('The ranking failed.'))])
     const s = await session()
@@ -233,7 +246,7 @@ describe('a failing Qloo', () => {
   })
 
   it('marks a ranking partial when a roster lookup failed', async () => {
-    fakeQloo({ search: { ...search, 'Deep Cuts': 503 } })
+    fakeQloo({ search: { ...search, 'Deep Cuts': 400 } })
     fakeInsights([{ entity_id: 'e-0201', name: 'Signal Boost', affinity: 0.913 }])
     fakeClaude([turn(resolveLaunch), turn(rank(['e-0201'])), turn(text('Ranked.'))])
     const s = await session()
