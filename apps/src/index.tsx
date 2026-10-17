@@ -41,6 +41,21 @@ app.all('/agents/session', async (c) => {
   return agent.fetch(c.req.raw)
 })
 
+// An approved insertion order as a CSV download. The cookie picks the session, so a visitor only
+// ever exports their own orders; a draft is refused with 409.
+app.get('/api/insertion-orders/:file{.+\\.csv}', async (c) => {
+  const session = getCookie(c, SESSION_COOKIE)
+  if (!session) return c.text('No session; load / first.', 401)
+  const id = c.req.param('file').slice(0, -'.csv'.length)
+  const agent = await getAgentByName(c.env.CrossfeedAgent, session)
+  const exported = await agent.exportInsertionOrder(id)
+  if (exported.status !== 200) return c.text(exported.error, exported.status)
+  return c.body(exported.csv, 200, {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${id}.csv"`
+  })
+})
+
 export default {
   fetch: app.fetch,
   // Daily cron stub; the Qloo health check (#51) goes here.

@@ -30,7 +30,11 @@ const launchSteps: { step: string; instruction: string | null }[] = [
     instruction:
       "Once the finalists are set, call shared_tags with the anchors rank_candidates used and every finalist's Qloo ID. Build each finalist's host-read angle from its shared tags, using only tags the tool returned. When a finalist's tags only describe style or hosts, such as Conversational or Insightful, or it has none, say its overlap with the launch is in its listeners' taste rather than its topic."
   },
-  { step: 'Draft the insertion order (#48)', instruction: null }
+  {
+    step: 'Draft the insertion order (#48)',
+    instruction:
+      "Draft the insertion order: call draft_insertion_order with a line for each finalist you'd promote the launch on, each with a whole number of slots and the host-read angle you built for it. Spread the slot budget over the finalists, giving more slots to a better fit, without going over it. Code prices every slot from the network's downloads and CPM and checks the budget, so quote only the figures the tool returns. If it rejects the draft, fix what it says and call it again. The programmer edits and approves the order in the UI; you can't approve, edit, or export it."
+  }
 ]
 
 // The guest pitch flow's steps, in the PRD's order, filled the same way.
