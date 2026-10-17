@@ -16,6 +16,13 @@
   --body: 'Libre Franklin', sans-serif;
   --cond: 'Barlow Condensed', sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Motion: feedback, a state changing, and the gainer bullet landing, all easing out. */
+  --t-quick: 120ms;
+  --t-state: 200ms;
+  --t-arrive: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Light only: the scene is a daylit office, so there's no dark theme (DESIGN.md). */
+  color-scheme: light;
 }
 
 * {
@@ -47,6 +54,22 @@ textarea {
   outline-offset: 2px;
 }
 
+/* On the black top bar, an ink ring would vanish; nav links fill the bar's height, so theirs sits inside. */
+.top :focus-visible {
+  outline-color: #fff;
+  outline-offset: -6px;
+}
+
+::selection {
+  background: var(--ink);
+  color: #fff;
+}
+
+input,
+textarea {
+  caret-color: var(--ink);
+}
+
 /* Label: module headings and chips. */
 .lbl {
   font-size: 11px;
@@ -68,6 +91,12 @@ textarea {
   padding: 2px 6px;
   background: #fff;
   white-space: nowrap;
+}
+
+/* Agent text's label is dashed, so it never reads like Qloo data's solid one. */
+.chip.src-agent {
+  border-style: dashed;
+  border-color: var(--grey);
 }
 
 .help,
@@ -267,24 +296,32 @@ h1 span {
   color: var(--mid);
 }
 
-/* Work area: the chart column and the 448px rail. */
+/* Work area: the chart column and the rail, 448px wide from 1400px and narrower below it so the chart
+   keeps room for show names. The open question comes first in reading order, for a single column, and
+   the grid sets it atop the rail. */
 .main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 448px;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) clamp(320px, 32vw, 448px);
+  grid-template-rows: auto 1fr;
+  column-gap: 24px;
   padding: 0 32px 32px;
 }
 
 .chart-col {
+  grid-column: 1;
+  grid-row: 1 / span 2;
   padding-top: 16px;
   min-width: 0;
 }
 
 .rail {
+  grid-column: 2;
+  grid-row: 2;
   border-left: 1px solid var(--line);
   padding-left: 24px;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .mod {
@@ -397,9 +434,17 @@ h1 span {
   margin-top: 8px;
 }
 
+/* One column below 960px, in reading order: the open question, the chart, then the rail. */
 @media (max-width: 960px) {
   .main {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+
+  .chart-col,
+  .rail {
+    grid-column: 1;
+    grid-row: auto;
   }
 
   .rail {
@@ -431,6 +476,7 @@ h1 span {
 
 .acts {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 4px;
@@ -444,6 +490,7 @@ h1 span {
 .btn {
   height: 32px;
   padding: 0 12px;
+  white-space: nowrap;
   border: 1px solid var(--edge);
   border-radius: 4px;
   background: #fff;
@@ -461,6 +508,30 @@ h1 span {
 .btn:disabled {
   cursor: default;
   opacity: 0.6;
+}
+
+.btn,
+.nav a,
+button.call,
+.lnk {
+  transition:
+    background-color var(--t-quick) ease-out,
+    border-color var(--t-quick) ease-out,
+    color var(--t-quick) ease-out,
+    text-decoration-color var(--t-quick) ease-out;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--grey);
+}
+
+.btn.pri:hover:not(:disabled) {
+  background: #333;
+  border-color: #333;
+}
+
+.nav a:hover {
+  color: #fff;
 }
 
 .empty {
@@ -509,6 +580,12 @@ h1 span {
   padding: 8px;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
+  transition: background-color var(--t-state) var(--ease-out);
+}
+
+/* A wide table on a narrow screen scrolls sideways in here, so the page never does. */
+.scroll-x {
+  overflow-x: auto;
 }
 
 .chart th:first-child,
@@ -522,6 +599,26 @@ h1 span {
 
 .roster td {
   height: 44px;
+}
+
+.roster .c-show {
+  width: 28%;
+}
+
+.roster .c-match {
+  width: 144px;
+}
+
+.roster .c-dl {
+  width: 96px;
+}
+
+.roster .c-status {
+  width: 88px;
+}
+
+.roster .c-call {
+  width: 64px;
 }
 
 .nm {
@@ -568,7 +665,8 @@ button.call[aria-pressed='true'] {
   background: var(--panel);
 }
 
-/* Roster setup: the selected row opens in the rail, where its match is settled. */
+/* Roster setup: the selected row opens in the rail, where its match is settled. With none selected,
+   the row whose evidence is open is the selected one, so only one row is ever Panel Grey. */
 .roster tr[data-selected] td {
   background: var(--panel);
 }
@@ -633,6 +731,15 @@ button.call[aria-pressed='true'] {
   background: var(--panel);
   margin: 0 -32px 0 -24px;
   padding: 16px 32px 16px 24px;
+}
+
+/* The launch page's open question sits in the grid itself, atop the rail, on the rail's hairline. */
+.main > .ask {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0 -32px 0 0;
+  border-left: 1px solid var(--line);
+  min-width: 0;
 }
 
 .pick,
@@ -763,9 +870,18 @@ fieldset {
 
 @media (max-width: 960px) {
   .ask,
-  .ed {
+  .ed,
+  .main > .ask {
+    grid-column: 1;
+    grid-row: auto;
     margin: 0 -32px;
     padding: 16px 32px;
+    border-left: 0;
+  }
+
+  /* Spanning the page, the question keeps the rail's measure rather than stretch its fields. */
+  .main > .ask > * {
+    max-width: 560px;
   }
 }
 
@@ -837,6 +953,7 @@ fieldset {
 }
 
 .sec-help {
+  max-width: 88ch;
   margin: -4px 0 12px;
 }
 
@@ -911,13 +1028,43 @@ fieldset {
   margin: 2px 0 0 5px;
 }
 
+/* Chart movement: when the topic column lands, last week's figures and the moves fade in, then each
+   climber's bullet lands beside its position, top down, like a mark made on the printed chart. */
+.fit-chart td.lw,
+.fit-chart td.mv {
+  animation: fade-in var(--t-state) ease-out backwards;
+}
+
+.pos .bul {
+  animation: land var(--t-arrive) var(--ease-out) backwards;
+  animation-delay: calc(var(--t-state) + var(--landing, 0) * 60ms);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes land {
+  from {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
 .legend {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   margin: -4px 0 12px;
   font-size: 12px;
   color: var(--mid);
+}
+
+.legend .bul {
+  flex: none;
+  margin-top: 4px;
 }
 
 /* A selected climber and its "why it moved" line read as one Panel Grey block. */
@@ -932,6 +1079,14 @@ fieldset {
   background: var(--panel);
   font-size: 12px;
   color: var(--mid);
+  animation: fade-in var(--t-state) ease-out;
+}
+
+/* Reduced motion: nothing scales or waits its turn; figures and bullets just fade in. */
+@media (prefers-reduced-motion: reduce) {
+  .pos .bul {
+    animation: fade-in var(--t-state) ease-out backwards;
+  }
 }
 
 .why .lbl {
@@ -1450,4 +1605,89 @@ a.btn {
 /* A chart-column section's own state, such as a partial ranking, above what it qualifies. */
 .sec > .state {
   margin: 0 0 12px;
+}
+
+/* Phones: 16px gutters; the top bar wraps its sample notice under the nav, the network's name being
+   in the notice already; the launch header stacks; the roster table scrolls sideways in its frame. */
+@media (max-width: 600px) {
+  .top {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0 16px;
+  }
+
+  .nav {
+    height: 48px;
+    margin-left: auto;
+  }
+
+  #shell-network,
+  .shell-notice:empty {
+    display: none;
+  }
+
+  .shell-notice {
+    flex-basis: 100%;
+    margin: 0 0 12px;
+  }
+
+  .sample-tag {
+    display: inline-block;
+    white-space: normal;
+  }
+
+  .hd {
+    padding: 16px;
+  }
+
+  .hd-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .status {
+    text-align: left;
+    max-width: none;
+  }
+
+  .launch-form > input {
+    width: 100%;
+  }
+
+  .main {
+    padding: 0 16px 24px;
+  }
+
+  .ask,
+  .ed,
+  .main > .ask {
+    margin: 0 -16px;
+    padding: 16px;
+  }
+
+  .roster {
+    min-width: 640px;
+  }
+
+  .roster .c-show {
+    width: 168px;
+  }
+
+  .roster .c-match {
+    width: 112px;
+  }
+
+  .roster .c-dl {
+    width: 80px;
+  }
+
+  .roster .c-status {
+    width: 72px;
+  }
+
+  .roster .cap {
+    display: block;
+    max-width: calc(100vw - 32px);
+  }
 }

@@ -35,9 +35,9 @@ Contents:
 
 Crossfeed sets a network's roster as this week's chart. Fit rank is the new position, the rank a topic-only planner would give is last week's, and the moves Qloo caused are the news. A programmer reads the chart the way the music and podcast industries already read Billboard and the podcast rankers: position first, then movement, then why. The world lends four things only: type, palette, density, and one signature move. Layout, navigation, and controls stay standard web components, because this is a working screen and the programmer should know where everything is before they notice the world.
 
-The screen is light, because its scene is a head of programming at a desk in a daylit office, planning one launch between meetings; a dark theme is [to be resolved during implementation]. It is dense but not cramped: tall chart rows give the position numerals room, while everything around them stays small, quiet, and set in tabular figures. Agent text and Qloo data never blend; each is labelled where it appears, and every claim cites the Qloo call behind it.
+The screen is light, because its scene is a head of programming at a desk in a daylit office, planning one launch between meetings, so there is no dark theme: the screen is light only, and tells the browser so with `color-scheme: light`. It is dense but not cramped: tall chart rows give the position numerals room, while everything around them stays small, quiet, and set in tabular figures. Agent text and Qloo data never blend; each is labelled where it appears, and every claim cites the Qloo call behind it.
 
-The signature move is **chart movement**: a show that climbs three or more places over its topic rank gets a red bullet beside its position, and the selected climber opens an inline "why it moved" line that cites its Qloo call. This is the demo's decisive moment drawn as chart notation, not as a tile or a chat message. Motion for the move, and timings generally, are [to be resolved during implementation].
+The signature move is **chart movement**: a show that climbs three or more places over its topic rank gets a red bullet beside its position, and the selected climber opens an inline "why it moved" line that cites its Qloo call. This is the demo's decisive moment drawn as chart notation, not as a tile or a chat message. In motion, the move lands like a mark made on the printed chart: when the topic column arrives, last week's figures and the moves fade in over 200ms, then each climber's bullet lands beside its position, shrinking from 2.4 times its size as it fades in, over 320ms and 60ms after the climber above it. The why line fades in over 200ms. Everything else moves only to acknowledge: 120ms color changes on hover and press, and 200ms for a row taking Panel Grey. Every curve eases out, the bullet's on `cubic-bezier(0.16, 1, 0.3, 1)`; nothing bounces or loops. With reduced motion, the bullets fade in with the figures, with no scale and no stagger.
 
 **Key Characteristics:**
 
@@ -62,7 +62,7 @@ A restrained palette: neutrals on white, the black top bar as the one committed 
 - **Column Grey** (#555555): secondary text such as comps, help lines, and column headings. 7.46:1 on white.
 - **Caption Grey** (#6b6b6b): captions, tags under a show name, field labels, and placeholders. 5.33:1 on white and 4.76:1 on Panel Grey.
 - **Last-Week Grey** (#8a8a8a): last-week (topic rank) numerals only, at 24px or larger. 3.45:1 passes as large text only.
-- **Panel Grey** (#f2f2f2): the selected chart row with its "why it moved" line, and the agent's open question.
+- **Panel Grey** (#f2f2f2): the selected chart row with its "why it moved" line, and the agent's open question. A table has one selected row at a time: in the roster, the show open in the show editor or, with none open, the show whose evidence is open.
 - **Hairline** (#e6e6e6): row rules and section dividers.
 - **Control Edge** (#d4d4d4): input, button, and chip borders.
 - **Empty Segment** (#dcdcdc): unfilled band-meter segments; decorative, so the band's word label is always shown.
@@ -117,7 +117,7 @@ The spatial grammar is a black top bar over a light work area split in two: the 
 
 Exact measurements are [to be resolved during implementation]. The chosen sketch, at 1440px, used these provisional values: 32px page gutters, a 48px top bar, a 448px rail that begins after a 24px gap, a hairline, and 24px of inner padding, 64px chart rows, 28px rows in secondary tables, and 32px toolbar controls, on mostly 4, 8, 12, 16, 24, and 32px steps.
 
-Responsive behavior is [to be resolved during implementation], with one guardrail: at every width the position, move, and show name stay visible, and the agent's open question stays reachable without scrolling past the whole chart.
+Responsive behavior keeps one guardrail: at every width the position, move, and show name stay visible, and the agent's open question stays reachable without scrolling past the whole chart. So the open question comes before the chart in reading order, and the grid sets it atop the rail. The rail is 448px wide from a 1400px window and narrows to 320px below that (`clamp(320px, 32vw, 448px)`), so the chart keeps room for show names. Below 960px the page is one column: the open question, the chart, then the rest of the rail, with the question's fields kept to 560px. Below 600px the gutters drop to 16px, the top bar wraps its sample notice under the nav and drops the network's name, which the notice repeats, the launch header stacks, the chart's topic columns tighten and its names wrap, and the roster table scrolls sideways in its own frame, so the page itself never does.
 
 ## Elevation & Depth
 

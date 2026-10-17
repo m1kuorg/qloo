@@ -212,3 +212,20 @@ describe('the guide through the sample launch', () => {
     expect(guide(s.state()!)).toContain('Step 1 of 5')
   })
 })
+
+// DESIGN.md's layout guardrail: at every width the agent's open question is reachable without
+// scrolling past the chart. A narrow screen stacks the page in reading order, so the question
+// must come before the fit chart there.
+describe('the open question', () => {
+  it('comes before the fit chart, so a single column reaches it first', async () => {
+    const { s } = await visit()
+    await s.call('startLaunch', { name: 'The Watch' })
+    const html = page(await s.until(waitingOn('budget')))
+
+    const ask = html.indexOf('id="ask-h"')
+    const chart = html.indexOf('id="fit-h"')
+    expect(ask).toBeGreaterThan(-1)
+    expect(chart).toBeGreaterThan(-1)
+    expect(ask).toBeLessThan(chart)
+  })
+})

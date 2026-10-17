@@ -1,5 +1,5 @@
 import { useAgent } from 'agents/react'
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   Budget,
@@ -131,6 +131,10 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
         opened={opened?.call ?? null}
       />
       <main className="main">
+        {/* Before the chart, so a single column reaches it first; the grid sets it atop the rail when wide. */}
+        {run?.status === 'waiting' && run.question && (
+          <OpenQuestion key={run.question.id} question={run.question} launch={shown?.launch ?? null} agent={agent} />
+        )}
         <div className="chart-col">
           <FitChart
             ranking={shown?.ranking ?? null}
@@ -173,9 +177,6 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
           </section>
         </div>
         <aside className="rail" aria-label="Details">
-          {run?.status === 'waiting' && run.question && (
-            <OpenQuestion key={run.question.id} question={run.question} launch={shown?.launch ?? null} agent={agent} />
-          )}
           {agent.state && !viewing && (
             <Guide
               state={agent.state}
@@ -917,6 +918,8 @@ function FitChart({
   const tagged = ranking.rows.some((r) => r.sharedTags)
   const moves = topic?.status === 'ranked' ? new Map(topic.moves.map((m) => [m.show, m])) : null
   const climbers = topic?.moves.some((m) => m.climber) ?? false
+  // Each climber's place among them, top down, so their bullets land down the chart in turn.
+  const landing = new Map(topic?.moves.filter((m) => m.climber).map((m, i) => [m.show, i] as const))
   // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
   const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   return (
@@ -1041,7 +1044,13 @@ function FitChart({
                   >
                     <td className="pos">
                       {r.rank}
-                      {move?.climber && <i className="bul" aria-hidden="true" />}
+                      {move?.climber && (
+                        <i
+                          className="bul"
+                          aria-hidden="true"
+                          style={{ '--landing': Math.min(landing.get(r.show) ?? 0, 6) } as React.CSSProperties}
+                        />
+                      )}
                     </td>
                     {moves && <td className="lw">{move?.topicRank ?? '–'}</td>}
                     {moves && (
@@ -1321,112 +1330,119 @@ function RosterTable({
   opened: string | null
 }) {
   if (roster.length === 0) return <p className="empty">No roster yet. Paste show names above to import one.</p>
+  // One selected row: the show open in the rail's editor or, with none open, the show whose evidence is open.
+  const hot = selected ?? roster.find((s) => s.evidence === opened)?.name
   return (
-    <table className="chart roster">
-      <caption>
-        <Source of="qloo" /> Matches from Qloo search, one call per show.{' '}
-        {select
-          ? 'Select a show to settle or edit it, or open a call for its evidence.'
-          : 'Open a call for its evidence.'}
-      </caption>
-      <colgroup>
-        <col style={{ width: '28%' }} />
-        <col style={{ width: 144 }} />
-        <col />
-        <col style={{ width: 96 }} />
-        <col style={{ width: 88 }} />
-        <col style={{ width: 64 }} />
-      </colgroup>
-      <thead>
-        <tr>
-          <th scope="col">Show</th>
-          <th scope="col">Match</th>
-          <th scope="col">
-            Qloo entity<small>popularity percentile</small>
-          </th>
-          <th scope="col" className="r">
-            Downloads<small>per episode</small>
-          </th>
-          <th scope="col">Status</th>
-          <th scope="col" className="r">
-            Call
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {roster.map((show) => (
-          <tr
-            key={show.name}
-            data-resolution={show.resolution}
-            className={show.evidence === opened ? 'on' : undefined}
-            data-selected={show.name === selected || undefined}
-            data-excluded={show.excluded || undefined}
-            aria-busy={show.resolution === 'pending' || undefined}
-          >
-            <td>
-              {select ? (
-                <button
-                  type="button"
-                  className="row-open"
-                  aria-current={show.name === selected || undefined}
-                  onClick={() => select(show.name)}
-                >
-                  <span className="nm">{show.name}</span>
-                </button>
-              ) : (
-                <span className="nm row-open">{show.name}</span>
-              )}
-              {show.description && (
-                <div className="tg desc" title={show.description}>
-                  <SampleLabel show={show} figure="description" text="Sample:" /> {show.description}
-                </div>
-              )}
-            </td>
-            <td>
-              <span className="chips">
-                <MatchChip
-                  show={show}
-                  slow={show.resolution === 'pending' && slowCalls.some((c) => c.call === show.evidence)}
-                />
-                {show.excluded && <span className="chip">Excluded</span>}
-              </span>
-            </td>
-            <td>
-              <Match
-                show={show}
-                slow={slowCalls.filter((c) => c.call === show.evidence)}
-                settle={select && (() => select(show.name))}
-              />
-            </td>
-            <td className="r">
-              {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
-              <SampleLabel show={show} figure="downloads" block />
-            </td>
-            <td>
-              {show.status ?? '–'}
-              <SampleLabel show={show} figure="status" block />
-            </td>
-            <td className="r">
-              {/* A pending call has no evidence record yet, so it opens once the search settles. */}
-              {show.resolution === 'pending' ? (
-                <code className="call">{show.evidence}</code>
-              ) : (
-                <button
-                  type="button"
-                  className="call"
-                  aria-pressed={show.evidence === opened}
-                  aria-controls="evidence"
-                  aria-label={`Evidence for ${show.name}: call ${show.evidence}`}
-                  onClick={() => openCall(show.evidence)}
-                >
-                  {show.evidence}
-                </button>
-              )}
-            </td>
+    // Narrow screens scroll the table sideways inside this, never the page.
+    <div className="scroll-x" role="region" aria-label="Roster table" tabIndex={0}>
+      <table className="chart roster">
+        <caption>
+          {/* A block of its own, so it wraps within a phone's screen while the table scrolls wider. */}
+          <span className="cap">
+            <Source of="qloo" /> Matches from Qloo search, one call per show.{' '}
+            {select
+              ? 'Select a show to settle or edit it, or open a call for its evidence.'
+              : 'Open a call for its evidence.'}
+          </span>
+        </caption>
+        <colgroup>
+          <col className="c-show" />
+          <col className="c-match" />
+          <col />
+          <col className="c-dl" />
+          <col className="c-status" />
+          <col className="c-call" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Show</th>
+            <th scope="col">Match</th>
+            <th scope="col">
+              Qloo entity<small>popularity percentile</small>
+            </th>
+            <th scope="col" className="r">
+              Downloads<small>per episode</small>
+            </th>
+            <th scope="col">Status</th>
+            <th scope="col" className="r">
+              Call
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {roster.map((show) => (
+            <tr
+              key={show.name}
+              data-resolution={show.resolution}
+              data-selected={show.name === hot || undefined}
+              data-excluded={show.excluded || undefined}
+              aria-busy={show.resolution === 'pending' || undefined}
+            >
+              <td>
+                {select ? (
+                  <button
+                    type="button"
+                    className="row-open"
+                    aria-current={show.name === selected || undefined}
+                    onClick={() => select(show.name)}
+                  >
+                    <span className="nm">{show.name}</span>
+                  </button>
+                ) : (
+                  <span className="nm row-open">{show.name}</span>
+                )}
+                {show.description && (
+                  <div className="tg desc" title={show.description}>
+                    <SampleLabel show={show} figure="description" text="Sample:" /> {show.description}
+                  </div>
+                )}
+              </td>
+              <td>
+                <span className="chips">
+                  <MatchChip
+                    show={show}
+                    slow={show.resolution === 'pending' && slowCalls.some((c) => c.call === show.evidence)}
+                  />
+                  {show.excluded && <span className="chip">Excluded</span>}
+                </span>
+              </td>
+              <td>
+                <Match
+                  show={show}
+                  slow={slowCalls.filter((c) => c.call === show.evidence)}
+                  settle={select && (() => select(show.name))}
+                />
+              </td>
+              <td className="r">
+                {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
+                <SampleLabel show={show} figure="downloads" block />
+              </td>
+              <td>
+                {show.status ?? '–'}
+                <SampleLabel show={show} figure="status" block />
+              </td>
+              <td className="r">
+                {/* A pending call has no evidence record yet, so it opens once the search settles. */}
+                {show.resolution === 'pending' ? (
+                  <code className="call">{show.evidence}</code>
+                ) : (
+                  <button
+                    type="button"
+                    className="call"
+                    aria-pressed={show.evidence === opened}
+                    aria-controls="evidence"
+                    aria-label={`Evidence for ${show.name}: call ${show.evidence}`}
+                    onClick={() => openCall(show.evidence)}
+                  >
+                    {show.evidence}
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -1475,8 +1491,14 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
 function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close: () => void }) {
   const { busy, error, run } = useAction()
   const update = (patch: ShowPatch) => run(() => agent.stub.updateShow(show.name, patch))
+  // Opened from a roster row, it can sit far below it, as in a single column; bring it into view.
+  const ref = useRef<HTMLElement>(null)
+  // A block body: newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [])
   return (
-    <section className="mod ed" aria-labelledby="show-ed">
+    <section className="mod ed" ref={ref} aria-labelledby="show-ed">
       <div className="mh">
         <span className="lbl" id="show-ed">
           Show
