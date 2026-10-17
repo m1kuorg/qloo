@@ -55,6 +55,7 @@ Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/clou
 - `requests` records every request a fake served, in order, with the time it arrived (`at`) and how many Qloo requests were in flight (`inFlight`). `test/setup.ts` clears it after each test.
 - `test/session.ts` wipes every Durable Object after each test, so the gateway's shared cache and daily count start empty. Keep `cloudflare:test` out of `test/setup.ts`: imported there, it crashes the next test file's worker when files share one, as on CI.
 - Tests run with a 1-second Qloo timeout, retry delays of 10 and 30 ms, and no pacing (`vitest.config.ts`). A test that needs another value assigns it to `env` from `cloudflare:workers` and restores it afterwards, as `configure()` in `test/gateway.test.ts` does.
+- Tests run with `SAMPLE_NETWORK` off, so a new session starts with an empty roster and makes no Qloo calls of its own. `test/sample.test.ts` turns it on to test the sample network.
 - `fakeClaude(script)` is the scripted model. Each Messages API request gets the next turn, streamed as the API streams it, after an empty thinking block like Haiku 5.5's. Build turns with `turn(toolUse(name, input), text(...))`, which ends in tool calls if it has any, or `refusal(category)`. Tool use IDs are `toolu_<turn>_<block>`. A script entry can be an async function of the request, to hold a turn while the test looks at a running run. A request past the end of the script gets a 400.
 - `modelRequests()` returns the body of every request the scripted model got, to check model settings and history.
 - Add a fake for a new endpoint or API to `test/fake.ts` the same way.
@@ -109,16 +110,15 @@ Secrets live on the `crossfeed` Worker in the `qloo` Cloudflare account, and are
 
 Done means the behaviour works against the real APIs, first locally and then on <https://crossfeed.m1kuorg.workers.dev>, checked by hand or with `playwright-cli`:
 
-1.  Open the app in a fresh browser session.
-1.  Paste The Ringer's 19 show names from `src/sample-network.json` and import them. Every row says "Looking it up in Qloo…", then fills in as its search returns, and the button counts the shows looked up.
+1.  Open the app in a fresh browser session. It opens on the sample network from `src/sample-network.json`: the top bar says "The Ringer · sample network" and "Sample data · not affiliated with The Ringer", every downloads, status, description, and CPM figure has a sample label beside it, and the launch field holds "The Watch", labelled "Sample launch". Every row says "Looking it up in Qloo…", then fills in as its search returns, within a few seconds when the gateway's cache is warm.
 1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo still failed after the gateway's retries, or the daily cap was reached; its reason is in the row.
-1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box.
-1.  Reload: the roster stays. A private window starts empty.
+1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box. Change a show's downloads: that figure loses its sample label.
+1.  Reload: the roster and the edits stay. A private window opens on a fresh sample network.
 1.  Type "The Big Picture" as the released launch and start a run. The header shows "Running" and "Resolving The Big Picture", then the Qloo match with its call number, and "Completed". The rail's Run module lists the progress notes as done.
 1.  The fit chart ranks the other scorable shows by position and band, with the top five marked Finalist. Under "Not scored" it lists The Big Picture as the launch, The Press Box as excluded, and any show still unsettled. Open the chart's call number: the evidence holds the anchor and candidates in its parameters and each show's raw affinity, which the chart never shows.
 1.  The run stops at "Waiting on you", and the rail's "Agent asks" module asks for the slot budget. Reload: the question stays. Answer with a slot count or a dollar amount. The next question asks which shows to leave out of this launch, in fit order: tick a finalist and answer. The chart drops its Finalist mark and gives it to the next show by fit, the header shows "Completed", and the Run module lists the budget and the shows left out.
 1.  Include The Press Box again and select "Run again". The rail's Runs module lists both runs and today's count out of 10. "View" on the first run shows what it ended with, read-only, with The Press Box still left out; "Back to the latest run" returns.
-1.  Import the same names again: every log line says `"cacheHit":true`, and no new Qloo call is made.
+1.  Clear the sample network: the roster empties, and the sample labels and notice go. Paste the 19 show names and import them: every log line says `"cacheHit":true`, and no new Qloo call is made.
 
 With `GUEST_PITCHES=on`, check the inbox too:
 
@@ -144,6 +144,7 @@ Agent log lines show each model call's tokens and cache reads (`"event":"model_c
 - `src/resolve.ts`: deciding whether a search result is the named entity: a roster show by name, a pitched work by title, then its author or year.
 - `src/fit.ts`: the fit ranking's derived values, built from one ranking call: which roster shows are scorable, fit rank, band, leading comp, finalists, and each other show's reason for not being scored. Later tickets read `state.ranking` for finalists and leading comps.
 - `src/roster.ts`: reading an imported roster, pasted names or a CSV, into rows.
+- `src/sample.ts`: the sample network a new session opens on, read from `src/sample-network.json`, with its suggested answers to the run's questions.
 - `src/inbox.ts`: the inbox's types, and reading the sample inbox or pasted pitches into rows. `loadInbox` returns at once and reads the pitches in the background, five at a time.
 - `src/extract.ts`: the pitch reader, one structured-output call per pitch. Single model calls beside the agent loop, such as the topic baseline, use `structured` from `src/claude.ts`.
 - `src/client/`: the React island. `main.tsx` passes the server's `data-page` to `App.tsx`, which renders the roster page or `Inbox.tsx`. `controls.tsx` holds the shared form pieces, such as `useAction` and `PickOne`. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. It renders from `shown`, the latest state or an earlier run's while one is viewed; render a run's results from `shown` so an earlier run shows its own, and hide editing controls while `viewing` is set. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.

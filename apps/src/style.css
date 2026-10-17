@@ -71,6 +71,26 @@ textarea {
   color: var(--mid);
 }
 
+/* An arbitrary sample figure's label, in Caption type beside the figure (DESIGN.md do's). */
+.smp {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--grey);
+}
+
+.smp.blk {
+  display: block;
+  line-height: 16px;
+}
+
+/* The sample network's notice and clear button, where the roster's help line would be. */
+.sample-notice {
+  max-width: 760px;
+  margin: -4px 0 16px;
+}
+
 /* Top bar: the one filled black region besides primary buttons. */
 .top {
   height: 48px;
@@ -106,6 +126,29 @@ textarea {
 .nav a.on {
   color: #fff;
   border-bottom-color: #fff;
+}
+
+/* The sample network's name and notice, as the sketch sets them in the top bar. */
+.net {
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid #333;
+  color: #b5b5b5;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.shell-notice {
+  margin-left: auto;
+}
+
+.sample-tag {
+  font-size: 11px;
+  color: #b5b5b5;
+  border: 1px solid #3a3a3a;
+  border-radius: 3px;
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
 .hd {

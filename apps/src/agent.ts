@@ -8,7 +8,8 @@ import type { QlooGateway, QlooResult } from './gateway'
 import { qlooType, readInbox, type Inbox, type Pitch } from './inbox'
 import { MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
 import { lookup, lookupWork, type Candidate, type Lookup } from './resolve'
-import { parseRoster, type RosterFormat } from './roster'
+import { parseRoster, type RosterFormat, type RosterRow } from './roster'
+import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
 import { tools, type ToolContext, type ToolResult } from './tools'
 
 export type Show = {
@@ -25,6 +26,7 @@ export type Show = {
   status: string | null // the network's own word, such as "active" or "hiatus"
   description: string | null
   excluded: boolean // never proposed for a launch, such as a show mid-sale
+  sample?: SampleFigure[] // a sample network show's figures the visitor hasn't changed; absent on an imported show
 }
 
 // A search for a comp: pending until Qloo answers, then done with its results, or failed with the
@@ -107,6 +109,7 @@ export type State = {
   runs: RunSummary[] // every run this session started, oldest first
   ranking: Ranking | null // the current run's fit chart, once the roster is ranked
   inbox: Inbox | null // the booker's guest pitches, when GUEST_PITCHES is on
+  sample: Sample | null // the sample network the session opened on, until it's cleared or a roster is imported
 }
 
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
@@ -117,9 +120,20 @@ const READ_CONCURRENCY = 5
 
 // One instance per visitor session, named by the session cookie.
 export class CrossfeedAgent extends Agent<Env, State> {
-  initialState: State = { roster: [], cpm: null, launch: null, run: null, runs: [], ranking: null, inbox: null }
+  initialState: State = {
+    roster: [],
+    cpm: null,
+    launch: null,
+    run: null,
+    runs: [],
+    ranking: null,
+    inbox: null,
+    sample: null
+  }
 
   async onStart() {
+    // Only this method creates the evidence table, so a session without it is starting for the first time.
+    const firstStart = this.sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evidence'`.length === 0
     this.sql`CREATE TABLE IF NOT EXISTS evidence (seq INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT)`
     // Each run's conversation with Claude, append-only: one row per message, thinking blocks kept.
     this.sql`CREATE TABLE IF NOT EXISTS conversation (seq INTEGER PRIMARY KEY AUTOINCREMENT, run TEXT, message TEXT)`
@@ -150,6 +164,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
       })
     const inbox = this.state.inbox
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
+    // A new session opens on the sample network, looked up like an import; tests turn this off.
+    if (firstStart && this.env.SAMPLE_NETWORK === 'on') this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample })
   }
 
   // State changes only through actions; a client can't write it directly.
@@ -172,22 +188,16 @@ export class CrossfeedAgent extends Agent<Env, State> {
       )
     if (this.state.roster.some((s) => s.resolution === 'pending'))
       throw new Error('The last import is still looking up its shows. Wait for it to finish.')
-    // Numbered now, in roster order, so a pending show cites the call it waits on.
-    const calls = rows.map(() => this.numberCall())
-    const roster = rows.map(({ name, ...fields }, i): Show => ({
-      name,
-      resolution: 'pending',
-      entity: null,
-      candidates: [],
-      evidence: callNumber(calls[i]),
-      error: null,
-      compSearch: null,
-      ...fields,
-      excluded: false
-    }))
-    this.setState({ ...this.state, roster })
-    // All at once: the gateway paces, limits, and retries the calls.
-    void this.keepAliveWhile(() => Promise.all(rows.map(({ name }, i) => this.lookUpShow(name, calls[i]))))
+    this.lookUpRoster(rows, this.leaveSample())
+  }
+
+  // Empties a roster that is still the sample network, ready for the visitor's own import.
+  @callable()
+  clearSample() {
+    if (!this.state.sample) throw new Error("The roster isn't the sample network, so there's nothing to clear.")
+    if (this.state.roster.some((s) => s.resolution === 'pending'))
+      throw new Error('The sample network is still being looked up. Wait for it to finish.')
+    this.setState({ ...this.state, roster: [], ...this.leaveSample() })
   }
 
   // Searches Qloo for a comparable show to stand in for one it can't match, such as a miss. It
@@ -236,6 +246,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
         if (typeof patch.excluded !== 'boolean') throw new Error('Excluded must be true or false.')
         next.excluded = patch.excluded
       }
+      // A sample figure the visitor changes is theirs from then on.
+      if (show.sample) next.sample = show.sample.filter((f) => next[f] === show[f])
       return next
     })
   }
@@ -245,7 +257,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
   setCpm(cpm: number) {
     if (typeof cpm !== 'number' || !Number.isFinite(cpm) || cpm <= 0)
       throw new Error('The CPM must be a dollar amount above 0.')
-    this.setState({ ...this.state, cpm })
+    const s = this.state.sample
+    this.setState({ ...this.state, cpm, sample: s && { ...s, cpm: s.cpm && cpm === this.state.cpm } })
   }
 
   // Starts a launch run and returns at once; the run's progress arrives in synced state.
@@ -373,6 +386,34 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return this.sql<{ record: string }>`SELECT record FROM evidence WHERE record IS NOT NULL ORDER BY seq`.map((r) =>
       JSON.parse(r.record)
     )
+  }
+
+  // Replaces the roster with these rows, each pending on its search, together with any other state
+  // that changes with it, and returns; each row fills in as its search settles.
+  private lookUpRoster(rows: (RosterRow & Pick<Show, 'sample'>)[], alongside: Partial<State>) {
+    // Numbered now, in roster order, so a pending show cites the call it waits on.
+    const calls = rows.map(() => this.numberCall())
+    const roster = rows.map(({ name, ...fields }, i): Show => ({
+      name,
+      resolution: 'pending',
+      entity: null,
+      candidates: [],
+      evidence: callNumber(calls[i]),
+      error: null,
+      compSearch: null,
+      ...fields,
+      excluded: false
+    }))
+    this.setState({ ...this.state, ...alongside, roster })
+    // All at once: the gateway paces, limits, and retries the calls.
+    void this.keepAliveWhile(() => Promise.all(rows.map(({ name }, i) => this.lookUpShow(name, calls[i]))))
+  }
+
+  // What leaving the sample network changes besides the roster: its CPM goes too, unless the visitor
+  // set their own, because a real network's CPM has no default.
+  private leaveSample(): Partial<State> {
+    const s = this.state.sample
+    return s ? { sample: null, cpm: s.cpm ? null : this.state.cpm } : {}
   }
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
