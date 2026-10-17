@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Evidence } from '../src/evidence'
-import { fakeQloo } from './fake'
+import { fakeQloo, type QlooEntity } from './fake'
 import { openSession, type Session } from './session'
 
 const open: Session[] = []
@@ -73,6 +73,24 @@ describe('the evidence behind each Qloo call', () => {
         affinities: []
       }
     ])
+  })
+
+  it('settles a show whose lookup throws after the request, and leaves the import usable', async () => {
+    // A result with no name passes the gateway, then breaks the session's own matching.
+    const nameless = { entity_id: 'e-0001', name: null, popularity: 0.9 } as unknown as QlooEntity
+    fakeQloo({
+      search: {
+        'Night Shift Cinema': [nameless],
+        'Deep Cuts': [{ entity_id: 'e-0002', name: 'Deep Cuts', popularity: 0.5 }]
+      }
+    })
+    const s = await session()
+    const state = await s.importRoster('Night Shift Cinema')
+
+    expect(state.roster[0]).toMatchObject({ resolution: 'failed', evidence: 'C-01' })
+    expect(state.roster[0].error).toMatch(/^The lookup failed: /)
+    const again = await s.importRoster('Deep Cuts')
+    expect(again.roster).toMatchObject([{ name: 'Deep Cuts', resolution: 'resolved' }])
   })
 
   it("returns only the calling session's own calls", async () => {

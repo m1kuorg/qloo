@@ -56,6 +56,24 @@ export const REQUESTS = {
   demographics: { method: 'POST', endpoint: '/v2/insights' }
 } as const
 
+type QlooRequest = (typeof REQUESTS)[keyof typeof REQUESTS]
+
+// A call's record before anything has come back: the request alone, started now.
+export const blankEvidence = ({ method, endpoint }: QlooRequest, params: Params): CallEvidence => ({
+  at: new Date().toISOString(),
+  method,
+  endpoint,
+  params,
+  status: null,
+  latencyMs: 0,
+  retries: 0,
+  cacheHit: false,
+  error: null,
+  entities: [],
+  tags: [],
+  affinities: []
+})
+
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
   // At most IN_FLIGHT requests in flight across all sessions, each started at least
@@ -232,28 +250,16 @@ export class QlooGateway extends DurableObject<Env> {
   // GET sends the parameters in the query string; POST sends them as a JSON body of flat dotted
   // keys, such as {"filter.type": "urn:entity:podcast"}, because Qloo answers a nested body with 400.
   private async request(
-    { method, endpoint }: (typeof REQUESTS)[keyof typeof REQUESTS],
+    qlooRequest: QlooRequest,
     params: Params,
     cache: CacheUse = 'use'
   ): Promise<QlooResult<unknown>> {
+    const { method, endpoint } = qlooRequest
     const url = new URL(endpoint, this.env.QLOO_BASE_URL)
     const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
     if (method === 'GET') url.search = String(query)
     const payload = method === 'POST' ? JSON.stringify(params) : undefined
-    const evidence: CallEvidence = {
-      at: new Date().toISOString(),
-      method,
-      endpoint,
-      params,
-      status: null,
-      latencyMs: 0,
-      retries: 0,
-      cacheHit: false,
-      error: null,
-      entities: [],
-      tags: [],
-      affinities: []
-    }
+    const evidence = blankEvidence(qlooRequest, params)
     // Latency runs from the first request sent, so time queued behind other calls isn't blamed on Qloo.
     const started = Date.now()
     let sentAt: number | undefined

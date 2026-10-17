@@ -2,10 +2,10 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, type Connection } from 'agents'
 import { claude, declined } from './claude'
 import type { DemographicCheck } from './demographics'
-import { callNumber, type Evidence } from './evidence'
+import { callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import { IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
+import { blankEvidence, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -665,21 +665,34 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
   private async lookUpShow(name: string, seq: number) {
-    const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
-    const match = lookup(name, call, result)
+    let match: Lookup
+    try {
+      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
+      match = lookup(name, call, result)
+    } catch (e) {
+      // Anything else that breaks still settles the show, so the import can't stay pending.
+      const error = `The lookup failed: ${message(e)}`
+      match = { resolution: 'failed', entity: null, candidates: [], evidence: callNumber(seq), error }
+    }
     this.editShow(name, (show) => ({ ...show, ...match }))
   }
 
   // Runs a pending comp search and fills it in, unless a newer search or an import replaced it.
   private async findComps(name: string, search: CompSearch, seq: number) {
-    const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
-    const landed: CompSearch = result.ok
-      ? {
-          ...search,
-          status: 'done',
-          results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
-        }
-      : { ...search, status: 'failed', error: result.error }
+    let landed: CompSearch
+    try {
+      const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
+      landed = result.ok
+        ? {
+            ...search,
+            status: 'done',
+            results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
+          }
+        : { ...search, status: 'failed', error: result.error }
+    } catch (e) {
+      // Anything else that breaks still settles the search, so it can't stay pending.
+      landed = { ...search, status: 'failed', error: `The search failed: ${message(e)}` }
+    }
     const show = this.state.roster.find((s) => s.name === name)
     if (show?.compSearch?.call === search.call) this.editShow(name, (s) => ({ ...s, compSearch: landed }))
   }
@@ -1150,7 +1163,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     let asked: keyof typeof REQUESTS | undefined
     const gateway = new Proxy(this.env.QlooGateway.getByName('global'), {
       get: (stub, key) => {
-        if (typeof key === 'string' && key in REQUESTS) asked = key as keyof typeof REQUESTS
+        if (typeof key === 'string' && Object.hasOwn(REQUESTS, key)) asked = key as keyof typeof REQUESTS
         return Reflect.get(stub, key)
       }
     })
@@ -1158,19 +1171,15 @@ export class CrossfeedAgent extends Agent<Env, State> {
     try {
       result = (await request(gateway)) as QlooResult<T>
     } catch (e) {
+      // The request never reached a gateway method, so there's no call to record; the caller settles it.
+      if (!asked) throw e
       const error = `The Qloo gateway failed: ${message(e)}`
-      const evidence = {
+      // Its parameters are the gateway's to build, so the record names only the request.
+      const evidence: CallEvidence = {
+        ...blankEvidence(REQUESTS[asked], {}),
         at: new Date(started).toISOString(),
-        ...REQUESTS[asked!],
-        params: {},
-        status: null,
         latencyMs: Date.now() - started,
-        retries: 0,
-        cacheHit: false,
-        error,
-        entities: [],
-        tags: [],
-        affinities: []
+        error
       }
       result = { ok: false, error, evidence }
     } finally {
