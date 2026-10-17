@@ -4,7 +4,7 @@ import type { PitchList, SharedTags } from '../fit'
 import type { Booking, Inbox, InboxSource, PastGuest, Pitch, PitchReply, Verdict, WorkType } from '../inbox'
 import { sameName } from '../resolve'
 import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
-import { EvidencePanel, type Opened } from './Evidence'
+import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
 import { SlowCalls, StateLine } from './states'
 
@@ -411,17 +411,13 @@ function RankedPitches({
         </h3>
         <span className="chips">
           {list.calls.map((call) => (
-            <button
+            <CallButton
               key={call}
-              type="button"
-              className="call"
-              aria-pressed={call === opened}
-              aria-controls="evidence"
-              aria-label={`Evidence for the ${noun} ranking: call ${call}`}
-              onClick={() => openCall(call)}
-            >
-              {call}
-            </button>
+              call={call}
+              label={`Evidence for the ${noun} ranking`}
+              opened={opened}
+              openCall={openCall}
+            />
           ))}
         </span>
       </div>
@@ -530,16 +526,7 @@ function TagLine({
         : tags.tags.length > 0
           ? tags.tags.join('\u00a0· ') // a separator never starts a line
           : 'No distinctive shared tags'}{' '}
-      <button
-        type="button"
-        className="call"
-        aria-pressed={tags.call === opened}
-        aria-controls="evidence"
-        aria-label={`${label}: call ${tags.call}`}
-        onClick={() => openCall(tags.call)}
-      >
-        {tags.call}
-      </button>
+      <CallButton call={tags.call} label={label} opened={opened} openCall={openCall} />
     </div>
   )
 }
@@ -774,16 +761,12 @@ function Anchors({
             <dd>
               {g.work.title} <span className="tg">· {g.match ? pastMatch[g.match.resolution] : 'Looking up…'}</span>{' '}
               {g.match && (
-                <button
-                  type="button"
-                  className="call"
-                  aria-pressed={g.match.evidence === opened}
-                  aria-controls="evidence"
-                  aria-label={`Evidence for ${g.work.title}: call ${g.match.evidence}`}
-                  onClick={() => openCall(g.match!.evidence)}
-                >
-                  {g.match.evidence}
-                </button>
+                <CallButton
+                  call={g.match.evidence}
+                  label={`Evidence for ${g.work.title}`}
+                  opened={opened}
+                  openCall={openCall}
+                />
               )}
             </dd>
           </div>
@@ -889,16 +872,12 @@ function PitchTable({
             </td>
             <td className="r">
               {p.match && (
-                <button
-                  type="button"
-                  className="call"
-                  aria-pressed={p.match.evidence === opened}
-                  aria-controls="evidence"
-                  aria-label={`Evidence for ${p.work?.title ?? p.id}: call ${p.match.evidence}`}
-                  onClick={() => openCall(p.match!.evidence)}
-                >
-                  {p.match.evidence}
-                </button>
+                <CallButton
+                  call={p.match.evidence}
+                  label={`Evidence for ${p.work?.title ?? p.id}`}
+                  opened={opened}
+                  openCall={openCall}
+                />
               )}
             </td>
           </tr>

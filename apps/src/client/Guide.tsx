@@ -42,7 +42,7 @@ export function Guide({
     },
     {
       title: 'Answer the agent',
-      how: `Under Agent asks, give the slot budget, then the shows to leave out, selecting Answer each time. Sample answers: ${budget.slots} promo slots, then ${exclusions.length ? `leave out ${listOf(exclusions)}` : 'leave every show unticked'}.`,
+      how: `In the agent's question, give the slot budget, then the shows to leave out, selecting Answer each time. Sample answers: ${budget.slots} promo slots, then ${exclusions.length ? `leave out ${listOf(exclusions)}` : 'leave every show unticked'}.`,
       done: run?.budget != null && run.exclusions !== null
     },
     {

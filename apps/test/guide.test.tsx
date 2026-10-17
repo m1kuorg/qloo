@@ -222,7 +222,7 @@ describe('the open question', () => {
     await s.call('startLaunch', { name: 'The Watch' })
     const html = page(await s.until(waitingOn('budget')))
 
-    const ask = html.indexOf('id="ask-h"')
+    const ask = html.indexOf('aria-label="Agent asks"')
     const chart = html.indexOf('id="fit-h"')
     expect(ask).toBeGreaterThan(-1)
     expect(chart).toBeGreaterThan(-1)
