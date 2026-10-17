@@ -8,6 +8,8 @@ const origin = 'https://crossfeed.test'
 export type Session = {
   cookie: string
   state: () => State | undefined
+  // Every frame the server sent, raw, in order: everything this visitor's browser would receive.
+  frames: () => string[]
   call: <T = unknown>(method: string, ...args: unknown[]) => Promise<T>
   // Sends a raw protocol frame and resolves with the next frame of type `reply`.
   send: (frame: object, reply: string) => Promise<Record<string, unknown>>
@@ -30,10 +32,12 @@ export async function openSession(cookie?: string): Promise<Session> {
   ws.accept()
 
   let state: State | undefined
+  const frames: string[] = []
   const seenState = Promise.withResolvers<void>()
   const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   const waiting: { type: string; resolve: (frame: Record<string, unknown>) => void }[] = []
   ws.addEventListener('message', (event) => {
+    frames.push(String(event.data))
     const message = JSON.parse(String(event.data))
     const waiter = waiting.findIndex((w) => w.type === message.type)
     if (waiter >= 0) waiting.splice(waiter, 1)[0].resolve(message)
@@ -52,6 +56,7 @@ export async function openSession(cookie?: string): Promise<Session> {
   return {
     cookie,
     state: () => state,
+    frames: () => frames,
     call: (method, ...args) =>
       new Promise((resolve, reject) => {
         const id = crypto.randomUUID()

@@ -181,6 +181,75 @@ h1 {
   text-align: right;
 }
 
+/* An evidence record: labels left, values wrapping beside them, as the sketch sets it. */
+.rec.kv .rec-row {
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.rec.kv dd {
+  font-weight: 400;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.rec code {
+  font: 500 12px var(--mono);
+}
+
+.rec .param {
+  display: block;
+}
+
+/* What Qloo returned, under the record: a secondary table, so hairlines only. */
+.ev {
+  width: 100%;
+  margin-top: 16px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ev caption {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  padding-bottom: 6px;
+}
+
+.ev th {
+  text-align: left;
+  padding: 0 0 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+
+.ev td {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.ev td small {
+  display: block;
+  font-size: 12px;
+  color: var(--grey);
+  overflow-wrap: anywhere;
+}
+
+.ev .r {
+  text-align: right;
+  padding-left: 12px;
+  white-space: nowrap;
+}
+
+.ev-none {
+  margin-top: 8px;
+}
+
 @media (max-width: 960px) {
   .main {
     grid-template-columns: minmax(0, 1fr);
@@ -332,4 +401,27 @@ h1 {
 
 .call {
   font: 500 12px var(--mono);
+}
+
+/* A cited call opens its evidence in the rail; the open one's row is the selected row. */
+button.call {
+  min-height: 24px;
+  padding: 0 4px;
+  margin-right: -4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--edge);
+  text-underline-offset: 3px;
+}
+
+button.call:hover,
+button.call[aria-pressed='true'] {
+  text-decoration-color: var(--ink);
+}
+
+.chart tr.on td {
+  background: var(--panel);
 }

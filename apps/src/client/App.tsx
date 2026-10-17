@@ -1,6 +1,8 @@
 import { useAgent } from 'agents/react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CrossfeedAgent, Show, State } from '../agent'
+import { EvidencePanel, type Opened } from './Evidence'
+import { Source } from './Source'
 
 // The session's agent; the server picks the instance from the session cookie.
 const useSession = () => useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgent', basePath: 'agents/session' })
@@ -8,6 +10,22 @@ const useSession = () => useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgen
 export function App() {
   const agent = useSession()
   const roster = agent.state?.roster ?? []
+  const [opened, setOpened] = useState<Opened | null>(null)
+  const latest = useRef<string | null>(null)
+  // Opens a call's evidence, or closes it when it's already open. Only the latest click's answer lands.
+  const openCall = async (call: string) => {
+    const closing = opened?.call === call
+    latest.current = closing ? null : call
+    if (closing) return setOpened(null)
+    setOpened({ call, status: 'loading' })
+    try {
+      const log = await agent.stub.getEvidence()
+      if (latest.current === call) setOpened({ call, status: 'loaded', record: log.find((e) => e.call === call) })
+    } catch (err) {
+      if (latest.current === call)
+        setOpened({ call, status: 'failed', error: err instanceof Error ? err.message : String(err) })
+    }
+  }
   return (
     <>
       <section className="hd">
@@ -17,10 +35,11 @@ export function App() {
       <main className="main">
         <section className="chart-col" aria-label="Roster">
           <RosterImport importRoster={(text) => agent.stub.importRoster(text)} />
-          <RosterTable roster={roster} />
+          <RosterTable roster={roster} openCall={openCall} opened={opened?.call ?? null} />
         </section>
         <aside className="rail" aria-label="Details">
           <RosterCheck roster={roster} />
+          <EvidencePanel opened={opened} />
         </aside>
       </main>
     </>
@@ -80,12 +99,20 @@ const resolutionLabel: Record<Show['resolution'], string> = {
   failed: 'Lookup failed'
 }
 
-function RosterTable({ roster }: { roster: Show[] }) {
+function RosterTable({
+  roster,
+  openCall,
+  opened
+}: {
+  roster: Show[]
+  openCall: (call: string) => void
+  opened: string | null
+}) {
   if (roster.length === 0) return <p className="empty">No roster yet. Paste show names above to import one.</p>
   return (
     <table className="chart roster">
       <caption>
-        <span className="lbl">Qloo data</span> Matches from Qloo search, one call per show.
+        <Source of="qloo" /> Matches from Qloo search, one call per show. Open a call for its evidence.
       </caption>
       <colgroup>
         <col style={{ width: '32%' }} />
@@ -107,7 +134,7 @@ function RosterTable({ roster }: { roster: Show[] }) {
       </thead>
       <tbody>
         {roster.map((show) => (
-          <tr key={show.name} data-resolution={show.resolution}>
+          <tr key={show.name} data-resolution={show.resolution} className={show.evidence === opened ? 'on' : undefined}>
             <td>
               <div className="nm">{show.name}</div>
             </td>
@@ -118,7 +145,16 @@ function RosterTable({ roster }: { roster: Show[] }) {
               <Match show={show} />
             </td>
             <td className="r">
-              <code className="call">{show.evidence}</code>
+              <button
+                type="button"
+                className="call"
+                aria-pressed={show.evidence === opened}
+                aria-controls="evidence"
+                aria-label={`Evidence for ${show.name}: call ${show.evidence}`}
+                onClick={() => openCall(show.evidence)}
+              >
+                {show.evidence}
+              </button>
             </td>
           </tr>
         ))}
@@ -164,7 +200,7 @@ function RosterCheck({ roster }: { roster: Show[] }) {
         <span className="lbl" id="roster-check">
           Roster check
         </span>
-        <span className="chip">Qloo data</span>
+        <Source of="qloo" />
       </div>
       <p className="help">Only resolved shows can be scored.</p>
       <dl className="rec">

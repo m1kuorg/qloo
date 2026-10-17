@@ -26,11 +26,22 @@ const record = async (request: {
     body: await request.clone().text()
   })
 
-export type QlooEntity = { entity_id: string; name: string; popularity: number; types?: string[] }
+// `properties` stands in for the fields Qloo returns that the app doesn't use.
+export type QlooEntity = {
+  entity_id: string
+  name: string
+  popularity: number
+  types?: string[]
+  properties?: Record<string, unknown>
+}
+
+// A response with a raw text body, such as an HTML error page from a proxy in front of Qloo.
+export type RawResponse = { status: number; body: string }
 
 // Serves `/search` from `search`, keyed by the exact query string. A number answers with that
-// HTTP status and an error body in Qloo's shape; a query with no fixture finds nothing.
-export function fakeQloo({ search }: { search: Record<string, QlooEntity[] | number> }) {
+// HTTP status and an error body in Qloo's shape, a `RawResponse` answers as written, and a query
+// with no fixture finds nothing.
+export function fakeQloo({ search }: { search: Record<string, QlooEntity[] | number | RawResponse> }) {
   network.use(
     http.get(`${env.QLOO_BASE_URL}/search`, async ({ request }) => {
       await record(request)
@@ -40,6 +51,7 @@ export function fakeQloo({ search }: { search: Record<string, QlooEntity[] | num
       if (!results) return HttpResponse.json({ results: [] })
       if (typeof results === 'number')
         return HttpResponse.json({ error: { message: 'fake failure', code: results } }, { status: results })
+      if (!Array.isArray(results)) return HttpResponse.text(results.body, { status: results.status })
       const types = [url.searchParams.get('types') ?? 'urn:entity:podcast']
       return HttpResponse.json({ results: results.slice(0, take).map((r) => ({ types, ...r })) })
     })
