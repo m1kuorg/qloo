@@ -688,3 +688,101 @@ fieldset {
   margin: 0 -8px;
   padding: 5px 8px;
 }
+
+/* Chart-column sections, the fit chart then the roster, divided by hairlines like rail modules. */
+.sec {
+  padding-bottom: 24px;
+}
+
+.sec + .sec {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.sec-help {
+  margin: -4px 0 12px;
+}
+
+/* The Weekly Chart: tall rows, so the position numerals have room. */
+.fit-chart td {
+  height: 64px;
+  padding: 8px;
+}
+
+.pos {
+  font: 800 40px/1 var(--cond);
+  white-space: nowrap;
+}
+
+/* The name wraps rather than truncate, so it stays readable beside a finalist chip at any width. */
+.nm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.nm-row .nm {
+  white-space: normal;
+}
+
+.fit-chart .c-pos {
+  width: 104px;
+}
+
+.fit-chart .c-band {
+  width: 128px;
+}
+
+@media (max-width: 600px) {
+  .fit-chart .c-pos {
+    width: 64px;
+  }
+
+  .fit-chart .c-band {
+    width: 100px;
+  }
+
+  .fit-chart th {
+    white-space: normal;
+  }
+}
+
+.nm-row .chip {
+  flex: none;
+}
+
+/* Fit band: three 5x12 bars filled from the left, always followed by the band's word. */
+.band {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 500;
+}
+
+.band i {
+  width: 5px;
+  height: 12px;
+  background: var(--empty);
+}
+
+.band i:nth-of-type(3) {
+  margin-right: 7px;
+}
+
+.b3 i,
+.b2 i:nth-of-type(-n + 2),
+.b1 i:first-of-type {
+  background: var(--ink);
+}
+
+.not-scored {
+  margin-top: 24px;
+}
+
+.not-scored td:first-child {
+  width: 40%;
+  padding-right: 12px;
+  font-weight: 600;
+}

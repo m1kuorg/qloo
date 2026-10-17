@@ -1,7 +1,9 @@
 import { useAgent } from 'agents/react'
 import { useRef, useState } from 'react'
 import type { CrossfeedAgent, Launch, Run, RunSnapshot, RunSummary, Show, ShowPatch, State } from '../agent'
+import type { Band, Ranking } from '../fit'
 import { MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
+import { sameName } from '../resolve'
 import type { RosterFormat } from '../roster'
 import { EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
@@ -47,27 +49,37 @@ export function App() {
         openCall={openCall}
         opened={opened?.call ?? null}
       />
-      <section className="hd">
-        <h1>Roster</h1>
-        <p className="help">
-          {viewing
-            ? `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
-            : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
-        </p>
-      </section>
       <main className="main">
-        <section className="chart-col" aria-label="Roster">
-          {!viewing && (
-            <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
-          )}
-          <RosterTable
-            roster={roster}
-            selected={viewing ? null : (show?.name ?? null)}
-            select={viewing ? null : setSelected}
+        <div className="chart-col">
+          <FitChart
+            ranking={shown?.ranking ?? null}
+            running={run?.status === 'running'}
             openCall={openCall}
             opened={opened?.call ?? null}
           />
-        </section>
+          <section className="sec" aria-labelledby="roster-h">
+            <div className="mh">
+              <h2 className="lbl" id="roster-h">
+                Roster
+              </h2>
+            </div>
+            <p className="help sec-help">
+              {viewing
+                ? `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
+                : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
+            </p>
+            {!viewing && (
+              <RosterImport roster={roster} importRoster={(text, format) => agent.stub.importRoster(text, format)} />
+            )}
+            <RosterTable
+              roster={roster}
+              selected={viewing ? null : (show?.name ?? null)}
+              select={viewing ? null : setSelected}
+              openCall={openCall}
+              opened={opened?.call ?? null}
+            />
+          </section>
+        </div>
         <aside className="rail" aria-label="Details">
           {run && <RunLog run={run} />}
           {runs.length > 0 && (
@@ -323,6 +335,134 @@ function RunList({
         Each run starts fresh; earlier ones stay here to compare. A session can start {MAX_RUNS_PER_DAY} runs a UTC day.
       </p>
       <Alert error={error} />
+    </section>
+  )
+}
+
+// Fit bands as the chart words them: a meter of three bars filled from the left, then the word.
+const bandMeter: Record<Band, { bars: number; word: string }> = {
+  top: { bars: 3, word: 'Strong' },
+  middle: { bars: 2, word: 'Good' },
+  bottom: { bars: 1, word: 'Fair' }
+}
+
+const listOf = (names: string[]) =>
+  names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')}, and ${names.at(-1)}`
+
+// The Weekly Chart: the roster ranked by listener overlap with the launch, position first, then band.
+// Raw affinities stay in the ranking call's evidence.
+function FitChart({
+  ranking,
+  running,
+  openCall,
+  opened
+}: {
+  ranking: Ranking | null
+  running: boolean
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  if (!ranking)
+    return running ? <p className="help sec">The fit chart appears here once the agent ranks the roster.</p> : null
+  const comps = ranking.anchors.length > 1
+  return (
+    <section className="sec fit" aria-labelledby="fit-h">
+      <div className="mh">
+        <h2 className="lbl" id="fit-h">
+          Fit chart
+        </h2>
+        <span className="chips">
+          <Source of="qloo" />
+          <button
+            type="button"
+            className="call"
+            aria-pressed={ranking.call === opened}
+            aria-controls="evidence"
+            aria-label={`Evidence for the fit ranking: call ${ranking.call}`}
+            onClick={() => openCall(ranking.call)}
+          >
+            {ranking.call}
+          </button>
+        </span>
+      </div>
+      <p className="help sec-help">
+        Ranked by how much each show&apos;s listeners overlap the listeners of{' '}
+        {listOf(ranking.anchors.map((a) => a.name))}. Bands are thirds of this ranking, and the top five are finalists.
+      </p>
+      {ranking.error ? (
+        <p className="err" role="alert">
+          Not scored: {ranking.error}. Nothing is ranked.
+        </p>
+      ) : (
+        <table className="chart fit-chart" aria-labelledby="fit-h">
+          <colgroup>
+            <col className="c-pos" />
+            <col />
+            <col className="c-band" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">
+                This week<small>fit rank</small>
+              </th>
+              <th scope="col">
+                Show<small>{comps ? 'Qloo match · leading comp' : 'Qloo match'}</small>
+              </th>
+              <th scope="col">
+                Fit band<small>listener overlap</small>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {ranking.rows.map((r) => {
+              const { bars, word } = bandMeter[r.band]
+              const notes = [
+                !sameName(r.entity.name, r.show) && `Mapped to ${r.entity.name}`,
+                comps && (r.leadingComp ? `Led by ${r.leadingComp.name}` : 'Comps contributed evenly')
+              ].filter(Boolean)
+              return (
+                <tr key={r.show} data-finalist={r.finalist || undefined}>
+                  <td className="pos">{r.rank}</td>
+                  <td>
+                    <div className="nm-row">
+                      <span className="nm">{r.show}</span>
+                      {r.finalist && <span className="chip">Finalist</span>}
+                    </div>
+                    {notes.length > 0 && <div className="tg">{notes.join(' · ')}</div>}
+                  </td>
+                  <td>
+                    <span className={`band b${bars}`}>
+                      <i aria-hidden="true" />
+                      <i aria-hidden="true" />
+                      <i aria-hidden="true" />
+                      {word}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+      {ranking.notScored.length > 0 && (
+        <table className="ev not-scored">
+          <caption>Not scored · {ranking.notScored.length}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Show</th>
+              <th scope="col">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ranking.notScored.map((n) => (
+              <tr key={n.show}>
+                <td>{n.show}</td>
+                <td>{n.reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   )
 }

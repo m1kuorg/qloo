@@ -7,7 +7,13 @@ export type QlooEntity = { id: string; name: string; type: string; popularity: n
 // evidence survives the RPC hop and the session can log it.
 export type QlooResult<T> = { evidence: CallEvidence } & ({ ok: true; data: T } | { ok: false; error: string })
 
-type Params = Record<string, string | number>
+type Params = Record<string, string | number | boolean>
+
+// One ranked result: its raw affinity and each anchor's share of it, from explainability.
+export type Affinity = CallEvidence['affinities'][number]
+
+// A closed-list ranking: the scored candidates, best first, and the candidates Qloo gave no score.
+export type Ranked = { scored: (Affinity & { affinity: number })[]; unscored: string[] }
 
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
@@ -30,7 +36,7 @@ export class QlooGateway extends DurableObject<Env> {
   // Finds entities by name. Qloo's search is fuzzy, so deciding whether a result is the show is
   // the caller's job (see resolve.ts).
   async search(query: string, type: string, take = 3): Promise<QlooResult<QlooEntity[]>> {
-    const result = await this.get('/search', { query, types: type, take })
+    const result = await this.request('GET', '/search', { query, types: type, take })
     if (!result.ok) return result
     const raw = (result.data as { results?: SearchResult[] } | null)?.results ?? []
     const entities = raw.map((r) => ({
@@ -44,12 +50,57 @@ export class QlooGateway extends DurableObject<Env> {
     return { ok: true, data: entities, evidence: { ...result.evidence, entities } }
   }
 
-  private async get(endpoint: string, params: Params): Promise<QlooResult<unknown>> {
+  // Ranks a closed list of candidates against the anchors, sent together as one signal, each ID
+  // once. Qloo silently ignores parameters it doesn't apply, so a result outside the list or one
+  // without explainability is an error, not a ranking; so are all-null affinities, which mean the
+  // anchors gave no signal. A candidate left out of the results, or scored null, is unscored.
+  async rank(anchors: string[], candidates: string[], type: string): Promise<QlooResult<Ranked>> {
+    const ids = [...new Set(candidates)]
+    const result = await this.request('POST', '/v2/insights', {
+      'filter.type': type,
+      'signal.interests.entities': anchors.join(','),
+      'filter.results.entities': ids.join(','),
+      'feature.explainability': true,
+      take: 50
+    })
+    if (!result.ok) return result
+    const raw = (result.data as { results?: { entities?: InsightResult[] } } | null)?.results?.entities ?? []
+    const affinities = raw.map((r) => ({
+      id: r.entity_id,
+      name: r.name,
+      affinity: r.query?.affinity ?? null,
+      explainability: (r.query?.explainability?.['signal.interests.entities'] ?? []).map((x) => ({
+        id: x.entity_id,
+        score: x.score
+      }))
+    }))
+    const evidence = { ...result.evidence, affinities }
+    const names = (rs: InsightResult[]) => rs.map((r) => `${r.name} (${r.entity_id})`).join(', ')
+    const outside = raw.filter((r) => !ids.includes(r.entity_id))
+    if (outside.length > 0)
+      return this.fail(evidence, `Qloo ranked ${names(outside)}, outside the candidate list, so it ignored the list`)
+    const unexplained = raw.filter((r) => !r.query?.explainability?.['signal.interests.entities'])
+    if (unexplained.length > 0)
+      return this.fail(evidence, `Qloo returned no explainability for ${names(unexplained)}, so it ignored the request`)
+    const scored = affinities
+      .filter((a): a is Ranked['scored'][number] => a.affinity !== null)
+      .sort((a, b) => b.affinity - a.affinity)
+    if (scored.length === 0)
+      return this.fail(evidence, "Qloo returned no affinity for any candidate, so the anchors' signal didn't score")
+    const unscored = ids.filter((id) => !scored.some((s) => s.id === id))
+    return { ok: true, data: { scored, unscored }, evidence }
+  }
+
+  // GET sends the parameters in the query string; POST sends them as a JSON body of flat dotted
+  // keys, such as {"filter.type": "urn:entity:podcast"}, because Qloo answers a nested body with 400.
+  private async request(method: 'GET' | 'POST', endpoint: string, params: Params): Promise<QlooResult<unknown>> {
     const url = new URL(endpoint, this.env.QLOO_BASE_URL)
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v))
+    const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
+    if (method === 'GET') url.search = String(query)
+    const payload = method === 'POST' ? JSON.stringify(params) : undefined
     const evidence: CallEvidence = {
       at: new Date().toISOString(),
-      method: 'GET',
+      method,
       endpoint,
       params,
       status: null,
@@ -64,7 +115,7 @@ export class QlooGateway extends DurableObject<Env> {
     // Latency runs from the first request sent, so time queued behind other calls isn't blamed on Qloo.
     const started = Date.now()
     let sentAt: number | undefined
-    const key = await cacheKey('GET', endpoint, url.searchParams)
+    const key = await cacheKey(method, endpoint, query)
     const timeoutMs = Number(this.env.QLOO_TIMEOUT_MS)
     const retryDelays = this.env.QLOO_RETRY_DELAYS_MS.split(',').map(Number)
     try {
@@ -84,7 +135,7 @@ export class QlooGateway extends DurableObject<Env> {
         }
         await this.takeSlot()
         sentAt ??= Date.now()
-        const attempt = await this.attempt(url, timeoutMs).finally(() => this.releaseSlot())
+        const attempt = await this.attempt(url, payload, timeoutMs).finally(() => this.releaseSlot())
         evidence.status = attempt.status
         if (attempt.ok) {
           const body = JSON.stringify(attempt.data)
@@ -142,10 +193,15 @@ export class QlooGateway extends DurableObject<Env> {
 
   // One request to Qloo. Rate limits, gateway errors, and timeouts are worth retrying; a 400 or
   // any other error is not, and keeps Qloo's message.
-  private async attempt(url: URL, timeoutMs: number): Promise<Attempt> {
+  private async attempt(url: URL, payload: string | undefined, timeoutMs: number): Promise<Attempt> {
     try {
       const response = await fetch(url, {
-        headers: { 'X-Api-Key': this.env.QLOO_API_KEY },
+        method: payload === undefined ? 'GET' : 'POST',
+        headers: {
+          'X-Api-Key': this.env.QLOO_API_KEY,
+          ...(payload !== undefined && { 'Content-Type': 'application/json' })
+        },
+        body: payload,
         signal: AbortSignal.timeout(timeoutMs)
       })
       const { status } = response
@@ -198,6 +254,15 @@ async function cacheKey(method: string, endpoint: string, params: URLSearchParam
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 type SearchResult = { entity_id: string; name: string; types?: string[]; popularity?: number }
+
+type InsightResult = {
+  entity_id: string
+  name: string
+  query?: {
+    affinity?: number | null
+    explainability?: { 'signal.interests.entities'?: { entity_id: string; score: number }[] }
+  }
+}
 
 // Qloo errors look like {"error": {"message": "..."}}, or {"error_msg": "..."} for a 429. Any other
 // body, such as a proxy's HTML error page, is left out: raw response bodies never reach the browser.

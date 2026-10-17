@@ -1,6 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type { State } from '../agent'
 import type { QlooGateway, QlooResult } from '../gateway'
+import { rankCandidates } from './rank-candidates'
 import { resolveEntities } from './resolve-entities'
 
 // What a tool gets from the run that calls it.
@@ -10,6 +11,8 @@ export type ToolContext = {
   qloo: <T>(
     request: (gateway: DurableObjectStub<QlooGateway>) => Promise<QlooResult<T>>
   ) => Promise<{ call: string; result: QlooResult<T> }>
+  // The synced state as it is now.
+  state: () => State
   // Changes synced state; return the same object for no change.
   update: (change: (state: State) => State) => void
 }
@@ -21,12 +24,12 @@ export type ToolResult = { content: string; isError?: boolean }
 // schema, which needs `additionalProperties: false` and every property required.
 export type Tool<Input = any> = {
   definition: Anthropic.Tool & { strict: true }
-  note: (input: Input) => string // the progress note while it runs, such as "Resolving The Big Picture"
+  note: (input: Input, state: State) => string // the progress note while it runs, such as "Resolving The Big Picture"
   run: (input: Input, context: ToolContext) => Promise<ToolResult>
 }
 
 // Every tool the agent has. A tool ticket adds its tool here and fills its step in prompt.ts.
-export const tools: Tool[] = [resolveEntities]
+export const tools: Tool[] = [resolveEntities, rankCandidates]
 
 // The tool list every model call sends: sorted by name and never changed, so the cached prefix holds.
 export const toolDefinitions: Anthropic.Tool[] = tools
