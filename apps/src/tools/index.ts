@@ -30,7 +30,9 @@ export type ToolResult = { content: string; isError?: boolean }
 // schema, which needs `additionalProperties: false` and every property required.
 export type Tool<Input = any> = {
   definition: Anthropic.Tool & { strict: true }
-  note: (input: Input, state: State) => string // the progress note while it runs, such as "Resolving The Big Picture"
+  // The progress note while it runs, such as "Resolving The Big Picture"; null for a call that does
+  // nothing the programmer needs to see.
+  note: (input: Input, state: State) => string | null
   run: (input: Input, context: ToolContext) => Promise<ToolResult>
 }
 

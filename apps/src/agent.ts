@@ -859,7 +859,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
       if (turns >= MAX_TURNS)
         return this.finish(
           run,
-          `Stopped at the limit of ${MAX_TURNS} Claude turns per run, before Claude finished, so this plan is incomplete. Not run: ${calls.map((c) => noteFor(c, this.state)).join(', ')}.`,
+          `Stopped at the limit of ${MAX_TURNS} Claude turns per run, before Claude finished, so this plan is incomplete. Not run: ${calls.flatMap((c) => noteFor(c, this.state) ?? []).join(', ')}.`,
           'stopped'
         )
       const results = await Promise.all(calls.map((call) => this.callTool(run, call)))
@@ -878,7 +878,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
       if (cut.length > 0)
         return this.finish(
           run,
-          `Stopped at the limit of ${MAX_QLOO_CALLS} Qloo calls per run, before Claude finished, so this plan is incomplete. Cut off: ${cut.map((c) => noteFor(c, this.state)).join(', ')}.`,
+          `Stopped at the limit of ${MAX_QLOO_CALLS} Qloo calls per run, before Claude finished, so this plan is incomplete. Cut off: ${cut.flatMap((c) => noteFor(c, this.state) ?? []).join(', ')}.`,
           'stopped'
         )
     }
@@ -887,7 +887,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // Runs one tool call. `cutOff` says the run's Qloo call limit refused one of its calls.
   private async callTool(run: string, call: Anthropic.ToolUseBlock) {
     const tool = tools.find((t) => t.definition.name === call.name)
-    const note = this.addNote(run, noteFor(call, this.state))
+    const text = noteFor(call, this.state)
+    const note = text === null ? -1 : this.addNote(run, text)
     let cutOff = false
     const context: ToolContext = {
       run,
