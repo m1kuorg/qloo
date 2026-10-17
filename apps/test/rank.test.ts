@@ -277,3 +277,17 @@ describe('ranking the roster by fit to the launch', () => {
     expect(state.ranking).toBeNull()
   })
 })
+
+describe('the ranking progress note', () => {
+  it('counts one show in the singular', async () => {
+    fakeQloo({ search })
+    fakeInsights([{ entity_id: 'e-0201', name: 'The Long Take', affinity: 0.902 }])
+    fakeClaude([turn(resolveLaunch), turn(rank(['e-0001'], ['e-0201'])), turn(text('Ranked.'))])
+    const s = await session()
+    await s.importRoster('Night Shift Cinema\nThe Long Take')
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+
+    const state = await finished(s)
+    expect(state.run?.notes.at(-1)).toEqual({ text: 'Scoring 1 show against Night Shift Cinema', status: 'done' })
+  })
+})
