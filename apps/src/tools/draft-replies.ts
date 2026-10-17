@@ -47,7 +47,16 @@ export const draftReplies: Tool<Input> = {
       additionalProperties: false
     }
   },
-  note: ({ replies }) => `Drafting ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`,
+  // A reply to a pitch that already has one replaces it, so the log's figures add up to the Replies count.
+  note: ({ replies }, { booking }) => {
+    const drafted = new Set((booking?.replies ?? []).map((r) => r.pitch))
+    const pitches = new Set(replies.map((r) => r.pitch))
+    const redrafts = [...pitches].filter((p) => drafted.has(p)).length
+    const fresh = pitches.size - redrafts
+    const n = (count: number) => `${count} ${count === 1 ? 'reply' : 'replies'}`
+    if (redrafts === 0) return `Drafting ${n(fresh)}`
+    return fresh === 0 ? `Redrafting ${n(redrafts)}` : `Drafting ${n(fresh)} and redrafting ${redrafts}`
+  },
   async run({ replies }, { run, state, update }) {
     const { booking, inbox } = state()
     if (booking?.run !== run || !inbox)

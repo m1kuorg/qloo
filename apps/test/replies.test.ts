@@ -231,12 +231,13 @@ describe('drafting replies to pitches', () => {
 
   it("gives the whole run's verdict counts in each draft_replies result, so the closing can quote them", async () => {
     // Two calls in one turn, as Haiku drafts 40 replies in two calls of 20.
-    const { agentRequests } = await pitchRun([
+    const { state, agentRequests } = await pitchRun([
       turn(rankPitches),
       turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
       turn(draftReplies(replies.slice(0, 3)), draftReplies(replies.slice(3))),
       turn(text('Drafted.'))
     ])
+    expect(state.run?.notes.slice(-2).map((n) => n.text)).toEqual(['Drafting 3 replies', 'Drafting 4 replies'])
 
     const [first, second] = agentRequests()[3]
       .messages.at(-1)
@@ -266,7 +267,30 @@ describe('drafting replies to pitches', () => {
 
     const [result] = agentRequests()[4].messages.at(-1).content
     expect(JSON.parse(result.content).verdictsSoFar).toEqual({ book: 4, later: 1, decline: 2 })
+    // The log's figures add up to the 7 replies: 3, then 4 new and 1 replaced.
+    expect(state.run?.notes.slice(-2).map((n) => n.text)).toEqual([
+      'Drafting 3 replies',
+      'Drafting 4 replies and redrafting 1'
+    ])
     expect(state.booking?.replies?.filter((r) => r.verdict === 'book')).toHaveLength(4)
+  })
+
+  it('words a call that only replaces drafted replies as a redraft', async () => {
+    // Two calls of 3 and 4, then a third that replaces one reply, as a live run did.
+    const { state } = await pitchRun([
+      turn(rankPitches),
+      turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
+      turn(draftReplies(replies.slice(0, 3)), draftReplies(replies.slice(3))),
+      turn(draftReplies([{ ...replies[4], draft: "Let's talk about Low Tide next month." }])),
+      turn(text('Drafted.'))
+    ])
+
+    expect(state.run?.notes.slice(-3).map((n) => n.text)).toEqual([
+      'Drafting 3 replies',
+      'Drafting 4 replies',
+      'Redrafting 1 reply'
+    ])
+    expect(state.booking?.replies).toHaveLength(7)
   })
 
   it('refuses tags and replies before the ranking, tags for anything but the show and its top pitches, and ungrounded angles', async () => {
