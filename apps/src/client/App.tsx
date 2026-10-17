@@ -1104,9 +1104,9 @@ function DemographicSummary({
   )
   if (!check.profile)
     return (
-      <p className="err demo-sum" role="alert">
+      <StateLine kind="failed" role="alert">
         Demographics {cite} not checked: {check.error}.
-      </p>
+      </StateLine>
     )
   const { from, ages, skew } = check.profile
   const who = [

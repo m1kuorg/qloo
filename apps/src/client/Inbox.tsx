@@ -6,7 +6,7 @@ import { sameName } from '../resolve'
 import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
-import { SlowCalls } from './states'
+import { SlowCalls, StateLine } from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
@@ -414,9 +414,9 @@ function RankedPitches({
       </div>
       {against && <p className="help">{against}</p>}
       {list.error ? (
-        <p className="err" role="alert">
+        <StateLine kind="failed" role="alert">
           Not ranked: {list.error}.
-        </p>
+        </StateLine>
       ) : (
         <table className="chart fit-chart" aria-labelledby={id}>
           <colgroup>
