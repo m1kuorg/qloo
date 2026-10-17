@@ -97,7 +97,7 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
                 {pitchRun.status === 'waiting' && pitchRun.question && (
                   <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
                 )}
-                <RunLog run={pitchRun} />
+                <RunLog run={pitchRun} openCall={openCall} opened={opened?.call ?? null} />
               </>
             )
           }
@@ -207,7 +207,7 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
               }
             />
           )}
-          {run && <RunLog run={run} />}
+          {run && <RunLog run={run} openCall={openCall} opened={opened?.call ?? null} />}
           {runs.length > 0 && (
             <RunList
               runs={runs}
@@ -509,10 +509,45 @@ function LaunchComps({
   )
 }
 
+// Claude's closing line on a completed run, labelled as agent text. Each call number it cites
+// opens that call's evidence.
+function ClosingLine({
+  text,
+  openCall,
+  opened
+}: {
+  text: string
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  return (
+    <p className="closing">
+      <Source of="agent" />{' '}
+      {text.split(/\b(C-\d+)\b/).map((part, i) =>
+        i % 2 ? (
+          <button
+            key={i}
+            type="button"
+            className="call"
+            aria-pressed={part === opened}
+            aria-controls="evidence"
+            aria-label={`Evidence Claude cites: call ${part}`}
+            onClick={() => openCall(part)}
+          >
+            {part}
+          </button>
+        ) : (
+          part
+        )
+      )}
+    </p>
+  )
+}
+
 const noteLabel: Record<Run['notes'][number]['status'], string> = { running: 'Running', done: 'Done', failed: 'Failed' }
 
 // What the run has done so far: one note per tool call, then why it stopped if it failed.
-function RunLog({ run }: { run: Run }) {
+function RunLog({ run, openCall, opened }: { run: Run; openCall: (call: string) => void; opened: string | null }) {
   return (
     <section className="mod" aria-labelledby="run-log">
       <div className="mh">
@@ -539,6 +574,8 @@ function RunLog({ run }: { run: Run }) {
         )}
       </ol>
       {run.notes.length === 0 && run.status === 'running' && <p className="help">Waiting for Claude.</p>}
+      {/* Runs from before closing lines have none. */}
+      {run.closing && <ClosingLine text={run.closing} openCall={openCall} opened={opened} />}
       {(run.budget || run.exclusions) && (
         <dl className="rec">
           {run.budget && (

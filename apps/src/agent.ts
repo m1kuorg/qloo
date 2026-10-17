@@ -96,6 +96,7 @@ export type Run = {
   budget: Budget | null // the slot budget the programmer gave this run; only their answer sets it
   exclusions: string[] | null // show names left out of this run only; null until answered
   replayed?: string // why the stored sample run was replayed instead of run, such as the daily cap
+  closing: string | null // Claude's closing text once the run completes; never kept from a refused or failed turn
 }
 
 export type Budget = { slots: number } | { dollars: number }
@@ -383,7 +384,16 @@ export class CrossfeedAgent extends Agent<Env, State> {
     this.setState({
       ...this.state,
       launch: { name, match: null, comps: (comps ?? []).map(newComp) },
-      run: { id: run, status: 'running', notes: [], error: null, question: null, budget: null, exclusions: null },
+      run: {
+        id: run,
+        status: 'running',
+        notes: [],
+        error: null,
+        question: null,
+        budget: null,
+        exclusions: null,
+        closing: null
+      },
       // Sessions from before run limits have no list.
       runs: [
         ...(this.state.runs ?? []),
@@ -466,7 +476,16 @@ export class CrossfeedAgent extends Agent<Env, State> {
         lists: null,
         replies: null
       },
-      run: { id: run, status: 'running', notes: [], error: null, question: null, budget: null, exclusions: null },
+      run: {
+        id: run,
+        status: 'running',
+        notes: [],
+        error: null,
+        question: null,
+        budget: null,
+        exclusions: null,
+        closing: null
+      },
       runs: [
         ...(this.state.runs ?? []),
         {
@@ -928,7 +947,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
       const assistant: Anthropic.MessageParam = { role: 'assistant', content: reply.content }
       if (reply.stop_reason === 'end_turn') {
         this.append(run, assistant)
-        return this.finish(run, null)
+        const texts = reply.content.flatMap((b) => (b.type === 'text' ? [b.text.trim()] : [])).filter(Boolean)
+        return this.finish(run, null, 'failed', texts.join('\n\n') || null)
       }
       const calls = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
       if (reply.stop_reason !== 'tool_use' || calls.length === 0)
@@ -1025,14 +1045,20 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return index
   }
 
-  // Ends the run: completed when `error` is null, else failed, or stopped at a limit, with the
-  // reason and any unfinished notes marked failed. Keeps what it ended with for getRun.
-  private finish(run: string, error: string | null, status: 'failed' | 'stopped' = 'failed') {
+  // Ends the run: completed when `error` is null, with Claude's closing text, else failed, or
+  // stopped at a limit, with the reason and any unfinished notes marked failed. Keeps what it ended
+  // with for getRun.
+  private finish(
+    run: string,
+    error: string | null,
+    status: 'failed' | 'stopped' = 'failed',
+    closing: string | null = null
+  ) {
     const r = this.state.run
     if (r?.id !== run) return
     const ended: Run =
       error === null
-        ? { ...r, status: 'completed' }
+        ? { ...r, status: 'completed', closing }
         : {
             ...r,
             status,

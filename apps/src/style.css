@@ -807,6 +807,17 @@ fieldset {
   margin-top: 8px;
 }
 
+/* Claude's closing line under the run's notes: agent text, kept as written, blocks and all. */
+.closing {
+  margin-top: 8px;
+  white-space: pre-line;
+}
+
+/* A call cited mid-sentence keeps the line height even; WCAG's inline exception covers its size. */
+.closing button.call {
+  min-height: 0;
+}
+
 /* The session's runs: the one shown on the page is marked like a selected row. */
 .runs li[aria-current] {
   background: var(--panel);
