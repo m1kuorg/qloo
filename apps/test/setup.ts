@@ -1,4 +1,3 @@
-import { reset } from 'cloudflare:test'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { network, requests } from './fake'
 
@@ -7,11 +6,8 @@ beforeAll(() => {
   network.configure({ onUnhandledFrame: 'error' })
   network.enable()
 })
-afterEach(async () => {
+afterEach(() => {
   network.resetHandlers()
   requests.length = 0
-  // Wipes every Durable Object's storage and memory, so the gateway's shared cache, call count,
-  // and slots start fresh in each test.
-  await reset()
 })
 afterAll(() => network.disable())
