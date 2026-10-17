@@ -21,6 +21,9 @@ export type Affinity = CallEvidence['affinities'][number]
 // A closed-list ranking: the scored candidates, best first, and the candidates Qloo gave no score.
 export type Ranked = { scored: (Affinity & { affinity: number })[]; unscored: string[] }
 
+// One tag two signals share, from compare.
+export type SharedTag = CallEvidence['tags'][number]
+
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
   // At most 3 requests in flight across all sessions, each started at least QLOO_MIN_INTERVAL_MS
@@ -97,6 +100,21 @@ export class QlooGateway extends DurableObject<Env> {
       return this.fail(evidence, "Qloo returned no affinity for any candidate, so the anchors' signal didn't score")
     const unscored = ids.filter((id) => !scored.some((s) => s.id === id))
     return { ok: true, data: { scored, unscored }, evidence }
+  }
+
+  // The tags the audiences of side `a`, its entities sent together as one signal, share with entity
+  // `b`'s, in Qloo's order. Several entities on side `a` all count: on 2026-10-17 three comps gave
+  // the union of each comp's own shared tags.
+  async compare(a: string[], b: string): Promise<QlooResult<SharedTag[]>> {
+    const result = await this.request('GET', '/v2/analysis/compare', {
+      'a.signal.interests.entities': a.join(','),
+      'b.signal.interests.entities': b,
+      take: 50
+    })
+    if (!result.ok) return result
+    const raw = (result.data as { results?: { tags?: CompareTag[] } } | null)?.results?.tags ?? []
+    const tags = raw.map((t) => ({ id: t.tag_id, name: t.name, score: t.query?.score ?? null }))
+    return { ok: true, data: tags, evidence: { ...result.evidence, tags } }
   }
 
   // GET sends the parameters in the query string; POST sends them as a JSON body of flat dotted
@@ -277,6 +295,8 @@ type InsightResult = {
     explainability?: { 'signal.interests.entities'?: { entity_id: string; score: number }[] }
   }
 }
+
+type CompareTag = { tag_id: string; name: string; query?: { score?: number } }
 
 // Qloo errors look like {"error": {"message": "..."}}, or {"error_msg": "..."} for a 429. Any other
 // body, such as a proxy's HTML error page, is left out: raw response bodies never reach the browser.

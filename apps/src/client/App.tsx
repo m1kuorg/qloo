@@ -564,6 +564,7 @@ function FitChart({
   if (!ranking)
     return running ? <p className="help sec">The fit chart appears here once the agent ranks the roster.</p> : null
   const comps = ranking.anchors.length > 1
+  const tagged = ranking.rows.some((r) => r.sharedTags)
   return (
     <section className="sec fit" aria-labelledby="fit-h">
       <div className="mh">
@@ -606,7 +607,11 @@ function FitChart({
                 This week<small>fit rank</small>
               </th>
               <th scope="col">
-                Show<small>{comps ? 'Qloo match · leading comp' : 'Qloo match'}</small>
+                Show
+                <small>
+                  {tagged && 'shared Qloo tags · '}
+                  {comps ? 'Qloo match · leading comp' : 'Qloo match'}
+                </small>
               </th>
               <th scope="col">
                 Fit band<small>listener overlap</small>
@@ -620,6 +625,7 @@ function FitChart({
                 !sameName(r.entity.name, r.show) && `Mapped to ${r.entity.name}`,
                 comps && (r.leadingComp ? `Led by ${r.leadingComp.name}` : 'Comps contributed evenly')
               ].filter(Boolean)
+              const shared = r.sharedTags ?? null // runs from before shared tags have none
               return (
                 <tr
                   key={r.show}
@@ -633,6 +639,25 @@ function FitChart({
                       {r.finalist && <span className="chip">Finalist</span>}
                       {leftOut.includes(r.show) && <span className="chip">Left out</span>}
                     </div>
+                    {shared && (
+                      <div className="tg">
+                        {shared.error
+                          ? `Shared tags failed: ${shared.error}`
+                          : shared.tags.length > 0
+                            ? shared.tags.join('\u00a0· ') // a separator never starts a line
+                            : 'No distinctive shared tags'}{' '}
+                        <button
+                          type="button"
+                          className="call"
+                          aria-pressed={shared.call === opened}
+                          aria-controls="evidence"
+                          aria-label={`Evidence for the tags ${r.show} shares: call ${shared.call}`}
+                          onClick={() => openCall(shared.call)}
+                        >
+                          {shared.call}
+                        </button>
+                      </div>
+                    )}
                     {notes.length > 0 && <div className="tg">{notes.join(' · ')}</div>}
                   </td>
                   <td>
