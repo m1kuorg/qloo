@@ -855,7 +855,7 @@ function FitChart({
   const moves = topic?.status === 'ranked' ? new Map(topic.moves.map((m) => [m.show, m])) : null
   const climbers = topic?.moves.some((m) => m.climber) ?? false
   // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
-  const missing = ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
+  const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   return (
     <section className="sec fit" aria-labelledby="fit-h">
       <div className="mh">
@@ -1258,7 +1258,7 @@ function RosterTable({
       </caption>
       <colgroup>
         <col style={{ width: '28%' }} />
-        <col style={{ width: 128 }} />
+        <col style={{ width: 144 }} />
         <col />
         <col style={{ width: 96 }} />
         <col style={{ width: 88 }} />

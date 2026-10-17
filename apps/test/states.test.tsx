@@ -219,16 +219,17 @@ describe('a failing Qloo', () => {
     )
   })
 
-  it('says nothing is ranked when the ranking fails after its retries', async () => {
-    fakeQloo({ search })
+  it('says nothing is ranked when the ranking fails after its retries, and not that it is partial', async () => {
+    fakeQloo({ search: { ...search, 'Paper Trail': 503 } })
     fakeInsights(503)
     fakeClaude([turn(resolveLaunch), turn(rank(['e-0101', 'e-0201'])), turn(text('The ranking failed.'))])
     const s = await session()
-    await s.importRoster('Night Shift Cinema\nDeep Cuts\nSignal Boost')
+    await s.importRoster('Night Shift Cinema\nDeep Cuts\nSignal Boost\nPaper Trail')
 
     await s.call('startLaunch', { name: 'Night Shift Cinema' })
     const done = await s.until((st) => st.run?.status === 'completed')
     expect(page(done)).toContain('Failed Nothing is ranked: Qloo returned 503: fake failure, after 2 retries.')
+    expect(page(done)).not.toContain('Partial ranking')
   })
 
   it('marks a ranking partial when a roster lookup failed', async () => {
