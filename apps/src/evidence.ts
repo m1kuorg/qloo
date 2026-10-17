@@ -1,7 +1,7 @@
 // The evidence record: one per Qloo call, cached or not, appended to the calling session's log.
 // The gateway fills everything but `call` and `run`; the session stamps those when it appends.
 // Each endpoint's ticket fills `entities`, `tags`, or `affinities`; none reshapes the record.
-export type Evidence = {
+export   type Evidence = {
   call: string // "C-01", numbered per session
   run: string | null // the launch or pitch run that made the call; null outside a run
   at: string // ISO time the call started
