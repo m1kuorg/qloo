@@ -11,7 +11,8 @@ export default defineConfig({
       // test/fake.ts serve, and these keys override the real ones tests would load from .dev.vars.
       // Qloo retry delays are cut to milliseconds and pacing is off, so failure paths run fast. A
       // test that needs a short timeout or pacing sets it for itself. New sessions start empty
-      // instead of looking up the sample network; test/sample.test.ts turns it on.
+      // instead of looking up the sample network; test/sample.test.ts turns it on. Guest pitches
+      // are off whatever wrangler.jsonc or .dev.vars says; a test of the flow turns them on itself.
       miniflare: {
         bindings: {
           QLOO_BASE_URL: 'https://qloo.test',
@@ -21,7 +22,8 @@ export default defineConfig({
           QLOO_MIN_INTERVAL_MS: '0',
           ANTHROPIC_BASE_URL: 'https://anthropic.test',
           ANTHROPIC_API_KEY: 'test-anthropic-key',
-          SAMPLE_NETWORK: 'off'
+          SAMPLE_NETWORK: 'off',
+          GUEST_PITCHES: 'off'
         }
       }
     })

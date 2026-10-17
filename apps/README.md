@@ -25,7 +25,7 @@ bun install
 printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nGUEST_PITCHES=on\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" > .dev.vars
 ```
 
-`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `GUEST_PITCHES=on` shows the guest pitch flow locally; `wrangler.jsonc` keeps it `off` in production until #57 switches it on. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself.
+`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `GUEST_PITCHES=on` shows the guest pitch flow, as `wrangler.jsonc` does in production since #57; `off` hides it. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself.
 
 After changing `wrangler.jsonc`, run `bun run cf-typegen` to regenerate `Env` in `worker-configuration.d.ts`.
 
@@ -139,7 +139,7 @@ In a fresh browser session, check the guide through the sample launch:
 1.  The rail's Guide, under any open question, is at step 1 of 5. Follow only its steps: start the sample launch, select the climber it names for why it moved, select the call it names in that line, answer the agent with its sample answers, and approve the order. Each step's own control moves it on, every other control still works, and it ends Done. Answer before opening the why line and the steps you passed say Skipped.
 1.  Dismiss it, reload, and open a second tab: it stays hidden for the session. A private window shows it again.
 
-With `GUEST_PITCHES=on`, check the inbox too:
+With `GUEST_PITCHES=on`, as deployed, check the inbox too:
 
 1.  Open Inbox in the top bar and load the sample inbox. Within about 30 seconds every pitch shows its guest and work: 30 matched, Digger ambiguous, 5 not in Qloo (Hollywood, Ending; One Helluva Ride; Look at Me; Katabasis; New Heights), and 4 set aside with no public work. Claude's reading varies a little from run to run.
 1.  Select Digger, pick the 2026 film, and reload: the match stays.
@@ -149,7 +149,7 @@ With `GUEST_PITCHES=on`, check the inbox too:
 1.  The run goes on to find the tags 10 top pitches share with The Big Picture, one compare call each, then drafts 40 replies in two calls. Under each top pitch in the lists, its tags follow as words with the compare's call; open one: side `a` is the show alone and side `b` the work, entity IDs only.
 1.  "Replies" lists every pitch under Book, Later, or Decline: about 10, 19, and 11. Each Book reply shows its episode angle, the tags it's built from with their call, the sender it goes to, and a draft that names no guest and gives no reason. Copy is disabled on every draft.
 1.  Approve one reply: only it shows Approved, and Copy puts its exact text on the clipboard. Edit another, discard a third, and reload: the edit and the discard stay, and Restore brings the discarded one back as a draft.
-1.  With `GUEST_PITCHES` off, as deployed, there's no Inbox link and `/inbox` is a 404.
+1.  With `GUEST_PITCHES=off`, there's no Inbox link and `/inbox` is a 404.
 
 To cap the deployed Worker without a code change, deploy from up-to-date `main` with `bunx wrangler deploy --var QLOO_DAILY_CALL_CAP:0` (after `bun run build`), check, then `bun run deploy` again to restore `wrangler.jsonc`'s cap.
 
