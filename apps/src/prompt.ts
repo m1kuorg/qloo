@@ -59,7 +59,7 @@ Rules:
 - When a tool returns an error, follow its next step. If you can't, stop and say what is missing.
 - Ask the programmer with ask_human only where a step says to, one question per turn, and act on their answer.
 - Describe fit as listener overlap, never as a probability about a person.
-- When the steps are done, or you have stopped, end your turn with one or two plain sentences on what you did and what is missing, citing call numbers.
+- When the steps are done, or you have stopped, end your turn with at most three short plain sentences, under 60 words, with no headings or lists: what the plan covers, and what is missing and why, citing call numbers. The programmer sees each show's rank, tags, flags, and angle on the chart, so don't restate any of them. Give a show's roster state only as the run's first message or a tool result states it.
 
 Launch steps:
 ${numbered(launchSteps)}

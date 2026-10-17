@@ -66,6 +66,17 @@ const LEAD = 0.05 // how far the top anchor's share must beat the next one's to 
 export const scorable = (show: Show): show is Show & { entity: Candidate } =>
   (show.resolution === 'resolved' || show.resolution === 'mapped') && show.entity !== null && !show.excluded
 
+// Why the roster state keeps a show from being scored, or null when it can be. The chart's Not
+// scored list and the run's first message both give these reasons, so they never disagree.
+export function notScorable(show: Show): string | null {
+  if (show.excluded) return 'Excluded: never proposed for a launch'
+  if (show.resolution === 'pending') return 'Still being looked up in Qloo'
+  if (show.resolution === 'ambiguous') return 'Ambiguous in Qloo search: pick its match in the roster'
+  if (show.resolution === 'missed') return 'Not in Qloo: map a comp or leave it out'
+  if (show.resolution === 'failed') return `Its Qloo lookup failed: ${show.error}`
+  return null
+}
+
 // Builds the chart from the roster and the ranking call. Shows mapped to the same entity share its
 // score, and ties keep roster order. `launch` is the launch's own entity ID, when it has one.
 export function rankRoster(
@@ -91,11 +102,8 @@ export function rankRoster(
     sharedTags: null
   }))
   const reason = (s: Show) => {
-    if (s.excluded) return 'Excluded: never proposed for a launch'
-    if (s.resolution === 'pending') return 'Still being looked up in Qloo'
-    if (s.resolution === 'ambiguous') return 'Ambiguous in Qloo search: pick its match in the roster'
-    if (s.resolution === 'missed') return 'Not in Qloo: map a comp or leave it out'
-    if (s.resolution === 'failed') return `Its Qloo lookup failed: ${s.error}`
+    const unscorable = notScorable(s)
+    if (unscorable) return unscorable
     if (isAnchor(s))
       return s.entity?.id === launch
         ? 'The launch: not ranked against itself'
