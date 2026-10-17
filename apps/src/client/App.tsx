@@ -5,6 +5,7 @@ import type {
   Budget,
   Comp,
   CrossfeedAgent,
+  GuideMark,
   Launch,
   LaunchInput,
   Question,
@@ -26,6 +27,7 @@ import type { Sample, SampleFigure } from '../sample'
 import type { Move, Topic } from '../topic'
 import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
+import { Guide } from './Guide'
 import { InboxPage } from './Inbox'
 import { InsertionOrderPanel } from './InsertionOrder'
 import { Source } from './Source'
@@ -57,6 +59,12 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
   const show = roster.find((s) => s.name === selected)
   const [opened, setOpened] = useState<Opened | null>(null)
   const latest = useRef<string | null>(null)
+  // The guide's page steps, marked once each while it shows.
+  const guiding = useAction()
+  const guide = agent.state?.guide
+  const seen = (mark: GuideMark) => {
+    if (sample && !guide?.dismissed && !guide?.seen.includes(mark)) void guiding.run(() => agent.stub.markGuide(mark))
+  }
   // Opens a call's evidence, or closes it when it's already open. Only the latest click's answer lands.
   const openCall = async (call: string) => {
     const closing = opened?.call === call
@@ -133,6 +141,7 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
             running={run?.status === 'running'}
             openCall={openCall}
             opened={opened?.call ?? null}
+            seen={seen}
           />
           <section className="sec" aria-labelledby="roster-h">
             <div className="mh">
@@ -166,6 +175,13 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
         <aside className="rail" aria-label="Details">
           {run?.status === 'waiting' && run.question && (
             <OpenQuestion key={run.question.id} question={run.question} launch={shown?.launch ?? null} agent={agent} />
+          )}
+          {agent.state && !viewing && (
+            <Guide
+              state={agent.state}
+              dismiss={() => void guiding.run(() => agent.stub.dismissGuide())}
+              error={guiding.error}
+            />
           )}
           {shown?.insertionOrder && (
             <InsertionOrderPanel
@@ -834,7 +850,8 @@ function FitChart({
   failed,
   running,
   openCall,
-  opened
+  opened,
+  seen
 }: {
   ranking: Ranking | null
   leftOut: string[] // shows the run's exclusions answer left out
@@ -844,6 +861,7 @@ function FitChart({
   running: boolean
   openCall: (call: string) => void
   opened: string | null
+  seen: (mark: GuideMark) => void // tells the guide its step was done
 }) {
   // The climber whose "why it moved" line is open.
   const [why, setWhy] = useState<string | null>(null)
@@ -956,14 +974,18 @@ function FitChart({
               const flagged = r.finalist ? demographics?.rows.find((d) => d.show === r.show)?.reasons : null
               const move = moves?.get(r.show)
               const open = move?.climber && why === r.show
-              const callButton = (call: string, label: string) => (
+              // `cited`: the why-it-moved line cites it, which is a step of the guide.
+              const callButton = (call: string, label: string, cited = false) => (
                 <button
                   type="button"
                   className="call"
                   aria-pressed={call === opened}
                   aria-controls="evidence"
                   aria-label={`${label}: call ${call}`}
-                  onClick={() => openCall(call)}
+                  onClick={() => {
+                    openCall(call)
+                    if (cited) seen('evidence')
+                  }}
                 >
                   {call}
                 </button>
@@ -998,7 +1020,10 @@ function FitChart({
                             className="row-open"
                             aria-expanded={open}
                             aria-controls={`why-${r.rank}`}
-                            onClick={() => setWhy(open ? null : r.show)}
+                            onClick={() => {
+                              setWhy(open ? null : r.show)
+                              if (!open) seen('why')
+                            }}
                           >
                             <span className="nm">{r.show}</span>
                           </button>
@@ -1039,13 +1064,13 @@ function FitChart({
                         <span className="lbl">Why it moved</span>
                         <Source of="qloo" /> Topic alone ranks it {move.topicRank}; listener overlap with{' '}
                         {listOf(ranking.anchors.map((a) => a.name))} ranks it {r.rank}.{' '}
-                        {callButton(ranking.call, `Evidence for ${r.show}'s fit`)}
+                        {callButton(ranking.call, `Evidence for ${r.show}'s fit`, true)}
                         {r.leadingComp && ` Led by ${r.leadingComp.name}.`}
                         {shared && !shared.error && shared.tags.length > 0 && (
                           <>
                             {' '}
                             Shared tags: {listOf(shared.tags)}.{' '}
-                            {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
+                            {callButton(shared.call, `Evidence for the tags ${r.show} shares`, true)}
                           </>
                         )}
                       </td>
