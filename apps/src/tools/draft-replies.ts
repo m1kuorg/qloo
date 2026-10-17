@@ -107,15 +107,20 @@ export const draftReplies: Tool<Input> = {
     update((s) =>
       s.booking?.run === run ? { ...s, booking: { ...s.booking, replies: merged(s.booking.replies) } } : s
     )
-    const replied = new Set(merged(booking.replies).map((r) => r.pitch))
+    // The run's drafts as stored now, every call included, so the counts never need adding up.
+    const all = state().booking?.replies ?? []
+    const replied = new Set(all.map((r) => r.pitch))
     const missing = inbox.pitches.filter((p) => !replied.has(p.id)).map((p) => p.id)
+    const count = (v: Verdict) => all.filter((r) => r.verdict === v).length
+    const verdictsSoFar = { book: count('book'), later: count('later'), decline: count('decline') }
     return {
       content: JSON.stringify({
         stored: replies.length,
+        verdictsSoFar,
         withoutReply: missing,
         next: missing.length
-          ? `Draft replies for ${missing.join(', ')} too.`
-          : 'Every pitch has a draft reply. The booker approves, edits, or discards each one in the UI.'
+          ? `Draft replies for ${missing.join(', ')} too. verdictsSoFar already counts every call so far, so never add results together.`
+          : `Every pitch has a draft reply: ${verdictsSoFar.book} book, ${verdictsSoFar.later} later, and ${verdictsSoFar.decline} decline, counting every call. If your closing gives counts, use these. The booker approves, edits, or discards each reply in the UI.`
       })
     }
   }
