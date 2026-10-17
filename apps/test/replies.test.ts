@@ -3,6 +3,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
+import { Workspace, type Session as Agent } from '../src/client/App'
 import { InboxPage } from '../src/client/Inbox'
 import type { Evidence } from '../src/evidence'
 import {
@@ -349,7 +350,8 @@ describe('the booker clearing the inbox', () => {
           inbox: state.inbox,
           roster: state.roster,
           booking: state.booking,
-          ranking: false,
+          pitchRunStatus: null,
+          question: null,
           runLog: null,
           slowCalls: [],
           loadInbox: noop,
@@ -439,6 +441,37 @@ describe('the booker clearing the inbox', () => {
     await finished(s)
     await s.call('approveReply', 'pitch-02')
     expect(s.state()!.booking!.replies![1].status).toBe('approved')
+  })
+
+  it('asks its question before the lists and locks the replies while the run waits on it', async () => {
+    const ask = toolUse('ask_human', {
+      question: 'Hold the film pitches for next season?',
+      kind: 'choice',
+      options: ['Yes', 'No']
+    })
+    const { s } = await startRun([...drafted.slice(0, 3), turn(ask)])
+    const state = await s.until((state) => state.run?.status === 'waiting')
+    // The inbox page as the browser renders it from synced state.
+    const html = renderToStaticMarkup(
+      createElement(Workspace, { page: 'inbox', agent: { state, stub: {} } as unknown as Agent })
+    )
+
+    // Before the lists, so a single column reaches it first.
+    expect(html.indexOf('Hold the film pitches for next season?')).toBeGreaterThan(-1)
+    expect(html.indexOf('Hold the film pitches for next season?')).toBeLessThan(html.indexOf('id="lists-h"'))
+    // A reply's action buttons, by name, and whether they're disabled.
+    const actions = html.split('data-pitch="pitch-02"')[1].split('</li>')[0].split('class="acts"')[1]
+    const buttons = [...actions.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].map(([, attrs, name]) => [
+      name,
+      attrs.includes('disabled')
+    ])
+    expect(buttons).toEqual([
+      ['Approve', true],
+      ['Copy', true],
+      ['Edit', true],
+      ['Discard', true]
+    ])
+    await expect(s.call('approveReply', 'pitch-02')).rejects.toThrow('The agent is still drafting replies.')
   })
 
   it('refuses every reply action with GUEST_PITCHES off', async () => {

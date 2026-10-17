@@ -92,17 +92,14 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
           inbox={agent.state?.inbox ?? null}
           roster={agent.state?.roster ?? []}
           booking={agent.state?.booking ?? null}
-          ranking={pitchRun?.status === 'running'}
-          runLog={
-            pitchRun && (
-              <>
-                {pitchRun.status === 'waiting' && pitchRun.question && (
-                  <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
-                )}
-                <RunLog run={pitchRun} openCall={openCall} opened={opened?.call ?? null} />
-              </>
+          pitchRunStatus={pitchRun?.status ?? null}
+          question={
+            pitchRun?.status === 'waiting' &&
+            pitchRun.question && (
+              <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
             )
           }
+          runLog={pitchRun && <RunLog run={pitchRun} openCall={openCall} opened={opened?.call ?? null} />}
           slowCalls={slowCalls}
           loadInbox={(source) => agent.stub.loadInbox(source)}
           confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}

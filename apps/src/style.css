@@ -295,6 +295,11 @@ h1 span {
   font-weight: 600;
 }
 
+/* The inbox's pitch count keeps to one line, so a narrow header doesn't stack it word by word. */
+.status .count {
+  white-space: nowrap;
+}
+
 .launch-form {
   display: flex;
   flex-wrap: wrap;
@@ -1005,10 +1010,12 @@ fieldset {
   white-space: pre-line;
 }
 
-/* A call cited mid-sentence keeps the line height even; WCAG's inline exception covers its size. */
+/* A call cited mid-sentence keeps the line height even and sits in the text like a word, so "(C-59"
+   has no gap; WCAG's inline exception covers its size. */
 .closing button.call,
 .io .angle button.call {
   min-height: 0;
+  margin-left: -4px;
 }
 
 /* The session's runs: the one shown on the page is marked like a selected row. */
@@ -1328,6 +1335,27 @@ fieldset {
   height: 44px;
 }
 
+.pitches .c-pitch {
+  width: 27%;
+}
+
+.pitches .c-guest {
+  width: 17%;
+}
+
+.pitches .c-work {
+  width: 22%;
+}
+
+.pitches .c-call {
+  width: 64px;
+}
+
+/* A pitch's subject wraps rather than truncate, like a roster show's name; its sender is cut short. */
+.pitches .nm {
+  white-space: normal;
+}
+
 .pitches tr[data-selected] td {
   background: var(--panel);
 }
@@ -1369,6 +1397,7 @@ fieldset {
 
 .reply {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   padding: 12px 0;
   border-top: 1px solid var(--line);
@@ -1381,15 +1410,21 @@ fieldset {
   gap: 12px;
 }
 
+.reply-hd > span:first-child {
+  min-width: 0;
+}
+
+/* A long work title or pitch subject wraps, so a reply never pushes the page sideways. */
 .reply-hd .nm {
   font-weight: 600;
+  white-space: normal;
 }
 
 .reply[data-status='discarded'] .nm {
   color: var(--mid);
 }
 
-.chip[data-state='approved'] {
+.reply[data-status='approved'] .reply-hd .chip {
   color: var(--ink);
   border-color: var(--ink);
 }
@@ -1787,8 +1822,21 @@ a.btn {
     padding: 16px;
   }
 
-  .roster {
+  .roster,
+  .pitches {
     min-width: 640px;
+  }
+
+  .pitches .c-pitch {
+    width: 176px;
+  }
+
+  .pitches .c-guest {
+    width: 112px;
+  }
+
+  .pitches .c-work {
+    width: 136px;
   }
 
   .roster .c-show {
@@ -1807,7 +1855,8 @@ a.btn {
     width: 72px;
   }
 
-  .roster .cap {
+  .roster .cap,
+  .pitches .cap {
     display: block;
     max-width: calc(100vw - 32px);
   }
