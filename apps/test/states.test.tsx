@@ -101,15 +101,26 @@ describe('a slow Qloo', () => {
   it('names a call still waiting past the slow mark, and drops it once Qloo answers', async () => {
     configure({ QLOO_SLOW_MS: '50' })
     fakeQloo({ search })
-    const held = hold('Deep Cuts')
+    // Both are held, so which calls are slow never depends on how fast an unheld call answers.
+    const nightShift = hold('Night Shift Cinema')
+    const deepCuts = hold('Deep Cuts')
     const s = await session()
 
     await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
-    const slow = await s.until((st) => st.slowCalls.length > 0)
-    expect(slow.slowCalls).toEqual([{ call: 'C-02', run: null, waitedMs: 50 }])
+    const slow = await s.until((st) => st.slowCalls.length === 2)
+    expect(slow.slowCalls.toSorted((a, b) => a.call.localeCompare(b.call))).toEqual([
+      { call: 'C-01', run: null, waitedMs: 50 },
+      { call: 'C-02', run: null, waitedMs: 50 }
+    ])
     expect(page(slow)).toContain('Deep Cuts Slow Qloo C-02 has waited over 0.05 s for Qloo. Still trying.')
 
-    held.resolve()
+    deepCuts.resolve()
+    const answered = await s.until((st) => st.roster.some((show) => show.resolution === 'resolved'))
+    expect(answered.slowCalls).toEqual([{ call: 'C-01', run: null, waitedMs: 50 }])
+    expect(page(answered)).not.toContain('C-02 has waited')
+    expect(page(answered)).toContain('Night Shift Cinema Slow Qloo C-01 has waited over 0.05 s for Qloo. Still trying.')
+
+    nightShift.resolve()
     const settled = await s.until((st) => st.roster.every((show) => show.resolution === 'resolved'))
     expect(settled.slowCalls).toEqual([])
     expect(page(settled)).not.toContain('Slow Qloo')
