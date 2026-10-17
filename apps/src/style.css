@@ -787,6 +787,26 @@ fieldset {
   font-weight: 600;
 }
 
+/* The guide's numbered steps: the current one in ink, with its instruction under it. */
+.steps li {
+  color: var(--mid);
+}
+
+.steps li[aria-current] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.steps .help {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+.steps + .help {
+  margin-top: 8px;
+}
+
 /* The session's runs: the one shown on the page is marked like a selected row. */
 .runs li[aria-current] {
   background: var(--panel);

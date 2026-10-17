@@ -156,10 +156,19 @@ export type State = {
   booking: Booking | null // the latest guest pitch run's show, past guests, and ranked lists
   insertionOrder: InsertionOrder | null // the current run's order, once drafted; only the programmer edits or approves it
   slowCalls: SlowCall[] // this session's Qloo calls still waiting longer than they should
+  guide: Guide // the sample launch's guide, for the session rather than any run
 }
 
+// The guide through the sample launch (#54): the steps the visitor did in the page, where the agent
+// can't see them, and whether they dismissed it for the rest of the session. Its other steps follow
+// from the run.
+export type Guide = { seen: GuideMark[]; dismissed: boolean }
+export type GuideMark = 'why' | 'evidence' // opened a climber's why-it-moved line, then a call it cites
+const GUIDE_MARKS: GuideMark[] = ['why', 'evidence']
+
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
-export type RunSnapshot = Omit<State, 'runs'>
+// The guide stays out: it belongs to the session, so viewing or replaying a run never changes it.
+export type RunSnapshot = Omit<State, 'runs' | 'guide'>
 
 // A completed sample run any session can replay while Qloo can't be called: what it ended with,
 // less the visitor's own guest pitches, and every evidence record that cites. The gateway keeps the latest.
@@ -189,7 +198,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
     sample: null,
     booking: null,
     insertionOrder: null,
-    slowCalls: []
+    slowCalls: [],
+    guide: { seen: [], dismissed: false }
   }
 
   // This session's Qloo calls still out, oldest first; a call being timed holds its timer.
@@ -272,6 +282,25 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (this.state.roster.some((s) => s.resolution === 'pending'))
       throw new Error('The sample network is still being looked up. Wait for it to finish.')
     this.setState({ ...this.state, roster: [], ...this.leaveSample() })
+  }
+
+  // Marks a guide step the visitor did in the page, such as opening a climber's why-it-moved line.
+  @callable()
+  markGuide(mark: GuideMark) {
+    if (!GUIDE_MARKS.includes(mark)) throw new Error(`${JSON.stringify(mark)} isn't a step of the guide.`)
+    const guide = this.guide()
+    if (!guide.seen.includes(mark)) this.setState({ ...this.state, guide: { ...guide, seen: [...guide.seen, mark] } })
+  }
+
+  // Hides the guide for the rest of the session.
+  @callable()
+  dismissGuide() {
+    this.setState({ ...this.state, guide: { ...this.guide(), dismissed: true } })
+  }
+
+  // Sessions from before the guide have none in their state.
+  private guide(): Guide {
+    return this.state.guide ?? { seen: [], dismissed: false }
   }
 
   // Searches Qloo for a comparable show to stand in for one it can't match, such as a miss. It
@@ -1012,7 +1041,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
           }
     const runs = (this.state.runs ?? []).map((s) => (s.id === run ? { ...s, status: ended.status } : s))
     this.setState({ ...this.state, run: ended, runs })
-    const { runs: _, ...snapshot } = this.state
+    const { runs: _, guide: __, ...snapshot } = this.state
     const [spent] = this.sql<Spent>`
       UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}
       RETURNING started_at, turns, qloo_calls, cache_hits`
