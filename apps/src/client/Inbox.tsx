@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import type { Show, SlowCall } from '../agent'
-import type { PitchList } from '../fit'
-import type { Booking, Inbox, InboxSource, PastGuest, Pitch, WorkType } from '../inbox'
+import type { PitchList, SharedTags } from '../fit'
+import type { Booking, Inbox, InboxSource, PastGuest, Pitch, PitchReply, Verdict, WorkType } from '../inbox'
 import { sameName } from '../resolve'
 import { Alert, bandMeter, listOf, percentile, PickOne, useAction } from './controls'
 import { EvidencePanel, type Opened } from './Evidence'
@@ -12,6 +12,9 @@ type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
   confirmWork: (pitchId: string, entityId: string) => Promise<unknown>
   startPitches: (input: { show: string; pastGuests: Omit<PastGuest, 'match'>[] }) => Promise<unknown>
+  editReply: (pitchId: string, draft: string) => Promise<unknown>
+  approveReply: (pitchId: string) => Promise<unknown>
+  discardReply: (pitchId: string) => Promise<unknown>
   openCall: (call: string) => void
   opened: Opened | null
 }
@@ -27,7 +30,7 @@ type Page = {
 
 // The booker's inbox page, shown only while GUEST_PITCHES is on: load pitches, see what Claude read
 // from each and how Qloo matched its work, confirm ambiguous matches, and rank the pitched works
-// against a roster show and its past guests.
+// against a roster show and its past guests, then clear the inbox reply by reply.
 export function InboxPage({ inbox, roster, booking, ranking, runLog, slowCalls, ...actions }: Page & Actions) {
   const [selected, setSelected] = useState<string | null>(null)
   const pitch = inbox?.pitches.find((p) => p.id === selected)
@@ -79,6 +82,16 @@ export function InboxPage({ inbox, roster, booking, ranking, runLog, slowCalls, 
               pitches={inbox?.pitches ?? []}
               select={setSelected}
               openCall={actions.openCall}
+              opened={actions.opened?.call ?? null}
+            />
+          )}
+          {booking?.replies && (
+            <Replies
+              show={booking.show.name}
+              replies={booking.replies}
+              pitches={inbox?.pitches ?? []}
+              locked={ranking}
+              actions={actions}
               opened={actions.opened?.call ?? null}
             />
           )}
@@ -449,6 +462,14 @@ function RankedPitches({
                       <span className="nm">{r.entity.name}</span>
                     </button>
                     {p?.guest && <div className="tg">{p.guest}</div>}
+                    {r.sharedTags && (
+                      <TagLine
+                        tags={r.sharedTags}
+                        label={`Evidence for the tags ${r.entity.name} shares`}
+                        openCall={openCall}
+                        opened={opened}
+                      />
+                    )}
                   </td>
                   <td>
                     <span className={`band b${bars}`}>
@@ -487,6 +508,238 @@ function RankedPitches({
         </table>
       )}
     </div>
+  )
+}
+
+// A work's tags in common with the show, as words, with the compare that returned them.
+function TagLine({
+  tags,
+  label,
+  openCall,
+  opened
+}: {
+  tags: SharedTags
+  label: string
+  openCall: (call: string) => void
+  opened: string | null
+}) {
+  return (
+    <div className="tg">
+      {tags.error
+        ? `Shared tags failed: ${tags.error}`
+        : tags.tags.length > 0
+          ? tags.tags.join('\u00a0· ') // a separator never starts a line
+          : 'No distinctive shared tags'}{' '}
+      <button
+        type="button"
+        className="call"
+        aria-pressed={tags.call === opened}
+        aria-controls="evidence"
+        aria-label={`${label}: call ${tags.call}`}
+        onClick={() => openCall(tags.call)}
+      >
+        {tags.call}
+      </button>
+    </div>
+  )
+}
+
+const verdictLabel: Record<Verdict, string> = { book: 'Book', later: 'Later', decline: 'Decline' }
+const verdicts: Verdict[] = ['book', 'later', 'decline']
+
+// The drafted replies, one per pitch, grouped by the agent's verdict. The booker approves, edits, or
+// discards each one on its own, and only an approved reply can be copied, to send from their own email.
+function Replies({
+  show,
+  replies,
+  pitches,
+  locked,
+  actions,
+  opened
+}: {
+  show: string
+  replies: PitchReply[]
+  pitches: Pitch[]
+  locked: boolean // the run is still drafting
+  actions: Pick<Actions, 'editReply' | 'approveReply' | 'discardReply' | 'openCall'>
+  opened: string | null
+}) {
+  const kept = replies.filter((r) => r.status !== 'discarded')
+  const approved = kept.filter((r) => r.status === 'approved').length
+  return (
+    <section className="sec" aria-labelledby="replies-h">
+      <div className="mh">
+        <h2 className="lbl" id="replies-h">
+          Replies · {approved} of {kept.length} approved
+        </h2>
+        <Source of="agent" />
+      </div>
+      <p className="help sec-help">
+        Claude drafted a reply to each pitch with a verdict, and an episode angle for each top pitch from the tags its
+        work shares with {show} in Qloo. Approve, edit, or discard each one. Only an approved reply can be copied, to
+        send from your own email.{locked && ' Claude is still drafting: approve once the run has ended.'}
+      </p>
+      {verdicts.map((v) => {
+        const group = replies.filter((r) => r.verdict === v)
+        if (group.length === 0) return null
+        return (
+          <div className="replies" role="group" aria-labelledby={`replies-${v}`} key={v}>
+            <h3 className="lbl" id={`replies-${v}`}>
+              {verdictLabel[v]} · {group.length}
+            </h3>
+            <ol>
+              {group.map((r) => (
+                <ReplyItem
+                  key={r.pitch}
+                  reply={r}
+                  pitch={pitches.find((p) => p.id === r.pitch)}
+                  show={show}
+                  locked={locked}
+                  actions={actions}
+                  opened={opened}
+                />
+              ))}
+            </ol>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+function ReplyItem({
+  reply,
+  pitch,
+  show,
+  locked,
+  actions,
+  opened
+}: {
+  reply: PitchReply
+  pitch: Pitch | undefined
+  show: string
+  locked: boolean
+  actions: Pick<Actions, 'editReply' | 'approveReply' | 'discardReply' | 'openCall'>
+  opened: string | null
+}) {
+  const [editing, setEditing] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null) // the text last copied
+  const { busy, error, run } = useAction()
+  const name = pitch?.work?.title ?? (pitch ? title(pitch) : reply.pitch)
+  const head = (
+    <div className="reply-hd">
+      <span>
+        <span className="nm">{name}</span>
+        {pitch?.guest && <span className="tg"> · {pitch.guest}</span>}
+      </span>
+      <span className="chip" data-state={reply.status}>
+        {reply.status === 'approved' ? 'Approved' : reply.status === 'discarded' ? 'Discarded' : 'Draft'}
+      </span>
+    </div>
+  )
+  if (reply.status === 'discarded')
+    return (
+      <li className="reply" data-pitch={reply.pitch} data-status="discarded">
+        {head}
+        <div className="acts">
+          <button
+            type="button"
+            className="lnk"
+            disabled={busy || locked}
+            onClick={() => void run(() => actions.editReply(reply.pitch, reply.draft))}
+          >
+            Restore
+          </button>
+        </div>
+        <Alert error={error} />
+      </li>
+    )
+  const approved = reply.status === 'approved'
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (await run(() => actions.editReply(reply.pitch, editing!))) setEditing(null)
+  }
+  const copy = () =>
+    void run(async () => {
+      await navigator.clipboard.writeText(reply.draft)
+      setCopied(reply.draft)
+    })
+  return (
+    <li className="reply" data-pitch={reply.pitch} data-status={reply.status}>
+      {head}
+      {pitch?.from && <p className="tg">To {pitch.from}</p>}
+      {reply.angle && (
+        <p className="angle">
+          <span className="lbl">Episode angle</span> {reply.angle}
+        </p>
+      )}
+      {reply.sharedTags && (
+        <div className="angle-tags">
+          <span className="tg">Shares with {show}:</span> <Source of="qloo" />{' '}
+          <TagLine
+            tags={reply.sharedTags}
+            label={`Evidence for the tags ${name} shares`}
+            openCall={actions.openCall}
+            opened={opened}
+          />
+        </div>
+      )}
+      {editing === null ? (
+        <>
+          <p className="draft">{reply.draft}</p>
+          <div className="acts">
+            {!approved && (
+              <button
+                type="button"
+                className="btn pri"
+                disabled={busy || locked}
+                onClick={() => void run(() => actions.approveReply(reply.pitch))}
+              >
+                Approve
+              </button>
+            )}
+            <button type="button" className="btn" disabled={!approved || busy} onClick={copy}>
+              {approved && copied === reply.draft ? 'Copied' : 'Copy'}
+            </button>
+            <button type="button" className="btn" disabled={busy || locked} onClick={() => setEditing(reply.draft)}>
+              Edit
+            </button>
+            <button
+              type="button"
+              className="lnk"
+              disabled={busy || locked}
+              onClick={() => void run(() => actions.discardReply(reply.pitch))}
+            >
+              Discard
+            </button>
+            <small>{approved ? 'Copy it into your own email to send.' : 'Copy unlocks once you approve.'}</small>
+          </div>
+        </>
+      ) : (
+        <form className="reply-edit" onSubmit={save}>
+          <label className="lbl" htmlFor={`reply-${reply.pitch}`}>
+            Reply about {name}
+          </label>
+          <textarea
+            id={`reply-${reply.pitch}`}
+            rows={5}
+            value={editing}
+            onChange={(e) => setEditing(e.target.value)}
+            disabled={busy}
+          />
+          <div className="acts">
+            <button className="btn pri" type="submit" disabled={busy || !editing.trim()}>
+              Save
+            </button>
+            <button className="btn" type="button" disabled={busy} onClick={() => setEditing(null)}>
+              Cancel
+            </button>
+            <small>{approved ? 'Saving returns it to draft, to approve again.' : 'Saved as a draft.'}</small>
+          </div>
+        </form>
+      )}
+      <Alert error={error} />
+    </li>
   )
 }
 

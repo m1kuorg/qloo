@@ -139,6 +139,9 @@ With `GUEST_PITCHES=on`, check the inbox too:
 1.  Open a pitch's call: its parameters are only the work's title, type, and `take`.
 1.  With the roster imported, "Rank against a show" has The Big Picture and its three past guests' films filled in from the sample. Select "Rank pitches": the rail's Run module looks up the three films and ranks the pitches, and within about 20 seconds four lists appear, 10 books, 8 films, 5 TV shows, and 3 podcasts, each by rank and band with no decimals and its own call. Atmosphere, Hamnet, The Bride!, and Pluribus are not scored, nor are the misses and Digger until it's confirmed.
 1.  Open a list's call: its parameters are entity IDs only, and its affinities hold the raw scores the list leaves out.
+1.  The run goes on to find the tags 10 top pitches share with The Big Picture, one compare call each, then drafts 40 replies in two calls. Under each top pitch in the lists, its tags follow as words with the compare's call; open one: side `a` is the show alone and side `b` the work, entity IDs only.
+1.  "Replies" lists every pitch under Book, Later, or Decline: about 10, 19, and 11. Each Book reply shows its episode angle, the tags it's built from with their call, the sender it goes to, and a draft that names no guest and gives no reason. Copy is disabled on every draft.
+1.  Approve one reply: only it shows Approved, and Copy puts its exact text on the clipboard. Edit another, discard a third, and reload: the edit and the discard stay, and Restore brings the discarded one back as a draft.
 1.  With `GUEST_PITCHES` off, as deployed, there's no Inbox link and `/inbox` is a 404.
 
 To cap the deployed Worker without a code change, deploy from up-to-date `main` with `bunx wrangler deploy --var QLOO_DAILY_CALL_CAP:0` (after `bun run build`), check, then `bun run deploy` again to restore `wrangler.jsonc`'s cap.

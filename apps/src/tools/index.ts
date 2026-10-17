@@ -4,6 +4,7 @@ import type { QlooGateway, QlooResult } from '../gateway'
 import { askHuman } from './ask-human'
 import { checkDemographics } from './check-demographics'
 import { draftInsertionOrder } from './draft-insertion-order'
+import { draftReplies } from './draft-replies'
 import { rankCandidates } from './rank-candidates'
 import { rankPitches } from './rank-pitches'
 import { resolveEntities } from './resolve-entities'
@@ -44,7 +45,8 @@ export const tools: Tool[] = [
   sharedTags,
   checkDemographics,
   rankPitches,
-  draftInsertionOrder
+  draftInsertionOrder,
+  draftReplies
 ]
 
 // The tool list every model call sends: sorted by name and never changed, so the cached prefix holds.

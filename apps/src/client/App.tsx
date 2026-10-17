@@ -97,6 +97,9 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
           loadInbox={(source) => agent.stub.loadInbox(source)}
           confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
           startPitches={(input) => agent.stub.startPitches(input)}
+          editReply={(pitchId, draft) => agent.stub.editReply(pitchId, draft)}
+          approveReply={(pitchId) => agent.stub.approveReply(pitchId)}
+          discardReply={(pitchId) => agent.stub.discardReply(pitchId)}
           openCall={openCall}
           opened={opened}
         />

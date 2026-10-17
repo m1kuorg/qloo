@@ -14,6 +14,7 @@ import {
   type Booking,
   type Inbox,
   type Pitch,
+  type PitchReply,
   type Work,
   type WorkMatch
 } from './inbox'
@@ -169,6 +170,9 @@ const CALL = /\bC-\d+\b/g
 
 // Pitches read at once: each is one model call, then one Qloo search the gateway paces.
 const READ_CONCURRENCY = 5
+
+// A reply the booker edits stays email-sized.
+const MAX_REPLY_CHARS = 5_000
 
 // One instance per visitor session, named by the session cookie.
 export class CrossfeedAgent extends Agent<Env, State> {
@@ -430,7 +434,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
         run,
         show: { name: show.name, entity: show.entity! },
         pastGuests: pastGuests.map((g) => ({ ...g, match: null })),
-        lists: null
+        lists: null,
+        replies: null
       },
       run: { id: run, status: 'running', notes: [], error: null, question: null, budget: null, exclusions: null },
       runs: [
@@ -562,6 +567,32 @@ export class CrossfeedAgent extends Agent<Env, State> {
       throw new Error(`That isn't one of the candidates for ${pitch.work?.title ?? pitchId}.`)
     const match = { ...pitch.match, resolution: 'resolved' as const, entity }
     this.editPitch(inbox.id, pitchId, (p) => ({ ...p, match }))
+  }
+
+  // The booker's rewording of a drafted reply. Editing an approved reply returns it to draft, so only
+  // words the booker approved can be copied, and editing a discarded one restores it.
+  @callable()
+  editReply(pitchId: string, draft: string) {
+    const reply = this.editableReply(pitchId)
+    const text = typeof draft === 'string' ? draft.trim() : ''
+    if (!text) throw new Error('A reply needs some text. Discard it instead to leave it out.')
+    if (text.length > MAX_REPLY_CHARS)
+      throw new Error(`A reply is at most ${MAX_REPLY_CHARS.toLocaleString('en-US')} characters. Shorten it.`)
+    this.saveReply({ ...reply, draft: text, status: 'draft' })
+  }
+
+  // The booker's approval: only an approved reply can be copied out.
+  @callable()
+  approveReply(pitchId: string) {
+    const reply = this.editableReply(pitchId)
+    if (reply.status === 'discarded') throw new Error('That reply was discarded. Restore it before approving it.')
+    this.saveReply({ ...reply, status: 'approved' })
+  }
+
+  // Leaves a reply out; editing it again restores it as a draft.
+  @callable()
+  discardReply(pitchId: string) {
+    this.saveReply({ ...this.editableReply(pitchId), status: 'discarded' })
   }
 
   // The session's evidence log: one record per Qloo call, oldest first.
@@ -766,6 +797,24 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   private guestPitches() {
     if (this.env.GUEST_PITCHES !== 'on') throw new Error("Guest pitches aren't switched on.")
+  }
+
+  // A reply of the latest pitch run, once that run has ended: until then the agent can still redraft it.
+  private editableReply(pitchId: string) {
+    this.guestPitches()
+    const booking = this.state.booking
+    const reply = booking?.replies?.find((r) => r.pitch === pitchId)
+    if (!booking || !reply) throw new Error(`There's no drafted reply to ${pitchId}. Reload to see the latest.`)
+    const run = this.state.run
+    if (run?.id === booking.run && (run.status === 'running' || run.status === 'waiting'))
+      throw new Error('The agent is still drafting replies. Approve, edit, or discard them once the run has ended.')
+    return reply
+  }
+
+  private saveReply(reply: PitchReply) {
+    const booking = this.state.booking!
+    const replies = booking.replies!.map((r) => (r.pitch === reply.pitch ? reply : r))
+    this.setState({ ...this.state, booking: { ...booking, replies } })
   }
 
   private async readPitches(inbox: Inbox) {
@@ -1107,6 +1156,15 @@ function pitchBrief({ show, pastGuests }: Booking, inbox: Inbox) {
   const anchors = pastGuests.filter((g) => g.match?.resolution === 'resolved' && g.match.entity)
   const others = pastGuests.filter((g) => !anchors.includes(g))
   const pitches = inbox.pitches.filter(rankable)
+  // Every other pitch still gets a reply, so it's listed with why it can't be ranked.
+  const setAside: Partial<Record<Pitch['status'], string>> = {
+    no_work: 'no public work, so it was set aside and never sent to Qloo',
+    unreadable: "it couldn't be read",
+    failed: 'reading it failed'
+  }
+  const unranked = inbox.pitches.filter((p) => !rankable(p))
+  const why = (p: Pitch) =>
+    p.work ? `${work(p.work)}, ${p.match ? unmatched[p.match.resolution] : 'not looked up'}` : setAside[p.status]
   return [
     `This is a guest pitch run for the roster show "${show.name}", Qloo ID ${show.entity.id}. Rank the inbox's pitched works against it.`,
     anchors.length > 0
@@ -1114,7 +1172,10 @@ function pitchBrief({ show, pastGuests }: Booking, inbox: Inbox) {
       : "No past guest's work resolved in Qloo, so the show is the only anchor.",
     others.length > 0 &&
       `Past guests' works that can't be anchors: ${others.map((g) => `${work(g.work)}, ${g.match ? unmatched[g.match.resolution] : 'not looked up'}`).join('; ')}.`,
-    `The pitches whose works can be ranked, as pitch ID: work:\n${pitches.map((p) => `- ${p.id}: ${work(p.work)}`).join('\n')}`
+    `The pitches whose works can be ranked, as pitch ID: work:\n${pitches.map((p) => `- ${p.id}: ${work(p.work)}`).join('\n')}`,
+    unranked.length > 0 &&
+      `The other pitches, which can't be ranked, as pitch ID: work, and why:\n${unranked.map((p) => `- ${p.id}: ${why(p)}`).join('\n')}`,
+    'Reply to every pitch listed here.'
   ]
     .filter(Boolean)
     .join('\n\n')

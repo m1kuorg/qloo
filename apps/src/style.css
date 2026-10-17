@@ -1048,6 +1048,76 @@ fieldset {
   overflow-y: auto;
 }
 
+/* Replies: one per pitch under its verdict, divided by hairlines like chart rows, never boxed. */
+.replies h3 {
+  margin: 16px 0 6px;
+}
+
+.replies ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reply {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.reply-hd {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reply-hd .nm {
+  font-weight: 600;
+}
+
+.reply[data-status='discarded'] .nm {
+  color: var(--mid);
+}
+
+.chip[data-state='approved'] {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.angle .lbl {
+  margin-right: 4px;
+}
+
+.angle-tags .tg {
+  display: inline;
+}
+
+.draft {
+  max-width: 68ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.reply .acts {
+  flex-wrap: wrap;
+}
+
+.reply-edit {
+  display: grid;
+  gap: 6px;
+  max-width: 68ch;
+}
+
+.reply-edit textarea {
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 8px 10px;
+  resize: vertical;
+  background: #fff;
+}
+
 /* A demographic mismatch marks a finalist without removing it: an ink chip, its reasons under the name. */
 .chip.flag {
   color: var(--ink);
