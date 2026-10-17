@@ -4,7 +4,7 @@ import { claude } from './claude'
 import type { DemographicCheck } from './demographics'
 import { callNumber, type Evidence } from './evidence'
 import { pitchReader } from './extract'
-import { markFinalists, rankable, scorable, type Ranking } from './fit'
+import { markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
 import type { QlooGateway, QlooResult } from './gateway'
 import {
   qlooType,
@@ -315,10 +315,21 @@ export class CrossfeedAgent extends Agent<Env, State> {
       this.landTopic(run, { status: 'failed', order: [], error: `The topic ranking stopped: ${message(e)}`, moves: [] })
     )
     // The roster's IDs go in the run's first message, so the frozen system prompt stays session-free.
-    const shows = this.state.roster.filter(scorable)
-    const roster = shows.length
-      ? `The roster shows that can be ranked, as name: Qloo ID:\n${shows.map((s) => `- ${s.name}: ${s.entity.id}`).join('\n')}`
-      : 'The roster has no shows that can be ranked yet.'
+    // Every show is listed with its state, so the model never takes an unranked show for one off the roster.
+    const all = this.state.roster
+    const shows = all.filter(scorable)
+    const mapped = (s: Show) => (s.resolution === 'mapped' ? ` (mapped to ${s.entity!.name})` : '')
+    const unranked = all.flatMap((s) => {
+      const why = notScorable(s)
+      return why ? [`- ${s.name}: ${why}`] : []
+    })
+    const roster = [
+      `The roster has ${all.length} shows. ` +
+        (shows.length
+          ? `These can be ranked, as name: Qloo ID:\n${shows.map((s) => `- ${s.name}${mapped(s)}: ${s.entity.id}`).join('\n')}`
+          : 'None can be ranked yet.'),
+      ...(unranked.length ? [`These roster shows can't be ranked, and why:\n${unranked.join('\n')}`] : [])
+    ].join('\n\n')
     this.append(run, {
       role: 'user',
       content: `The launch is a released show named "${name}". Plan its promos.\n\n${roster}`
