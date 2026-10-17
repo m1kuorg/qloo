@@ -56,7 +56,8 @@ export const rankCandidates: Tool<Input> = {
   note: ({ anchor_ids }, state) => {
     const known = knownEntities(state)
     const names = anchor_ids.map((id) => known.get(id) ?? id).join(', ')
-    return `Scoring ${candidates(state, anchor_ids).length} shows against ${names}`
+    const count = candidates(state, anchor_ids).length
+    return `Scoring ${count} ${count === 1 ? 'show' : 'shows'} against ${names}`
   },
   async run({ anchor_ids, candidate_ids, type }, { qloo, state, update }) {
     if (anchor_ids.length === 0)
