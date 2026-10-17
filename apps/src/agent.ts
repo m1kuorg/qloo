@@ -5,7 +5,7 @@ import type { DemographicCheck } from './demographics'
 import { callNumber, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import { IN_FLIGHT, type QlooGateway, type QlooResult } from './gateway'
+import { IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -683,33 +683,21 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
   private async lookUpShow(name: string, seq: number) {
-    let match: Lookup
-    try {
-      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
-      match = lookup(name, call, result)
-    } catch (e) {
-      // The gateway itself failed; the show still settles, so the import can't stay pending.
-      const error = `The lookup failed: ${message(e)}`
-      match = { resolution: 'failed', entity: null, candidates: [], evidence: callNumber(seq), error }
-    }
+    const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
+    const match = lookup(name, call, result)
     this.editShow(name, (show) => ({ ...show, ...match }))
   }
 
   // Runs a pending comp search and fills it in, unless a newer search or an import replaced it.
   private async findComps(name: string, search: CompSearch, seq: number) {
-    let landed: CompSearch
-    try {
-      const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
-      landed = result.ok
-        ? {
-            ...search,
-            status: 'done',
-            results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
-          }
-        : { ...search, status: 'failed', error: result.error }
-    } catch (e) {
-      landed = { ...search, status: 'failed', error: `The search failed: ${message(e)}` }
-    }
+    const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
+    const landed: CompSearch = result.ok
+      ? {
+          ...search,
+          status: 'done',
+          results: result.data.map(({ id, name, popularity }) => ({ id, name, popularity }))
+        }
+      : { ...search, status: 'failed', error: result.error }
     const show = this.state.roster.find((s) => s.name === name)
     if (show?.compSearch?.call === search.call) this.editShow(name, (s) => ({ ...s, compSearch: landed }))
   }
@@ -1162,17 +1150,43 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   // The session's only path to Qloo. It numbers the call when the call starts, unless the caller
   // numbered it earlier, so numbers follow the order calls were made, and appends the gateway's
-  // evidence, success or failure.
+  // evidence, success or failure. A gateway that throws instead of answering, such as one reset by
+  // a deploy, fails the call like Qloo failing would, with its own record.
   private async qloo<T>(
     request: (gateway: DurableObjectStub<QlooGateway>) => Promise<QlooResult<T>>,
     run: string | null = null,
     seq = this.numberCall()
-  ) {
+  ): Promise<{ call: string; result: QlooResult<T> }> {
     const call = callNumber(seq)
     const settled = this.watch(call, run)
+    const started = Date.now()
+    // Every request calls one gateway method; noting which lets a failed record name its request.
+    let asked: keyof typeof REQUESTS | undefined
+    const gateway = new Proxy(this.env.QlooGateway.getByName('global'), {
+      get: (stub, key) => {
+        if (typeof key === 'string' && key in REQUESTS) asked = key as keyof typeof REQUESTS
+        return Reflect.get(stub, key)
+      }
+    })
     let result: QlooResult<T>
     try {
-      result = (await request(this.env.QlooGateway.getByName('global'))) as QlooResult<T>
+      result = (await request(gateway)) as QlooResult<T>
+    } catch (e) {
+      const error = `The Qloo gateway failed: ${message(e)}`
+      const evidence = {
+        at: new Date(started).toISOString(),
+        ...REQUESTS[asked!],
+        params: {},
+        status: null,
+        latencyMs: Date.now() - started,
+        retries: 0,
+        cacheHit: false,
+        error,
+        entities: [],
+        tags: [],
+        affinities: []
+      }
+      result = { ok: false, error, evidence }
     } finally {
       settled()
     }

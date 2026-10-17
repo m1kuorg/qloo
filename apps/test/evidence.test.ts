@@ -49,6 +49,32 @@ describe('the evidence behind each Qloo call', () => {
     })
   })
 
+  it('keeps a failed record for a call the gateway threw on, so its call number still opens', async () => {
+    // A 200 whose results aren't a list makes the gateway's own code throw, past its failure values.
+    fakeQloo({ search: { 'Night Shift Cinema': { status: 200, body: '{"results": {"not": "a list"}}' } } })
+    const s = await session()
+    const state = await s.importRoster('Night Shift Cinema')
+
+    const show = state.roster[0]
+    expect(show).toMatchObject({ resolution: 'failed', evidence: 'C-01' })
+    expect(show.error).toContain('The Qloo gateway failed')
+    const log = await s.call<Evidence[]>('getEvidence')
+    expect(log).toMatchObject([
+      {
+        call: 'C-01',
+        run: null,
+        method: 'GET',
+        endpoint: '/search',
+        status: null,
+        cacheHit: false,
+        error: show.error,
+        entities: [],
+        tags: [],
+        affinities: []
+      }
+    ])
+  })
+
   it("returns only the calling session's own calls", async () => {
     fakeQloo({ search: {} })
     const first = await session()

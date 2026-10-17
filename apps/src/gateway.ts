@@ -47,6 +47,14 @@ const FAILING_FOR_MS = 5 * 60_000
 // Requests in flight to Qloo at once, across all sessions.
 export const IN_FLIGHT = 3
 
+// The Qloo request behind each gateway method, so a call the gateway threw on can still say what it was.
+export const REQUESTS = {
+  search: { method: 'GET', endpoint: '/search' },
+  rank: { method: 'POST', endpoint: '/v2/insights' },
+  compare: { method: 'GET', endpoint: '/v2/analysis/compare' },
+  demographics: { method: 'POST', endpoint: '/v2/insights' }
+} as const
+
 // The only code that calls Qloo: one global instance, reached over Durable Object RPC.
 export class QlooGateway extends DurableObject<Env> {
   // At most IN_FLIGHT requests in flight across all sessions, each started at least
@@ -99,7 +107,7 @@ export class QlooGateway extends DurableObject<Env> {
   // Finds entities by name. Qloo's search is fuzzy, so deciding whether a result is the show is
   // the caller's job (see resolve.ts).
   async search(query: string, type: string, take = 3, cache: CacheUse = 'use'): Promise<QlooResult<QlooEntity[]>> {
-    const result = await this.request('GET', '/search', { query, types: type, take }, cache)
+    const result = await this.request(REQUESTS.search, { query, types: type, take }, cache)
     if (!result.ok) return result
     const raw = (result.data as { results?: SearchResult[] } | null)?.results ?? []
     const entities = raw.map((r) => ({
@@ -128,8 +136,7 @@ export class QlooGateway extends DurableObject<Env> {
   ): Promise<QlooResult<Ranked>> {
     const ids = [...new Set(candidates)]
     const result = await this.request(
-      'POST',
-      '/v2/insights',
+      REQUESTS.rank,
       {
         'filter.type': type,
         'signal.interests.entities': anchors.join(','),
@@ -173,7 +180,7 @@ export class QlooGateway extends DurableObject<Env> {
   // `b`'s, in Qloo's order. Several entities on side `a` all count: on 2026-10-17 three comps gave
   // the union of each comp's own shared tags.
   async compare(a: string[], b: string): Promise<QlooResult<SharedTag[]>> {
-    const result = await this.request('GET', '/v2/analysis/compare', {
+    const result = await this.request(REQUESTS.compare, {
       'a.signal.interests.entities': a.join(','),
       'b.signal.interests.entities': b,
       take: 50
@@ -191,7 +198,7 @@ export class QlooGateway extends DurableObject<Env> {
   // affinity and one score per bucket, such as `age.25_to_29`, as Qloo calls them affinity scores.
   async demographics(entities: { id: string; name: string }[]): Promise<QlooResult<Demographics>> {
     const ids = [...new Set(entities.map((e) => e.id))]
-    const result = await this.request('POST', '/v2/insights', {
+    const result = await this.request(REQUESTS.demographics, {
       'filter.type': 'urn:demographics',
       'signal.interests.entities': ids.join(',')
     })
@@ -223,8 +230,7 @@ export class QlooGateway extends DurableObject<Env> {
   // GET sends the parameters in the query string; POST sends them as a JSON body of flat dotted
   // keys, such as {"filter.type": "urn:entity:podcast"}, because Qloo answers a nested body with 400.
   private async request(
-    method: 'GET' | 'POST',
-    endpoint: string,
+    { method, endpoint }: (typeof REQUESTS)[keyof typeof REQUESTS],
     params: Params,
     cache: CacheUse = 'use'
   ): Promise<QlooResult<unknown>> {
