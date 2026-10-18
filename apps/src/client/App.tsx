@@ -877,7 +877,7 @@ function RunList({
       </ol>
       <p className="help">
         Each run starts fresh; earlier ones stay here to compare. Model runs are limited per visitor and per UTC day,
-        across browsers; a replay doesn't count.
+        across browsers. Runs that replay or stop at once have a higher limit of their own.
       </p>
       <Alert error={error} />
     </section>
