@@ -43,6 +43,9 @@ export type Demographics = { profiles: Profile[]; missing: string[] }
 // Why Qloo can't be called now: today's cap is reached, or Qloo is failing.
 export type QlooDown = { capped: boolean; reason: string }
 
+// A visitor's model runs today against their daily limit, and why a new one is refused, if it is.
+export type ModelRuns = { used: number; limit: number; refused: string | null }
+
 // How long a request that failed after its retries marks Qloo as failing, unless one succeeds sooner.
 const FAILING_FOR_MS = 5 * 60_000
 
@@ -99,6 +102,46 @@ export class QlooGateway extends DurableObject<Env> {
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS sample_run (id INTEGER PRIMARY KEY CHECK (id = 1), run TEXT NOT NULL)'
     )
+    // Model runs per visitor per UTC day, keyed by a hash of the visitor's salted key and the day, so
+    // no address is stored and a key can't be followed from one day to the next. Kept for today only.
+    ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS model_runs (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
+    )
+  }
+
+  // Counts a model run for `visitor` today, or refuses it once the visitor's daily limit or the
+  // daily cap across all visitors is reached (RUN_VISITOR_DAILY_CAP, RUN_DAILY_CAP). Only a run that
+  // calls Claude asks, so a replay never counts.
+  async startModelRun(visitor: string): Promise<ModelRuns> {
+    const day = utcDay()
+    const key = await sha256(`${visitor}:${day}`)
+    // From here on nothing awaits, so concurrent runs can't both pass a limit.
+    const sql = this.ctx.storage.sql
+    sql.exec('DELETE FROM model_runs WHERE day < ?', day)
+    const [mine] = sql.exec<{ count: number }>('SELECT count FROM model_runs WHERE key = ?', key).toArray()
+    const [all] = sql.exec<{ count: number }>('SELECT COALESCE(SUM(count), 0) AS count FROM model_runs').toArray()
+    // A limit that isn't a number refuses every run, rather than none.
+    const limit = Number(this.env.RUN_VISITOR_DAILY_CAP) || 0
+    const used = mine?.count ?? 0
+    const cap = Number(this.env.RUN_DAILY_CAP) || 0
+    if (used >= limit)
+      return {
+        used,
+        limit,
+        refused: `You've started ${modelRuns(limit)} today, the most one visitor can start in a UTC day; they reset at 00:00 UTC`
+      }
+    if (all.count >= cap)
+      return {
+        used,
+        limit,
+        refused: `Crossfeed's cap of ${modelRuns(cap)} a day across all visitors is reached; it resets at 00:00 UTC`
+      }
+    sql.exec(
+      'INSERT INTO model_runs (key, day, count) VALUES (?, ?, 1) ON CONFLICT (key) DO UPDATE SET count = count + 1',
+      key,
+      day
+    )
+    return { used: used + 1, limit, refused: null }
   }
 
   // Why Qloo can't be called now, or null when it can: today's cap is reached, or the latest request
@@ -332,7 +375,7 @@ export class QlooGateway extends DurableObject<Env> {
   // queued rather than sent, so a refusal doesn't wait its turn; every queued request is sent.
   private spend() {
     if (this.callsToday() >= Number(this.env.QLOO_DAILY_CALL_CAP)) return false
-    const day = new Date().toISOString().slice(0, 10)
+    const day = utcDay()
     this.ctx.storage.sql.exec(
       'INSERT INTO daily_calls (day, count) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET count = count + 1',
       day
@@ -342,7 +385,7 @@ export class QlooGateway extends DurableObject<Env> {
 
   // Requests counted against today's cap so far.
   private callsToday() {
-    const day = new Date().toISOString().slice(0, 10)
+    const day = utcDay()
     const sql = this.ctx.storage.sql
     const [today] = sql.exec<{ count: number }>('SELECT count FROM daily_calls WHERE day = ?', day).toArray()
     return today?.count ?? 0
@@ -411,6 +454,11 @@ export class QlooGateway extends DurableObject<Env> {
 
 type Attempt =
   { ok: true; status: number; data: unknown } | { ok: false; status: number | null; retry: boolean; error: string }
+
+const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n} model runs`)
+
+// Today in UTC, such as "2026-10-18": the day the caps count in.
+const utcDay = () => new Date().toISOString().slice(0, 10)
 
 const capReached = (cap: string | number) => `The daily cap of ${cap} Qloo calls is reached; it resets at 00:00 UTC`
 

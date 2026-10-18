@@ -120,7 +120,7 @@ The guest flow runs the same way ([live check]):
   - returns an error, not a result, for a ranking whose scores are all null, as when a signal didn't resolve, and lists any candidate Qloo leaves out as not scored.
 - **An agent that can't commit:** each visitor session is an Agents SDK Durable Object, with its state synced to the browser.
   - Haiku runs a tool loop with strict tool schemas.
-  - A run takes at most 12 model turns and 60 Qloo calls, and a session at most 10 runs a day ([limits.ts]).
+  - A run takes at most 12 model turns and 60 Qloo calls ([limits.ts]). A visitor starts at most 10 model runs a day across browsers, and all visitors together 200, which bounds model spend in code ([TRD agent limits]).
   - Approving and exporting are UI actions with no tool, so the model proposes and the human commits.
 - **Still answering when Qloo isn't:** the sample launch's last completed run is stored. When the daily cap is reached, or Qloo keeps failing, the sample launch replays it, labelled "Replayed" ([TRD replay]). A daily cron checks the key, and that the sample ranking is still cached.
 - **Tests at the network boundary:** Vitest runs the Worker in the Workers runtime. Qloo and Anthropic are replaced by hand-written responses and scripted model turns. Tests drive the Worker's routes and the agent's client protocol, as the UI does. CI runs formatting, types, tests, commit titles, and a secrets scan on every pull request.
@@ -128,6 +128,7 @@ The guest flow runs the same way ([live check]):
 [TRD calls]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#calls
 [TRD gateway rules]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#gateway-rules
 [TRD replay]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#caching-caps-and-replay
+[TRD agent limits]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#agent-limits
 [limits.ts]: https://github.com/m1kuorg/qloo/blob/main/apps/src/limits.ts
 
 ## Design
@@ -198,7 +199,7 @@ A judge opens the demo with no login and lands on a working screen, not a chat:
 - **A podcast named after its guest is set aside.** A work title holding the guest's or sender's whole name never reaches Qloo, so a pitch for "Conan O'Brien Needs a Friend" is set aside as unreadable rather than ranked ([#117 check]).
 - **Guest pitches are live.** They were switched on in production after their live check ([#57]). Drafted replies name no guest, because the model never sees names; the booker adds them before sending.
 - **No integrations.** Nothing is emailed or pushed to an ad server. Downloads are typed in or uploaded as CSV, and pitches are pasted or loaded from the sample.
-- **No accounts.** A session is one browser's cookie, limited to 10 runs a day. If Qloo can't be called, only the sample launch replays; other runs stop and say why.
+- **No accounts.** A session is one browser's cookie. A visitor, known only by a salted hash of their address, starts at most 10 model runs a day, and all visitors together 200. Past either, or if Qloo can't be called, only the sample launch replays; other runs stop and say why.
 
 [TRD demo data]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#demo-data
 [pitch run check]: https://github.com/m1kuorg/qloo/issues/133#issuecomment-6233620198

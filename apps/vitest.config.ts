@@ -13,6 +13,7 @@ export default defineConfig({
       // test that needs a short timeout or pacing sets it for itself. New sessions start empty
       // instead of looking up the sample network; test/sample.test.ts turns it on. Guest pitches
       // are off whatever wrangler.jsonc or .dev.vars says; a test of the flow turns them on itself.
+      // The model run limits are wrangler.jsonc's, whatever .dev.vars says; a test lowers them itself.
       miniflare: {
         bindings: {
           QLOO_BASE_URL: 'https://qloo.test',
@@ -22,6 +23,9 @@ export default defineConfig({
           QLOO_MIN_INTERVAL_MS: '0',
           ANTHROPIC_BASE_URL: 'https://anthropic.test',
           ANTHROPIC_API_KEY: 'test-anthropic-key',
+          VISITOR_SALT: 'test-visitor-salt',
+          RUN_VISITOR_DAILY_CAP: '10',
+          RUN_DAILY_CAP: '200',
           SAMPLE_NETWORK: 'off',
           GUEST_PITCHES: 'off'
         }

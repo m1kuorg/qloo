@@ -32,8 +32,9 @@ export type Session = {
   close: () => void
 }
 
-// Opens a session. Without a cookie it loads `/` first, like a new browser would.
-export async function openSession(cookie?: string): Promise<Session> {
+// Opens a session. Without a cookie it loads `/` first, like a new browser would. `ip` is the
+// visitor's address, as Cloudflare's edge sends it in CF-Connecting-IP; without it there's none.
+export async function openSession(cookie?: string, ip?: string): Promise<Session> {
   if (!cookie) {
     const page = await exports.default.fetch(`${origin}/`)
     if (page.status !== 200) throw new Error(`GET / returned ${page.status}`)
@@ -41,7 +42,7 @@ export async function openSession(cookie?: string): Promise<Session> {
     if (!cookie) throw new Error('GET / set no session cookie')
   }
   const upgrade = await exports.default.fetch(`${origin}/agents/session`, {
-    headers: { Upgrade: 'websocket', Cookie: cookie }
+    headers: { Upgrade: 'websocket', Cookie: cookie, ...(ip && { 'CF-Connecting-IP': ip }) }
   })
   const ws = upgrade.webSocket
   if (!ws) throw new Error(`/agents/session did not upgrade: ${upgrade.status} ${await upgrade.text()}`)

@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import type { Evidence } from '../src/evidence'
@@ -8,13 +9,18 @@ import { openSession, type Session } from './session'
 const search = { 'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.91 }] }
 const resolve = (...names: string[]) => toolUse('resolve_entities', { names, type: 'urn:entity:podcast' })
 
+// A visitor's address, as Cloudflare's edge sends it.
+const visitorA = '203.0.113.7'
+
 const open: Session[] = []
-const session = async () => {
-  const s = await openSession()
+const session = async (ip?: string) => {
+  const s = await openSession(undefined, ip)
   open.push(s)
   return s
 }
+const savedCap = env.RUN_VISITOR_DAILY_CAP
 afterEach(() => {
+  env.RUN_VISITOR_DAILY_CAP = savedCap
   open.splice(0).forEach((s) => s.close())
   vi.useRealTimers()
   vi.restoreAllMocks()
@@ -77,25 +83,72 @@ describe('a run at its limits', () => {
     expect(run?.notes.map((n) => n.status)).toEqual(['done', 'done', 'failed'])
   })
 
-  it("refuses a session's 11th run on one UTC day, and allows it the next day", async () => {
+  it("stops a visitor's 11th model run of the UTC day across sessions, while another visitor still runs", async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-17T23:00:00Z'))
     fakeQloo({ search })
-    fakeClaude(Array.from({ length: 11 }, () => turn(text('Done.'))))
-    const s = await session()
+    fakeClaude(Array.from({ length: 12 }, () => turn(text('Done.'))))
+    // One visitor in two browsers: two session cookies, one address.
+    const [first, second] = [await session(visitorA), await session(visitorA)]
     for (let i = 0; i < 10; i++) {
+      const s = i % 2 ? second : first
       await s.call('startLaunch', { name: 'Night Shift Cinema' })
-      await finished(s)
+      expect((await finished(s)).run?.status).toBe('completed')
     }
 
-    await expect(s.call('startLaunch', { name: 'Night Shift Cinema' })).rejects.toThrow(
-      'This session has started its 10 runs for today. Runs reset at 00:00 UTC; earlier runs stay viewable.'
-    )
+    await first.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await finished(first)).run).toMatchObject({
+      status: 'stopped',
+      notes: [],
+      error:
+        "You've started 10 model runs today, the most one visitor can start in a UTC day; they reset at 00:00 UTC, so runs on your own data wait until then. Only the sample launch, on the unchanged sample network, replays its stored run."
+    })
     expect(modelRequests()).toHaveLength(10)
 
+    const other = await session('198.51.100.4')
+    await other.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await finished(other)).run?.status).toBe('completed')
+
     vi.setSystemTime(new Date('2026-10-18T00:01:00Z'))
+    await second.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await finished(second)).run?.status).toBe('completed')
+    expect(modelRequests()).toHaveLength(12)
+  })
+
+  it('counts a double-clicked start once', async () => {
+    env.RUN_VISITOR_DAILY_CAP = '2'
+    fakeQloo({ search })
+    fakeClaude([turn(text('Done.')), turn(text('Done.'))])
+    const s = await session(visitorA)
+    const clicks = await Promise.allSettled([
+      s.call('startLaunch', { name: 'Night Shift Cinema' }),
+      s.call('startLaunch', { name: 'Night Shift Cinema' })
+    ])
+    expect(clicks.map((c) => c.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect((await finished(s)).run?.status).toBe('completed')
+
+    // The second model run of the day is still there, and then the limit is reached.
     await s.call('startLaunch', { name: 'Night Shift Cinema' })
     expect((await finished(s)).run?.status).toBe('completed')
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await finished(s)).run).toMatchObject({
+      status: 'stopped',
+      error: expect.stringMatching(/^You've started 2 model runs today, /)
+    })
+  })
+
+  it('counts the addresses in one IPv6 /64 as one visitor', async () => {
+    env.RUN_VISITOR_DAILY_CAP = '1'
+    fakeQloo({ search })
+    fakeClaude([turn(text('Done.')), turn(text('Done.'))])
+    const run = async (ip: string) => {
+      const s = await session(ip)
+      await s.call('startLaunch', { name: 'Night Shift Cinema' })
+      return (await finished(s)).run?.status
+    }
+    expect(await run('2001:db8:1:2::a')).toBe('completed')
+    expect(await run('2001:db8:1:2:ffff:1:2:3')).toBe('stopped')
+    expect(await run('2001:db8:1:3::a')).toBe('completed')
   })
 
   it("starts a new run on a re-run, and keeps the earlier run's results viewable", async () => {

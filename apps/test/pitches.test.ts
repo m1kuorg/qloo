@@ -54,9 +54,11 @@ const session = async () => {
 beforeEach(() => {
   env.GUEST_PITCHES = 'on'
 })
+const savedCap = env.RUN_VISITOR_DAILY_CAP
 afterEach(() => {
   open.splice(0).forEach((s) => s.close())
   env.GUEST_PITCHES = 'off'
+  env.RUN_VISITOR_DAILY_CAP = savedCap
 })
 
 const finished = (s: Session) => s.until((state: State) => state.run !== null && state.run.status !== 'running')
@@ -308,6 +310,22 @@ describe("the model's view of the ranking", () => {
 })
 
 describe('starting a pitch run', () => {
+  it("counts loading an inbox and a pitch run among the visitor's model runs, and refuses both past the limit", async () => {
+    env.RUN_VISITOR_DAILY_CAP = '2'
+    fakeInsights((body) => scores[String(body['filter.type'])])
+    const { s, state } = await rank([film], [turn(rankPitches(['f-0101'])), turn(text('Ranked the pitches.'))])
+    expect(state.run?.status).toBe('completed')
+    const asked = modelRequests().length
+
+    const limit =
+      "You've started 2 model runs today, the most one visitor can start in a UTC day; they reset at 00:00 UTC."
+    await expect(s.call('loadInbox', { text: inboxText })).rejects.toThrow(limit)
+    await expect(s.call('startPitches', { show: 'Night Shift Cinema', pastGuests: [film] })).rejects.toThrow(limit)
+    expect(modelRequests()).toHaveLength(asked)
+    expect(s.state()?.inbox?.status).toBe('done')
+    expect(s.state()?.run?.id).toBe(state.run?.id)
+  })
+
   it('refuses with GUEST_PITCHES off', async () => {
     env.GUEST_PITCHES = 'off'
     const s = await session()
