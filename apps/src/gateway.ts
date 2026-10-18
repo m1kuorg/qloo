@@ -46,6 +46,9 @@ export type QlooDown = { capped: boolean; reason: string }
 // A visitor's model runs today against their daily limit, and why a new one is refused, if it is.
 export type ModelRuns = { used: number; limit: number; refused: string | null }
 
+// The per-visitor daily counters: tables keyed by a hash of the visitor and the day.
+type Counter = 'model_runs' | 'free_starts' | 'visitor_calls'
+
 // How a launch may start: as a model run (all null), or without one, because Qloo can't be called
 // (`down`) or a model run limit is reached (`limited`), with the stored sample run when it's the
 // sample launch. `refused` means it may not start at all: the visitor's free starts are used.
@@ -117,10 +120,38 @@ export class QlooGateway extends DurableObject<Env> {
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS model_runs (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
     )
-    // Free starts, which call no model, per visitor per UTC day, keyed and kept the same way.
+    // Free starts, which call no model, and Qloo calls, cache hits included, per visitor per UTC day,
+    // keyed and kept the same way.
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS free_starts (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
     )
+    ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS visitor_calls (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
+    )
+  }
+
+  // Counts `n` Qloo calls for `visitor` today before they're made, or refuses them all if they would
+  // pass QLOO_VISITOR_DAILY_CALL_CAP. Imports and comp searches ask first, so a refused one keeps
+  // nothing; every other call is counted as it's made (forVisitor).
+  async reserveCalls(visitor: string, n: number): Promise<string | null> {
+    const day = utcDay()
+    const key = await sha256(`${visitor}:${day}`)
+    // From here on nothing awaits, so concurrent reservations can't both pass the limit.
+    // A limit that isn't a number refuses every call, rather than none.
+    const limit = Number(this.env.QLOO_VISITOR_DAILY_CALL_CAP) || 0
+    if (this.used('visitor_calls', key, day) + n > limit)
+      return `This would take you past ${limit} Qloo calls today, the most one visitor can make in a UTC day, cache hits included; they reset at 00:00 UTC`
+    this.add('visitor_calls', key, day, n)
+    return null
+  }
+
+  // Makes one Qloo request for `visitor`, as `method` makes it, and counts it among their calls today.
+  // It's never refused: a run's calls are bounded by the model run limits.
+  async forVisitor(visitor: string, method: keyof typeof REQUESTS, args: unknown[]) {
+    if (!Object.hasOwn(REQUESTS, method)) throw new Error(`${method} isn't a Qloo request.`)
+    const day = utcDay()
+    this.add('visitor_calls', await sha256(`${visitor}:${day}`), day, 1)
+    return (this[method] as (...a: unknown[]) => Promise<QlooResult<unknown>>)(...args)
   }
 
   // Counts a model run for `visitor` today, or refuses it once the visitor's daily limit or the
@@ -141,35 +172,27 @@ export class QlooGateway extends DurableObject<Env> {
     const down = this.health()
     const limited = down ? null : this.countModelRun(key, day).refused
     if (!down && !limited) return { down, limited, refused: null, stored: null }
-    const sql = this.ctx.storage.sql
-    sql.exec('DELETE FROM free_starts WHERE day < ?', day)
-    const [mine] = sql.exec<{ count: number }>('SELECT count FROM free_starts WHERE key = ?', key).toArray()
     // A limit that isn't a number refuses every start, rather than none.
     const limit = Number(this.env.FREE_START_DAILY_CAP) || 0
-    if ((mine?.count ?? 0) >= limit)
+    if (this.used('free_starts', key, day) >= limit)
       return {
         down,
         limited,
         refused: `You've started ${limit === 1 ? '1 run' : `${limit} runs`} today that replayed or stopped at once, the most one visitor can start in a UTC day; they reset at 00:00 UTC`,
         stored: null
       }
-    sql.exec(
-      'INSERT INTO free_starts (key, day, count) VALUES (?, ?, 1) ON CONFLICT (key) DO UPDATE SET count = count + 1',
-      key,
-      day
-    )
+    this.add('free_starts', key, day)
     return { down, limited, refused: null, stored: sample ? this.sampleRun() : null }
   }
 
   // Counts a model run under `key` (a visitor and a day, hashed), or says which limit refuses it.
   private countModelRun(key: string, day: string): ModelRuns {
-    const sql = this.ctx.storage.sql
-    sql.exec('DELETE FROM model_runs WHERE day < ?', day)
-    const [mine] = sql.exec<{ count: number }>('SELECT count FROM model_runs WHERE key = ?', key).toArray()
-    const [all] = sql.exec<{ count: number }>('SELECT COALESCE(SUM(count), 0) AS count FROM model_runs').toArray()
+    const used = this.used('model_runs', key, day)
+    const [all] = this.ctx.storage.sql
+      .exec<{ count: number }>('SELECT COALESCE(SUM(count), 0) AS count FROM model_runs')
+      .toArray()
     // A limit that isn't a number refuses every run, rather than none.
     const limit = Number(this.env.RUN_VISITOR_DAILY_CAP) || 0
-    const used = mine?.count ?? 0
     const cap = Number(this.env.RUN_DAILY_CAP) || 0
     if (used >= limit)
       return {
@@ -183,12 +206,26 @@ export class QlooGateway extends DurableObject<Env> {
         limit,
         refused: `Crossfeed's cap of ${modelRuns(cap)} a day across all visitors is reached; it resets at 00:00 UTC`
       }
-    sql.exec(
-      'INSERT INTO model_runs (key, day, count) VALUES (?, ?, 1) ON CONFLICT (key) DO UPDATE SET count = count + 1',
-      key,
-      day
-    )
+    this.add('model_runs', key, day)
     return { used: used + 1, limit, refused: null }
+  }
+
+  // A visitor's count today in one of the per-visitor counters, once earlier days' counts are dropped.
+  private used(counter: Counter, key: string, day: string) {
+    const sql = this.ctx.storage.sql
+    sql.exec(`DELETE FROM ${counter} WHERE day < ?`, day)
+    const [row] = sql.exec<{ count: number }>(`SELECT count FROM ${counter} WHERE key = ?`, key).toArray()
+    return row?.count ?? 0
+  }
+
+  private add(counter: Counter, key: string, day: string, n = 1) {
+    this.ctx.storage.sql.exec(
+      `INSERT INTO ${counter} (key, day, count) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET count = count + ?`,
+      key,
+      day,
+      n,
+      n
+    )
   }
 
   // Why Qloo can't be called now, or null when it can: today's cap is reached, or the latest request

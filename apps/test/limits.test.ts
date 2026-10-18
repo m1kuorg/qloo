@@ -21,7 +21,9 @@ const session = async (ip?: string) => {
 const saved = {
   RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
   FREE_START_DAILY_CAP: env.FREE_START_DAILY_CAP,
-  QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP
+  QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP,
+  QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP,
+  SAMPLE_NETWORK: env.SAMPLE_NETWORK
 }
 afterEach(() => {
   Object.assign(env, saved)
@@ -165,6 +167,65 @@ describe('a run at its limits', () => {
     await other.call('startLaunch', { name: 'Night Shift Cinema' })
     expect(other.state()?.run?.status).toBe('stopped')
     expect(modelRequests()).toHaveLength(1)
+  })
+
+  it("refuses an import or a comp search past the visitor's Qloo calls for the day, and keeps nothing of it", async () => {
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '3'
+    fakeQloo({ search })
+    const s = await session(visitorA)
+    await s.importRoster('Night Shift Cinema\nDeep Cuts')
+    await s.searchComps('Deep Cuts', 'Night Shift')
+
+    const limit =
+      'This would take you past 3 Qloo calls today, the most one visitor can make in a UTC day, cache hits included; they reset at 00:00 UTC.'
+    await expect(s.call('importRoster', 'Night Shift Cinema')).rejects.toThrow(limit)
+    await expect(s.call('searchComps', 'Deep Cuts', 'Night Shift')).rejects.toThrow(limit)
+    expect(s.state()?.roster.map((show) => [show.name, show.resolution, show.compSearch?.call])).toEqual([
+      ['Night Shift Cinema', 'resolved', undefined],
+      ['Deep Cuts', 'missed', 'C-03']
+    ])
+    expect(await s.call<Evidence[]>('getEvidence')).toHaveLength(3)
+
+    // Nothing was numbered either: the next call allowed is C-04.
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '4'
+    await s.searchComps('Deep Cuts', 'Night Shift')
+    expect(s.state()?.roster[1].compSearch?.call).toBe('C-04')
+
+    const other = await session('198.51.100.4')
+    await other.importRoster('Night Shift Cinema\nDeep Cuts')
+    expect(other.state()?.roster).toHaveLength(2)
+  })
+
+  it("counts a run's Qloo calls among the visitor's calls for the day", async () => {
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '3'
+    fakeQloo({ search })
+    fakeClaude([turn(resolve('Night Shift Cinema')), turn(text('Resolved.'))])
+    const s = await session(visitorA)
+    await s.importRoster('Night Shift Cinema')
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await finished(s)).run?.status).toBe('completed')
+
+    await expect(s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')).rejects.toThrow(
+      'This would take you past 3 Qloo calls today'
+    )
+    await s.importRoster('Deep Cuts')
+    expect(s.state()?.roster.map((show) => show.name)).toEqual(['Deep Cuts'])
+  })
+
+  it("counts a new session's look-up of the sample network, and opens one past the limit empty", async () => {
+    env.SAMPLE_NETWORK = 'on'
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '20'
+    fakeQloo({ search })
+    const first = await session(visitorA)
+    expect((await first.until((st) => st.roster.every((show) => show.resolution !== 'pending'))).roster).toHaveLength(
+      19
+    )
+
+    const second = await session(visitorA)
+    expect(second.state()?.roster).toEqual([])
+    expect(second.state()?.sample).toBeNull()
+    const other = await session('198.51.100.4')
+    expect(other.state()?.roster).toHaveLength(19)
   })
 
   it('counts the addresses in one IPv6 /64 as one visitor', async () => {

@@ -23,10 +23,11 @@ import { dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type Line
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
-import { listOf, sha256 } from './text'
+import { listOf } from './text'
 import { tools, type ToolContext, type ToolResult } from './tools'
 import { takesText } from './tools/ask-human'
 import { rankByTopic, topicRequest, withMoves, type Topic } from './topic'
+import { visitorTag } from './visitor'
 
 export type Show = {
   name: string
@@ -188,8 +189,11 @@ const READ_CONCURRENCY = 5
 // A reply the booker edits stays email-sized.
 const MAX_REPLY_CHARS = 5_000
 
+// What the Worker passes a session when it starts: its visitor (visitor.ts), if the request had an address.
+export type SessionProps = { visitor: string | null }
+
 // One instance per visitor session, named by the session cookie.
-export class CrossfeedAgent extends Agent<Env, State> {
+export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   initialState: State = {
     roster: [],
     cpm: null,
@@ -210,10 +214,13 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // Whether a launch is asking the gateway if it may start (see admit).
   private starting = false
 
+  // The visitor of the latest call on any of this session's connections (see visitor).
+  private lastVisitor: string | null = null
+
   // This session's Qloo calls still out, oldest first; a call being timed holds its timer.
   private out: { call: string; run: string | null; timer?: ReturnType<typeof setTimeout> }[] = []
 
-  async onStart() {
+  async onStart(props?: SessionProps) {
     // Only this method creates the evidence table, so a session without it is starting for the first time.
     const firstStart = this.sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evidence'`.length === 0
     this.sql`CREATE TABLE IF NOT EXISTS evidence (seq INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT)`
@@ -256,8 +263,16 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
     // Calls are timed in memory, so none is still waiting after a restart.
     if (this.state.slowCalls?.length) this.setState({ ...this.state, slowCalls: [] })
-    // A new session opens on the sample network, looked up like an import; tests turn this off.
-    if (firstStart && this.env.SAMPLE_NETWORK === 'on') this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample })
+    // A new session opens on the sample network, looked up like an import, so its calls count among the
+    // visitor's; past their limit, it opens empty. Tests turn this off.
+    if (firstStart && this.env.SAMPLE_NETWORK === 'on') {
+      const visitor = props?.visitor ?? `session:${this.name}`
+      const refused = await this.env.QlooGateway.getByName('global')
+        .reserveCalls(visitor, sampleRoster.length)
+        // A gateway that can't count doesn't keep the sample from opening; its lookups say why they fail.
+        .catch(() => null)
+      if (!refused) this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample })
+    }
   }
 
   // State changes only through actions; a client can't write it directly.
@@ -270,7 +285,8 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // It returns once every show is pending, and each show fills in as its search settles: one search
   // can take a minute when Qloo hangs, past the client's 30-second call timeout.
   @callable()
-  importRoster(text: string, format: RosterFormat = 'lines') {
+  async importRoster(text: string, format: RosterFormat = 'lines') {
+    const visitor = this.visitor()
     const rows = parseRoster(text, format)
     if (rows.length === 0)
       throw new Error(format === 'csv' ? 'The CSV has no show rows.' : 'Paste at least one show name, one per line.')
@@ -278,8 +294,13 @@ export class CrossfeedAgent extends Agent<Env, State> {
       throw new Error(
         `${rows.length} shows is over the ${MAX_SHOWS}-show limit: one comparison scores at most ${MAX_SHOWS} shows, Qloo's largest page, and scores from separate comparisons can't be compared. Import ${MAX_SHOWS} shows or fewer.`
       )
-    if (this.state.roster.some((s) => s.resolution === 'pending'))
-      throw new Error('The last import is still looking up its shows. Wait for it to finish.')
+    const pending = () => {
+      if (this.state.roster.some((s) => s.resolution === 'pending'))
+        throw new Error('The last import is still looking up its shows. Wait for it to finish.')
+    }
+    pending()
+    await this.reserveCalls(visitor, rows.length)
+    pending() // again, since another import may have started meanwhile
     this.lookUpRoster(rows, this.leaveSample())
   }
 
@@ -314,11 +335,17 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // Searches Qloo for a comparable show to stand in for one it can't match, such as a miss. It
   // returns once the search is pending, and the search fills in when Qloo answers.
   @callable()
-  searchComps(name: string, query: string) {
+  async searchComps(name: string, query: string) {
+    const visitor = this.visitor()
     // A comp mapped now would be overwritten when the show's own search lands.
-    if (this.show(name).resolution === 'pending') throw new Error(`${name} is still being looked up in Qloo.`)
+    const ready = () => {
+      if (this.show(name).resolution === 'pending') throw new Error(`${name} is still being looked up in Qloo.`)
+    }
+    ready()
     const q = query.trim()
     if (!q) throw new Error('Type the name of a comparable show.')
+    await this.reserveCalls(visitor, 1)
+    ready() // again, since an import may have replaced the show meanwhile
     const seq = this.numberCall()
     const compSearch: CompSearch = { query: q, call: callNumber(seq), status: 'pending', results: [], error: null }
     this.editShow(name, (show) => ({ ...show, compSearch }))
@@ -524,6 +551,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // out recomputes the finalists, which the tool result then lists.
   @callable()
   answer(questionId: string, reply: Reply) {
+    this.visitor() // so the resumed run's Qloo calls count for whoever answered
     const run = this.state.run
     const question = run?.status === 'waiting' ? run.question : null
     if (!run || !question || question.id !== questionId)
@@ -721,7 +749,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
   private async lookUpShow(name: string, seq: number) {
     let match: Lookup
     try {
-      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq)
+      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq, true)
       match = lookup(name, call, result)
     } catch (e) {
       // Anything else that breaks still settles the show, so the import can't stay pending.
@@ -735,7 +763,12 @@ export class CrossfeedAgent extends Agent<Env, State> {
   private async findComps(name: string, search: CompSearch, seq: number) {
     let landed: CompSearch
     try {
-      const { result } = await this.qloo((gateway) => gateway.search(search.query, 'urn:entity:podcast', 5), null, seq)
+      const { result } = await this.qloo(
+        (gateway) => gateway.search(search.query, 'urn:entity:podcast', 5),
+        null,
+        seq,
+        true
+      )
       landed = result.ok
         ? {
             ...search,
@@ -790,6 +823,13 @@ export class CrossfeedAgent extends Agent<Env, State> {
     }
   }
 
+  // Counts `n` Qloo calls against the visitor's calls for the day before they're made, or refuses them
+  // with the reason, before anything is numbered or kept (TRD agent limits).
+  private async reserveCalls(visitor: string, n: number) {
+    const refused = await this.env.QlooGateway.getByName('global').reserveCalls(visitor, n)
+    if (refused) throw new Error(`${refused}.`)
+  }
+
   // Counts a model run against the daily limits, or returns why one can't start (TRD agent limits).
   private async countModelRun(visitor: string) {
     return (await this.env.QlooGateway.getByName('global').startModelRun(visitor)).refused
@@ -798,17 +838,19 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // The visitor whose call this is, by their connection's tag, so one visitor's model runs count
   // together across sessions. Without an address, as in local tests, the session stands in. Read it
   // before the call's first await.
+  // It's kept for the session's background work, such as a run's Qloo calls, which may outlive the
+  // connection that started it.
   private visitor() {
     const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith('visitor:'))
-    return tag ?? `session:${this.name}`
+    if (tag) this.lastVisitor = tag
+    return this.lastVisitor ?? `session:${this.name}`
   }
 
-  // Tags a connection with a salted hash of the visitor's address, CF-Connecting-IP as Cloudflare's
-  // edge sets it. It runs before the connection is accepted, so every call on it can read the tag.
-  // The address itself is never stored.
+  // Tags a connection with the visitor (visitor.ts). It runs before the connection is accepted, so
+  // every call on it can read the tag.
   async getConnectionTags(_connection: Connection, { request }: ConnectionContext) {
-    const ip = request.headers.get('CF-Connecting-IP')
-    return ip ? [`visitor:${await sha256(`${this.env.VISITOR_SALT}:${network(ip)}`)}`] : []
+    const tag = await visitorTag(request, this.env.VISITOR_SALT)
+    return tag ? [tag] : []
   }
 
   // Refuses while a run is in progress or starting: one run at a time per session.
@@ -1240,12 +1282,15 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // The session's only path to Qloo. It numbers the call when the call starts, unless the caller
   // numbered it earlier, so numbers follow the order calls were made, and appends the gateway's
   // evidence, success or failure. A gateway that throws instead of answering, such as one reset by
-  // a deploy, fails the call like Qloo failing would, with its own record.
+  // a deploy, fails the call like Qloo failing would, with its own record. Each call counts among the
+  // visitor's Qloo calls today, unless the caller `reserved` it first (reserveCalls).
   private async qloo<T>(
     request: (gateway: DurableObjectStub<QlooGateway>) => Promise<QlooResult<T>>,
     run: string | null = null,
-    seq = this.numberCall()
+    seq = this.numberCall(),
+    reserved = false
   ): Promise<{ call: string; result: QlooResult<T> }> {
+    const visitor = this.lastVisitor ?? `session:${this.name}`
     const call = callNumber(seq)
     const settled = this.watch(call, run)
     const started = Date.now()
@@ -1253,8 +1298,9 @@ export class CrossfeedAgent extends Agent<Env, State> {
     let asked: keyof typeof REQUESTS | undefined
     const gateway = new Proxy(this.env.QlooGateway.getByName('global'), {
       get: (stub, key) => {
-        if (typeof key === 'string' && Object.hasOwn(REQUESTS, key)) asked = key as keyof typeof REQUESTS
-        return Reflect.get(stub, key)
+        if (typeof key !== 'string' || !Object.hasOwn(REQUESTS, key)) return Reflect.get(stub, key)
+        const method = (asked = key as keyof typeof REQUESTS)
+        return reserved ? Reflect.get(stub, key) : (...args: unknown[]) => stub.forVisitor(visitor, method, args)
       }
     })
     let result: QlooResult<T>
@@ -1309,19 +1355,6 @@ export class CrossfeedAgent extends Agent<Env, State> {
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
-
-// A visitor's address as the model run limit counts it: an IPv6 address by its /64, which one home or
-// phone usually holds whole, so moving to another address inside it doesn't reset the count.
-function network(ip: string) {
-  if (!ip.includes(':') || ip.includes('.')) return ip // IPv4, or IPv4 written as IPv6
-  const [head, tail] = ip.split('::')
-  const groups = (part?: string) => (part ? part.split(':') : [])
-  const zeros = tail === undefined ? [] : Array(8 - groups(head).length - groups(tail).length).fill('0')
-  return [...groups(head), ...zeros, ...groups(tail)]
-    .slice(0, 4)
-    .map((g) => parseInt(g, 16).toString(16))
-    .join(':')
-}
 
 // Whether this is the sample launch on the unchanged sample network: the sample's CPM and every
 // show's sample figures untouched (#44), and no show left out or mapped to a comp. Picking an
