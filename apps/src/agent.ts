@@ -1,11 +1,11 @@
 import type Anthropic from '@anthropic-ai/sdk'
-import { Agent, callable, type Connection } from 'agents'
+import { Agent, callable, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
 import { claude, declined } from './claude'
 import type { DemographicCheck } from './demographics'
 import { callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import { blankEvidence, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
+import { blankEvidence, IN_FLIGHT, REQUESTS, type QlooDown, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -18,12 +18,12 @@ import {
   type Work,
   type WorkMatch
 } from './inbox'
-import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_RUNS_PER_DAY, MAX_TURNS, startOfUtcDay } from './limits'
+import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
 import { dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
-import { listOf } from './text'
+import { listOf, sha256 } from './text'
 import { tools, type ToolContext, type ToolResult } from './tools'
 import { takesText } from './tools/ask-human'
 import { rankByTopic, topicRequest, withMoves, type Topic } from './topic'
@@ -379,11 +379,7 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (comps?.length === 0) throw new Error('Name at least one comp to start a run.')
     const name = comps ? null : 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
     if (name === '') throw new Error('Name the launch to start a run.')
-    // Decided before anything runs: while Qloo can't be called, the unchanged sample launch replays
-    // the stored sample run and any other run stops, so neither calls Qloo or Claude.
-    const gateway = this.env.QlooGateway.getByName('global')
-    const down = await gateway.health()
-    const stored = down && onSampleLaunch(this.state, name) ? await gateway.sampleRun() : null
+    const visitor = this.visitor()
     const { run, startedAt } = this.beginRun()
     this.setState({
       ...this.state,
@@ -396,22 +392,49 @@ export class CrossfeedAgent extends Agent<Env, State> {
       ],
       ranking: null,
       demographics: null,
-      // A start that replays or stops runs no topic baseline.
-      topic: down ? null : { status: 'ranking', order: [], error: null, moves: [] },
+      topic: null,
       insertionOrder: null
     })
-    if (down) {
-      if (stored && onSampleLaunch(this.state, name)) this.replay(run, JSON.parse(stored), down.reason)
+    // Decided before anything runs, once this run holds the session: while Qloo can't be called, or a
+    // daily model run limit is reached, the unchanged sample launch replays the stored sample run and
+    // any other run stops, so neither calls Qloo or Claude, nor counts as a model run.
+    const gateway = this.env.QlooGateway.getByName('global')
+    let start: { down: QlooDown | null; limited: string | null; stored: string | null }
+    try {
+      const down = await gateway.health()
+      const limited = down ? null : await this.countModelRun(visitor)
+      const stored = (down || limited) && onSampleLaunch(this.state, name) ? await gateway.sampleRun() : null
+      start = { down, limited, stored }
+    } catch (e) {
+      // A gateway that throws, such as one reset by a deploy, leaves no run stuck as running.
+      this.finish(run, `The run couldn't start: ${message(e)}. Start it again.`)
+      return { runId: run }
+    }
+    const { down, limited, stored } = start
+    if (down || limited) {
+      const sample = onSampleLaunch(this.state, name)
+      const own = 'Only the sample launch, on the unchanged sample network, replays its stored run.'
+      if (stored && sample) this.replay(run, JSON.parse(stored), down?.reason ?? limited!)
+      else if (down)
+        this.finish(
+          run,
+          sample
+            ? `${down.reason}, and no sample run is stored to replay yet. Start it again once Qloo answers.`
+            : `${down.reason}, so runs on your own data wait until Qloo answers again. ${own}`,
+          down.capped ? 'stopped' : 'failed'
+        )
       else
         this.finish(
           run,
-          onSampleLaunch(this.state, name)
-            ? `${down.reason}, and no sample run is stored to replay yet. Start it again once Qloo answers.`
-            : `${down.reason}, so runs on your own data wait until Qloo answers again. Only the sample launch, on the unchanged sample network, replays its stored run.`,
-          down.capped ? 'stopped' : 'failed'
+          sample
+            ? `${limited}, and no sample run is stored to replay yet.`
+            : `${limited}, so runs on your own data wait until then. ${own}`,
+          'stopped'
         )
       return { runId: run }
     }
+    // A start that replays or stops runs no topic baseline.
+    this.setState({ ...this.state, topic: { status: 'ranking', order: [], error: null, moves: [] } })
     // Beside the agent loop, not a tool of it: it needs no Qloo data.
     const imported = this.state.roster
     // A launch from comps is described to the topic baseline by its comps.
@@ -447,20 +470,33 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // pitched works, then Claude ranks the inbox's pitches against the show and those works, one list
   // per work type. The run's progress and lists arrive in synced state.
   @callable()
-  startPitches(input: unknown) {
+  async startPitches(input: unknown) {
     this.guestPitches()
+    const visitor = this.visitor()
     const given = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>
-    const inbox = this.state.inbox
-    if (!inbox) throw new Error('Load an inbox first.')
-    if (inbox.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
-    if (typeof given.show !== 'string' || !given.show) throw new Error('Pick the roster show the pitches are for.')
-    const show = this.show(given.show)
-    // A show left out of launches can still be booked.
-    if (!show.entity || (show.resolution !== 'resolved' && show.resolution !== 'mapped'))
-      throw new Error(`${show.name} isn't matched in Qloo. Settle it in the roster first.`)
-    const pastGuests = readPastGuests(given.pastGuests)
-    if (!inbox.pitches.some(rankable))
-      throw new Error('No pitched work is matched in Qloo, so there is nothing to rank. Confirm the ambiguous matches.')
+    // Checked again once the run is counted, since the inbox or the roster may have changed meanwhile.
+    const ready = () => {
+      const inbox = this.state.inbox
+      if (!inbox) throw new Error('Load an inbox first.')
+      if (inbox.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
+      if (typeof given.show !== 'string' || !given.show) throw new Error('Pick the roster show the pitches are for.')
+      const show = this.show(given.show)
+      // A show left out of launches can still be booked.
+      if (!show.entity || (show.resolution !== 'resolved' && show.resolution !== 'mapped'))
+        throw new Error(`${show.name} isn't matched in Qloo. Settle it in the roster first.`)
+      const pastGuests = readPastGuests(given.pastGuests)
+      if (!inbox.pitches.some(rankable))
+        throw new Error(
+          'No pitched work is matched in Qloo, so there is nothing to rank. Confirm the ambiguous matches.'
+        )
+      this.idle()
+      return { show, pastGuests }
+    }
+    ready()
+    // A pitch run is a model run (TRD agent limits).
+    const refused = await this.countModelRun(visitor)
+    if (refused) throw new Error(`${refused}.`)
+    const { show, pastGuests } = ready()
     const { run, startedAt } = this.beginRun()
     this.setState({
       ...this.state,
@@ -594,12 +630,16 @@ export class CrossfeedAgent extends Agent<Env, State> {
   // pitch for its guest and public work, and each work's title and type are searched in Qloo; the
   // pitches fill in through synced state.
   @callable()
-  loadInbox(source: unknown) {
+  async loadInbox(source: unknown) {
     this.guestPitches()
-    if (this.state.inbox?.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
-    if (this.state.run?.status === 'running' && this.state.booking?.run === this.state.run.id)
-      throw new Error('The pitches are being ranked. Wait for the run to finish.')
-    const inbox: Inbox = { id: crypto.randomUUID(), status: 'reading', ...readInbox(source) }
+    const visitor = this.visitor()
+    this.inboxBusy()
+    const read = readInbox(source)
+    // Reading the pitches is a model run (TRD agent limits).
+    const refused = await this.countModelRun(visitor)
+    if (refused) throw new Error(`${refused}.`)
+    this.inboxBusy() // again, since a pitch run may have started meanwhile
+    const inbox: Inbox = { id: crypto.randomUUID(), status: 'reading', ...read }
     // The last pitch run's lists name the old inbox's pitches, so they go with it.
     this.setState({ ...this.state, inbox, booking: null })
     void this.keepAliveWhile(() => this.readPitches(inbox)).catch((e) =>
@@ -756,15 +796,35 @@ export class CrossfeedAgent extends Agent<Env, State> {
     }
   }
 
-  // Checks the run limits, ends a run left waiting on a question, and records a new run.
-  private beginRun() {
+  // Counts a model run against the daily limits, or returns why one can't start (TRD agent limits).
+  private async countModelRun(visitor: string) {
+    return (await this.env.QlooGateway.getByName('global').startModelRun(visitor)).refused
+  }
+
+  // The visitor whose call this is, by their connection's tag, so one visitor's model runs count
+  // together across sessions. Without an address, as in local tests, the session stands in. Read it
+  // before the call's first await.
+  private visitor() {
+    const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith('visitor:'))
+    return tag ?? `session:${this.name}`
+  }
+
+  // Tags a connection with a salted hash of the visitor's address, CF-Connecting-IP as Cloudflare's
+  // edge sets it. It runs before the connection is accepted, so every call on it can read the tag.
+  // The address itself is never stored.
+  async getConnectionTags(_connection: Connection, { request }: ConnectionContext) {
+    const ip = request.headers.get('CF-Connecting-IP')
+    return ip ? [`visitor:${await sha256(`${this.env.VISITOR_SALT}:${network(ip)}`)}`] : []
+  }
+
+  // Refuses while a run is in progress: one run at a time per session.
+  private idle() {
     if (this.state.run?.status === 'running') throw new Error('A run is already in progress. Wait for it to finish.')
-    const [{ started }] = this.sql<{ started: number }>`
-      SELECT COUNT(*) AS started FROM runs WHERE started_at >= ${startOfUtcDay()}`
-    if (started >= MAX_RUNS_PER_DAY)
-      throw new Error(
-        `This session has started its ${MAX_RUNS_PER_DAY} runs for today. Runs reset at 00:00 UTC; earlier runs stay viewable.`
-      )
+  }
+
+  // Checks that no run is in progress, ends a run left waiting on a question, and records a new run.
+  private beginRun() {
+    this.idle()
 
     // A run left waiting on a question ends unanswered, and its paused turn with it.
     const waiting = this.state.run
@@ -852,6 +912,13 @@ export class CrossfeedAgent extends Agent<Env, State> {
 
   private guestPitches() {
     if (this.env.GUEST_PITCHES !== 'on') throw new Error("Guest pitches aren't switched on.")
+  }
+
+  // Refuses to replace the inbox while it's loading or its pitches are being ranked.
+  private inboxBusy() {
+    if (this.state.inbox?.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
+    if (this.state.run?.status === 'running' && this.state.booking?.run === this.state.run.id)
+      throw new Error('The pitches are being ranked. Wait for the run to finish.')
   }
 
   // A reply of the latest pitch run, once that run has ended: until then the agent can still redraft it.
@@ -1235,6 +1302,19 @@ export class CrossfeedAgent extends Agent<Env, State> {
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+// A visitor's address as the model run limit counts it: an IPv6 address by its /64, which one home or
+// phone usually holds whole, so moving to another address inside it doesn't reset the count.
+function network(ip: string) {
+  if (!ip.includes(':') || ip.includes('.')) return ip // IPv4, or IPv4 written as IPv6
+  const [head, tail] = ip.split('::')
+  const groups = (part?: string) => (part ? part.split(':') : [])
+  const zeros = tail === undefined ? [] : Array(8 - groups(head).length - groups(tail).length).fill('0')
+  return [...groups(head), ...zeros, ...groups(tail)]
+    .slice(0, 4)
+    .map((g) => parseInt(g, 16).toString(16))
+    .join(':')
+}
 
 // Whether this is the sample launch on the unchanged sample network: the sample's CPM and every
 // show's sample figures untouched (#44), and no show left out or mapped to a comp. Picking an

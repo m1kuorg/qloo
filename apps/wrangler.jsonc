@@ -16,12 +16,16 @@
     // A call still waiting this long is shown as slow: the TRD's worst case per Qloo call.
     "QLOO_SLOW_MS": "8000",
     "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    // Model runs a day (UTC): per visitor, across sessions, and across all visitors. They bound model spend.
+    "RUN_VISITOR_DAILY_CAP": "10",
+    "RUN_DAILY_CAP": "200",
     // "on" shows the guest pitch flow; "off" hides it. #57 switched it on after its live check.
     "GUEST_PITCHES": "on",
     // A new session opens on the sample network (TRD demo data); tests turn it off.
     "SAMPLE_NETWORK": "on"
   },
-  "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY"] },
+  // VISITOR_SALT salts the hash of a visitor's IP address that keys their model run count.
+  "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT"] },
   "durable_objects": {
     "bindings": [
       { "name": "CrossfeedAgent", "class_name": "CrossfeedAgent" },

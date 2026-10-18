@@ -22,10 +22,10 @@ Run these in `apps/`, with `QLOO_API_KEY` and `ANTHROPIC_API_KEY` in your enviro
 
 ```sh
 bun install
-printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nGUEST_PITCHES=on\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" > .dev.vars
+printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nVISITOR_SALT=%s\nGUEST_PITCHES=on\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" "$(openssl rand -hex 16)" > .dev.vars
 ```
 
-`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `GUEST_PITCHES=on` shows the guest pitch flow, as `wrangler.jsonc` does in production since #57; `off` hides it. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself.
+`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `VISITOR_SALT` salts the hash that keys a visitor's model run count; any random value works locally. `GUEST_PITCHES=on` shows the guest pitch flow, as `wrangler.jsonc` does in production since #57; `off` hides it. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself.
 
 After changing `wrangler.jsonc`, run `bun run cf-typegen` to regenerate `Env` in `worker-configuration.d.ts`.
 
@@ -109,7 +109,7 @@ git fetch origin main && git checkout --detach origin/main
 cd apps && bun install && bun run deploy
 ```
 
-Secrets live on the `crossfeed` Worker in the `qloo` Cloudflare account, and are set once with `bunx wrangler secret put QLOO_API_KEY` and `ANTHROPIC_API_KEY`. List them with `bunx wrangler secret list`.
+Secrets live on the `crossfeed` Worker in the `qloo` Cloudflare account, and are set once with `bunx wrangler secret put QLOO_API_KEY`, `ANTHROPIC_API_KEY`, and `VISITOR_SALT` (a random value, such as `openssl rand -hex 32`; changing it restarts every visitor's count). List them with `bunx wrangler secret list`.
 
 ## Live check
 
@@ -130,10 +130,11 @@ Done means the behaviour works against the real APIs, first locally and then on 
 1.  Before it completes, the agent drafts the insertion order: the rail's "Insertion order draft" module lists finalists only, with slots, the agent's angle and the call of the compare whose tags it draws on, each line's value, and its slot value, labelled sample while the sample downloads or CPM price it. The total stays within the budget; with a dollar budget, a "Failed" draft in the Run module was over it, and the next one fixed it. A show without downloads shows the gap and an incomplete total.
 1.  Select "Edit lines": change a slot count and drop a show, and the total recomputes as you type. Save, then select the black "Approve": the chip says Approved. "Export CSV" downloads `IO-0001.csv`, with show, slots, angle, slot value, line value, and the total, which opens in a spreadsheet. Edit it again and it returns to draft; its CSV URL answers 409 until it's approved again.
 1.  Choose "Unreleased, from comps", enter Blank Check, Filmspotting, and You Must Remember This, and start a run. The header shows "Unreleased, from comps" and lists the comps, each with its search's call number. The agent asks to confirm them in one question: Blank Check is ambiguous, so pick Blank Check with Griffin & David; the other two start picked. The header then shows the confirmed matches, and the fit chart ranks the roster against all three, its call's `signal.interests.entities` holding the three IDs, with "Led by" or "Comps contributed evenly" under each show. The Demographics line checks against the comps' listeners on average, at 35 to 44 and skewing male, with no disagreement noted. Run again from Pop Culture Happy Hour, Still Watching, and Culture Gabfest: the line says the comps disagree, as only Still Watching's listeners over-index at 35 to 44 and the comps skew opposite ways, and it checks only 55 and older. Starting from a released name Qloo doesn't have, such as "Sequel Season with Dana Whitfield", leads the agent to ask for comps instead.
-1.  Include The Press Box again and select "Run again". The topic column keeps its ranks, and the log's `topic_baseline` line says `"cacheHit":true`: settling or excluding shows doesn't change its request. The rail's Runs module lists both runs and today's count out of 10. "View" on the first run shows what it ended with, read-only, with The Press Box still left out and its insertion order as you left it, an approved one still exportable; "Back to the latest run" returns.
+1.  Include The Press Box again and select "Run again". The topic column keeps its ranks, and the log's `topic_baseline` line says `"cacheHit":true`: settling or excluding shows doesn't change its request. The rail's Runs module lists both runs. "View" on the first run shows what it ended with, read-only, with The Press Box still left out and its insertion order as you left it, an approved one still exportable; "Back to the latest run" returns.
 1.  Start a run for "Binge Mode", which is ambiguous in Qloo. The agent asks which show the launch is, listing its candidates. Pick the one you picked for it in the roster: the header shows it with its search's call number instead of "Ambiguous", and the fit chart lists Binge Mode under "Not scored" as the launch.
 1.  Clear the sample network: the roster empties, and the sample labels and notice go. Paste the 19 show names and import them: every log line says `"cacheHit":true`, and no new Qloo call is made.
 1.  Replay: in a fresh session, start the sample launch, The Watch, and answer 20 slots and no exclusions. When it completes, a `"event":"sample_run"` log line says it's stored. A run with a show left out or mapped, comps, or a typed answer logs no such line, since it isn't the unchanged sample. Set `QLOO_DAILY_CALL_CAP=0` (locally in `.dev.vars` with a restart, or on the Worker as below) and start The Watch in another fresh session: the header says "Completed" and "Replayed" with the cap's reason, the chart, tags, budget, and exclusions are the stored run's, every cited call's evidence says "Replayed", and no `qloo_call` or `model_call` line follows. A run on an imported roster, or any other launch, stops at once with the cap message. `QLOO_TIMEOUT_MS=1` instead, plus one comp search that fails, replays the same way for five minutes. Put the cap back afterwards.
+1.  Model run limits: with the sample run stored, set `RUN_VISITOR_DAILY_CAP` one above the model runs you've started today, and start a run on an imported roster in a second browser (another cookie, same address): it runs. The next one, in either browser, stops at once: "You've started n model runs today, the most one visitor can start in a UTC day; they reset at 00:00 UTC", and loading an inbox or ranking pitches is refused with the same words. The sample launch, unchanged, replays instead, and doesn't count. `RUN_DAILY_CAP` at today's total does the same for every visitor, with "Crossfeed's cap of n model runs a day across all visitors". Locally the dev server may see every browser at one address. Put both back afterwards.
 
 In a fresh browser session, check the guide through the sample launch:
 
@@ -152,7 +153,7 @@ With `GUEST_PITCHES=on`, as deployed, check the inbox too:
 1.  Approve one reply: only it shows Approved, and Copy puts its exact text on the clipboard. Edit another, discard a third, and reload: the edit and the discard stay, and Restore brings the discarded one back as a draft.
 1.  With `GUEST_PITCHES=off`, there's no Inbox link and `/inbox` is a 404.
 
-To cap the deployed Worker without a code change, deploy from up-to-date `main` with `bunx wrangler deploy --var QLOO_DAILY_CALL_CAP:0` (after `bun run build`), check, then `bun run deploy` again to restore `wrangler.jsonc`'s cap.
+To cap the deployed Worker without a code change, deploy from up-to-date `main` with `bunx wrangler deploy --var QLOO_DAILY_CALL_CAP:0` (after `bun run build`), check, then `bun run deploy` again to restore `wrangler.jsonc`'s cap. `--var RUN_VISITOR_DAILY_CAP:n` and `--var RUN_DAILY_CAP:n` lower the model run limits the same way.
 
 Gateway log lines (`"event":"qloo_call"`) show each Qloo call's endpoint, status, latency, retries, and cache hit, in the dev server's output, in Workers Logs, and live with `bunx wrangler tail --format json`. To see failures in the running app, add `QLOO_TIMEOUT_MS=1` or a low `QLOO_DAILY_CALL_CAP` to `.dev.vars` and restart the dev server. To see a slow call named, add a low `QLOO_SLOW_MS`, such as `500`, so a normal call passes it.
 

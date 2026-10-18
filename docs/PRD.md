@@ -121,7 +121,7 @@ The programmer is the head of programming or audience; the booker, the network's
 48. As a judge, I want the sample launch to answer quickly from a warm cache, so that the demo works even when Qloo is slow.
 49. As a judge, I want sample data, such as the synthetic inbox and sample downloads, labelled as sample data, so that I know no real person's email or real network's figures are shown.
 50. As a judge, I want a short guided path through the sample launch, so that I see the decisive moment without knowing the product.
-51. As the operator, I want a daily cap on Qloo calls and a spend limit on the model account, so that a public demo can't exhaust the quota or the budget.
+51. As the operator, I want a daily cap on Qloo calls and daily limits on model runs, per visitor and overall, so that a public demo can't exhaust the quota or the budget.
 52. As the operator, I want the sample run replayed from storage when a cap is hit or Qloo fails, so that judges still see a working product.
 53. As the operator, I want a daily health check against Qloo, so that I learn a key has stopped working before a judge does.
 

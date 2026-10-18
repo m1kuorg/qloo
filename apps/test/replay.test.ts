@@ -50,7 +50,12 @@ const sampleRun = [
 ]
 
 // Tests run without the sample network; these turn it on, as it's deployed.
-const saved = { SAMPLE_NETWORK: env.SAMPLE_NETWORK, QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP }
+const saved = {
+  SAMPLE_NETWORK: env.SAMPLE_NETWORK,
+  QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP,
+  RUN_DAILY_CAP: env.RUN_DAILY_CAP,
+  RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
+}
 beforeEach(() => {
   env.SAMPLE_NETWORK = 'on'
 })
@@ -203,6 +208,49 @@ describe('replaying the sample run', () => {
     expect(own.state()?.topic).toBeNull()
     await own.call('getEvidence')
     expect(requests).toHaveLength(sent)
+  })
+
+  it("replays the sample launch once the day's model run cap is reached, and stops a run on a visitor's own roster", async () => {
+    await completeSampleRun()
+    const own = await visitor()
+    await own.importRoster('Night Shift Cinema')
+    env.RUN_DAILY_CAP = '1' // the sample run above was the day's one model run
+    const judge = await visitor()
+    const sent = requests.length
+
+    await judge.call('startLaunch', { name: 'The Watch' })
+    const capped = "Crossfeed's cap of 1 model run a day across all visitors is reached; it resets at 00:00 UTC"
+    expect(judge.state()?.run).toMatchObject({ status: 'completed', replayed: capped, budget: { slots: 20 } })
+
+    await own.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect(own.state()?.run).toMatchObject({
+      status: 'stopped',
+      notes: [],
+      error: `${capped}, so runs on your own data wait until then. Only the sample launch, on the unchanged sample network, replays its stored run.`
+    })
+    expect(own.state()?.topic).toBeNull()
+    expect(requests).toHaveLength(sent)
+  })
+
+  it("doesn't count a replay among the visitor's model runs", async () => {
+    await completeSampleRun()
+    env.RUN_VISITOR_DAILY_CAP = '1'
+    env.QLOO_DAILY_CALL_CAP = '0'
+    const judge = await visitor()
+    await judge.call('startLaunch', { name: 'The Watch' })
+    expect(judge.state()?.run?.replayed).toBe('The daily cap of 0 Qloo calls is reached; it resets at 00:00 UTC')
+
+    // The day's one model run is still there after the replay, and then it's spent.
+    env.QLOO_DAILY_CALL_CAP = saved.QLOO_DAILY_CALL_CAP
+    fakeClaude([turn(text('Done.'))])
+    await judge.importRoster('Night Shift Cinema')
+    await judge.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await judge.until(ended)).run?.status).toBe('completed')
+    await judge.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect(judge.state()?.run).toMatchObject({
+      status: 'stopped',
+      error: expect.stringMatching(/^You've started 1 model run today, the most one visitor can start in a UTC day/)
+    })
   })
 
   it('keeps only a sample run answered with the sample answers, and replays only the unchanged sample', async () => {

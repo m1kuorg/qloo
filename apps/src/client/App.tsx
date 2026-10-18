@@ -20,7 +20,7 @@ import type {
 } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
 import type { Ranking } from '../fit'
-import { inProgress, MAX_COMPS, MAX_RUNS_PER_DAY, startOfUtcDay } from '../limits'
+import { inProgress, MAX_COMPS } from '../limits'
 import { dollars, slotPrice } from '../order'
 import { offeredBy, sameName } from '../resolve'
 import { takesText } from '../tools/ask-human'
@@ -831,16 +831,12 @@ function RunList({
   view: (id: string | null) => Promise<void>
 }) {
   const { busy, error, run } = useAction()
-  const today = runs.filter((r) => Date.parse(r.startedAt) >= startOfUtcDay()).length
   const latest = runs.at(-1)?.id
   return (
     <section className="mod" aria-labelledby="runs-h">
       <div className="mh">
         <span className="lbl" id="runs-h">
           Runs
-        </span>
-        <span className="chip">
-          {today} of {MAX_RUNS_PER_DAY} today
         </span>
       </div>
       <ol className="notes runs">
@@ -880,7 +876,8 @@ function RunList({
           })}
       </ol>
       <p className="help">
-        Each run starts fresh; earlier ones stay here to compare. A session can start {MAX_RUNS_PER_DAY} runs a UTC day.
+        Each run starts fresh; earlier ones stay here to compare. Model runs are limited per visitor and per UTC day,
+        across browsers; a replay doesn't count.
       </p>
       <Alert error={error} />
     </section>
