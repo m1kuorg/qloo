@@ -27,6 +27,7 @@ export default defineConfig({
           RUN_VISITOR_DAILY_CAP: '10',
           RUN_DAILY_CAP: '200',
           FREE_START_DAILY_CAP: '100',
+          QLOO_VISITOR_DAILY_CALL_CAP: '2000',
           SAMPLE_NETWORK: 'off',
           GUEST_PITCHES: 'off'
         }

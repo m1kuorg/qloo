@@ -10,6 +10,9 @@
   "vars": {
     "QLOO_BASE_URL": "https://hackathon.api.qloo.com",
     "QLOO_DAILY_CALL_CAP": "1000",
+    // Qloo calls one visitor's sessions make in a UTC day, cache hits included: each keeps an evidence
+    // record, so this bounds the storage a visitor can fill. A judge's whole path took 91 (#151).
+    "QLOO_VISITOR_DAILY_CALL_CAP": "2000",
     "QLOO_TIMEOUT_MS": "20000",
     "QLOO_RETRY_DELAYS_MS": "1000,3000",
     "QLOO_MIN_INTERVAL_MS": "400",
