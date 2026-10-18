@@ -5,7 +5,7 @@ import type { DemographicCheck } from './demographics'
 import { callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import { blankEvidence, IN_FLIGHT, REQUESTS, type QlooDown, type QlooGateway, type QlooResult } from './gateway'
+import { blankEvidence, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -207,6 +207,9 @@ export class CrossfeedAgent extends Agent<Env, State> {
     guide: { seen: [], dismissed: false }
   }
 
+  // Whether a launch is asking the gateway if it may start (see admit).
+  private starting = false
+
   // This session's Qloo calls still out, oldest first; a call being timed holds its timer.
   private out: { call: string; run: string | null; timer?: ReturnType<typeof setTimeout> }[] = []
 
@@ -379,7 +382,15 @@ export class CrossfeedAgent extends Agent<Env, State> {
     if (comps?.length === 0) throw new Error('Name at least one comp to start a run.')
     const name = comps ? null : 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
     if (name === '') throw new Error('Name the launch to start a run.')
+    // Decided before anything runs: while Qloo can't be called, or a daily model run limit is reached,
+    // the unchanged sample launch replays the stored sample run and any other run stops, so neither
+    // calls Qloo or Claude, nor counts as a model run. Each is a free start, and once the visitor's
+    // free starts are used, the start is refused before it keeps anything.
     const visitor = this.visitor()
+    const { down, limited, refused, stored } = await this.admit(() =>
+      this.env.QlooGateway.getByName('global').admitLaunch(visitor, onSampleLaunch(this.state, name))
+    )
+    if (refused) throw new Error(`${refused}.`)
     const { run, startedAt } = this.beginRun()
     this.setState({
       ...this.state,
@@ -392,25 +403,10 @@ export class CrossfeedAgent extends Agent<Env, State> {
       ],
       ranking: null,
       demographics: null,
-      topic: null,
+      // A start that replays or stops runs no topic baseline.
+      topic: down || limited ? null : { status: 'ranking', order: [], error: null, moves: [] },
       insertionOrder: null
     })
-    // Decided before anything runs, once this run holds the session: while Qloo can't be called, or a
-    // daily model run limit is reached, the unchanged sample launch replays the stored sample run and
-    // any other run stops, so neither calls Qloo or Claude, nor counts as a model run.
-    const gateway = this.env.QlooGateway.getByName('global')
-    let start: { down: QlooDown | null; limited: string | null; stored: string | null }
-    try {
-      const down = await gateway.health()
-      const limited = down ? null : await this.countModelRun(visitor)
-      const stored = (down || limited) && onSampleLaunch(this.state, name) ? await gateway.sampleRun() : null
-      start = { down, limited, stored }
-    } catch (e) {
-      // A gateway that throws, such as one reset by a deploy, leaves no run stuck as running.
-      this.finish(run, `The run couldn't start: ${message(e)}. Start it again.`)
-      return { runId: run }
-    }
-    const { down, limited, stored } = start
     if (down || limited) {
       const sample = onSampleLaunch(this.state, name)
       const own = 'Only the sample launch, on the unchanged sample network, replays its stored run.'
@@ -433,8 +429,6 @@ export class CrossfeedAgent extends Agent<Env, State> {
         )
       return { runId: run }
     }
-    // A start that replays or stops runs no topic baseline.
-    this.setState({ ...this.state, topic: { status: 'ranking', order: [], error: null, moves: [] } })
     // Beside the agent loop, not a tool of it: it needs no Qloo data.
     const imported = this.state.roster
     // A launch from comps is described to the topic baseline by its comps.
@@ -817,9 +811,22 @@ export class CrossfeedAgent extends Agent<Env, State> {
     return ip ? [`visitor:${await sha256(`${this.env.VISITOR_SALT}:${network(ip)}`)}`] : []
   }
 
-  // Refuses while a run is in progress: one run at a time per session.
+  // Refuses while a run is in progress or starting: one run at a time per session.
   private idle() {
-    if (this.state.run?.status === 'running') throw new Error('A run is already in progress. Wait for it to finish.')
+    if (this.state.run?.status === 'running' || this.starting)
+      throw new Error('A run is already in progress. Wait for it to finish.')
+  }
+
+  // Holds the session while a start asks the gateway whether it may run, so a second start meanwhile,
+  // such as a double click, is refused rather than counted too.
+  private async admit<T>(ask: () => Promise<T>) {
+    this.idle()
+    this.starting = true
+    try {
+      return await ask()
+    } finally {
+      this.starting = false
+    }
   }
 
   // Checks that no run is in progress, ends a run left waiting on a question, and records a new run.

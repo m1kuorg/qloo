@@ -54,7 +54,8 @@ const saved = {
   SAMPLE_NETWORK: env.SAMPLE_NETWORK,
   QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP,
   RUN_DAILY_CAP: env.RUN_DAILY_CAP,
-  RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
+  RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
+  FREE_START_DAILY_CAP: env.FREE_START_DAILY_CAP
 }
 beforeEach(() => {
   env.SAMPLE_NETWORK = 'on'
@@ -251,6 +252,22 @@ describe('replaying the sample run', () => {
       status: 'stopped',
       error: expect.stringMatching(/^You've started 1 model run today, the most one visitor can start in a UTC day/)
     })
+  })
+
+  it("counts a replay among the visitor's free starts, and refuses one past their limit", async () => {
+    await completeSampleRun()
+    env.FREE_START_DAILY_CAP = '1'
+    env.QLOO_DAILY_CALL_CAP = '0'
+    const judge = await visitor()
+    await judge.call('startLaunch', { name: 'The Watch' })
+    expect(judge.state()?.run?.replayed).toBe('The daily cap of 0 Qloo calls is reached; it resets at 00:00 UTC')
+    const sent = requests.length
+
+    await expect(judge.call('startLaunch', { name: 'The Watch' })).rejects.toThrow(
+      "You've started 1 run today that replayed or stopped at once, the most one visitor can start in a UTC day; they reset at 00:00 UTC."
+    )
+    expect(judge.state()?.runs).toHaveLength(1)
+    expect(requests).toHaveLength(sent)
   })
 
   it('keeps only a sample run answered with the sample answers, and replays only the unchanged sample', async () => {

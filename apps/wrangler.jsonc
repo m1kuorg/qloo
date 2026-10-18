@@ -19,6 +19,9 @@
     // Model runs a day (UTC): per visitor, across sessions, and across all visitors. They bound model spend.
     "RUN_VISITOR_DAILY_CAP": "10",
     "RUN_DAILY_CAP": "200",
+    // Starts a visitor makes in a UTC day that call no model: replays, and runs that stop at once. They
+    // cost no spend, but each keeps a run, so this bounds the storage a visitor can fill.
+    "FREE_START_DAILY_CAP": "100",
     // "on" shows the guest pitch flow; "off" hides it. #57 switched it on after its live check.
     "GUEST_PITCHES": "on",
     // A new session opens on the sample network (TRD demo data); tests turn it off.

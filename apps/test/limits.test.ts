@@ -18,9 +18,13 @@ const session = async (ip?: string) => {
   open.push(s)
   return s
 }
-const savedCap = env.RUN_VISITOR_DAILY_CAP
+const saved = {
+  RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
+  FREE_START_DAILY_CAP: env.FREE_START_DAILY_CAP,
+  QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP
+}
 afterEach(() => {
-  env.RUN_VISITOR_DAILY_CAP = savedCap
+  Object.assign(env, saved)
   open.splice(0).forEach((s) => s.close())
   vi.useRealTimers()
   vi.restoreAllMocks()
@@ -135,6 +139,32 @@ describe('a run at its limits', () => {
       status: 'stopped',
       error: expect.stringMatching(/^You've started 2 model runs today, /)
     })
+  })
+
+  it("refuses a visitor's start once the day's free starts are used, and keeps no run of it", async () => {
+    env.FREE_START_DAILY_CAP = '2'
+    fakeQloo({ search })
+    fakeClaude([turn(text('Done.'))])
+    const s = await session(visitorA)
+    // A model run isn't a free start.
+    await s.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await finished(s)).run?.status).toBe('completed')
+
+    env.QLOO_DAILY_CALL_CAP = '0' // so every start stops at once, without a model call
+    for (let i = 0; i < 2; i++) {
+      await s.call('startLaunch', { name: 'Night Shift Cinema' })
+      expect(s.state()?.run?.status).toBe('stopped')
+    }
+    await expect(s.call('startLaunch', { name: 'Night Shift Cinema' })).rejects.toThrow(
+      "You've started 2 runs today that replayed or stopped at once, the most one visitor can start in a UTC day; they reset at 00:00 UTC."
+    )
+    expect(s.state()?.runs).toHaveLength(3)
+    expect(s.state()?.run?.status).toBe('stopped')
+
+    const other = await session('198.51.100.4')
+    await other.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect(other.state()?.run?.status).toBe('stopped')
+    expect(modelRequests()).toHaveLength(1)
   })
 
   it('counts the addresses in one IPv6 /64 as one visitor', async () => {

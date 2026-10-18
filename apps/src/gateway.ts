@@ -46,6 +46,16 @@ export type QlooDown = { capped: boolean; reason: string }
 // A visitor's model runs today against their daily limit, and why a new one is refused, if it is.
 export type ModelRuns = { used: number; limit: number; refused: string | null }
 
+// How a launch may start: as a model run (all null), or without one, because Qloo can't be called
+// (`down`) or a model run limit is reached (`limited`), with the stored sample run when it's the
+// sample launch. `refused` means it may not start at all: the visitor's free starts are used.
+export type Admission = {
+  down: QlooDown | null
+  limited: string | null
+  refused: string | null
+  stored: string | null
+}
+
 // How long a request that failed after its retries marks Qloo as failing, unless one succeeds sooner.
 const FAILING_FOR_MS = 5 * 60_000
 
@@ -107,6 +117,10 @@ export class QlooGateway extends DurableObject<Env> {
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS model_runs (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
     )
+    // Free starts, which call no model, per visitor per UTC day, keyed and kept the same way.
+    ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS free_starts (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
+    )
   }
 
   // Counts a model run for `visitor` today, or refuses it once the visitor's daily limit or the
@@ -114,8 +128,41 @@ export class QlooGateway extends DurableObject<Env> {
   // calls Claude asks, so a replay never counts.
   async startModelRun(visitor: string): Promise<ModelRuns> {
     const day = utcDay()
+    return this.countModelRun(await sha256(`${visitor}:${day}`), day)
+  }
+
+  // Decides how a launch starts, in one call: as a model run, counted; or, while Qloo can't be called
+  // or a model run limit is reached, as a free start, counted against FREE_START_DAILY_CAP, with the
+  // stored sample run when `sample`; or not at all, once the visitor's free starts are used.
+  async admitLaunch(visitor: string, sample: boolean): Promise<Admission> {
+    const day = utcDay()
     const key = await sha256(`${visitor}:${day}`)
-    // From here on nothing awaits, so concurrent runs can't both pass a limit.
+    // From here on nothing awaits, so concurrent starts can't both pass a limit.
+    const down = this.health()
+    const limited = down ? null : this.countModelRun(key, day).refused
+    if (!down && !limited) return { down, limited, refused: null, stored: null }
+    const sql = this.ctx.storage.sql
+    sql.exec('DELETE FROM free_starts WHERE day < ?', day)
+    const [mine] = sql.exec<{ count: number }>('SELECT count FROM free_starts WHERE key = ?', key).toArray()
+    // A limit that isn't a number refuses every start, rather than none.
+    const limit = Number(this.env.FREE_START_DAILY_CAP) || 0
+    if ((mine?.count ?? 0) >= limit)
+      return {
+        down,
+        limited,
+        refused: `You've started ${limit === 1 ? '1 run' : `${limit} runs`} today that replayed or stopped at once, the most one visitor can start in a UTC day; they reset at 00:00 UTC`,
+        stored: null
+      }
+    sql.exec(
+      'INSERT INTO free_starts (key, day, count) VALUES (?, ?, 1) ON CONFLICT (key) DO UPDATE SET count = count + 1',
+      key,
+      day
+    )
+    return { down, limited, refused: null, stored: sample ? this.sampleRun() : null }
+  }
+
+  // Counts a model run under `key` (a visitor and a day, hashed), or says which limit refuses it.
+  private countModelRun(key: string, day: string): ModelRuns {
     const sql = this.ctx.storage.sql
     sql.exec('DELETE FROM model_runs WHERE day < ?', day)
     const [mine] = sql.exec<{ count: number }>('SELECT count FROM model_runs WHERE key = ?', key).toArray()
