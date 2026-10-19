@@ -38,6 +38,7 @@ createRoot(root).render(
       memberId={d.memberId!}
       members={JSON.parse(d.members!)}
       invites={d.invites ? JSON.parse(d.invites) : null}
+      apiKeys={d.apiKeys ? JSON.parse(d.apiKeys) : null}
     />
   ) : (
     <App page={d.page} agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />

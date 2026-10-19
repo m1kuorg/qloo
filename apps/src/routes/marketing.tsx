@@ -645,8 +645,10 @@ function Privacy({ accounts }: { accounts: boolean }) {
             <b>With an account:</b> your name; your passkeys&apos; public keys, each with the browser it was added from;
             and only hashes of your session and recovery code. The networks you create or join, with your role in each
             and when you joined and last opened it. Invite links are kept only as hashes, with who made each, who used
-            it, and when, and are deleted once they expire, seven days after they&apos;re made. Each network&apos;s
-            roster, CPM, inbox, and launches are kept in its own storage, which only its members can open.
+            it, and when, and are deleted once they expire, seven days after they&apos;re made. A network&apos;s API
+            keys are kept only as hashes, with each key&apos;s name and first characters, who made it, when, and the
+            last minute it was used. Each network&apos;s roster, CPM, inbox, and launches are kept in its own storage,
+            which only its members and its API keys can open.
           </li>
         )}
         <li>
@@ -665,7 +667,8 @@ function Privacy({ accounts }: { accounts: boolean }) {
       <p>
         Crossfeed never stores your IP address or writes it to its own logs. When the page connects to its agent, the
         address is hashed with a secret salt, and the hash stays with the connection. The day&apos;s counts are kept
-        under a hash of that hash and the UTC day, and earlier days&apos; counts are deleted. Cloudflare, which runs
+        under a hash of that hash and the UTC day, and earlier days&apos; counts are deleted.
+        {accounts && <> Sign-in requests are counted for a minute under the salted hash.</>} Cloudflare, which runs
         Crossfeed, also records each request the Worker serves in its own logs.
       </p>
 
@@ -769,6 +772,13 @@ function Terms({ env }: { env: Env }) {
         at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most {MAX_PITCHES}{' '}
         pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each. At a limit, the unchanged sample
         launch replays its stored run; anything else is refused or stops, and says which limit it reached.
+        {env.ACCOUNTS === 'on' && (
+          <>
+            {' '}
+            Each API key, and each visitor&apos;s sign-in requests, are also limited per minute; a request past the
+            limit is refused, and says to wait a minute.
+          </>
+        )}
       </p>
 
       <h2>Acceptable use</h2>

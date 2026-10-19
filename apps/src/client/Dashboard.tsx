@@ -279,8 +279,10 @@ function Checklist({
     },
     {
       title: 'Create an API key',
-      how: 'API keys, for your scripts and assistants, aren’t available yet. They’ll be in settings, for owners.',
-      href: null,
+      how: owner
+        ? 'Make a key in settings for a script or an assistant to act for the network, short of approving anything.'
+        : 'An owner makes API keys in settings, for scripts and assistants.',
+      href: owner ? settings : null,
       done: setup.apiKey
     }
   ]

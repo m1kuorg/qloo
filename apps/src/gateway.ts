@@ -46,6 +46,13 @@ export type QlooDown = { capped: boolean; reason: string }
 // A visitor's model runs today against their daily limit, and why a new one is refused, if it is.
 export type ModelRuns = { used: number; limit: number; refused: string | null }
 
+// What a visitor, or a network, has used today against its daily limits, and when they reset.
+export type Usage = {
+  qlooCalls: { used: number; limit: number }
+  modelRuns: { used: number; limit: number }
+  resets: string // ISO time, the next 00:00 UTC
+}
+
 // The per-visitor daily counters: tables keyed by a hash of the visitor and the day.
 type Counter = 'model_runs' | 'free_starts' | 'visitor_calls' | 'signups'
 
@@ -202,6 +209,23 @@ export class QlooGateway extends DurableObject<Env> {
       }
     this.add('free_starts', key, day)
     return { down, limited, refused: null, stored: sample ? this.sampleRun() : null }
+  }
+
+  // What `visitor` has used today: Qloo calls (QLOO_VISITOR_DAILY_CALL_CAP) and model runs
+  // (RUN_VISITOR_DAILY_CAP), as the limits count them.
+  async usage(visitor: string): Promise<Usage> {
+    const day = utcDay()
+    const key = await sha256(`${visitor}:${day}`)
+    const resets = new Date(`${day}T00:00:00Z`)
+    resets.setUTCDate(resets.getUTCDate() + 1)
+    return {
+      qlooCalls: {
+        used: this.used('visitor_calls', key, day),
+        limit: Number(this.env.QLOO_VISITOR_DAILY_CALL_CAP) || 0
+      },
+      modelRuns: { used: this.used('model_runs', key, day), limit: Number(this.env.RUN_VISITOR_DAILY_CAP) || 0 },
+      resets: resets.toISOString()
+    }
   }
 
   // Counts a model run under `key` (a visitor and a day, hashed), or says which limit refuses `who`.

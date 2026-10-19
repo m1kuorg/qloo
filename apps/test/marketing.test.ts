@@ -126,21 +126,27 @@ describe('the privacy page and the beta terms', () => {
     expect(text).toContain('A run makes at most 12 model turns and 60 Qloo calls')
   })
 
-  it('say what an account keeps and how many networks a member can create, only while accounts are on', async () => {
+  it('say what an account keeps, how many networks a member can create, and the per-minute limits, only while accounts are on', async () => {
     env.NETWORKS_PER_MEMBER = '2'
     const kept = 'With an account: your name'
     const counts = "each visitor's and each network's counts for the day"
     const cap = 'A member can create at most 2 networks.'
     const network =
       "A network counts as one visitor of its own, whichever of its members makes the network's calls and runs."
+    const keys = "A network's API keys are kept only as hashes"
+    const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
     expect(words(await page('/privacy'))).toContain(kept)
     expect(words(await page('/privacy'))).toContain(counts)
+    expect(words(await page('/privacy'))).toContain(keys)
     expect(words(await page('/terms'))).toContain(cap)
     expect(words(await page('/terms'))).toContain(network)
+    expect(words(await page('/terms'))).toContain(perMinute)
     env.ACCOUNTS = 'off'
     expect(words(await page('/privacy'))).not.toContain(kept)
+    expect(words(await page('/privacy'))).not.toContain(keys)
     expect(words(await page('/privacy'))).toContain("each visitor's counts for the day")
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)
+    expect(words(await page('/terms'))).not.toContain(perMinute)
   })
 })
