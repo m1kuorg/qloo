@@ -1,7 +1,7 @@
 -- Migration number: 0001 	 2026-10-19T07:20:03.850Z
--- The directory (ADR 0001): who each member is, how they sign in, and which networks they belong
--- to. Everything a network works on lives in its NetworkAgent and LaunchAgents instead. Times are
--- epoch ms. Session and invite tokens, recovery codes, and API key secrets are random, sent once,
+-- The directory (ADR 0001): who each member is, how they sign in, which networks they belong to,
+-- and which agent instances are still to wipe. Everything a network works on lives in its
+-- NetworkAgent and LaunchAgents instead. Times are epoch ms. Session and invite tokens, recovery codes, and API key secrets are random, sent once,
 -- and stored only as SHA-256 hashes.
 
 -- A member. The random ID doubles as the WebAuthn user handle of each of their passkeys. The
@@ -15,14 +15,14 @@ CREATE TABLE members (
 );
 
 -- A member's passkeys, by the credential ID their authenticator made (base64url), with its public
--- key (base64url), signature counter, transports (a JSON array), and a label naming the browser it
--- was added from.
+-- key (base64url), signature counter, transports (a JSON array, or null when the browser gave
+-- none), and a label naming the browser it was added from.
 CREATE TABLE passkeys (
   credential_id TEXT PRIMARY KEY,
   member_id TEXT NOT NULL REFERENCES members (id) ON DELETE CASCADE,
   public_key TEXT NOT NULL,
   counter INTEGER NOT NULL,
-  transports TEXT NOT NULL,
+  transports TEXT,
   label TEXT NOT NULL,
   created INTEGER NOT NULL,
   last_used INTEGER
@@ -41,7 +41,8 @@ CREATE INDEX sessions_member ON sessions (member_id);
 CREATE INDEX sessions_expires ON sessions (expires);
 
 -- A passkey ceremony's challenge (base64url), deleted once it's used. `kind` names the ceremony,
--- such as a sign-up, a sign-in, or adding a passkey. A sign-up keeps the name it asked for and the
+-- such as a sign-up, a sign-in, or adding a passkey, as free text so a new one needs no migration.
+-- A sign-up keeps the name it asked for and the
 -- ID its member will get; adding a passkey keeps the signed-in member's. `member_id` has no foreign
 -- key, since a sign-up's member is written only after its registration verifies.
 CREATE TABLE challenges (
@@ -53,11 +54,15 @@ CREATE TABLE challenges (
   expires INTEGER NOT NULL
 );
 
+-- A network. Its roster, CPM, inbox, and launches live in its NetworkAgent. `created_by` counts the
+-- networks a member has created against NETWORKS_PER_MEMBER, whoever owns them now.
 CREATE TABLE networks (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  created_by TEXT REFERENCES members (id) ON DELETE SET NULL,
   created INTEGER NOT NULL
 );
+CREATE INDEX networks_created_by ON networks (created_by);
 
 -- Who belongs to which network, and as what. `last_opened` picks the network /app opens.
 CREATE TABLE memberships (
@@ -70,10 +75,12 @@ CREATE TABLE memberships (
 );
 CREATE INDEX memberships_member ON memberships (member_id);
 
--- An invite link, by the hash of its token. It works once: `used` is when it was, and stays set
--- after the member who used it goes.
+-- An invite link. The link carries the token, and a visit finds its invite by the token's hash;
+-- settings names it by `id`. It works once: `used` is when it was, and stays set after the member
+-- who used it goes.
 CREATE TABLE invites (
-  token_hash TEXT PRIMARY KEY,
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
   network_id TEXT NOT NULL REFERENCES networks (id) ON DELETE CASCADE,
   created_by TEXT REFERENCES members (id) ON DELETE SET NULL,
   created INTEGER NOT NULL,
@@ -98,3 +105,14 @@ CREATE TABLE api_keys (
   revoked INTEGER
 );
 CREATE INDEX api_keys_network ON api_keys (network_id);
+
+-- Agent instances to wipe (`destroy`) once the directory has let go of them, such as a deleted
+-- network's NetworkAgent and LaunchAgents. A row is written in the batch that deletes their
+-- directory rows and deleted when the wipe succeeds, so the daily cron retries any that failed.
+-- `binding` is the Durable Object binding, such as NetworkAgent, and `name` the instance's name.
+CREATE TABLE wipes (
+  binding TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created INTEGER NOT NULL,
+  PRIMARY KEY (binding, name)
+);

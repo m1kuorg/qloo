@@ -23,7 +23,7 @@ Run these in `apps/`, with `QLOO_API_KEY` and `ANTHROPIC_API_KEY` in your enviro
 
 ```sh
 bun install
-printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nVISITOR_SALT=%s\nGUEST_PITCHES=on\nRP_ID=localhost\nAPP_ORIGINS=http://localhost:%s\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" "$(openssl rand -hex 16)" 5128 > .dev.vars
+printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nVISITOR_SALT=%s\nGUEST_PITCHES=on\nRP_ID=localhost\nAPP_ORIGINS=http://localhost:5128\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" "$(openssl rand -hex 16)" > .dev.vars
 bunx wrangler d1 migrations apply DB --local
 ```
 
@@ -61,7 +61,7 @@ Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/clou
 - `fakeDemographics(answer)` serves `POST /v2/insights` demographics requests, those with `filter.type=urn:demographics`: the entries of a list of `{ entity_id, age, gender }` whose entity the request names, in the list's order as Qloo answers in no set order, or an HTTP status. `fakeInsights` leaves those requests to it, so the two can be registered in either order.
 - `requests` records every request a fake served, in order, with the time it arrived (`at`) and how many Qloo requests were in flight (`inFlight`). `test/setup.ts` clears it after each test.
 - `test/session.ts` wipes every Durable Object after each test, so the gateway's shared cache and daily count start empty. Keep `cloudflare:test` out of `test/setup.ts`: imported there, it crashes the next test file's worker when files share one, as on CI.
-- The wipe takes D1 with it, so `test/session.ts` applies the directory's migrations again before each test, with `applyD1Migrations` on `env.DB`. `vitest.config.ts` reads them from `migrations/` with `readD1Migrations` into the test-only `TEST_MIGRATIONS` binding. A test file that uses D1 imports `./session`, as `test/directory.test.ts` does.
+- The wipe takes D1 with it, so `test/session.ts` applies the directory's migrations again before each test, with `applyD1Migrations` on `env.DB`. `vitest.config.ts` reads them from `migrations/` with `readD1Migrations` into the test-only `TEST_MIGRATIONS` binding. A test file that uses D1 imports `./session`. `test/directory.test.ts` is the one test that reads D1 directly, to check the schema; others reach the directory through the Worker's routes.
 - Tests run with `RP_ID` `crossfeed.test` and `APP_ORIGINS` `https://crossfeed.test`, the origin `test/session.ts` sends from, and with the sign-up and network caps at `wrangler.jsonc`'s values, whatever `.dev.vars` says.
 - Tests run with a 1-second Qloo timeout, retry delays of 10 and 30 ms, and no pacing (`vitest.config.ts`). A test that needs another value assigns it to `env` from `cloudflare:workers` and restores it afterwards, as `configure()` in `test/gateway.test.ts` does.
 - Tests run with `SAMPLE_NETWORK` off, so a new session starts with an empty roster and makes no Qloo calls of its own. `test/sample.test.ts` turns it on to test the sample network.
@@ -91,6 +91,8 @@ Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo 
 ```sh
 bun run typecheck
 ```
+
+`apps/` typechecks with TypeScript 7. The repo root installs TypeScript 5 for `openapi-typescript`, which needs the compiler API that TypeScript 7 dropped, so run `openapi-typescript` from the root.
 
 Client files under `src/client/` use React JSX. Server files that render the HTML shell use Hono JSX and start with `/** @jsxImportSource hono/jsx */`.
 
@@ -212,7 +214,7 @@ Agent log lines show each model call's tokens and cache reads (`"event":"model_c
 
 - `src/index.tsx`: the Worker's routes, the session cookie, and the cron handler.
 - `src/health.ts`: the daily health check the cron runs. A new check logs its own `health_check` line through `report`.
-- `migrations/`: the D1 directory's schema, one SQL file per migration, made with `bunx wrangler d1 migrations create DB <name>`. `0001_directory.sql` holds every directory table: members, passkeys, sessions, challenges, networks, memberships, invites, and API keys. Never edit an applied migration; add a new one.
+- `migrations/`: the D1 directory's schema, one SQL file per migration, made with `bunx wrangler d1 migrations create DB <name>`. `0001_directory.sql` holds every directory table: members, passkeys, sessions, challenges, networks, memberships, invites, API keys, and the agent instances still to wipe. Never edit an applied migration; add a new one.
 - `src/network-agent.ts` and `src/launch-agent.ts`: `NetworkAgent` and `LaunchAgent`, a signed-in network's and a launch's agents (ADR 0001), for now plain subclasses of `CrossfeedAgent` that no route reaches.
 - `src/agent.ts`: `CrossfeedAgent`. Its synced `State` type and its `@callable` actions are the client protocol. `startLaunch` returns at once and runs the Claude tool loop in the background, writing a progress note per tool call. When a run ends, the agent keeps the state it ended with, which `getRun` returns. A completed sample launch run answered with the sample answers, on the unchanged sample with nothing the visitor typed, is also kept in the gateway, and while Qloo can't be called, `startLaunch` replays it instead of running, or stops any other run. The replay copies whatever state the stored run holds, except the session's own `inbox` and `runs`; a new session-level field that a launch run doesn't own joins `inbox` in `keepSampleRun`.
 - `src/limits.ts`: the run limits, shared by the agent and the UI.

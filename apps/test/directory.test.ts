@@ -1,5 +1,6 @@
 // The D1 directory's schema, as every test sees it: test/session.ts wipes D1 after each test with
-// the rest of storage, then applies the migrations again before the next.
+// the rest of storage, then applies the migrations again before the next. This file reads D1
+// directly, since it tests the schema the directory module will own.
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
 import './session'
@@ -11,6 +12,7 @@ const tables = async () =>
     ).all<{ name: string }>()
   ).results.map((row) => row.name)
 
+// The tests run in order: the first leaves a member behind for the reset to wipe before the second.
 describe('the directory', () => {
   it('holds a member', async () => {
     await env.DB.prepare('INSERT INTO members (id, name, recovery_code_hash, created) VALUES (?, ?, ?, ?)')
@@ -20,7 +22,7 @@ describe('the directory', () => {
     expect(member).toEqual({ name: 'Ada Programmer' })
   })
 
-  it('starts each test with every table and no rows', async () => {
+  it('starts the next test with every table and no rows', async () => {
     expect(await tables()).toEqual([
       'api_keys',
       'challenges',
@@ -30,7 +32,8 @@ describe('the directory', () => {
       'memberships',
       'networks',
       'passkeys',
-      'sessions'
+      'sessions',
+      'wipes'
     ])
     expect(await env.DB.prepare('SELECT count(*) AS n FROM members').first('n')).toBe(0)
   })
