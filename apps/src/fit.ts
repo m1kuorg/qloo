@@ -11,6 +11,13 @@ export type Anchor = { id: string; name: string }
 // Top, middle, or bottom third by rank within one ranking.
 export type Band = 'top' | 'middle' | 'bottom'
 
+// Fit bands as the charts word them: a meter of three bars filled from the left, then the word.
+export const bandMeter: Record<Band, { bars: number; word: string }> = {
+  top: { bars: 3, word: 'Strong' },
+  middle: { bars: 2, word: 'Good' },
+  bottom: { bars: 1, word: 'Fair' }
+}
+
 export type FitRow = {
   show: string // the roster show, named as imported
   entity: Candidate // what Qloo scored for it: its own match, or the comp it's mapped to
@@ -60,7 +67,7 @@ export type PitchList = {
   notScored: PitchNotScored[] // this type's other pitches, in inbox order, with the reason
 }
 
-const FINALISTS = 5
+export const FINALISTS = 5
 const LEAD = 0.05 // how far the top anchor's share must beat the next one's to name it
 
 // A show the ranking can score: matched in Qloo, directly or through a comp, and not left out.

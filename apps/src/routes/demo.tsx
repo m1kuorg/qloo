@@ -9,6 +9,8 @@ import { visitorTag } from '../visitor'
 
 // The visitor session: a random ID in a cookie names the session's CrossfeedAgent.
 const SESSION_COOKIE = 'crossfeed_session'
+// How long the cookie lasts; the privacy page says so.
+export const SESSION_DAYS = 30
 // Where the session's agent connects.
 const AGENT_PATH = '/agents/session'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -33,7 +35,7 @@ const page = (c: Context<{ Bindings: Env }>, page: 'roster' | 'inbox') => {
       secure: new URL(c.req.url).protocol === 'https:',
       sameSite: 'Lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 30
+      maxAge: 60 * 60 * 24 * SESSION_DAYS
     })
   }
   return c.render(<div id="root" data-page={page} data-agent-path={AGENT_PATH} data-roster-link="/demo" />)
@@ -42,9 +44,8 @@ const page = (c: Context<{ Bindings: Env }>, page: 'roster' | 'inbox') => {
 demo.get('/demo', (c) => page(c, 'roster'))
 // Guest pitches ship dark: the inbox exists only while GUEST_PITCHES is on.
 demo.get('/demo/inbox', (c) => (c.env.GUEST_PITCHES === 'on' ? page(c, 'inbox') : c.notFound()))
-// The demo's old paths: the inbox's for good, and `/` until the landing page takes it.
+// The demo's old inbox path, for good.
 demo.get('/inbox', (c) => c.redirect('/demo/inbox', 301))
-demo.get('/', (c) => c.redirect('/demo', 302))
 
 // The session's agent. The visitor goes with it, so a new session's look-up of the sample network
 // counts among the visitor's Qloo calls, whichever request starts it.

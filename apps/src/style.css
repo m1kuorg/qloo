@@ -1899,3 +1899,792 @@ a.btn {
     max-width: calc(100vw - 32px);
   }
 }
+
+/* Marketing pages (#158): the landing page, the privacy page, and the beta terms, on the marketing
+   shell. The same world at persuasion scale: the chart is the hero, its numerals the largest type on
+   the page, and every rule above still holds. The landing page keeps the launch page's grid, a wide
+   chart column and a rail, so the key, the ways in, and the evidence sit where the app puts them. */
+.mk-top .wm {
+  padding: 4px 0;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Sign in takes the demo's "Create your network" treatment (.shell-create) at the bar's end. */
+.mk-sign {
+  margin-left: auto;
+}
+
+.mk-sign .lnk {
+  display: inline-block;
+  padding: 4px 0;
+}
+
+.top .wm:focus-visible {
+  outline-offset: 2px;
+}
+
+.mk {
+  --gutter: 32px;
+  --rail: clamp(320px, 32vw, 448px);
+}
+
+.mk a:not(.btn, .lnk) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--grey);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-quick) ease-out;
+}
+
+.mk a:not(.btn, .lnk):hover {
+  text-decoration-color: var(--ink);
+}
+
+.mk-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail);
+  column-gap: 24px;
+  padding: 0 var(--gutter);
+}
+
+/* The rail: a hairline down its left, as beside the app's chart. */
+.mk-rail {
+  grid-column: 2;
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
+  min-width: 0;
+}
+
+/* Header: the hook, one sentence, and the way in, together. Big type is still the chart's: the
+   hero's position numerals stay larger than this headline. */
+.mk-hd {
+  padding: 56px var(--gutter) 0;
+}
+
+.mk h1 {
+  font-size: clamp(34px, 3.8vw, 52px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.mk-hd h1 {
+  max-width: 16em;
+  margin-bottom: 20px;
+}
+
+.mk-lede {
+  max-width: 34em;
+  font-size: 17px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.mk-hd .mk-acts {
+  margin-top: 24px;
+}
+
+.mk-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.mk .btn {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.mk-note {
+  margin-top: 12px;
+  max-width: 40em;
+  font-size: 12px;
+  color: var(--mid);
+}
+
+/* The chart and its key. */
+.mk-board {
+  margin-top: 48px;
+}
+
+.mk-board .mk-chart-col {
+  min-width: 0;
+}
+
+.mk-launch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.mk-launch h2 {
+  font-size: 22px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+}
+
+.mk-launch h2 span {
+  color: var(--grey);
+  font-weight: 500;
+}
+
+.mk-board .sub-line {
+  max-width: 64em;
+}
+
+.mk-board .legend {
+  margin: 16px 0 4px;
+}
+
+.mk-chart caption {
+  padding-bottom: 12px;
+}
+
+.mk-chart {
+  /* The three columns before the show's, which its why line starts after. */
+  --c-pos: 128px;
+  --c-lw: 112px;
+  --c-mv: 72px;
+}
+
+.mk-chart td {
+  height: 80px;
+}
+
+.mk-chart .c-pos {
+  width: var(--c-pos);
+}
+
+.mk-chart .c-lw {
+  width: var(--c-lw);
+}
+
+.mk-chart .c-mv {
+  width: var(--c-mv);
+}
+
+.mk-chart .c-band {
+  width: 120px;
+}
+
+.mk-chart .pos {
+  font-size: 56px;
+}
+
+.mk-chart .lw {
+  font-size: 32px;
+}
+
+.mk-chart .pos .bul {
+  width: 12px;
+  height: 12px;
+  margin: 3px 0 0 6px;
+}
+
+.mk-chart .nm {
+  font-size: 16px;
+  white-space: normal;
+}
+
+.mk-chart tr.why td {
+  font-size: 13px;
+  padding-bottom: 16px;
+}
+
+/* Under the show column: past position, last week, and move, as both cells pad the same 8px. */
+.mk-why {
+  margin-left: calc(var(--c-pos) + var(--c-lw) + var(--c-mv));
+  max-width: 64em;
+}
+
+.mk-chart tr.why .call {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mk-key {
+  padding-top: 4px;
+}
+
+.mk-key h2 {
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+
+.mk-k {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.mk-k dt {
+  display: contents;
+}
+
+.mk-g {
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: flex;
+  align-items: center;
+}
+
+.mk-g .pos {
+  font-size: 40px;
+}
+
+.mk-g .lw {
+  font-size: 28px;
+}
+
+.mk-k b {
+  font-weight: 600;
+}
+
+.mk-k dd {
+  font-size: 12px;
+  color: var(--mid);
+}
+
+/* Sections below the fold, divided by hairlines like the app's modules. */
+.mk-sec {
+  margin-top: 72px;
+  padding-top: 48px;
+  padding-bottom: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.mk-sec:not(.mk-grid) {
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+
+.mk-sec h2 {
+  font-size: 28px;
+  line-height: 34px;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* The inbox sets its ranked list in the wide column and its words in the rail, as the app does. */
+.mk-flip > .mk-frame {
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
+}
+
+.mk-flip > .mk-rail {
+  grid-row: 1;
+}
+
+.mk-flip .mk-copy h2 {
+  font-size: 24px;
+  line-height: 30px;
+}
+
+.mk-flip .mk-copy p {
+  font-size: 14px;
+}
+
+.mk-copy p {
+  margin-top: 12px;
+  max-width: 38em;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* How a run works: three steps as rows under a black rule, each with the piece of the app it shows. */
+.mk-steps {
+  list-style: none;
+  counter-reset: step;
+  margin-top: 24px;
+  border-top: 1px solid var(--ink);
+}
+
+.mk-steps > li {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) var(--rail);
+  grid-template-rows: auto 1fr;
+  column-gap: 24px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+  counter-increment: step;
+}
+
+.mk-steps > li::before {
+  content: counter(step);
+  grid-row: 1 / span 2;
+  font-size: 22px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.mk-steps h3 {
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.mk-steps p {
+  grid-column: 2;
+  margin-top: 8px;
+  max-width: 38em;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.mk-steps > li > figure {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+
+/* An illustration's head: what it shows, then its Illustration chip, as an app module's. */
+.mk-fig > .mh {
+  margin-bottom: 8px;
+}
+
+.mk-frag {
+  width: 100%;
+}
+
+.mk-frag.chart td {
+  height: 40px;
+}
+
+.mk-frag.chart td:first-child {
+  font-weight: 600;
+}
+
+.mk-ask {
+  background: var(--panel);
+  padding: 16px 24px;
+}
+
+.mk-radios {
+  list-style: none;
+  margin-top: 8px;
+}
+
+.mk-radios li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.mk-radios input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.mk-frag.chart th:first-child {
+  width: 50%;
+}
+
+.nw {
+  white-space: nowrap;
+}
+
+/* The inbox's illustration: one ranked list of pitched works, as the app sets each type's. */
+.mk-pitches .c-pos {
+  width: 64px;
+}
+
+.mk-pitches .c-band {
+  width: 128px;
+}
+
+.mk-pitches .c-reply {
+  width: 104px;
+}
+
+.mk-pitches .tg {
+  margin-top: 2px;
+}
+
+.mk-pitches .nm {
+  white-space: normal;
+}
+
+/* The two source labels, and the record a call number opens. */
+.mk-sources {
+  margin-top: 20px;
+}
+
+.mk-sources > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  max-width: 38em;
+}
+
+.mk-sources dd {
+  font-size: 13px;
+  color: var(--mid);
+}
+
+.mk-record > .mh {
+  margin-bottom: 0;
+}
+
+.mk-record .rec,
+.mk-spec {
+  font-size: 13px;
+}
+
+.mk-record code,
+.mk-spec code {
+  font-size: 12px;
+}
+
+/* What Crossfeed never does, and the beta's limits: tables in the chart's rules. */
+.mk-table {
+  width: 100%;
+  margin-top: 24px;
+  border-collapse: collapse;
+}
+
+.mk-table thead th {
+  text-align: left;
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+
+.mk-table tbody th,
+.mk-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.mk-table tbody th {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.mk-table tbody th small {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--grey);
+}
+
+.mk-table td {
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--mid);
+}
+
+.mk-table .r {
+  text-align: right;
+}
+
+.mk-never tbody th {
+  width: 40%;
+  padding-right: 32px;
+}
+
+.mk-limits td {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The way in again, then the footer. */
+.mk-close {
+  margin-bottom: 72px;
+}
+
+.mk-close h2 {
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.1;
+}
+
+.mk-close p:not(.mk-acts) {
+  margin-top: 12px;
+  max-width: 38em;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.mk-close .mk-acts {
+  margin-top: 24px;
+}
+
+.mk-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding: 20px 32px 32px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--mid);
+}
+
+.mk-foot nav {
+  display: flex;
+  gap: 16px;
+}
+
+.mk-foot .lnk {
+  display: inline-block;
+  padding: 4px 0;
+  color: var(--ink);
+}
+
+/* The privacy page and the beta terms: one readable column. */
+.mk-doc article {
+  max-width: 720px;
+  padding: 56px var(--gutter) 72px;
+}
+
+.mk-doc h1 {
+  font-size: clamp(32px, 4vw, 44px);
+}
+
+.mk-doc .mk-lede {
+  max-width: none;
+  margin-top: 12px;
+}
+
+.mk-doc h2 {
+  margin-top: 40px;
+  font-size: 20px;
+  line-height: 26px;
+  letter-spacing: -0.01em;
+}
+
+.mk-doc p,
+.mk-doc li {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.mk-doc h2 + p,
+.mk-doc h2 + ul,
+.mk-doc p + p,
+.mk-doc p + ul,
+.mk-doc ul + p,
+.mk-doc table + p {
+  margin-top: 12px;
+}
+
+.mk-doc ul {
+  padding-left: 20px;
+}
+
+.mk-doc li + li {
+  margin-top: 8px;
+}
+
+.mk-doc li b {
+  font-weight: 600;
+}
+
+.mk-doc code {
+  font: 500 13px var(--mono);
+}
+
+/* One column: the rail follows its column, under a hairline instead of beside one. */
+@media (max-width: 960px) {
+  .mk-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mk-rail {
+    grid-column: 1;
+    border-left: 0;
+    padding-left: 0;
+    margin-top: 32px;
+  }
+
+  .mk-flip > .mk-rail {
+    grid-row: 1;
+    margin-top: 0;
+  }
+
+  .mk-flip > .mk-frame {
+    grid-row: 2;
+    margin-top: 24px;
+  }
+
+  .mk-key {
+    border-top: 1px solid var(--ink);
+    padding-top: 16px;
+  }
+
+  .mk-steps > li {
+    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+
+  .mk-steps > li::before {
+    grid-row: 1 / span 3;
+  }
+
+  .mk-steps > li > figure {
+    grid-column: 2;
+    grid-row: auto;
+    margin-top: 16px;
+    max-width: 560px;
+  }
+}
+
+/* Phones: 16px gutters, the chart at the app's own scale, and the never table stacked. */
+@media (max-width: 600px) {
+  .mk-top {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0 16px;
+  }
+
+  .mk-top .nav {
+    height: 48px;
+    margin-left: auto;
+  }
+
+  .mk-top .nav a {
+    padding: 2px 8px 0;
+  }
+
+  .mk {
+    --gutter: 16px;
+  }
+
+  /* The chart's climber reaches a 375x812 first screen: a tighter header, and the key keeps the
+     column headings' sub-labels. */
+  .mk-hd {
+    padding-top: 24px;
+  }
+
+  .mk h1 {
+    font-size: 30px;
+  }
+
+  .mk-hd h1 {
+    margin-bottom: 12px;
+  }
+
+  .mk-hd .mk-acts {
+    margin-top: 16px;
+  }
+
+  .mk-board {
+    margin-top: 32px;
+  }
+
+  .mk-chart th small {
+    display: none;
+  }
+
+  .mk-lede,
+  .mk-close p:not(.mk-acts) {
+    font-size: 16px;
+  }
+
+  .mk-sec {
+    margin-top: 48px;
+    padding-top: 32px;
+  }
+
+  .mk-chart td {
+    height: 64px;
+  }
+
+  .mk-chart .pos {
+    font-size: 40px;
+  }
+
+  .mk-chart .lw {
+    font-size: 24px;
+  }
+
+  .mk-chart .pos .bul {
+    width: 9px;
+    height: 9px;
+    margin: 2px 0 0 4px;
+  }
+
+  .mk-chart .c-pos,
+  .fit-chart.mk-chart .c-pos:has(~ .c-lw) {
+    width: 52px;
+  }
+
+  .mk-chart .c-lw {
+    width: 46px;
+  }
+
+  .mk-chart .c-mv {
+    width: 40px;
+  }
+
+  .mk-chart .c-band,
+  .fit-chart.mk-chart .c-lw ~ .c-band {
+    width: 64px;
+  }
+
+  .mk-pitches .c-band {
+    width: 68px;
+  }
+
+  .mk-pitches .c-reply {
+    width: 84px;
+  }
+
+  .mk-chart .nm {
+    font-size: 14px;
+  }
+
+  .mk-why {
+    margin-left: 0;
+  }
+
+  .mk-steps > li {
+    grid-template-columns: 28px minmax(0, 1fr);
+    column-gap: 12px;
+  }
+
+  .mk-never thead {
+    display: none;
+  }
+
+  .mk-never tr,
+  .mk-never tbody th,
+  .mk-never td {
+    display: block;
+    width: auto;
+  }
+
+  .mk-never tbody th {
+    padding: 12px 0 0;
+    border-bottom: 0;
+  }
+
+  .mk-never td {
+    padding: 4px 0 12px;
+  }
+
+  .mk-foot {
+    padding: 20px 16px 24px;
+  }
+}
