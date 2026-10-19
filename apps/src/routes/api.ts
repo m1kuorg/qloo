@@ -10,24 +10,35 @@ import { accountsOn, fromAppPage, signedIn } from '../auth'
 import { apiKeyFor, memberRole } from '../directory'
 import { workTypes, type PitchInput } from '../inbox'
 import {
+  answerLaunchRun,
   answerPitchRun,
   confirmWork,
+  createLaunch,
+  deleteLaunch,
   discardReply,
+  editOrder,
   editReply,
+  exportOrder,
   getInbox,
+  getLaunch,
+  getLaunchEvidence,
+  getLaunchRun,
   getNetwork,
   getPitchRun,
   getRoster,
   getUsage,
   importRoster,
+  listLaunches,
   loadInbox,
   searchComps,
+  startLaunchRun,
   startPitchRun,
   updateNetwork,
   updateShow,
   type Caller,
   type OperationContext
 } from '../operations'
+import { csvDownload } from '../order'
 import { REFUSALS, Refusal, refusalCode, type RefusalCode } from '../refusal'
 import { readPitchUpload, readRosterUpload, tooBig, type Upload } from '../upload'
 
@@ -740,7 +751,7 @@ const Question = z
     id: z.string().openapi({ description: 'Answer with this ID, so an answer meant for another question is refused.' }),
     kind: z.enum(['choice', 'launch', 'budget', 'exclusions', 'comps', 'confirm_comps']).openapi({
       description:
-        'A `choice` question is answered with one of its `options` as `choice`, or your own words as `text`; each other kind with the Answer fields named for it.'
+        "A `choice` question is answered with one of its `options` as `choice`, or your own words as `text`; each other kind, a launch run's, with the Answer fields named for it. Code builds a `launch` question's options from the launch's candidates in Qloo, an `exclusions` question's from the charted shows, and a `confirm_comps` question's from the comps' names."
     }),
     question: z.string(),
     options: z.array(z.string())
@@ -851,16 +862,22 @@ const PitchRun = z
 const Answer = z
   .object({
     questionId: z.string(),
-    choice: z.string().optional().openapi({ description: "One of a `choice` question's options." }),
-    text: z.string().optional().openapi({ description: 'Your own words, for a `choice` question.' }),
+    choice: z
+      .string()
+      .optional()
+      .openapi({ description: "One of a `choice` question's options, or of a `launch` question's candidates." }),
+    text: z.string().optional().openapi({
+      description:
+        'Your own words, for a `choice` question; for a `launch` or `comps` question, the name Qloo lists the launch under.'
+    }),
     slots: z.number().optional().openapi({ description: 'A `budget` in promo slots.' }),
     dollars: z.number().optional().openapi({ description: 'A `budget` in dollars.' }),
     exclude: z.array(z.string()).optional().openapi({ description: 'The `exclusions`: shows to leave out.' }),
     comps: z.array(z.string()).optional().openapi({ description: 'For `comps`, up to three released shows.' }),
-    picks: z
-      .array(z.string().nullable())
-      .optional()
-      .openapi({ description: "For `confirm_comps`, each comp's entity ID in the question's order, or null for none." })
+    picks: z.array(z.string().nullable()).optional().openapi({
+      description:
+        "For `confirm_comps`, each comp's entity ID in the question's order, from its `candidates` in the run's plan, or null for none of them."
+    })
   })
   .openapi('Answer', { example: { questionId: 'toolu_01', choice: 'Yes' } })
 
@@ -1029,6 +1046,550 @@ api.openapi(
     }
   }),
   async (c) => c.json(await discardReply(context(c), c.req.valid('param')), 200)
+)
+
+const LAUNCH_STATUSES = [
+  'new',
+  'running',
+  'waiting',
+  'ranked',
+  'order_drafted',
+  'order_approved',
+  'failed',
+  'stopped'
+] as const
+const launchRow = z.object({
+  id: z.string(),
+  name: z.string().nullable().openapi({ description: "The launch's name; null for one planned from comps alone." }),
+  comps: z.array(z.string()).openapi({
+    description:
+      "The released shows standing in for an unreleased launch, from its plan or a run's answers; empty for a released one."
+  }),
+  status: z.enum(LAUNCH_STATUSES).openapi({
+    description:
+      "`new` until its first run; then its latest run's `running`, `waiting` on a question, `failed`, or `stopped`; once that run completed, `ranked`, `order_drafted`, or `order_approved`."
+  }),
+  finalists: z.number().int(),
+  slots: z.number().int().nullable().openapi({ description: "Its insertion order's promo slots." }),
+  slotValue: z.number().nullable().openapi({ description: "Its insertion order's total value, in dollars." }),
+  startedBy: z
+    .string()
+    .nullable()
+    .openapi({ description: 'The member who started its latest run, by name; null for a run a program started.' }),
+  lastRun: z.string().nullable().openapi({ description: 'When its latest run started.' })
+})
+const EXAMPLE_LAUNCH = {
+  id: '3d1f6b2e-8a4c-4f7d-b5e9-6c0a2d8f1e73',
+  name: 'Night Shift Cinema',
+  comps: [],
+  status: 'order_drafted',
+  finalists: 5,
+  slots: 20,
+  slotValue: 19076,
+  startedBy: 'Ada Programmer',
+  lastRun: '2026-10-19T14:02:11.000Z'
+} as const
+const LaunchSummary = launchRow.openapi('LaunchSummary', { example: EXAMPLE_LAUNCH })
+
+const runRow = z.object({
+  id: z.string(),
+  status: z.enum(['running', 'waiting', 'completed', 'stopped', 'failed']).openapi({
+    description:
+      '`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`.'
+  }),
+  startedAt: z.string(),
+  startedBy: z.string().nullable().openapi({ description: 'The member who started it, by name; null for a program.' })
+})
+const LaunchRunSummary = runRow.openapi('LaunchRunSummary')
+
+const Chart = z
+  .object({
+    call: z.string().openapi({ description: "The ranking's call number in the launch's evidence." }),
+    anchors: z
+      .array(z.object({ id: z.string(), name: z.string() }))
+      .openapi({ description: 'What the roster was ranked against: the launch, or its comps.' }),
+    error: z.string().nullable().openapi({ description: 'Why Qloo gave no ranking; then `rows` is empty.' }),
+    rows: z
+      .array(
+        z.object({
+          rank: z.number().int().openapi({ description: 'Fit rank, from 1.' }),
+          show: z.string(),
+          entity: Candidate.openapi({ description: 'What Qloo scored for it: its match, or the comp it maps to.' }),
+          band: z.enum(['top', 'middle', 'bottom']).openapi({ description: 'Its third of the chart by fit rank.' }),
+          finalist: z.boolean().openapi({ description: 'One of the top five by fit, not left out of this run.' }),
+          leadingComp: z
+            .object({ id: z.string(), name: z.string() })
+            .nullable()
+            .openapi({ description: 'The comp that clearly drove its fit; null with one anchor, or when none did.' }),
+          sharedTags: SharedTags.nullable().openapi({ description: "A finalist's, once they're compared." }),
+          topicRank: z.number().int().nullable().openapi({
+            description: 'Its rank by topic alone among the charted shows; null until the baseline is in.'
+          }),
+          move: z
+            .number()
+            .int()
+            .nullable()
+            .openapi({ description: 'Topic rank minus fit rank, so a show Qloo lifts climbs.' }),
+          climber: z.boolean().openapi({ description: 'It climbed three places or more over its topic rank.' })
+        })
+      )
+      .openapi({ description: 'In fit order.' }),
+    notScored: z.array(z.object({ show: z.string(), reason: z.string() }))
+  })
+  .openapi('Chart', {
+    description:
+      "The roster ranked by fit with the launch's listeners, from one Qloo call. It shows ranks, never scores; the scores stay in the evidence."
+  })
+
+const OrderLine = z.object({
+  show: z.string(),
+  slots: z.number().int(),
+  angle: z.string().openapi({ description: 'The host-read angle.' }),
+  slotValue: z
+    .number()
+    .nullable()
+    .openapi({ description: 'Dollars per slot; null when a figure it needs is missing.' }),
+  value: z.number().nullable().openapi({ description: 'Slots × slot value.' }),
+  gap: z.string().nullable().openapi({ description: 'Why the line has no value, such as no downloads per episode.' })
+})
+const InsertionOrder = z
+  .object({
+    id: z.string().openapi({ example: 'IO-0001' }),
+    run: z.string().openapi({ description: 'The run that drafted it.' }),
+    status: z.enum(['draft', 'approved']).openapi({
+      description: 'Only a member approves an order, in the app; editing an approved order returns it to `draft`.'
+    }),
+    lines: z.array(OrderLine),
+    cpm: z.number().nullable().openapi({ description: 'The CPM in dollars it was priced at.' }),
+    slots: z.number().int(),
+    total: z.number().openapi({ description: 'Dollars, over the lines that have a value.' }),
+    complete: z.boolean().openapi({ description: "Every line has a value, so `total` is the order's whole cost." }),
+    approvedBy: z.string().optional().openapi({ description: 'The member who approved it, by name.' }),
+    approvedAt: z.string().optional()
+  })
+  .openapi('InsertionOrder', {
+    description:
+      'The launch plan priced as the inventory it spends: a slot is worth downloads per episode × CPM ÷ 1,000.'
+  })
+
+const LaunchRun = runRow
+  .extend({
+    plan: z
+      .object({
+        name: z.string().nullable(),
+        entity: Candidate.nullable().openapi({ description: "The launch's match in Qloo, once the run has one." }),
+        comps: z.array(
+          z.object({
+            name: z.string(),
+            status: z.enum(['unconfirmed', 'confirmed', 'rejected']).openapi({
+              description: 'Only a comp confirmed in an answer is scored; `rejected` when none of its matches is it.'
+            }),
+            entity: Candidate.nullable(),
+            candidates: z.array(Candidate).openapi({
+              description:
+                "What a `confirm_comps` answer picks from, by ID: the comp's match, or its candidates when two feeds share its name."
+            })
+          })
+        )
+      })
+      .openapi({
+        description:
+          "The launch as this run plans it: its name, its match in Qloo once found, and any comps, each confirmed or not in the run's answers."
+      }),
+    question: Question.nullable(),
+    notes: z.array(Note),
+    error: z.string().nullable().openapi({ description: 'Why the run failed or stopped.' }),
+    closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
+    budget: z
+      .union([z.object({ slots: z.number().int() }), z.object({ dollars: z.number() })])
+      .nullable()
+      .openapi({ description: 'The slot budget, once answered.' }),
+    exclusions: z
+      .array(z.string())
+      .nullable()
+      .openapi({ description: 'The shows left out of this run, once answered.' }),
+    chart: Chart.nullable(),
+    topic: z
+      .object({
+        status: z.enum(['ranking', 'ranked', 'refused', 'failed']),
+        order: z.array(z.string()).openapi({ description: 'The roster by topic alone, most on-topic first.' }),
+        error: z.string().nullable()
+      })
+      .nullable()
+      .openapi({
+        description: 'The topic baseline: what planning by topic alone would rank, from show names and descriptions.'
+      }),
+    demographics: z
+      .object({
+        call: z.string(),
+        error: z.string().nullable(),
+        profile: z
+          .object({
+            from: z.array(z.string()),
+            ages: z.array(z.string()),
+            skew: z.enum(['male', 'female']).nullable(),
+            disagree: z.array(z.string())
+          })
+          .nullable()
+          .openapi({
+            description:
+              "The launch's listeners in words: their leading age groups, any skew, and where comps disagree."
+          }),
+        rows: z.array(z.object({ show: z.string(), reasons: z.array(z.string()).nullable() })).openapi({
+          description:
+            "Each finalist, in fit order, flagged with why its listeners differ from the launch's; empty reasons when they don't, null when Qloo had none."
+        })
+      })
+      .nullable()
+      .openapi({ description: "The finalists' listeners checked against the launch's." }),
+    insertionOrder: InsertionOrder.nullable()
+  })
+  .openapi('LaunchRun', {
+    example: {
+      id: '9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d',
+      status: 'waiting',
+      startedAt: '2026-10-19T14:02:11.000Z',
+      startedBy: 'Ada Programmer',
+      plan: {
+        name: 'Night Shift Cinema',
+        entity: { id: 'p-0301', name: 'Night Shift Cinema', popularity: 0.6 },
+        comps: []
+      },
+      question: { id: 'toolu_03', kind: 'budget', question: 'What is the slot budget?', options: [] },
+      notes: [{ text: 'Ranking 5 shows against Night Shift Cinema', status: 'done' }],
+      error: null,
+      closing: null,
+      budget: null,
+      exclusions: null,
+      chart: null,
+      topic: { status: 'ranked', order: ['Field Notes', 'Deep Cuts'], error: null },
+      demographics: null,
+      insertionOrder: null
+    }
+  })
+
+const Launch = launchRow
+  .extend({
+    rosterChanged: z.boolean().openapi({
+      description: "The network's roster has changed since the latest run copied it: run again to rank it as it is."
+    }),
+    runs: z.array(LaunchRunSummary).openapi({ description: 'Every run, oldest first.' }),
+    latestRun: LaunchRun.nullable()
+  })
+  .openapi('Launch', { example: { ...EXAMPLE_LAUNCH, rosterChanged: false, runs: [], latestRun: null } })
+
+// What a launch is planned from, by name or comps.
+const LaunchPlan = z
+  .strictObject({
+    name: z.string().optional().openapi({ description: "A released launch's name, as Qloo lists it." }),
+    comps: z
+      .array(z.string())
+      .optional()
+      .openapi({ description: 'Up to three released shows to stand in for an unreleased launch.' })
+  })
+  .openapi('LaunchPlan', { example: { name: 'Night Shift Cinema' } })
+
+const LaunchParams = NetworkParams.extend({
+  launchId: z.string().openapi({ description: 'The ID the launch answered with when it was created.' })
+})
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/launches',
+    tags: ['Launches'],
+    summary: 'List launches',
+    description: "The network's launches, newest first, as its dashboard lists them.",
+    request: { params: NetworkParams },
+    responses: {
+      200: {
+        description: 'The launches.',
+        content: { 'application/json': { schema: z.object({ launches: z.array(LaunchSummary) }) } }
+      },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json({ launches: await listLaunches(context(c)) }, 200)
+)
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/launches',
+    tags: ['Launches'],
+    summary: 'Create a launch',
+    description:
+      "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it.",
+    request: {
+      params: NetworkParams,
+      body: { required: true, content: { 'application/json': { schema: LaunchPlan } } }
+    },
+    responses: {
+      201: { description: 'The launch.', content: { 'application/json': { schema: Launch } } },
+      ...errors(400, 401, 403, 404, 429)
+    }
+  }),
+  async (c) => c.json(await createLaunch(context(c), c.req.valid('json')), 201)
+)
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/launches/{launchId}',
+    tags: ['Launches'],
+    summary: 'Read a launch',
+    description:
+      'Its status and figures, its runs, and its latest run in full: any question it waits on, the chart, the topic baseline, the demographics check, and the insertion order, as they arrive.',
+    request: { params: LaunchParams },
+    responses: {
+      200: { description: 'The launch.', content: { 'application/json': { schema: Launch } } },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json(await getLaunch(context(c), c.req.valid('param')), 200)
+)
+
+api.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/api/v1/networks/{networkId}/launches/{launchId}',
+    tags: ['Launches'],
+    summary: 'Delete a launch',
+    description:
+      "Delete the launch for every member, with its runs, their insertion orders, and their evidence, which can't be brought back. Only a member's session from one of Crossfeed's pages may, as the dashboard does; an API key answers 403.",
+    request: { params: LaunchParams },
+    responses: {
+      204: { description: 'Deleted.' },
+      ...errors(401, 403, 404, 429)
+    }
+  }),
+  async (c) => {
+    await deleteLaunch(context(c), c.req.valid('param'))
+    return c.body(null, 204)
+  }
+)
+
+const Evidence = z
+  .object({
+    call: z.string().openapi({ description: 'Its call number, which the chart and the run cite.' }),
+    run: z.string().nullable().openapi({ description: 'The run that made the call; null for a roster lookup.' }),
+    at: z.string(),
+    method: z.enum(['GET', 'POST']),
+    endpoint: z.string().openapi({ example: '/v2/insights' }),
+    params: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+      .openapi({ description: 'What was sent to Qloo, never the key.' }),
+    status: z.number().int().nullable().openapi({ description: "Qloo's HTTP status; null when none came back." }),
+    latencyMs: z.number(),
+    retries: z.number().int(),
+    cacheHit: z.boolean(),
+    error: z.string().nullable(),
+    entities: z.array(
+      z.object({ id: z.string(), name: z.string(), type: z.string(), popularity: z.number().nullable() })
+    ),
+    tags: z.array(z.object({ id: z.string(), name: z.string(), score: z.number().nullable() })),
+    affinities: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        affinity: z.number().nullable(),
+        explainability: z.array(z.object({ id: z.string(), score: z.number() }))
+      })
+    ),
+    copiedFrom: z
+      .string()
+      .optional()
+      .openapi({ description: "The network's call this copies, from the roster's lookup, as the run started." })
+  })
+  .openapi('Evidence', {
+    description: 'One Qloo call: what was sent and what came back, scores included.',
+    example: {
+      call: 'C-07',
+      run: '9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d',
+      at: '2026-10-19T14:02:13.000Z',
+      method: 'POST',
+      endpoint: '/v2/insights',
+      params: { 'filter.type': 'urn:entity:podcast', 'signal.interests.entities': 'p-0301' },
+      status: 200,
+      latencyMs: 412,
+      retries: 0,
+      cacheHit: false,
+      error: null,
+      entities: [],
+      tags: [],
+      affinities: [{ id: 'p-0001', name: 'Deep Cuts', affinity: 0.71, explainability: [{ id: 'p-0301', score: 1 }] }]
+    }
+  })
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/launches/{launchId}/evidence',
+    tags: ['Evidence'],
+    summary: "Read a launch's evidence",
+    description:
+      "The launch's evidence log, oldest first: one record per Qloo call its runs made, and the roster's lookups each run copied as it started. Every call number a run cites opens one of these.",
+    request: { params: LaunchParams },
+    responses: {
+      200: {
+        description: 'The evidence log.',
+        content: { 'application/json': { schema: z.object({ evidence: z.array(Evidence) }) } }
+      },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json({ evidence: await getLaunchEvidence(context(c), c.req.valid('param')) }, 200)
+)
+
+// A run of the launch, by its ID.
+const LaunchRunParams = LaunchParams.extend({
+  runId: z.string().openapi({ description: 'The ID the run answered with when it started.' })
+})
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/launches/{launchId}/runs',
+    tags: ['Runs'],
+    summary: 'Start a run',
+    description:
+      "Rank the network's roster, as it stands now, by fit with the launch's listeners in Qloo, then plan its promos to a draft insertion order priced at the network's CPM. With no body, the run plans the launch as it stands; a name or comps plan it anew. It answers 202 at once with the run running; poll it until it's done or waiting on a question. It counts as one of the network's model runs: past the network's daily model runs, it stops at once, saying why. A new run ends one left waiting.",
+    request: {
+      params: LaunchParams,
+      body: { required: false, content: { 'application/json': { schema: LaunchPlan } } }
+    },
+    responses: {
+      202: { description: 'The run, running.', content: { 'application/json': { schema: LaunchRun } } },
+      ...errors(400, 401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => c.json(await startLaunchRun(context(c), { ...c.req.valid('param'), plan: c.req.valid('json') }), 202)
+)
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}',
+    tags: ['Runs'],
+    summary: 'Read a run',
+    description:
+      'Its status, any question it waits on, and as they arrive, its chart, topic baseline, demographics check, and insertion order. An earlier run reads as it ended, with its order as it was left, to compare with a re-run.',
+    request: { params: LaunchRunParams },
+    responses: {
+      200: { description: 'The run.', content: { 'application/json': { schema: LaunchRun } } },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json(await getLaunchRun(context(c), c.req.valid('param')), 200)
+)
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}/answer',
+    tags: ['Runs'],
+    summary: "Answer a run's question",
+    description:
+      'Answer the question the run is waiting on, by its ID, with the fields its kind takes: `choice` or `text` for a `choice` question; `choice` (one of its options) or `text` (the name Qloo lists the launch under) for `launch`; `slots` or `dollars` for `budget`; `exclude`, from its options, for `exclusions`; `comps` or `text` for `comps`; and `picks` for `confirm_comps`. Relay the question to the person planning the launch and answer with their words. The run resumes, answering 202; poll it again.',
+    request: {
+      params: LaunchRunParams,
+      body: { required: true, content: { 'application/json': { schema: Answer } } }
+    },
+    responses: {
+      202: { description: 'The run, resumed.', content: { 'application/json': { schema: LaunchRun } } },
+      ...errors(400, 401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => {
+    const { questionId, ...answer } = c.req.valid('json')
+    return c.json(await answerLaunchRun(context(c), { ...c.req.valid('param'), questionId, answer }), 202)
+  }
+)
+
+// An insertion order of the launch, by its ID.
+const OrderParams = LaunchParams.extend({ orderId: z.string().openapi({ example: 'IO-0001' }) })
+
+api.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/api/v1/networks/{networkId}/launches/{launchId}/insertion-orders/{orderId}',
+    tags: ['Insertion orders'],
+    summary: 'Edit a draft insertion order',
+    description:
+      "Change the lines of the launch's current order, once its run has ended: each finalist's promo slots and host-read angle, or drop a show by leaving its line out. Code prices it again at the network's CPM. Editing an approved order returns it to draft. Only a member approves an order, in the app.",
+    request: {
+      params: OrderParams,
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: z
+              .strictObject(
+                {
+                  lines: z
+                    .array(
+                      z.object({
+                        show: z
+                          .string()
+                          .openapi({ description: "One of the run's finalists, named as on the roster." }),
+                        slots: z.number().openapi({ description: 'Whole promo slots, 1 or more.' }),
+                        angle: z.string()
+                      })
+                    )
+                    .openapi({ description: 'Every line of the order as it should be, one per show.' })
+                },
+                {
+                  error: (issue) =>
+                    issue.code === 'unrecognized_keys' && issue.keys.includes('status')
+                      ? "Only an order's lines change through the API. A member approves an insertion order, in the app."
+                      : undefined
+                }
+              )
+              .openapi('OrderChange', {
+                example: {
+                  lines: [{ show: 'Deep Cuts', slots: 6, angle: 'Its listeners stay for the long interviews.' }]
+                }
+              })
+          }
+        }
+      }
+    },
+    responses: {
+      200: { description: 'The order as edited.', content: { 'application/json': { schema: InsertionOrder } } },
+      ...errors(400, 401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => c.json(await editOrder(context(c), { ...c.req.valid('param'), lines: c.req.valid('json').lines }), 200)
+)
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/launches/{launchId}/insertion-orders/{orderId}/csv',
+    tags: ['Insertion orders'],
+    summary: 'Export an approved insertion order',
+    description:
+      "The order as a CSV file for ad operations: a row per line, then the total, in whole dollars. Only an order a member approved in the app exports; a draft answers 409. An earlier run's order exports as it was left.",
+    request: { params: OrderParams },
+    responses: {
+      200: {
+        description: 'The order as CSV.',
+        content: {
+          'text/csv': {
+            schema: z.string().openapi({
+              example:
+                'Show,Slots,Angle,Slot value (USD),Line value (USD)\r\nDeep Cuts,6,Its listeners stay for the long interviews.,300,1800\r\nTotal,6,,,1800\r\n'
+            })
+          }
+        }
+      },
+      ...errors(401, 404, 409, 429)
+    }
+  }),
+  async (c) => {
+    const { orderId } = c.req.valid('param')
+    return csvDownload(orderId, { status: 200, csv: await exportOrder(context(c), c.req.valid('param')) })
+  }
 )
 
 // The API's contract, generated from the routes' schemas.
