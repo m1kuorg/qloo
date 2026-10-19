@@ -9,16 +9,24 @@ import { LostAccess, type NetworkPage } from './Dashboard'
 const useLaunch = (path: string) =>
   useAgent<LaunchAgent, State>({ agent: 'LaunchAgent', basePath: path.replace(/^\//, '') })
 
-// A launch's page, connected to its own agent.
-export function LaunchPage({ agentPath, network }: { agentPath: string; network: NetworkPage }) {
+// A launch's page, connected to its own agent. `orders` is where its approved orders export.
+export function LaunchPage({
+  agentPath,
+  network,
+  orders
+}: {
+  agentPath: string
+  network: NetworkPage
+  orders: string
+}) {
   const agent = useLaunch(agentPath)
   if (agent.connectionError) return <LostAccess network={network} reason={agent.connectionError.reason} />
-  return <LaunchWorkspace agent={agent} network={network} />
+  return <LaunchWorkspace agent={agent} network={network} orders={orders} />
 }
 
 // The demo's launch workspace for one of the network's launches: its runs, chart, questions, and order,
 // ranked against the network's roster, which this page shows read-only and links to. Tests render it
 // from a launch agent's synced state.
-export function LaunchWorkspace({ agent, network }: { agent: Session; network: NetworkPage }) {
-  return <Workspace page="launch" agent={agent} links={{ roster: network.links.roster }} network={network} />
+export function LaunchWorkspace({ agent, network, orders }: { agent: Session; network: NetworkPage; orders: string }) {
+  return <Workspace page="launch" agent={agent} links={{ roster: network.links.roster, orders }} network={network} />
 }

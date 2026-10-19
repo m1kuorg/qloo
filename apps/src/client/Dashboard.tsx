@@ -1,11 +1,12 @@
 import { useAgent } from 'agents/react'
+import { Fragment, useState } from 'react'
 import type { LaunchInput, LaunchSummary, Show, State } from '../agent'
 import type { Role } from '../directory'
 import type { Inbox } from '../inbox'
 import type { NetworkAgent } from '../network-agent'
 import { dollars } from '../order'
 import { launchTitle, useLaunchFields } from './App'
-import { Alert, ScrollTable, useAction } from './controls'
+import { Alert, ScrollTable, send, useAction } from './controls'
 import { stateLabel } from './Inbox'
 import { StateLine } from './states'
 
@@ -163,8 +164,17 @@ function StatusChip({ status }: { status: LaunchSummary['status'] }) {
 }
 
 // Every launch with its status and plan, newest first, each opening its page; until there's one, a
-// sentence saying so. An unreleased launch goes by its comps.
+// sentence saying so. An unreleased launch goes by its comps. Any member can delete one, after a yes
+// on Panel Grey under its row; it then leaves every member's list as the network's agent drops it.
 function Launches({ launches, network }: { launches: LaunchSummary[]; network: NetworkPage }) {
+  // The launch whose deletion waits on a yes.
+  const [asking, setAsking] = useState<string | null>(null)
+  const { busy, error, run } = useAction()
+  const remove = (id: string) =>
+    run(async () => {
+      await send(`${network.links.launches}/${id}/delete`)
+      setAsking(null)
+    })
   return (
     <table className={launches.length ? 'chart launches' : 'chart launches none'}>
       <thead>
@@ -181,36 +191,77 @@ function Launches({ launches, network }: { launches: LaunchSummary[]; network: N
             Slot value
           </th>
           <th scope="col">Last run</th>
+          <th scope="col">
+            <span className="vh">Actions</span>
+          </th>
         </tr>
       </thead>
       <tbody>
         {launches.length === 0 ? (
           <tr>
-            <td colSpan={6} className="empty">
+            <td colSpan={7} className="empty">
               No launches yet. Each launch you plan is listed here with its status, finalists, promo slots, and their
               slot value.
             </td>
           </tr>
         ) : (
-          launches.map((l) => (
-            <tr key={l.id}>
-              <td>
-                <a className="nm" href={`${network.links.launches}/${l.id}`}>
-                  {launchTitle(l.name, l.comps)}
-                </a>
-                {l.name === null && <div className="tg">Unreleased, from comps</div>}
-              </td>
-              <td>
-                <StatusChip status={l.status} />
-              </td>
-              <td className="r">{l.finalists || '–'}</td>
-              <td className="r">{l.slots ?? '–'}</td>
-              <td className="r">{l.slotValue === null ? '–' : dollars(l.slotValue)}</td>
-              <td className="tg">
-                {l.lastRun ? `${day(l.lastRun)}${l.startedBy ? `, ${l.startedBy}` : ''}` : 'Not run yet'}
-              </td>
-            </tr>
-          ))
+          launches.map((l) => {
+            const title = launchTitle(l.name, l.comps)
+            return (
+              <Fragment key={l.id}>
+                <tr className={asking === l.id ? 'on' : undefined}>
+                  <td>
+                    <a className="nm" href={`${network.links.launches}/${l.id}`}>
+                      {title}
+                    </a>
+                    {l.name === null && <div className="tg">Unreleased, from comps</div>}
+                  </td>
+                  <td>
+                    <StatusChip status={l.status} />
+                  </td>
+                  <td className="r">{l.finalists || '–'}</td>
+                  <td className="r">{l.slots ?? '–'}</td>
+                  <td className="r">{l.slotValue === null ? '–' : dollars(l.slotValue)}</td>
+                  <td className="tg">
+                    {l.lastRun ? `${day(l.lastRun)}${l.startedBy ? `, ${l.startedBy}` : ''}` : 'Not run yet'}
+                  </td>
+                  <td className="r">
+                    <span className="row-acts">
+                      <button
+                        className="lnk"
+                        type="button"
+                        aria-expanded={asking === l.id}
+                        aria-label={`Delete ${title}`}
+                        onClick={() => setAsking(asking === l.id ? null : l.id)}
+                      >
+                        Delete
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+                {asking === l.id && (
+                  <tr className="on ask">
+                    <td colSpan={7}>
+                      <p>
+                        Delete {title} for everyone in {network.name}?{' '}
+                        {l.status === 'order approved' && 'Its approved insertion order can’t be exported after. '}
+                        Its runs and their evidence go with it, and can’t be brought back.
+                      </p>
+                      <div className="acts">
+                        <button className="btn pri" type="button" disabled={busy} onClick={() => void remove(l.id)}>
+                          {busy ? 'Deleting…' : 'Delete launch'}
+                        </button>
+                        <button className="lnk" type="button" onClick={() => setAsking(null)}>
+                          Keep
+                        </button>
+                      </div>
+                      <Alert error={error} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            )
+          })
         )}
       </tbody>
     </table>

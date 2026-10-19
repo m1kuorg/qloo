@@ -483,6 +483,29 @@ export async function networkName(db: D1Database, networkId: string) {
   return db.prepare('SELECT name FROM networks WHERE id = ?').bind(networkId).first<string>('name')
 }
 
+// The agent instances to wipe (`destroy`) once the directory or their network has let go of them, by
+// binding, such as LaunchAgent, and name. Each is noted before its wipe and crossed off once the wipe
+// succeeds, so the daily cron can retry any that failed (wipe.ts).
+export async function noteWipe(db: D1Database, binding: string, name: string) {
+  await db
+    .prepare('INSERT OR IGNORE INTO wipes (binding, name, created) VALUES (?, ?, ?)')
+    .bind(binding, name, Date.now())
+    .run()
+}
+
+export async function wipeDone(db: D1Database, binding: string, name: string) {
+  await db.prepare('DELETE FROM wipes WHERE binding = ? AND name = ?').bind(binding, name).run()
+}
+
+// The wipes noted before `before` (epoch ms) and not yet done, oldest first.
+export async function wipesDue(db: D1Database, before: number) {
+  const { results } = await db
+    .prepare('SELECT binding, name FROM wipes WHERE created < ? ORDER BY created')
+    .bind(before)
+    .all<{ binding: string; name: string }>()
+  return results
+}
+
 // What the daily cron clears: sessions, challenges, and invites that have expired.
 export async function purgeExpired(db: D1Database) {
   const now = Date.now()

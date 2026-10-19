@@ -1,4 +1,5 @@
-import { exports } from 'cloudflare:workers'
+import { getAgentByName } from 'agents'
+import { env, exports } from 'cloudflare:workers'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -352,6 +353,20 @@ describe('the insertion order', () => {
       "IO-0009 isn't the current insertion order."
     )
     expect(s.state()?.insertionOrder).toEqual(before)
+  })
+
+  it("is refused over RPC, with no connection, and approved over the visitor's, recording no one", async () => {
+    const { s } = await plan({ slots: 20 }, [turn(fourShows)])
+    const stub = await getAgentByName(env.CrossfeedAgent, s.cookie.split('=')[1])
+
+    await expect((async () => stub.approveInsertionOrder('IO-0001'))()).rejects.toThrow(
+      'An insertion order is approved in the app, by a person; nothing else can approve one.'
+    )
+    expect(s.state()?.insertionOrder?.status).toBe('draft')
+    await s.call('approveInsertionOrder', 'IO-0001')
+    expect(s.state()?.insertionOrder).toMatchObject({ status: 'approved' })
+    expect(s.state()?.insertionOrder).not.toHaveProperty('approvedBy')
+    expect(s.state()?.insertionOrder).not.toHaveProperty('approvedAt')
   })
 
   it('keeps the order read-only while the agent is still working on its run', async () => {

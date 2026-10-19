@@ -4,6 +4,7 @@ import {
   CrossfeedAgent,
   MEMBER_TAG,
   readLaunch,
+  rosterKey,
   type LaunchInput,
   type LaunchSummary,
   type RosterCopy,
@@ -35,6 +36,8 @@ export const networkLimitKey = (name: string) => `network:${name.split(':')[0]}`
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."
 const NO_GUIDE = "A network has no guide: it's the sample network's, at /demo."
+// Where a network's agent keeps the roster it last told its launches (rosterKey).
+const ANNOUNCED = 'crossfeed_roster_announced'
 
 // One instance per signed-in network, named by the network's ID (ADR 0001). Its own class keeps its
 // namespace apart from the demo's sessions, so no session cookie can name it. It opens empty, with no
@@ -59,6 +62,31 @@ export class NetworkAgent extends CrossfeedAgent {
   // Tags a connection with its member, beside its visitor.
   async getConnectionTags(connection: Connection, context: ConnectionContext) {
     return [...(await super.getConnectionTags(connection, context)), ...memberTag(context)]
+  }
+
+  // After a change to the roster, once no show is still being looked up, tells each launch how it now
+  // stands, so a launch's page says when it has changed since that launch's latest run. Other changes
+  // to the network's state send nothing. What was sent is kept in storage, so waking up sends nothing
+  // new; a notice that fails forgets it, so the next change of any kind sends it again.
+  onStateChanged(state: State) {
+    if (state.roster.some((s) => s.resolution === 'pending')) return
+    const key = rosterKey(state.roster)
+    const { kv } = this.ctx.storage
+    if (key === kv.get(ANNOUNCED)) return
+    kv.put(ANNOUNCED, key)
+    void this.keepAliveWhile(() =>
+      Promise.all(
+        (state.launches ?? []).map(async ({ id }) => {
+          try {
+            const launch = await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))
+            await launch.noteNetworkRoster(key)
+          } catch (e) {
+            kv.delete(ANNOUNCED)
+            console.error(JSON.stringify({ event: 'roster_notice', launch: id, error: String(e) }))
+          }
+        })
+      )
+    )
   }
 
   // Closes the member's connections to the network's agent and to each of its launches'.
@@ -122,6 +150,14 @@ export class NetworkAgent extends CrossfeedAgent {
     const launches = this.state.launches ?? []
     if (!launches.some((l) => l.id === id)) return
     this.setState({ ...this.state, launches: launches.map((l) => (l.id === id ? { id, ...summary } : l)) })
+  }
+
+  // Takes launch `id` off the network's list, as its deletion does before wiping it (wipe.ts): its row
+  // leaves every member's dashboard, and the Worker's routes to it answer 404. Over RPC only.
+  dropLaunch(id: string) {
+    const launches = this.state.launches ?? []
+    if (launches.some((l) => l.id === id))
+      this.setState({ ...this.state, launches: launches.filter((l) => l.id !== id) })
   }
 
   // Whether the network's list has launch `id`, for the Worker's routes to it. Over RPC only.

@@ -32,7 +32,7 @@ createRoot(root).render(
       setup={{ invited: d.invited === 'true', apiKey: d.apiKey === 'true' }}
     />
   ) : d.page === 'launch' ? (
-    <LaunchPage agentPath={d.agentPath!} network={network()} />
+    <LaunchPage agentPath={d.agentPath!} network={network()} orders={d.ordersLink!} />
   ) : d.page === 'network-roster' ? (
     <RosterPage agentPath={d.agentPath!} network={network()} />
   ) : d.page === 'network-inbox' ? (

@@ -4,6 +4,7 @@
 import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
+import { csvDownload } from '../order'
 import { demoShell } from '../shell'
 import { visitorTag } from '../visitor'
 
@@ -70,10 +71,5 @@ demo.get('/api/insertion-orders/:file{.+\\.csv}', async (c) => {
   if (!session) return c.text('No session; load /demo first.', 401)
   const id = c.req.param('file').slice(0, -'.csv'.length)
   const agent = await sessionAgent(c, session)
-  const exported = await agent.exportInsertionOrder(id)
-  if (exported.status !== 200) return c.text(exported.error, exported.status)
-  return c.body(exported.csv, 200, {
-    'Content-Type': 'text/csv; charset=utf-8',
-    'Content-Disposition': `attachment; filename="${id}.csv"`
-  })
+  return csvDownload(id, await agent.exportInsertionOrder(id))
 })

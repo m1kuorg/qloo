@@ -25,6 +25,10 @@ export type InsertionOrder = Priced & {
   id: string // such as IO-0003, after the run that drafted it
   run: string
   status: 'draft' | 'approved'
+  // The member who approved it, by name, and when (ISO time), on a launch's agent; absent on the
+  // demo's, and on any draft.
+  approvedBy?: string
+  approvedAt?: string
 }
 
 // Why `cpm` can't be the network's CPM in dollars, or null when it can.
@@ -85,6 +89,24 @@ export function toCsv(order: InsertionOrder) {
   ]
   return `\uFEFF${rows.map((row) => row.map(cell).join(',')).join('\r\n')}\r\n`
 }
+
+// An order's export, as an agent answers it (`exportInsertionOrder`): the CSV, or why not.
+export type OrderExport = { status: 200; csv: string } | { status: 404 | 409; error: string }
+
+// An order's export as a browser downloads it: the CSV as a file named for the order, or the agent's
+// refusal, such as a draft's 409, as text. The demo's export route and a launch's answer with it.
+export const csvDownload = (id: string, exported: OrderExport) =>
+  exported.status === 200
+    ? new Response(exported.csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${id}.csv"`
+        }
+      })
+    : new Response(exported.error, {
+        status: exported.status,
+        headers: { 'Content-Type': 'text/plain; charset=UTF-8' }
+      })
 
 // One CSV field, quoted when it holds a comma, quote, or line break. Text a spreadsheet would run
 // as a formula gets a leading apostrophe, so an angle or a show name can't be one (CSV injection).

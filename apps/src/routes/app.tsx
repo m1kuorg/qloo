@@ -26,9 +26,10 @@ import {
   type Network
 } from '../directory'
 import { launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER } from '../network-agent'
-import { cpmProblem } from '../order'
+import { cpmProblem, csvDownload } from '../order'
 import { appShell, networkLinks, type AppVariables } from '../shell'
 import { readName } from '../text'
+import { deleteLaunch } from '../wipe'
 
 type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
 
@@ -121,6 +122,7 @@ appPages.get('/app/:networkId/inbox', async (c) => {
 
 // A launch of the network, planned in its own workspace: its runs, their charts and questions, and the
 // insertion order, ranked against the network's roster. Only a launch on the network's list opens.
+// Its approved orders export under its own address.
 appPages.get('/app/:networkId/launches/:launchId', async (c) => {
   const { networkId, launchId } = c.req.param()
   const network = await networkPage(c, networkId)
@@ -131,8 +133,28 @@ appPages.get('/app/:networkId/launches/:launchId', async (c) => {
       data-page="launch"
       {...island(c, network)}
       data-agent-path={`/agents/launch/${network.id}/${launchId}`}
+      data-orders-link={`${networkLinks(c.env, network.id).launches}/${launchId}/insertion-orders`}
     />
   )
+})
+
+// An approved insertion order of the launch, as a CSV download for any of the network's members; a draft
+// is refused with 409. The demo's export is the same, under the visitor's session instead.
+appPages.get('/app/:networkId/launches/:launchId/insertion-orders/:file{.+\\.csv}', async (c) => {
+  const { networkId, launchId, file } = c.req.param()
+  if (!(await membersLaunch(c, networkId, launchId))) return c.notFound()
+  const id = file.slice(0, -'.csv'.length)
+  const launch = await getAgentByName(c.env.LaunchAgent, launchAgentName(networkId, launchId))
+  return csvDownload(id, await launch.exportInsertionOrder(id))
+})
+
+// Deletes a launch for every member, once the dashboard has asked: its row leaves every dashboard at
+// once, its address and agent answer 404, and its agent's storage is wiped (wipe.ts).
+appPages.post('/app/:networkId/launches/:launchId/delete', async (c) => {
+  const { networkId, launchId } = c.req.param()
+  if (!(await membersLaunch(c, networkId, launchId))) return c.notFound()
+  await deleteLaunch(c.env, networkId, launchId)
+  return c.json({})
 })
 
 // The network's settings, one module per job. Its members see every module; only its owners change
@@ -345,6 +367,11 @@ function forward(c: Context<AppEnv>, agent: { fetch: (request: Request) => Promi
   headers.set(MEMBER_NAME_HEADER, encodeURIComponent(member.name))
   return agent.fetch(new Request(c.req.raw, { headers }))
 }
+
+// Whether the member is in network `networkId` and its list has launch `launchId`, for the routes under a
+// launch that aren't its page.
+const membersLaunch = async (c: Context<AppEnv>, networkId: string, launchId: string) =>
+  Boolean(await memberRole(c.env.DB, networkId, c.var.member.id)) && (await listsLaunch(c.env, networkId, launchId))
 
 // Whether network `networkId`'s list of launches has launch `launchId`.
 const listsLaunch = async (env: Env, networkId: string, launchId: string) =>

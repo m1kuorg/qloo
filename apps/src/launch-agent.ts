@@ -1,5 +1,5 @@
 import { callable, getAgentByName, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
-import { CrossfeedAgent, newComp, type LaunchSummary, type RosterCopy, type State } from './agent'
+import { CrossfeedAgent, newComp, rosterKey, type LaunchSummary, type RosterCopy, type Show, type State } from './agent'
 import { finalistsOf } from './fit'
 import { MEMBER_NAME_HEADER, memberTag, networkLimitKey } from './network-agent'
 
@@ -35,8 +35,17 @@ export class LaunchAgent extends CrossfeedAgent {
     if (name) connection.setState({ memberName: decodeURIComponent(name) })
   }
 
-  protected runStarter() {
+  protected memberName() {
     return (getCurrentAgent().connection?.state as { memberName?: string } | null)?.memberName ?? null
+  }
+
+  // An insertion order is a member's to approve, in the app (ADR 0002): a connection the Worker let
+  // through names its member, so one that names none, and any call with no connection, is refused.
+  @callable()
+  approveInsertionOrder(id: string) {
+    if (!this.member())
+      throw new Error('Only a member of the network, signed in to the app, can approve an insertion order.')
+    super.approveInsertionOrder(id)
   }
 
   // After any change to what the network's list says of the launch, reports it there, in order, so
@@ -84,6 +93,32 @@ export class LaunchAgent extends CrossfeedAgent {
   // Each run ranks the network's roster as it stands when the run starts.
   protected async networkRoster(): Promise<RosterCopy> {
     return (await getAgentByName(this.env.NetworkAgent, this.networkId)).rosterForLaunch()
+  }
+
+  // Wipes the launch once its network has let go of it (wipe.ts). Its open pages close first, for good,
+  // saying why; the client takes a 4000s close code as final.
+  async destroy() {
+    for (const connection of this.getConnections()) connection.close(4410, 'This launch was deleted.')
+    await super.destroy()
+  }
+
+  // The network's roster as it now stands (rosterKey), which the network sends after each change to
+  // it. The page says the roster has changed while it differs from the copy the latest run ranks.
+  // Over RPC only.
+  noteNetworkRoster(key: string) {
+    this.heardRoster = key
+    if (this.state.runs.length === 0) return
+    const changed = this.rosterChangedSince(this.state.roster)
+    if (changed !== this.state.rosterChanged) this.setState({ ...this.state, rosterChanged: changed })
+  }
+
+  // The network's roster as it last said it stands, if it has since this instance started.
+  private heardRoster: string | null = null
+
+  // A run's copy differs from the network's roster when the network has since said otherwise, as when
+  // a change lands while the copy is on its way.
+  protected rosterChangedSince(copy: Show[]) {
+    return this.heardRoster !== null && this.heardRoster !== rosterKey(copy)
   }
 
   // Sets the launch it plans, named or from comps, as its network creates it, and returns the row the
