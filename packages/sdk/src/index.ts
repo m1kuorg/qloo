@@ -247,6 +247,8 @@ export class Crossfeed {
     /** Starts a pitch run against a roster show matched in Qloo; wait with `waitForRun`. */
     start: (start: Schemas['PitchRunStart']) =>
       this.#json('post', '/api/v1/networks/{networkId}/pitch-runs', { json: start }),
+    /** The network's pitch runs, newest first: the first is the latest, whose replies the inbox holds. */
+    list: () => this.#json('get', '/api/v1/networks/{networkId}/pitch-runs', {}),
     get: (runId: string, { signal }: ReadOptions = {}) =>
       this.#json('get', '/api/v1/networks/{networkId}/pitch-runs/{runId}', { params: { runId }, signal }),
     /** Answers the question the run waits on, with the person's own words; wait with `waitForRun` again. */

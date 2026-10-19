@@ -31,6 +31,7 @@ import {
   getLaunchEvidence,
   getNetwork,
   getPitchRun,
+  listPitchRuns,
   getRoster,
   importRoster,
   listLaunches,
@@ -351,6 +352,23 @@ function serverFor(ctx: OperationContext) {
         text: `${pitchRunLine(run)}\nRead it with get_pitch_run until it's done or waiting on a question.`,
         structured: run
       }
+    }
+  )
+
+  tool(
+    'list_pitch_runs',
+    "List the network's pitch runs, newest first: the first is the latest, whose replies the inbox holds. Read one, with the replies it drafted, with get_pitch_run.",
+    none,
+    READ,
+    async () => {
+      const pitchRuns = await listPitchRuns(ctx)
+      const text = pitchRuns.length
+        ? [
+            ...pitchRuns.map((r) => `- Pitch run ${r.id} for ${r.show}, started ${r.startedAt}: ${r.status}.`),
+            'Newest first: the first is the latest. Read one, with the replies it drafted, with get_pitch_run.'
+          ].join('\n')
+        : 'No pitch runs yet: start one with start_pitch_run.'
+      return { text, structured: { pitchRuns } }
     }
   )
 

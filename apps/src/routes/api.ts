@@ -25,6 +25,7 @@ import {
   getLaunchRun,
   getNetwork,
   getPitchRun,
+  listPitchRuns,
   getRoster,
   getUsage,
   importRoster,
@@ -812,49 +813,50 @@ const Reply = z
   })
   .openapi('Reply')
 
-const PitchRun = z
-  .object({
-    id: z.string(),
-    status: z.enum(['running', 'waiting', 'completed', 'stopped', 'failed']).openapi({
-      description:
-        '`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`.'
-    }),
-    show: z.string().openapi({ description: 'The roster show the pitches are ranked against.' }),
-    startedAt: z.string(),
-    question: orNull(Question),
-    notes: z.array(Note),
-    error: z.string().nullable(),
-    closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
-    pastGuests: z.array(
-      z.object({
-        guest: z.string(),
-        work: Work,
-        match: orNull(WorkMatch).openapi({ description: 'Null until its work has been searched.' })
-      })
-    ),
-    lists: z.array(PitchList).nullable().openapi({ description: 'One per work type, once the pitches are ranked.' }),
-    replies: z.array(Reply).nullable().openapi({ description: 'One per pitch, in inbox order, once drafted.' })
-  })
-  .openapi('PitchRun', {
-    example: {
-      id: '5f0c2a8e-1b7d-4c3e-9a64-0d2e8f1b3c57',
-      status: 'waiting',
-      show: 'Deep Cuts',
-      startedAt: '2026-10-19T14:02:11.000Z',
-      question: {
-        id: 'toolu_01',
-        kind: 'choice',
-        question: 'Hold the film pitches for next season?',
-        options: ['Yes', 'No']
-      },
-      notes: [{ text: 'Ranking 3 pitched works against Deep Cuts', status: 'done' }],
-      error: null,
-      closing: null,
-      pastGuests: [],
-      lists: null,
-      replies: null
-    }
-  })
+const PitchRunFields = z.object({
+  id: z.string(),
+  status: z.enum(['running', 'waiting', 'completed', 'stopped', 'failed']).openapi({
+    description:
+      '`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`.'
+  }),
+  show: z.string().openapi({ description: 'The roster show the pitches are ranked against.' }),
+  startedAt: z.string()
+})
+const PitchRunSummary = PitchRunFields.openapi('PitchRunSummary')
+const PitchRun = PitchRunFields.extend({
+  question: orNull(Question),
+  notes: z.array(Note),
+  error: z.string().nullable(),
+  closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
+  pastGuests: z.array(
+    z.object({
+      guest: z.string(),
+      work: Work,
+      match: orNull(WorkMatch).openapi({ description: 'Null until its work has been searched.' })
+    })
+  ),
+  lists: z.array(PitchList).nullable().openapi({ description: 'One per work type, once the pitches are ranked.' }),
+  replies: z.array(Reply).nullable().openapi({ description: 'One per pitch, in inbox order, once drafted.' })
+}).openapi('PitchRun', {
+  example: {
+    id: '5f0c2a8e-1b7d-4c3e-9a64-0d2e8f1b3c57',
+    status: 'waiting',
+    show: 'Deep Cuts',
+    startedAt: '2026-10-19T14:02:11.000Z',
+    question: {
+      id: 'toolu_01',
+      kind: 'choice',
+      question: 'Hold the film pitches for next season?',
+      options: ['Yes', 'No']
+    },
+    notes: [{ text: 'Ranking 3 pitched works against Deep Cuts', status: 'done' }],
+    error: null,
+    closing: null,
+    pastGuests: [],
+    lists: null,
+    replies: null
+  }
+})
 
 // An answer to a run's question, by the question's ID. Which fields it takes follows the question's
 // kind; the agent refuses any other.
@@ -939,6 +941,26 @@ api.openapi(
     }
   }),
   async (c) => c.json(await startPitchRun(context(c), pitchRunInput(c.req.valid('json'))), 202)
+)
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/pitch-runs',
+    tags: ['Pitch runs'],
+    summary: 'List pitch runs',
+    description:
+      "The network's pitch runs, newest first: the first is the latest, whose replies the inbox holds until another run or a new inbox replaces them. Read one in full by its ID.",
+    request: { params: NetworkParams },
+    responses: {
+      200: {
+        description: 'The pitch runs.',
+        content: { 'application/json': { schema: z.object({ pitchRuns: z.array(PitchRunSummary) }) } }
+      },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json({ pitchRuns: await listPitchRuns(context(c)) }, 200)
 )
 
 api.openapi(

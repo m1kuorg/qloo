@@ -442,6 +442,20 @@ export async function startPitchRun(
   return pitchRunOf(networkAgent, await stateOf(networkAgent), runId)
 }
 
+// A pitch run as the network's list of them has it.
+export type PitchRunSummary = Pick<PitchRun, 'id' | 'status' | 'show' | 'startedAt'>
+
+// The network's pitch runs, newest first, so a program finds the latest, and the replies it drafted,
+// without its ID.
+export async function listPitchRuns({ env, network }: OperationContext): Promise<PitchRunSummary[]> {
+  const { runs } = await stateOf(await agent(env, network))
+  return runs
+    .flatMap(({ id, status, pitchesFor, startedAt }) =>
+      pitchesFor === undefined ? [] : [{ id, status, show: pitchesFor, startedAt }]
+    )
+    .toReversed()
+}
+
 export async function getPitchRun({ env, network }: OperationContext, input: { runId: string }) {
   const networkAgent = await agent(env, network)
   return pitchRunOf(networkAgent, await stateOf(networkAgent), input.runId)
