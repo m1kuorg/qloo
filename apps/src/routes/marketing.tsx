@@ -651,7 +651,8 @@ function Privacy({ accounts }: { accounts: boolean }) {
         <li>
           <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached privately with
           no expiry; the sample launch&apos;s stored run, which replays when Qloo can&apos;t be called; and each
-          visitor&apos;s counts for the day against the limits in the <a href="/terms">beta terms</a>.
+          visitor&apos;s{accounts && <> and each network&apos;s</>} counts for the day against the limits in the{' '}
+          <a href="/terms">beta terms</a>.
         </li>
         <li>
           <b>In the logs:</b> one line per Qloo call and per model call, with its timing and counts, and one per run.
@@ -712,6 +713,13 @@ function Terms({ env }: { env: Env }) {
       <p>
         Limits keep the beta&apos;s spend and storage bounded. A day is a UTC day, and counts reset at 00:00 UTC. A
         visitor is an IP address, or an IPv6 address by its /64.
+        {env.ACCOUNTS === 'on' && (
+          <>
+            {' '}
+            A network counts as one visitor of its own, whichever of its members makes the network&apos;s calls and
+            runs.
+          </>
+        )}
       </p>
       <table class="mk-table mk-limits">
         <thead>

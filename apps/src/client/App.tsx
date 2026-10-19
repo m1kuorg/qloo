@@ -1324,9 +1324,11 @@ export function RosterImport({
     e.target.value = ''
     if (files.length) void upload(files)
   }
-  const dragging = useFileDrop(upload)
+  // A file dropped while an import is still running isn't imported; the cue says to wait.
+  const dragging = useFileDrop((files) => (busy ? null : upload(files)))
   return (
-    <form className="import" onSubmit={submit} data-drop={dragging || undefined}>
+    <form className="import" onSubmit={submit}>
+      {dragging && <DropCue busy={busy} />}
       <label className="lbl" htmlFor="roster-names">
         Show names
       </label>
@@ -1356,19 +1358,30 @@ export function RosterImport({
             : 'Replaces the current roster, up to 50 shows.'}
         </small>
       </div>
-      <p className="help" role={dragging ? 'status' : undefined}>
-        {dragging ? (
-          'Drop it to import it: a CSV, or a text file with one show name per line.'
-        ) : (
-          <>
-            Drop a file anywhere on the page, or upload one: a CSV needs a <code>name</code> column, and{' '}
-            <code>downloads</code>, <code>status</code>, and <code>description</code> are optional; a text file has one
-            show name per line.
-          </>
-        )}
+      <p className="help">
+        Drop a file anywhere on the page, or upload one: a CSV needs a <code>name</code> column, and{' '}
+        <code>downloads</code>, <code>status</code>, and <code>description</code> are optional; a text file has one show
+        name per line.
       </p>
       <Alert error={error} />
     </form>
+  )
+}
+
+// While a file is dragged over the page, the window is ruled in ink, as keyboard focus is, with a line
+// along its foot saying what a drop imports, wherever the page is scrolled; while an import is still
+// running, the line alone says to wait. It's portalled to the body, since the chart column's
+// container query would otherwise hold a fixed box inside it.
+function DropCue({ busy }: { busy: boolean }) {
+  return createPortal(
+    <div className="drop-cue" data-busy={busy || undefined} role="status">
+      <p>
+        {busy
+          ? 'Wait for this import to finish, then drop the file again.'
+          : 'Drop the file to import it: a CSV, or a text file with one show name per line.'}
+      </p>
+    </div>,
+    document.body
   )
 }
 

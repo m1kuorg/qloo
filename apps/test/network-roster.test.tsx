@@ -478,10 +478,11 @@ describe("the roster page's words", () => {
       'Drop a file anywhere on the page, or upload one: a CSV needs a name column, and downloads , status , and description are optional; a text file has one show name per line.'
     )
     expect(read).toContain(
-      "No roster yet. Drop or upload your roster's file, or paste its show names above. Start from the sample roster The Ringer's 19 public show names, with made-up figures labelled sample, to try Crossfeed before your own."
+      "No roster yet. Start from the sample roster The Ringer's 19 public show names, with made-up figures labelled sample, to try Crossfeed before your own."
     )
-    expect(read).toContain(
-      'Network CPM Not set Prices each promo slot: downloads per episode × CPM ÷ 1,000. Set it in settings'
+    // The rail has nothing to cite or count yet, only the CPM.
+    expect(read).toMatch(
+      /before your own\. Network CPM Not set Prices each promo slot: downloads per episode × CPM ÷ 1,000\. Set it in settings$/
     )
     for (const elsewhere of ['Start run', 'Launch ·', 'Guide', 'Clear sample network', 'Replaces the current roster'])
       expect(read).not.toContain(elsewhere)

@@ -59,8 +59,13 @@ export function NetworkRoster({ agent, network }: { agent: NetworkConnection; ne
         </div>
         <aside className="rail" aria-label="Details">
           {show && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
-          <EvidencePanel opened={opened} />
-          <RosterCheck roster={roster} />
+          {/* An empty roster cites no call and has nothing to count. */}
+          {roster.length > 0 && (
+            <>
+              <EvidencePanel opened={opened} />
+              <RosterCheck roster={roster} />
+            </>
+          )}
           <NetworkCpm cpm={state ? state.cpm : undefined} network={network} />
         </aside>
       </main>
@@ -68,12 +73,13 @@ export function NetworkRoster({ agent, network }: { agent: NetworkConnection; ne
   )
 }
 
-// An empty roster's ways in: the network's own file or names, or the sample roster to try first.
+// An empty roster: the import form above takes the network's own file or names, or the sample roster
+// can stand in to try first.
 function EmptyRoster({ start }: { start: () => Promise<unknown> }) {
   const { busy, error, run } = useAction()
   return (
     <div className="empty">
-      <p>No roster yet. Drop or upload your roster&apos;s file, or paste its show names above.</p>
+      <p>No roster yet.</p>
       <div className="acts">
         <button type="button" className="btn" disabled={busy} onClick={() => void run(start)}>
           Start from the sample roster
