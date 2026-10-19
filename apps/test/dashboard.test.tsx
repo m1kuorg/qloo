@@ -8,7 +8,7 @@ import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
 import { Settings } from '../src/client/Settings'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
-import { openMember, type Member, type Session } from './session'
+import { api, openMember, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 const saved = { GUEST_PITCHES: env.GUEST_PITCHES }
@@ -53,6 +53,7 @@ async function island(member: Member, path: string) {
     memberId: d.memberId,
     members: d.members ? JSON.parse(d.members) : [],
     invites: d.invites ? JSON.parse(d.invites) : null,
+    apiKeys: d.apiKeys ? JSON.parse(d.apiKeys) : null,
     setup: { invited: d.invited === 'true', apiKey: d.apiKey === 'true' },
     network: {
       id: d.networkId,
@@ -125,7 +126,7 @@ describe('the dashboard', () => {
     expect(read).toContain('CPM $20 per 1,000 downloads Change')
     expect(read).toContain('Setup 3 of 5 done')
     expect(read).toContain(`1. ${STEPS[0]} Done 2. ${STEPS[1]} Done 3. ${STEPS[2]} Name`)
-    expect(read).toContain(`4. ${STEPS[3]} Done 5. ${STEPS[4]} API keys`)
+    expect(read).toContain(`4. ${STEPS[3]} Done 5. ${STEPS[4]} Make a key in settings`)
   })
 
   it("is dismissed for the member who dismisses it, and stays for everyone else's", async () => {
@@ -194,9 +195,16 @@ describe('the dashboard', () => {
 
 describe('settings', () => {
   const settings = async (member: Member, id: string, state: State | undefined) => {
-    const { network, memberId, members, invites } = await island(member, `/app/${id}/settings`)
+    const { network, memberId, members, invites, apiKeys } = await island(member, `/app/${id}/settings`)
     return renderToStaticMarkup(
-      <Settings state={state} network={network} memberId={memberId} members={members} invites={invites} />
+      <Settings
+        state={state}
+        network={network}
+        memberId={memberId}
+        members={members}
+        invites={invites}
+        apiKeys={apiKeys}
+      />
     )
   }
 
@@ -258,5 +266,47 @@ describe('settings', () => {
     expect(read).not.toContain('Remove')
     expect(read).not.toContain('Invite links')
     expect(html).not.toMatch(/disabled=""[^>]*>Leave/)
+  })
+
+  it("list an owner's API keys by name, prefix, maker, and dates, each with Revoke", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T12:00:00Z'))
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const created = await ada.fetch(`/app/${id}/settings/api-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nightly sync' })
+    })
+    const { secret } = await created.json<{ secret: string }>()
+    vi.setSystemTime(new Date('2026-10-21T09:30:00Z'))
+    await api(secret)(`/api/v1/networks/${id}`)
+
+    const html = await settings(ada, id, agent.state())
+    const read = words(html)
+    expect(read).toContain('API keys Each key lets a script or an assistant act for Night Shift Audio')
+    expect(read).toContain('Key name Create API key')
+    expect(read).toContain(
+      `Key Created Last used Actions Nightly sync ${secret.slice(0, 12)}… Oct 19 by Ada Programmer Oct 21 Revoke`
+    )
+    expect(read).toContain(`Programs name this network by its ID, ${id} .`)
+    expect(html).not.toContain(secret)
+    expect(html).toContain('href="/api/v1/openapi.json"')
+  })
+
+  it("show a member that API keys are an owner's to make, and none of them", async () => {
+    const ada = await openMember()
+    const { id } = await network(ada)
+    await ada.fetch(`/app/${id}/settings/api-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nightly sync' })
+    })
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+    const read = words(await settings(grace, id, await (await connect(grace, id)).until(() => true)))
+    expect(read).toContain('API keys Each key lets a script or an assistant act for Night Shift Audio')
+    expect(read).toContain('Only an owner can create and revoke API keys.')
+    expect(read).not.toContain('Nightly sync')
+    expect(read).not.toContain('Create API key')
   })
 })

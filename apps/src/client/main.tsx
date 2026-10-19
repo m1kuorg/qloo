@@ -4,6 +4,7 @@ import { InvitePage, NewNetworkPage, SignInPage, wireSignOut } from './Account'
 import { App } from './App'
 import { DashboardPage } from './Dashboard'
 import { LaunchPage } from './Launch'
+import { NetworkInboxPage } from './NetworkInbox'
 import { RosterPage } from './Roster'
 import { SettingsPage } from './Settings'
 
@@ -34,6 +35,8 @@ createRoot(root).render(
     <LaunchPage agentPath={d.agentPath!} network={network()} />
   ) : d.page === 'network-roster' ? (
     <RosterPage agentPath={d.agentPath!} network={network()} />
+  ) : d.page === 'network-inbox' ? (
+    <NetworkInboxPage agentPath={d.agentPath!} network={network()} />
   ) : d.page === 'settings' ? (
     <SettingsPage
       agentPath={d.agentPath!}
@@ -41,6 +44,7 @@ createRoot(root).render(
       memberId={d.memberId!}
       members={JSON.parse(d.members!)}
       invites={d.invites ? JSON.parse(d.invites) : null}
+      apiKeys={d.apiKeys ? JSON.parse(d.apiKeys) : null}
     />
   ) : (
     <App page={d.page} agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />

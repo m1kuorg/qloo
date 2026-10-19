@@ -184,7 +184,7 @@ describe('a slow Qloo in the inbox', () => {
     await s.call('loadInbox', { text: 'Ada Quill, author of the novel Night Ferry, would love to come on.' })
     const slow = await s.until((st) => st.slowCalls.length > 0)
     expect(page(slow, 'inbox')).toContain(
-      'Reading 0 of 1 pitches read Slow Qloo C-01 has waited over 0.05 s for Qloo. Still trying.'
+      'Reading 0 of 1 pitch read Slow Qloo C-01 has waited over 0.05 s for Qloo. Still trying.'
     )
 
     held.resolve()

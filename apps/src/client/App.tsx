@@ -29,7 +29,18 @@ import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
 import type { Topic } from '../topic'
 import { readRosterUpload } from '../upload'
-import { Alert, bandMeter, listOf, percentile, PickOne, ScrollTable, useAction, useIntoView } from './controls'
+import {
+  Alert,
+  bandMeter,
+  DropCue,
+  listOf,
+  percentile,
+  PickOne,
+  ScrollTable,
+  useAction,
+  useFileDrop,
+  useIntoView
+} from './controls'
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Guide } from './Guide'
 import { InboxPage } from './Inbox'
@@ -91,38 +102,13 @@ export function Workspace({
     if (sample && !guide?.dismissed && !guide?.seen.includes(mark)) void guiding.run(() => agent.stub.markGuide(mark))
   }
   const shell = sample && <SampleShell sample={sample} />
-  if (page === 'inbox') {
-    const lastRun = agent.state?.run
-    const pitchRun = lastRun && agent.state?.booking?.run === lastRun.id ? lastRun : null
+  if (page === 'inbox')
     return (
       <>
         {shell}
-        <InboxPage
-          inbox={agent.state?.inbox ?? null}
-          roster={agent.state?.roster ?? []}
-          booking={agent.state?.booking ?? null}
-          pitchRunStatus={pitchRun?.status ?? null}
-          question={
-            pitchRun?.status === 'waiting' &&
-            pitchRun.question && (
-              <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
-            )
-          }
-          runLog={pitchRun && <RunLog run={pitchRun} openCall={openCall} opened={opened?.call ?? null} />}
-          slowCalls={slowCalls}
-          loadInbox={(source) => agent.stub.loadInbox(source)}
-          confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
-          startPitches={(input) => agent.stub.startPitches(input)}
-          editReply={(pitchId, draft) => agent.stub.editReply(pitchId, draft)}
-          approveReply={(pitchId) => agent.stub.approveReply(pitchId)}
-          discardReply={(pitchId) => agent.stub.discardReply(pitchId)}
-          openCall={openCall}
-          opened={opened}
-          links={links}
-        />
+        <InboxWorkspace agent={agent} links={links} />
       </>
     )
-  }
   // Who edits the roster: the visitor here, or for a launch, the network's members on its roster page.
   const editing = !viewing && !network
   const rosterSection = (
@@ -289,6 +275,39 @@ export function Workspace({
         {oneColumn && <div className="chart-col">{rosterSection}</div>}
       </main>
     </>
+  )
+}
+
+// The inbox page on a connected agent, the demo session's or a network's, with the latest run when
+// it's a pitch run. Tests render it from synced state.
+export function InboxWorkspace({ agent, links }: { agent: Session; links: Links }) {
+  const { opened, openCall } = useEvidence(agent)
+  const lastRun = agent.state?.run
+  const pitchRun = lastRun && agent.state?.booking?.run === lastRun.id ? lastRun : null
+  return (
+    <InboxPage
+      inbox={agent.state?.inbox ?? null}
+      roster={agent.state?.roster ?? []}
+      booking={agent.state?.booking ?? null}
+      pitchRunStatus={pitchRun?.status ?? null}
+      question={
+        pitchRun?.status === 'waiting' &&
+        pitchRun.question && (
+          <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
+        )
+      }
+      runLog={pitchRun && <RunLog run={pitchRun} openCall={openCall} opened={opened?.call ?? null} />}
+      slowCalls={agent.state?.slowCalls ?? []}
+      loadInbox={(source) => agent.stub.loadInbox(source)}
+      confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
+      startPitches={(input) => agent.stub.startPitches(input)}
+      editReply={(pitchId, draft) => agent.stub.editReply(pitchId, draft)}
+      approveReply={(pitchId) => agent.stub.approveReply(pitchId)}
+      discardReply={(pitchId) => agent.stub.discardReply(pitchId)}
+      openCall={openCall}
+      opened={opened}
+      links={links}
+    />
   )
 }
 
@@ -1410,7 +1429,13 @@ export function RosterImport({
   const dragging = useFileDrop((files) => (busy ? null : upload(files)))
   return (
     <form className="import" onSubmit={submit}>
-      {dragging && <DropCue busy={busy} />}
+      {dragging && (
+        <DropCue busy={busy}>
+          {busy
+            ? 'Wait for this import to finish, then drop the file again.'
+            : 'Drop the file to import it: a CSV, or a text file with one show name per line.'}
+        </DropCue>
+      )}
       <label className="lbl" htmlFor="roster-names">
         Show names
       </label>
@@ -1448,65 +1473,6 @@ export function RosterImport({
       <Alert error={error} />
     </form>
   )
-}
-
-// While a file is dragged over the page, the window is ruled in ink, as keyboard focus is, with a line
-// along its foot saying what a drop imports, wherever the page is scrolled; while an import is still
-// running, the line alone says to wait. It's portalled to the body, since the chart column's
-// container query would otherwise hold a fixed box inside it.
-function DropCue({ busy }: { busy: boolean }) {
-  return createPortal(
-    <div className="drop-cue" data-busy={busy || undefined} role="status">
-      <p>
-        {busy
-          ? 'Wait for this import to finish, then drop the file again.'
-          : 'Drop the file to import it: a CSV, or a text file with one show name per line.'}
-      </p>
-    </div>,
-    document.body
-  )
-}
-
-// Whether files are being dragged over the page, which takes a drop anywhere on it and hands the
-// files to `drop`, so the browser never opens one in place of the page. Drags of anything else, such
-// as selected text, pass through.
-function useFileDrop(drop: (files: File[]) => unknown) {
-  const [dragging, setDragging] = useState(false)
-  const latest = useRef(drop)
-  latest.current = drop
-  useEffect(() => {
-    // Entering a child of the page fires before leaving its parent, so count to know when the drag left.
-    let depth = 0
-    const files = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false
-    const enter = (e: DragEvent) => {
-      if (!files(e)) return
-      depth++
-      setDragging(true)
-    }
-    const leave = (e: DragEvent) => {
-      if (files(e) && --depth <= 0) {
-        depth = 0
-        setDragging(false)
-      }
-    }
-    const over = (e: DragEvent) => {
-      if (files(e)) e.preventDefault()
-    }
-    const dropped = (e: DragEvent) => {
-      if (!files(e)) return
-      e.preventDefault()
-      depth = 0
-      setDragging(false)
-      void latest.current([...e.dataTransfer!.files])
-    }
-    const listeners = { dragenter: enter, dragleave: leave, dragover: over, drop: dropped }
-    for (const [type, listener] of Object.entries(listeners)) window.addEventListener(type, listener as EventListener)
-    return () => {
-      for (const [type, listener] of Object.entries(listeners))
-        window.removeEventListener(type, listener as EventListener)
-    }
-  }, [])
-  return dragging
 }
 
 const resolutionLabel: Record<Show['resolution'], string> = {

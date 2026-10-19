@@ -2,6 +2,7 @@ import { callable, getAgentByName, getCurrentAgent, type Connection, type Connec
 import {
   CALL,
   CrossfeedAgent,
+  MEMBER_TAG,
   readLaunch,
   type LaunchInput,
   type LaunchSummary,
@@ -20,7 +21,7 @@ export const MEMBER_NAME_HEADER = 'Crossfeed-Member-Name'
 // A connection's member tag, `member:<id>`, from the header the Worker set on its upgrade.
 export function memberTag({ request }: ConnectionContext) {
   const member = request.headers.get(MEMBER_HEADER)
-  return member ? [`member:${member}`] : []
+  return member ? [`${MEMBER_TAG}${member}`] : []
 }
 
 // What a network's agents count against for the per-visitor limits: the network, from the agent's
@@ -177,12 +178,18 @@ export class NetworkAgent extends CrossfeedAgent {
     super.setCpm(cpm)
   }
 
+  // A reply is a member's to approve, in the app (ADR 0002): a connection the Worker let through names
+  // its member, so one that names none, and any call with no connection, is refused.
+  @callable()
+  approveReply(pitchId: string) {
+    if (!this.member()) throw new Error('Only a member of the network, signed in to the app, can approve a reply.')
+    super.approveReply(pitchId)
+  }
+
   // Hides the dashboard's setup checklist for the member on this connection, and no one else.
   @callable()
   dismissChecklist() {
-    const member = getCurrentAgent()
-      .connection?.tags.find((t) => t.startsWith('member:'))
-      ?.slice('member:'.length)
+    const member = this.member()
     if (!member) throw new Error('Only a member can dismiss the setup checklist.')
     const dismissed = this.state.checklistDismissed ?? []
     if (!dismissed.includes(member)) this.setState({ ...this.state, checklistDismissed: [...dismissed, member] })

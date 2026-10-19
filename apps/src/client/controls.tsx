@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
 
@@ -132,6 +133,59 @@ export const ScrollTable = ({ label, children }: { label: string; children: Reac
   </div>
 )
 
+// Something shown once, such as a new invite link or API key, on Panel Grey in a read-only field that
+// selects itself, with a button that copies it, and `children` saying what to do with it. Key it by
+// what it shows, so a new one starts uncopied.
+export function ShownOnce({
+  id,
+  label,
+  noun,
+  value,
+  mono = false,
+  children
+}: {
+  id: string
+  label: string
+  noun: string
+  value: string
+  mono?: boolean
+  children: ReactNode
+}) {
+  const [copied, setCopied] = useState<boolean | null>(null)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+  return (
+    <div className="new-link">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        className={mono ? 'acct-in key-in' : 'acct-in'}
+        value={value}
+        readOnly
+        onFocus={(e) => e.target.select()}
+        spellCheck={false}
+      />
+      <div className="acts">
+        <button className="btn" type="button" onClick={() => void copy()}>
+          {copied ? 'Copied' : `Copy ${noun}`}
+        </button>
+      </div>
+      {copied === false && (
+        <StateLine kind="error" role="alert">
+          This browser didn’t let Crossfeed copy it. Select the {noun} and copy it yourself.
+        </StateLine>
+      )}
+      <p className="help">{children}</p>
+    </div>
+  )
+}
+
 // A rail module opened from a table row can sit far from it, as in a single column: it's brought into
 // view once, and `focus`, if given, then takes focus without scrolling again. A block body, because
 // newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
@@ -142,4 +196,59 @@ export function useIntoView<T extends HTMLElement>(focus?: RefObject<HTMLElement
     focus?.current?.focus({ preventScroll: true })
   }, [])
   return ref
+}
+
+// While a file is dragged over the page, the window is ruled in ink, as keyboard focus is, with a line
+// along its foot saying what a drop does, wherever the page is scrolled; while the form is still
+// busy, the line alone says to wait. It's portalled to the body, since the chart column's container
+// query would otherwise hold a fixed box inside it.
+export function DropCue({ busy, children }: { busy: boolean; children: ReactNode }) {
+  return createPortal(
+    <div className="drop-cue" data-busy={busy || undefined} role="status">
+      <p>{children}</p>
+    </div>,
+    document.body
+  )
+}
+
+// Whether files are being dragged over the page, which takes a drop anywhere on it and hands the
+// files to `drop`, so the browser never opens one in place of the page. Drags of anything else, such
+// as selected text, pass through. Mount it once per page.
+export function useFileDrop(drop: (files: File[]) => unknown) {
+  const [dragging, setDragging] = useState(false)
+  const latest = useRef(drop)
+  latest.current = drop
+  useEffect(() => {
+    // Entering a child of the page fires before leaving its parent, so count to know when the drag left.
+    let depth = 0
+    const files = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false
+    const enter = (e: DragEvent) => {
+      if (!files(e)) return
+      depth++
+      setDragging(true)
+    }
+    const leave = (e: DragEvent) => {
+      if (files(e) && --depth <= 0) {
+        depth = 0
+        setDragging(false)
+      }
+    }
+    const over = (e: DragEvent) => {
+      if (files(e)) e.preventDefault()
+    }
+    const dropped = (e: DragEvent) => {
+      if (!files(e)) return
+      e.preventDefault()
+      depth = 0
+      setDragging(false)
+      void latest.current([...e.dataTransfer!.files])
+    }
+    const listeners = { dragenter: enter, dragleave: leave, dragover: over, drop: dropped }
+    for (const [type, listener] of Object.entries(listeners)) window.addEventListener(type, listener as EventListener)
+    return () => {
+      for (const [type, listener] of Object.entries(listeners))
+        window.removeEventListener(type, listener as EventListener)
+    }
+  }, [])
+  return dragging
 }

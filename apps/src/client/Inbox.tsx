@@ -9,13 +9,26 @@ import {
   type PastGuest,
   type Pitch,
   type PitchReply,
+  type Skipped,
   type Verdict,
   type WorkType
 } from '../inbox'
 import { MAX_PAST_GUESTS } from '../limits'
 import { sameName } from '../resolve'
+import { readPitchUpload } from '../upload'
 import type { Links } from './App'
-import { Alert, bandMeter, listOf, percentile, PickOne, ScrollTable, useAction, useIntoView } from './controls'
+import {
+  Alert,
+  bandMeter,
+  DropCue,
+  listOf,
+  percentile,
+  PickOne,
+  ScrollTable,
+  useAction,
+  useFileDrop,
+  useIntoView
+} from './controls'
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
 import { SlowCalls, StateLine } from './states'
@@ -81,7 +94,14 @@ export function InboxPage({
         <div className="hd-row">
           <div>
             <h1>
-              <span>Inbox ·</span> {inbox ? (inbox.sample ? 'Sample inbox' : 'Pasted pitches') : 'None yet'}
+              <span>Inbox ·</span>{' '}
+              {inbox
+                ? inbox.sample
+                  ? 'Sample inbox'
+                  : inbox.uploaded
+                    ? 'Uploaded pitches'
+                    : 'Pasted pitches'
+                : 'None yet'}
             </h1>
             <p className="sub-line">
               Claude reads each pitch for its guest and public work. Only the work's title and type are looked up in
@@ -92,7 +112,7 @@ export function InboxPage({
             <div className="status" role="status">
               <b>{reading ? 'Reading' : 'Read'}</b>
               <p className="count">
-                {reading ? `${done} of ${inbox.pitches.length} pitches read` : `${inbox.pitches.length} pitches`}
+                {reading ? `${done} of ${pitchCount(inbox.pitches.length)} read` : pitchCount(inbox.pitches.length)}
               </p>
               <SlowCalls calls={slowCalls} />
             </div>
@@ -146,6 +166,7 @@ export function InboxPage({
               </h2>
             </div>
             <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
+            {inbox?.skipped && <SkippedPitches skipped={inbox.skipped} />}
             <PitchTable
               pitches={inbox?.pitches ?? []}
               selected={pitch?.id ?? null}
@@ -170,16 +191,34 @@ export function InboxPage({
   )
 }
 
+// Pitches pasted, uploaded as email files, or dropped anywhere on the page, read in the browser by the
+// upload module and sent as pitches; or the sample inbox. Each replaces the inbox.
 function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; reading: boolean }) {
   const [text, setText] = useState('')
   const { busy, error, run } = useAction()
   const locked = busy || reading
+  const file = useRef<HTMLInputElement>(null)
   const paste = async (e: React.FormEvent) => {
     e.preventDefault()
     if (await run(() => loadInbox({ text }))) setText('')
   }
+  const upload = (files: File[]) => run(async () => loadInbox({ pitches: await readPitchUpload(files) }))
+  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])]
+    e.target.value = ''
+    if (files.length) void upload(files)
+  }
+  // Files dropped while the inbox is still loading aren't read; the cue says to wait.
+  const dragging = useFileDrop((files) => (locked ? null : upload(files)))
   return (
     <form className="import" onSubmit={paste}>
+      {dragging && (
+        <DropCue busy={locked}>
+          {locked
+            ? 'Wait for the inbox to finish reading, then drop the files again.'
+            : 'Drop the files to load their pitches: .eml files, an .mbox export, or a .txt of pitches.'}
+        </DropCue>
+      )}
       {/* The section's "Pitches" heading names the field. */}
       <textarea
         aria-labelledby="pitches-h"
@@ -201,12 +240,39 @@ function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; re
         >
           Load sample inbox
         </button>
+        <button className="btn" type="button" disabled={locked} onClick={() => file.current?.click()}>
+          Upload files
+        </button>
+        <input
+          ref={file}
+          type="file"
+          accept=".eml,.mbox,.txt,message/rfc822,application/mbox,text/plain"
+          multiple
+          hidden
+          onChange={pick}
+        />
         <small>{reading ? 'Reading the inbox…' : 'Replaces the current inbox, up to 50 pitches.'}</small>
       </div>
+      <p className="help">
+        Drop email files anywhere on the page, or upload them: <code>.eml</code> files, an <code>.mbox</code> export, or
+        a <code>.txt</code> with a line of three dashes between pitches.
+      </p>
       <Alert error={error} />
     </form>
   )
 }
+
+// The uploaded pitches left out of the inbox, each named and why.
+function SkippedPitches({ skipped }: { skipped: Skipped[] }) {
+  return (
+    <StateLine kind="error" word="Skipped">
+      {listOf(skipped.map((s) => `"${s.pitch}" ${s.why}`))}, so {skipped.length === 1 ? "it isn't" : "they aren't"} in
+      the inbox.
+    </StateLine>
+  )
+}
+
+const pitchCount = (n: number) => `${n} ${n === 1 ? 'pitch' : 'pitches'}`
 
 export const typeLabel: Record<WorkType, string> = {
   book: 'Book',
@@ -869,7 +935,7 @@ function PitchTable({
   opened: string | null
 }) {
   if (pitches.length === 0)
-    return <p className="empty">No pitches yet. Load the sample inbox, or paste pitches above.</p>
+    return <p className="empty">No pitches yet. Paste or upload pitches above, or load the sample inbox.</p>
   // One shaded row: the pitch open in the rail or, with none open, the one whose evidence is.
   const hot = selected ?? pitches.find((p) => p.match && p.match.evidence === opened)?.id
   return (

@@ -264,6 +264,18 @@ export async function renameNetwork(db: D1Database, networkId: string, memberId:
   return meta.changes > 0
 }
 
+// Renames network `networkId` for its API key `keyId` while the key is in use, in the statement that
+// checks it. False when it isn't.
+export async function renameNetworkForKey(db: D1Database, networkId: string, keyId: string, name: string) {
+  const { meta } = await db
+    .prepare(
+      'UPDATE networks SET name = ? WHERE id = ? AND EXISTS (SELECT 1 FROM api_keys WHERE id = ? AND network_id = networks.id AND revoked IS NULL)'
+    )
+    .bind(name, networkId, keyId)
+    .run()
+  return meta.changes > 0
+}
+
 // A member of a network as its members see them: their name, their role, and when they joined.
 export type NetworkMember = { id: string; name: string; role: Role; joined: number }
 
@@ -396,6 +408,79 @@ export async function joinByInvite(db: D1Database, token: string, memberId: stri
       .bind(memberId, hash)
   ])
   return (member.results[0] as { network_id: string } | undefined)?.network_id ?? null
+}
+
+// An API key as its network's owners see it: its name, the first characters of its secret, who made
+// it (null once they've gone), when, and when it was last used, to the minute. Its secret was shown
+// once, when it was made, and can't be read back.
+export type ApiKey = {
+  id: string
+  name: string
+  prefix: string
+  by: string | null
+  created: number
+  lastUsed: number | null
+}
+
+// How much of a key's secret it's listed by: `cf_live_` and four characters of its random part.
+const PREFIX_LENGTH = 12
+
+// Makes an API key for network `networkId`, named `name`, when member `by` is one of its owners,
+// checked in the statement that writes it. Returns its ID and its secret, which only its hash is kept
+// for; null when they aren't an owner.
+export async function createApiKey(db: D1Database, networkId: string, by: string, name: string) {
+  const key = { id: crypto.randomUUID(), secret: `cf_live_${token()}` }
+  const { meta } = await db
+    .prepare(
+      "INSERT INTO api_keys (id, network_id, name, prefix, secret_hash, created_by, created) SELECT ?, network_id, ?, ?, ?, member_id, ? FROM memberships WHERE network_id = ? AND member_id = ? AND role = 'owner'"
+    )
+    .bind(key.id, name, key.secret.slice(0, PREFIX_LENGTH), await sha256(key.secret), Date.now(), networkId, by)
+    .run()
+  return meta.changes ? key : null
+}
+
+// Network `networkId`'s API keys still in use, newest first.
+export async function apiKeys(db: D1Database, networkId: string): Promise<ApiKey[]> {
+  const { results } = await db
+    .prepare(
+      'SELECT k.id, k.name, k.prefix, m.name AS by, k.created, k.last_used AS lastUsed FROM api_keys k LEFT JOIN members m ON m.id = k.created_by WHERE k.network_id = ? AND k.revoked IS NULL ORDER BY k.created DESC, k.id'
+    )
+    .bind(networkId)
+    .all<ApiKey>()
+  return results
+}
+
+// Revokes API key `keyId` of network `networkId` when member `by` is one of its owners and the key is
+// still in use, in one statement. Every request with its secret is refused from then on. False when
+// it isn't: it was revoked already, or there's no such key.
+export async function revokeApiKey(db: D1Database, networkId: string, keyId: string, by: string) {
+  const { meta } = await db
+    .prepare(
+      "UPDATE api_keys SET revoked = ?1 WHERE id = ?2 AND network_id = ?3 AND revoked IS NULL AND EXISTS (SELECT 1 FROM memberships WHERE network_id = ?3 AND member_id = ?4 AND role = 'owner')"
+    )
+    .bind(Date.now(), keyId, networkId, by)
+    .run()
+  return meta.changes > 0
+}
+
+// The API key a request's secret is, and the network it acts for, while it isn't revoked; null when
+// no key in use has that secret. A use more than a minute after the last is noted as its last use.
+export async function apiKeyFor(db: D1Database, secret: string): Promise<{ id: string; networkId: string } | null> {
+  const hash = await sha256(secret)
+  const row = await db
+    .prepare('SELECT id, network_id, last_used FROM api_keys WHERE secret_hash = ? AND revoked IS NULL')
+    .bind(hash)
+    .first<{ id: string; network_id: string; last_used: number | null }>()
+  if (!row) return null
+  const now = Date.now()
+  if (row.last_used === null || now - row.last_used >= SEEN_EVERY_MS)
+    await db.prepare('UPDATE api_keys SET last_used = ? WHERE id = ?').bind(now, row.id).run()
+  return { id: row.id, networkId: row.network_id }
+}
+
+// Network `networkId`'s name, or null when there's no such network.
+export async function networkName(db: D1Database, networkId: string) {
+  return db.prepare('SELECT name FROM networks WHERE id = ?').bind(networkId).first<string>('name')
 }
 
 // What the daily cron clears: sessions, challenges, and invites that have expired.
