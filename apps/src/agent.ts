@@ -490,7 +490,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       )
       return { ...admitted, network }
     })
-    if (refused) throw new Error(`${refused}.`)
+    if (refused) throw new Refusal('limit', `${refused}.`)
     const { run, startedAt } = this.beginRun()
     this.setState({
       ...this.state,
@@ -718,14 +718,16 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // The programmer's edit of the current insertion order: slot counts, dropped shows, and reworded
   // angles, priced again in code. Editing an approved order returns it to draft. The budget bounds
   // the agent's draft, not this: the final plan is the programmer's, and the UI shows it over budget.
+  // Returns the order as saved.
   @callable()
   editInsertionOrder(id: string, lines: LineInput[]) {
     const order = this.editableOrder(id)
     const finalists = finalistsOf(this.state.ranking).map((r) => r.show)
     const problem = lineProblem(lines, finalists)
-    if (problem) throw new Error(problem)
+    if (problem) throw new Refusal('invalid', problem)
     const edited = lines.map(({ show, slots, angle }) => ({ show, slots, angle: angle.trim() }))
     this.saveOrder({ ...order, ...priceLines(edited, this.state.roster, this.state.cpm), status: 'draft' })
+    return this.state.insertionOrder!
   }
 
   // The programmer's approval: only an approved order exports. It takes a person in the app, on the
@@ -750,14 +752,18 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // route. It's an RPC method for the Worker, not a callable, and refuses a draft. An earlier order
   // is read from the run that drafted it, which keeps it as the programmer left it.
   exportInsertionOrder(id: string): OrderExport {
-    const [earlier] = this.sql<{ order: string }>`
-      SELECT json_extract(snapshot, '$.insertionOrder') AS "order" FROM runs
-      WHERE json_extract(snapshot, '$.insertionOrder.id') = ${id} AND json_extract(snapshot, '$.insertionOrder.run') = id`
-    const order =
-      this.state.insertionOrder?.id === id ? this.state.insertionOrder : earlier && JSON.parse(earlier.order)
+    const order = this.state.insertionOrder?.id === id ? this.state.insertionOrder : this.earlierOrder(id)
     if (!order) return { status: 404, error: `This session has no insertion order ${id}.` }
     if (order.status !== 'approved') return { status: 409, error: `${id} is a draft. Approve it before exporting.` }
     return { status: 200, csv: toCsv(order) }
+  }
+
+  // Order `id` as the run that drafted it keeps it, once that run has ended.
+  private earlierOrder(id: string): InsertionOrder | null {
+    const [earlier] = this.sql<{ order: string }>`
+      SELECT json_extract(snapshot, '$.insertionOrder') AS "order" FROM runs
+      WHERE json_extract(snapshot, '$.insertionOrder.id') = ${id} AND json_extract(snapshot, '$.insertionOrder.run') = id`
+    return earlier ? JSON.parse(earlier.order) : null
   }
 
   // What an earlier run ended with, roster and all, to compare with a re-run.
@@ -1091,12 +1097,20 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // The current order, if it's the one the programmer means and its run has ended: until then the
-  // agent can still redraft it. A guest pitch run since then doesn't hold it up.
+  // agent can still redraft it. A guest pitch run since then doesn't hold it up. An earlier run's
+  // order stays as it was left.
   private editableOrder(id: string) {
     const order = this.state.insertionOrder
-    if (!order || order.id !== id) throw new Error(`${id} isn't the current insertion order. Reload to see the latest.`)
+    if (!order || order.id !== id)
+      throw new Refusal(
+        this.earlierOrder(id) ? 'conflict' : 'not_found',
+        `${id} isn't the current insertion order. Reload to see the latest.`
+      )
     if (inProgress(this.state.run, order.run))
-      throw new Error('The agent is still working on this run. Edit or approve the order once the run has ended.')
+      throw new Refusal(
+        'conflict',
+        'The agent is still working on this run. Edit or approve the order once the run has ended.'
+      )
     return order
   }
 

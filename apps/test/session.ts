@@ -184,6 +184,9 @@ export async function poll<T>(
   }
 }
 
+// A refusal as a program branches on it: the status, and the error's code and message.
+export const refused = async (res: Response) => [res.status, (await res.json<{ error: object }>()).error]
+
 export type Member = {
   id: string
   name: string
