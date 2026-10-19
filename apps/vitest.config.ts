@@ -1,6 +1,10 @@
-import { cloudflareTest } from '@cloudflare/vitest-plugin'
+import path from 'node:path'
+import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin'
 import agents from 'agents/vite'
 import { defineConfig } from 'vitest/config'
+
+// The D1 directory's migrations, which test/session.ts applies before each test.
+const migrations = await readD1Migrations(path.join(import.meta.dirname, 'migrations'))
 
 export default defineConfig({
   plugins: [
@@ -13,7 +17,8 @@ export default defineConfig({
       // test that needs a short timeout or pacing sets it for itself. New sessions start empty
       // instead of looking up the sample network; test/sample.test.ts turns it on. Guest pitches
       // are off whatever wrangler.jsonc or .dev.vars says; a test of the flow turns them on itself.
-      // The run limits are wrangler.jsonc's, whatever .dev.vars says; a test lowers them itself.
+      // The run limits and the sign-up and network caps are wrangler.jsonc's, whatever .dev.vars
+      // says; a test lowers them itself. Passkeys belong to the origin tests send from.
       // Accounts are on, as the product's tests need; a test of the demo without them turns them off.
       miniflare: {
         bindings: {
@@ -31,7 +36,12 @@ export default defineConfig({
           QLOO_VISITOR_DAILY_CALL_CAP: '2000',
           SAMPLE_NETWORK: 'off',
           GUEST_PITCHES: 'off',
-          ACCOUNTS: 'on'
+          ACCOUNTS: 'on',
+          RP_ID: 'crossfeed.test',
+          APP_ORIGINS: 'https://crossfeed.test',
+          SIGNUP_VISITOR_DAILY_CAP: '5',
+          NETWORKS_PER_MEMBER: '3',
+          TEST_MIGRATIONS: migrations
         }
       }
     })

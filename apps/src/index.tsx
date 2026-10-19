@@ -7,6 +7,8 @@ import { marketing } from './routes/marketing'
 
 export { CrossfeedAgent } from './agent'
 export { QlooGateway } from './gateway'
+export { LaunchAgent } from './launch-agent'
+export { NetworkAgent } from './network-agent'
 
 const app = new Hono<{ Bindings: Env }>()
 
