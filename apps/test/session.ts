@@ -44,6 +44,8 @@ export type Session = {
   // Sends a raw protocol frame and resolves with the next frame of type `reply`.
   send: (frame: object, reply: string) => Promise<Record<string, unknown>>
   close: () => void
+  // Resolves with the close code and reason once the server closes the connection.
+  closed: () => Promise<{ code: number; reason: string }>
 }
 
 // Opens a session. Without a cookie it loads `/demo` first, like a new browser would. `ip` is the
@@ -77,6 +79,8 @@ export async function connect(
   const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   const waiting: { type: string; resolve: (frame: Record<string, unknown>) => void }[] = []
   const watchers = new Set<() => void>()
+  const closed = Promise.withResolvers<{ code: number; reason: string }>()
+  ws.addEventListener('close', (event) => closed.resolve({ code: event.code, reason: event.reason }))
   ws.addEventListener('message', (event) => {
     frames.push(String(event.data))
     const message = JSON.parse(String(event.data))
@@ -131,7 +135,8 @@ export async function connect(
         waiting.push({ type, resolve })
         ws.send(JSON.stringify(frame))
       }),
-    close: () => ws.close()
+    close: () => ws.close(),
+    closed: () => closed.promise
   }
 }
 
@@ -142,6 +147,8 @@ export type Member = {
   cookie: string
   // The recovery code shown at sign-up.
   recoveryCode: string
+  // The network they joined as they signed up, through an invite; null without one.
+  network: string | null
   // Holds the member's passkey, to sign in with again.
   authenticator: Authenticator
   // A request from the member's browser on the app's origin: it carries their cookie, and an
@@ -150,14 +157,18 @@ export type Member = {
   // Opens an agent's connection from one of the app's pages, such as a network's at
   // `/agents/network/<id>`: it carries their cookie and the page's Origin, plus any `headers`.
   connect: (path: string, headers?: Record<string, string>) => Promise<Omit<Session, 'cookie'>>
+  // Makes an invite link to network `network`, as an owner does in its settings.
+  invite: (network: string) => Promise<string>
 }
 
 // Signs a new member up through both steps of the passkey ceremony, as the sign-in page does. `ip`
-// is their address, as Cloudflare's edge sends it; without it, the sign-up cap doesn't apply.
+// is their address, as Cloudflare's edge sends it; without it, the sign-up cap doesn't apply. With an
+// invite link, they sign up on its invite page, joining its network in the same step.
 export async function openMember({
   name = 'Ada Programmer',
-  ip
-}: { name?: string; ip?: string } = {}): Promise<Member> {
+  ip,
+  invite
+}: { name?: string; ip?: string; invite?: string } = {}): Promise<Member> {
   const authenticator = softwareAuthenticator()
   const post = (path: string, body: unknown) =>
     exports.default.fetch(`${origin}${path}`, {
@@ -165,34 +176,37 @@ export async function openMember({
       headers: { Origin: origin, 'Content-Type': 'application/json', ...(ip && { 'CF-Connecting-IP': ip }) },
       body: JSON.stringify(body)
     })
-  const started = await post('/auth/sign-up/options', { name })
+  // The invite page reads the token from the link's fragment.
+  const token = invite && new URL(invite).hash.slice(1)
+  const started = await post('/auth/sign-up/options', { name, invite: token })
   if (started.status !== 200) throw new Error(`Sign-up options returned ${started.status}: ${await started.text()}`)
   const { challenge, options } = await started.json<{ challenge: string; options: { user: { id: string } } }>()
-  const done = await post('/auth/sign-up', { challenge, response: await authenticator.register(options as never) })
+  const response = await authenticator.register(options as never)
+  const done = await post('/auth/sign-up', { challenge, response, invite: token })
   if (done.status !== 200) throw new Error(`Sign-up returned ${done.status}: ${await done.text()}`)
-  const { recoveryCode } = await done.json<{ recoveryCode: string }>()
+  const { recoveryCode, network = null } = await done.json<{ recoveryCode: string; network?: string }>()
   const cookie = done.headers.get('set-cookie')?.split(';')[0]
   if (!cookie) throw new Error('Sign-up set no session cookie')
+  const fetch: Member['fetch'] = (path, init = {}) => {
+    const headers = new Headers(init.headers)
+    headers.set('Cookie', cookie)
+    if (init.method && !['GET', 'HEAD'].includes(init.method)) headers.set('Origin', origin)
+    return exports.default.fetch(`${origin}${path}`, { ...init, headers })
+  }
   return {
     // The member's ID, the passkey's user handle.
     id: new TextDecoder().decode(isoBase64URL.toBuffer(options.user.id)),
     name,
     cookie,
     recoveryCode,
+    network,
     authenticator,
-    fetch: (path, init = {}) => {
-      const headers = new Headers(init.headers)
-      headers.set('Cookie', cookie)
-      if (init.method && !['GET', 'HEAD'].includes(init.method)) headers.set('Origin', origin)
-      return exports.default.fetch(`${origin}${path}`, { ...init, headers })
-    },
-    connect: (path, headers = {}) => connect(path, { Cookie: cookie, Origin: origin, ...headers })
+    fetch,
+    connect: (path, headers = {}) => connect(path, { Cookie: cookie, Origin: origin, ...headers }),
+    invite: async (network) => {
+      const res = await fetch(`/app/${network}/settings/members/invites`, { method: 'POST' })
+      if (res.status !== 200) throw new Error(`Inviting to ${network} returned ${res.status}: ${await res.text()}`)
+      return (await res.json<{ link: string }>()).link
+    }
   }
 }
-
-// Adds a member to a network as a `member`, as an invite will (#165). Until invites exist, it writes
-// the membership row itself, the one D1 write outside the directory's storage tests.
-export const joinNetwork = (network: string, member: Member) =>
-  env.DB.prepare("INSERT INTO memberships (network_id, member_id, role, joined) VALUES (?, ?, 'member', ?)")
-    .bind(network, member.id, Date.now())
-    .run()

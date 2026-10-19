@@ -28,8 +28,8 @@ app.route('/', appPages)
 
 export default {
   fetch: app.fetch,
-  // The daily cron in wrangler.jsonc: the Qloo health check, and the directory's expired sessions
-  // and challenges cleared. Each runs to its end whether or not the other fails, and then a failure
+  // The daily cron in wrangler.jsonc: the Qloo health check, and the directory's expired sessions,
+  // challenges, and invites cleared. Each runs to its end whether or not the other fails, and then a failure
   // fails the run.
   async scheduled(_controller, env) {
     for (const result of await Promise.allSettled([checkHealth(env), purgeExpired(env.DB)]))

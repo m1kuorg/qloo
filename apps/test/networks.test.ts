@@ -4,7 +4,7 @@ import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MEMBER_HEADER } from '../src/network-agent'
 import { requests } from './fake'
-import { joinNetwork, openMember, type Member, type Session } from './session'
+import { openMember, type Member, type Session } from './session'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
@@ -195,8 +195,7 @@ describe("a network's agent", () => {
   it("tags each connection with its member from the Worker's header, whatever the browser sends", async () => {
     const ada = await openMember()
     const network = await created(ada, 'Night Shift Audio')
-    const grace = await openMember({ name: 'Grace Booker' })
-    await joinNetwork(network, grace)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(network) })
     const agent = await connect(ada, network, { [MEMBER_HEADER]: grace.id })
     await agent.call('dismissChecklist')
     expect(agent.state()!.checklistDismissed).toEqual([ada.id])
@@ -255,8 +254,7 @@ describe('settings', () => {
   it("keep the CPM out of reach of a page's own connection, an owner's too: it changes in settings", async () => {
     const ada = await openMember()
     const network = await created(ada, 'Night Shift Audio')
-    const grace = await openMember({ name: 'Grace Booker' })
-    await joinNetwork(network, grace)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(network) })
     for (const member of [grace, ada]) {
       const agent = await connect(member, network)
       await expect(agent.call('setCpm', 30)).rejects.toThrow(
@@ -269,8 +267,7 @@ describe('settings', () => {
   it("show a member the network's settings read-only, and refuse their changes", async () => {
     const ada = await openMember()
     const network = await created(ada, 'Night Shift Audio')
-    const grace = await openMember({ name: 'Grace Booker' })
-    await joinNetwork(network, grace)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(network) })
     expect(await page(grace, `/app/${network}/settings`)).toContain('data-role="member"')
 
     const res = await saveNetwork(grace, network, { name: 'Grace Audio', cpm: 30 })

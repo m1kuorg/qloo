@@ -14,7 +14,7 @@ import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
 import { fakeClaude, fakeQloo, modelRequests, requests, text, turn } from './fake'
-import { joinNetwork, openMember, openSession, type Member, type Session } from './session'
+import { openMember, openSession, type Member, type Session } from './session'
 
 // Synthetic shows: two exact matches, one name shared by two feeds, and one Qloo doesn't have.
 const search = {
@@ -63,12 +63,9 @@ const visit = async (ip: string) => {
   open.push(s)
   return s
 }
-// A member of `network` besides its owner, as an invite will add them (#165).
-async function teammate(network: string, name = 'Grace Booker') {
-  const member = await openMember({ name })
-  await joinNetwork(network, member)
-  return member
-}
+// A member of `network` besides its owner, invited by `owner` and signed up through the link.
+const teammate = async (owner: Member, network: string, name = 'Grace Booker') =>
+  openMember({ name, invite: await owner.invite(network) })
 
 const settled = (s: State) => s.roster.every((show) => show.resolution !== 'pending')
 
@@ -343,7 +340,7 @@ describe("a network's limits", () => {
     fakeQloo({ search })
     const ada = await openMember()
     const network = await created(ada)
-    const grace = await teammate(network)
+    const grace = await teammate(ada, network)
 
     // The Worker's own call, with no connection, as the API will make it.
     await (await getAgentByName(env.NetworkAgent, network)).importRoster('Deep Cuts\nSignal Boost')
@@ -373,7 +370,7 @@ describe("a network's limits", () => {
     const pitch = { text: 'From: Pat <pat@example.com>\nSubject: A guest\n\nDot Pruitt would love to come on.' }
     const ada = await openMember()
     const network = await created(ada)
-    const grace = await teammate(network)
+    const grace = await teammate(ada, network)
 
     const adas = await connect(ada, network, adaIp)
     await adas.call('loadInbox', pitch)
@@ -409,7 +406,7 @@ describe("the roster's page", () => {
   it("opens for each of the network's members, connected to its agent, with Roster current in the bar", async () => {
     const ada = await openMember()
     const network = await created(ada)
-    const grace = await teammate(network)
+    const grace = await teammate(ada, network)
     for (const [member, role] of [
       [ada, 'owner'],
       [grace, 'member']
@@ -436,7 +433,7 @@ describe("the roster's page", () => {
     fakeQloo({ search })
     const ada = await openMember()
     const network = await created(ada)
-    const grace = await teammate(network)
+    const grace = await teammate(ada, network)
     const [adas, graces] = [await connect(ada, network), await connect(grace, network)]
 
     await adas.importRoster('Deep Cuts\nField Notes')
@@ -512,7 +509,7 @@ describe("the roster page's words", () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Night Shift Audio', cpm: 20 })
     })
-    const grace = await teammate(network)
+    const grace = await teammate(ada, network)
     const agent = await connect(grace, network)
     await agent.call('startFromSample')
     const read = page(await agent.until((s) => s.roster.length > 0 && settled(s)), network, 'member')

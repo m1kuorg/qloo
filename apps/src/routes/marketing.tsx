@@ -644,8 +644,10 @@ function Privacy({ accounts }: { accounts: boolean }) {
           <li>
             <b>With an account:</b> your name; your passkeys&apos; public keys, each with the browser it was added from;
             and only hashes of your session and recovery code. The networks you create or join, with your role in each
-            and when you last opened it. Each network&apos;s roster, CPM, inbox, and launches are kept in its own
-            storage, which only its members can open, with the member who approved each reply.
+            and when you joined and last opened it. Invite links are kept only as hashes, with who made each, who used
+            it, and when, and are deleted once they expire, seven days after they&apos;re made. Each network&apos;s
+            roster, CPM, inbox, and launches are kept in its own storage, which only its members can open, with the
+            member who approved each reply.
           </li>
         )}
         <li>
@@ -680,6 +682,12 @@ function Privacy({ accounts }: { accounts: boolean }) {
         its storage stays. So load nothing into the sample network that you&apos;d want deleted later. Earlier
         days&apos; counts are deleted, and cached Qloo responses stay private to Crossfeed.
       </p>
+      {accounts && (
+        <p>
+          Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it close.
+          What you added to the network stays with the network.
+        </p>
+      )}
 
       <h2>Who else handles it</h2>
       <p>

@@ -12,15 +12,7 @@ import { Dashboard } from '../src/client/Dashboard'
 import { networkLinks } from '../src/shell'
 import { readPitchUpload, type Upload } from '../src/upload'
 import { fakeClaude, fakeInsights, fakeQloo, requests, text, toolUse, turn, type ModelRequest } from './fake'
-import {
-  connect as connectVia,
-  joinNetwork,
-  links,
-  openMember,
-  openSession,
-  type Member,
-  type Session
-} from './session'
+import { connect as connectVia, links, openMember, openSession, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 beforeEach(() => {
@@ -47,6 +39,10 @@ async function connect(member: Member, network: string) {
   open.push(agent)
   return agent
 }
+
+// A member of `network` besides its owner, invited by `owner` and signed up through the link.
+const teammate = async (owner: Member, network: string) =>
+  openMember({ name: 'Grace Booker', invite: await owner.invite(network) })
 
 // The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
 const pitchText = (request: ModelRequest): string =>
@@ -409,8 +405,7 @@ describe('approving a reply', () => {
   it("takes a member's connection, records who approved, and shows every member", async () => {
     const ada = await openMember()
     const network = await created(ada)
-    const grace = await openMember({ name: 'Grace Booker' })
-    await joinNetwork(network, grace)
+    const grace = await teammate(ada, network)
     const adas = await connect(ada, network)
     const graces = await connect(grace, network)
     await drafted(adas)
@@ -466,8 +461,7 @@ describe("the inbox's page", () => {
   it("opens for each of the network's members, connected to its agent, with Inbox current in the bar", async () => {
     const ada = await openMember()
     const network = await created(ada)
-    const grace = await openMember({ name: 'Grace Booker' })
-    await joinNetwork(network, grace)
+    const grace = await teammate(ada, network)
     for (const [member, role] of [
       [ada, 'owner'],
       [grace, 'member']
@@ -532,8 +526,7 @@ describe("the inbox's members", () => {
     )
     const ada = await openMember()
     const network = await created(ada)
-    const grace = await openMember({ name: 'Grace Booker' })
-    await joinNetwork(network, grace)
+    const grace = await teammate(ada, network)
     const [adas, graces] = [await connect(ada, network), await connect(grace, network)]
 
     await upload(graces, new File([nightFerry], 'Ada Quill.eml'), new File([paperMoons], 'Rue Vance.eml'))

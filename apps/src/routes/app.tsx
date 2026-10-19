@@ -6,12 +6,18 @@ import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
 import { accountsOn, appOrigins, jsonBody, sameOrigin, session, signedIn } from '../auth'
 import {
+  createInvite,
   createNetwork,
   lastNetwork,
   memberNetworks,
   memberRole,
+  networkMembers,
+  openInvites,
   openNetwork,
+  removeMember,
   renameNetwork,
+  revokeInvite,
+  setRole,
   setupProgress,
   type Member,
   type Network
@@ -115,7 +121,19 @@ appPages.get('/app/:networkId/inbox', async (c) => {
 appPages.get('/app/:networkId/settings', async (c) => {
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
-  return c.render(<div id="root" data-page="settings" {...island(c, network)} />)
+  // Every member sees who's in the network; only an owner sees its invites.
+  const members = JSON.stringify(await networkMembers(c.env.DB, network.id))
+  const invites = network.role === 'owner' ? JSON.stringify(await openInvites(c.env.DB, network.id)) : undefined
+  return c.render(
+    <div
+      id="root"
+      data-page="settings"
+      data-member-id={c.var.member.id}
+      data-members={members}
+      data-invites={invites}
+      {...island(c, network)}
+    />
+  )
 })
 
 // The settings' network module: the network's name, which the directory keeps, and its CPM, which
@@ -135,6 +153,90 @@ appPages.post('/app/:networkId/settings/network', async (c) => {
   if (cpm != null) await (await getAgentByName(c.env.NetworkAgent, id)).setCpm(cpm as number)
   return c.json({ name: read.name, cpm: cpm ?? null })
 })
+
+// The settings' members module. Every route answers 404 to anyone who isn't the network's member, and
+// one an owner alone may use answers 403 to a member; the directory checks the owner again in the
+// statement that makes the change.
+const OWNERS_ONLY = 'Only an owner can invite and manage members.'
+
+// The answer to give a member who isn't one of network `id`'s owners: 404 outside the network, 403 to
+// a member. Null for an owner.
+async function refuseNonOwner(c: Context<AppEnv>, id: string) {
+  const role = await memberRole(c.env.DB, id, c.var.member.id)
+  return role === 'owner' ? null : role ? c.json({ error: OWNERS_ONLY }, 403) : c.notFound()
+}
+
+// The answer to a change that would leave the network with no owner.
+const refuseLastOwner = (c: Context<AppEnv>) =>
+  c.json({ error: 'A network needs an owner. Make someone else an owner first.' }, 409)
+
+// A new invite link: the token rides in its fragment, which no browser sends, so it never reaches a
+// log or a referrer. It's shown this once; the list shows the invite by its dates.
+appPages.post('/app/:networkId/settings/members/invites', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id)
+  if (refused) return refused
+  const invite = await createInvite(c.env.DB, id, c.var.member.id)
+  if (!invite) return c.json({ error: OWNERS_ONLY }, 403)
+  return c.json({
+    id: invite.id,
+    link: `${new URL(c.req.url).origin}/invite#${invite.token}`,
+    invites: await openInvites(c.env.DB, id)
+  })
+})
+
+// Revokes an invite still open, so its link is refused from then on.
+appPages.post('/app/:networkId/settings/members/invites/:inviteId/revoke', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id)
+  if (refused) return refused
+  if (!(await revokeInvite(c.env.DB, id, c.req.param('inviteId'), c.var.member.id)))
+    return c.json(
+      { error: "This invite can't be revoked: it was used, or it expired. Reload to see who has joined." },
+      409
+    )
+  return c.json({ invites: await openInvites(c.env.DB, id) })
+})
+
+// Makes a member an owner, or an owner a member, unless that would leave the network with no owner.
+appPages.post('/app/:networkId/settings/members/:memberId/role', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id)
+  if (refused) return refused
+  const { role: to } = await jsonBody(c)
+  if (to !== 'owner' && to !== 'member') return c.json({ error: 'A member is an owner or a member.' }, 400)
+  const memberId = c.req.param('memberId')
+  if (!(await memberRole(c.env.DB, id, memberId))) return c.notFound()
+  if (!(await setRole(c.env.DB, id, memberId, to, c.var.member.id))) return refuseLastOwner(c)
+  return c.json({ members: await networkMembers(c.env.DB, id) })
+})
+
+// Removes a member, unless they're the last owner. Their open pages close at once, and every request
+// they make after answers 404, as for a network that doesn't exist.
+appPages.post('/app/:networkId/settings/members/:memberId/remove', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id)
+  if (refused) return refused
+  const memberId = c.req.param('memberId')
+  if (!(await memberRole(c.env.DB, id, memberId))) return c.notFound()
+  if (!(await removeMember(c.env.DB, id, memberId, c.var.member.id))) return refuseLastOwner(c)
+  await kick(c.env, id, memberId)
+  return c.json({ members: await networkMembers(c.env.DB, id) })
+})
+
+// Leaves the network, unless the member is its last owner. Their other open pages close too.
+appPages.post('/app/:networkId/settings/members/leave', async (c) => {
+  const id = c.req.param('networkId')
+  if (!(await memberRole(c.env.DB, id, c.var.member.id))) return c.notFound()
+  if (!(await removeMember(c.env.DB, id, c.var.member.id, c.var.member.id)))
+    return c.json({ error: "You're this network's last owner. Make someone else an owner before you leave." }, 409)
+  await kick(c.env, id, c.var.member.id)
+  return c.json({})
+})
+
+// Closes a member's open connections to the network's agent, once the directory has let them go.
+const kick = async (env: Env, networkId: string, memberId: string) =>
+  (await getAgentByName(env.NetworkAgent, networkId)).kick(memberId)
 
 // What every network page tells the island: where the network's agent connects, the network and the
 // member's role in it, and where its pages are.

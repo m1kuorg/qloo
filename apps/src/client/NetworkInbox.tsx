@@ -1,8 +1,10 @@
 import { InboxWorkspace } from './App'
-import { useNetwork, type NetworkPage } from './Dashboard'
+import { LostAccess, useNetwork, type NetworkPage } from './Dashboard'
 
 // The network's booking inbox, connected to the network's agent: the demo's inbox page, whose pitches,
-// rankings, and replies every member sees and works on together.
+// rankings, and replies every member sees and works on together, until the member loses access.
 export function NetworkInboxPage({ agentPath, network }: { agentPath: string; network: NetworkPage }) {
-  return <InboxWorkspace agent={useNetwork(agentPath)} links={{ roster: network.links.roster }} />
+  const agent = useNetwork(agentPath)
+  if (agent.connectionError) return <LostAccess network={network} reason={agent.connectionError.reason} />
+  return <InboxWorkspace agent={agent} links={{ roster: network.links.roster }} />
 }
