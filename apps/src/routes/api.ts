@@ -9,6 +9,7 @@ import { HTTPException } from 'hono/http-exception'
 import { accountsOn, fromAppPage, keyFor, signedIn } from '../auth'
 import { memberRole } from '../directory'
 import { workTypes, type PitchInput } from '../inbox'
+import { MAX_PAST_GUESTS } from '../limits'
 import {
   answerLaunchRun,
   answerPitchRun,
@@ -901,8 +902,7 @@ export const PitchRunStart = z
       )
       .optional()
       .openapi({
-        description:
-          "Up to three of the show's best past guests and their public works. A guest's name is used to match a book by its author, and never reaches Qloo."
+        description: `Up to ${MAX_PAST_GUESTS} of the show's best past guests and their public works. A guest's name is used to match a book by its author, and never reaches Qloo.`
       })
   })
   .openapi('PitchRunStart', {
