@@ -13,7 +13,7 @@ import type { Role } from '../src/directory'
 import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
-import { fakeClaude, fakeQloo, modelRequests, requests, text, turn } from './fake'
+import { fakeClaude, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
 import { openMember, openSession, type Member, type Session } from './session'
 
 // Synthetic shows: two exact matches, one name shared by two feeds, and one Qloo doesn't have.
@@ -387,17 +387,26 @@ describe("a network's limits", () => {
   it("counts a launch's Qloo calls among its network's", async () => {
     env.QLOO_VISITOR_DAILY_CALL_CAP = '3'
     fakeQloo({ search })
+    fakeClaude([
+      turn(toolUse('resolve_entities', { names: ['Deep Cuts'], type: 'urn:entity:podcast' })),
+      turn(text('Deep Cuts is resolved.'))
+    ])
     const ada = await openMember()
     const network = await created(ada)
-    const launch = await getAgentByName(env.LaunchAgent, `${network}:${crypto.randomUUID()}`)
-    await launch.importRoster('Deep Cuts\nSignal Boost')
-
     const adas = await connect(ada, network, adaIp)
-    await expect(adas.call('importRoster', 'Paper Trail\nField Notes')).rejects.toThrow(
+    await adas.importRoster('Signal Boost')
+    // A launch's run resolves its launch: the network's second call today.
+    const { id } = await adas.call<{ id: string }>('createLaunch', { name: 'Deep Cuts' })
+    const launch = await ada.connect(`/agents/launch/${network}/${id}`, { 'CF-Connecting-IP': adaIp })
+    open.push(launch)
+    await launch.call('startLaunch', { name: 'Deep Cuts' })
+    expect((await launch.until((s) => s.run?.status !== 'running')).run?.status).toBe('completed')
+
+    await expect(adas.call('importRoster', 'Signal Boost\nPaper Trail\nField Notes')).rejects.toThrow(
       'This would take you past 3 Qloo calls today, the most one network can make'
     )
-    await adas.importRoster('Paper Trail')
-    expect(adas.state()!.roster).toHaveLength(1)
+    await adas.importRoster('Signal Boost\nPaper Trail')
+    expect(adas.state()!.roster).toHaveLength(2)
   })
 })
 
@@ -457,6 +466,7 @@ describe("the roster's page", () => {
         memberId={ada.id}
         setup={{ invited: true, apiKey: false }}
         dismiss={async () => {}}
+        createLaunch={async () => ({ id: 'l-1' })}
       />
     )
     expect(words(dashboard)).toContain('Roster 2 shows: 2 matched Open')

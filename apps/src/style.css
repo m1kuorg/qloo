@@ -3068,8 +3068,9 @@ a.wm {
   margin-bottom: 4px;
 }
 
+/* Wide enough that, scrolling in its frame on a phone, the launch's name keeps about 200px. */
 .launches {
-  min-width: 640px;
+  min-width: 760px;
 }
 
 .launches td {
@@ -3096,6 +3097,21 @@ a.wm {
 .launches .nm {
   font-size: 14px;
   font-weight: 600;
+}
+
+/* A launch's name opens its page: underlined in Control Edge as a cited call is, ink on hover. It
+   wraps, as a show's name does, since an unreleased launch goes by up to three comps. */
+.launches a.nm {
+  white-space: normal;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--edge);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-quick) ease-out;
+}
+
+.launches a.nm:hover {
+  text-decoration-color: var(--ink);
 }
 
 .launches td.empty {

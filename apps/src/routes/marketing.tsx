@@ -646,7 +646,9 @@ function Privacy({ accounts }: { accounts: boolean }) {
             and only hashes of your session and recovery code. The networks you create or join, with your role in each
             and when you joined and last opened it. Invite links are kept only as hashes, with who made each, who used
             it, and when, and are deleted once they expire, seven days after they&apos;re made. Each network&apos;s
-            roster, CPM, inbox, and launches are kept in its own storage, which only its members can open.
+            roster, CPM, and inbox are kept in its own storage, and each of its launches in storage of its own: its
+            runs, a copy of the roster and CPM each run ranked, with their Qloo records, and the name of the member who
+            started each run. Only the network&apos;s members can open them.
           </li>
         )}
         <li>

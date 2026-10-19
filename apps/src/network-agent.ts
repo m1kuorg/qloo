@@ -1,11 +1,27 @@
-import { callable, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
-import { CrossfeedAgent, type State } from './agent'
+import { callable, getAgentByName, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
+import {
+  CALL,
+  CrossfeedAgent,
+  readLaunch,
+  type LaunchInput,
+  type LaunchSummary,
+  type RosterCopy,
+  type State
+} from './agent'
 import { sample, sampleRoster } from './sample'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
 // a network's agent, once it has checked the session and the membership, replacing any the browser
 // sent; nothing else reaches the agent.
 export const MEMBER_HEADER = 'Crossfeed-Member'
+// And the header with their name, URI-encoded, for an agent to say who did what.
+export const MEMBER_NAME_HEADER = 'Crossfeed-Member-Name'
+
+// A connection's member tag, `member:<id>`, from the header the Worker set on its upgrade.
+export function memberTag({ request }: ConnectionContext) {
+  const member = request.headers.get(MEMBER_HEADER)
+  return member ? [`member:${member}`] : []
+}
 
 // What a network's agents count against for the per-visitor limits: the network, from the agent's
 // name, which is the network's ID for its own agent and `<networkId>:<launchId>` for a launch's.
@@ -37,8 +53,17 @@ export class NetworkAgent extends CrossfeedAgent {
 
   // Tags a connection with its member, beside its visitor.
   async getConnectionTags(connection: Connection, context: ConnectionContext) {
-    const member = context.request.headers.get(MEMBER_HEADER)
-    return [...(await super.getConnectionTags(connection, context)), ...(member ? [`member:${member}`] : [])]
+    return [...(await super.getConnectionTags(connection, context)), ...memberTag(context)]
+  }
+
+  // Closes the member's connections to the network's agent and to each of its launches'.
+  async kick(memberId: string) {
+    super.kick(memberId)
+    await Promise.all(
+      (this.state.launches ?? []).map(async ({ id }) =>
+        (await getAgentByName(this.env.LaunchAgent, `${this.name}:${id}`)).kick(memberId)
+      )
+    )
   }
 
   // Starts the network's roster from the sample network's shows, each figure labelled sample until a
@@ -56,6 +81,56 @@ export class NetworkAgent extends CrossfeedAgent {
     await this.reserveCalls(this.limitKey(), sampleRoster.length)
     empty() // again, since an import may have started meanwhile
     this.lookUpRoster(sampleRoster, { sample: { ...sample, cpm: false } })
+  }
+
+  // Plans a new launch, named or from up to three comps: its own agent takes it, then it joins the
+  // network's list, newest first, where every member's dashboard shows it. Its page is at its ID.
+  @callable()
+  async createLaunch(input: LaunchInput) {
+    const { name, comps } = readLaunch(input, 'to plan it')
+    const id = crypto.randomUUID()
+    await (await getAgentByName(this.env.LaunchAgent, `${this.name}:${id}`)).plan({ name, comps: comps ?? [] })
+    const launch: LaunchSummary = {
+      id,
+      name,
+      comps: comps ?? [],
+      status: 'new',
+      finalists: 0,
+      slots: null,
+      slotValue: null,
+      startedBy: null,
+      lastRun: null
+    }
+    this.setState({ ...this.state, launches: [launch, ...(this.state.launches ?? [])] })
+    return { id }
+  }
+
+  // The roster and CPM a launch's run starts from, with the evidence records the roster cites, for the
+  // launch's agent to copy (launch-agent.ts). Over RPC only. Comp searches stay here, since a launch
+  // never edits a show. Refused while a show is still being looked up, so no run ranks a roster half
+  // looked up.
+  rosterForLaunch(): RosterCopy {
+    const pending = this.state.roster.filter((s) => s.resolution === 'pending').length
+    if (pending > 0)
+      throw new Error(
+        `The network's roster is still looking up ${pending === 1 ? '1 show' : `${pending} shows`} in Qloo. Start the run once the lookups have settled, so it ranks every show.`
+      )
+    const roster = this.state.roster.map((s) => ({ ...s, compSearch: null }))
+    const cited = new Set(JSON.stringify(roster).match(CALL))
+    return { roster, cpm: this.state.cpm, evidence: this.getEvidence().filter((e) => cited.has(e.call)) }
+  }
+
+  // A launch's status and summary, as its agent reports them after each change (launch-agent.ts), for
+  // its row on every member's dashboard. Over RPC only. A launch no longer on the list stays off it.
+  reportLaunch(id: string, summary: Omit<LaunchSummary, 'id'>) {
+    const launches = this.state.launches ?? []
+    if (!launches.some((l) => l.id === id)) return
+    this.setState({ ...this.state, launches: launches.map((l) => (l.id === id ? { id, ...summary } : l)) })
+  }
+
+  // Whether the network's list has launch `id`, for the Worker's routes to it. Over RPC only.
+  listsLaunch(id: string) {
+    return (this.state.launches ?? []).some((l) => l.id === id)
   }
 
   // Launches run in agents of their own (ADR 0001), so a network's agent refuses what only a launch

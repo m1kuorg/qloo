@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
-import { dollars } from '../order'
 import { sample as sampleNetwork, sampleRoster, type Sample } from '../sample'
-import { RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor, useEvidence } from './App'
+import { CpmRecord, RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor, useEvidence } from './App'
 import { Alert, useAction } from './controls'
 import { LostAccess, useNetwork, type NetworkConnection, type NetworkPage } from './Dashboard'
 import { EvidencePanel } from './Evidence'
@@ -107,38 +106,5 @@ function SampleRoster({ sample }: { sample: Sample }) {
       Crossfeed chose, each labelled sample until you change it. Crossfeed isn&apos;t affiliated with {sample.network}.
       Import your own roster over it; shows on both keep their matches.
     </p>
-  )
-}
-
-// The CPM that prices every launch's slots, which an owner changes in settings. `cpm` is undefined
-// until the agent is connected.
-function CpmRecord({ cpm, network }: { cpm: number | null | undefined; network: NetworkPage }) {
-  return (
-    <section className="mod" aria-labelledby="cpm-h">
-      <div className="mh">
-        <h2 className="lbl" id="cpm-h">
-          Network CPM
-        </h2>
-        {cpm === null && <span className="chip">Not set</span>}
-      </div>
-      {cpm != null && (
-        <dl className="rec kv">
-          <div className="rec-row">
-            <dt>CPM</dt>
-            <dd>{dollars(cpm)} per 1,000 downloads</dd>
-          </div>
-        </dl>
-      )}
-      <p className="help">
-        Prices each promo slot: downloads per episode × CPM ÷ 1,000.{' '}
-        {network.role === 'owner' ? (
-          <a className="lnk" href={network.links.settings}>
-            {cpm === null ? 'Set it in settings' : 'Change it in settings'}
-          </a>
-        ) : (
-          'An owner sets it in settings.'
-        )}
-      </p>
-    </section>
   )
 }

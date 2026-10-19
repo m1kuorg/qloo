@@ -22,7 +22,7 @@ import {
   type Member,
   type Network
 } from '../directory'
-import { MEMBER_HEADER } from '../network-agent'
+import { MEMBER_HEADER, MEMBER_NAME_HEADER } from '../network-agent'
 import { cpmProblem } from '../order'
 import { appShell, networkLinks, type AppVariables } from '../shell'
 import { readName } from '../text'
@@ -105,6 +105,22 @@ appPages.get('/app/:networkId/roster', async (c) => {
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
   return c.render(<div id="root" data-page="network-roster" {...island(c, network)} />)
+})
+
+// A launch of the network, planned in its own workspace: its runs, their charts and questions, and the
+// insertion order, ranked against the network's roster. Only a launch on the network's list opens.
+appPages.get('/app/:networkId/launches/:launchId', async (c) => {
+  const { networkId, launchId } = c.req.param()
+  const network = await networkPage(c, networkId)
+  if (!network || !(await listsLaunch(c.env, network.id, launchId))) return c.notFound()
+  return c.render(
+    <div
+      id="root"
+      data-page="launch"
+      {...island(c, network)}
+      data-agent-path={`/agents/launch/${network.id}/${launchId}`}
+    />
+  )
 })
 
 // The network's settings, one module per job. Its members see every module; only its owners change
@@ -240,27 +256,55 @@ const island = (c: Context<AppEnv>, network: Network) => {
     'data-role': network.role,
     'data-roster-link': links.roster,
     'data-inbox-link': links.inbox ?? undefined,
-    'data-settings-link': links.settings
+    'data-settings-link': links.settings,
+    'data-launches-link': links.launches
   }
 }
 
 // A network's agent, where its pages connect (`useAgent` with `basePath`). The Worker lets through only
 // a WebSocket upgrade from one of the app's pages, signed in by one of the network's members, and
-// names that member to the agent in a header only it writes. Anything else gets the same 404, so no
+// names that member to the agent in headers only it writes. Anything else gets the same 404, so no
 // one learns whether a network exists. The agent's answer goes back as it is: an upgrade's headers
 // can't change, so the session's cookie isn't extended here.
 appPages.get('/agents/network/:networkId', accountsOn, async (c) => {
   const id = c.req.param('networkId')
+  const member = await upgradingMember(c, id)
+  if (!member) return c.notFound()
+  return forward(c, await getAgentByName(c.env.NetworkAgent, id), member)
+})
+
+// A launch's agent, where its page connects, checked as the network's is, and only while the network's
+// list has the launch: a launch the network doesn't list is the same 404 as one that never existed.
+appPages.get('/agents/launch/:networkId/:launchId', accountsOn, async (c) => {
+  const { networkId, launchId } = c.req.param()
+  const member = await upgradingMember(c, networkId)
+  if (!member || !(await listsLaunch(c.env, networkId, launchId))) return c.notFound()
+  return forward(c, await getAgentByName(c.env.LaunchAgent, `${networkId}:${launchId}`), member)
+})
+
+// The member asking to connect to one of network `networkId`'s agents: signed in, upgrading to a
+// WebSocket from one of the app's pages, and one of its members; or null, for a 404.
+async function upgradingMember(c: Context<AppEnv>, networkId: string) {
   const member = await session(c)
   if (
     !member ||
     c.req.header('Upgrade')?.toLowerCase() !== 'websocket' ||
     !appOrigins(c.env).includes(c.req.header('Origin') ?? '') ||
-    !(await memberRole(c.env.DB, id, member.id))
+    !(await memberRole(c.env.DB, networkId, member.id))
   )
-    return c.notFound()
+    return null
+  return member
+}
+
+// Hands the upgrade to the agent, naming its member in headers that replace any the browser sent. A
+// header can't carry every character a name can, so the name goes URI-encoded.
+function forward(c: Context<AppEnv>, agent: { fetch: (request: Request) => Promise<Response> }, member: Member) {
   const headers = new Headers(c.req.raw.headers)
   headers.set(MEMBER_HEADER, member.id)
-  const agent = await getAgentByName(c.env.NetworkAgent, id)
+  headers.set(MEMBER_NAME_HEADER, encodeURIComponent(member.name))
   return agent.fetch(new Request(c.req.raw, { headers }))
-})
+}
+
+// Whether network `networkId`'s list of launches has launch `launchId`.
+const listsLaunch = async (env: Env, networkId: string, launchId: string) =>
+  (await getAgentByName(env.NetworkAgent, networkId)).listsLaunch(launchId)

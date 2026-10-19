@@ -1,11 +1,161 @@
-import { CrossfeedAgent } from './agent'
-import { networkLimitKey } from './network-agent'
+import { callable, getAgentByName, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
+import { CrossfeedAgent, newComp, type LaunchSummary, type RosterCopy, type State } from './agent'
+import { finalistsOf } from './fit'
+import { MEMBER_NAME_HEADER, memberTag, networkLimitKey } from './network-agent'
+
+const ROSTER =
+  "A launch ranks its network's roster, which members edit on the network's roster page. Each run copies the roster as it starts."
+const INBOX = "A launch has no inbox: guest pitches go to the network's inbox, on its own page."
+const NO_GUIDE = "A launch has no guide: it's the sample network's, at /demo."
 
 // One instance per launch of a signed-in network, named `<networkId>:<launchId>` (ADR 0001). Its own
-// class keeps its namespace apart from the demo's sessions and the networks'. No route reaches it yet.
+// class keeps its namespace apart from the demo's sessions and the networks'. It holds the launch, its
+// runs, and their rankings and insertion orders; the roster and the inbox are its network's.
 export class LaunchAgent extends CrossfeedAgent {
+  initialState: State = { ...this.initialState, guide: { seen: [], dismissed: true } }
+
+  protected opensOnSample = false
+
   // A launch's Qloo calls and model runs count among its network's (TRD agent limits).
   protected limitKey() {
     return networkLimitKey(this.name)
+  }
+
+  // Tags a connection with its member, beside its visitor, as a network's agent does.
+  async getConnectionTags(connection: Connection, context: ConnectionContext) {
+    return [...(await super.getConnectionTags(connection, context)), ...memberTag(context)]
+  }
+
+  // Keeps the member's name on their connection, as the Worker gave it, to say who started a run.
+  onConnect(connection: Connection<{ memberName: string }>, { request }: ConnectionContext) {
+    const name = request.headers.get(MEMBER_NAME_HEADER)
+    if (name) connection.setState({ memberName: decodeURIComponent(name) })
+  }
+
+  protected runStarter() {
+    return (getCurrentAgent().connection?.state as { memberName?: string } | null)?.memberName ?? null
+  }
+
+  // After any change to what the network's list says of the launch, reports it there, in order, so
+  // every member's dashboard follows the launch live. A report that fails waits for the next change.
+  onStateChanged(state: State) {
+    const summary = summaryOf(state)
+    const said = JSON.stringify(summary)
+    if (said === this.reported) return
+    this.reported = said
+    const [network, launch] = this.name.split(':')
+    this.reports = this.reports
+      .then(async () => (await getAgentByName(this.env.NetworkAgent, network)).reportLaunch(launch, summary))
+      .catch((e) => console.error(JSON.stringify({ event: 'launch_report', launch, error: String(e) })))
+    void this.keepAliveWhile(() => this.reports)
+  }
+
+  // The summary last reported, and the reports still being sent.
+  private reported: string | null = null
+  private reports = Promise.resolve()
+
+  // Each run ranks the network's roster as it stands when the run starts.
+  protected async networkRoster(): Promise<RosterCopy> {
+    return (await getAgentByName(this.env.NetworkAgent, this.name.split(':')[0])).rosterForLaunch()
+  }
+
+  // Sets the launch it plans, named or from comps, as its network creates it. Over RPC only: a page
+  // starts a run instead, which may name it anew.
+  plan({ name, comps }: { name: string | null; comps: string[] }) {
+    this.setState({ ...this.state, launch: { name, match: null, comps: comps.map(newComp) } })
+  }
+
+  // The roster and the inbox are the network's (ADR 0001), so a launch's agent refuses their actions,
+  // over RPC as from its page. Each override keeps `@callable()`, so a page's call reaches it to be
+  // refused rather than finding no method.
+  @callable()
+  importRoster(): never {
+    throw new Error(ROSTER)
+  }
+
+  @callable()
+  clearSample(): never {
+    throw new Error(ROSTER)
+  }
+
+  @callable()
+  searchComps(): never {
+    throw new Error(ROSTER)
+  }
+
+  @callable()
+  updateShow(): never {
+    throw new Error(ROSTER)
+  }
+
+  @callable()
+  setCpm(): never {
+    throw new Error("A launch's runs take the network's CPM, which an owner changes in its settings.")
+  }
+
+  @callable()
+  loadInbox(): never {
+    throw new Error(INBOX)
+  }
+
+  @callable()
+  confirmWork(): never {
+    throw new Error(INBOX)
+  }
+
+  @callable()
+  startPitches(): never {
+    throw new Error(INBOX)
+  }
+
+  @callable()
+  editReply(): never {
+    throw new Error(INBOX)
+  }
+
+  @callable()
+  approveReply(): never {
+    throw new Error(INBOX)
+  }
+
+  @callable()
+  discardReply(): never {
+    throw new Error(INBOX)
+  }
+
+  // The guide walks a visitor through the demo's sample launch, so a launch has none.
+  @callable()
+  markGuide(): never {
+    throw new Error(NO_GUIDE)
+  }
+
+  @callable()
+  dismissGuide(): never {
+    throw new Error(NO_GUIDE)
+  }
+}
+
+// What the network's list says of a launch, from its state: its latest run's status, or once that
+// run has completed, its order's; its finalists, its order's slots and their total value; and who
+// started its latest run, and when.
+function summaryOf({ launch, run, runs, ranking, insertionOrder: order }: State): Omit<LaunchSummary, 'id'> {
+  const last = runs.at(-1)
+  return {
+    name: launch?.name ?? null,
+    comps: launch?.comps.map((c) => c.name) ?? [],
+    status: !run
+      ? 'new'
+      : run.status !== 'completed'
+        ? run.status
+        : !order
+          ? 'ranked'
+          : order.status === 'approved'
+            ? 'order approved'
+            : 'order drafted',
+    finalists: finalistsOf(ranking).length,
+    slots: order?.slots ?? null,
+    slotValue: order?.total ?? null,
+    startedBy: last?.startedBy ?? null,
+    lastRun: last?.startedAt ?? null
   }
 }

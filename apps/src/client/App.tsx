@@ -33,6 +33,7 @@ import { Alert, bandMeter, listOf, percentile, PickOne, ScrollTable, useAction, 
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Guide } from './Guide'
 import { InboxPage } from './Inbox'
+import type { NetworkPage } from './Dashboard'
 import { InsertionOrderPanel } from './InsertionOrder'
 import { Source } from './Source'
 import { sentence, SlowCalls, slowText, StateLine } from './states'
@@ -52,8 +53,19 @@ export function App({ page, agentPath, links }: { page: string | undefined; agen
   return <Workspace page={page} agent={useSession(agentPath)} links={links} />
 }
 
-// The page for a connected session; tests render it from a session's synced state.
-export function Workspace({ page, agent, links }: { page: string | undefined; agent: Session; links: Links }) {
+// The page for a connected session; tests render it from a session's synced state. With `network`,
+// it's a launch's page of that network (Launch.tsx): it ranks the network's roster, read-only here.
+export function Workspace({
+  page,
+  agent,
+  links,
+  network
+}: {
+  page: string | undefined
+  agent: Session
+  links: Links
+  network?: NetworkPage
+}) {
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
   const shown = viewing?.state ?? agent.state
@@ -111,6 +123,8 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
       </>
     )
   }
+  // Who edits the roster: the visitor here, or for a launch, the network's members on its roster page.
+  const editing = !viewing && !network
   const rosterSection = (
     <section className="sec" aria-labelledby="roster-h">
       <div className="mh">
@@ -122,13 +136,26 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
         <SampleNotice sample={sample} clear={() => agent.stub.clearSample()} />
       ) : (
         <p className="help sec-help">
-          {viewing
-            ? `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
-            : "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."}
+          {viewing ? (
+            `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
+          ) : network ? (
+            <>
+              {runs.length > 0
+                ? `The latest run ranks ${network.name}'s roster as it stood when that run started.`
+                : `Each run ranks ${network.name}'s roster as it stands when the run starts.`}{' '}
+              Edit its shows on{' '}
+              <a className="lnk" href={links.roster}>
+                the roster page
+              </a>
+              .
+            </>
+          ) : (
+            "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."
+          )}
         </p>
       )}
-      {!viewing && <RosterFailures roster={roster} />}
-      {!viewing && (
+      {editing && <RosterFailures roster={roster} />}
+      {editing && (
         <RosterImport
           roster={roster}
           draft={importDraft}
@@ -136,22 +163,28 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
           keepsSettledShows={false}
         />
       )}
-      <RosterTable
-        roster={roster}
-        selected={viewing ? null : (show?.name ?? null)}
-        select={viewing ? null : setSelected}
-        slowCalls={slowCalls}
-        openCall={openCall}
-        opened={opened?.call ?? null}
-      />
+      {/* A launch's roster arrives with its first run. */}
+      {(!network || roster.length > 0) && (
+        <RosterTable
+          roster={roster}
+          selected={editing ? (show?.name ?? null) : null}
+          select={editing ? setSelected : null}
+          slowCalls={slowCalls}
+          openCall={openCall}
+          opened={opened?.call ?? null}
+        />
+      )}
     </section>
   )
   return (
     <>
       {shell}
       <LaunchHeader
-        key={sampleLaunch ?? 'none'}
+        // A launch's page fills its form in with the launch it plans as that arrives or changes.
+        key={network ? `launch ${launchName(agent.state?.launch)}` : (sampleLaunch ?? 'none')}
         suggested={sampleLaunch}
+        ownLaunch={Boolean(network)}
+        ran={runs.some((r) => !r.pitchesFor)}
         launch={shown?.launch ?? null}
         hasRoster={roster.length > 0}
         slowCalls={slowCalls}
@@ -208,6 +241,8 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
               )}
               openCall={openCall}
               opened={opened?.call ?? null}
+              // A launch's export arrives under its network's address (#163).
+              exportHref={network ? null : `/api/insertion-orders/${shown.insertionOrder.id}.csv`}
               actions={
                 viewing || inProgress(run, shown.insertionOrder.run)
                   ? null
@@ -231,15 +266,24 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
               view={async (id) => setViewing(id === null ? null : { id, state: await agent.stub.getRun(id) })}
             />
           )}
-          <RosterCheck roster={roster} />
-          {!viewing && (
-            <NetworkCpm
-              key={agent.state?.cpm ?? 'none'}
-              cpm={agent.state?.cpm ?? null}
-              sample={sample?.cpm ?? false}
-              agent={agent}
-            />
-          )}
+          {(!network || roster.length > 0) && <RosterCheck roster={roster} />}
+          {network
+            ? // A launch takes its CPM with the roster, so it has none to show before its first run.
+              runs.length > 0 && (
+                <CpmRecord
+                  cpm={shown?.cpm ?? null}
+                  network={network}
+                  note="Each run takes the network's CPM as it starts."
+                />
+              )
+            : !viewing && (
+                <NetworkCpm
+                  key={agent.state?.cpm ?? 'none'}
+                  cpm={agent.state?.cpm ?? null}
+                  sample={sample?.cpm ?? false}
+                  agent={agent}
+                />
+              )}
         </aside>
         {/* In one column the roster follows the rail, so the evidence and the order come right after the chart. */}
         {oneColumn && <div className="chart-col">{rosterSection}</div>}
@@ -299,6 +343,8 @@ const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id
 // back instead of the form.
 function LaunchHeader({
   suggested,
+  ownLaunch,
+  ran,
   launch,
   hasRoster,
   slowCalls,
@@ -310,6 +356,10 @@ function LaunchHeader({
   opened
 }: {
   suggested: string | null // the sample launch, prefilled for the visitor to start
+  // A launch's page, which plans one launch: its form keeps the launch's name or comps, to run again as
+  // they are or changed, and a launch from comps goes by them.
+  ownLaunch: boolean
+  ran: boolean // whether any launch run has started here
   launch: Launch | null
   hasRoster: boolean
   slowCalls: SlowCall[]
@@ -320,17 +370,18 @@ function LaunchHeader({
   openCall: (call: string) => void
   opened: string | null
 }) {
-  const [name, setName] = useState(suggested ?? '')
-  const [unreleased, setUnreleased] = useState(false)
-  const [comps, setComps] = useState<string[]>(Array(MAX_COMPS).fill(''))
+  const form = useLaunchFields(
+    suggested
+      ? { name: suggested, comps: [] }
+      : ownLaunch && launch
+        ? { name: launch.name, comps: launch.comps.map((c) => c.name) }
+        : null
+  )
   const action = useAction()
   const running = run?.status === 'running'
-  const named = comps.filter((c) => c.trim())
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!unreleased) {
-      if (await action.run(() => startLaunch({ name }))) setName('')
-    } else if (await action.run(() => startLaunch({ comps: named }))) setComps(Array(MAX_COMPS).fill(''))
+    if ((await action.run(() => startLaunch(form.input))) && !ownLaunch) form.clear()
   }
   // The launch to run again once its run has ended: from its comps, if it has any.
   const launchComps = launch?.comps ?? [] // sessions from before comps have none
@@ -349,9 +400,13 @@ function LaunchHeader({
       <div className="hd-row">
         <div>
           <h1>
-            <span>Launch ·</span> {launch?.name ?? (launchComps.length ? 'Unreleased, from comps' : 'None yet')}
+            <span>Launch ·</span>{' '}
+            {launch?.name ??
+              (launchComps.length ? (ownLaunch ? launchName(launch) : 'Unreleased, from comps') : 'None yet')}
           </h1>
-          {launch?.name && <LaunchMatch launch={launch} running={running} openCall={openCall} opened={opened} />}
+          {launch?.name && (
+            <LaunchMatch launch={launch} running={running} ran={ran} openCall={openCall} opened={opened} />
+          )}
           {launchComps.length > 0 && (
             <LaunchComps comps={launchComps} running={running} openCall={openCall} opened={opened} />
           )}
@@ -399,49 +454,11 @@ function LaunchHeader({
         </p>
       ) : (
         <form className="launch-form" onSubmit={submit}>
-          <span className="launch-kind" role="radiogroup" aria-label="The launch is">
-            {[false, true].map((kind) => (
-              <label key={String(kind)}>
-                <input
-                  type="radio"
-                  name="launch-kind"
-                  checked={unreleased === kind}
-                  onChange={() => setUnreleased(kind)}
-                  disabled={action.busy || running}
-                />
-                <span>{kind ? 'Unreleased, from comps' : 'Released'}</span>
-              </label>
-            ))}
-          </span>
-          {unreleased ? (
-            comps.map((comp, i) => (
-              <input
-                key={i}
-                className="comp-name"
-                aria-label={`Comp ${i + 1}`}
-                value={comp}
-                onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
-                placeholder={['Blank Check', 'Filmspotting', 'You Must Remember This'][i]}
-                disabled={action.busy || running}
-              />
-            ))
-          ) : (
-            <input
-              aria-label="Released launch"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="The Big Picture"
-              disabled={action.busy || running}
-            />
-          )}
-          <button
-            className="btn pri"
-            type="submit"
-            disabled={action.busy || running || (unreleased ? named.length === 0 : !name.trim())}
-          >
+          {form.fields(action.busy || running)}
+          <button className="btn pri" type="submit" disabled={action.busy || running || !form.ready}>
             Start run
           </button>
-          {!unreleased && suggested && name === suggested && <small className="smp">Sample launch</small>}
+          {suggested && form.named(suggested) && <small className="smp">Sample launch</small>}
           {again && (
             <>
               <button
@@ -462,18 +479,83 @@ function LaunchHeader({
   )
 }
 
+// What a launch goes by: its name, or for an unreleased one, its comps.
+const launchName = (launch: Launch | null | undefined) => launch?.name ?? launch?.comps.map((c) => c.name).join(' · ')
+
+// A form's launch: released, by its name, or unreleased, by up to three comps, starting from
+// `prefill`. The launch header starts a run from it, and the dashboard plans a new launch.
+export function useLaunchFields(prefill: { name: string | null; comps: string[] } | null) {
+  const [name, setName] = useState(prefill?.name ?? '')
+  const [unreleased, setUnreleased] = useState(!prefill?.name && (prefill?.comps.length ?? 0) > 0)
+  const [comps, setComps] = useState(() => Array.from({ length: MAX_COMPS }, (_, i) => prefill?.comps[i] ?? ''))
+  const named = comps.filter((c) => c.trim())
+  return {
+    input: (unreleased ? { comps: named } : { name }) satisfies LaunchInput,
+    ready: unreleased ? named.length > 0 : name.trim() !== '',
+    // Whether the form holds this released launch's name, as typed.
+    named: (launch: string) => !unreleased && name === launch,
+    clear: () => (unreleased ? setComps(Array(MAX_COMPS).fill('')) : setName('')),
+    fields: (disabled: boolean) => (
+      <>
+        <span className="launch-kind" role="radiogroup" aria-label="The launch is">
+          {[false, true].map((kind) => (
+            <label key={String(kind)}>
+              <input
+                type="radio"
+                name="launch-kind"
+                checked={unreleased === kind}
+                onChange={() => setUnreleased(kind)}
+                disabled={disabled}
+              />
+              <span>{kind ? 'Unreleased, from comps' : 'Released'}</span>
+            </label>
+          ))}
+        </span>
+        {unreleased ? (
+          comps.map((comp, i) => (
+            <input
+              key={i}
+              className="comp-name"
+              aria-label={`Comp ${i + 1}`}
+              value={comp}
+              onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
+              placeholder={['Blank Check', 'Filmspotting', 'You Must Remember This'][i]}
+              disabled={disabled}
+            />
+          ))
+        ) : (
+          <input
+            aria-label="Released launch"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="The Big Picture"
+            disabled={disabled}
+          />
+        )}
+      </>
+    )
+  }
+}
+
 function LaunchMatch({
   launch: { name, match },
   running,
+  ran,
   openCall,
   opened
 }: {
   launch: Launch
   running: boolean
+  ran: boolean // a launch's page plans its launch before any run looks it up
   openCall: (call: string) => void
   opened: string | null
 }) {
-  if (!match) return <p className="sub-line tg">{running ? 'Looking it up in Qloo…' : 'Not looked up.'}</p>
+  if (!match)
+    return (
+      <p className="sub-line tg">
+        {running ? 'Looking it up in Qloo…' : ran ? 'Not looked up.' : 'Not run yet. A run looks it up in Qloo.'}
+      </p>
+    )
   return (
     <p className="sub-line">
       <Source of="qloo" />{' '}
@@ -1874,6 +1956,48 @@ function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample: boolea
       </form>
       {sample && <small className="smp">Arbitrary sample figure, not the network's. Enter your own.</small>}
       <Alert error={error} />
+    </section>
+  )
+}
+
+// The CPM that prices every launch's slots, read-only, which an owner changes in the network's
+// settings: on the network's roster page, and as a launch's run took it. `cpm` is undefined until the
+// agent is connected.
+export function CpmRecord({
+  cpm,
+  network,
+  note
+}: {
+  cpm: number | null | undefined
+  network: NetworkPage
+  note?: string
+}) {
+  return (
+    <section className="mod" aria-labelledby="cpm-h">
+      <div className="mh">
+        <h2 className="lbl" id="cpm-h">
+          Network CPM
+        </h2>
+        {cpm === null && <span className="chip">Not set</span>}
+      </div>
+      {cpm != null && (
+        <dl className="rec kv">
+          <div className="rec-row">
+            <dt>CPM</dt>
+            <dd>{dollars(cpm)} per 1,000 downloads</dd>
+          </div>
+        </dl>
+      )}
+      <p className="help">
+        Prices each promo slot: downloads per episode × CPM ÷ 1,000. {note && `${note} `}
+        {network.role === 'owner' ? (
+          <a className="lnk" href={network.links.settings}>
+            {cpm === null ? 'Set it in settings' : 'Change it in settings'}
+          </a>
+        ) : (
+          'An owner sets it in settings.'
+        )}
+      </p>
     </section>
   )
 }

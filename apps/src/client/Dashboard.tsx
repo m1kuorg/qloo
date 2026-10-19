@@ -1,20 +1,21 @@
 import { useAgent } from 'agents/react'
-import type { LaunchSummary, Show, State } from '../agent'
+import type { LaunchInput, LaunchSummary, Show, State } from '../agent'
 import type { Role } from '../directory'
 import type { Inbox } from '../inbox'
 import type { NetworkAgent } from '../network-agent'
 import { dollars } from '../order'
+import { useLaunchFields } from './App'
 import { Alert, ScrollTable, useAction } from './controls'
 import { stateLabel } from './Inbox'
 import { StateLine } from './states'
 
 // A network's page, as the server describes it: the network, the member's role in it, and where its
-// other pages are. `inbox` is null while GUEST_PITCHES is off.
+// other pages are. `inbox` is null while GUEST_PITCHES is off; a launch's page is under `launches`.
 export type NetworkPage = {
   id: string
   name: string
   role: Role
-  links: { roster: string; inbox: string | null; settings: string }
+  links: { roster: string; inbox: string | null; settings: string; launches: string }
 }
 
 // The network's agent, at the path the server gives, which checks the member's session and membership.
@@ -29,7 +30,14 @@ export type Setup = { invited: boolean; apiKey: boolean }
 export function DashboardPage(props: { agentPath: string; network: NetworkPage; memberId: string; setup: Setup }) {
   const agent = useNetwork(props.agentPath)
   if (agent.connectionError) return <LostAccess network={props.network} reason={agent.connectionError.reason} />
-  return <Dashboard {...props} state={agent.state} dismiss={() => agent.stub.dismissChecklist()} />
+  return (
+    <Dashboard
+      {...props}
+      state={agent.state}
+      dismiss={() => agent.stub.dismissChecklist()}
+      createLaunch={(input) => agent.stub.createLaunch(input)}
+    />
+  )
 }
 
 // A network's page once its agent has closed the connection for good, as when the member is removed
@@ -61,18 +69,21 @@ export function Dashboard({
   network,
   memberId,
   setup,
-  dismiss
+  dismiss,
+  createLaunch
 }: {
   state: State | undefined
   network: NetworkPage
   memberId: string
   setup: Setup
   dismiss: () => Promise<unknown>
+  createLaunch: (input: LaunchInput) => Promise<{ id: string }>
 }) {
   return (
     <>
       <header className="hd">
         <h1>{network.name}</h1>
+        <NewLaunch network={network} create={createLaunch} />
       </header>
       <main className="main dash">
         <section className="chart-col" aria-labelledby="launches-h">
@@ -80,7 +91,7 @@ export function Dashboard({
             Launches
           </h2>
           <ScrollTable label="Launches">
-            <Launches launches={state?.launches ?? []} />
+            <Launches launches={state?.launches ?? []} network={network} />
           </ScrollTable>
         </section>
         <aside className="rail" aria-label="Network">
@@ -102,8 +113,58 @@ export function Dashboard({
   )
 }
 
-// Every launch with its status and plan, newest first; until there's one, a sentence saying so.
-function Launches({ launches }: { launches: LaunchSummary[] }) {
+// The dashboard's decision: a new launch, named or from comps, which opens on its own page.
+function NewLaunch({
+  network,
+  create
+}: {
+  network: NetworkPage
+  create: (input: LaunchInput) => Promise<{ id: string }>
+}) {
+  const form = useLaunchFields(null)
+  const { busy, error, run } = useAction()
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void run(async () => location.assign(`${network.links.launches}/${(await create(form.input)).id}`))
+  }
+  return (
+    <>
+      <form className="launch-form" id="new-launch" aria-label="New launch" onSubmit={submit}>
+        {form.fields(busy)}
+        <button className="btn pri" type="submit" disabled={busy || !form.ready}>
+          New launch
+        </button>
+      </form>
+      <Alert error={error} />
+    </>
+  )
+}
+
+// What the dashboard calls each status. A failed or stopped run is marked in its state's colour, and
+// an approved order as final.
+const statusLabel: Record<LaunchSummary['status'], string> = {
+  new: 'New',
+  running: 'Running',
+  waiting: 'Waiting',
+  ranked: 'Ranked',
+  'order drafted': 'Order drafted',
+  'order approved': 'Order approved',
+  failed: 'Failed',
+  stopped: 'Stopped'
+}
+
+function StatusChip({ status }: { status: LaunchSummary['status'] }) {
+  const fault = status === 'failed' || status === 'stopped'
+  return (
+    <span className={status === 'order approved' ? 'chip flag' : 'chip'} data-state={fault ? 'failed' : undefined}>
+      {statusLabel[status]}
+    </span>
+  )
+}
+
+// Every launch with its status and plan, newest first, each opening its page; until there's one, a
+// sentence saying so. An unreleased launch goes by its comps.
+function Launches({ launches, network }: { launches: LaunchSummary[]; network: NetworkPage }) {
   return (
     <table className={launches.length ? 'chart launches' : 'chart launches none'}>
       <thead>
@@ -133,9 +194,16 @@ function Launches({ launches }: { launches: LaunchSummary[] }) {
         ) : (
           launches.map((l) => (
             <tr key={l.id}>
-              <td className="nm">{l.name}</td>
-              <td>{l.status}</td>
-              <td className="r">{l.finalists}</td>
+              <td>
+                <a className="nm" href={`${network.links.launches}/${l.id}`}>
+                  {l.name ?? l.comps.join(' · ')}
+                </a>
+                {l.name === null && <div className="tg">Unreleased, from comps</div>}
+              </td>
+              <td>
+                <StatusChip status={l.status} />
+              </td>
+              <td className="r">{l.finalists || '–'}</td>
               <td className="r">{l.slots ?? '–'}</td>
               <td className="r">{l.slotValue === null ? '–' : dollars(l.slotValue)}</td>
               <td className="tg">
@@ -266,7 +334,7 @@ function Checklist({
     {
       title: 'Plan a launch',
       how: 'Name a released launch, or up to three comps for an unreleased one, and Crossfeed ranks the roster against it.',
-      href: null,
+      href: '#new-launch',
       done: (state.launches?.length ?? 0) > 0
     },
     {
