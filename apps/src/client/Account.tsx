@@ -5,7 +5,8 @@ import { MAX_NAME } from '../text'
 import { StateLine } from './states'
 
 // The accounts pages of the island: signing in or up with a passkey, or back in with a recovery
-// code, creating a network, and signing out from the app shell's account menu.
+// code, joining a network through an invite, creating a network, and signing out from the app shell's
+// account menu.
 
 // What went wrong with the browser's passkey prompt, in words. A prompt the person closed, or one
 // that timed out, is a NotAllowedError.
@@ -63,7 +64,19 @@ function useSupported() {
   return supported
 }
 
-function PasskeySignIn({ disabled, onIn, onRecover }: { disabled: boolean; onIn: () => void; onRecover: () => void }) {
+// Signing in with a passkey. On the invite page, `onIn` joins the network too, and there's no recovery:
+// a member who lost every passkey signs in with their code first, then opens the link again.
+function PasskeySignIn({
+  disabled,
+  onIn,
+  onRecover,
+  action = 'Sign in with a passkey'
+}: {
+  disabled: boolean
+  onIn: () => unknown
+  onRecover?: () => void
+  action?: string
+}) {
   const { busy, error, run } = useAction()
   const signIn = () =>
     run(async () => {
@@ -73,7 +86,7 @@ function PasskeySignIn({ disabled, onIn, onRecover }: { disabled: boolean; onIn:
         'The passkey prompt closed before you chose a passkey. If this device has none for Crossfeed, create an account, or use a recovery code.'
       )
       await send('/auth/sign-in', { challenge, response })
-      onIn()
+      await onIn()
     })
   return (
     <section className="way" aria-labelledby="way-in">
@@ -83,16 +96,26 @@ function PasskeySignIn({ disabled, onIn, onRecover }: { disabled: boolean; onIn:
       <p>Use the passkey you made for Crossfeed on this device, or on a phone nearby.</p>
       <div className="acts">
         <button className="btn pri" type="button" disabled={disabled || busy} onClick={() => void signIn()}>
-          {busy ? 'Waiting for your passkey…' : 'Sign in with a passkey'}
+          {busy ? 'Waiting for your passkey…' : action}
         </button>
       </div>
       <Alert error={error} />
-      <p className="help">
-        Lost every passkey?{' '}
-        <button className="lnk" type="button" onClick={onRecover}>
-          Use a recovery code
-        </button>
-      </p>
+      {onRecover ? (
+        <p className="help">
+          Lost every passkey?{' '}
+          <button className="lnk" type="button" onClick={onRecover}>
+            Use a recovery code
+          </button>
+        </p>
+      ) : (
+        <p className="help">
+          Lost every passkey?{' '}
+          <a className="lnk" href="/sign-in">
+            Sign in with a recovery code
+          </a>
+          , then open this link again.
+        </p>
+      )}
     </section>
   )
 }
@@ -145,17 +168,34 @@ function Recover({ onBack, onCode }: { onBack: () => void; onCode: (code: string
   )
 }
 
-function CreateAccount({ disabled, onCode }: { disabled: boolean; onCode: (code: string) => void }) {
+// Creating an account with a passkey. On the invite page it carries the link's token, `invite`, and
+// joins the network in the same step: `onCode` gets the network's ID too.
+function CreateAccount({
+  disabled,
+  onCode,
+  invite,
+  action = 'Create account'
+}: {
+  disabled: boolean
+  onCode: (code: string, network?: string) => void
+  invite?: string
+  action?: string
+}) {
   const { busy, error, run } = useAction()
   const [name, setName] = useState('')
   const create = () =>
     run(async () => {
-      const { challenge, options } = await send<Ceremony>('/auth/sign-up/options', { name })
+      const { challenge, options } = await send<Ceremony>('/auth/sign-up/options', { name, invite })
       const response = await prompted(
         () => startRegistration({ optionsJSON: options }),
         'The passkey prompt closed before your passkey was made. Try again when you’re ready.'
       )
-      onCode((await send<{ recoveryCode: string }>('/auth/sign-up', { challenge, response })).recoveryCode)
+      const done = await send<{ recoveryCode: string; network?: string }>('/auth/sign-up', {
+        challenge,
+        response,
+        invite
+      })
+      onCode(done.recoveryCode, done.network)
     })
   return (
     <section className="way" aria-labelledby="way-new">
@@ -181,12 +221,124 @@ function CreateAccount({ disabled, onCode }: { disabled: boolean; onCode: (code:
         />
         <div className="acts">
           <button className="btn pri" type="submit" disabled={disabled || busy || !name.trim()}>
-            {busy ? 'Waiting for your passkey…' : 'Create account'}
+            {busy ? 'Waiting for your passkey…' : action}
           </button>
         </div>
       </form>
       <Alert error={error} />
       <p className="help">Your browser makes a passkey for Crossfeed, then you get a recovery code to keep.</p>
+    </section>
+  )
+}
+
+// The invite page: the link's token is in the address's fragment, which the browser never sends, so
+// the page reads it and posts it. It names the network, then lets a signed-in member join, or anyone
+// else create an account or sign in, and join in the same step. `memberName` is who's signed in.
+export function InvitePage({ memberName }: { memberName: string | null }) {
+  const [token] = useState(() => window.location.hash.slice(1))
+  const [invite, setInvite] = useState<{ network: string } | { error: string } | null>(null)
+  const [code, setCode] = useState<{ code: string; next: string } | null>(null)
+  const supported = useSupported()
+  // Another link opened in this tab changes only the fragment, which loads no page: load it.
+  useEffect(() => {
+    const reload = () => window.location.reload()
+    window.addEventListener('hashchange', reload)
+    return () => window.removeEventListener('hashchange', reload)
+  }, [])
+  useEffect(() => {
+    send<{ network: string }>('/auth/invite', { token }).then(
+      (open) => {
+        document.title = `Join ${open.network} · Crossfeed`
+        setInvite(open)
+      },
+      (err: Error) => setInvite({ error: err.message })
+    )
+  }, [token])
+  if (code) return <RecoveryCode code={code.code} next={code.next} />
+  // Joins as whoever is signed in now, and opens the network.
+  const join = async () => window.location.assign(`/app/${(await send<{ id: string }>('/auth/join', { token })).id}`)
+
+  if (!invite || 'error' in invite)
+    return (
+      <main className="acct">
+        <header className="acct-hd">
+          <h1>{invite ? 'This invite link can’t be used' : 'Opening your invite'}</h1>
+          {invite ? (
+            <StateLine kind="error" role="alert">
+              {invite.error}
+            </StateLine>
+          ) : (
+            <StateLine kind="loading">Checking the link…</StateLine>
+          )}
+        </header>
+        {invite && (
+          <p className="acct-next">
+            <a className="lnk" href={memberName ? '/app' : '/sign-in'}>
+              {memberName ? 'Open your networks' : 'Sign in to Crossfeed'}
+            </a>
+          </p>
+        )}
+      </main>
+    )
+
+  return (
+    <main className="acct">
+      <header className="acct-hd">
+        <h1>Join {invite.network}</h1>
+        <p className="help">
+          You’re invited to {invite.network} on Crossfeed, as a member: you’ll work on its roster, launches, and inbox
+          with the rest of its team. The link works once.
+        </p>
+        {supported === false && !memberName && (
+          <StateLine kind="error" role="alert">
+            This browser can’t use passkeys. Open the link in a current Chrome, Safari, Edge, or Firefox.
+          </StateLine>
+        )}
+      </header>
+      {memberName ? (
+        <JoinAs name={memberName} network={invite.network} join={join} />
+      ) : (
+        <div className="ways">
+          <CreateAccount
+            disabled={supported === false}
+            invite={token}
+            action="Create account and join"
+            onCode={(recoveryCode, network) => setCode({ code: recoveryCode, next: `/app/${network}` })}
+          />
+          <PasskeySignIn disabled={supported === false} onIn={join} action="Sign in and join" />
+        </div>
+      )}
+    </main>
+  )
+}
+
+// A signed-in member joins as themselves, in one step, or signs out to join with another account.
+function JoinAs({ name, network, join }: { name: string; network: string; join: () => Promise<void> }) {
+  const { busy, error, run } = useAction()
+  const signOut = () =>
+    run(async () => {
+      await send('/auth/sign-out')
+      // The link's fragment stays in the address, so the page opens on the invite again, signed out.
+      window.location.reload()
+    })
+  return (
+    <section className="way" aria-label={`Join ${network}`}>
+      <p>
+        You’re signed in as <b>{name}</b>.
+      </p>
+      <div className="acts">
+        <button className="btn pri" type="button" disabled={busy} onClick={() => void run(join)}>
+          {busy ? 'Joining…' : `Join ${network}`}
+        </button>
+      </div>
+      <Alert error={error} />
+      <p className="help">
+        Not {name}?{' '}
+        <button className="lnk" type="button" disabled={busy} onClick={() => void signOut()}>
+          Sign out
+        </button>{' '}
+        to join with another account.
+      </p>
     </section>
   )
 }

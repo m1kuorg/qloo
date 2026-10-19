@@ -3,16 +3,17 @@
 // server gave the page, and reads its words.
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
 import { Settings } from '../src/client/Settings'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
-import { joinNetwork, openMember, type Member, type Session } from './session'
+import { openMember, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 const saved = { GUEST_PITCHES: env.GUEST_PITCHES }
 afterEach(() => {
+  vi.useRealTimers()
   open.splice(0).forEach((agent) => agent.close())
   Object.assign(env, saved)
 })
@@ -40,11 +41,18 @@ async function island(member: Member, path: string) {
   const d = Object.fromEntries(
     [...root.matchAll(/data-([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [
       k.replace(/-(\w)/g, (_, c: string) => c.toUpperCase()),
-      v.replace(/&amp;/g, '&')
+      v
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
     ])
   )
   return {
     memberId: d.memberId,
+    members: d.members ? JSON.parse(d.members) : [],
+    invites: d.invites ? JSON.parse(d.invites) : null,
     setup: { invited: d.invited === 'true', apiKey: d.apiKey === 'true' },
     network: {
       id: d.networkId,
@@ -103,7 +111,7 @@ describe('the dashboard', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Night Shift Audio', cpm: 20 })
     })
-    await joinNetwork(id, await openMember({ name: 'Grace Booker' }))
+    await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
 
     const read = words(await dashboard(ada, id, await agent.until((s) => s.cpm === 20)))
     expect(read).toContain('Roster 3 shows: 2 matched, 1 not in Qloo Open')
@@ -116,8 +124,7 @@ describe('the dashboard', () => {
   it("is dismissed for the member who dismisses it, and stays for everyone else's", async () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
-    const grace = await openMember({ name: 'Grace Booker' })
-    await joinNetwork(id, grace)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
     await agent.call('dismissChecklist')
 
     const state = agent.state()
@@ -178,8 +185,10 @@ describe('the dashboard', () => {
 
 describe('settings', () => {
   const settings = async (member: Member, id: string, state: State | undefined) => {
-    const { network } = await island(member, `/app/${id}/settings`)
-    return renderToStaticMarkup(<Settings state={state} network={network} />)
+    const { network, memberId, members, invites } = await island(member, `/app/${id}/settings`)
+    return renderToStaticMarkup(
+      <Settings state={state} network={network} memberId={memberId} members={members} invites={invites} />
+    )
   }
 
   it("give an owner the network's name and CPM to change", async () => {
@@ -200,11 +209,45 @@ describe('settings', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Night Shift Audio', cpm: 18.5 })
     })
-    const grace = await openMember({ name: 'Grace Booker' })
-    await joinNetwork(id, grace)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
     const html = await settings(grace, id, await (await connect(grace, id)).until((s) => s.cpm === 18.5))
     expect(html).not.toContain('<input')
     expect(html).not.toContain('Save')
     expect(words(html)).toContain('Name Night Shift Audio CPM $18.5 Only an owner can change these.')
+  })
+
+  it("list the network's members for an owner, with their roles, dates, and what the owner can change", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T12:00:00Z'))
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    vi.setSystemTime(new Date('2026-10-20T12:00:00Z'))
+    await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+    await ada.invite(id)
+
+    const read = words(await settings(ada, id, agent.state()))
+    expect(read).toContain('Members Everyone who can open Night Shift Audio.')
+    expect(read).toContain(
+      'Member Role Joined Actions Ada Programmer You Owner Oct 19 Leave Grace Booker Member Oct 20 Make owner Remove'
+    )
+    expect(read).toContain('You’re the only owner. Make someone else an owner before you leave.')
+    expect(read).toContain('Invite links Each link lets one person join as a member')
+    expect(read).toContain('Create invite link Made Oct 20 by Ada Programmer Expires Oct 27 Revoke')
+    expect(await settings(ada, id, agent.state())).toMatch(/<button[^>]*disabled=""[^>]*>Leave<\/button>/)
+  })
+
+  it('show a member who is in the network, with only their own Leave, and no invite links', async () => {
+    const ada = await openMember()
+    const { id } = await network(ada)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+    const html = await settings(grace, id, await (await connect(grace, id)).until(() => true))
+    const read = words(html)
+    expect(read).toContain('Ada Programmer Owner')
+    expect(read).toMatch(/Grace Booker You Member \w{3} \d{1,2} Leave/)
+    expect(read).toContain('Only an owner can invite people, change roles, or remove members.')
+    expect(read).not.toContain('Make owner')
+    expect(read).not.toContain('Remove')
+    expect(read).not.toContain('Invite links')
+    expect(html).not.toMatch(/disabled=""[^>]*>Leave/)
   })
 })

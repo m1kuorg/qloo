@@ -56,30 +56,45 @@ export async function takeChallenge(db: D1Database, id: string, kind: string): P
 }
 
 // Writes a new member with their first passkey and a session, all or nothing, once the passkey's
-// registration has verified.
-export async function signUp(db: D1Database, member: Member, passkey: Omit<Passkey, 'memberId'>, label: string) {
+// registration has verified. With an invite's token, they join its network in the same batch, and
+// nothing is written unless the invite is still open: an invited sign-up isn't counted against the
+// sign-up cap, so it never makes an account without using its invite. `network` is the network they
+// joined; null when the invite can't be used, and nothing was written.
+export async function signUp(
+  db: D1Database,
+  member: Member,
+  passkey: Omit<Passkey, 'memberId'>,
+  label: string,
+  invite?: string
+): Promise<(Secrets & { network: string | null }) | null> {
   const secrets = { token: token(), recoveryCode: recoveryCode() }
   const now = Date.now()
-  await db.batch([
-    db
-      .prepare('INSERT INTO members (id, name, recovery_code_hash, created) VALUES (?, ?, ?, ?)')
-      .bind(member.id, member.name, await sha256(normalCode(secrets.recoveryCode)), now),
+  const hash = invite === undefined ? null : await sha256(invite)
+  const [written, , , used] = await db.batch([
     db
       .prepare(
-        'INSERT INTO passkeys (credential_id, member_id, public_key, counter, transports, label, created) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        `INSERT INTO members (id, name, recovery_code_hash, created) SELECT ?1, ?2, ?3, ?4${hash ? ' WHERE EXISTS (SELECT 1 FROM invites WHERE token_hash = ?5 AND used IS NULL AND revoked IS NULL AND expires > ?4)' : ''}`
+      )
+      .bind(member.id, member.name, await sha256(normalCode(secrets.recoveryCode)), now, ...(hash ? [hash] : [])),
+    // The passkey and the session follow the member's row, which an invite that can't be used leaves out.
+    db
+      .prepare(
+        'INSERT INTO passkeys (credential_id, member_id, public_key, counter, transports, label, created) SELECT ?, id, ?, ?, ?, ?, ? FROM members WHERE id = ?'
       )
       .bind(
         passkey.credentialId,
-        member.id,
         passkey.publicKey,
         passkey.counter,
         passkey.transports && JSON.stringify(passkey.transports),
         label,
-        now
+        now,
+        member.id
       ),
-    insertSession(db, await sha256(secrets.token), member.id, now)
+    insertSession(db, await sha256(secrets.token), member.id, now),
+    ...(hash ? useInvite(db, hash, member.id, now) : [])
   ])
-  return secrets
+  if (!written.meta.changes) return null
+  return { ...secrets, network: (used?.results[0] as { network_id: string } | undefined)?.network_id ?? null }
 }
 
 // The passkey a browser named by its credential ID, or null when no member has it.
@@ -249,6 +264,46 @@ export async function renameNetwork(db: D1Database, networkId: string, memberId:
   return meta.changes > 0
 }
 
+// A member of a network as its members see them: their name, their role, and when they joined.
+export type NetworkMember = { id: string; name: string; role: Role; joined: number }
+
+// Network `networkId`'s members, in the order they joined.
+export async function networkMembers(db: D1Database, networkId: string): Promise<NetworkMember[]> {
+  const { results } = await db
+    .prepare(
+      'SELECT m.id, m.name, s.role, s.joined FROM memberships s JOIN members m ON m.id = s.member_id WHERE s.network_id = ? ORDER BY s.joined, m.name COLLATE NOCASE'
+    )
+    .bind(networkId)
+    .all<NetworkMember>()
+  return results
+}
+
+// Gives member `memberId` role `role` in network `networkId`, when member `by` is one of its owners and
+// the network keeps another owner if it's a demotion, in one statement, so two owners demoting each
+// other at once can't leave it with none. False when either check refuses it.
+export async function setRole(db: D1Database, networkId: string, memberId: string, role: Role, by: string) {
+  const { meta } = await db
+    .prepare(
+      "UPDATE memberships SET role = ?4 WHERE network_id = ?1 AND member_id = ?2 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner') AND (?4 = 'owner' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
+    )
+    .bind(networkId, memberId, by, role)
+    .run()
+  return meta.changes > 0
+}
+
+// Takes member `memberId` out of network `networkId`, when member `by` is one of its owners or is
+// `memberId` leaving, and the network keeps another owner if they're one, in one statement, so two
+// owners leaving at once can't leave it with none. False when either check refuses it.
+export async function removeMember(db: D1Database, networkId: string, memberId: string, by: string) {
+  const { meta } = await db
+    .prepare(
+      "DELETE FROM memberships WHERE network_id = ?1 AND member_id = ?2 AND (?2 = ?3 OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner')) AND (role = 'member' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
+    )
+    .bind(networkId, memberId, by)
+    .run()
+  return meta.changes > 0
+}
+
 // What a network's setup checklist reads from the directory: whether a teammate was invited or has
 // joined, and whether an API key was ever made, revoked or not.
 export async function setupProgress(db: D1Database, networkId: string) {
@@ -261,19 +316,122 @@ export async function setupProgress(db: D1Database, networkId: string) {
   return { invited: row?.invited === 1, apiKey: row?.apiKey === 1 }
 }
 
-// What the daily cron clears: sessions and challenges that have expired.
+// An invite link works once, for seven days, unless an owner revokes it first.
+export const INVITE_MS = 7 * 24 * 60 * 60_000
+
+// An invite still open, as its network's owners see it: when it was made, by whom (null once they've
+// gone), and when it expires. Its token was shown once, when it was made, and can't be read back.
+export type Invite = { id: string; created: number; expires: number; by: string | null }
+
+// Makes an invite to network `networkId` when member `memberId` is one of its owners, checked in the
+// statement that writes it. Returns its ID and its token, which only its hash is kept for; null when
+// they aren't an owner.
+export async function createInvite(db: D1Database, networkId: string, memberId: string) {
+  const invite = { id: crypto.randomUUID(), token: token() }
+  const now = Date.now()
+  const { meta } = await db
+    .prepare(
+      "INSERT INTO invites (id, token_hash, network_id, created_by, created, expires) SELECT ?, ?, network_id, member_id, ?, ? FROM memberships WHERE network_id = ? AND member_id = ? AND role = 'owner'"
+    )
+    .bind(invite.id, await sha256(invite.token), now, now + INVITE_MS, networkId, memberId)
+    .run()
+  return meta.changes ? invite : null
+}
+
+// Revokes invite `inviteId` to network `networkId` when member `memberId` is one of its owners and the
+// invite is still open, in one statement. False when it isn't: it was used, revoked, or expired.
+export async function revokeInvite(db: D1Database, networkId: string, inviteId: string, memberId: string) {
+  const now = Date.now()
+  const { meta } = await db
+    .prepare(
+      "UPDATE invites SET revoked = ?1 WHERE id = ?2 AND network_id = ?3 AND used IS NULL AND revoked IS NULL AND expires > ?1 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = ?3 AND member_id = ?4 AND role = 'owner')"
+    )
+    .bind(now, inviteId, networkId, memberId)
+    .run()
+  return meta.changes > 0
+}
+
+// Network `networkId`'s invites still open: not used, revoked, or expired. Newest first.
+export async function openInvites(db: D1Database, networkId: string): Promise<Invite[]> {
+  const { results } = await db
+    .prepare(
+      'SELECT i.id, i.created, i.expires, m.name AS by FROM invites i LEFT JOIN members m ON m.id = i.created_by WHERE i.network_id = ? AND i.used IS NULL AND i.revoked IS NULL AND i.expires > ? ORDER BY i.created DESC, i.id'
+    )
+    .bind(networkId, Date.now())
+    .all<Invite>()
+  return results
+}
+
+// Why an invite can't be used any more, or `open` while it can.
+export type InviteState = 'open' | 'used' | 'revoked' | 'expired'
+
+// The invite a link's token names: its network, and whether it can still be used. Null when no
+// invite has that token.
+export async function findInvite(db: D1Database, token: string) {
+  const row = await db
+    .prepare(
+      'SELECT i.network_id, n.name, i.used, i.revoked, i.expires FROM invites i JOIN networks n ON n.id = i.network_id WHERE i.token_hash = ?'
+    )
+    .bind(await sha256(token))
+    .first<{ network_id: string; name: string; used: number | null; revoked: number | null; expires: number }>()
+  if (!row) return null
+  const state: InviteState =
+    row.used !== null ? 'used' : row.revoked !== null ? 'revoked' : row.expires <= Date.now() ? 'expired' : 'open'
+  return { networkId: row.network_id, network: row.name, state }
+}
+
+// Joins member `memberId` to the network the invite with token `token` is for, as a member, in one
+// batch that uses the invite: only while it's open, and only by someone not in the network yet, so of
+// two people using it at once one joins, and a member already in leaves it for whoever it's for.
+// Returns the network's ID when they're its member now, whether they joined just now or before; null
+// when the invite can't be used.
+export async function joinByInvite(db: D1Database, token: string, memberId: string) {
+  const hash = await sha256(token)
+  const [, , member] = await db.batch([
+    ...useInvite(db, hash, memberId, Date.now()),
+    db
+      .prepare(
+        'SELECT network_id FROM invites WHERE token_hash = ?2 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = invites.network_id AND member_id = ?1)'
+      )
+      .bind(memberId, hash)
+  ])
+  return (member.results[0] as { network_id: string } | undefined)?.network_id ?? null
+}
+
+// What the daily cron clears: sessions, challenges, and invites that have expired.
 export async function purgeExpired(db: D1Database) {
   const now = Date.now()
   await db.batch([
     db.prepare('DELETE FROM sessions WHERE expires <= ?').bind(now),
-    db.prepare('DELETE FROM challenges WHERE expires <= ?').bind(now)
+    db.prepare('DELETE FROM challenges WHERE expires <= ?').bind(now),
+    db.prepare('DELETE FROM invites WHERE expires <= ?').bind(now)
   ])
 }
 
+// A new session for member `memberId`, started only if they exist, as a sign-up's member may not.
 const insertSession = (db: D1Database, tokenHash: string, memberId: string, now: number) =>
   db
-    .prepare('INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) VALUES (?, ?, ?, ?, ?)')
-    .bind(tokenHash, memberId, now, now + SESSION_MS, now)
+    .prepare(
+      'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?, id, ?, ?, ? FROM members WHERE id = ?'
+    )
+    .bind(tokenHash, now, now + SESSION_MS, now, memberId)
+
+// Uses the invite with token hash `hash` for member `memberId` and adds them to its network as a
+// member: the first statement marks it used while it's open and they aren't in the network yet,
+// returning its network; the second adds the membership only that use wrote. Run in a batch, so no
+// other use comes between.
+const useInvite = (db: D1Database, hash: string, memberId: string, now: number) => [
+  db
+    .prepare(
+      'UPDATE invites SET used = ?1, used_by = ?2 WHERE token_hash = ?3 AND used IS NULL AND revoked IS NULL AND expires > ?1 AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = invites.network_id AND member_id = ?2) RETURNING network_id'
+    )
+    .bind(now, memberId, hash),
+  db
+    .prepare(
+      "INSERT INTO memberships (network_id, member_id, role, joined, last_opened) SELECT network_id, ?2, 'member', ?1, ?1 FROM invites WHERE token_hash = ?3 AND used = ?1 AND used_by = ?2 AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = invites.network_id AND member_id = ?2)"
+    )
+    .bind(now, memberId, hash)
+]
 
 // A session token: 32 random bytes, base64url.
 const token = () => isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8Array(32)))

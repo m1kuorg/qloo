@@ -27,7 +27,30 @@ export type Setup = { invited: boolean; apiKey: boolean }
 
 export function DashboardPage(props: { agentPath: string; network: NetworkPage; memberId: string; setup: Setup }) {
   const agent = useNetwork(props.agentPath)
+  if (agent.connectionError) return <LostAccess network={props.network} reason={agent.connectionError.reason} />
   return <Dashboard {...props} state={agent.state} dismiss={() => agent.stub.dismissChecklist()} />
+}
+
+// A network's page once its agent has closed the connection for good, as when the member is removed
+// or leaves: what it showed goes, and the page says why. A reload answers 404.
+export function LostAccess({ network, reason }: { network: NetworkPage; reason: string }) {
+  return (
+    <>
+      <header className="hd">
+        <h1>{network.name}</h1>
+      </header>
+      <main className="lost">
+        <StateLine kind="error" role="alert">
+          {reason || 'This page lost its connection to the network. Reload to try again.'}
+        </StateLine>
+        <p>
+          <a className="lnk" href="/app">
+            Open your networks
+          </a>
+        </p>
+      </main>
+    </>
+  )
 }
 
 // The network's home: its launches, a line each for its roster and inbox, and the setup checklist.
@@ -245,8 +268,10 @@ function Checklist({
     },
     {
       title: 'Invite a teammate',
-      how: 'Invite links aren’t available yet. They’ll be in settings, for owners.',
-      href: null,
+      how: owner
+        ? 'Make an invite link in settings and send it to them. It works once, for seven days.'
+        : 'An owner makes invite links in settings.',
+      href: owner ? settings : null,
       done: setup.invited
     },
     {
