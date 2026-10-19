@@ -385,7 +385,12 @@ describe('the OpenAPI document', () => {
   const doc = async () => {
     const res = await exports.default.fetch('https://crossfeed.test/api/v1/openapi.json')
     expect(res.status).toBe(200)
-    return res.json<{ openapi: string; paths: Record<string, Record<string, unknown>>; servers: { url: string }[] }>()
+    return res.json<{
+      openapi: string
+      paths: Record<string, Record<string, unknown>>
+      servers: { url: string }[]
+      components: { schemas: Record<string, { type?: string | string[] }> }
+    }>()
   }
 
   it('describes every route the API serves, from their schemas, with no key needed to read it', async () => {
@@ -406,6 +411,14 @@ describe('the OpenAPI document', () => {
     )
     expect(served.length).toBeGreaterThan(0)
     expect(documented.toSorted()).toEqual(served.toSorted())
+  })
+
+  // A schema made nullable in the document would type every use of it as possibly null, such as a
+  // run that a read answers with, in the SDK's generated types.
+  it('makes a field nullable where it is, never a named schema every use of it shares', async () => {
+    const { components } = await doc()
+    const nullable = Object.entries(components.schemas).filter(([, schema]) => [schema.type].flat().includes('null'))
+    expect(nullable.map(([name]) => name)).toEqual([])
   })
 
   it('has no route that approves anything', async () => {
