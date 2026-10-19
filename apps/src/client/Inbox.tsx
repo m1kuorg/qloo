@@ -14,6 +14,7 @@ import {
 } from '../inbox'
 import { MAX_PAST_GUESTS } from '../limits'
 import { sameName } from '../resolve'
+import type { Links } from './App'
 import { Alert, bandMeter, listOf, percentile, PickOne, ScrollTable, useAction, useIntoView } from './controls'
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Source } from './Source'
@@ -38,6 +39,7 @@ type Page = {
   question: ReactNode // the pitch run's open question, while it waits on one
   runLog: ReactNode // the latest run, when it's a pitch run
   slowCalls: SlowCall[] // Qloo calls still waiting past the slow mark
+  links: Links
 }
 
 // The booker's inbox page, shown only while GUEST_PITCHES is on: load pitches, see what Claude read
@@ -51,6 +53,7 @@ export function InboxPage({
   question,
   runLog,
   slowCalls,
+  links,
   ...actions
 }: Page & Actions) {
   const [selected, setSelected] = useState<string | null>(null)
@@ -113,6 +116,7 @@ export function InboxPage({
               booking={booking}
               running={running}
               startPitches={actions.startPitches}
+              rosterHref={links.roster}
             />
           )}
           {booking?.lists && (
@@ -224,8 +228,14 @@ function PitchSetup({
   roster,
   booking,
   running,
-  startPitches
-}: Pick<Page, 'roster' | 'booking'> & { inbox: Inbox; running: boolean; startPitches: Actions['startPitches'] }) {
+  startPitches,
+  rosterHref
+}: Pick<Page, 'roster' | 'booking'> & {
+  inbox: Inbox
+  running: boolean
+  startPitches: Actions['startPitches']
+  rosterHref: string
+}) {
   const shows = roster.filter((s) => s.entity && (s.resolution === 'resolved' || s.resolution === 'mapped'))
   const suggested = inbox.show ? shows.find((s) => sameName(s.name, inbox.show!.name))?.name : undefined
   // The sample's show while its Qloo lookup is still out: a fresh session's roster can still be resolving
@@ -273,8 +283,8 @@ function PitchSetup({
       </p>
       {shows.length === 0 ? (
         <p className="empty">
-          No roster show is matched in Qloo yet. <a href="/">Import the roster</a> first: the pitches are ranked against
-          one of its shows.
+          No roster show is matched in Qloo yet. <a href={rosterHref}>Import the roster</a> first: the pitches are
+          ranked against one of its shows.
         </p>
       ) : (
         <form className="setup" onSubmit={submit}>

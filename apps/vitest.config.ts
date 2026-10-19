@@ -14,6 +14,7 @@ export default defineConfig({
       // instead of looking up the sample network; test/sample.test.ts turns it on. Guest pitches
       // are off whatever wrangler.jsonc or .dev.vars says; a test of the flow turns them on itself.
       // The run limits are wrangler.jsonc's, whatever .dev.vars says; a test lowers them itself.
+      // Accounts are on, as the product's tests need; a test of the demo without them turns them off.
       miniflare: {
         bindings: {
           QLOO_BASE_URL: 'https://qloo.test',
@@ -29,7 +30,8 @@ export default defineConfig({
           FREE_START_DAILY_CAP: '100',
           QLOO_VISITOR_DAILY_CALL_CAP: '2000',
           SAMPLE_NETWORK: 'off',
-          GUEST_PITCHES: 'off'
+          GUEST_PITCHES: 'off',
+          ACCOUNTS: 'on'
         }
       }
     })

@@ -25,7 +25,7 @@ Contents:
 
 - **Project name:** Crossfeed
 - **Elevator pitch:** An agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners want, by ranking the network's own lists in Qloo.
-- **Try it out:** <https://crossfeed.m1kuorg.workers.dev> and <https://github.com/m1kuorg/qloo>
+- **Try it out:** <https://crossfeed.m1kuorg.workers.dev/demo> and <https://github.com/m1kuorg/qloo>
 - **Built with:** qloo, claude, anthropic, cloudflare-workers, durable-objects, cloudflare-agents, hono, react, typescript, vite, vitest
 - **Video and images:** the video is `crossfeed-demo.mp4`, 2 minutes 50 seconds with captions and no voice, on the draft release `submission`, which waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63). The screenshots are from the same run on the live demo, on sample data:
   - [The chart, with a climber and its "why it moved" line](https://github.com/m1kuorg/qloo/blob/main/docs/images/chart.png)

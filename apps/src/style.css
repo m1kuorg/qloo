@@ -245,6 +245,24 @@ textarea {
   margin-left: auto;
 }
 
+/* The demo shell's way out to accounts: a quiet link at the bar's end, not one of its sections. */
+.shell-create {
+  margin-left: 20px;
+  white-space: nowrap;
+}
+
+.shell-create .lnk {
+  color: #a3a3a3;
+}
+
+.shell-create .lnk:hover {
+  color: #fff;
+}
+
+.top .shell-create :focus-visible {
+  outline-offset: 2px;
+}
+
 .sample-tag {
   font-size: 11px;
   color: #b5b5b5;
@@ -1778,8 +1796,8 @@ a.btn {
   margin: 0 0 12px;
 }
 
-/* Phones: 16px gutters; the top bar wraps its sample notice under the nav, the network's name being
-   in the notice already; the launch header stacks; the roster table scrolls sideways in its frame. */
+/* Phones: 16px gutters; the top bar wraps its sample notice and create link under the nav, the
+   network's name being in the notice already; the launch header stacks; the roster table scrolls sideways in its frame. */
 @media (max-width: 600px) {
   .top {
     flex-wrap: wrap;
@@ -1798,6 +1816,11 @@ a.btn {
   }
 
   .shell-notice {
+    flex-basis: 100%;
+    margin: 0 0 12px;
+  }
+
+  .shell-create {
     flex-basis: 100%;
     margin: 0 0 12px;
   }

@@ -19,7 +19,7 @@ import {
   type ModelRequest,
   type QlooEntity
 } from './fake'
-import { openSession, type Session } from './session'
+import { links, openSession, type Session } from './session'
 
 // The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
 const pitchText = (request: ModelRequest): string =>
@@ -385,7 +385,8 @@ describe('the booker clearing the inbox', () => {
           approveReply: noop,
           discardReply: noop,
           openCall: () => {},
-          opened: null
+          opened: null,
+          links
         })
       )
     }
@@ -477,7 +478,7 @@ describe('the booker clearing the inbox', () => {
     const state = await s.until((state) => state.run?.status === 'waiting')
     // The inbox page as the browser renders it from synced state.
     const html = renderToStaticMarkup(
-      createElement(Workspace, { page: 'inbox', agent: { state, stub: {} } as unknown as Agent })
+      createElement(Workspace, { page: 'inbox', agent: { state, stub: {} } as unknown as Agent, links })
     )
 
     // Before the lists, so a single column reaches it first.
