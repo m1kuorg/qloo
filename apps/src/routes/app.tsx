@@ -6,6 +6,8 @@ import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
 import { accountsOn, appOrigins, jsonBody, sameOrigin, session, signedIn } from '../auth'
 import {
+  apiKeys,
+  createApiKey,
   createInvite,
   createNetwork,
   lastNetwork,
@@ -16,6 +18,7 @@ import {
   openNetwork,
   removeMember,
   renameNetwork,
+  revokeApiKey,
   revokeInvite,
   setRole,
   setupProgress,
@@ -121,9 +124,11 @@ appPages.get('/app/:networkId/inbox', async (c) => {
 appPages.get('/app/:networkId/settings', async (c) => {
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
-  // Every member sees who's in the network; only an owner sees its invites.
+  // Every member sees who's in the network; only an owner sees its invites and API keys.
   const members = JSON.stringify(await networkMembers(c.env.DB, network.id))
-  const invites = network.role === 'owner' ? JSON.stringify(await openInvites(c.env.DB, network.id)) : undefined
+  const owner = network.role === 'owner'
+  const invites = owner ? JSON.stringify(await openInvites(c.env.DB, network.id)) : undefined
+  const keys = owner ? JSON.stringify(await apiKeys(c.env.DB, network.id)) : undefined
   return c.render(
     <div
       id="root"
@@ -131,6 +136,7 @@ appPages.get('/app/:networkId/settings', async (c) => {
       data-member-id={c.var.member.id}
       data-members={members}
       data-invites={invites}
+      data-api-keys={keys}
       {...island(c, network)}
     />
   )
@@ -160,10 +166,10 @@ appPages.post('/app/:networkId/settings/network', async (c) => {
 const OWNERS_ONLY = 'Only an owner can invite and manage members.'
 
 // The answer to give a member who isn't one of network `id`'s owners: 404 outside the network, 403 to
-// a member. Null for an owner.
-async function refuseNonOwner(c: Context<AppEnv>, id: string) {
+// a member, saying `ownersOnly`. Null for an owner.
+async function refuseNonOwner(c: Context<AppEnv>, id: string, ownersOnly = OWNERS_ONLY) {
   const role = await memberRole(c.env.DB, id, c.var.member.id)
-  return role === 'owner' ? null : role ? c.json({ error: OWNERS_ONLY }, 403) : c.notFound()
+  return role === 'owner' ? null : role ? c.json({ error: ownersOnly }, 403) : c.notFound()
 }
 
 // The answer to a change that would leave the network with no owner.
@@ -232,6 +238,32 @@ appPages.post('/app/:networkId/settings/members/leave', async (c) => {
     return c.json({ error: "You're this network's last owner. Make someone else an owner before you leave." }, 409)
   await kick(c.env, id, c.var.member.id)
   return c.json({})
+})
+
+// The settings' API keys module, for owners alone: a program acts for the network with a key, short of
+// approving anything (ADR 0002). A new key's secret is shown this once; the list shows each key by its
+// prefix and dates.
+const KEYS_OWNERS_ONLY = 'Only an owner can create and revoke API keys.'
+
+appPages.post('/app/:networkId/settings/api-keys', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id, KEYS_OWNERS_ONLY)
+  if (refused) return refused
+  const read = readName((await jsonBody(c)).name, 'Name the key, such as the script or assistant that will use it.')
+  if ('error' in read) return c.json({ error: read.error }, 400)
+  const key = await createApiKey(c.env.DB, id, c.var.member.id, read.name)
+  if (!key) return c.json({ error: KEYS_OWNERS_ONLY }, 403)
+  return c.json({ id: key.id, secret: key.secret, keys: await apiKeys(c.env.DB, id) })
+})
+
+// Revokes a key, effective at once: its next request answers 401.
+appPages.post('/app/:networkId/settings/api-keys/:keyId/revoke', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id, KEYS_OWNERS_ONLY)
+  if (refused) return refused
+  if (!(await revokeApiKey(c.env.DB, id, c.req.param('keyId'), c.var.member.id)))
+    return c.json({ error: 'This key was revoked already. Reload to see the keys in use.' }, 409)
+  return c.json({ keys: await apiKeys(c.env.DB, id) })
 })
 
 // Closes a member's open connections to the network's agent, once the directory has let them go.

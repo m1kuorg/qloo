@@ -3265,6 +3265,77 @@ a.wm {
   opacity: 0.6;
 }
 
+/* The API keys module: the members table's grammar, each key's name over its prefix and each date over
+   who made it, and Revoke at the row's end, which asks first on Panel Grey. */
+.keys th:nth-child(2) {
+  width: 132px;
+}
+
+.keys th:nth-child(3) {
+  width: 84px;
+}
+
+.keys th:nth-child(4) {
+  width: 72px;
+}
+
+.keys td {
+  height: 44px;
+}
+
+.keys .nm {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.keys .nm .chip {
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+.keys .tg {
+  display: block;
+}
+
+.keys code.tg {
+  font: 500 12px var(--mono);
+}
+
+.keys .ask td {
+  height: auto;
+  padding: 0 12px 12px;
+}
+
+.keys .ask p {
+  max-width: 52ch;
+}
+
+.keys .ask .acts {
+  margin-top: 8px;
+}
+
+/* A new key's secret is data, set in the monospace stack where it's shown once. */
+.key-in {
+  font-family: var(--mono);
+}
+
+.set-body code {
+  font: 500 12px var(--mono);
+  overflow-wrap: anywhere;
+}
+
+/* The owner's form, a new key shown once, the keys, and where the API is described, a step apart. */
+.api-keys {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.api-keys > .help {
+  margin-top: 0;
+}
+
 /* An owner's invite links, under the members: making one shows it once on Panel Grey, as a recovery
    code is shown, and the links still open follow, one per hairline row. */
 .invites {
@@ -3434,6 +3505,18 @@ a.wm {
 
   .members th:nth-child(4) {
     width: 96px;
+  }
+
+  .keys th:nth-child(2) {
+    width: 92px;
+  }
+
+  .keys th:nth-child(3) {
+    width: 64px;
+  }
+
+  .keys th:nth-child(4) {
+    width: 60px;
   }
 
   .row-acts {

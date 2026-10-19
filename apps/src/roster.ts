@@ -1,5 +1,6 @@
 // Turns an imported roster, pasted names or a CSV, into one row per show. Anything it can't read
 // is refused with a message for the programmer, so a roster is never imported in part.
+import { Refusal } from './refusal'
 
 export type RosterFormat = 'lines' | 'csv'
 
@@ -17,7 +18,7 @@ export type RosterFigure = Exclude<keyof RosterRow, 'name'>
 // pasted names.
 export function parseRoster(text: string, format: RosterFormat): { rows: RosterRow[]; figures: RosterFigure[] } {
   if (format === 'csv') return csvRows(text)
-  if (format !== 'lines') throw new Error(`Unknown roster format "${format}".`)
+  if (format !== 'lines') throw new Refusal('invalid', `Unknown roster format "${format}".`)
   // One show per name, ignoring case; a pasted name carries nothing for a repeat to disagree on.
   return { rows: [...new Map(lines(text).map((name) => [name.toLowerCase(), row(name)])).values()], figures: [] }
 }
@@ -47,7 +48,8 @@ function csvRows(text: string): { rows: RosterRow[]; figures: RosterFigure[] } {
     COLUMNS.map((c) => [c, (header ?? []).findIndex((h) => h.trim().toLowerCase() === c)])
   )
   if (index.name < 0)
-    throw new Error(
+    throw new Refusal(
+      'unreadable',
       `The CSV needs a "name" column. Its first row has ${header?.length ? header.map((h) => `"${h.trim()}"`).join(', ') : 'nothing'}.`
     )
   const cell = (record: string[], column: (typeof COLUMNS)[number]) => (record[index[column]] ?? '').trim() || null
@@ -56,9 +58,9 @@ function csvRows(text: string): { rows: RosterRow[]; figures: RosterFigure[] } {
     if (record.every((f) => !f.trim())) return []
     const line = i + 2
     const name = cell(record, 'name')
-    if (!name) throw new Error(`Row ${line} of the CSV has no name.`)
+    if (!name) throw new Refusal('unreadable', `Row ${line} of the CSV has no name.`)
     const first = seen.get(name.toLowerCase())
-    if (first) throw new Error(`Rows ${first} and ${line} of the CSV both name "${name}".`)
+    if (first) throw new Refusal('unreadable', `Rows ${first} and ${line} of the CSV both name "${name}".`)
     seen.set(name.toLowerCase(), line)
     const fields = {
       downloads: downloads(cell(record, 'downloads'), line),
@@ -73,7 +75,8 @@ function csvRows(text: string): { rows: RosterRow[]; figures: RosterFigure[] } {
 function downloads(value: string | null, line: number) {
   if (value === null) return null
   const digits = value.replace(/[,_\s]/g, '')
-  if (!/^\d+$/.test(digits)) throw new Error(`Row ${line} of the CSV: downloads "${value}" isn't a whole number.`)
+  if (!/^\d+$/.test(digits))
+    throw new Refusal('unreadable', `Row ${line} of the CSV: downloads "${value}" isn't a whole number.`)
   return Number(digits)
 }
 

@@ -140,6 +140,16 @@ export async function connect(
   }
 }
 
+// A program's requests to the REST API with an API key, as `curl -H "Authorization: Bearer …"` sends
+// them: no cookie, and no Origin.
+export const api =
+  (secret: string) =>
+  (path: string, init: RequestInit = {}): Promise<Response> => {
+    const headers = new Headers(init.headers)
+    headers.set('Authorization', `Bearer ${secret}`)
+    return exports.default.fetch(`${origin}${path}`, { ...init, headers })
+  }
+
 export type Member = {
   id: string
   name: string

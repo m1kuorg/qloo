@@ -22,6 +22,7 @@ import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
 import { cpmProblem, dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
+import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
 import { listOf } from './text'
 import { tools, type ToolContext, type ToolResult } from './tools'
@@ -326,14 +327,18 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const visitor = this.visitor()
     const { rows, figures } = parseRoster(text, format)
     if (rows.length === 0)
-      throw new Error(format === 'csv' ? 'The CSV has no show rows.' : 'Paste at least one show name, one per line.')
+      throw new Refusal(
+        'unreadable',
+        format === 'csv' ? 'The CSV has no show rows.' : 'Paste at least one show name, one per line.'
+      )
     if (rows.length > MAX_SHOWS)
-      throw new Error(
+      throw new Refusal(
+        'unreadable',
         `${rows.length} shows is over the ${MAX_SHOWS}-show limit: one comparison scores at most ${MAX_SHOWS} shows, Qloo's largest page, and scores from separate comparisons can't be compared. Import ${MAX_SHOWS} shows or fewer.`
       )
     const pending = () => {
       if (this.state.roster.some((s) => s.resolution === 'pending'))
-        throw new Error('The last import is still looking up its shows. Wait for it to finish.')
+        throw new Refusal('conflict', 'The last import is still looking up its shows. Wait for it to finish.')
     }
     pending()
     const keep = this.keepsSettledShows ? figures : null
@@ -377,11 +382,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const visitor = this.visitor()
     // A comp mapped now would be overwritten when the show's own search lands.
     const ready = () => {
-      if (this.show(name).resolution === 'pending') throw new Error(`${name} is still being looked up in Qloo.`)
+      if (this.show(name).resolution === 'pending')
+        throw new Refusal('conflict', `${name} is still being looked up in Qloo.`)
     }
     ready()
     const q = query.trim()
-    if (!q) throw new Error('Type the name of a comparable show.')
+    if (!q) throw new Refusal('invalid', 'Type the name of a comparable show.')
     await this.reserveCalls(visitor, 1)
     ready() // again, since an import may have replaced the show meanwhile
     const seq = this.numberCall()
@@ -394,32 +400,33 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   @callable()
   updateShow(name: string, patch: ShowPatch) {
     const unknown = Object.keys(patch).filter((k) => !PATCH_KEYS.includes(k))
-    if (unknown.length > 0) throw new Error(`Can't change ${unknown.join(', ')}.`)
+    if (unknown.length > 0) throw new Refusal('invalid', `Can't change ${unknown.join(', ')}.`)
     this.editShow(name, (show) => {
       const next = { ...show }
       if (patch.entityId !== undefined) {
         const entity = show.candidates.find((c) => c.id === patch.entityId)
-        if (!entity) throw new Error(`That isn't one of the candidates for ${name}.`)
+        if (!entity) throw new Refusal('invalid', `That isn't one of the candidates for ${name}.`)
         Object.assign(next, { resolution: 'resolved', entity })
       }
       if (patch.compId !== undefined) {
         const entity = show.compSearch?.results.find((c) => c.id === patch.compId)
-        if (!entity) throw new Error(`That isn't one of the search results for ${name}.`)
+        if (!entity) throw new Refusal('invalid', `That isn't one of the search results for ${name}.`)
         // A comp replaces the name's own candidates, and the comp's search becomes the evidence.
         Object.assign(next, { resolution: 'mapped', entity, candidates: [], evidence: show.compSearch!.call })
       }
       if (patch.downloads !== undefined) {
         const d = patch.downloads
         if (d !== null && !(Number.isSafeInteger(d) && d >= 0))
-          throw new Error('Downloads per episode must be a whole number, 0 or more.')
+          throw new Refusal('invalid', 'Downloads per episode must be a whole number, 0 or more.')
         next.downloads = d
       }
       if (patch.status !== undefined) {
-        if (patch.status !== null && typeof patch.status !== 'string') throw new Error('Status must be text.')
+        if (patch.status !== null && typeof patch.status !== 'string')
+          throw new Refusal('invalid', 'Status must be text.')
         next.status = patch.status?.trim() || null
       }
       if (patch.excluded !== undefined) {
-        if (typeof patch.excluded !== 'boolean') throw new Error('Excluded must be true or false.')
+        if (typeof patch.excluded !== 'boolean') throw new Refusal('invalid', 'Excluded must be true or false.')
         next.excluded = patch.excluded
       }
       // A sample figure the visitor changes is theirs from then on.
@@ -433,7 +440,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   @callable()
   setCpm(cpm: number) {
     const problem = cpmProblem(cpm)
-    if (problem) throw new Error(problem)
+    if (problem) throw new Refusal('invalid', problem)
     const s = this.state.sample
     this.setState({ ...this.state, cpm, sample: s && { ...s, cpm: s.cpm && cpm === this.state.cpm } })
     this.repriceOrder()
@@ -891,7 +898,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // with the reason, before anything is numbered or kept (TRD agent limits).
   protected async reserveCalls(visitor: string, n: number) {
     const refused = await this.env.QlooGateway.getByName('global').reserveCalls(visitor, n)
-    if (refused) throw new Error(`${refused}.`)
+    if (refused) throw new Refusal('limit', `${refused}.`)
   }
 
   // Counts a model run against the daily limits, or returns why one can't start (TRD agent limits).
@@ -1036,7 +1043,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 
   private show(name: string) {
     const show = this.state.roster.find((s) => s.name === name)
-    if (!show) throw new Error(`No show named "${name}" in the roster.`)
+    if (!show) throw new Refusal('not_found', `No show named "${name}" in the roster.`)
     return show
   }
 

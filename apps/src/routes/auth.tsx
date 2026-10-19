@@ -12,7 +12,7 @@ import {
   type RegistrationResponseJSON
 } from '@simplewebauthn/server'
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
-import { Hono, type Context } from 'hono'
+import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { accountsOn, appOrigins, endSession, jsonBody, nextPath, sameOrigin, setSession, signedIn } from '../auth'
 import {
   findInvite,
@@ -42,6 +42,24 @@ auth.use('/auth/*', accountsOn, sameOrigin, async (c, next) => {
 
 // A request that can't go on, in words for the sign-in or invite page.
 const refuse = (c: Context, error: string, status: 400 | 401 | 404 | 409 | 410 | 429 = 400) => c.json({ error }, status)
+
+// The requests that write a challenge, an account, or a session before anyone is signed in are
+// limited per visitor per minute (AUTH_LIMITER in wrangler.jsonc), so a script can't spend the
+// directory's writes. A request with no visitor address, as in local tests, isn't limited.
+const perMinute: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+  const visitor = await visitorTag(c.req.raw, c.env.VISITOR_SALT)
+  if (visitor && !(await c.env.AUTH_LIMITER.limit({ key: visitor })).success) {
+    c.header('Retry-After', '60')
+    return refuse(
+      c,
+      'Too many sign-in requests from your address in the last minute. Wait a minute, then try again.',
+      429
+    )
+  }
+  await next()
+}
+for (const path of ['/auth/sign-up/options', '/auth/sign-up', '/auth/sign-in/options', '/auth/recover'])
+  auth.use(path, perMinute)
 
 // The challenge a ceremony's second request names, taken so it can't be used again, while it's
 // still good; null once it's used, expired, or was never given.

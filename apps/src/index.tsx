@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { secureHeaders } from 'hono/secure-headers'
 import { purgeExpired } from './directory'
 import { checkHealth } from './health'
+import { api } from './routes/api'
 import { appPages } from './routes/app'
 import { auth } from './routes/auth'
 import { demo } from './routes/demo'
@@ -25,6 +26,7 @@ app.route('/', marketing)
 app.route('/', demo)
 app.route('/', auth)
 app.route('/', appPages)
+app.route('/', api)
 
 export default {
   fetch: app.fetch,

@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import type { Invite, NetworkMember } from '../../directory'
-import { Alert, ScrollTable, send, useAction } from '../controls'
+import { Alert, ScrollTable, send, ShownOnce, useAction } from '../controls'
 import { day, type NetworkPage } from '../Dashboard'
 import { StateLine } from '../states'
 
@@ -164,13 +164,11 @@ const outWords = (self: boolean, member: string, network: string) =>
 function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[] }) {
   const [invites, setInvites] = useState(listed)
   const [made, setMade] = useState<{ id: string; link: string } | null>(null)
-  const [copied, setCopied] = useState<boolean | null>(null)
   const { busy, error, run } = useAction()
   const create = () =>
     run(async () => {
       const answer = await send<{ id: string; link: string; invites: Invite[] }>(`${path}/invites`)
       setMade({ id: answer.id, link: answer.link })
-      setCopied(null)
       setInvites(answer.invites)
     })
   const revoke = (id: string) =>
@@ -178,14 +176,6 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
       setInvites((await send<{ invites: Invite[] }>(`${path}/invites/${id}/revoke`)).invites)
       if (made?.id === id) setMade(null)
     })
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(made!.link)
-      setCopied(true)
-    } catch {
-      setCopied(false)
-    }
-  }
   return (
     <div className="invites">
       <h3 className="lbl">Invite links</h3>
@@ -199,28 +189,9 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
         </button>
       </div>
       {made && (
-        <div className="new-link">
-          <label htmlFor="invite-link">New invite link</label>
-          <input
-            id="invite-link"
-            className="acct-in"
-            value={made.link}
-            readOnly
-            onFocus={(e) => e.target.select()}
-            spellCheck={false}
-          />
-          <div className="acts">
-            <button className="btn" type="button" onClick={() => void copy()}>
-              {copied ? 'Copied' : 'Copy link'}
-            </button>
-          </div>
-          {copied === false && (
-            <StateLine kind="error" role="alert">
-              This browser didn’t let Crossfeed copy it. Select the link and copy it yourself.
-            </StateLine>
-          )}
-          <p className="help">Copy it now and send it to your teammate: Crossfeed shows each link only once.</p>
-        </div>
+        <ShownOnce key={made.id} id="invite-link" label="New invite link" noun="link" value={made.link}>
+          Copy it now and send it to your teammate: Crossfeed shows each link only once.
+        </ShownOnce>
       )}
       <Alert error={error} />
       {invites.length === 0 ? (

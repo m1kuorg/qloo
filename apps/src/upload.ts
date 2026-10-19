@@ -2,9 +2,10 @@
 // picked files and sends the result over the agent's connection, and the API alike. A roster file
 // becomes roster text and its format; pitch files become pitches of sender, subject, and plain-text
 // body. Files are never kept, and anything that can't be read is refused with a message that says
-// why, before the agent sees it.
+// why, before the agent sees it, and a code for the API (refusal.ts).
 import PostalMime from 'postal-mime'
 import { splitPitches, type PitchInput } from './inbox'
+import { Refusal } from './refusal'
 import type { RosterFormat } from './roster'
 
 // The most one file can hold, checked before it's read.
@@ -18,11 +19,13 @@ const ROSTER_FORMATS: Record<string, RosterFormat> = { csv: 'csv', txt: 'lines' 
 
 // The one file of a roster upload, as roster text and its format.
 export async function readRosterUpload(files: readonly Upload[]): Promise<{ text: string; format: RosterFormat }> {
-  if (files.length !== 1) throw new Error('Upload one roster file: a .csv, or a .txt with one show name per line.')
+  if (files.length !== 1)
+    throw new Refusal('unreadable', 'Upload one roster file: a .csv, or a .txt with one show name per line.')
   const [file] = files
   const format = ROSTER_FORMATS[extension(file.name)]
   if (!format)
-    throw new Error(
+    throw new Refusal(
+      'unreadable',
       `"${file.name}" isn't a CSV or text file. Upload the roster as .csv, or as .txt with one show name per line; a spreadsheet can save or export it as CSV.`
     )
   return { text: await read(file), format }
@@ -153,7 +156,7 @@ const ENTITIES: Record<string, string> = {
 async function read(file: Upload) {
   tooBig(file)
   const text = await file.text()
-  if (!text.trim()) throw new Error(`"${file.name}" is empty.`)
+  if (!text.trim()) throw new Refusal('unreadable', `"${file.name}" is empty.`)
   return text
 }
 
@@ -161,7 +164,8 @@ async function read(file: Upload) {
 async function readBytes(file: Upload) {
   tooBig(file)
   const bytes = new Uint8Array(await file.arrayBuffer())
-  if (bytes.every((b) => b === 0x20 || (b >= 0x09 && b <= 0x0d))) throw new Error(`"${file.name}" is empty.`)
+  if (bytes.every((b) => b === 0x20 || (b >= 0x09 && b <= 0x0d)))
+    throw new Refusal('unreadable', `"${file.name}" is empty.`)
   return bytes
 }
 
@@ -171,7 +175,8 @@ const extension = (name: string) => name.slice(name.lastIndexOf('.') + 1).toLowe
 // Refuses a file over the limit before it's read.
 function tooBig(file: Upload) {
   if (file.size > MAX_UPLOAD_BYTES)
-    throw new Error(
+    throw new Refusal(
+      'too_large',
       `"${file.name}" is ${megabytes(file.size)}, over the ${megabytes(MAX_UPLOAD_BYTES, 0)} limit for an upload.`
     )
 }
