@@ -144,7 +144,7 @@ export class QlooGateway extends DurableObject<Env> {
     // A limit that isn't a number refuses every sign-up, rather than none.
     const limit = Number(this.env.SIGNUP_VISITOR_DAILY_CAP) || 0
     if (this.used('signups', key, day) >= limit)
-      return `You've created ${limit === 1 ? '1 account' : `${limit} accounts`} today, the most one visitor can create in a UTC day; it resets at 00:00 UTC. Joining a network through an invite doesn't count.`
+      return `You've created ${limit === 1 ? '1 account' : `${limit} accounts`} today, the most one visitor can create in a UTC day; it resets at 00:00 UTC.`
     if (count) this.add('signups', key, day)
     return null
   }

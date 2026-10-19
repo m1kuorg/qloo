@@ -14,7 +14,7 @@ async function send<T>(path: string, body: object = {}): Promise<T> {
     body: JSON.stringify(body)
   })
   const answer = (await res.json().catch(() => null)) as { error?: string } | null
-  if (!res.ok) throw new Error(answer?.error ?? `Crossfeed answered ${res.status}. Try again.`)
+  if (!res.ok || !answer) throw new Error(answer?.error ?? `Crossfeed answered ${res.status}. Try again.`)
   return answer as T
 }
 
@@ -265,9 +265,6 @@ export function MemberPage({ name }: { name: string }) {
       </header>
       <div className="saved">
         <div className="acts">
-          <a className="btn" href="/demo">
-            Open the sample network
-          </a>
           <button className="btn" type="button" disabled={busy} onClick={() => void signOut()}>
             {busy ? 'Signing out…' : 'Sign out'}
           </button>

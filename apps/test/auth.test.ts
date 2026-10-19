@@ -275,7 +275,7 @@ describe('the way in', () => {
 })
 
 describe('a write from another site', () => {
-  const unsent = (path: string, headers: Record<string, string>) =>
+  const postFrom = (path: string, headers: Record<string, string>) =>
     get(path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: '{}' })
 
   it("is refused with 403 when a member's cookie signs it, or when it says no Origin", async () => {
@@ -284,7 +284,7 @@ describe('a write from another site', () => {
       string,
       string
     >[]) {
-      const res = await unsent('/auth/sign-out', { Cookie: cookie, ...headers })
+      const res = await postFrom('/auth/sign-out', { Cookie: cookie, ...headers })
       expect(res.status).toBe(403)
     }
     expect(await appFor(cookie)).toBe('Ada Programmer')
@@ -293,7 +293,7 @@ describe('a write from another site', () => {
   it('is refused for signing up, in, or back in with a recovery code too', async () => {
     const { recoveryCode } = await openMember()
     for (const path of ['/auth/sign-up/options', '/auth/sign-in/options', '/auth/recover'])
-      expect((await unsent(path, { Origin: 'https://crossfeed.example' })).status).toBe(403)
+      expect((await postFrom(path, { Origin: 'https://crossfeed.example' })).status).toBe(403)
     expect((await post('/auth/recover', { code: recoveryCode })).status).toBe(200)
   })
 })
@@ -308,8 +308,7 @@ describe('the sign-up cap', () => {
     return post('/auth/sign-up', { challenge, response: await softwareAuthenticator().register(options) }, headers)
   }
   const CAPPED = {
-    error:
-      "You've created 5 accounts today, the most one visitor can create in a UTC day; it resets at 00:00 UTC. Joining a network through an invite doesn't count."
+    error: "You've created 5 accounts today, the most one visitor can create in a UTC day; it resets at 00:00 UTC."
   }
 
   it('refuses a sixth sign-up from one visitor in a UTC day, before any passkey is made', async () => {

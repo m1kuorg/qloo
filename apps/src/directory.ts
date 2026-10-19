@@ -9,7 +9,7 @@ import { sha256 } from './text'
 export const SESSION_MS = 30 * 24 * 60 * 60_000
 const SEEN_EVERY_MS = 60_000
 // A passkey ceremony's challenge is good for five minutes.
-export const CHALLENGE_MS = 5 * 60_000
+const CHALLENGE_MS = 5 * 60_000
 
 export type Member = { id: string; name: string }
 

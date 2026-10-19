@@ -46,7 +46,7 @@ const body = async (c: Context) => ((await c.req.json().catch(() => null)) ?? {}
 
 // The challenge a ceremony's second request names, taken so it can't be used again, while it's
 // still good; null once it's used, expired, or was never given.
-async function started(c: Context<{ Bindings: Env }>, kind: string, id: unknown): Promise<Challenge | null> {
+async function takeStarted(c: Context<{ Bindings: Env }>, kind: string, id: unknown): Promise<Challenge | null> {
   const challenge = typeof id === 'string' ? await takeChallenge(c.env.DB, id, kind) : null
   return challenge && challenge.expires > Date.now() ? challenge : null
 }
@@ -107,12 +107,12 @@ auth.post('/auth/sign-up/options', async (c) => {
 // Sign-up, second step: the browser's new passkey. The member is written only once it verifies.
 auth.post('/auth/sign-up', async (c) => {
   const { challenge, response } = await body(c)
-  const sign = await started(c, 'sign-up', challenge)
-  if (!sign) return refuse(c, STALE)
+  const started = await takeStarted(c, 'sign-up', challenge)
+  if (!started) return refuse(c, STALE)
   const registration = await verified('sign-up', () =>
     verifyRegistrationResponse({
       response: response as RegistrationResponseJSON,
-      expectedChallenge: sign.challenge,
+      expectedChallenge: started.challenge,
       expectedOrigin: appOrigins(c.env),
       expectedRPID: c.env.RP_ID,
       requireUserVerification: true
@@ -125,7 +125,7 @@ auth.post('/auth/sign-up', async (c) => {
   try {
     const { token, recoveryCode } = await signUp(
       c.env.DB,
-      { id: sign.memberId!, name: sign.name! },
+      { id: started.memberId!, name: started.name! },
       {
         credentialId: credential.id,
         publicKey: isoBase64URL.fromBuffer(credential.publicKey),
@@ -154,8 +154,8 @@ auth.post('/auth/sign-in/options', async (c) => {
 // counter of 0, as synced passkeys send, is accepted.
 auth.post('/auth/sign-in', async (c) => {
   const { challenge, response } = await body(c)
-  const sign = await started(c, 'sign-in', challenge)
-  if (!sign) return refuse(c, STALE)
+  const started = await takeStarted(c, 'sign-in', challenge)
+  if (!started) return refuse(c, STALE)
   const answer = response as AuthenticationResponseJSON
   const passkey = typeof answer?.id === 'string' ? await findPasskey(c.env.DB, answer.id) : null
   const handle = answer?.response?.userHandle
@@ -164,7 +164,7 @@ auth.post('/auth/sign-in', async (c) => {
   const authentication = await verified('sign-in', () =>
     verifyAuthenticationResponse({
       response: answer,
-      expectedChallenge: sign.challenge,
+      expectedChallenge: started.challenge,
       expectedOrigin: appOrigins(c.env),
       expectedRPID: c.env.RP_ID,
       credential: {

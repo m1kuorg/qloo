@@ -24,7 +24,8 @@ type Passkey = { id: Uint8Array<ArrayBuffer>; rpId: string; userHandle: string; 
 export type Authenticator = {
   // Answers navigator.credentials.create() for `options`, as the browser would from `origin`.
   register: (options: PublicKeyCredentialCreationOptionsJSON, origin?: string) => Promise<RegistrationResponseJSON>
-  // Answers navigator.credentials.get() for `options` with a passkey it holds for their relying party.
+  // Answers navigator.credentials.get() for `options` with the first passkey it holds for their
+  // relying party, as a discoverable passkey sign-in, which names none, lets it.
   authenticate: (options: PublicKeyCredentialRequestOptionsJSON, origin?: string) => Promise<AuthenticationResponseJSON>
 }
 
@@ -91,10 +92,7 @@ export function softwareAuthenticator({ userVerified = true } = {}): Authenticat
     },
 
     async authenticate(options, origin = ORIGIN) {
-      const allowed = options.allowCredentials?.map((c) => c.id) ?? []
-      const passkey = passkeys.find(
-        (p) => p.rpId === options.rpId && (!allowed.length || allowed.includes(isoBase64URL.fromBuffer(p.id)))
-      )
+      const passkey = passkeys.find((p) => p.rpId === options.rpId)
       if (!passkey) throw new Error(`No passkey for ${options.rpId}.`)
       const authData = bytes(await sha256(new TextEncoder().encode(options.rpId!)), [flags], counter)
       const data = clientData('webauthn.get', options.challenge, origin)

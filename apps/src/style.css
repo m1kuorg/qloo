@@ -1910,7 +1910,7 @@ a.wm {
 
 .acct {
   max-width: 944px;
-  padding: 24px 32px 48px;
+  padding: 24px 32px 32px;
 }
 
 .acct-hd {
@@ -1940,12 +1940,12 @@ a.wm {
   align-content: start;
   gap: 12px;
   min-width: 0;
-  padding: 20px 24px 8px 0;
+  padding: 16px 24px 8px 0;
 }
 
 .way + .way {
   border-left: 1px solid var(--line);
-  padding: 20px 0 8px 24px;
+  padding: 16px 0 8px 24px;
 }
 
 .way .lbl {
@@ -1987,7 +1987,7 @@ a.wm {
   display: grid;
   justify-items: start;
   gap: 12px;
-  padding-top: 20px;
+  padding-top: 16px;
 }
 
 /* The recovery code, shown once, on Panel Grey: the one thing on the page that needs keeping. A click
@@ -2018,7 +2018,7 @@ a.wm {
 
   .way,
   .way + .way {
-    padding: 20px 0 8px;
+    padding: 16px 0 8px;
   }
 
   .way + .way {
@@ -2032,7 +2032,7 @@ a.wm {
   }
 
   .code {
-    padding: 14px 16px;
+    padding: 12px 16px;
     font-size: 17px;
   }
 }
