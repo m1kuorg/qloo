@@ -6,17 +6,24 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "$npm_execpath run build && vite preview",
-    "deploy": "$npm_execpath run build && wrangler deploy",
+    "deploy": "$npm_execpath run build && wrangler d1 migrations apply DB --remote && wrangler deploy",
+    "deploy:preview": "CLOUDFLARE_ENV=preview $npm_execpath run build && wrangler d1 migrations apply DB --remote --env preview && wrangler deploy --env preview",
     "cf-typegen": "wrangler types --include-runtime=false --strict-vars=false",
     "typecheck": "tsc",
     "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
+    "@hono/zod-openapi": "^1.6.3",
+    "@modelcontextprotocol/server": "2.3.1",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
     "agents": "0.28.1",
     "hono": "^4.13.13",
+    "postal-mime": "^4.0.11",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.64.0",
