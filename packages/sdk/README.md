@@ -139,7 +139,7 @@ try {
 }
 ```
 
-The API's codes are `invalid` (400), `unauthorized` (401), `forbidden` (403), `not_found` (404), `conflict` (409), `too_large` (413), `unreadable` (422), `limit` (429, a daily cap), `rate_limited` (429, 120 requests a minute per key), and `internal` (500). The SDK adds `run_failed`, `run_stopped`, and `timeout` from its wait helpers, with a null `status`, and `unexpected_response` for an answer that isn't one of Crossfeed's errors, as from a wrong `baseUrl`.
+The API's codes are `invalid` (400), `unauthorized` (401), `forbidden` (403), `not_found` (404), `conflict` (409), `too_large` (413), `unreadable` (422), `limit` (429, a daily cap or the network's launch cap), `rate_limited` (429, 120 requests a minute per key), and `internal` (500). The SDK adds `run_failed`, `run_stopped`, and `timeout` from its wait helpers, with a null `status`, and `unexpected_response` for an answer that isn't one of Crossfeed's errors, as from a wrong `baseUrl`.
 
 ## Generate the types
 

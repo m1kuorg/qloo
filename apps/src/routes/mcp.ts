@@ -216,7 +216,7 @@ function serverFor(ctx: OperationContext) {
 
   tool(
     'create_launch',
-    "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's dashboard; start a run with start_launch_run to rank the roster for it.",
+    "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's dashboard; start a run with start_launch_run to rank the roster for it. A network keeps a limited number of launches at once; past it, a member deletes one on the dashboard to make room.",
     LaunchPlan,
     WRITE,
     async (plan) => {

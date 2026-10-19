@@ -168,16 +168,32 @@ export class NetworkAgent extends CrossfeedAgent {
   }
 
   // Plans a new launch, named or from up to three comps: its own agent takes it, then it joins the
-  // network's list, newest first, where every member's dashboard shows it. Its page is at its ID.
+  // network's list, newest first, where every member's dashboard shows it. Its page is at its ID. A
+  // network keeps at most LAUNCHES_PER_NETWORK launches; deleting one makes room. Launches still being
+  // planned count, since several can be planned at once while their agents take them.
   @callable()
   async createLaunch(input: LaunchInput) {
     const { name, comps } = readLaunch(input, 'to plan it')
-    const id = crypto.randomUUID()
-    const launch = await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))
-    const summary: LaunchSummary = { id, ...(await launch.plan({ name, comps: comps ?? [] })) }
-    this.setState({ ...this.state, launches: [summary, ...(this.state.launches ?? [])] })
-    return { id }
+    const cap = Number(this.env.LAUNCHES_PER_NETWORK) || 0
+    if ((this.state.launches ?? []).length + this.planning >= cap)
+      throw new Refusal(
+        'limit',
+        `A network keeps at most ${cap === 1 ? '1 launch' : `${cap} launches`} at once. Delete one it no longer needs, on the dashboard, to plan another.`
+      )
+    this.planning++
+    try {
+      const id = crypto.randomUUID()
+      const launch = await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))
+      const summary: LaunchSummary = { id, ...(await launch.plan({ name, comps: comps ?? [] })) }
+      this.setState({ ...this.state, launches: [summary, ...(this.state.launches ?? [])] })
+      return { id }
+    } finally {
+      this.planning--
+    }
   }
+
+  // How many launches createLaunch is planning right now, not yet on the list.
+  private planning = 0
 
   // The roster and CPM a launch's run starts from, with the evidence records the roster cites, for the
   // launch's agent to copy (launch-agent.ts). Over RPC only. Comp searches stay here, since a launch

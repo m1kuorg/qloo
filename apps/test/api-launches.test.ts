@@ -219,6 +219,40 @@ describe('creating a launch', () => {
   })
 })
 
+describe("a network's launches", () => {
+  const saved = { LAUNCHES_PER_NETWORK: env.LAUNCHES_PER_NETWORK }
+  afterEach(() => Object.assign(env, saved))
+
+  it('stop at its cap, however many are created at once, from the API or the app, until a member deletes one', async () => {
+    env.LAUNCHES_PER_NETWORK = '3'
+    const { ada, network, call } = await networkWithKey()
+    const launches = `/api/v1/networks/${network}/launches`
+    const full = {
+      code: 'limit',
+      message:
+        'A network keeps at most 3 launches at once. Delete one it no longer needs, on the dashboard, to plan another.'
+    }
+
+    const created = await Promise.all(
+      ['Corner Booth', 'Slow Burn', 'Paper Route', 'Field Notes', 'Back Lot'].map((name) =>
+        post(call, launches, { name })
+      )
+    )
+    expect(created.map((res) => res.status).toSorted()).toEqual([201, 201, 201, 429, 429])
+    for (const res of created.filter((r) => r.status === 429)) expect(await refused(res)).toEqual([429, full])
+    const { launches: listed } = await (await call(launches)).json<{ launches: Launch[] }>()
+    expect(listed).toHaveLength(3)
+
+    // The dashboard's New launch is refused the same way, with the same words.
+    const dashboard = await ada.connect(`/agents/network/${network}`)
+    await expect(dashboard.call('createLaunch', { name: 'Night Shift Cinema' })).rejects.toThrow(full.message)
+
+    expect((await ada.fetch(`${launches}/${listed[0].id}`, { method: 'DELETE' })).status).toBe(204)
+    expect((await post(call, launches, { name: 'Night Shift Cinema' })).status).toBe(201)
+    expect(await refused(await post(call, launches, { name: 'Ghost Signal' }))).toEqual([429, full])
+  })
+})
+
 describe("a launch's run", () => {
   it('ranks the roster, asks its questions, takes their answers, and drafts the order, as the launch then reads', async () => {
     const { network, call } = await rosterReady()
