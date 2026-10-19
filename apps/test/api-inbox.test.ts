@@ -20,7 +20,7 @@ import {
   turn,
   type Extracted
 } from './fake'
-import { networkWithKey } from './session'
+import { networkWithKey, poll } from './session'
 
 beforeEach(() => {
   env.GUEST_PITCHES = 'on'
@@ -50,20 +50,19 @@ const search = {
   ]
 }
 
+// A refusal as a program branches on it: the status, and the error's code and message.
+const refused = async (res: Response) => [res.status, (await res.json<{ error: object }>()).error]
+
 // Sends pitch files as the body, as `curl --data-binary @export.mbox -H 'Content-Type: application/mbox'` does.
 const loadInbox = (call: Call, network: string, body: BodyInit, type: string, query = '') =>
   call(`/api/v1/networks/${network}/inbox${query}`, { method: 'POST', headers: { 'Content-Type': type }, body })
 
 // Polls the inbox, as a program waiting on a load does, until every pitch is read.
-async function inboxRead(call: Call, network: string): Promise<Inbox> {
-  for (;;) {
-    const res = await call(`/api/v1/networks/${network}/inbox`)
-    if (res.status !== 200) throw new Error(`Reading the inbox returned ${res.status}: ${await res.text()}`)
-    const inbox = await res.json<Inbox>()
-    if (inbox.status !== 'reading') return inbox
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-}
+const inboxRead = (call: Call, network: string) =>
+  poll<Inbox>(call, `/api/v1/networks/${network}/inbox`, (inbox) => inbox.status !== 'reading')
+// And the roster, until every show's search has settled.
+const rosterSettled = (call: Call, network: string) =>
+  poll<{ status: string }>(call, `/api/v1/networks/${network}/roster`, (roster) => roster.status === 'settled')
 
 describe('loading the inbox', () => {
   it('takes an .mbox body, answers 202 while reading, and reads each email for its guest and work', async () => {
@@ -109,9 +108,9 @@ describe('loading the inbox', () => {
       ['Pat Lindqvist <pat.lindqvist@example.com>', 'Ada Quill on Night Ferry', 'Ada Quill']
     ])
 
-    const refused = await loadInbox(call, network, 'Rue Vance on Paper Moons.', 'text/plain')
-    expect(refused.status).toBe(409)
-    expect(await refused.json()).toEqual({
+    const again = await loadInbox(call, network, 'Rue Vance on Paper Moons.', 'text/plain')
+    expect(again.status).toBe(409)
+    expect(await again.json()).toEqual({
       error: {
         code: 'conflict',
         message:
@@ -179,6 +178,13 @@ describe('loading the inbox', () => {
       ],
       ['{"pitches": [', 'application/json', 400, 'invalid', "The body isn't valid JSON. Send it as application/json."],
       [
+        JSON.stringify({ pitches: [{ body: 'x'.repeat(5 * 1024 * 1024) }] }),
+        'application/json',
+        413,
+        'too_large',
+        '"pitches.json" is 5.0 MB, over the 5 MB limit for an upload.'
+      ],
+      [
         JSON.stringify({ pitches: [{ subject: 'Night Ferry' }] }),
         'application/json',
         400,
@@ -236,9 +242,7 @@ describe('loading the inbox', () => {
       await call(`/api/v1/networks/${network}/pitch-runs/run-0`)
     ]) {
       expect(res.status).toBe(404)
-      expect(await res.json()).toEqual({
-        error: { code: 'not_found', message: 'The API has no such route. See /api/v1/openapi.json.' }
-      })
+      expect(await res.json()).toEqual({ error: { code: 'not_found', message: "Guest pitches aren't switched on." } })
     }
   })
 })
@@ -297,6 +301,13 @@ type PitchRun = {
 
 // The show the pitches are for, on the roster, and made-up affinities in fit order for each list.
 const show = { 'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.8 }] }
+// A past guest's work, which the run looks up by its title and type alone.
+const pastGuest = { guest: 'Mo Reyes', work: { title: 'Talking with Ghosts', type: 'book', year: 2022 } }
+const pastWork = {
+  'Talking with Ghosts': [
+    { entity_id: 'b-0101', name: 'Talking with Ghosts', popularity: 0.4, disambiguation: '2022, Mo Reyes' }
+  ]
+}
 const scores: Record<string, { entity_id: string; name: string; affinity: number }[]> = {
   'urn:entity:book': [
     { entity_id: 'b-0002', name: 'Paper Moons', affinity: 0.7341 },
@@ -308,7 +319,7 @@ const scores: Record<string, { entity_id: string; name: string; affinity: number
 // A network whose roster has the show and whose inbox holds the mbox's pitches, each work matched,
 // all through the API, then the pitch run's turns scripted through `script`.
 async function readyToRank(script: Parameters<typeof fakeClaude>[0], key?: Awaited<ReturnType<typeof networkWithKey>>) {
-  fakeQloo({ search: { ...search, ...show, 'Paper Trail': [] } })
+  fakeQloo({ search: { ...search, ...show, ...pastWork, 'Paper Trail': [] } })
   fakeInsights((body) => scores[String(body['filter.type'])])
   reader()
   const made = key ?? (await networkWithKey())
@@ -320,8 +331,7 @@ async function readyToRank(script: Parameters<typeof fakeClaude>[0], key?: Await
   })
   await loadInbox(call, network, mbox, 'application/mbox')
   await inboxRead(call, network)
-  while ((await (await call(`/api/v1/networks/${network}/roster`)).json<{ status: string }>()).status !== 'settled')
-    await new Promise((resolve) => setTimeout(resolve, 10))
+  await rosterSettled(call, network)
   await call(`/api/v1/networks/${network}/inbox/pitches/pitch-03`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -340,15 +350,8 @@ const startRun = (call: Call, network: string, body: object) =>
 
 // Polls the pitch run, as a program waiting on it does, until it stops running: done, or waiting on
 // its question.
-async function runRead(call: Call, network: string, run: string): Promise<PitchRun> {
-  for (;;) {
-    const res = await call(`/api/v1/networks/${network}/pitch-runs/${run}`)
-    if (res.status !== 200) throw new Error(`Reading the run returned ${res.status}: ${await res.text()}`)
-    const read = await res.json<PitchRun>()
-    if (read.status !== 'running') return read
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-}
+const runRead = (call: Call, network: string, run: string) =>
+  poll<PitchRun>(call, `/api/v1/networks/${network}/pitch-runs/${run}`, (read) => read.status !== 'running')
 
 const rank = turn(
   toolUse('rank_pitches', {
@@ -382,7 +385,7 @@ describe('a pitch run', () => {
       turn(text('Drafted 1 book and 2 later.'))
     ])
 
-    const res = await startRun(call, network, { show: 'Night Shift Cinema', pastGuests: [] })
+    const res = await startRun(call, network, { show: 'Night Shift Cinema', pastGuests: [pastGuest] })
     expect(res.status).toBe(202)
     const started = await res.json<PitchRun>()
     expect(started).toMatchObject({ status: 'running', show: 'Night Shift Cinema', question: null, replies: null })
@@ -417,11 +420,13 @@ describe('a pitch run', () => {
     ])
     // The answer reached the agent as the booker's own words.
     expect(JSON.stringify(modelRequests().at(-2)!.messages.at(-1))).toContain('Yes')
-    // Of the pitches, only works' titles and types, then their Qloo IDs, reached Qloo: no sender or guest.
+    // Of the pitches and the past guest, only works' titles and types, then their Qloo IDs, reached
+    // Qloo: no sender, and no guest.
     const senders = ['Pat Lindqvist', 'pat.lindqvist@example.com', 'rue@example.com', 'ben.ochoa@example.com']
     const sent = qlooRequests()
+    expect(sent.filter((r) => r.includes('talking with ghosts'))).toHaveLength(1)
     expect(sent.filter((r) => r.includes('/v2/insights'))).toHaveLength(2)
-    for (const detail of [...senders, ...Object.values(readings).map((r) => r.guest), '@'])
+    for (const detail of [...senders, ...Object.values(readings).map((r) => r.guest), pastGuest.guest, '@'])
       expect(
         sent.filter((r) => r.includes(detail.toLowerCase())),
         detail
@@ -429,7 +434,6 @@ describe('a pitch run', () => {
   })
 
   it("refuses a start, a read, or an answer the network's state or the request can't take, saying why", async () => {
-    const refused = async (res: Response) => [res.status, (await res.json<{ error: object }>()).error]
     const made = await networkWithKey()
     const { network, call } = made
     const start = (body: object) => startRun(call, network, body)
@@ -446,8 +450,7 @@ describe('a pitch run', () => {
       headers: { 'Content-Type': 'text/plain' },
       body: 'Night Shift Cinema\nPaper Trail\n'
     })
-    while ((await (await call(`/api/v1/networks/${network}/roster`)).json<{ status: string }>()).status !== 'settled')
-      await new Promise((resolve) => setTimeout(resolve, 10))
+    await rosterSettled(call, network)
     for (const [body, status, error] of [
       [{ pastGuests: [] }, 400, { code: 'invalid', message: expect.stringContaining('show') }],
       [{ show: 'Deep Cuts' }, 404, { code: 'not_found', message: 'No show named "Deep Cuts" in the roster.' }],
@@ -598,8 +601,6 @@ describe("a pitch run's replies", () => {
         message: "Only a reply's draft can be changed through the API. A member approves a reply, in the app."
       }
     })
-
-    const refused = async (res: Response) => [res.status, (await res.json<{ error: object }>()).error]
     for (const [pitch, body, status, error] of [
       [
         'pitch-01',
@@ -633,7 +634,6 @@ describe("a pitch run's replies", () => {
   it('are refused while the run is still drafting, and once a later run or load replaced them', async () => {
     const { network, call, run } = await drafted([rank, draft, ask])
     expect(run.status).toBe('waiting')
-    const refused = async (res: Response) => [res.status, (await res.json<{ error: object }>()).error]
     const drafting = {
       code: 'conflict',
       message: 'The agent is still drafting replies. Approve, edit, or discard them once the run has ended.'

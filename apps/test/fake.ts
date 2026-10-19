@@ -292,7 +292,7 @@ const anthropicRequests = (): ModelRequest[] =>
 export const modelRequests = (): ModelRequest[] => anthropicRequests().filter((r) => !isTopic(r))
 
 // The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
-export const pitchText = (request: ModelRequest): string =>
+const pitchText = (request: ModelRequest): string =>
   request.messages
     .flatMap((m: { content: string | { type: string; text?: string }[] }) =>
       typeof m.content === 'string' ? [m.content] : m.content.map((b) => b.text ?? '')

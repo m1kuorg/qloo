@@ -177,7 +177,7 @@ async function readBytes(file: Upload) {
 const extension = (name: string) => name.slice(name.lastIndexOf('.') + 1).toLowerCase()
 
 // Refuses a file over the limit before it's read.
-function tooBig(file: Upload) {
+export function tooBig(file: Upload) {
   if (file.size > MAX_UPLOAD_BYTES)
     throw new Refusal(
       'too_large',

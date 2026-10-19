@@ -31,6 +31,7 @@ import {
   networkWithKey,
   openMember,
   openSession,
+  poll,
   type Member,
   type Session
 } from './session'
@@ -303,8 +304,7 @@ describe("an uploaded .mbox's private details", () => {
           body: file
         })
         expect(res.status).toBe(202)
-        while ((inbox = await (await call(`/api/v1/networks/${network}/inbox`)).json()).status === 'reading')
-          await new Promise((resolve) => setTimeout(resolve, 10))
+        inbox = await poll<typeof inbox>(call, `/api/v1/networks/${network}/inbox`, (i) => i.status !== 'reading')
       }
 
       expect(inbox.pitches.map((p) => [p.from, p.status])).toEqual([

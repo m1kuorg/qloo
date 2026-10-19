@@ -8,7 +8,7 @@ import type { Context, MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { accountsOn, fromAppPage, signedIn } from '../auth'
 import { apiKeyFor, memberRole } from '../directory'
-import type { PitchInput } from '../inbox'
+import { workTypes, type PitchInput } from '../inbox'
 import {
   answerPitchRun,
   confirmWork,
@@ -29,7 +29,7 @@ import {
   type OperationContext
 } from '../operations'
 import { REFUSALS, Refusal, refusalCode, type RefusalCode } from '../refusal'
-import { readPitchUpload, readRosterUpload, type Upload } from '../upload'
+import { readPitchUpload, readRosterUpload, tooBig, type Upload } from '../upload'
 
 type ApiEnv = { Bindings: Env; Variables: { caller: Caller } }
 
@@ -37,7 +37,7 @@ type ApiEnv = { Bindings: Env; Variables: { caller: Caller } }
 const refuse = (c: Context, code: RefusalCode, message: string) => c.json({ error: { code, message } }, REFUSALS[code])
 
 // Which field of a request doesn't match its schema, and why.
-const problem = (error: z.ZodError) => {
+const invalidField = (error: z.ZodError) => {
   const issue = error.issues[0]
   const where = issue?.path.length ? `${issue.path.join('.')}: ` : ''
   return `${where}${issue?.message ?? 'The request is invalid.'}`
@@ -46,7 +46,7 @@ const problem = (error: z.ZodError) => {
 export const api = new OpenAPIHono<ApiEnv>({
   // A request that doesn't match its route's schema says which field, and why.
   defaultHook: (result, c) => {
-    if (!result.success) return refuse(c, 'invalid', problem(result.error))
+    if (!result.success) return refuse(c, 'invalid', invalidField(result.error))
   }
 })
 
@@ -115,10 +115,10 @@ const caller: MiddlewareHandler<ApiEnv> = async (c, next) => {
   }
   await next()
 }
-// The inbox and its pitch runs exist only while guest pitches are on, as in the app.
-const NO_ROUTE = 'The API has no such route. See /api/v1/openapi.json.'
+// The inbox and its pitch runs exist only while guest pitches are on, as in the app. The document
+// describes them either way, so the contract doesn't change with the deployment's switch.
 const guestPitches: MiddlewareHandler<ApiEnv> = async (c, next) => {
-  if (c.env.GUEST_PITCHES !== 'on') throw new Refusal('not_found', NO_ROUTE)
+  if (c.env.GUEST_PITCHES !== 'on') throw new Refusal('not_found', "Guest pitches aren't switched on.")
   await next()
 }
 // Hono's `/*` matches the path itself too.
@@ -498,9 +498,8 @@ api.openapi(
   }
 )
 
-const WORK_TYPES = ['book', 'film', 'tv_show', 'podcast'] as const
 const Work = z
-  .object({ title: z.string(), type: z.enum(WORK_TYPES), year: z.number().int().nullable() })
+  .object({ title: z.string(), type: z.enum(workTypes), year: z.number().int().nullable() })
   .openapi('Work', { description: "A guest's public work. Only its title and type reach Qloo." })
 
 const WorkCandidate = z
@@ -679,11 +678,16 @@ api.openapi(
     let pitches: PitchInput[]
     if (name) pitches = await readPitchUpload([await bodyFile(c, name)])
     else if (type === 'application/json') {
-      const json = await c.req.json().catch(() => {
+      const file = await bodyFile(c, 'pitches.json')
+      tooBig(file)
+      let json: unknown
+      try {
+        json = JSON.parse(await file.text())
+      } catch {
         throw new Refusal('invalid', "The body isn't valid JSON. Send it as application/json.")
-      })
+      }
       const batch = PitchBatch.safeParse(json)
-      if (!batch.success) throw new Refusal('invalid', problem(batch.error))
+      if (!batch.success) throw new Refusal('invalid', invalidField(batch.error))
       pitches = batch.data.pitches.map(({ from, subject, body }) => ({
         from: from ?? null,
         subject: subject ?? null,
@@ -757,7 +761,7 @@ const SharedTags = z
 
 const PitchList = z
   .object({
-    type: z.enum(WORK_TYPES),
+    type: z.enum(workTypes),
     path: z.enum(['show', 'same_type', 'unranked']).openapi({
       description:
         "`show`: ranked against the show and the past guests' works; `same_type`: against only the past guests' works of this type, as Qloo scored none against the show; `unranked`, with the reason in `error`."
@@ -888,7 +892,7 @@ api.openapi(
                       guest: z.string(),
                       work: z.object({
                         title: z.string(),
-                        type: z.enum(WORK_TYPES),
+                        type: z.enum(workTypes),
                         year: z.number().int().nullable().optional()
                       })
                     })
@@ -963,8 +967,8 @@ api.openapi(
     }
   }),
   async (c) => {
-    const { questionId, ...reply } = c.req.valid('json')
-    return c.json(await answerPitchRun(context(c), { ...c.req.valid('param'), questionId, reply }), 202)
+    const { questionId, ...answer } = c.req.valid('json')
+    return c.json(await answerPitchRun(context(c), { ...c.req.valid('param'), questionId, answer }), 202)
   }
 )
 
@@ -1053,4 +1057,4 @@ api.openAPIRegistry.registerComponent('securitySchemes', 'session', {
 })
 
 // Anything else under /api/v1 is the API's own 404.
-api.all('/api/v1/*', (c) => refuse(c, 'not_found', NO_ROUTE))
+api.all('/api/v1/*', (c) => refuse(c, 'not_found', 'The API has no such route. See /api/v1/openapi.json.'))

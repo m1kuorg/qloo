@@ -187,14 +187,14 @@ export async function getPitchRun({ env, network }: OperationContext, input: { r
 // being answered, so an answer meant for one already answered is refused rather than taken for the next.
 export async function answerPitchRun(
   { env, network }: OperationContext,
-  input: { runId: string; questionId: string; reply: Reply }
+  input: { runId: string; questionId: string; answer: Reply }
 ): Promise<PitchRun> {
   const networkAgent = await agent(env, network)
   const state = await stateOf(networkAgent)
-  await pitchRunOf(networkAgent, state, input.runId)
+  listedPitchRun(state, input.runId)
   if (state.run?.id !== input.runId)
     throw new Refusal('conflict', 'That pitch run has ended, so it has no question to answer.')
-  await networkAgent.answer(input.questionId, input.reply)
+  await networkAgent.answer(input.questionId, input.answer)
   return pitchRunOf(networkAgent, await stateOf(networkAgent), input.runId)
 }
 
@@ -224,7 +224,7 @@ export async function discardReply(
 // Refuses a change to the replies of any pitch run but the one whose replies the inbox holds now.
 async function currentReplies(networkAgent: NetworkStub, runId: string) {
   const state = await stateOf(networkAgent)
-  await pitchRunOf(networkAgent, state, runId)
+  listedPitchRun(state, runId)
   if (state.booking?.run !== runId)
     throw new Refusal(
       'conflict',
@@ -238,10 +238,16 @@ const replyOf = (state: State, pitchId: string) => {
   return reply
 }
 
-// Pitch run `id`: the latest from the agent's synced state, and an earlier one from what it ended with.
-async function pitchRunOf(networkAgent: NetworkStub, state: State, id: string): Promise<PitchRun> {
+// Pitch run `id` as the network's list of runs has it, or a refusal when the list has no such run.
+function listedPitchRun(state: State, id: string) {
   const summary = state.runs.find((r) => r.id === id && r.pitchesFor !== undefined)
   if (!summary) throw new Refusal('not_found', `There's no pitch run ${id}.`)
+  return summary
+}
+
+// Pitch run `id`: the latest from the agent's synced state, and an earlier one from what it ended with.
+async function pitchRunOf(networkAgent: NetworkStub, state: State, id: string): Promise<PitchRun> {
+  const summary = listedPitchRun(state, id)
   const { run, booking } =
     state.booking?.run === id ? state : ((await networkAgent.getRun(id)) as unknown as RunSnapshot)
   return {
