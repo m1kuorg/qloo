@@ -95,10 +95,10 @@ export class LaunchAgent extends CrossfeedAgent {
     return (await getAgentByName(this.env.NetworkAgent, this.networkId)).rosterForLaunch()
   }
 
-  // Wipes the launch once its network has let go of it (wipe.ts). Its open pages close first, for good,
-  // saying why; the client takes a 4000s close code as final.
-  async destroy() {
-    for (const connection of this.getConnections()) connection.close(4410, 'This launch was deleted.')
+  // Wipes the launch once its network has let go of it (wipe.ts), as when it's deleted, or its network
+  // is. Its open pages close first, for good, saying why; the client takes a 4000s close code as final.
+  async destroy(reason = 'This launch was deleted.') {
+    for (const connection of this.getConnections()) connection.close(4410, reason)
     await super.destroy()
   }
 

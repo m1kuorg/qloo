@@ -1,13 +1,22 @@
 import type { State } from '../agent'
 import type { ApiKey, Invite, NetworkMember } from '../directory'
+import type { Usage } from '../gateway'
 import { LostAccess, useNetwork, type NetworkPage } from './Dashboard'
 import { ApiKeysModule } from './settings/ApiKeys'
+import { DangerZoneModule } from './settings/DangerZone'
 import { MembersModule } from './settings/Members'
 import { NetworkModule } from './settings/Network'
+import { UsageModule } from './settings/Usage'
 
 // What the settings page is told besides its network: who's looking, who's in the network, and, for an
-// owner, its open invites and its API keys (null for a member).
-type MembersProps = { memberId: string; members: NetworkMember[]; invites: Invite[] | null; apiKeys: ApiKey[] | null }
+// owner, its open invites and its API keys (null for a member); and today's usage.
+type MembersProps = {
+  memberId: string
+  members: NetworkMember[]
+  invites: Invite[] | null
+  apiKeys: ApiKey[] | null
+  usage: Usage
+}
 
 // The network's settings page: one module per job, each in its own file under settings/, in the order
 // a new owner needs them. Every member sees every module; a module an owner alone can change shows
@@ -29,7 +38,8 @@ export function Settings({
   memberId,
   members,
   invites,
-  apiKeys
+  apiKeys,
+  usage
 }: { state: State | undefined; network: NetworkPage } & MembersProps) {
   return (
     <>
@@ -40,6 +50,8 @@ export function Settings({
         <NetworkModule network={network} cpm={state ? state.cpm : undefined} />
         <MembersModule network={network} memberId={memberId} members={members} invites={invites} />
         <ApiKeysModule network={network} keys={apiKeys} />
+        <UsageModule network={network} usage={usage} />
+        <DangerZoneModule network={network} />
       </main>
     </>
   )

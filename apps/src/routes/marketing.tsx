@@ -692,8 +692,15 @@ function Privacy({ accounts }: { accounts: boolean }) {
         <p>
           Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it close.
           What you added to the network stays with the network. Deleting a launch, which any of the network&apos;s
-          members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records. A
-          wipe that fails is tried again by the next day&apos;s cleanup.
+          members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records.
+          Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once,
+          then wipes its own storage and each of its launches&apos;. A wipe that fails is tried again by the next
+          day&apos;s cleanup, which also deletes expired sessions, sign-in challenges, and invite links. Deleting your
+          account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and
+          memberships at once. What you did in a network stays with it: its launches keep your name on the runs you
+          started and the orders you approved, and its API keys and invite links you made stay, made by no one.
+          It&apos;s refused while you&apos;re a network&apos;s only owner. &ldquo;Sign out everywhere&rdquo; deletes
+          every session of yours.
         </p>
       )}
 
