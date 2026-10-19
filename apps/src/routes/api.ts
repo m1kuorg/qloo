@@ -102,7 +102,7 @@ const caller: MiddlewareHandler<ApiEnv> = async (c, next) => {
   if (authorization !== undefined) {
     const key = await keyFor(c.env, authorization)
     if (key.networkId !== network) throw new Refusal('not_found', NOT_FOUND)
-    c.set('caller', { keyId: key.id })
+    c.set('caller', { keyId: key.id, keyName: key.name })
   } else {
     const member = await signedIn(c)
     if (!member)
@@ -162,7 +162,7 @@ const DESCRIBED: Partial<Record<number, string>> = {
   409: "The resource's state refuses this (`conflict`).",
   413: 'The upload is over the size limit (`too_large`).',
   422: "The upload can't be read (`unreadable`).",
-  429: 'A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.'
+  429: 'A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.'
 }
 const errors = (...statuses: (keyof typeof DESCRIBED & number)[]) =>
   Object.fromEntries(
@@ -1072,7 +1072,8 @@ const LaunchFields = z.object({
   slots: z.number().int().nullable().openapi({ description: "Its insertion order's promo slots." }),
   slotValue: z.number().nullable().openapi({ description: "Its insertion order's total value, in dollars." }),
   startedBy: z.string().nullable().openapi({
-    description: 'The member who started its latest run in the app, by name; null for one started through the API.'
+    description:
+      'Who started its latest run: a member, by name, or an API key, as `API key “<its name>”`; null before its first run, or when no one was recorded.'
   }),
   lastRun: z.string().nullable().openapi({ description: 'When its latest run started.' })
 })
@@ -1096,10 +1097,10 @@ const RunFields = z.object({
       '`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`.'
   }),
   startedAt: z.string(),
-  startedBy: z
-    .string()
-    .nullable()
-    .openapi({ description: 'The member who started it in the app, by name; null for a run started through the API.' })
+  startedBy: z.string().nullable().openapi({
+    description:
+      'Who started it: a member, in the app or with their session, by name, or an API key, as `API key “<its name>”`; null when no one was recorded.'
+  })
 })
 const LaunchRunSummary = RunFields.openapi('LaunchRunSummary')
 
@@ -1318,7 +1319,7 @@ api.openapi(
     tags: ['Launches'],
     summary: 'Create a launch',
     description:
-      "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it.",
+      "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it. A network keeps a limited number of launches at once, as the terms say: past it, a new one is refused with `limit` until a member deletes one on the dashboard.",
     request: {
       params: NetworkParams,
       body: { required: true, content: { 'application/json': { schema: LaunchPlan } } }

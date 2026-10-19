@@ -55,6 +55,7 @@ async function island(member: Member, path: string) {
     invites: d.invites ? JSON.parse(d.invites) : null,
     apiKeys: d.apiKeys ? JSON.parse(d.apiKeys) : null,
     usage: d.usage ? JSON.parse(d.usage) : null,
+    qlooKey: d.qlooKey ? JSON.parse(d.qlooKey) : null,
     setup: { invited: d.invited === 'true', apiKey: d.apiKey === 'true' },
     network: {
       id: d.networkId,
@@ -196,7 +197,7 @@ describe('the dashboard', () => {
 
 describe('settings', () => {
   const settings = async (member: Member, id: string, state: State | undefined) => {
-    const { network, memberId, members, invites, apiKeys, usage } = await island(member, `/app/${id}/settings`)
+    const { network, memberId, members, invites, apiKeys, usage, qlooKey } = await island(member, `/app/${id}/settings`)
     return renderToStaticMarkup(
       <Settings
         state={state}
@@ -206,6 +207,7 @@ describe('settings', () => {
         invites={invites}
         apiKeys={apiKeys}
         usage={usage}
+        qlooKey={qlooKey}
       />
     )
   }
@@ -332,6 +334,54 @@ describe('settings', () => {
     expect(words(await settings(ada, id, agent.state()))).toContain(
       'Qloo calls 1 of 1 today Resets 00:00 UTC, in 9 h 30 min Limit reached No more Qloo calls today: roster imports and comp searches are refused until 00:00 UTC.'
     )
+  })
+
+  it("give an owner the network's own Qloo key to add, then show it by its last four characters", async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const html = await settings(ada, id, agent.state())
+    const read = words(html)
+    expect(read).toContain(
+      'Qloo key During the beta, a network’s Qloo calls run on Crossfeed’s shared key, within its daily caps. With a key of its own, Night Shift Audio’s calls and its launches’ run on that key, under its own agreement with Qloo'
+    )
+    expect(read).toContain(
+      'Host Qloo’s production API api.qloo.com Qloo’s hackathon API hackathon.api.qloo.com, where hackathon keys work Key Test and save key'
+    )
+    expect(html).toMatch(/<input[^>]*type="password"[^>]*id="qloo-key"/)
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Test and save key<\/button>/)
+
+    fakeQloo({ search: { 'Corner Booth': [{ entity_id: 'e-0501', name: 'Corner Booth', popularity: 0.6 }] } })
+    const added = await ada.fetch(`/app/${id}/settings/qloo-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host: 'https://hackathon.api.qloo.com', key: 'qk-made-up-7f3a' })
+    })
+    expect(added.status).toBe(200)
+    await agent.importRoster('Corner Booth')
+    const keyed = await settings(ada, id, agent.state())
+    expect(words(keyed)).toContain('either way. Key Ends in 7f3a Host hackathon.api.qloo.com Remove key')
+    expect(words(keyed)).toContain('Qloo calls 1 of 2,000 today On the network’s own Qloo key')
+    expect(keyed).not.toContain('qk-made-up-7f3a')
+    expect(keyed).not.toContain('Test and save key')
+
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+    const theirs = words(await settings(grace, id, await (await connect(grace, id)).until(() => true)))
+    expect(theirs).toContain(
+      'either way. Qloo key The network’s own Only an owner can add or remove the network’s Qloo key.'
+    )
+    expect(theirs).not.toContain('7f3a')
+    expect(theirs).not.toContain('Remove key')
+  })
+
+  it("show a member that the network runs on Crossfeed's shared Qloo key, with nothing to change", async () => {
+    const ada = await openMember()
+    const { id } = await network(ada)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+    const html = await settings(grace, id, await (await connect(grace, id)).until(() => true))
+    expect(words(html)).toContain(
+      'either way. Qloo key Crossfeed’s shared key Only an owner can add or remove the network’s Qloo key.'
+    )
+    expect(html).not.toContain('id="qloo-key"')
   })
 
   it('give an owner the danger zone, to delete the network once they type its name, and a member none of it', async () => {

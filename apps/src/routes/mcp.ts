@@ -217,7 +217,7 @@ function serverFor(ctx: OperationContext) {
 
   tool(
     'create_launch',
-    "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's dashboard; start a run with start_launch_run to rank the roster for it.",
+    "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's dashboard; start a run with start_launch_run to rank the roster for it. A network keeps a limited number of launches at once; past it, a member deletes one on the dashboard to make room.",
     LaunchPlan,
     WRITE,
     async (plan) => {
@@ -580,10 +580,14 @@ const evidenceText = (e: Evidence) =>
 // A browser's Origin may be a local one, as the handler allows by default, or one of the app's own
 // (APP_ORIGINS), which the handler would allow by default only on workers.dev, not a custom domain.
 // Clients that send no Origin, as Claude Code doesn't, pass either way. The route below always
-// passes the key's ID and network as `authInfo`.
+// passes the key's ID, name, and network as `authInfo`.
 const handler = createMcpHandler(
   ({ authInfo }) =>
-    serverFor({ env, network: authInfo!.extra!.network as string, caller: { keyId: authInfo!.clientId } }),
+    serverFor({
+      env,
+      network: authInfo!.extra!.network as string,
+      caller: { keyId: authInfo!.clientId, keyName: authInfo!.extra!.keyName as string }
+    }),
   { allowedOriginHostnames: [...localhostAllowedOrigins(), ...appOrigins(env).map((o) => new URL(o).hostname)] }
 )
 
@@ -624,6 +628,6 @@ mcp.all('/mcp', accountsOn, async (c) => {
   }
   // The key's secret stays out of what the tools can read.
   return handler.fetch(c.req.raw, {
-    authInfo: { token: '', clientId: key.id, scopes: [], extra: { network: key.networkId } }
+    authInfo: { token: '', clientId: key.id, scopes: [], extra: { network: key.networkId, keyName: key.name } }
   })
 })

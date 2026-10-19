@@ -34,9 +34,11 @@ import {
   type Member,
   type Network
 } from '../directory'
-import { launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER } from '../network-agent'
+import { globalGateway } from '../gateway'
+import { launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER, networkLimitKey, ownGateway } from '../network-agent'
 import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
+import { isQlooHost } from '../qloo-hosts'
 import { appShell, networkLinks, type AppVariables } from '../shell'
 import { listOf, readName } from '../text'
 import { deleteLaunch, deleteNetwork } from '../wipe'
@@ -265,6 +267,9 @@ appPages.get('/app/:networkId/settings', async (c) => {
     network: network.id,
     caller: { member: c.var.member, role: network.role }
   })
+  // Whether the network has its own Qloo key; only an owner learns its host and last four characters.
+  const { set, ...shown } = await ownGateway(c.env, network.id).ownKey()
+  const qlooKey = JSON.stringify(owner ? { set, ...shown } : { set })
   return c.render(
     <div
       id="root"
@@ -274,6 +279,7 @@ appPages.get('/app/:networkId/settings', async (c) => {
       data-invites={invites}
       data-api-keys={keys}
       data-usage={JSON.stringify(usage)}
+      data-qloo-key={qlooKey}
       {...island(c, network)}
     />
   )
@@ -401,6 +407,51 @@ appPages.post('/app/:networkId/settings/api-keys/:keyId/revoke', async (c) => {
   if (!(await revokeApiKey(c.env.DB, id, c.req.param('keyId'), c.var.member.id)))
     return c.json({ error: 'This key was revoked already. Reload to see the keys in use.' }, 409)
   return c.json({ keys: await apiKeys(c.env.DB, id) })
+})
+
+// The settings' Qloo key module, for owners alone: the network's own Qloo key (ADR 0004), which its own
+// gateway instance tests with one search, then keeps encrypted. No answer carries the key back: the
+// settings show an owner its host and last four characters, and a member only whether one is set.
+const QLOO_KEY_OWNERS_ONLY = "Only an owner can add or remove the network's Qloo key."
+// Longer than any Qloo key: what's pasted past it is something else.
+const MAX_QLOO_KEY = 200
+
+appPages.post('/app/:networkId/settings/qloo-key', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id, QLOO_KEY_OWNERS_ONLY)
+  if (refused) return refused
+  const { host, key } = await jsonBody(c)
+  if (typeof host !== 'string' || !isQlooHost(host))
+    return c.json({ error: 'Choose the host the key is for: Qloo’s production API, or the hackathon’s.' }, 400)
+  const pasted = typeof key === 'string' ? key.trim() : ''
+  if (!pasted) return c.json({ error: 'Paste the network’s Qloo API key.' }, 400)
+  if (pasted.length > MAX_QLOO_KEY || /\s/.test(pasted))
+    return c.json({ error: 'That isn’t a Qloo API key: paste the key alone, as Qloo sent it.' }, 400)
+  const gateway = ownGateway(c.env, id)
+  // Another key would share the first one's cache and counts, so it takes the first one's removal.
+  if ((await gateway.ownKey()).set)
+    return c.json({ error: 'The network has its own Qloo key already. Remove it, then add the new one.' }, 409)
+  const failed = await gateway.setKey(host, pasted)
+  if (failed) return c.json({ error: failed }, 400)
+  const usage = await getUsage({ env: c.env, network: id, caller: { member: c.var.member, role: 'owner' } })
+  return c.json({ key: await gateway.ownKey(), usage })
+})
+
+// Removes the network's own key, wiping its gateway instance with its cache and counts: its Qloo calls
+// go through the global gateway again, so its usage is read there alone, rather than through getUsage,
+// which would ask the wiped instance, still resetting, whether it has a key.
+appPages.post('/app/:networkId/settings/qloo-key/remove', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id, QLOO_KEY_OWNERS_ONLY)
+  if (refused) return refused
+  const gateway = ownGateway(c.env, id)
+  if (!(await gateway.ownKey()).set)
+    return c.json(
+      { error: 'The network has no Qloo key of its own: its calls go through Crossfeed’s shared key.' },
+      409
+    )
+  await gateway.wipe()
+  return c.json({ key: { set: false }, usage: await globalGateway(c.env).usage(networkLimitKey(id)) })
 })
 
 // The settings' danger zone, for owners alone: deleting the network once the owner has typed its name,

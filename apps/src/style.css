@@ -3881,6 +3881,32 @@ a.wm {
   display: block;
 }
 
+/* The Qloo key module: the host as two radios under a field label, each host's address under its name
+   in the candidate list's grammar, then the key's field. Once saved, the key is two record rows, its last
+   four characters in the monospace stack, with Remove asking first on Panel Grey. */
+.set-form legend {
+  padding: 0;
+  font-size: 12px;
+  color: var(--grey);
+}
+
+.set-form .opts {
+  margin: 2px 0 0;
+}
+
+.set-form .opts label {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.set-form fieldset + label {
+  margin-top: 8px;
+}
+
+.qloo-key .rec + * {
+  margin-top: 12px;
+}
+
 /* The usage module: today's counts as record rows, the count in 600, and when they reset with the
    browser's own time under it. */
 .usage dd b {
