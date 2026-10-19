@@ -47,7 +47,7 @@ export type QlooDown = { capped: boolean; reason: string }
 export type ModelRuns = { used: number; limit: number; refused: string | null }
 
 // The per-visitor daily counters: tables keyed by a hash of the visitor and the day.
-type Counter = 'model_runs' | 'free_starts' | 'visitor_calls'
+type Counter = 'model_runs' | 'free_starts' | 'visitor_calls' | 'signups'
 
 // How a launch may start: as a model run (all null), or without one, because Qloo can't be called
 // (`down`) or a model run limit is reached (`limited`), with the stored sample run when it's the
@@ -128,6 +128,25 @@ export class QlooGateway extends DurableObject<Env> {
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS visitor_calls (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
     )
+    // Accounts created per visitor per UTC day, keyed and kept the same way.
+    ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS signups (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
+    )
+  }
+
+  // Why `visitor` can't create another account today, or null when they can
+  // (SIGNUP_VISITOR_DAILY_CAP). A sign-up asks as it starts, so a refused one makes no passkey, and
+  // with `count` once its passkey verifies, which counts it.
+  async admitSignup(visitor: string, count: boolean): Promise<string | null> {
+    const day = utcDay()
+    const key = await sha256(`${visitor}:${day}`)
+    // From here on nothing awaits, so concurrent sign-ups can't both pass the limit.
+    // A limit that isn't a number refuses every sign-up, rather than none.
+    const limit = Number(this.env.SIGNUP_VISITOR_DAILY_CAP) || 0
+    if (this.used('signups', key, day) >= limit)
+      return `You've created ${limit === 1 ? '1 account' : `${limit} accounts`} today, the most one visitor can create in a UTC day; it resets at 00:00 UTC.`
+    if (count) this.add('signups', key, day)
+    return null
   }
 
   // Counts `n` Qloo calls for `visitor` today before they're made, or refuses them all if they would

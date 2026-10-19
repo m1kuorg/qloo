@@ -23,6 +23,15 @@ const Head = ({ title, children }: { title: string; children?: Child }) => (
   </head>
 )
 
+// The head of a page with the React island: the shared head, React's refresh preamble in
+// development, and the island's script.
+const IslandHead = () => (
+  <Head title="Crossfeed">
+    {import.meta.env.DEV && <script type="module" dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
+    <Script src="/src/client/main.tsx" />
+  </Head>
+)
+
 // The marketing shell: server-rendered pages with no island, under the black top bar with the
 // wordmark, the developers band, the sample network, and, while ACCOUNTS is on, Sign in. The footer
 // links the privacy page and the beta terms. `title` names the page before the product.
@@ -72,10 +81,7 @@ export const demoShell = jsxRenderer(({ children }, c) => {
   if (c.env.GUEST_PITCHES === 'on') sections.push({ href: '/demo/inbox', label: 'Inbox' })
   return (
     <html lang="en">
-      <Head title="Crossfeed">
-        {import.meta.env.DEV && <script type="module" dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
-        <Script src="/src/client/main.tsx" />
-      </Head>
+      <IslandHead />
       <body>
         <header class="top">
           <span class="wm">Crossfeed</span>
@@ -105,3 +111,19 @@ export const demoShell = jsxRenderer(({ children }, c) => {
     </html>
   )
 })
+
+// The app shell, for signing in and for a signed-in member's pages: the black top bar with the
+// wordmark, then the React island in #root. The network switcher and account menu come with networks.
+export const appShell = jsxRenderer(({ children }) => (
+  <html lang="en">
+    <IslandHead />
+    <body>
+      <header class="top">
+        <a class="wm" href="/">
+          Crossfeed
+        </a>
+      </header>
+      {children}
+    </body>
+  </html>
+))

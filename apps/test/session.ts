@@ -1,11 +1,13 @@
 // A visitor session driven the way the UI drives it: load the page for a session cookie, then
-// talk to the session's agent over the same WebSocket and JSON protocol `useAgent` uses.
+// talk to the session's agent over the same WebSocket and JSON protocol `useAgent` uses. And a
+// member, signed up the way the sign-in page does it, with the software authenticator.
 import { applyD1Migrations, reset, type D1Migration } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, beforeEach } from 'vitest'
 import type { State } from '../src/agent'
 import type { Links } from '../src/client/App'
 import type { RosterFormat } from '../src/roster'
+import { softwareAuthenticator, type Authenticator } from './authenticator'
 
 // After each test of every file that drives sessions, wipe every Durable Object's storage and
 // memory, so the gateway's shared cache, daily count, and slots start fresh. It's here, not in
@@ -121,5 +123,53 @@ export async function openSession(cookie?: string, ip?: string): Promise<Session
         ws.send(JSON.stringify(frame))
       }),
     close: () => ws.close()
+  }
+}
+
+export type Member = {
+  name: string
+  // The session cookie, as the member's browser sends it back.
+  cookie: string
+  // The recovery code shown at sign-up.
+  recoveryCode: string
+  // Holds the member's passkey, to sign in with again.
+  authenticator: Authenticator
+  // A request from the member's browser on the app's origin: it carries their cookie, and an
+  // Origin header as a page's write does.
+  fetch: (path: string, init?: RequestInit) => Promise<Response>
+}
+
+// Signs a new member up through both steps of the passkey ceremony, as the sign-in page does. `ip`
+// is their address, as Cloudflare's edge sends it; without it, the sign-up cap doesn't apply.
+export async function openMember({
+  name = 'Ada Programmer',
+  ip
+}: { name?: string; ip?: string } = {}): Promise<Member> {
+  const authenticator = softwareAuthenticator()
+  const post = (path: string, body: unknown) =>
+    exports.default.fetch(`${origin}${path}`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json', ...(ip && { 'CF-Connecting-IP': ip }) },
+      body: JSON.stringify(body)
+    })
+  const started = await post('/auth/sign-up/options', { name })
+  if (started.status !== 200) throw new Error(`Sign-up options returned ${started.status}: ${await started.text()}`)
+  const { challenge, options } = await started.json<{ challenge: string; options: never }>()
+  const done = await post('/auth/sign-up', { challenge, response: await authenticator.register(options) })
+  if (done.status !== 200) throw new Error(`Sign-up returned ${done.status}: ${await done.text()}`)
+  const { recoveryCode } = await done.json<{ recoveryCode: string }>()
+  const cookie = done.headers.get('set-cookie')?.split(';')[0]
+  if (!cookie) throw new Error('Sign-up set no session cookie')
+  return {
+    name,
+    cookie,
+    recoveryCode,
+    authenticator,
+    fetch: (path, init = {}) => {
+      const headers = new Headers(init.headers)
+      headers.set('Cookie', cookie)
+      if (init.method && !['GET', 'HEAD'].includes(init.method)) headers.set('Origin', origin)
+      return exports.default.fetch(`${origin}${path}`, { ...init, headers })
+    }
   }
 }

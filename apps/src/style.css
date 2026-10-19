@@ -2688,3 +2688,140 @@ a.btn {
     padding: 20px 16px 24px;
   }
 }
+
+/* Accounts: the sign-in page and, until there are networks, the signed-in member's page. The launch
+   header's grammar: a headline and help line over a Press Black rule, then modules side by side,
+   divided by a hairline, each with its one black button. */
+a.wm {
+  color: inherit;
+  text-decoration: none;
+}
+
+.acct {
+  max-width: 944px;
+  padding: 24px 32px 32px;
+}
+
+.acct-hd {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.acct-hd .help {
+  margin-top: 6px;
+  max-width: 64ch;
+  font-size: 13px;
+}
+
+/* A heading that takes focus when the page changes under it, as the recovery code replaces the
+   form, so screen readers start there. It isn't a control, so it shows no ring. */
+.acct-hd h1:focus {
+  outline: none;
+}
+
+.ways {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.way {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 24px 8px 0;
+}
+
+.way + .way {
+  border-left: 1px solid var(--line);
+  padding: 16px 0 8px 24px;
+}
+
+.way .lbl {
+  color: var(--ink);
+}
+
+.way label {
+  font-size: 12px;
+  color: var(--grey);
+}
+
+.way .acts,
+.way .state {
+  margin-top: 0;
+}
+
+.acct-in {
+  width: 100%;
+  max-width: 320px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.acct-in::placeholder {
+  color: var(--grey);
+}
+
+/* A recovery code is data: the monospace stack, in capitals as it was shown. */
+.code-in {
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.saved {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+/* The recovery code, shown once, on Panel Grey: the one thing on the page that needs keeping. A click
+   selects all of it. */
+.code {
+  justify-self: stretch;
+  max-width: 560px;
+  padding: 16px 24px;
+  background: var(--panel);
+  font: 600 20px/1.3 var(--mono);
+  letter-spacing: 0.06em;
+  user-select: all;
+}
+
+@media (max-width: 600px) {
+  /* The app shell's bar has no nav to hold it at full height once the bar wraps. */
+  .top {
+    min-height: 48px;
+  }
+
+  .acct {
+    padding: 16px 16px 32px;
+  }
+
+  .ways {
+    grid-template-columns: 1fr;
+  }
+
+  .way,
+  .way + .way {
+    padding: 16px 0 8px;
+  }
+
+  .way + .way {
+    margin-top: 12px;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .acct-in {
+    max-width: none;
+  }
+
+  .code {
+    padding: 12px 16px;
+    font-size: 17px;
+  }
+}
