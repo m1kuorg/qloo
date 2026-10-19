@@ -1,0 +1,4997 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Crossfeed API",
+    "version": "1",
+    "description": "Act for one network: its roster, launches, and inbox. Authenticate with one of the network's API keys, made by an owner in its settings, as `Authorization: Bearer cf_live_…`. Nothing here approves an insertion order or a reply: only a member does, in the app. Long work, such as an import, answers 202 with the resource's current status; poll the resource until it settles. Examples use made-up shows and figures."
+  },
+  "security": [
+    {
+      "apiKey": []
+    },
+    {
+      "session": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "One of the network's API keys, `cf_live_…`."
+      },
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-crossfeed_member",
+        "description": "A member's session in the app. A write must also carry an `Origin` of one of Crossfeed's pages."
+      }
+    },
+    "schemas": {
+      "PitchBatch": {
+        "type": "object",
+        "properties": {
+          "pitches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The sender's name and address."
+                },
+                "subject": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "body": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "body"
+              ]
+            }
+          }
+        },
+        "required": [
+          "pitches"
+        ],
+        "example": {
+          "pitches": [
+            {
+              "from": "Pat Lindqvist <pat@example.com>",
+              "subject": "Ada Quill on Night Ferry",
+              "body": "Ada Quill's novel Night Ferry is about a projectionist on a car ferry."
+            }
+          ]
+        }
+      },
+      "Network": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "cpm": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The CPM in dollars that prices every promo slot; null until set."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "cpm"
+        ],
+        "example": {
+          "id": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40",
+          "name": "Night Shift Audio",
+          "cpm": 25
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "invalid",
+                  "unauthorized",
+                  "forbidden",
+                  "not_found",
+                  "conflict",
+                  "too_large",
+                  "unreadable",
+                  "limit",
+                  "rate_limited",
+                  "internal"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "What went wrong, and what to do about it, for a person to read."
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "example": {
+          "error": {
+            "code": "not_found",
+            "message": "There's no such network, or this API key or member can't reach it."
+          }
+        }
+      },
+      "NetworkChange": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Night Shift Audio"
+          },
+          "cpm": {
+            "type": "number",
+            "description": "Dollars, above 0.",
+            "example": 25
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "properties": {
+          "qlooCalls": {
+            "type": "object",
+            "properties": {
+              "used": {
+                "type": "integer"
+              },
+              "limit": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "used",
+              "limit"
+            ],
+            "description": "Qloo calls today, cache hits included."
+          },
+          "modelRuns": {
+            "type": "object",
+            "properties": {
+              "used": {
+                "type": "integer"
+              },
+              "limit": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "used",
+              "limit"
+            ],
+            "description": "Model runs started today: launch runs, inbox loads, and pitch runs."
+          },
+          "resets": {
+            "type": "string",
+            "description": "When the counts reset: the next 00:00 UTC."
+          }
+        },
+        "required": [
+          "qlooCalls",
+          "modelRuns",
+          "resets"
+        ],
+        "example": {
+          "qlooCalls": {
+            "used": 41,
+            "limit": 2000
+          },
+          "modelRuns": {
+            "used": 2,
+            "limit": 10
+          },
+          "resets": "2026-10-20T00:00:00.000Z"
+        }
+      },
+      "Roster": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "settled"
+            ],
+            "description": "`pending` while any show or comp search is still being looked up in Qloo; poll until `settled`."
+          },
+          "shows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Show"
+            }
+          },
+          "sample": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "network": {
+                "type": "string"
+              },
+              "notice": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "network",
+              "notice"
+            ],
+            "description": "The sample network the roster started from, while any of its figures is sample."
+          }
+        },
+        "required": [
+          "status",
+          "shows",
+          "sample"
+        ],
+        "example": {
+          "status": "pending",
+          "shows": [
+            {
+              "name": "Deep Cuts",
+              "resolution": "resolved",
+              "entity": {
+                "id": "p-0001",
+                "name": "Deep Cuts",
+                "popularity": 0.5
+              },
+              "candidates": [],
+              "evidence": "C-01",
+              "error": null,
+              "compSearch": null,
+              "downloads": 12000,
+              "status": "active",
+              "description": null,
+              "excluded": false
+            },
+            {
+              "name": "Field Notes",
+              "resolution": "pending",
+              "entity": null,
+              "candidates": [],
+              "evidence": "C-02",
+              "error": null,
+              "compSearch": null,
+              "downloads": null,
+              "status": "active",
+              "description": null,
+              "excluded": false
+            }
+          ],
+          "sample": null
+        }
+      },
+      "Show": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "resolved",
+              "mapped",
+              "ambiguous",
+              "missed",
+              "failed"
+            ],
+            "description": "`pending` until its search settles; `resolved` to its match, `mapped` to a comp, `ambiguous` among its candidates, `missed` when Qloo has no match, or `failed` with the error. Only resolved and mapped shows are scored."
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Candidate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The matched Qloo entity, or the comp it was mapped to."
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "description": "Up to three candidates for an ambiguous name."
+          },
+          "evidence": {
+            "type": "string",
+            "description": "The call number of the search behind its resolution."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "compSearch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompSearch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "downloads": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Downloads per episode."
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The network's own word for it, such as `active`."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "excluded": {
+            "type": "boolean",
+            "description": "Never proposed for a launch."
+          },
+          "sample": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "downloads",
+                "status",
+                "description"
+              ]
+            },
+            "description": "The figures still the sample network's, on a roster started from it."
+          }
+        },
+        "required": [
+          "name",
+          "resolution",
+          "entity",
+          "candidates",
+          "evidence",
+          "error",
+          "compSearch",
+          "downloads",
+          "status",
+          "description",
+          "excluded"
+        ]
+      },
+      "Candidate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "popularity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "popularity"
+        ],
+        "example": {
+          "id": "p-0001",
+          "name": "Deep Cuts",
+          "popularity": 0.5
+        }
+      },
+      "CompSearch": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "call": {
+            "type": "string",
+            "description": "The search's call number in the network's evidence."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "done",
+              "failed"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "query",
+          "call",
+          "status",
+          "results",
+          "error"
+        ],
+        "description": "The latest search for a comparable show to stand in for one Qloo has no match for."
+      },
+      "ShowChange": {
+        "type": "object",
+        "properties": {
+          "entityId": {
+            "type": "string",
+            "description": "One of its candidates."
+          },
+          "compId": {
+            "type": "string",
+            "description": "One of its comp search's results."
+          },
+          "downloads": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "excluded": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "entityId": "p-0101"
+        }
+      },
+      "CompQuery": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "example": "Paper Trail Weekly"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "Inbox": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "reading",
+              "done"
+            ],
+            "description": "`empty` until pitches are loaded, `reading` while any is still being read; poll until `done`."
+          },
+          "sample": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "notice": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "notice"
+            ],
+            "description": "The sample inbox's notice, while the sample inbox is loaded."
+          },
+          "pitches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Pitch"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pitch": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pitch",
+                "why"
+              ]
+            },
+            "description": "Emails left out of the last upload, each named by its subject or sender, and why."
+          }
+        },
+        "required": [
+          "status",
+          "sample",
+          "pitches",
+          "skipped"
+        ],
+        "example": {
+          "status": "reading",
+          "sample": null,
+          "pitches": [
+            {
+              "id": "pitch-01",
+              "from": "Pat Lindqvist <pat@example.com>",
+              "subject": "Ada Quill on Night Ferry",
+              "body": "Ada Quill's novel Night Ferry is about a projectionist on a car ferry.",
+              "status": "reading",
+              "guest": null,
+              "work": null,
+              "match": null,
+              "error": null
+            }
+          ],
+          "skipped": [
+            {
+              "pitch": "Weekly Digest <digest@example.com>",
+              "why": "is over the 10,000-character limit"
+            }
+          ]
+        }
+      },
+      "Pitch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "pitch-01"
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sender's name and address. It stays in Crossfeed: it never reaches Qloo."
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reading",
+              "looking_up",
+              "read",
+              "no_work",
+              "unreadable",
+              "failed"
+            ],
+            "description": "`reading` while the agent reads it, `looking_up` while its work is searched in Qloo, then `read`. A pitch with no public work (`no_work`) or that the agent can't read (`unreadable`) is set aside and never reaches Qloo; `failed` says why in `error`."
+          },
+          "guest": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The pitched guest's name, as the agent read it. It never reaches Qloo."
+          },
+          "work": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Work"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkMatch"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until its work has been searched."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "from",
+          "subject",
+          "body",
+          "status",
+          "guest",
+          "work",
+          "match",
+          "error"
+        ]
+      },
+      "Work": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "book",
+              "film",
+              "tv_show",
+              "podcast"
+            ]
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "type",
+          "year"
+        ],
+        "description": "A guest's public work. Only its title and type reach Qloo."
+      },
+      "WorkMatch": {
+        "type": "object",
+        "properties": {
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "resolved",
+              "ambiguous",
+              "missed",
+              "failed"
+            ],
+            "description": "`resolved` to its match, `ambiguous` among same-title candidates until a work is confirmed, `missed` when Qloo has no such work, or `failed` with the error."
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkCandidate"
+            }
+          },
+          "evidence": {
+            "type": "string",
+            "description": "The search's call number in the network's evidence."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "resolution",
+          "entity",
+          "candidates",
+          "evidence",
+          "error"
+        ],
+        "description": "How the work's search in Qloo resolved."
+      },
+      "WorkCandidate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "popularity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "disambiguation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its year, and a book's author, to tell same-title works apart."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Qloo's line on what it is."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "popularity",
+          "disambiguation",
+          "description"
+        ]
+      },
+      "WorkConfirmation": {
+        "type": "object",
+        "properties": {
+          "entityId": {
+            "type": "string",
+            "description": "One of its work's candidates."
+          }
+        },
+        "required": [
+          "entityId"
+        ],
+        "example": {
+          "entityId": "f-0002"
+        }
+      },
+      "PitchRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "waiting",
+              "completed",
+              "stopped",
+              "failed"
+            ],
+            "description": "`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`."
+          },
+          "show": {
+            "type": "string",
+            "description": "The roster show the pitches are ranked against."
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Question"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closing": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent's closing line, once the run completes."
+          },
+          "pastGuests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "guest": {
+                  "type": "string"
+                },
+                "work": {
+                  "$ref": "#/components/schemas/Work"
+                },
+                "match": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/WorkMatch"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null until its work has been searched."
+                }
+              },
+              "required": [
+                "guest",
+                "work",
+                "match"
+              ]
+            }
+          },
+          "lists": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PitchList"
+            },
+            "description": "One per work type, once the pitches are ranked."
+          },
+          "replies": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Reply"
+            },
+            "description": "One per pitch, in inbox order, once drafted."
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "show",
+          "startedAt",
+          "question",
+          "notes",
+          "error",
+          "closing",
+          "pastGuests",
+          "lists",
+          "replies"
+        ],
+        "example": {
+          "id": "5f0c2a8e-1b7d-4c3e-9a64-0d2e8f1b3c57",
+          "status": "waiting",
+          "show": "Deep Cuts",
+          "startedAt": "2026-10-19T14:02:11.000Z",
+          "question": {
+            "id": "toolu_01",
+            "kind": "choice",
+            "question": "Hold the film pitches for next season?",
+            "options": [
+              "Yes",
+              "No"
+            ]
+          },
+          "notes": [
+            {
+              "text": "Ranking 3 pitched works against Deep Cuts",
+              "status": "done"
+            }
+          ],
+          "error": null,
+          "closing": null,
+          "pastGuests": [],
+          "lists": null,
+          "replies": null
+        }
+      },
+      "Question": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Answer with this ID, so an answer meant for another question is refused."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "choice",
+              "launch",
+              "budget",
+              "exclusions",
+              "comps",
+              "confirm_comps"
+            ],
+            "description": "A `choice` question is answered with one of its `options` as `choice`, or your own words as `text`; each other kind, a launch run's, with the Answer fields named for it. Code builds a `launch` question's options from the launch's candidates in Qloo, an `exclusions` question's from the charted shows, and a `confirm_comps` question's from the comps' names."
+          },
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "question",
+          "options"
+        ],
+        "description": "The question the run is waiting on."
+      },
+      "Note": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "status"
+        ],
+        "description": "One step of the run, such as a ranking call, as the app shows it."
+      },
+      "PitchList": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "book",
+              "film",
+              "tv_show",
+              "podcast"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "enum": [
+              "show",
+              "same_type",
+              "unranked"
+            ],
+            "description": "`show`: ranked against the show and the past guests' works; `same_type`: against only the past guests' works of this type, as Qloo scored none against the show; `unranked`, with the reason in `error`."
+          },
+          "anchors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          },
+          "calls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its ranking calls' numbers in the network's evidence."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pitch": {
+                  "type": "string"
+                },
+                "entity": {
+                  "$ref": "#/components/schemas/WorkCandidate"
+                },
+                "rank": {
+                  "type": "integer",
+                  "description": "From 1, within this list only."
+                },
+                "band": {
+                  "type": "string",
+                  "enum": [
+                    "top",
+                    "middle",
+                    "bottom"
+                  ]
+                },
+                "sharedTags": {
+                  "$ref": "#/components/schemas/SharedTags"
+                }
+              },
+              "required": [
+                "pitch",
+                "entity",
+                "rank",
+                "band"
+              ]
+            },
+            "description": "In fit order."
+          },
+          "notScored": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pitch": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pitch",
+                "reason"
+              ]
+            }
+          }
+        },
+        "required": [
+          "type",
+          "path",
+          "anchors",
+          "calls",
+          "error",
+          "rows",
+          "notScored"
+        ],
+        "description": "The pitched works of one type, ranked against the show by one Qloo call. Another type's list comes from another call, so ranks from two lists can't be compared."
+      },
+      "SharedTags": {
+        "type": "object",
+        "properties": {
+          "call": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The tags in Qloo's order, as words, never scores."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "call",
+          "tags",
+          "error"
+        ],
+        "description": "The tags a work's listeners share with the show's, from one compare call."
+      },
+      "Reply": {
+        "type": "object",
+        "properties": {
+          "pitch": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "book",
+              "decline",
+              "later"
+            ]
+          },
+          "angle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A top pitch's episode angle, built from its shared tags."
+          },
+          "sharedTags": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SharedTags"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "draft": {
+            "type": "string",
+            "description": "The reply to the pitch's sender."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "discarded"
+            ],
+            "description": "Only a member approves a reply, in the app; editing an approved reply returns it to `draft`, and so does editing a discarded one."
+          },
+          "approvedBy": {
+            "type": "string",
+            "description": "The ID of the member who approved it."
+          }
+        },
+        "required": [
+          "pitch",
+          "verdict",
+          "angle",
+          "sharedTags",
+          "draft",
+          "status"
+        ]
+      },
+      "PitchRunStart": {
+        "type": "object",
+        "properties": {
+          "show": {
+            "type": "string",
+            "description": "The show, named as on the roster."
+          },
+          "pastGuests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "guest": {
+                  "type": "string"
+                },
+                "work": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "book",
+                        "film",
+                        "tv_show",
+                        "podcast"
+                      ]
+                    },
+                    "year": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "type"
+                  ]
+                }
+              },
+              "required": [
+                "guest",
+                "work"
+              ]
+            },
+            "description": "Up to three of the show's best past guests and their public works. A guest's name is used to match a book by its author, and never reaches Qloo."
+          }
+        },
+        "required": [
+          "show"
+        ],
+        "example": {
+          "show": "Deep Cuts",
+          "pastGuests": [
+            {
+              "guest": "Mo Reyes",
+              "work": {
+                "title": "Talking with Ghosts",
+                "type": "book",
+                "year": 2022
+              }
+            }
+          ]
+        }
+      },
+      "Answer": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string"
+          },
+          "choice": {
+            "type": "string",
+            "description": "One of a `choice` question's options, or of a `launch` question's candidates."
+          },
+          "text": {
+            "type": "string",
+            "description": "Your own words, for a `choice` question; for a `launch` or `comps` question, the name Qloo lists the launch under."
+          },
+          "slots": {
+            "type": "number",
+            "description": "A `budget` in promo slots."
+          },
+          "dollars": {
+            "type": "number",
+            "description": "A `budget` in dollars."
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The `exclusions`: shows to leave out."
+          },
+          "comps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "For `comps`, up to three released shows."
+          },
+          "picks": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": "For `confirm_comps`, each comp's entity ID in the question's order, from its `candidates` in the run's plan, or null for none of them."
+          }
+        },
+        "required": [
+          "questionId"
+        ],
+        "example": {
+          "questionId": "toolu_01",
+          "choice": "Yes"
+        }
+      },
+      "ReplyChange": {
+        "type": "object",
+        "properties": {
+          "draft": {
+            "type": "string",
+            "description": "At most 5,000 characters."
+          }
+        },
+        "required": [
+          "draft"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "draft": "Thanks for thinking of us. We'd love to book Night Ferry."
+        }
+      },
+      "LaunchSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The launch's name; null for one planned from comps alone."
+          },
+          "comps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The released shows standing in for an unreleased launch, from its plan or a run's answers; empty for a released one."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "running",
+              "waiting",
+              "ranked",
+              "order_drafted",
+              "order_approved",
+              "failed",
+              "stopped"
+            ],
+            "description": "`new` until its first run; then its latest run's `running`, `waiting` on a question, `failed`, or `stopped`; once that run completed, `ranked`, `order_drafted`, or `order_approved`."
+          },
+          "finalists": {
+            "type": "integer"
+          },
+          "slots": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Its insertion order's promo slots."
+          },
+          "slotValue": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Its insertion order's total value, in dollars."
+          },
+          "startedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member who started its latest run in the app, by name; null for one started through the API."
+          },
+          "lastRun": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When its latest run started."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "comps",
+          "status",
+          "finalists",
+          "slots",
+          "slotValue",
+          "startedBy",
+          "lastRun"
+        ],
+        "example": {
+          "id": "3d1f6b2e-8a4c-4f7d-b5e9-6c0a2d8f1e73",
+          "name": "Night Shift Cinema",
+          "comps": [],
+          "status": "order_drafted",
+          "finalists": 5,
+          "slots": 20,
+          "slotValue": 19076,
+          "startedBy": "Ada Programmer",
+          "lastRun": "2026-10-19T14:02:11.000Z"
+        }
+      },
+      "Launch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The launch's name; null for one planned from comps alone."
+          },
+          "comps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The released shows standing in for an unreleased launch, from its plan or a run's answers; empty for a released one."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "running",
+              "waiting",
+              "ranked",
+              "order_drafted",
+              "order_approved",
+              "failed",
+              "stopped"
+            ],
+            "description": "`new` until its first run; then its latest run's `running`, `waiting` on a question, `failed`, or `stopped`; once that run completed, `ranked`, `order_drafted`, or `order_approved`."
+          },
+          "finalists": {
+            "type": "integer"
+          },
+          "slots": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Its insertion order's promo slots."
+          },
+          "slotValue": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Its insertion order's total value, in dollars."
+          },
+          "startedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member who started its latest run in the app, by name; null for one started through the API."
+          },
+          "lastRun": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When its latest run started."
+          },
+          "rosterChanged": {
+            "type": "boolean",
+            "description": "The network's roster has changed since the latest run copied it: run again to rank it as it is."
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LaunchRunSummary"
+            },
+            "description": "Every run, oldest first."
+          },
+          "latestRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LaunchRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "comps",
+          "status",
+          "finalists",
+          "slots",
+          "slotValue",
+          "startedBy",
+          "lastRun",
+          "rosterChanged",
+          "runs",
+          "latestRun"
+        ],
+        "example": {
+          "id": "3d1f6b2e-8a4c-4f7d-b5e9-6c0a2d8f1e73",
+          "name": "Night Shift Cinema",
+          "comps": [],
+          "status": "waiting",
+          "finalists": 5,
+          "slots": null,
+          "slotValue": null,
+          "startedBy": "Ada Programmer",
+          "lastRun": "2026-10-19T14:02:11.000Z",
+          "rosterChanged": false,
+          "runs": [
+            {
+              "id": "9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d",
+              "status": "waiting",
+              "startedAt": "2026-10-19T14:02:11.000Z",
+              "startedBy": "Ada Programmer"
+            }
+          ],
+          "latestRun": {
+            "id": "9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d",
+            "status": "waiting",
+            "startedAt": "2026-10-19T14:02:11.000Z",
+            "startedBy": "Ada Programmer",
+            "plan": {
+              "name": "Night Shift Cinema",
+              "entity": {
+                "id": "p-0301",
+                "name": "Night Shift Cinema",
+                "popularity": 0.6
+              },
+              "comps": []
+            },
+            "question": {
+              "id": "toolu_03",
+              "kind": "budget",
+              "question": "What is the slot budget?",
+              "options": []
+            },
+            "notes": [
+              {
+                "text": "Ranking 5 shows against Night Shift Cinema",
+                "status": "done"
+              }
+            ],
+            "error": null,
+            "closing": null,
+            "budget": null,
+            "exclusions": null,
+            "chart": null,
+            "topic": {
+              "status": "ranked",
+              "order": [
+                "Field Notes",
+                "Deep Cuts"
+              ],
+              "error": null
+            },
+            "demographics": null,
+            "insertionOrder": null
+          }
+        }
+      },
+      "LaunchRunSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "waiting",
+              "completed",
+              "stopped",
+              "failed"
+            ],
+            "description": "`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`."
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "startedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member who started it in the app, by name; null for a run started through the API."
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "startedAt",
+          "startedBy"
+        ]
+      },
+      "LaunchRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "waiting",
+              "completed",
+              "stopped",
+              "failed"
+            ],
+            "description": "`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`."
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "startedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member who started it in the app, by name; null for a run started through the API."
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "entity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Candidate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The launch's match in Qloo, once the run has one."
+              },
+              "comps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "unconfirmed",
+                        "confirmed",
+                        "rejected"
+                      ],
+                      "description": "Only a comp confirmed in an answer is scored; `rejected` when none of its matches is it."
+                    },
+                    "entity": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Candidate"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "candidates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Candidate"
+                      },
+                      "description": "What a `confirm_comps` answer picks from, by ID: the comp's match, or its candidates when two feeds share its name."
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "status",
+                    "entity",
+                    "candidates"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "name",
+              "entity",
+              "comps"
+            ],
+            "description": "The launch as this run plans it: its name, its match in Qloo once found, and any comps, each confirmed or not in the run's answers."
+          },
+          "question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Question"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the run failed or stopped."
+          },
+          "closing": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent's closing line, once the run completes."
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "slots": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "slots"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "dollars": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "dollars"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The slot budget, once answered."
+          },
+          "exclusions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The shows left out of this run, once answered."
+          },
+          "chart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Chart"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "topic": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ranking",
+                  "ranked",
+                  "refused",
+                  "failed"
+                ]
+              },
+              "order": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The roster by topic alone, most on-topic first."
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "order",
+              "error"
+            ],
+            "description": "The topic baseline: what planning by topic alone would rank, from show names and descriptions."
+          },
+          "demographics": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "call": {
+                "type": "string"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "profile": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "ages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "skew": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "male",
+                      "female",
+                      null
+                    ]
+                  },
+                  "disagree": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "from",
+                  "ages",
+                  "skew",
+                  "disagree"
+                ],
+                "description": "The launch's listeners in words: their leading age groups, any skew, and where comps disagree."
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "show": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "show",
+                    "reasons"
+                  ]
+                },
+                "description": "Each finalist, in fit order, flagged with why its listeners differ from the launch's; empty reasons when they don't, null when Qloo had none."
+              }
+            },
+            "required": [
+              "call",
+              "error",
+              "profile",
+              "rows"
+            ],
+            "description": "The finalists' listeners checked against the launch's."
+          },
+          "insertionOrder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InsertionOrder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "startedAt",
+          "startedBy",
+          "plan",
+          "question",
+          "notes",
+          "error",
+          "closing",
+          "budget",
+          "exclusions",
+          "chart",
+          "topic",
+          "demographics",
+          "insertionOrder"
+        ],
+        "example": {
+          "id": "9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d",
+          "status": "waiting",
+          "startedAt": "2026-10-19T14:02:11.000Z",
+          "startedBy": "Ada Programmer",
+          "plan": {
+            "name": "Night Shift Cinema",
+            "entity": {
+              "id": "p-0301",
+              "name": "Night Shift Cinema",
+              "popularity": 0.6
+            },
+            "comps": []
+          },
+          "question": {
+            "id": "toolu_03",
+            "kind": "budget",
+            "question": "What is the slot budget?",
+            "options": []
+          },
+          "notes": [
+            {
+              "text": "Ranking 5 shows against Night Shift Cinema",
+              "status": "done"
+            }
+          ],
+          "error": null,
+          "closing": null,
+          "budget": null,
+          "exclusions": null,
+          "chart": null,
+          "topic": {
+            "status": "ranked",
+            "order": [
+              "Field Notes",
+              "Deep Cuts"
+            ],
+            "error": null
+          },
+          "demographics": null,
+          "insertionOrder": null
+        }
+      },
+      "Chart": {
+        "type": "object",
+        "properties": {
+          "call": {
+            "type": "string",
+            "description": "The ranking's call number in the launch's evidence."
+          },
+          "anchors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            },
+            "description": "What the roster was ranked against: the launch, or its comps."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why Qloo gave no ranking; then `rows` is empty."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rank": {
+                  "type": "integer",
+                  "description": "Fit rank, from 1."
+                },
+                "show": {
+                  "type": "string"
+                },
+                "entity": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Candidate"
+                    },
+                    {
+                      "description": "What Qloo scored for it: its match, or the comp it maps to."
+                    }
+                  ]
+                },
+                "band": {
+                  "type": "string",
+                  "enum": [
+                    "top",
+                    "middle",
+                    "bottom"
+                  ],
+                  "description": "Its third of the chart by fit rank."
+                },
+                "finalist": {
+                  "type": "boolean",
+                  "description": "One of the top five by fit, not left out of this run."
+                },
+                "leadingComp": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "description": "The comp that clearly drove its fit; null with one anchor, or when none did."
+                },
+                "sharedTags": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SharedTags"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "A finalist's, once they're compared."
+                },
+                "topicRank": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Its rank by topic alone among the charted shows; null until the baseline is in."
+                },
+                "move": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Topic rank minus fit rank, so a show Qloo lifts climbs."
+                },
+                "climber": {
+                  "type": "boolean",
+                  "description": "It climbed three places or more over its topic rank."
+                }
+              },
+              "required": [
+                "rank",
+                "show",
+                "entity",
+                "band",
+                "finalist",
+                "leadingComp",
+                "sharedTags",
+                "topicRank",
+                "move",
+                "climber"
+              ]
+            },
+            "description": "In fit order."
+          },
+          "notScored": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "show": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "show",
+                "reason"
+              ]
+            }
+          }
+        },
+        "required": [
+          "call",
+          "anchors",
+          "error",
+          "rows",
+          "notScored"
+        ],
+        "description": "The roster ranked by fit with the launch's listeners, from one Qloo call. It shows ranks, never scores; the scores stay in the evidence."
+      },
+      "InsertionOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "IO-0001"
+          },
+          "run": {
+            "type": "string",
+            "description": "The run that drafted it."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved"
+            ],
+            "description": "Only a member approves an order, in the app; editing an approved order returns it to `draft`."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "show": {
+                  "type": "string"
+                },
+                "slots": {
+                  "type": "integer"
+                },
+                "angle": {
+                  "type": "string",
+                  "description": "The host-read angle."
+                },
+                "slotValue": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Dollars per slot; null when a figure it needs is missing."
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Slots × slot value."
+                },
+                "gap": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Why the line has no value, such as no downloads per episode."
+                }
+              },
+              "required": [
+                "show",
+                "slots",
+                "angle",
+                "slotValue",
+                "value",
+                "gap"
+              ]
+            }
+          },
+          "cpm": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The CPM in dollars it was priced at."
+          },
+          "slots": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "number",
+            "description": "Dollars, over the lines that have a value."
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "Every line has a value, so `total` is the order's whole cost."
+          },
+          "approvedBy": {
+            "type": "string",
+            "description": "The member who approved it, by name."
+          },
+          "approvedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run",
+          "status",
+          "lines",
+          "cpm",
+          "slots",
+          "total",
+          "complete"
+        ],
+        "description": "The launch plan priced as the inventory it spends: a slot is worth downloads per episode × CPM ÷ 1,000."
+      },
+      "LaunchPlan": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "A released launch's name, as Qloo lists it."
+          },
+          "comps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to three released shows to stand in for an unreleased launch."
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "name": "Night Shift Cinema"
+        }
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "call": {
+            "type": "string",
+            "description": "Its call number, which the chart and the run cite."
+          },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run that made the call; null for a roster lookup."
+          },
+          "at": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "endpoint": {
+            "type": "string",
+            "example": "/v2/insights"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "description": "What was sent to Qloo, never the key."
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Qloo's HTTP status; null when none came back."
+          },
+          "latencyMs": {
+            "type": "number"
+          },
+          "retries": {
+            "type": "integer"
+          },
+          "cacheHit": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "popularity": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "type",
+                "popularity"
+              ]
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "score"
+              ]
+            }
+          },
+          "affinities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "affinity": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "explainability": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "score"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "affinity",
+                "explainability"
+              ]
+            }
+          },
+          "copiedFrom": {
+            "type": "string",
+            "description": "The network's call this copies, from the roster's lookup, as the run started."
+          }
+        },
+        "required": [
+          "call",
+          "run",
+          "at",
+          "method",
+          "endpoint",
+          "params",
+          "status",
+          "latencyMs",
+          "retries",
+          "cacheHit",
+          "error",
+          "entities",
+          "tags",
+          "affinities"
+        ],
+        "description": "One Qloo call: what was sent and what came back, scores included.",
+        "example": {
+          "call": "C-07",
+          "run": "9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d",
+          "at": "2026-10-19T14:02:13.000Z",
+          "method": "POST",
+          "endpoint": "/v2/insights",
+          "params": {
+            "filter.type": "urn:entity:podcast",
+            "signal.interests.entities": "p-0301"
+          },
+          "status": 200,
+          "latencyMs": 412,
+          "retries": 0,
+          "cacheHit": false,
+          "error": null,
+          "entities": [],
+          "tags": [],
+          "affinities": [
+            {
+              "id": "p-0001",
+              "name": "Deep Cuts",
+              "affinity": 0.71,
+              "explainability": [
+                {
+                  "id": "p-0301",
+                  "score": 1
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "OrderChange": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "show": {
+                  "type": "string",
+                  "description": "One of the run's finalists, named as on the roster."
+                },
+                "slots": {
+                  "type": "number",
+                  "description": "Whole promo slots, 1 or more."
+                },
+                "angle": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "show",
+                "slots",
+                "angle"
+              ]
+            },
+            "description": "Every line of the order as it should be, one per show."
+          }
+        },
+        "required": [
+          "lines"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "lines": [
+            {
+              "show": "Deep Cuts",
+              "slots": 6,
+              "angle": "Its listeners stay for the long interviews."
+            }
+          ]
+        }
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/v1/networks/{networkId}": {
+      "get": {
+        "tags": [
+          "Network"
+        ],
+        "summary": "Read the network",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Network"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Network"
+        ],
+        "summary": "Rename the network or set its CPM",
+        "description": "A field left out stays as it is. A member's session must be an owner's; an API key, which an owner made, may.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The network as changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Network"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/usage": {
+      "get": {
+        "tags": [
+          "Network"
+        ],
+        "summary": "Read today's usage",
+        "description": "The network's Qloo calls and model runs today against its own daily caps, whichever member or key made them. Crossfeed's caps across all networks apply too.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Today's usage.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/roster": {
+      "get": {
+        "tags": [
+          "Roster"
+        ],
+        "summary": "Read the roster",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The roster.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Roster"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Roster"
+        ],
+        "summary": "Import a roster",
+        "description": "Send the roster file as the body: a CSV with a `name` column and optional `downloads`, `status`, and `description` columns, or plain text with one show name per line, at most 50 shows and 5 MB. It answers 202 at once with the new shows pending; poll the roster until it settles. Over a roster that has shows, it needs `replace=true`: shows already on it keep their matches, comps, and exclusions, the figures the file brings change, and only new shows are looked up.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "Import over a roster that has shows.",
+              "example": "true"
+            },
+            "required": false,
+            "description": "Import over a roster that has shows.",
+            "name": "replace",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/csv": {
+              "schema": {
+                "type": "string",
+                "example": "name,downloads\nDeep Cuts,12000\nField Notes,8000\n"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string",
+                "example": "Deep Cuts\nField Notes\n"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The roster, with the import's shows pending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Roster"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The upload is over the size limit (`too_large`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The upload can't be read (`unreadable`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/roster/shows/{name}": {
+      "patch": {
+        "tags": [
+          "Roster"
+        ],
+        "summary": "Settle or edit a show",
+        "description": "Pick one of an ambiguous show's candidates (`entityId`), map a show to one of its comp search's results (`compId`), or change its figures or exclusion. A field left out stays as it is.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The show's name as on the roster, URL-encoded.",
+              "example": "Field Notes"
+            },
+            "required": true,
+            "description": "The show's name as on the roster, URL-encoded.",
+            "name": "name",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShowChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The show as changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Show"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/roster/shows/{name}/comp-search": {
+      "post": {
+        "tags": [
+          "Roster"
+        ],
+        "summary": "Search for a comp",
+        "description": "Search Qloo for a comparable show to stand in for one it has no match for. It answers 202 with the show's comp search pending; poll the roster until it's done, then map the show to a result with `compId`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The show's name as on the roster, URL-encoded.",
+              "example": "Field Notes"
+            },
+            "required": true,
+            "description": "The show's name as on the roster, URL-encoded.",
+            "name": "name",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompQuery"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The show, with its comp search pending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Show"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/inbox": {
+      "get": {
+        "tags": [
+          "Inbox"
+        ],
+        "summary": "Read the inbox",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The inbox.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inbox"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Inbox"
+        ],
+        "summary": "Load the inbox",
+        "description": "Send the pitches as the body: one email as `message/rfc822` (an .eml file), an mbox export as `application/mbox`, plain text with a line of three dashes between pitches as `text/plain` (a pitch's first lines may give its `From:` and `Subject:`), or JSON pitches, at most 50 pitches and 5 MB. Of each email, only its sender, subject, and text are kept, never its attachments or other headers, and only its work's title and type reach Qloo. An email with no text, or over 10,000 characters, is skipped and named. It answers 202 at once with the pitches reading; poll the inbox until it's done. Reading the pitches counts as one of the network's model runs. Over an inbox that has pitches, it needs `replace=true`: they go, with the last pitch run's lists and replies.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "Load over an inbox that has pitches.",
+              "example": "true"
+            },
+            "required": false,
+            "description": "Load over an inbox that has pitches.",
+            "name": "replace",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "message/rfc822": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/mbox": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string",
+                "example": "From: Pat Lindqvist <pat@example.com>\nSubject: Ada Quill on Night Ferry\n\nAda Quill's novel Night Ferry is about a projectionist on a car ferry.\n---\nCy Lund on making Low Tide on a shoestring.\n"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PitchBatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The inbox, with its new pitches reading.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inbox"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The upload is over the size limit (`too_large`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The upload can't be read (`unreadable`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/inbox/pitches/{pitchId}": {
+      "patch": {
+        "tags": [
+          "Inbox"
+        ],
+        "summary": "Confirm a pitch's work",
+        "description": "Confirm which of an ambiguous work's same-title candidates the pitch is about (`entityId`). Only a work matched in Qloo is ranked.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "pitch-03"
+            },
+            "required": true,
+            "name": "pitchId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkConfirmation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The pitch, its work confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pitch"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/pitch-runs": {
+      "post": {
+        "tags": [
+          "Pitch runs"
+        ],
+        "summary": "Start a pitch run",
+        "description": "Rank the inbox's pitched works against a roster show matched in Qloo, and against its best past guests' works too, then draft a reply to every pitch. Only each work's title and type reach Qloo, never a guest's name or a sender. It answers 202 at once with the run running; poll it until it's done or waiting on a question. It counts as one of the network's model runs, and a new run ends one left waiting.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PitchRunStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The run, running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PitchRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/pitch-runs/{runId}": {
+      "get": {
+        "tags": [
+          "Pitch runs"
+        ],
+        "summary": "Read a pitch run",
+        "description": "Its status, any question it waits on, and as they arrive, its ranked lists and drafted replies. An earlier run reads as it ended.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the run answered with when it started."
+            },
+            "required": true,
+            "description": "The ID the run answered with when it started.",
+            "name": "runId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PitchRun"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/pitch-runs/{runId}/answer": {
+      "post": {
+        "tags": [
+          "Pitch runs"
+        ],
+        "summary": "Answer a pitch run's question",
+        "description": "Answer the question the run is waiting on, by its ID: with one of its options as `choice`, or your own words as `text`. The run resumes, answering 202; poll it again. A run started later, or loading the inbox, ends a run left waiting.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the run answered with when it started."
+            },
+            "required": true,
+            "description": "The ID the run answered with when it started.",
+            "name": "runId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Answer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The run, resumed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PitchRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/pitch-runs/{runId}/replies/{pitchId}": {
+      "patch": {
+        "tags": [
+          "Replies"
+        ],
+        "summary": "Edit a reply",
+        "description": "Reword one of the latest pitch run's drafted replies, once the run has ended. Editing an approved reply returns it to draft, and editing a discarded one restores it. Only a member approves a reply, in the app.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the run answered with when it started."
+            },
+            "required": true,
+            "description": "The ID the run answered with when it started.",
+            "name": "runId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "pitch-01"
+            },
+            "required": true,
+            "name": "pitchId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The reply as edited.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/pitch-runs/{runId}/replies/{pitchId}/discard": {
+      "post": {
+        "tags": [
+          "Replies"
+        ],
+        "summary": "Discard a reply",
+        "description": "Leave one of the latest pitch run's drafted replies out, once the run has ended. Editing it restores it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the run answered with when it started."
+            },
+            "required": true,
+            "description": "The ID the run answered with when it started.",
+            "name": "runId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "pitch-01"
+            },
+            "required": true,
+            "name": "pitchId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The reply, discarded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/launches": {
+      "get": {
+        "tags": [
+          "Launches"
+        ],
+        "summary": "List launches",
+        "description": "The network's launches, newest first, as its dashboard lists them.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The launches.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "launches": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LaunchSummary"
+                      }
+                    }
+                  },
+                  "required": [
+                    "launches"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Launches"
+        ],
+        "summary": "Create a launch",
+        "description": "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaunchPlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The launch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Launch"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/launches/{launchId}": {
+      "get": {
+        "tags": [
+          "Launches"
+        ],
+        "summary": "Read a launch",
+        "description": "Its status and figures, its runs, and its latest run in full: any question it waits on, the chart, the topic baseline, the demographics check, and the insertion order, as they arrive.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the launch answered with when it was created."
+            },
+            "required": true,
+            "description": "The ID the launch answered with when it was created.",
+            "name": "launchId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The launch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Launch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Launches"
+        ],
+        "summary": "Delete a launch",
+        "description": "Delete the launch for every member, with its runs, their insertion orders, and their evidence, which can't be brought back. Only a member's session from one of Crossfeed's pages may, as the dashboard does; an API key answers 403.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the launch answered with when it was created."
+            },
+            "required": true,
+            "description": "The ID the launch answered with when it was created.",
+            "name": "launchId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/launches/{launchId}/evidence": {
+      "get": {
+        "tags": [
+          "Evidence"
+        ],
+        "summary": "Read a launch's evidence",
+        "description": "The launch's evidence log, oldest first: one record per Qloo call its runs made, and the roster's lookups each run copied as it started. Every call number a run cites opens one of these.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the launch answered with when it was created."
+            },
+            "required": true,
+            "description": "The ID the launch answered with when it was created.",
+            "name": "launchId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The evidence log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Evidence"
+                      }
+                    }
+                  },
+                  "required": [
+                    "evidence"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/launches/{launchId}/runs": {
+      "post": {
+        "tags": [
+          "Runs"
+        ],
+        "summary": "Start a run",
+        "description": "Rank the network's roster, as it stands now, by fit with the launch's listeners in Qloo, then plan its promos to a draft insertion order priced at the network's CPM. With no body, the run plans the launch as it stands; a name or comps plan it anew. It answers 202 at once with the run running; poll it until it's done or waiting on a question. It counts as one of the network's model runs: past the network's daily model runs, it stops at once, saying why. A new run ends one left waiting.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the launch answered with when it was created."
+            },
+            "required": true,
+            "description": "The ID the launch answered with when it was created.",
+            "name": "launchId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaunchPlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The run, running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}": {
+      "get": {
+        "tags": [
+          "Runs"
+        ],
+        "summary": "Read a run",
+        "description": "Its status, any question it waits on, and as they arrive, its chart, topic baseline, demographics check, and insertion order. An earlier run reads as it ended, with its order as it was left, to compare with a re-run.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the launch answered with when it was created."
+            },
+            "required": true,
+            "description": "The ID the launch answered with when it was created.",
+            "name": "launchId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the run answered with when it started."
+            },
+            "required": true,
+            "description": "The ID the run answered with when it started.",
+            "name": "runId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchRun"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}/answer": {
+      "post": {
+        "tags": [
+          "Runs"
+        ],
+        "summary": "Answer a run's question",
+        "description": "Answer the question the run is waiting on, by its ID, with the fields its kind takes: `choice` or `text` for a `choice` question; `choice` (one of its options) or `text` (the name Qloo lists the launch under) for `launch`; `slots` or `dollars` for `budget`; `exclude`, from its options, for `exclusions`; `comps` or `text` for `comps`; and `picks` for `confirm_comps`. Relay the question to the person planning the launch and answer with their words. The run resumes, answering 202; poll it again.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the launch answered with when it was created."
+            },
+            "required": true,
+            "description": "The ID the launch answered with when it was created.",
+            "name": "launchId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the run answered with when it started."
+            },
+            "required": true,
+            "description": "The ID the run answered with when it started.",
+            "name": "runId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Answer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The run, resumed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/launches/{launchId}/insertion-orders/{orderId}": {
+      "patch": {
+        "tags": [
+          "Insertion orders"
+        ],
+        "summary": "Edit a draft insertion order",
+        "description": "Change the lines of the launch's current order, once its run has ended: each finalist's promo slots and host-read angle, or drop a show by leaving its line out. Code prices it again at the network's CPM. Editing an approved order returns it to draft. Only a member approves an order, in the app.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the launch answered with when it was created."
+            },
+            "required": true,
+            "description": "The ID the launch answered with when it was created.",
+            "name": "launchId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "IO-0001"
+            },
+            "required": true,
+            "name": "orderId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The order as edited.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsertionOrder"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request, or a value in it, is invalid (`invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/launches/{launchId}/insertion-orders/{orderId}/csv": {
+      "get": {
+        "tags": [
+          "Insertion orders"
+        ],
+        "summary": "Export an approved insertion order",
+        "description": "The order as a CSV file for ad operations: a row per line, then the total, in whole dollars. Only an order a member approved in the app exports; a draft answers 409. An earlier run's order exports as it was left.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID the launch answered with when it was created."
+            },
+            "required": true,
+            "description": "The ID the launch answered with when it was created.",
+            "name": "launchId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "IO-0001"
+            },
+            "required": true,
+            "name": "orderId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The order as CSV.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "example": "﻿Show,Slots,Angle,Slot value (USD),Line value (USD)\r\nDeep Cuts,6,Its listeners stay for the long interviews.,300,1800\r\nTotal,6,,,1800\r\n"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

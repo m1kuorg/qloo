@@ -37,7 +37,7 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ steps.bun.outputs.bun-version }}-${{ hashFiles('bun.lock', 'apps/bun.lock') }}
+          key: bun-${{ runner.os }}-${{ steps.bun.outputs.bun-version }}-${{ hashFiles('bun.lock', 'apps/bun.lock', 'packages/sdk/bun.lock') }}
           restore-keys: bun-${{ runner.os }}-${{ steps.bun.outputs.bun-version }}-
 
       - name: Install
@@ -45,6 +45,8 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bun install --frozen-lockfile --cwd apps
+          # Without its build, so a type error fails the SDK's typecheck, not every check.
+          bun install --frozen-lockfile --ignore-scripts --cwd packages/sdk
 
       # Each check runs even when an earlier one fails, so one run reports them all.
       - name: Format
@@ -54,6 +56,12 @@ jobs:
       - name: Typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: apps
+        run: bun run typecheck
+
+      # Format lints the SDK with the rest of the repo.
+      - name: Typecheck SDK
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: packages/sdk
         run: bun run typecheck
 
       - name: Test
