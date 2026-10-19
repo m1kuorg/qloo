@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client'
+import type { Role } from '../directory'
 import { NewNetworkPage, SignInPage, wireSignOut } from './Account'
 import { App } from './App'
 import { DashboardPage } from './Dashboard'
@@ -10,7 +11,7 @@ const d = root.dataset
 const network = () => ({
   id: d.networkId!,
   name: d.networkName!,
-  role: d.role as 'owner' | 'member',
+  role: d.role as Role,
   links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink! }
 })
 createRoot(root).render(

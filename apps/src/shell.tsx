@@ -118,16 +118,25 @@ export const demoShell = jsxRenderer(({ children }, c) => {
 // with its sections. The sign-in page sets none of them.
 export type AppVariables = { member?: Member; networks?: Network[]; network?: Network }
 
+// Where a network's pages are. The inbox has none while GUEST_PITCHES is off.
+export const networkLinks = (env: Env, id: string) => ({
+  dashboard: `/app/${id}`,
+  roster: `/app/${id}/roster`,
+  inbox: env.GUEST_PITCHES === 'on' ? `/app/${id}/inbox` : null,
+  settings: `/app/${id}/settings`
+})
+
 // The app shell, for signing in and for a signed-in member's pages: the black top bar with the
 // wordmark, the network switcher, the network's sections, and the account menu, then the React
 // island in #root.
 export const appShell = jsxRenderer(({ children }, c) => {
   const { member, networks, network } = c.var as AppVariables
-  const sections = network && [
-    { href: `/app/${network.id}`, label: 'Dashboard' },
-    { href: `/app/${network.id}/roster`, label: 'Roster' },
-    ...(c.env.GUEST_PITCHES === 'on' ? [{ href: `/app/${network.id}/inbox`, label: 'Inbox' }] : []),
-    { href: `/app/${network.id}/settings`, label: 'Settings' }
+  const links = network && networkLinks(c.env, network.id)
+  const sections = links && [
+    { href: links.dashboard, label: 'Dashboard' },
+    { href: links.roster, label: 'Roster' },
+    ...(links.inbox ? [{ href: links.inbox, label: 'Inbox' }] : []),
+    { href: links.settings, label: 'Settings' }
   ]
   return (
     <html lang="en">

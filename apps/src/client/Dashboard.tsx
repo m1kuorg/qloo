@@ -11,6 +11,7 @@ import { StateLine } from './states'
 // A network's page, as the server describes it: the network, the member's role in it, and where its
 // other pages are. `inbox` is null while GUEST_PITCHES is off.
 export type NetworkPage = {
+  id: string
   name: string
   role: Role
   links: { roster: string; inbox: string | null; settings: string }
@@ -109,9 +110,7 @@ function Launches({ launches }: { launches: LaunchSummary[] }) {
           launches.map((l) => (
             <tr key={l.id}>
               <td className="nm">{l.name}</td>
-              <td>
-                <span className="chip">{l.status}</span>
-              </td>
+              <td>{l.status}</td>
               <td className="r">{l.finalists}</td>
               <td className="r">{l.slots ?? '–'}</td>
               <td className="r">{l.slotValue === null ? '–' : dollars(l.slotValue)}</td>
@@ -167,7 +166,7 @@ function NetworkLines({ state, network }: { state: State; network: NetworkPage }
 }
 
 // The roster in a line: how many shows matched in Qloo, and how many need settling.
-export function rosterLine(roster: Show[]) {
+function rosterLine(roster: Show[]) {
   if (roster.length === 0) return 'No shows yet'
   const n = (...of: Show['resolution'][]) => roster.filter((s) => of.includes(s.resolution)).length
   const pending = n('pending')
@@ -182,7 +181,7 @@ export function rosterLine(roster: Show[]) {
 
 // The inbox in a line: how many pitches, how their works matched, and how many were set aside, in the
 // inbox check's terms.
-export function inboxLine(inbox: Inbox | null) {
+function inboxLine(inbox: Inbox | null) {
   if (!inbox || inbox.pitches.length === 0) return 'No pitches loaded'
   const { pitches } = inbox
   if (inbox.status === 'reading') return `Reading ${count(pitches.length, 'pitch', 'pitches')}…`

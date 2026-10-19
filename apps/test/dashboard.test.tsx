@@ -8,7 +8,7 @@ import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
 import { Settings } from '../src/client/Settings'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
-import { openMember, type Member, type Session } from './session'
+import { joinNetwork, openMember, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 const saved = { GUEST_PITCHES: env.GUEST_PITCHES }
@@ -66,12 +66,6 @@ const words = (html: string) =>
 const dashboard = async (member: Member, id: string, state: State | undefined) =>
   renderToStaticMarkup(<Dashboard {...await island(member, `/app/${id}`)} state={state} dismiss={async () => {}} />)
 
-// Adds a member to a network, as an invite will (#165); until invites exist, it writes the row itself.
-const join = (id: string, member: Member) =>
-  env.DB.prepare("INSERT INTO memberships (network_id, member_id, role, joined) VALUES (?, ?, 'member', ?)")
-    .bind(id, member.id, Date.now())
-    .run()
-
 const STEPS = ['Import the roster', 'Set the CPM', 'Plan a launch', 'Invite a teammate', 'Create an API key']
 
 describe('the dashboard', () => {
@@ -109,7 +103,7 @@ describe('the dashboard', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Night Shift Audio', cpm: 20 })
     })
-    await join(id, await openMember({ name: 'Grace Booker' }))
+    await joinNetwork(id, await openMember({ name: 'Grace Booker' }))
 
     const read = words(await dashboard(ada, id, await agent.until((s) => s.cpm === 20)))
     expect(read).toContain('Roster 3 shows: 2 matched, 1 not in Qloo Open')
@@ -123,7 +117,7 @@ describe('the dashboard', () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
     const grace = await openMember({ name: 'Grace Booker' })
-    await join(id, grace)
+    await joinNetwork(id, grace)
     await agent.call('dismissChecklist')
 
     const state = agent.state()
@@ -207,7 +201,7 @@ describe('settings', () => {
       body: JSON.stringify({ name: 'Night Shift Audio', cpm: 18.5 })
     })
     const grace = await openMember({ name: 'Grace Booker' })
-    await join(id, grace)
+    await joinNetwork(id, grace)
     const html = await settings(grace, id, await (await connect(grace, id)).until((s) => s.cpm === 18.5))
     expect(html).not.toContain('<input')
     expect(html).not.toContain('Save')

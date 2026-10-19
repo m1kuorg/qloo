@@ -1,6 +1,7 @@
 import { browserSupportsWebAuthn, startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { useEffect, useRef, useState } from 'react'
 import { Alert, send, useAction } from './controls'
+import { MAX_NAME } from '../text'
 import { StateLine } from './states'
 
 // The accounts pages of the island: signing in or up with a passkey, or back in with a recovery
@@ -269,7 +270,7 @@ export function NewNetworkPage({ cap }: { cap: number }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="organization"
-          maxLength={64}
+          maxLength={MAX_NAME}
           autoFocus
           required
         />

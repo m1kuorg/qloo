@@ -25,6 +25,14 @@ export class NetworkAgent extends CrossfeedAgent {
     return [...(await super.getConnectionTags(connection, context)), ...(member ? [`member:${member}`] : [])]
   }
 
+  // The CPM is an owner's to change, in settings: the Worker checks the role and calls this over RPC.
+  // The agent doesn't know members' roles, so a page's own connection is refused with why.
+  @callable()
+  setCpm(cpm: number) {
+    if (getCurrentAgent().connection) throw new Error("The CPM is changed in the network's settings, by an owner.")
+    super.setCpm(cpm)
+  }
+
   // Hides the dashboard's setup checklist for the member on this connection, and no one else.
   @callable()
   dismissChecklist() {

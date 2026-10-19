@@ -1,18 +1,13 @@
 import { useEffect, useState } from 'react'
-import { dollars } from '../../order'
+import { cpmProblem, dollars } from '../../order'
+import { MAX_NAME } from '../../text'
 import { Alert, send, useAction } from '../controls'
 import type { NetworkPage } from '../Dashboard'
 import { StateLine } from '../states'
 
 // The settings' network module: the network's name and its CPM. An owner changes them here; a member
 // reads them. `cpm` is the agent's, live, and undefined until it's connected.
-export function NetworkModule({
-  network,
-  cpm
-}: {
-  network: NetworkPage & { id: string }
-  cpm: number | null | undefined
-}) {
+export function NetworkModule({ network, cpm }: { network: NetworkPage; cpm: number | null | undefined }) {
   return (
     <section className="mod set-mod" aria-labelledby="set-network-h">
       <div className="set-about">
@@ -50,7 +45,7 @@ function NetworkRead({ network, cpm }: { network: NetworkPage; cpm: number | nul
   )
 }
 
-function NetworkForm({ network, cpm }: { network: NetworkPage & { id: string }; cpm: number | null | undefined }) {
+function NetworkForm({ network, cpm }: { network: NetworkPage; cpm: number | null | undefined }) {
   const [name, setName] = useState(network.name)
   const [saved, setSaved] = useState({ name: network.name, cpm: cpm ?? null })
   const [typedCpm, setTypedCpm] = useState<string | null>(null)
@@ -62,9 +57,13 @@ function NetworkForm({ network, cpm }: { network: NetworkPage & { id: string }; 
   const changed = name.trim() !== saved.name || (shownCpm.trim() !== '' && Number(shownCpm) !== saved.cpm)
   const save = () =>
     run(async () => {
+      // An empty field leaves the CPM as it is; anything else must be a dollar amount.
+      const typed = shownCpm.trim() === '' ? null : Number(shownCpm)
+      const problem = typed === null ? null : cpmProblem(typed)
+      if (problem) throw new Error(problem)
       const answer = await send<{ name: string; cpm: number | null }>(`/app/${network.id}/settings/network`, {
         name,
-        cpm: shownCpm.trim() === '' ? null : Number(shownCpm)
+        cpm: typed
       })
       setSaved({ name: answer.name, cpm: answer.cpm ?? saved.cpm })
       setName(answer.name)
@@ -91,7 +90,7 @@ function NetworkForm({ network, cpm }: { network: NetworkPage & { id: string }; 
           setName(e.target.value)
           setDone(false)
         }}
-        maxLength={64}
+        maxLength={MAX_NAME}
         required
       />
       <label htmlFor="set-cpm">CPM</label>

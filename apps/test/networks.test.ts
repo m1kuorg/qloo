@@ -4,7 +4,7 @@ import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MEMBER_HEADER } from '../src/network-agent'
 import { requests } from './fake'
-import { openMember, type Member, type Session } from './session'
+import { joinNetwork, openMember, type Member, type Session } from './session'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
@@ -36,13 +36,6 @@ const switcher = (html: string) =>
       /<a href="([^"]+)"([^>]*)>([^<]*)<\/a>/g
     )
   ].map(([, href, attributes, name]) => [name, href, attributes.includes('aria-current="true"')])
-
-// Adds a member to a network as a `member`, as an invite will (#165). Until invites exist, it writes
-// the membership row itself.
-const join = (network: string, member: Member) =>
-  env.DB.prepare("INSERT INTO memberships (network_id, member_id, role, joined) VALUES (?, ?, 'member', ?)")
-    .bind(network, member.id, Date.now())
-    .run()
 
 // Saves the settings' Network module as its page does.
 const saveNetwork = (member: Member, network: string, body: object) =>
@@ -98,6 +91,13 @@ describe('creating a network', () => {
       expect(await res.json()).toEqual({ error })
     }
     expect(await where(ada, '/app')).toBe('/app/new')
+  })
+
+  it('lets at most three of four networks created at once through', async () => {
+    const ada = await openMember()
+    const answers = await Promise.all(['One', 'Two', 'Three', 'Four'].map((name) => create(ada, name)))
+    expect(answers.map((res) => res.status).sort()).toEqual([200, 200, 200, 429])
+    expect(switcher(await page(ada, '/app/new'))).toHaveLength(3)
   })
 
   it("refuses the fourth network a member creates, with a message, but not another member's", async () => {
@@ -196,7 +196,7 @@ describe("a network's agent", () => {
     const ada = await openMember()
     const network = await created(ada, 'Night Shift Audio')
     const grace = await openMember({ name: 'Grace Booker' })
-    await join(network, grace)
+    await joinNetwork(network, grace)
     const agent = await connect(ada, network, { [MEMBER_HEADER]: grace.id })
     await agent.call('dismissChecklist')
     expect(agent.state()!.checklistDismissed).toEqual([ada.id])
@@ -252,11 +252,25 @@ describe('settings', () => {
     expect(agent.state()!.cpm).toBeNull()
   })
 
+  it("keep the CPM out of reach of a page's own connection, an owner's too: it changes in settings", async () => {
+    const ada = await openMember()
+    const network = await created(ada, 'Night Shift Audio')
+    const grace = await openMember({ name: 'Grace Booker' })
+    await joinNetwork(network, grace)
+    for (const member of [grace, ada]) {
+      const agent = await connect(member, network)
+      await expect(agent.call('setCpm', 30)).rejects.toThrow(
+        "The CPM is changed in the network's settings, by an owner."
+      )
+      expect(agent.state()!.cpm).toBeNull()
+    }
+  })
+
   it("show a member the network's settings read-only, and refuse their changes", async () => {
     const ada = await openMember()
     const network = await created(ada, 'Night Shift Audio')
     const grace = await openMember({ name: 'Grace Booker' })
-    await join(network, grace)
+    await joinNetwork(network, grace)
     expect(await page(grace, `/app/${network}/settings`)).toContain('data-role="member"')
 
     const res = await saveNetwork(grace, network, { name: 'Grace Audio', cpm: 30 })

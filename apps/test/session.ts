@@ -184,3 +184,10 @@ export async function openMember({
     connect: (path, headers = {}) => connect(path, { Cookie: cookie, Origin: origin, ...headers })
   }
 }
+
+// Adds a member to a network as a `member`, as an invite will (#165). Until invites exist, it writes
+// the membership row itself, the one D1 write outside the directory's storage tests.
+export const joinNetwork = (network: string, member: Member) =>
+  env.DB.prepare("INSERT INTO memberships (network_id, member_id, role, joined) VALUES (?, ?, 'member', ?)")
+    .bind(network, member.id, Date.now())
+    .run()

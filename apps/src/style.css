@@ -2884,7 +2884,7 @@ a.wm {
 /* The switcher fills the bar's height to be easy to hit; its divider is the network name's 20px. */
 .switch summary {
   max-width: 296px;
-  padding: 0 4px 0 16px;
+  padding: 0 12px 0 16px;
   background: linear-gradient(var(--ink-hover), var(--ink-hover)) left center / 1px 20px no-repeat;
   font-size: 12px;
   color: #b5b5b5;
@@ -2902,11 +2902,12 @@ a.wm {
 }
 
 .acct-menu {
-  margin-left: auto;
-  padding-left: 24px;
+  margin: 0 -12px 0 auto;
+  padding-left: 12px;
 }
 
 .acct-menu summary {
+  padding: 0 12px;
   font-size: 12px;
   font-weight: 500;
   color: #a3a3a3;
@@ -2999,8 +3000,9 @@ a.wm {
   outline-offset: 2px;
 }
 
+/* The bar's ring, drawn inside the menu's button as on the nav links (DESIGN.md's top bar). */
 .top .menu summary:focus-visible {
-  outline-offset: 4px;
+  outline-offset: -6px;
 }
 
 /* The dashboard: the launches table in the wide column, and the network's lines and setup in the
@@ -3181,7 +3183,7 @@ a.wm {
   /* The bar's first row keeps the wordmark, the switcher, and the menu: the menu says Account, and
      the member's name stays for screen readers and in the menu itself. */
   .acct-menu {
-    padding-left: 16px;
+    padding-left: 4px;
   }
 
   .acct-name {

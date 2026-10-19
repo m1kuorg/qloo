@@ -18,7 +18,7 @@ import {
 } from '../directory'
 import { MEMBER_HEADER } from '../network-agent'
 import { cpmProblem } from '../order'
-import { appShell, type AppVariables } from '../shell'
+import { appShell, networkLinks, type AppVariables } from '../shell'
 import { readName } from '../text'
 
 type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
@@ -120,16 +120,19 @@ appPages.post('/app/:networkId/settings/network', async (c) => {
 })
 
 // What every network page tells the island: where the network's agent connects, the network and the
-// member's role in it, and where its pages are. The inbox has none while GUEST_PITCHES is off.
-const island = (c: Context<AppEnv>, network: Network) => ({
-  'data-agent-path': `/agents/network/${network.id}`,
-  'data-network-id': network.id,
-  'data-network-name': network.name,
-  'data-role': network.role,
-  'data-roster-link': `/app/${network.id}/roster`,
-  'data-inbox-link': c.env.GUEST_PITCHES === 'on' ? `/app/${network.id}/inbox` : undefined,
-  'data-settings-link': `/app/${network.id}/settings`
-})
+// member's role in it, and where its pages are.
+const island = (c: Context<AppEnv>, network: Network) => {
+  const links = networkLinks(c.env, network.id)
+  return {
+    'data-agent-path': `/agents/network/${network.id}`,
+    'data-network-id': network.id,
+    'data-network-name': network.name,
+    'data-role': network.role,
+    'data-roster-link': links.roster,
+    'data-inbox-link': links.inbox ?? undefined,
+    'data-settings-link': links.settings
+  }
+}
 
 // A network's agent, where its pages connect (`useAgent` with `basePath`). The Worker lets through only
 // a WebSocket upgrade from one of the app's pages, signed in by one of the network's members, and
