@@ -557,6 +557,13 @@ h1 span {
   max-width: 560px;
 }
 
+/* A file dragged over the page: the import form it lands in is ruled in ink, as keyboard focus is. */
+.import[data-drop] {
+  outline: 2px solid var(--ink);
+  outline-offset: 8px;
+  border-radius: 4px;
+}
+
 .import textarea {
   border: 1px solid var(--edge);
   border-radius: 4px;
@@ -3012,7 +3019,8 @@ a.wm {
 }
 
 @media (min-width: 961px) {
-  .dash .rail {
+  .dash .rail,
+  .net-roster .rail {
     grid-row: 1 / span 2;
   }
 }

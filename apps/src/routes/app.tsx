@@ -93,6 +93,14 @@ appPages.get('/app/:networkId', async (c) => {
   )
 })
 
+// The network's roster, which every launch ranks: imported, settled, and edited over the network's
+// agent by any of its members.
+appPages.get('/app/:networkId/roster', async (c) => {
+  const network = await networkPage(c, c.req.param('networkId'))
+  if (!network) return c.notFound()
+  return c.render(<div id="root" data-page="network-roster" {...island(c, network)} />)
+})
+
 // The network's settings, one module per job. Its members see every module; only its owners change
 // what the network module holds.
 appPages.get('/app/:networkId/settings', async (c) => {
