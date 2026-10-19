@@ -206,6 +206,22 @@ describe('the MCP server', () => {
     ).toEqual({
       error: { code: 'invalid', message: 'Name the launch or give its comps, not both.' }
     })
+
+    // Past the network's launch cap, a new launch is refused with why and what to do.
+    const saved = env.LAUNCHES_PER_NETWORK
+    env.LAUNCHES_PER_NETWORK = '1'
+    try {
+      expect((await ours.call('create_launch', { name: 'Night Shift Cinema' })).isError).toBe(false)
+      expect((await ours.call('create_launch', { name: 'Corner Booth' })).structured).toEqual({
+        error: {
+          code: 'limit',
+          message:
+            'A network keeps at most 1 launch at once. Delete one it no longer needs, on the dashboard, to plan another.'
+        }
+      })
+    } finally {
+      env.LAUNCHES_PER_NETWORK = saved
+    }
   })
 
   it("serves a browser on the app's own origin, on a custom domain too, and refuses one from another site", async () => {
@@ -317,7 +333,8 @@ describe('planning a launch through the MCP server', () => {
     expect(created.text).toContain(page)
 
     const started = await client.call('start_launch_run', { launchId })
-    expect(started.structured).toMatchObject({ status: 'running' })
+    // The run names the assistant's API key as its starter, as the launch page's run list shows.
+    expect(started.structured).toMatchObject({ status: 'running', startedBy: 'API key “Nightly sync”' })
     const runId = started.structured.id
     const read = (ready: (launch: any) => boolean) => client.until('get_launch', { launchId }, ready)
 

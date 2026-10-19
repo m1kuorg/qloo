@@ -219,6 +219,40 @@ describe('creating a launch', () => {
   })
 })
 
+describe("a network's launches", () => {
+  const saved = { LAUNCHES_PER_NETWORK: env.LAUNCHES_PER_NETWORK }
+  afterEach(() => Object.assign(env, saved))
+
+  it('stop at its cap, however many are created at once, from the API or the app, until a member deletes one', async () => {
+    env.LAUNCHES_PER_NETWORK = '3'
+    const { ada, network, call } = await networkWithKey()
+    const launches = `/api/v1/networks/${network}/launches`
+    const full = {
+      code: 'limit',
+      message:
+        'A network keeps at most 3 launches at once. Delete one it no longer needs, on the dashboard, to plan another.'
+    }
+
+    const created = await Promise.all(
+      ['Corner Booth', 'Slow Burn', 'Paper Route', 'Field Notes', 'Back Lot'].map((name) =>
+        post(call, launches, { name })
+      )
+    )
+    expect(created.map((res) => res.status).toSorted()).toEqual([201, 201, 201, 429, 429])
+    for (const res of created.filter((r) => r.status === 429)) expect(await refused(res)).toEqual([429, full])
+    const { launches: listed } = await (await call(launches)).json<{ launches: Launch[] }>()
+    expect(listed).toHaveLength(3)
+
+    // The dashboard's New launch is refused the same way, with the same words.
+    const dashboard = await ada.connect(`/agents/network/${network}`)
+    await expect(dashboard.call('createLaunch', { name: 'Night Shift Cinema' })).rejects.toThrow(full.message)
+
+    expect((await ada.fetch(`${launches}/${listed[0].id}`, { method: 'DELETE' })).status).toBe(204)
+    expect((await post(call, launches, { name: 'Night Shift Cinema' })).status).toBe(201)
+    expect(await refused(await post(call, launches, { name: 'Ghost Signal' }))).toEqual([429, full])
+  })
+})
+
 describe("a launch's run", () => {
   it('ranks the roster, asks its questions, takes their answers, and drafts the order, as the launch then reads', async () => {
     const { network, call } = await rosterReady()
@@ -237,9 +271,10 @@ describe("a launch's run", () => {
     const res = await post(call, `${launches}/${id}/runs`)
     expect(res.status).toBe(202)
     const started = await res.json<LaunchRun>()
+    // The run names the API key that started it, by the name an owner gave it.
     expect(started).toMatchObject({
       status: 'running',
-      startedBy: null,
+      startedBy: 'API key “Nightly sync”',
       plan: { name: 'Night Shift Cinema', entity: null, comps: [] },
       question: null,
       chart: null,
@@ -329,19 +364,46 @@ describe("a launch's run", () => {
       finalists: 5,
       slots: 20,
       slotValue: 19_076,
-      startedBy: null,
+      startedBy: 'API key “Nightly sync”',
       lastRun: started.startedAt,
       rosterChanged: false,
-      runs: [{ id: started.id, status: 'completed', startedAt: started.startedAt, startedBy: null }]
+      runs: [{ id: started.id, status: 'completed', startedAt: started.startedAt, startedBy: 'API key “Nightly sync”' }]
     })
     expect(launch.latestRun).toEqual(done)
     const { launches: listed } = await (await call(launches)).json<{ launches: Launch[] }>()
-    expect(listed[0]).toMatchObject({ id, status: 'order_drafted', slots: 20, slotValue: 19_076 })
+    expect(listed[0]).toMatchObject({
+      id,
+      status: 'order_drafted',
+      slots: 20,
+      slotValue: 19_076,
+      startedBy: 'API key “Nightly sync”'
+    })
 
     // Once the network's roster changes, the launch says it has since its latest run.
     await patch(call, `/api/v1/networks/${network}/roster/shows/Corner%20Booth`, { excluded: true })
     const changed = await poll<Launch>(call, `${launches}/${id}`, (l) => l.rosterChanged === true)
     expect(changed.latestRun).toEqual(done)
+  })
+  it("names the member whose session started it, and a launch's page can't name anyone", async () => {
+    const { ada, network, call } = await rosterReady()
+    fakeClaude([turn(text('Nothing to plan yet.'))])
+    const launches = `/api/v1/networks/${network}/launches`
+    const { id } = await (await post(call, launches, { name: 'Night Shift Cinema' })).json<Launch>()
+
+    const res = await ada.fetch(`${launches}/${id}/runs`, { method: 'POST' })
+    expect(res.status).toBe(202)
+    const started = await res.json<LaunchRun>()
+    expect(started.startedBy).toBe('Ada Programmer')
+    await runRead(call, `${launches}/${id}/runs/${started.id}`)
+    const listed = await poll<{ launches: Launch[] }>(call, launches, (l) => l.launches[0].lastRun !== null)
+    expect(listed.launches[0].startedBy).toBe('Ada Programmer')
+
+    // Only the Worker names a starter: a page can't call the start that takes one.
+    const page = await ada.connect(`/agents/launch/${network}/${id}`)
+    await expect(page.call('startLaunchAs', { name: 'Night Shift Cinema' }, 'API key “Nightly sync”')).rejects.toThrow(
+      'Method startLaunchAs is not callable'
+    )
+    expect((await (await call(`${launches}/${id}`)).json<Launch>()).runs).toHaveLength(1)
   })
 })
 

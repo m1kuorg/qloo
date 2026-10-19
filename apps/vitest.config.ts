@@ -42,6 +42,7 @@ export default defineConfig({
           APP_ORIGINS: 'https://crossfeed.test',
           SIGNUP_VISITOR_DAILY_CAP: '5',
           NETWORKS_PER_MEMBER: '3',
+          LAUNCHES_PER_NETWORK: '100',
           TEST_MIGRATIONS: migrations
         }
       }

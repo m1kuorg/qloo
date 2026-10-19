@@ -184,7 +184,8 @@ export class QlooGateway extends DurableObject<Env> {
     url.search = String(new URLSearchParams(KEY_TEST))
     if (!this.spend()) return `${capReached(this.env.QLOO_DAILY_CALL_CAP)}, so the key can't be tested until then.`
     await this.takeSlot()
-    const tested = await this.attempt(url, undefined, Number(this.env.QLOO_TIMEOUT_MS), key).finally(() =>
+    // The test only needs Qloo to answer, so it reads nothing of the answer.
+    const tested = await this.attempt(url, undefined, Number(this.env.QLOO_TIMEOUT_MS), key, () => null).finally(() =>
       this.releaseSlot()
     )
     console.log(JSON.stringify({ event: 'qloo_key_test', status: tested.status }))
@@ -369,17 +370,22 @@ export class QlooGateway extends DurableObject<Env> {
   // Finds entities by name. Qloo's search is fuzzy, so deciding whether a result is the show is
   // the caller's job (see resolve.ts).
   async search(query: string, type: string, take = 3, cache: CacheUse = 'use'): Promise<QlooResult<QlooEntity[]>> {
-    const result = await this.request(REQUESTS.search, { query, types: type, take }, cache)
+    const result = await this.request(
+      REQUESTS.search,
+      { query, types: type, take },
+      (data) =>
+        list<SearchResult>(data, 'results').map((r) => ({
+          id: r.entity_id,
+          name: r.name,
+          type: r.types?.[0] ?? type,
+          popularity: r.popularity ?? null,
+          disambiguation: r.disambiguation ?? null,
+          description: describe(r.properties)
+        })),
+      cache
+    )
     if (!result.ok) return result
-    const raw = (result.data as { results?: SearchResult[] } | null)?.results ?? []
-    const entities = raw.map((r) => ({
-      id: r.entity_id,
-      name: r.name,
-      type: r.types?.[0] ?? type,
-      popularity: r.popularity ?? null,
-      disambiguation: r.disambiguation ?? null,
-      description: describe(r.properties)
-    }))
+    const entities = result.data
     // Search fills only `entities`: each result's genre tags describe that result, not the call, so
     // `tags` stays empty here.
     const evidence = { ...result.evidence, entities: entities.map(({ disambiguation, description, ...e }) => e) }
@@ -407,19 +413,23 @@ export class QlooGateway extends DurableObject<Env> {
         'feature.explainability': true,
         take: 50
       },
+      (data) => {
+        const raw = list<InsightResult>(data, 'results', 'entities')
+        const affinities = raw.map((r) => ({
+          id: r.entity_id,
+          name: r.name,
+          affinity: r.query?.affinity ?? null,
+          explainability: (r.query?.explainability?.['signal.interests.entities'] ?? []).map((x) => ({
+            id: x.entity_id,
+            score: x.score
+          }))
+        }))
+        return { raw, affinities }
+      },
       cache
     )
     if (!result.ok) return result
-    const raw = (result.data as { results?: { entities?: InsightResult[] } } | null)?.results?.entities ?? []
-    const affinities = raw.map((r) => ({
-      id: r.entity_id,
-      name: r.name,
-      affinity: r.query?.affinity ?? null,
-      explainability: (r.query?.explainability?.['signal.interests.entities'] ?? []).map((x) => ({
-        id: x.entity_id,
-        score: x.score
-      }))
-    }))
+    const { raw, affinities } = result.data
     const evidence = { ...result.evidence, affinities }
     const names = (rs: InsightResult[]) => rs.map((r) => `${r.name} (${r.entity_id})`).join(', ')
     const outside = raw.filter((r) => !ids.includes(r.entity_id))
@@ -443,14 +453,22 @@ export class QlooGateway extends DurableObject<Env> {
   // `b`'s, in Qloo's order. Several entities on side `a` all count: on 2026-10-17 three comps gave
   // the union of each comp's own shared tags.
   async compare(a: string[], b: string): Promise<QlooResult<SharedTag[]>> {
-    const result = await this.request(REQUESTS.compare, {
-      'a.signal.interests.entities': a.join(','),
-      'b.signal.interests.entities': b,
-      take: 50
-    })
+    const result = await this.request(
+      REQUESTS.compare,
+      {
+        'a.signal.interests.entities': a.join(','),
+        'b.signal.interests.entities': b,
+        take: 50
+      },
+      (data) =>
+        list<CompareTag>(data, 'results', 'tags').map((t) => ({
+          id: t.tag_id,
+          name: t.name,
+          score: t.query?.score ?? null
+        }))
+    )
     if (!result.ok) return result
-    const raw = (result.data as { results?: { tags?: CompareTag[] } } | null)?.results?.tags ?? []
-    const tags = raw.map((t) => ({ id: t.tag_id, name: t.name, score: t.query?.score ?? null }))
+    const tags = result.data
     return { ok: true, data: tags, evidence: { ...result.evidence, tags } }
   }
 
@@ -461,23 +479,29 @@ export class QlooGateway extends DurableObject<Env> {
   // affinity and one score per bucket, such as `age.25_to_29`, as Qloo calls them affinity scores.
   async demographics(entities: { id: string; name: string }[]): Promise<QlooResult<Demographics>> {
     const ids = [...new Set(entities.map((e) => e.id))]
-    const result = await this.request(REQUESTS.demographics, {
-      'filter.type': 'urn:demographics',
-      'signal.interests.entities': ids.join(',')
-    })
-    if (!result.ok) return result
-    const raw =
-      (result.data as { results?: { demographics?: DemographicResult[] } } | null)?.results?.demographics ?? []
     const name = (id: string) => entities.find((e) => e.id === id)?.name ?? id
-    const affinities = raw.map((r) => ({
-      id: r.entity_id,
-      name: name(r.entity_id),
-      affinity: null,
-      explainability: [
-        ...Object.entries(r.query?.age ?? {}).map(([bucket, score]) => ({ id: `age.${bucket}`, score })),
-        ...Object.entries(r.query?.gender ?? {}).map(([gender, score]) => ({ id: `gender.${gender}`, score }))
-      ]
-    }))
+    const result = await this.request(
+      REQUESTS.demographics,
+      {
+        'filter.type': 'urn:demographics',
+        'signal.interests.entities': ids.join(',')
+      },
+      (data) => {
+        const raw = list<DemographicResult>(data, 'results', 'demographics')
+        const affinities = raw.map((r) => ({
+          id: r.entity_id,
+          name: name(r.entity_id),
+          affinity: null,
+          explainability: [
+            ...Object.entries(r.query?.age ?? {}).map(([bucket, score]) => ({ id: `age.${bucket}`, score })),
+            ...Object.entries(r.query?.gender ?? {}).map(([gender, score]) => ({ id: `gender.${gender}`, score }))
+          ]
+        }))
+        return { raw, affinities }
+      }
+    )
+    if (!result.ok) return result
+    const { raw, affinities } = result.data
     const evidence = { ...result.evidence, affinities }
     const outside = raw.filter((r) => !ids.includes(r.entity_id))
     if (outside.length > 0)
@@ -492,11 +516,13 @@ export class QlooGateway extends DurableObject<Env> {
 
   // GET sends the parameters in the query string; POST sends them as a JSON body of flat dotted
   // keys, such as {"filter.type": "urn:entity:podcast"}, because Qloo answers a nested body with 400.
-  private async request(
+  // `read` is how the method reads Qloo's answer: one it can't read fails, and only one it can is kept.
+  private async request<T>(
     qlooRequest: QlooRequest,
     params: Params,
+    read: (data: unknown) => T,
     cache: CacheUse = 'use'
-  ): Promise<QlooResult<unknown>> {
+  ): Promise<QlooResult<T>> {
     const { method, endpoint } = qlooRequest
     const evidence = blankEvidence(qlooRequest, params)
     const credentials = await this.credentials()
@@ -516,17 +542,22 @@ export class QlooGateway extends DurableObject<Env> {
         cache === 'bypass'
           ? []
           : this.ctx.storage.sql.exec<CacheRow>('SELECT status, body FROM cache WHERE key = ?', key).toArray()
-      if (hit) {
-        evidence.status = hit.status
+      // A kept answer is read again; one that no longer reads, such as one kept before its method
+      // changed, is asked for again.
+      const kept = hit && readAnswer(hit.status, JSON.parse(hit.body), read)
+      if (kept?.ok) {
+        evidence.status = kept.status
         evidence.cacheHit = true
-        return { ok: true, data: JSON.parse(hit.body), evidence }
+        return { ok: true, data: kept.value, evidence }
       }
       if (cache === 'only') return this.fail(evidence, 'Not in the cache')
       for (;;) {
         if (!this.spend()) return this.fail(evidence, capReached(this.env.QLOO_DAILY_CALL_CAP) + retried(evidence))
         await this.takeSlot()
         sentAt ??= Date.now()
-        const attempt = await this.attempt(url, payload, timeoutMs, credentials.key).finally(() => this.releaseSlot())
+        const attempt = await this.attempt(url, payload, timeoutMs, credentials.key, read).finally(() =>
+          this.releaseSlot()
+        )
         evidence.status = attempt.status
         if (attempt.ok) {
           const body = JSON.stringify(attempt.data)
@@ -537,7 +568,7 @@ export class QlooGateway extends DurableObject<Env> {
             body
           )
           this.ctx.storage.sql.exec('DELETE FROM failing')
-          return { ok: true, data: attempt.data, evidence }
+          return { ok: true, data: attempt.value, evidence }
         }
         const delay = retryDelays[evidence.retries]
         if (!attempt.retry || delay === undefined) {
@@ -616,9 +647,15 @@ export class QlooGateway extends DurableObject<Env> {
     else this.free++
   }
 
-  // One request to Qloo. Rate limits, gateway errors, and timeouts are worth retrying; a 400 or
-  // any other error is not, and keeps Qloo's message.
-  private async attempt(url: URL, payload: string | undefined, timeoutMs: number, key: string): Promise<Attempt> {
+  // One request to Qloo, its answer read with `read`. Rate limits, gateway errors, and timeouts are
+  // worth retrying; a 400 or any other error is not, and keeps Qloo's message.
+  private async attempt<T>(
+    url: URL,
+    payload: string | undefined,
+    timeoutMs: number,
+    key: string,
+    read: (data: unknown) => T
+  ): Promise<Attempt<T>> {
     try {
       const response = await fetch(url, {
         method: payload === undefined ? 'GET' : 'POST',
@@ -632,7 +669,7 @@ export class QlooGateway extends DurableObject<Env> {
       const { status } = response
       const body = await response.text()
       // Qloo documents 404 as "No results" for search; live it answers 200 with an empty list.
-      if (status === 404) return { ok: true, status, data: null }
+      if (status === 404) return readAnswer(status, null, read)
       if (!response.ok) {
         const message = errorMessage(body)
         const retry = [429, 502, 503, 504].includes(status)
@@ -641,7 +678,7 @@ export class QlooGateway extends DurableObject<Env> {
       const data = parseJson(body)
       if (data === undefined)
         return { ok: false, status, retry: false, error: `Qloo returned ${status} with a body that isn't JSON` }
-      return { ok: true, status, data }
+      return readAnswer(status, data, read)
     } catch (e) {
       if (e instanceof Error && e.name === 'TimeoutError')
         return { ok: false, status: null, retry: true, error: `Qloo didn't answer within ${timeoutMs / 1000} s` }
@@ -660,8 +697,29 @@ export class QlooGateway extends DurableObject<Env> {
   }
 }
 
-type Attempt =
-  { ok: true; status: number; data: unknown } | { ok: false; status: number | null; retry: boolean; error: string }
+type Attempt<T> =
+  | { ok: true; status: number; data: unknown; value: T }
+  | { ok: false; status: number | null; retry: boolean; error: string }
+
+// An answer as its method reads it, or, when the method can't, an error like a body that isn't
+// JSON, never retried or kept.
+function readAnswer<T>(status: number, data: unknown, read: (data: unknown) => T): Attempt<T> {
+  try {
+    return { ok: true, status, data, value: read(data) }
+  } catch (e) {
+    const error = `Qloo returned ${status} with an answer Crossfeed can't read: ${e instanceof Error ? e.message : String(e)}`
+    return { ok: false, status, retry: false, error }
+  }
+}
+
+// The list at `path` in an answer, or none when it's absent, as when nothing matched. Anything else
+// throws, so the answer fails to read.
+function list<T>(data: unknown, ...path: string[]): T[] {
+  const value = path.reduce<unknown>((v, key) => (v as Record<string, unknown> | null | undefined)?.[key], data)
+  if (value == null) return []
+  if (!Array.isArray(value)) throw new Error(`${path.join('.')} isn't a list`)
+  return value
+}
 
 const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n} model runs`)
 

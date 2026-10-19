@@ -36,8 +36,8 @@ import type { Topic } from './topic'
 import { deleteLaunch as wipeLaunch } from './wipe'
 
 // Who's asking: a member signed in to the app, with their role in the network, or one of the
-// network's API keys.
-export type Caller = { member: Member; role: Role } | { keyId: string }
+// network's API keys, with the name an owner gave it.
+export type Caller = { member: Member; role: Role } | { keyId: string; keyName: string }
 
 // What every operation runs with.
 export type OperationContext = { env: Env; network: string; caller: Caller }
@@ -182,15 +182,18 @@ export async function getLaunch({ env, network }: OperationContext, input: { lau
 // ranks the network's roster and CPM as they are now, and counts as one of the network's model runs.
 // Poll it: it may stop to ask a question, which `answerLaunchRun` answers.
 export async function startLaunchRun(
-  { env, network }: OperationContext,
+  { env, network, caller }: OperationContext,
   input: { launchId: string; plan: LaunchPlan }
 ): Promise<LaunchRun> {
   const launch = await launchAgent(env, network, input.launchId)
   const { name, comps } = input.plan
   const planned = name === undefined && comps === undefined ? (await stateOf(launch)).launch : null
-  const { runId } = await launch.startLaunch(planned ? asItStands(planned) : launchInput(input.plan))
+  const { runId } = await launch.startLaunchAs(planned ? asItStands(planned) : launchInput(input.plan), starter(caller))
   return launchRunOf(launch, await stateOf(launch), runId)
 }
+
+// Who a run says started it: the member, by name, or the API key, by the name an owner gave it.
+const starter = (caller: Caller) => ('member' in caller ? caller.member.name : `API key “${caller.keyName}”`)
 
 export async function getLaunchRun(
   { env, network }: OperationContext,

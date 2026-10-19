@@ -1,5 +1,14 @@
 import { callable, getAgentByName, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
-import { CrossfeedAgent, newComp, rosterKey, type LaunchSummary, type RosterCopy, type Show, type State } from './agent'
+import {
+  CrossfeedAgent,
+  newComp,
+  rosterKey,
+  type LaunchInput,
+  type LaunchSummary,
+  type RosterCopy,
+  type Show,
+  type State
+} from './agent'
 import { finalistsOf } from './fit'
 import { MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimitKey } from './network-agent'
 
@@ -42,6 +51,13 @@ export class LaunchAgent extends CrossfeedAgent {
 
   protected memberName() {
     return (getCurrentAgent().connection?.state as { memberName?: string } | null)?.memberName ?? null
+  }
+
+  // Starts a run for a program, through the API or the MCP server (operations.ts), which has no
+  // connection to name its member: the Worker names who started it, the member whose session called or
+  // the API key. Over RPC only, so a page can't name anyone but its own member.
+  startLaunchAs(input: LaunchInput, startedBy: string) {
+    return this.runLaunch(input, startedBy)
   }
 
   // An insertion order is a member's to approve, in the app (ADR 0002): a connection the Worker let

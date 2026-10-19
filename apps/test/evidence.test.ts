@@ -1,7 +1,8 @@
 import { env } from 'cloudflare:workers'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Evidence } from '../src/evidence'
-import { fakeQloo, type QlooEntity } from './fake'
+import { QlooGateway } from '../src/gateway'
+import { fakeQloo, requests, type QlooEntity } from './fake'
 import { openSession, type Session } from './session'
 
 const open: Session[] = []
@@ -10,7 +11,10 @@ const session = async (cookie?: string) => {
   open.push(s)
   return s
 }
-afterEach(() => open.splice(0).forEach((s) => s.close()))
+afterEach(() => {
+  open.splice(0).forEach((s) => s.close())
+  vi.restoreAllMocks()
+})
 
 describe('the evidence behind each Qloo call', () => {
   it("links each show's resolution to its search call, with the query, status, latency, and entities", async () => {
@@ -50,14 +54,16 @@ describe('the evidence behind each Qloo call', () => {
   })
 
   it('keeps a failed record for a call the gateway threw on, so its call number still opens', async () => {
-    // A 200 whose results aren't a list makes the gateway's own code throw, past its failure values.
-    fakeQloo({ search: { 'Night Shift Cinema': { status: 200, body: '{"results": {"not": "a list"}}' } } })
+    // The call throws past the gateway's failure values, as Durable Object RPC does when the instance
+    // is reset or overloaded; workerd logs the rejection, which the session catches.
+    fakeQloo({ search: {} })
+    vi.spyOn(QlooGateway.prototype, 'search').mockRejectedValueOnce(new Error('The gateway is overloaded.'))
     const s = await session()
     const state = await s.importRoster('Night Shift Cinema')
 
     const show = state.roster[0]
     expect(show).toMatchObject({ resolution: 'failed', evidence: 'C-01' })
-    expect(show.error).toContain('The Qloo gateway failed')
+    expect(show.error).toBe('The Qloo gateway failed: The gateway is overloaded.')
     const log = await s.call<Evidence[]>('getEvidence')
     expect(log).toMatchObject([
       {
@@ -73,6 +79,28 @@ describe('the evidence behind each Qloo call', () => {
         affinities: []
       }
     ])
+  })
+
+  const unreadable = "Qloo returned 200 with an answer Crossfeed can't read: "
+  it.each([
+    ["results that aren't a list", '{"results": {"not": "a list"}}', `${unreadable}results isn't a list`],
+    ['a result that is null', '{"results": [null]}', expect.stringMatching(new RegExp(`^${unreadable}.+`))]
+  ])('fails a 200 with %s, and keeps nothing, so the next lookup asks Qloo again', async (_, body, error) => {
+    fakeQloo({ search: { 'Night Shift Cinema': { status: 200, body } } })
+    const s = await session()
+    const state = await s.importRoster('Night Shift Cinema')
+
+    expect(state.roster[0]).toMatchObject({ resolution: 'failed', evidence: 'C-01', error })
+    expect(await s.call<Evidence[]>('getEvidence')).toMatchObject([
+      { call: 'C-01', status: 200, cacheHit: false, error }
+    ])
+
+    fakeQloo({
+      search: { 'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.9 }] }
+    })
+    const again = await (await session()).importRoster('Night Shift Cinema')
+    expect(again.roster[0]).toMatchObject({ resolution: 'resolved', error: null })
+    expect(requests.filter((r) => r.url.pathname === '/search')).toHaveLength(2)
   })
 
   it('settles a show whose lookup throws after the request, and leaves the import usable', async () => {
