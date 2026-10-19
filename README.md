@@ -2,7 +2,7 @@
 
 Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want. It ranks the network's own lists, its roster and its booking inbox, by listener overlap in [Qloo](https://www.qloo.com/), asks the human at each fork, and ends in a plan to approve. It's our entry to the [Qloo Agentic Hackathon](https://qloo.devpost.com/).
 
-**Live demo: <https://crossfeed.m1kuorg.workers.dev>.** It needs no login, and opens on a sample network built from The Ringer's public show names, with labelled sample figures. Crossfeed isn't affiliated with The Ringer.
+**Live demo: <https://crossfeed.m1kuorg.workers.dev/demo>.** It needs no login, and opens on a sample network built from The Ringer's public show names, with labelled sample figures. Crossfeed isn't affiliated with The Ringer.
 
 ## Try the demo
 
@@ -26,7 +26,7 @@ printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\n' "$QLOO_API_KEY" "$ANTHROPIC_API
 bun run dev
 ```
 
-Open the URL Vite prints, usually <http://localhost:5173>. The app calls the real Qloo and Anthropic APIs with your keys. `.dev.vars` is git-ignored: never commit it.
+Open `/demo` at the URL Vite prints, usually <http://localhost:5173/demo>. The app calls the real Qloo and Anthropic APIs with your keys. `.dev.vars` is git-ignored: never commit it.
 
 Run the tests, which fake Qloo and Anthropic at the network boundary and need no keys:
 

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Reply, State } from '../src/agent'
 import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, text, toolUse, turn } from './fake'
-import { openSession, type Session } from './session'
+import { links, openSession, type Session } from './session'
 
 // A made-up network: Night Shift is the launch, from the roster, and the others are ranked against it.
 // Back Lot has no downloads figure.
@@ -264,7 +264,7 @@ describe('the insertion order', () => {
 
     // The rail as the browser renders it: each line's row cites the call behind its show's tags.
     const html = renderToStaticMarkup(
-      createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent })
+      createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent, links })
     )
     const rows = html.match(/<section class="mod io-mod"[\s\S]*?<\/section>/)![0].split('<tr')
     const cited = state.insertionOrder!.lines.map((line) => {

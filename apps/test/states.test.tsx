@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
 import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeInsights, fakeQloo, network, refusal, text, toolUse, turn } from './fake'
-import { openSession, type Session } from './session'
+import { links, openSession, type Session } from './session'
 
 // Synthetic shows, one exact match each.
 const names = ['Night Shift Cinema', 'Deep Cuts', 'Signal Boost', 'Paper Trail', 'Field Notes']
@@ -53,7 +53,7 @@ afterEach(() => {
 // The workspace's text as a visitor reads it, from the session's synced state.
 const page = (state: State | undefined, name = 'roster') => {
   const agent = { state, stub: {} } as unknown as Agent
-  const html = renderToStaticMarkup(<Workspace page={name} agent={agent} />)
+  const html = renderToStaticMarkup(<Workspace page={name} agent={agent} links={links} />)
   return html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&#x27;/g, "'")

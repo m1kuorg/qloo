@@ -4,6 +4,7 @@ import { reset } from 'cloudflare:test'
 import { exports } from 'cloudflare:workers'
 import { afterEach } from 'vitest'
 import type { State } from '../src/agent'
+import type { Links } from '../src/client/App'
 import type { RosterFormat } from '../src/roster'
 
 // After each test of every file that drives sessions, wipe every Durable Object's storage and
@@ -13,6 +14,9 @@ import type { RosterFormat } from '../src/roster'
 afterEach(() => reset())
 
 const origin = 'https://crossfeed.test'
+
+// The links the demo gives its island pages, for tests that render a page from a session's state.
+export const links: Links = { roster: '/demo' }
 
 export type Session = {
   cookie: string
@@ -32,14 +36,14 @@ export type Session = {
   close: () => void
 }
 
-// Opens a session. Without a cookie it loads `/` first, like a new browser would. `ip` is the
+// Opens a session. Without a cookie it loads `/demo` first, like a new browser would. `ip` is the
 // visitor's address, as Cloudflare's edge sends it in CF-Connecting-IP; without it there's none.
 export async function openSession(cookie?: string, ip?: string): Promise<Session> {
   if (!cookie) {
-    const page = await exports.default.fetch(`${origin}/`)
-    if (page.status !== 200) throw new Error(`GET / returned ${page.status}`)
+    const page = await exports.default.fetch(`${origin}/demo`)
+    if (page.status !== 200) throw new Error(`GET /demo returned ${page.status}`)
     cookie = page.headers.get('set-cookie')?.split(';')[0]
-    if (!cookie) throw new Error('GET / set no session cookie')
+    if (!cookie) throw new Error('GET /demo set no session cookie')
   }
   const upgrade = await exports.default.fetch(`${origin}/agents/session`, {
     headers: { Upgrade: 'websocket', Cookie: cookie, ...(ip && { 'CF-Connecting-IP': ip }) }
