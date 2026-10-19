@@ -620,7 +620,9 @@ describe('with GUEST_PITCHES off', () => {
     expect(inbox.status).toBe(200)
     expect(await inbox.text()).toContain('data-page="inbox"')
   })
+})
 
+describe("the inbox page's links", () => {
   it('sends a booker with no matched show to the roster page it is given', async () => {
     fakeQloo({ search: { 'Night Ferry': [{ entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.81 }] } })
     fakeReader(1, () => extraction({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } }))

@@ -24,8 +24,8 @@ export const demo = new Hono<{ Bindings: Env }>()
 
 demo.use('/demo/*', demoShell)
 
-// A page of the React island; `page` tells the island which one, `agent` where its agent connects,
-// and `roster` where its roster page is.
+// A page of the React island; `page` tells the island which one, `agent-path` where its agent
+// connects, and `roster-link` where its roster page is.
 const page = (c: Context<{ Bindings: Env }>, page: 'roster' | 'inbox') => {
   if (!sessionId(c)) {
     setCookie(c, SESSION_COOKIE, crypto.randomUUID(), {
@@ -36,7 +36,7 @@ const page = (c: Context<{ Bindings: Env }>, page: 'roster' | 'inbox') => {
       maxAge: 60 * 60 * 24 * 30
     })
   }
-  return c.render(<div id="root" data-page={page} data-agent={AGENT_PATH} data-roster="/demo" />)
+  return c.render(<div id="root" data-page={page} data-agent-path={AGENT_PATH} data-roster-link="/demo" />)
 }
 
 demo.get('/demo', (c) => page(c, 'roster'))

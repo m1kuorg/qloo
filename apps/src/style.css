@@ -247,7 +247,7 @@ textarea {
 
 /* The demo shell's way out to accounts: a quiet link at the bar's end, not one of its sections. */
 .shell-create {
-  margin-left: 20px;
+  margin-left: 24px;
   white-space: nowrap;
 }
 

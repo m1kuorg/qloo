@@ -25,7 +25,7 @@ describe('the demo', () => {
   it('tells the island its agent path and its links', async () => {
     const page = await get('/demo')
     expect(await page.text()).toContain(
-      '<div id="root" data-page="roster" data-agent="/agents/session" data-roster="/demo">'
+      '<div id="root" data-page="roster" data-agent-path="/agents/session" data-roster-link="/demo">'
     )
   })
 
