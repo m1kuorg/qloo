@@ -1,0 +1,127 @@
+// The marketing pages: the landing page at /, the privacy page, and the beta terms, all
+// server-rendered with no React island.
+import { env, exports } from 'cloudflare:workers'
+import { afterEach, describe, expect, it } from 'vitest'
+import inbox from '../src/sample-inbox.json'
+import network from '../src/sample-network.json'
+
+const origin = 'https://crossfeed.test'
+const get = (path: string) => exports.default.fetch(`${origin}${path}`)
+const page = async (path: string) => {
+  const res = await get(path)
+  expect(res.status).toBe(200)
+  expect(res.headers.get('content-type')).toMatch(/^text\/html/)
+  return res.text()
+}
+// The page's main landmark, where its calls to action are.
+const main = (html: string) => html.match(/<main[^>]*>([\s\S]*)<\/main>/)?.[1] ?? ''
+// Every link's href, in document order.
+const hrefs = (html: string) => [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1])
+// The page's text, without its markup.
+const words = (html: string) =>
+  html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/g, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+
+const vars = {
+  ACCOUNTS: env.ACCOUNTS,
+  GUEST_PITCHES: env.GUEST_PITCHES,
+  RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
+}
+afterEach(() => Object.assign(env, vars))
+
+const pages = ['/', '/privacy', '/terms']
+// Every name the demo looks up in Qloo, and every work its sample inbox pitches: a marketing page
+// that showed one would be showing what Qloo returned for it.
+const looked = [
+  ...network.shows.map((s) => s.name),
+  network.launch.name,
+  ...inbox.pitches.flatMap((p) => (p.expected.work ? [p.expected.work.title] : [])),
+  ...inbox.show.pastGuests.map((g) => g.work.title)
+]
+
+describe('the landing page', () => {
+  it('serves / with no React island, and its first call to action opens the sample network', async () => {
+    const html = await page('/')
+    expect(html).not.toContain('id="root"')
+    expect(html).not.toContain('client/main.tsx')
+    expect(hrefs(main(html))[0]).toBe('/demo')
+    expect(main(html)).toMatch(/<a [^>]*href="\/demo"[^>]*>Open the sample network<\/a>/)
+  })
+
+  it('labels its chart an illustration of made-up shows, and no marketing page shows Qloo data', async () => {
+    const html = await page('/')
+    expect(words(html)).toMatch(/Illustration: a made-up network, launch, shows, ranks, and tags\. Not Qloo data\./)
+    expect(words(html)).toContain('Dead Air Archive')
+    for (const path of pages) {
+      const text = words(await page(path))
+      for (const name of looked) expect(text, `${path} names ${name}`).not.toContain(name)
+      // Qloo's affinities are decimals; the chart shows ranks and bands only.
+      expect(text, path).not.toMatch(/\b0?\.\d{2,}\b/)
+    }
+  })
+
+  it('links nowhere behind accounts while they are off', async () => {
+    env.ACCOUNTS = 'off'
+    for (const path of pages) {
+      const html = await page(path)
+      for (const href of hrefs(html)) expect(href, path).not.toMatch(/^\/(app|sign-in|invite|api|mcp)\b/)
+      expect(html).not.toContain('Create your network')
+      expect(html).not.toContain('Sign in')
+    }
+  })
+
+  it('offers to create a network and to sign in while accounts are on', async () => {
+    env.ACCOUNTS = 'on'
+    const html = await page('/')
+    expect(main(html)).toMatch(/<a [^>]*href="\/app\/new"[^>]*>Create your network<\/a>/)
+    expect(html).toMatch(/<a [^>]*href="\/sign-in"[^>]*>Sign in<\/a>/)
+    expect(hrefs(main(html))[0]).toBe('/demo')
+  })
+
+  it('says how a run works, what Crossfeed never does, and where developers start', async () => {
+    const text = words(await page('/'))
+    for (const heading of ['How a run works', 'Evidence on every line', 'What Crossfeed never does', 'For developers'])
+      expect(text).toContain(heading)
+    expect(text).toContain("Sends a guest's name or a pitch to Qloo.")
+    expect(text).toContain('Approves anything for you.')
+    expect(hrefs(await page('/'))).toContain('/#developers')
+  })
+
+  it('shows the booking inbox only while guest pitches are on', async () => {
+    env.GUEST_PITCHES = 'off'
+    expect(words(await page('/'))).not.toContain('The booking inbox')
+    env.GUEST_PITCHES = 'on'
+    expect(words(await page('/'))).toContain('The booking inbox')
+  })
+})
+
+describe('the privacy page and the beta terms', () => {
+  it('are linked from every marketing page', async () => {
+    for (const path of pages) {
+      const footer = (await page(path)).match(/<footer[\s\S]*<\/footer>/)?.[0] ?? ''
+      expect(hrefs(footer), path).toEqual(expect.arrayContaining(['/privacy', '/terms']))
+    }
+  })
+
+  it('says what reaches Qloo and Anthropic, what Crossfeed keeps, and how deletion works', async () => {
+    const text = words(await page('/privacy'))
+    for (const heading of ['What reaches Qloo', 'What reaches Anthropic', 'What Crossfeed keeps', 'How deletion works'])
+      expect(text).toContain(heading)
+    expect(text).toContain("Never a pitch's text, a guest's name, an email address, or a sender's details.")
+    expect(text).toContain('Crossfeed never stores or logs your IP address.')
+    expect(text).toContain("Crossfeed can't delete a session yet")
+  })
+
+  it('says the beta is free, without warranty, and limited as the Worker is configured', async () => {
+    env.RUN_VISITOR_DAILY_CAP = '7'
+    const text = words(await page('/terms'))
+    for (const heading of ['Free', 'No warranty', 'Daily limits', 'Acceptable use']) expect(text).toContain(heading)
+    expect(text).toContain('Model runs a launch run, an inbox load, or a pitch run 7 200')
+    expect(text).toContain('Qloo calls cache hits count for a visitor, not for everyone 2,000 1,000')
+    expect(text).toContain('A run makes at most 12 model turns and 60 Qloo calls')
+  })
+})

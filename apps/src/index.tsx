@@ -3,12 +3,14 @@
 import { Hono } from 'hono'
 import { checkHealth } from './health'
 import { demo } from './routes/demo'
+import { marketing } from './routes/marketing'
 
 export { CrossfeedAgent } from './agent'
 export { QlooGateway } from './gateway'
 
 const app = new Hono<{ Bindings: Env }>()
 
+app.route('/', marketing)
 app.route('/', demo)
 
 export default {

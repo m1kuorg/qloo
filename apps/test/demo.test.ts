@@ -35,13 +35,10 @@ describe('the demo', () => {
     expect(await (await get('/demo')).text()).not.toContain('Create your network')
   })
 
-  it('takes an old /inbox link to the sample inbox for good, and / to the demo for now', async () => {
+  it('takes an old /inbox link to the sample inbox for good', async () => {
     const inbox = await get('/inbox', { redirect: 'manual' })
     expect(inbox.status).toBe(301)
     expect(inbox.headers.get('location')).toBe('/demo/inbox')
-    const root = await get('/', { redirect: 'manual' })
-    expect(root.status).toBe(302)
-    expect(root.headers.get('location')).toBe('/demo')
   })
 
   it("replaces a session cookie that isn't a UUID, and reaches no agent with it", async () => {

@@ -9,6 +9,53 @@ window.$RefreshReg$ = () => {}
 window.$RefreshSig$ = () => (type) => type
 window.__vite_plugin_react_preamble_installed__ = true`
 
+// The marketing shell: server-rendered pages with no island, under the black top bar with the
+// wordmark, the developers band, the sample network, and, while ACCOUNTS is on, Sign in. The footer
+// links the privacy page and the beta terms. `title` names the page before the product.
+export const marketingShell = (title: string | null, description?: string) =>
+  jsxRenderer(({ children }, c) => (
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{title ? `${title} · Crossfeed` : 'Crossfeed'}</title>
+        {description && <meta name="description" content={description} />}
+        <ViteClient />
+        <Link href="/src/style.css" rel="stylesheet" />
+      </head>
+      <body>
+        <header class="top mk-top">
+          <a class="wm" href="/">
+            Crossfeed
+          </a>
+          <nav class="nav" aria-label="Site">
+            <a href="/#developers">Developers</a>
+            <a href="/demo">Sample network</a>
+          </nav>
+          {c.env.ACCOUNTS === 'on' && (
+            <span class="mk-sign">
+              <a class="lnk" href="/sign-in">
+                Sign in
+              </a>
+            </span>
+          )}
+        </header>
+        {children}
+        <footer class="mk-foot">
+          <p>Crossfeed, made for the Qloo Agentic Hackathon.</p>
+          <nav aria-label="Legal">
+            <a class="lnk" href="/privacy">
+              Privacy
+            </a>
+            <a class="lnk" href="/terms">
+              Beta terms
+            </a>
+          </nav>
+        </footer>
+      </body>
+    </html>
+  ))
+
 // The demo shell: the black top bar with the demo's sections and, while ACCOUNTS is on, a way to
 // create a network of one's own, then the React island in #root.
 export const demoShell = jsxRenderer(({ children }, c) => {

@@ -42,9 +42,8 @@ const page = (c: Context<{ Bindings: Env }>, page: 'roster' | 'inbox') => {
 demo.get('/demo', (c) => page(c, 'roster'))
 // Guest pitches ship dark: the inbox exists only while GUEST_PITCHES is on.
 demo.get('/demo/inbox', (c) => (c.env.GUEST_PITCHES === 'on' ? page(c, 'inbox') : c.notFound()))
-// The demo's old paths: the inbox's for good, and `/` until the landing page takes it.
+// The demo's old inbox path, for good.
 demo.get('/inbox', (c) => c.redirect('/demo/inbox', 301))
-demo.get('/', (c) => c.redirect('/demo', 302))
 
 // The session's agent. The visitor goes with it, so a new session's look-up of the sample network
 // counts among the visitor's Qloo calls, whichever request starts it.
