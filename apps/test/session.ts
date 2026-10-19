@@ -59,9 +59,14 @@ export async function openSession(cookie?: string, ip?: string): Promise<Session
 }
 
 // An agent's connection, opened at `path` with `headers` the way `useAgent` opens it, once its
-// first state has arrived.
-async function connect(path: string, headers: Record<string, string>): Promise<Omit<Session, 'cookie'>> {
-  const upgrade = await exports.default.fetch(`${origin}${path}`, { headers: { Upgrade: 'websocket', ...headers } })
+// first state has arrived. The upgrade goes to the Worker, unless `via` sends it elsewhere, such as
+// straight to an agent's stub, as a Worker route that let it through unchecked would.
+export async function connect(
+  path: string,
+  headers: Record<string, string>,
+  via: (request: Request) => Promise<Response> = (request) => exports.default.fetch(request)
+): Promise<Omit<Session, 'cookie'>> {
+  const upgrade = await via(new Request(`${origin}${path}`, { headers: { Upgrade: 'websocket', ...headers } }))
   const ws = upgrade.webSocket
   if (!ws) throw new Error(`${path} did not upgrade: ${upgrade.status} ${await upgrade.text()}`)
   ws.accept()

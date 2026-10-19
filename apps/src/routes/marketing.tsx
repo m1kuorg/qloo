@@ -645,9 +645,14 @@ function Privacy({ accounts }: { accounts: boolean }) {
             <b>With an account:</b> your name; your passkeys&apos; public keys, each with the browser it was added from;
             and only hashes of your session and recovery code. The networks you create or join, with your role in each
             and when you last opened it. Each network&apos;s roster, CPM, inbox, and launches are kept in its own
-            storage, which only its members can open.
+            storage, which only its members can open, with the member who approved each reply.
           </li>
         )}
+        <li>
+          <b>Uploads:</b> a file you upload is read in your browser. A roster file&apos;s text is sent and imported like
+          pasted names; of pitch emails, only each one&apos;s sender, subject, and text are sent, never its attachments
+          or other headers. The files themselves aren&apos;t kept.
+        </li>
         <li>
           <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached privately with
           no expiry; the sample launch&apos;s stored run, which replays when Qloo can&apos;t be called; and each

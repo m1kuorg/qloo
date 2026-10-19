@@ -730,12 +730,17 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.saveReply({ ...reply, draft: text, status: 'draft' })
   }
 
-  // The booker's approval: only an approved reply can be copied out.
+  // The booker's approval: only an approved reply can be copied out. It takes a person in the app, on
+  // the page's connection, so the Worker's own calls, and the API through them, can never approve
+  // (ADR 0002). On a network's agent it records the member who approved.
   @callable()
   approveReply(pitchId: string) {
+    if (!getCurrentAgent().connection)
+      throw new Error('A reply is approved in the app, by a person; nothing else can approve one.')
     const reply = this.editableReply(pitchId)
     if (reply.status === 'discarded') throw new Error('That reply was discarded. Restore it before approving it.')
-    this.saveReply({ ...reply, status: 'approved' })
+    const member = this.member()
+    this.saveReply({ ...reply, status: 'approved', ...(member && { approvedBy: member }) })
   }
 
   // Leaves a reply out; editing it again restores it as a draft.
@@ -891,6 +896,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return (await this.env.QlooGateway.getByName('global').startModelRun(visitor)).refused
   }
 
+  // The member on this call's connection, from the tag a network's agent gives it (network-agent.ts);
+  // null on the demo's connections and with no connection at all.
+  protected member() {
+    const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith('member:'))
+    return tag ? tag.slice('member:'.length) : null
+  }
+
   // Who this call counts against (see limitKey), noting the visitor by their connection's tag first,
   // so one visitor's model runs count together across sessions. Read it before the call's first await.
   private visitor() {
@@ -1044,7 +1056,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return reply
   }
 
-  private saveReply(reply: PitchReply) {
+  // Only an approved reply keeps who approved it.
+  private saveReply({ approvedBy, ...change }: PitchReply) {
+    const reply = change.status === 'approved' && approvedBy ? { ...change, approvedBy } : change
     const booking = this.state.booking!
     const replies = booking.replies!.map((r) => (r.pitch === reply.pitch ? reply : r))
     this.setState({ ...this.state, booking: { ...booking, replies } })
