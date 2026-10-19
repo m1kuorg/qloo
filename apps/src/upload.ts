@@ -185,4 +185,4 @@ export function tooBig(file: Upload) {
     )
 }
 
-const megabytes = (bytes: number, digits = 1) => `${(bytes / 1024 / 1024).toFixed(digits)} MB`
+export const megabytes = (bytes: number, digits = 1) => `${(bytes / 1024 / 1024).toFixed(digits)} MB`

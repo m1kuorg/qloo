@@ -518,6 +518,34 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
             Crossfeed is one Cloudflare Worker. The page is server-rendered, and the workspace talks to its agent over a
             WebSocket: it reads the agent&apos;s synced state and calls its actions, and never writes state itself.
           </p>
+          <p>
+            Programs and assistants can plan a network&apos;s launches and triage its pitches too, with one of its API
+            keys. None of them can approve: that stays with the network&apos;s members, in the app.
+          </p>
+          <dl class="mk-sources mk-ways">
+            {[
+              ['/docs/api', 'REST API', 'Every resource of a network under /api/v1, described by an OpenAPI document.'],
+              ['/docs/sdk', 'TypeScript SDK', 'Typed methods for every route, for Node, Bun, Deno, and Workers.'],
+              ['/docs/mcp', 'MCP server', 'The same operations as tools, for assistants such as Claude Code.'],
+              [
+                '/docs/agents',
+                'Skills and plugin',
+                'Agent Skills that plan launch promos and triage pitches, in a Claude Code plugin.'
+              ]
+            ].map(([href, name, text]) => (
+              <div>
+                <dt>
+                  <a href={href}>{name}</a>
+                </dt>
+                <dd>{text}</dd>
+              </div>
+            ))}
+          </dl>
+          <p class="mk-acts">
+            <a class="btn mk-alt" href="/docs">
+              Read the developer docs
+            </a>
+          </p>
         </div>
         <dl class="rec kv mk-spec mk-rail">
           <div class="rec-row">
@@ -728,7 +756,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
 }
 
 // A daily limit from wrangler.jsonc, formatted; a value that isn't a number shows as 0.
-const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
+export const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
 
 function Terms({ env }: { env: Env }) {
   return (

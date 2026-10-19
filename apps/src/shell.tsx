@@ -34,7 +34,7 @@ const IslandHead = () => (
 )
 
 // The marketing shell: server-rendered pages with no island, under the black top bar with the
-// wordmark, the developers band, the sample network, and, while ACCOUNTS is on, Sign in. The footer
+// wordmark, the developer docs, the sample network, and, while ACCOUNTS is on, Sign in. The footer
 // links the privacy page and the beta terms. `title` names the page before the product.
 export const marketingShell = (title: string | null, description?: string) =>
   jsxRenderer(({ children }, c) => (
@@ -48,7 +48,13 @@ export const marketingShell = (title: string | null, description?: string) =>
             Crossfeed
           </a>
           <nav class="nav" aria-label="Site">
-            <a href="/#developers">Developers</a>
+            <a
+              class={c.req.path.startsWith('/docs') ? 'on' : undefined}
+              href="/docs"
+              aria-current={c.req.path.startsWith('/docs') ? 'page' : undefined}
+            >
+              Developers
+            </a>
             <a href="/demo">Sample network</a>
           </nav>
           {c.env.ACCOUNTS === 'on' && (
