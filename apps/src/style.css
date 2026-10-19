@@ -3173,6 +3173,11 @@ a.wm {
   margin-top: 8px;
 }
 
+/* A module whose body is a table is wider than a form's, to the column's 576px. */
+.set-body.wide {
+  max-width: 576px;
+}
+
 .set-form {
   display: grid;
   gap: 6px;
@@ -3198,6 +3203,142 @@ a.wm {
 
 .set .rec {
   margin-top: 0;
+}
+
+/* The members module: a working-size table under the black rule, each member's actions as link-style
+   buttons at the row's end. A removal or a leave waiting on a yes takes Panel Grey with its row, as the
+   chart's selected row shares its block with the line under it. */
+.members th:nth-child(2) {
+  width: 76px;
+}
+
+.members th:nth-child(3) {
+  width: 64px;
+}
+
+.members th:nth-child(4) {
+  width: 164px;
+}
+
+.members td {
+  height: 44px;
+}
+
+/* A member's name wraps, as a show's does, rather than hide the "You" beside it. */
+.members .nm {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.members .nm .chip {
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+.row-acts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 12px;
+}
+
+.chart tr.on:has(+ tr.ask) td {
+  border-bottom-color: transparent;
+}
+
+.members .ask td {
+  height: auto;
+  padding: 0 12px 12px;
+}
+
+.members .ask p {
+  max-width: 52ch;
+}
+
+.members .ask .acts {
+  margin-top: 8px;
+}
+
+.lnk:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* An owner's invite links, under the members: making one shows it once on Panel Grey, as a recovery
+   code is shown, and the links still open follow, one per hairline row. */
+.invites {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.invites .lbl {
+  color: var(--ink);
+}
+
+.invites .acts {
+  margin-top: 4px;
+}
+
+.new-link {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  background: var(--panel);
+}
+
+.new-link label {
+  font-size: 12px;
+  color: var(--grey);
+}
+
+.new-link .acct-in {
+  max-width: none;
+  font-size: 12px;
+}
+
+.new-link .acts {
+  margin-top: 0;
+}
+
+.invite-list {
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.invite-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.invite-list .chip {
+  margin-left: 6px;
+}
+
+.invite-list .tg {
+  display: block;
+}
+
+/* A network's page once it has lost the network, with why and the way out. */
+.lost {
+  max-width: 944px;
+  padding: 16px 32px 32px;
+}
+
+.lost p {
+  margin-top: 12px;
+}
+
+/* The invite page's way out of a link that can't be used. */
+.acct-next {
+  padding-top: 16px;
 }
 
 @media (max-width: 860px) {
@@ -3258,8 +3399,13 @@ a.wm {
     max-width: none;
   }
 
-  .set {
+  .set,
+  .lost {
     padding: 0 16px 32px;
+  }
+
+  .lost {
+    padding-top: 16px;
   }
 
   /* On a phone the empty table's headings would crowd: its sentence stands under the black rule. */
@@ -3275,6 +3421,24 @@ a.wm {
   .set-mod {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
+  }
+
+  /* On a phone the name keeps the room: a row's actions stack at its end. */
+  .members th:nth-child(2) {
+    width: 60px;
+  }
+
+  .members th:nth-child(3) {
+    width: 56px;
+  }
+
+  .members th:nth-child(4) {
+    width: 96px;
+  }
+
+  .row-acts {
+    flex-direction: column;
+    align-items: flex-end;
   }
 
   .set-body {

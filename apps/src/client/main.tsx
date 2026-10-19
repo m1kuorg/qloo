@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import type { Role } from '../directory'
-import { NewNetworkPage, SignInPage, wireSignOut } from './Account'
+import { InvitePage, NewNetworkPage, SignInPage, wireSignOut } from './Account'
 import { App } from './App'
 import { DashboardPage } from './Dashboard'
 import { RosterPage } from './Roster'
@@ -18,6 +18,8 @@ const network = () => ({
 createRoot(root).render(
   d.page === 'sign-in' ? (
     <SignInPage next={d.next!} />
+  ) : d.page === 'invite' ? (
+    <InvitePage memberName={d.memberName ?? null} />
   ) : d.page === 'new-network' ? (
     <NewNetworkPage cap={Number(d.cap)} />
   ) : d.page === 'dashboard' ? (
@@ -30,7 +32,13 @@ createRoot(root).render(
   ) : d.page === 'network-roster' ? (
     <RosterPage agentPath={d.agentPath!} network={network()} />
   ) : d.page === 'settings' ? (
-    <SettingsPage agentPath={d.agentPath!} network={network()} />
+    <SettingsPage
+      agentPath={d.agentPath!}
+      network={network()}
+      memberId={d.memberId!}
+      members={JSON.parse(d.members!)}
+      invites={d.invites ? JSON.parse(d.invites) : null}
+    />
   ) : (
     <App page={d.page} agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />
   )

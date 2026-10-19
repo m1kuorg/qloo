@@ -3,13 +3,15 @@ import { dollars } from '../order'
 import { sample as sampleNetwork, sampleRoster, type Sample } from '../sample'
 import { RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor, useEvidence } from './App'
 import { Alert, useAction } from './controls'
-import { useNetwork, type NetworkConnection, type NetworkPage } from './Dashboard'
+import { LostAccess, useNetwork, type NetworkConnection, type NetworkPage } from './Dashboard'
 import { EvidencePanel } from './Evidence'
 import { StateLine } from './states'
 
 // The network's roster page, connected to the network's agent.
 export function RosterPage({ agentPath, network }: { agentPath: string; network: NetworkPage }) {
-  return <NetworkRoster agent={useNetwork(agentPath)} network={network} />
+  const agent = useNetwork(agentPath)
+  if (agent.connectionError) return <LostAccess network={network} reason={agent.connectionError.reason} />
+  return <NetworkRoster agent={agent} network={network} />
 }
 
 // The roster every launch on the network ranks, kept by its agent: the demo's roster table and show
