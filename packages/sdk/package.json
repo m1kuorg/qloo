@@ -1,0 +1,26 @@
+{
+  "name": "@crossfeed/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A typed client for Crossfeed's REST API, with nothing but fetch",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "tsc",
+    "typecheck": "tsc --noEmit",
+    "generate": "cd ../../apps && bun run test test/sdk.test.ts --update -t 'match the OpenAPI document' && cd ../packages/sdk && bun scripts/generate.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

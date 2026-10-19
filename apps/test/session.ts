@@ -150,7 +150,8 @@ export const api =
     return exports.default.fetch(`${origin}${path}`, { ...init, headers })
   }
 
-// A network the member creates the way /app/new does, and an API key its owner makes in settings.
+// A network the member creates the way /app/new does, and an API key its owner makes in settings:
+// its secret, and `call`, a program's requests with it.
 export async function networkWithKey(member?: Member) {
   const ada = member ?? (await openMember())
   const created = await ada.fetch('/app/new', {
