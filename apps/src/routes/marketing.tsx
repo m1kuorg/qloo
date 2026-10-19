@@ -648,9 +648,15 @@ function Privacy({ accounts }: { accounts: boolean }) {
             it, and when, and are deleted once they expire, seven days after they&apos;re made. A network&apos;s API
             keys are kept only as hashes, with each key&apos;s name and first characters, who made it, when, and the
             last minute it was used. Each network&apos;s roster, CPM, inbox, and launches are kept in its own storage,
-            which only its members and its API keys can open.
+            which only its members and its API keys can open, with the member who approved each reply.
           </li>
         )}
+        <li>
+          <b>Uploads:</b> a file you upload is read in your browser
+          {accounts && <>, or by Crossfeed when a program sends it to the API</>}. A roster file&apos;s text is sent and
+          imported like pasted names; of pitch emails, only each one&apos;s sender, subject, and text are sent, never
+          its attachments or other headers. The files themselves aren&apos;t kept.
+        </li>
         <li>
           <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached privately with
           no expiry; the sample launch&apos;s stored run, which replays when Qloo can&apos;t be called; and each

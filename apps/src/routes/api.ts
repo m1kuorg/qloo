@@ -383,7 +383,7 @@ api.openapi(
     // A body that says it's over the limit is refused before it's read.
     const length = Number(c.req.header('Content-Length'))
     const file: Upload = Number.isFinite(length)
-      ? { name, size: length, text: () => c.req.text() }
+      ? { name, size: length, text: () => c.req.text(), arrayBuffer: () => c.req.arrayBuffer() }
       : new File([await c.req.arrayBuffer()], name)
     const { text, format } = await readRosterUpload([file])
     const replace = c.req.valid('query').replace === 'true'

@@ -1,5 +1,5 @@
 import { callable, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
-import { CrossfeedAgent, type State } from './agent'
+import { CrossfeedAgent, MEMBER_TAG, type State } from './agent'
 import { sample, sampleRoster } from './sample'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
@@ -38,7 +38,7 @@ export class NetworkAgent extends CrossfeedAgent {
   // Tags a connection with its member, beside its visitor.
   async getConnectionTags(connection: Connection, context: ConnectionContext) {
     const member = context.request.headers.get(MEMBER_HEADER)
-    return [...(await super.getConnectionTags(connection, context)), ...(member ? [`member:${member}`] : [])]
+    return [...(await super.getConnectionTags(connection, context)), ...(member ? [`${MEMBER_TAG}${member}`] : [])]
   }
 
   // Starts the network's roster from the sample network's shows, each figure labelled sample until a
@@ -102,12 +102,18 @@ export class NetworkAgent extends CrossfeedAgent {
     super.setCpm(cpm)
   }
 
+  // A reply is a member's to approve, in the app (ADR 0002): a connection the Worker let through names
+  // its member, so one that names none, and any call with no connection, is refused.
+  @callable()
+  approveReply(pitchId: string) {
+    if (!this.member()) throw new Error('Only a member of the network, signed in to the app, can approve a reply.')
+    super.approveReply(pitchId)
+  }
+
   // Hides the dashboard's setup checklist for the member on this connection, and no one else.
   @callable()
   dismissChecklist() {
-    const member = getCurrentAgent()
-      .connection?.tags.find((t) => t.startsWith('member:'))
-      ?.slice('member:'.length)
+    const member = this.member()
     if (!member) throw new Error('Only a member can dismiss the setup checklist.')
     const dismissed = this.state.checklistDismissed ?? []
     if (!dismissed.includes(member)) this.setState({ ...this.state, checklistDismissed: [...dismissed, member] })

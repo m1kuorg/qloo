@@ -110,6 +110,15 @@ appPages.get('/app/:networkId/roster', async (c) => {
   return c.render(<div id="root" data-page="network-roster" {...island(c, network)} />)
 })
 
+// The network's booking inbox: pitches loaded, ranked against a roster show, and answered over the
+// network's agent by any of its members. Like the demo's, it exists only while GUEST_PITCHES is on.
+appPages.get('/app/:networkId/inbox', async (c) => {
+  if (c.env.GUEST_PITCHES !== 'on') return c.notFound()
+  const network = await networkPage(c, c.req.param('networkId'))
+  if (!network) return c.notFound()
+  return c.render(<div id="root" data-page="network-inbox" {...island(c, network)} />)
+})
+
 // The network's settings, one module per job. Its members see every module; only its owners change
 // what the network module holds.
 appPages.get('/app/:networkId/settings', async (c) => {

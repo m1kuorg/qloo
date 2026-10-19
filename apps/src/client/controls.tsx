@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
 
@@ -195,4 +196,59 @@ export function useIntoView<T extends HTMLElement>(focus?: RefObject<HTMLElement
     focus?.current?.focus({ preventScroll: true })
   }, [])
   return ref
+}
+
+// While a file is dragged over the page, the window is ruled in ink, as keyboard focus is, with a line
+// along its foot saying what a drop does, wherever the page is scrolled; while the form is still
+// busy, the line alone says to wait. It's portalled to the body, since the chart column's container
+// query would otherwise hold a fixed box inside it.
+export function DropCue({ busy, children }: { busy: boolean; children: ReactNode }) {
+  return createPortal(
+    <div className="drop-cue" data-busy={busy || undefined} role="status">
+      <p>{children}</p>
+    </div>,
+    document.body
+  )
+}
+
+// Whether files are being dragged over the page, which takes a drop anywhere on it and hands the
+// files to `drop`, so the browser never opens one in place of the page. Drags of anything else, such
+// as selected text, pass through. Mount it once per page.
+export function useFileDrop(drop: (files: File[]) => unknown) {
+  const [dragging, setDragging] = useState(false)
+  const latest = useRef(drop)
+  latest.current = drop
+  useEffect(() => {
+    // Entering a child of the page fires before leaving its parent, so count to know when the drag left.
+    let depth = 0
+    const files = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false
+    const enter = (e: DragEvent) => {
+      if (!files(e)) return
+      depth++
+      setDragging(true)
+    }
+    const leave = (e: DragEvent) => {
+      if (files(e) && --depth <= 0) {
+        depth = 0
+        setDragging(false)
+      }
+    }
+    const over = (e: DragEvent) => {
+      if (files(e)) e.preventDefault()
+    }
+    const dropped = (e: DragEvent) => {
+      if (!files(e)) return
+      e.preventDefault()
+      depth = 0
+      setDragging(false)
+      void latest.current([...e.dataTransfer!.files])
+    }
+    const listeners = { dragenter: enter, dragleave: leave, dragover: over, drop: dropped }
+    for (const [type, listener] of Object.entries(listeners)) window.addEventListener(type, listener as EventListener)
+    return () => {
+      for (const [type, listener] of Object.entries(listeners))
+        window.removeEventListener(type, listener as EventListener)
+    }
+  }, [])
+  return dragging
 }
