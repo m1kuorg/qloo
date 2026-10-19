@@ -208,6 +208,20 @@ export type Member = {
   invite: (network: string) => Promise<string>
 }
 
+// Adds a passkey made by `device`, another device's authenticator, to the member's account through both
+// steps of the ceremony, as the account page does from a browser with user agent `ua`, which names the
+// passkey. The answer is the second step's, or the first's when it refuses.
+export async function addPasskey(member: Member, device: Authenticator, ua = '') {
+  const started = await member.fetch('/auth/passkeys/options', { method: 'POST', headers: { 'User-Agent': ua } })
+  if (started.status !== 200) return started
+  const { challenge, options } = await started.json<{ challenge: string; options: never }>()
+  return member.fetch('/auth/passkeys', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': ua },
+    body: JSON.stringify({ challenge, response: await device.register(options) })
+  })
+}
+
 // Signs a new member up through both steps of the passkey ceremony, as the sign-in page does. `ip`
 // is their address, as Cloudflare's edge sends it; without it, the sign-up cap doesn't apply. With an
 // invite link, they sign up on its invite page, joining its network in the same step.

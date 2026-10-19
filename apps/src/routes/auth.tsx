@@ -15,16 +15,19 @@ import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { accountsOn, appOrigins, endSession, jsonBody, nextPath, sameOrigin, setSession, signedIn } from '../auth'
 import {
+  addPasskey,
   findInvite,
   findPasskey,
   joinByInvite,
+  memberPasskeys,
   recover,
   saveChallenge,
   signIn,
   signOut,
   signUp,
   takeChallenge,
-  type Challenge
+  type Challenge,
+  type Member
 } from '../directory'
 import { appShell } from '../shell'
 import { readName } from '../text'
@@ -68,6 +71,8 @@ async function takeStarted(c: Context<{ Bindings: Env }>, kind: string, id: unkn
   return challenge && challenge.expires > Date.now() ? challenge : null
 }
 const STALE = 'This passkey request has expired or was already used. Try again.'
+const UNVERIFIED = "Crossfeed couldn't verify this passkey. Try again."
+const SIGN_IN_TO_ADD = 'Sign in to add a passkey.'
 
 // Verifies a browser's answer, or says why it can't be: the reason goes to the log, not the page.
 async function verified<T>(ceremony: string, verify: () => Promise<T & { verified: boolean }>) {
@@ -80,6 +85,45 @@ async function verified<T>(ceremony: string, verify: () => Promise<T & { verifie
   }
   return null
 }
+
+// A new passkey's options for member `member`'s browser: their random ID is the user handle, so it says
+// nothing about them, and `has` lists the passkeys they have already.
+const registrationOptions = (env: Env, member: Member, has: { id: string }[] = []) =>
+  generateRegistrationOptions({
+    rpName: 'Crossfeed',
+    rpID: env.RP_ID,
+    userName: member.name,
+    userDisplayName: member.name,
+    userID: new TextEncoder().encode(member.id),
+    attestationType: 'none',
+    excludeCredentials: has.map(({ id }) => ({ id })),
+    authenticatorSelection: { residentKey: 'required', userVerification: 'required' }
+  })
+
+// The passkey a browser made for a registration started with `started`, once it verifies; null when
+// it doesn't.
+async function registered(c: Context<{ Bindings: Env }>, ceremony: string, started: Challenge, response: unknown) {
+  const registration = await verified(ceremony, () =>
+    verifyRegistrationResponse({
+      response: response as RegistrationResponseJSON,
+      expectedChallenge: started.challenge,
+      expectedOrigin: appOrigins(c.env),
+      expectedRPID: c.env.RP_ID,
+      requireUserVerification: true
+    })
+  )
+  if (!registration) return null
+  const { credential } = registration.registrationInfo!
+  return {
+    credentialId: credential.id,
+    publicKey: isoBase64URL.fromBuffer(credential.publicKey),
+    counter: credential.counter,
+    transports: credential.transports ?? null
+  }
+}
+
+// Whether a write failed because the passkey's credential ID is on an account already.
+const taken = (err: unknown) => String(err).includes('passkeys.credential_id')
 
 // The sign-in page, a page of the React island: `next` is where it goes once the member is in, a
 // path on this site. A member already signed in goes straight there.
@@ -156,16 +200,7 @@ auth.post('/auth/sign-up/options', async (c) => {
     if (capped) return refuse(c, capped, 429)
   }
   const memberId = crypto.randomUUID()
-  const options = await generateRegistrationOptions({
-    rpName: 'Crossfeed',
-    rpID: c.env.RP_ID,
-    userName: named,
-    userDisplayName: named,
-    // The user handle is the member's random ID, so it says nothing about them.
-    userID: new TextEncoder().encode(memberId),
-    attestationType: 'none',
-    authenticatorSelection: { residentKey: 'required', userVerification: 'required' }
-  })
+  const options = await registrationOptions(c.env, { id: memberId, name: named })
   const challenge = await saveChallenge(c.env.DB, 'sign-up', options.challenge, { name: named, memberId })
   return c.json({ challenge, options })
 })
@@ -178,29 +213,15 @@ auth.post('/auth/sign-up', async (c) => {
   if (invite !== undefined && (typeof invite !== 'string' || !invite)) return refuse(c, INVITE_REFUSED.unknown, 404)
   const started = await takeStarted(c, 'sign-up', challenge)
   if (!started) return refuse(c, STALE)
-  const registration = await verified('sign-up', () =>
-    verifyRegistrationResponse({
-      response: response as RegistrationResponseJSON,
-      expectedChallenge: started.challenge,
-      expectedOrigin: appOrigins(c.env),
-      expectedRPID: c.env.RP_ID,
-      requireUserVerification: true
-    })
-  )
-  if (!registration) return refuse(c, "Crossfeed couldn't verify this passkey. Try again.")
+  const passkey = await registered(c, 'sign-up', started, response)
+  if (!passkey) return refuse(c, UNVERIFIED)
   const capped = invite === undefined && (await signupRefused(c, true))
   if (capped) return refuse(c, capped, 429)
-  const { credential } = registration.registrationInfo!
   try {
     const signedUp = await signUp(
       c.env.DB,
       { id: started.memberId!, name: started.name! },
-      {
-        credentialId: credential.id,
-        publicKey: isoBase64URL.fromBuffer(credential.publicKey),
-        counter: credential.counter,
-        transports: credential.transports ?? null
-      },
+      passkey,
       browserLabel(c.req.header('User-Agent') ?? ''),
       invite as string | undefined
     )
@@ -210,9 +231,41 @@ auth.post('/auth/sign-up', async (c) => {
     const { recoveryCode, network } = signedUp
     return c.json(network ? { recoveryCode, network } : { recoveryCode })
   } catch (err) {
-    if (!String(err).includes('passkeys.credential_id')) throw err
+    if (!taken(err)) throw err
     return refuse(c, 'This passkey already belongs to a Crossfeed account. Sign in with it instead.', 409)
   }
+})
+
+// Adding a passkey, for a signed-in member on their account page: from another device or password
+// manager, so losing one doesn't lock them out, or from a new device after signing in with their
+// recovery code. The options name the member's own user handle and the passkeys they have, so a
+// device that holds one of them adds no second.
+auth.post('/auth/passkeys/options', async (c) => {
+  const member = await signedIn(c)
+  if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
+  const has = await memberPasskeys(c.env.DB, member.id)
+  const options = await registrationOptions(c.env, member, has)
+  const challenge = await saveChallenge(c.env.DB, 'add-passkey', options.challenge, { memberId: member.id })
+  return c.json({ challenge, options })
+})
+
+// Adding a passkey, second step: the browser's new passkey, added once it verifies, for the member
+// whose request it answers. The answer is their passkeys.
+auth.post('/auth/passkeys', async (c) => {
+  const member = await signedIn(c)
+  if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
+  const { challenge, response } = await jsonBody(c)
+  const started = await takeStarted(c, 'add-passkey', challenge)
+  if (!started || started.memberId !== member.id) return refuse(c, STALE)
+  const passkey = await registered(c, 'add-passkey', started, response)
+  if (!passkey) return refuse(c, UNVERIFIED)
+  try {
+    await addPasskey(c.env.DB, member.id, passkey, browserLabel(c.req.header('User-Agent') ?? ''))
+  } catch (err) {
+    if (!taken(err)) throw err
+    return refuse(c, 'This passkey already belongs to a Crossfeed account. Add one from another device.', 409)
+  }
+  return c.json({ passkeys: await memberPasskeys(c.env.DB, member.id) })
 })
 
 // Sign-in, first step: options for any passkey the browser holds for Crossfeed, so the page asks
@@ -249,7 +302,7 @@ auth.post('/auth/sign-in', async (c) => {
       requireUserVerification: true
     })
   )
-  if (!authentication) return refuse(c, "Crossfeed couldn't verify this passkey. Try again.")
+  if (!authentication) return refuse(c, UNVERIFIED)
   setSession(c, await signIn(c.env.DB, passkey, authentication.authenticationInfo.newCounter))
   return c.json({})
 })
