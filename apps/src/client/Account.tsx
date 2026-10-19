@@ -9,13 +9,19 @@ import { StateLine } from './states'
 // account menu.
 
 // What went wrong with the browser's passkey prompt, in words. A prompt the person closed, or one
-// that timed out, is a NotAllowedError.
-const prompted = async <T,>(prompt: () => Promise<T>, closed: string) => {
+// that timed out, is a NotAllowedError; adding a passkey where the device keeps one for the account
+// already is an InvalidStateError, said as `already`.
+export const prompted = async <T,>(prompt: () => Promise<T>, closed: string, already?: string) => {
   try {
     return await prompt()
   } catch (err) {
+    const name = err instanceof Error ? err.name : null
     throw new Error(
-      err instanceof Error && err.name === 'NotAllowedError' ? closed : String(err instanceof Error ? err.message : err)
+      name === 'NotAllowedError'
+        ? closed
+        : name === 'InvalidStateError' && already
+          ? already
+          : String(err instanceof Error ? err.message : err)
     )
   }
 }
@@ -23,11 +29,13 @@ const prompted = async <T,>(prompt: () => Promise<T>, closed: string) => {
 type Ceremony = { challenge: string; options: never }
 
 export function SignInPage({ next }: { next: string }) {
-  // A recovery code to show once, after a sign-up or a recovery, until the member says they've saved it.
-  const [code, setCode] = useState<string | null>(null)
+  // A recovery code to show once, after a sign-up or a recovery, until the member says they've saved
+  // it, and where they go then: `next` after a sign-up, and the account page after a recovery, to add a
+  // passkey for the device they're on.
+  const [code, setCode] = useState<{ code: string; next: string } | null>(null)
   const [recovering, setRecovering] = useState(false)
   const supported = useSupported()
-  if (code) return <RecoveryCode code={code} next={next} />
+  if (code) return <RecoveryCode code={code.code} next={code.next} />
   const go = () => window.location.assign(next)
 
   return (
@@ -47,11 +55,14 @@ export function SignInPage({ next }: { next: string }) {
       </header>
       <div className="ways">
         {recovering ? (
-          <Recover onBack={() => setRecovering(false)} onCode={setCode} />
+          <Recover
+            onBack={() => setRecovering(false)}
+            onCode={(c) => setCode({ code: c, next: '/app/account?recovered' })}
+          />
         ) : (
           <PasskeySignIn disabled={supported === false} onIn={go} onRecover={() => setRecovering(true)} />
         )}
-        <CreateAccount disabled={supported === false} onCode={setCode} />
+        <CreateAccount disabled={supported === false} onCode={(c) => setCode({ code: c, next })} />
       </div>
     </main>
   )

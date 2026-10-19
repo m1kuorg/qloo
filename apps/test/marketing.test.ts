@@ -141,7 +141,11 @@ describe('the privacy page and the beta terms', () => {
     const signOff =
       'the name of the member who started each run, and of the member who approved each insertion order, and when'
     const launchGone =
-      "Deleting a launch, which any of the network's members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records. A wipe that fails is tried again by the next day's cleanup."
+      "Deleting a launch, which any of the network's members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records."
+    const networkGone =
+      "Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage and each of its launches'. A wipe that fails is tried again by the next day's cleanup, which also deletes expired sessions, sign-in challenges, and invite links."
+    const accountGone =
+      "Deleting your account, on your account page, deletes your name, passkeys, recovery code, sessions, and memberships at once; what you made in a network stays with it, made by no one. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
     const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
     expect(words(await page('/privacy'))).toContain(kept)
     expect(words(await page('/privacy'))).toContain(approvals)
@@ -149,6 +153,8 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).toContain(keys)
     expect(words(await page('/privacy'))).toContain(signOff)
     expect(words(await page('/privacy'))).toContain(launchGone)
+    expect(words(await page('/privacy'))).toContain(networkGone)
+    expect(words(await page('/privacy'))).toContain(accountGone)
     expect(words(await page('/terms'))).toContain(cap)
     expect(words(await page('/terms'))).toContain(network)
     expect(words(await page('/terms'))).toContain(perMinute)
@@ -157,6 +163,7 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).not.toContain(keys)
     expect(words(await page('/privacy'))).not.toContain(approvals)
     expect(words(await page('/privacy'))).not.toContain(launchGone)
+    expect(words(await page('/privacy'))).not.toContain(accountGone)
     expect(words(await page('/privacy'))).toContain("each visitor's counts for the day")
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)

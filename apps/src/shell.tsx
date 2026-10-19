@@ -204,6 +204,13 @@ export const appShell = jsxRenderer(({ children }, c) => {
                 <p>
                   Signed in as <b>{member.name}</b>
                 </p>
+                <a
+                  class="menu-acct"
+                  href="/app/account"
+                  aria-current={c.req.path === '/app/account' ? 'page' : undefined}
+                >
+                  Your account
+                </a>
                 <button type="button" class="btn" data-sign-out>
                   Sign out
                 </button>

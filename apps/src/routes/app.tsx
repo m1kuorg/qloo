@@ -4,32 +4,42 @@
 // doesn't are the same 404.
 import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
-import { accountsOn, appOrigins, jsonBody, sameOrigin, session, signedIn } from '../auth'
+import { accountsOn, appOrigins, endSession, jsonBody, sameOrigin, session, signedIn } from '../auth'
 import {
+  accountNetworks,
   apiKeys,
   createApiKey,
   createInvite,
   createNetwork,
+  deleteMember,
   lastNetwork,
   memberNetworks,
+  memberPasskeys,
   memberRole,
   networkMembers,
+  networkName,
+  newRecoveryCode,
   openInvites,
   openNetwork,
+  openSessions,
   removeMember,
+  removePasskey,
+  renameMember,
   renameNetwork,
   revokeApiKey,
   revokeInvite,
   setRole,
   setupProgress,
+  signOutEverywhere,
   type Member,
   type Network
 } from '../directory'
 import { launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER } from '../network-agent'
+import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
 import { appShell, networkLinks, type AppVariables } from '../shell'
-import { readName } from '../text'
-import { deleteLaunch } from '../wipe'
+import { listOf, readName } from '../text'
+import { deleteLaunch, deleteNetwork } from '../wipe'
 
 type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
 
@@ -74,6 +84,86 @@ appPages.post('/app/new', async (c) => {
       429
     )
   return c.json({ id })
+})
+
+// The member's account: their name, passkeys, recovery code, sessions, networks, and deleting it. It's
+// the member's own, so it comes before the network pages, whose IDs it would otherwise look like.
+appPages.get('/app/account', async (c) => {
+  const { id, name } = c.var.member
+  const networks = await accountNetworks(c.env.DB, id)
+  c.set('networks', networks)
+  return c.render(
+    <div
+      id="root"
+      data-page="account"
+      data-member-name={name}
+      data-passkeys={JSON.stringify(await memberPasskeys(c.env.DB, id))}
+      data-sessions={await openSessions(c.env.DB, id)}
+      data-networks={JSON.stringify(networks)}
+      // Signing in with a recovery code lands here, to add a passkey.
+      data-recovered={String(c.req.query('recovered') !== undefined)}
+    />
+  )
+})
+
+// Renames the member, as their teammates see them from then on.
+appPages.post('/app/account/name', async (c) => {
+  const read = readName((await jsonBody(c)).name, 'Enter your name.')
+  if ('error' in read) return c.json({ error: read.error }, 400)
+  await renameMember(c.env.DB, c.var.member.id, read.name)
+  return c.json({ name: read.name })
+})
+
+// Removes one of the member's passkeys, never the last, so they can always sign in. Adding one is a
+// passkey ceremony, under /auth/passkeys.
+appPages.post('/app/account/passkeys/:credentialId/remove', async (c) => {
+  const id = c.var.member.id
+  const removed = await removePasskey(c.env.DB, id, c.req.param('credentialId'))
+  if (removed === 'missing') return c.json({ error: 'You have no such passkey. Reload to see the ones you have.' }, 404)
+  if (removed === 'last')
+    return c.json(
+      { error: 'This is your only passkey. Add another before you remove it, so you can still sign in.' },
+      409
+    )
+  return c.json({ passkeys: await memberPasskeys(c.env.DB, id) })
+})
+
+// A new recovery code, shown this once, in place of the member's last one.
+appPages.post('/app/account/recovery-code', async (c) =>
+  c.json({ recoveryCode: await newRecoveryCode(c.env.DB, c.var.member.id) })
+)
+
+// Signs the member out on every browser, as when a device is lost: every session ends, this one's
+// cookie goes, and their open pages close on every network and launch.
+appPages.post('/app/account/sign-out-everywhere', async (c) => {
+  const { id } = c.var.member
+  await signOutEverywhere(c.env.DB, id)
+  endSession(c)
+  const networks = await memberNetworks(c.env.DB, id)
+  await Promise.all(
+    networks.map((n) => kick(c.env, n.id, id, 'You signed out everywhere. Sign in again to keep working.'))
+  )
+  return c.json({})
+})
+
+// Deletes the member's account: them, their passkeys, sessions, and memberships, unless they're any
+// network's only owner, which would leave it with no one to run it. What they made in each network
+// stays with it. Their open pages close.
+appPages.post('/app/account/delete', async (c) => {
+  const { id } = c.var.member
+  const networks = await accountNetworks(c.env.DB, id)
+  if (!(await deleteMember(c.env.DB, id))) {
+    const only = (await accountNetworks(c.env.DB, id)).filter((n) => n.onlyOwner).map((n) => n.name)
+    return c.json(
+      {
+        error: `You're the only owner of ${listOf(only)}. Make someone else an owner, or delete the network, before you delete your account.`
+      },
+      409
+    )
+  }
+  endSession(c)
+  await Promise.all(networks.map((n) => kick(c.env, n.id, id, 'Your account was deleted.')))
+  return c.json({})
 })
 
 // A network's page for one of its members, marked as the network they opened last; null, for a 404,
@@ -167,6 +257,12 @@ appPages.get('/app/:networkId/settings', async (c) => {
   const owner = network.role === 'owner'
   const invites = owner ? JSON.stringify(await openInvites(c.env.DB, network.id)) : undefined
   const keys = owner ? JSON.stringify(await apiKeys(c.env.DB, network.id)) : undefined
+  // Today's usage, as the API reads it (operations.ts).
+  const usage = await getUsage({
+    env: c.env,
+    network: network.id,
+    caller: { member: c.var.member, role: network.role }
+  })
   return c.render(
     <div
       id="root"
@@ -175,6 +271,7 @@ appPages.get('/app/:networkId/settings', async (c) => {
       data-members={members}
       data-invites={invites}
       data-api-keys={keys}
+      data-usage={JSON.stringify(usage)}
       {...island(c, network)}
     />
   )
@@ -304,9 +401,26 @@ appPages.post('/app/:networkId/settings/api-keys/:keyId/revoke', async (c) => {
   return c.json({ keys: await apiKeys(c.env.DB, id) })
 })
 
-// Closes a member's open connections to the network's agent, once the directory has let them go.
-const kick = async (env: Env, networkId: string, memberId: string) =>
-  (await getAgentByName(env.NetworkAgent, networkId)).kick(memberId)
+// The settings' danger zone, for owners alone: deleting the network once the owner has typed its name,
+// for every member. Its directory rows go first, so its pages, agents, and API answer 404 at once; then
+// its launches' agents and its own are wiped, closing their open pages (wipe.ts).
+appPages.post('/app/:networkId/settings/delete', async (c) => {
+  const id = c.req.param('networkId')
+  const ownersOnly = 'Only an owner can delete the network.'
+  const refused = await refuseNonOwner(c, id, ownersOnly)
+  if (refused) return refused
+  const name = await networkName(c.env.DB, id)
+  const { name: typed } = await jsonBody(c)
+  if (typeof typed !== 'string' || typed.trim() !== name)
+    return c.json({ error: `Type the network’s name, ${name}, exactly as it’s shown, to delete it.` }, 400)
+  if (!(await deleteNetwork(c.env, id, c.var.member.id))) return c.json({ error: ownersOnly }, 403)
+  return c.json({})
+})
+
+// Closes a member's open connections to the network's agent and its launches', once the directory
+// has let them go, saying `reason` if it isn't that they left the network.
+const kick = async (env: Env, networkId: string, memberId: string, reason?: string) =>
+  (await getAgentByName(env.NetworkAgent, networkId)).kick(memberId, reason)
 
 // What every network page tells the island: where the network's agent connects, the network and the
 // member's role in it, and where its pages are.

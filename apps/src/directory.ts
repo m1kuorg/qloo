@@ -77,19 +77,7 @@ export async function signUp(
       )
       .bind(member.id, member.name, await sha256(normalCode(secrets.recoveryCode)), now, ...(hash ? [hash] : [])),
     // The passkey and the session follow the member's row, which an invite that can't be used leaves out.
-    db
-      .prepare(
-        'INSERT INTO passkeys (credential_id, member_id, public_key, counter, transports, label, created) SELECT ?, id, ?, ?, ?, ?, ? FROM members WHERE id = ?'
-      )
-      .bind(
-        passkey.credentialId,
-        passkey.publicKey,
-        passkey.counter,
-        passkey.transports && JSON.stringify(passkey.transports),
-        label,
-        now,
-        member.id
-      ),
+    insertPasskey(db, member.id, passkey, label, now),
     insertSession(db, await sha256(secrets.token), member.id, now),
     ...(hash ? joinThrough(db, hash, member.id, now) : [])
   ])
@@ -118,6 +106,41 @@ export async function findPasskey(db: D1Database, credentialId: string): Promise
       transports: row.transports && JSON.parse(row.transports)
     }
   )
+}
+
+// A passkey as its member sees it on their account page: its ID, the browser and system it was added
+// from, when, and when it last signed them in.
+export type AccountPasskey = { id: string; label: string; created: number; lastUsed: number | null }
+
+// Member `memberId`'s passkeys, oldest first.
+export async function memberPasskeys(db: D1Database, memberId: string): Promise<AccountPasskey[]> {
+  const { results } = await db
+    .prepare(
+      'SELECT credential_id AS id, label, created, last_used AS lastUsed FROM passkeys WHERE member_id = ? ORDER BY created, credential_id'
+    )
+    .bind(memberId)
+    .all<AccountPasskey>()
+  return results
+}
+
+// Adds a passkey to member `memberId`'s account, once its registration has verified.
+export async function addPasskey(db: D1Database, memberId: string, passkey: Omit<Passkey, 'memberId'>, label: string) {
+  await insertPasskey(db, memberId, passkey, label, Date.now()).run()
+}
+
+// Removes member `memberId`'s passkey `credentialId` unless it's their last, in one statement, so two
+// removals at once can't take both: `last` when it's the only one left, `missing` when they have no
+// such passkey.
+export async function removePasskey(db: D1Database, memberId: string, credentialId: string) {
+  const [removed, kept] = await db.batch([
+    db
+      .prepare(
+        'DELETE FROM passkeys WHERE credential_id = ?1 AND member_id = ?2 AND (SELECT count(*) FROM passkeys WHERE member_id = ?2) > 1'
+      )
+      .bind(credentialId, memberId),
+    db.prepare('SELECT 1 FROM passkeys WHERE credential_id = ? AND member_id = ?').bind(credentialId, memberId)
+  ])
+  return removed.meta.changes ? 'removed' : kept.results.length ? 'last' : 'missing'
 }
 
 // Starts a session for the member whose passkey just signed in, keeping its new signature counter.
@@ -153,6 +176,16 @@ export async function recover(db: D1Database, code: string): Promise<Secrets | n
   return replaced.results.length ? secrets : null
 }
 
+// Gives member `memberId` a new recovery code, which replaces their last one, and hands it out once.
+export async function newRecoveryCode(db: D1Database, memberId: string) {
+  const code = recoveryCode()
+  await db
+    .prepare('UPDATE members SET recovery_code_hash = ? WHERE id = ?')
+    .bind(await sha256(normalCode(code)), memberId)
+    .run()
+  return code
+}
+
 // The member a session token belongs to, while the session lasts. A use more than a minute after the
 // last extends it, and `extended` says so, for the cookie to be extended too.
 export async function sessionMember(db: D1Database, token: string): Promise<(Member & { extended: boolean }) | null> {
@@ -180,6 +213,26 @@ export async function signOut(db: D1Database, token: string) {
     .prepare('DELETE FROM sessions WHERE token_hash = ?')
     .bind(await sha256(token))
     .run()
+}
+
+// Ends every session of member `memberId`'s, on every browser.
+export async function signOutEverywhere(db: D1Database, memberId: string) {
+  await db.prepare('DELETE FROM sessions WHERE member_id = ?').bind(memberId).run()
+}
+
+// How many browsers member `memberId` is signed in on: their sessions that haven't expired.
+export async function openSessions(db: D1Database, memberId: string) {
+  return (
+    (await db
+      .prepare('SELECT count(*) AS n FROM sessions WHERE member_id = ? AND expires > ?')
+      .bind(memberId, Date.now())
+      .first<number>('n')) ?? 0
+  )
+}
+
+// Renames member `memberId`, as their teammates see them from then on.
+export async function renameMember(db: D1Database, memberId: string, name: string) {
+  await db.prepare('UPDATE members SET name = ? WHERE id = ?').bind(name, memberId).run()
 }
 
 // What a member is in a network: its `owner` can change it and manage its members, and a `member`
@@ -239,6 +292,38 @@ export async function memberRole(db: D1Database, networkId: string, memberId: st
     .prepare('SELECT role FROM memberships WHERE network_id = ? AND member_id = ?')
     .bind(networkId, memberId)
     .first<Role>('role')
+}
+
+// A network on its member's account page: whether they're its only owner, which stops them leaving it
+// or deleting their account.
+export type AccountNetwork = Network & { onlyOwner: boolean }
+
+// The networks a member belongs to, by name, saying which they're the only owner of.
+export async function accountNetworks(db: D1Database, memberId: string): Promise<AccountNetwork[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT n.id, n.name, m.role, ${ONLY_OWNER} AS onlyOwner FROM memberships m JOIN networks n ON n.id = m.network_id WHERE m.member_id = ? ORDER BY n.name COLLATE NOCASE, n.created`
+    )
+    .bind(memberId)
+    .all<Network & { onlyOwner: number }>()
+  return results.map((n) => ({ ...n, onlyOwner: n.onlyOwner === 1 }))
+}
+
+// Whether membership `m` is its network's only owner's.
+const ONLY_OWNER =
+  "(m.role = 'owner' AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.network_id = m.network_id AND o.role = 'owner' AND o.member_id != m.member_id))"
+
+// Deletes member `memberId`, with their passkeys, sessions, and memberships, unless they're any
+// network's only owner, in one statement, so no network is left without an owner. What they made in a
+// network stays with it, made by no one. False when it's refused.
+export async function deleteMember(db: D1Database, memberId: string) {
+  const { meta } = await db
+    .prepare(
+      `DELETE FROM members WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.member_id = ?1 AND ${ONLY_OWNER})`
+    )
+    .bind(memberId)
+    .run()
+  return meta.changes > 0
 }
 
 // Network `networkId` as member `memberId` sees it, marked as the one they opened last, in the
@@ -483,6 +568,29 @@ export async function networkName(db: D1Database, networkId: string) {
   return db.prepare('SELECT name FROM networks WHERE id = ?').bind(networkId).first<string>('name')
 }
 
+// An agent instance to wipe (`destroy`) once the directory or its network has let go of it: its
+// binding, such as LaunchAgent, and its name.
+export type Instance = { binding: string; name: string }
+
+// Deletes network `networkId` when member `by` is one of its owners, and notes a wipe for each of its
+// agent instances, `instances`, in the same batch, so none is left unnoted. Its memberships, invites,
+// and API keys go with it, so its pages, agents, and API answer 404 from then on. False when they
+// aren't an owner, and nothing was written.
+export async function dropNetwork(db: D1Database, networkId: string, by: string, instances: Instance[]) {
+  const owner = "EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?2 AND role = 'owner')"
+  const now = Date.now()
+  const results = await db.batch([
+    // Noted before the network goes, while the owner's membership is still there to check.
+    ...instances.map(({ binding, name }) =>
+      db
+        .prepare(`INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?3, ?4, ?5 WHERE ${owner}`)
+        .bind(networkId, by, binding, name, now)
+    ),
+    db.prepare(`DELETE FROM networks WHERE id = ?1 AND ${owner}`).bind(networkId, by)
+  ])
+  return results.at(-1)!.meta.changes > 0
+}
+
 // The agent instances to wipe (`destroy`) once the directory or their network has let go of them, by
 // binding, such as LaunchAgent, and name. Each is noted before its wipe and crossed off once the wipe
 // succeeds, so the daily cron can retry any that failed (wipe.ts).
@@ -502,19 +610,43 @@ export async function wipesDue(db: D1Database, before: number) {
   const { results } = await db
     .prepare('SELECT binding, name FROM wipes WHERE created < ? ORDER BY created')
     .bind(before)
-    .all<{ binding: string; name: string }>()
+    .all<Instance>()
   return results
 }
 
-// What the daily cron clears: sessions, challenges, and invites that have expired.
+// What the daily cron clears: sessions, challenges, and invites that have expired. Returns how many of
+// each it deleted.
 export async function purgeExpired(db: D1Database) {
   const now = Date.now()
-  await db.batch([
+  const [sessions, challenges, invites] = await db.batch([
     db.prepare('DELETE FROM sessions WHERE expires <= ?').bind(now),
     db.prepare('DELETE FROM challenges WHERE expires <= ?').bind(now),
     db.prepare('DELETE FROM invites WHERE expires <= ?').bind(now)
   ])
+  return { sessions: sessions.meta.changes, challenges: challenges.meta.changes, invites: invites.meta.changes }
 }
+
+// A new passkey for member `memberId`, added only if they exist, as a sign-up's member may not.
+const insertPasskey = (
+  db: D1Database,
+  memberId: string,
+  passkey: Omit<Passkey, 'memberId'>,
+  label: string,
+  now: number
+) =>
+  db
+    .prepare(
+      'INSERT INTO passkeys (credential_id, member_id, public_key, counter, transports, label, created) SELECT ?, id, ?, ?, ?, ?, ? FROM members WHERE id = ?'
+    )
+    .bind(
+      passkey.credentialId,
+      passkey.publicKey,
+      passkey.counter,
+      passkey.transports && JSON.stringify(passkey.transports),
+      label,
+      now,
+      memberId
+    )
 
 // A new session for member `memberId`, started only if they exist, as a sign-up's member may not.
 const insertSession = (db: D1Database, tokenHash: string, memberId: string, now: number) =>

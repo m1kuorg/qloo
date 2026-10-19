@@ -89,12 +89,19 @@ export class NetworkAgent extends CrossfeedAgent {
     )
   }
 
+  // Wipes the network once the directory has let go of it, after its launches (wipe.ts). Its open pages
+  // close first, for good, saying why, as a launch's do.
+  async destroy(reason = 'This network was deleted.') {
+    for (const connection of this.getConnections()) connection.close(4410, reason)
+    await super.destroy()
+  }
+
   // Closes the member's connections to the network's agent and to each of its launches'.
-  async kick(memberId: string) {
-    super.kick(memberId)
+  async kick(memberId: string, reason?: string) {
+    super.kick(memberId, reason)
     await Promise.all(
       (this.state.launches ?? []).map(async ({ id }) =>
-        (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).kick(memberId)
+        (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).kick(memberId, reason)
       )
     )
   }
