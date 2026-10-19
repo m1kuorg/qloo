@@ -24,6 +24,7 @@ export default defineConfig({
         bindings: {
           QLOO_BASE_URL: 'https://qloo.test',
           QLOO_API_KEY: 'test-qloo-key',
+          QLOO_KEY_SECRET: 'test-qloo-key-secret',
           QLOO_TIMEOUT_MS: '1000',
           QLOO_RETRY_DELAYS_MS: '10,30',
           QLOO_MIN_INTERVAL_MS: '0',

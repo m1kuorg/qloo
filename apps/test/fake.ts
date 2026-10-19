@@ -4,6 +4,7 @@
 import { setupNetwork } from '@msw/cloudflare'
 import { env } from 'cloudflare:workers'
 import { delay, http, HttpResponse } from 'msw'
+import { QLOO_HOSTS } from '../src/gateway'
 
 export const network = setupNetwork()
 
@@ -19,11 +20,15 @@ export type RecordedRequest = {
 // Every request a fake served, in order. Cleared after each test by setup.ts.
 export const requests: RecordedRequest[] = []
 
+// Every host the gateway sends Qloo requests to: Crossfeed's own key's, and each a network's own key may
+// be for, so the Qloo fakes serve them all and record which one a request went to.
+const qlooHosts = () => [env.QLOO_BASE_URL, ...QLOO_HOSTS]
+
 // Each request Qloo got, as Qloo reads it: its path, every decoded parameter, and its body, lowercased,
 // to check what never reaches Qloo, such as a guest's name.
 export const qlooRequests = () =>
   requests
-    .filter((r) => r.url.origin === new URL(env.QLOO_BASE_URL).origin)
+    .filter((r) => qlooHosts().some((host) => r.url.origin === new URL(host).origin))
     .map((r) =>
       [r.url.pathname, ...[...r.url.searchParams].map(([k, v]) => `${k}=${v}`), r.body].join('\n').toLowerCase()
     )
@@ -65,45 +70,52 @@ type Answer = QlooEntity[] | number | RawResponse | 'hang'
 
 // Serves `/search` from `search`, keyed by the exact query string; a query with no fixture finds
 // nothing. `first` scripts the answers to a query's first requests, in order, before `search`
-// answers the rest. `latencyMs` delays every answer.
+// answers the rest. `latencyMs` delays every answer. With `keys`, only a request with one of them as its
+// `X-Api-Key` is answered; any other gets a 401, as Qloo answers a key it doesn't know.
 export function fakeQloo({
   search,
   first = {},
-  latencyMs = 0
+  latencyMs = 0,
+  keys
 }: {
   search: Record<string, Answer>
   first?: Record<string, Answer[]>
   latencyMs?: number
+  keys?: string[]
 }) {
   const asked = new Map<string, number>()
   network.use(
-    http.get(`${env.QLOO_BASE_URL}/search`, async ({ request }) => {
-      inFlight++
-      try {
-        await record(request)
-        const url = new URL(request.url)
-        const query = url.searchParams.get('query') ?? ''
-        const n = asked.get(query) ?? 0
-        asked.set(query, n + 1)
-        const answer = first[query]?.[n] ?? search[query]
-        if (latencyMs) await delay(latencyMs)
-        if (answer === 'hang') {
-          await new Promise((resolve) => request.signal.addEventListener('abort', resolve, { once: true }))
-          return HttpResponse.error()
+    ...qlooHosts().map((host) =>
+      http.get(`${host}/search`, async ({ request }) => {
+        inFlight++
+        try {
+          await record(request)
+          if (keys && !keys.includes(request.headers.get('X-Api-Key') ?? ''))
+            return HttpResponse.json({ message: 'Invalid authentication credentials' }, { status: 401 })
+          const url = new URL(request.url)
+          const query = url.searchParams.get('query') ?? ''
+          const n = asked.get(query) ?? 0
+          asked.set(query, n + 1)
+          const answer = first[query]?.[n] ?? search[query]
+          if (latencyMs) await delay(latencyMs)
+          if (answer === 'hang') {
+            await new Promise((resolve) => request.signal.addEventListener('abort', resolve, { once: true }))
+            return HttpResponse.error()
+          }
+          if (!answer) return HttpResponse.json({ results: [] })
+          // Qloo's 429 body differs from its other errors.
+          if (answer === 429) return HttpResponse.json({ error_msg: 'Rate limit exceeded' }, { status: 429 })
+          if (typeof answer === 'number')
+            return HttpResponse.json({ error: { message: 'fake failure', code: answer } }, { status: answer })
+          if (!Array.isArray(answer)) return HttpResponse.text(answer.body, { status: answer.status })
+          const take = Number(url.searchParams.get('take') ?? 20)
+          const types = [url.searchParams.get('types') ?? 'urn:entity:podcast']
+          return HttpResponse.json({ results: answer.slice(0, take).map((r) => ({ types, ...r })) })
+        } finally {
+          inFlight--
         }
-        if (!answer) return HttpResponse.json({ results: [] })
-        // Qloo's 429 body differs from its other errors.
-        if (answer === 429) return HttpResponse.json({ error_msg: 'Rate limit exceeded' }, { status: 429 })
-        if (typeof answer === 'number')
-          return HttpResponse.json({ error: { message: 'fake failure', code: answer } }, { status: answer })
-        if (!Array.isArray(answer)) return HttpResponse.text(answer.body, { status: answer.status })
-        const take = Number(url.searchParams.get('take') ?? 20)
-        const types = [url.searchParams.get('types') ?? 'urn:entity:podcast']
-        return HttpResponse.json({ results: answer.slice(0, take).map((r) => ({ types, ...r })) })
-      } finally {
-        inFlight--
-      }
-    })
+      })
+    )
   )
 }
 
@@ -111,10 +123,12 @@ export function fakeQloo({
 // when Qloo is down. Registered after other Qloo fakes, it overrides them.
 export function fakeQlooDown(status = 503) {
   network.use(
-    http.all(`${env.QLOO_BASE_URL}/*`, async ({ request }) => {
-      await record(request)
-      return HttpResponse.json({ error: { message: 'fake failure', code: status } }, { status })
-    })
+    ...qlooHosts().map((host) =>
+      http.all(`${host}/*`, async ({ request }) => {
+        await record(request)
+        return HttpResponse.json({ error: { message: 'fake failure', code: status } }, { status })
+      })
+    )
   )
 }
 
@@ -132,30 +146,32 @@ export type Insight = {
 // requests are left to `fakeDemographics`.
 export function fakeInsights(answer: Insight[] | number | ((body: Record<string, unknown>) => Insight[] | number)) {
   network.use(
-    http.post(`${env.QLOO_BASE_URL}/v2/insights`, async ({ request }) => {
-      const body = JSON.parse(await request.clone().text())
-      if (body['filter.type'] === 'urn:demographics') return
-      await record(request)
-      const results = typeof answer === 'function' ? answer(body) : answer
-      if (typeof results === 'number')
-        return HttpResponse.json({ error: { message: 'fake failure', code: results } }, { status: results })
-      const anchors = String(body['signal.interests.entities'] ?? '').split(',')
-      const entities = results.map(({ entity_id, name, affinity, explainability }) => {
-        const shares = explainability ?? anchors.map((id) => ({ entity_id: id, score: 1 / anchors.length }))
-        return {
-          entity_id,
-          name,
-          types: null,
-          popularity: 0.5,
-          query: {
-            affinity,
-            measurements: { audience_growth: 0 },
-            ...(explainability !== null && { explainability: { 'signal.interests.entities': shares } })
+    ...qlooHosts().map((host) =>
+      http.post(`${host}/v2/insights`, async ({ request }) => {
+        const body = JSON.parse(await request.clone().text())
+        if (body['filter.type'] === 'urn:demographics') return
+        await record(request)
+        const results = typeof answer === 'function' ? answer(body) : answer
+        if (typeof results === 'number')
+          return HttpResponse.json({ error: { message: 'fake failure', code: results } }, { status: results })
+        const anchors = String(body['signal.interests.entities'] ?? '').split(',')
+        const entities = results.map(({ entity_id, name, affinity, explainability }) => {
+          const shares = explainability ?? anchors.map((id) => ({ entity_id: id, score: 1 / anchors.length }))
+          return {
+            entity_id,
+            name,
+            types: null,
+            popularity: 0.5,
+            query: {
+              affinity,
+              measurements: { audience_growth: 0 },
+              ...(explainability !== null && { explainability: { 'signal.interests.entities': shares } })
+            }
           }
-        }
+        })
+        return HttpResponse.json({ success: true, results: { entities } })
       })
-      return HttpResponse.json({ success: true, results: { entities } })
-    })
+    )
   )
 }
 
@@ -167,36 +183,38 @@ export type SharedTag = { tag_id: string; name: string; score: number }
 // side b with no entry shares no tags. `latencyMs` delays every answer.
 export function fakeCompare(answer: Record<string, SharedTag[] | number>, { latencyMs = 0 } = {}) {
   network.use(
-    http.get(`${env.QLOO_BASE_URL}/v2/analysis/compare`, async ({ request }) => {
-      inFlight++
-      try {
-        await record(request)
-        const b = new URL(request.url).searchParams.get('b.signal.interests.entities') ?? ''
-        const tags = answer[b] ?? []
-        if (latencyMs) await delay(latencyMs)
-        if (typeof tags === 'number')
-          return HttpResponse.json({ error: { message: 'fake failure', code: tags } }, { status: tags })
-        // Each side's own tags (`a`, `b`) aren't used, so they stay empty here.
-        return HttpResponse.json({
-          duration: 0.4,
-          results: {
-            a: [],
-            b: [],
-            matchEntities: [],
-            tags: tags.map(({ tag_id, name, score }) => ({
-              tag_id,
-              name,
-              type: 'urn:tag',
-              subtype: tag_id.split(':').slice(0, -1).join(':'),
-              popularity: 0.9,
-              query: { score }
-            }))
-          }
-        })
-      } finally {
-        inFlight--
-      }
-    })
+    ...qlooHosts().map((host) =>
+      http.get(`${host}/v2/analysis/compare`, async ({ request }) => {
+        inFlight++
+        try {
+          await record(request)
+          const b = new URL(request.url).searchParams.get('b.signal.interests.entities') ?? ''
+          const tags = answer[b] ?? []
+          if (latencyMs) await delay(latencyMs)
+          if (typeof tags === 'number')
+            return HttpResponse.json({ error: { message: 'fake failure', code: tags } }, { status: tags })
+          // Each side's own tags (`a`, `b`) aren't used, so they stay empty here.
+          return HttpResponse.json({
+            duration: 0.4,
+            results: {
+              a: [],
+              b: [],
+              matchEntities: [],
+              tags: tags.map(({ tag_id, name, score }) => ({
+                tag_id,
+                name,
+                type: 'urn:tag',
+                subtype: tag_id.split(':').slice(0, -1).join(':'),
+                popularity: 0.9,
+                query: { score }
+              }))
+            }
+          })
+        } finally {
+          inFlight--
+        }
+      })
+    )
   )
 }
 
@@ -213,18 +231,20 @@ export type Demographic = {
 // left to `fakeInsights`.
 export function fakeDemographics(answer: Demographic[] | number) {
   network.use(
-    http.post(`${env.QLOO_BASE_URL}/v2/insights`, async ({ request }) => {
-      const body = JSON.parse(await request.clone().text())
-      if (body['filter.type'] !== 'urn:demographics') return
-      await record(request)
-      if (typeof answer === 'number')
-        return HttpResponse.json({ error: { message: 'fake failure', code: answer } }, { status: answer })
-      const ids = String(body['signal.interests.entities'] ?? '').split(',')
-      const demographics = answer
-        .filter((d) => ids.includes(d.entity_id))
-        .map(({ entity_id, age, gender }) => ({ entity_id, query: { age, gender } }))
-      return HttpResponse.json({ success: true, results: { demographics }, duration: 12 })
-    })
+    ...qlooHosts().map((host) =>
+      http.post(`${host}/v2/insights`, async ({ request }) => {
+        const body = JSON.parse(await request.clone().text())
+        if (body['filter.type'] !== 'urn:demographics') return
+        await record(request)
+        if (typeof answer === 'number')
+          return HttpResponse.json({ error: { message: 'fake failure', code: answer } }, { status: answer })
+        const ids = String(body['signal.interests.entities'] ?? '').split(',')
+        const demographics = answer
+          .filter((d) => ids.includes(d.entity_id))
+          .map(({ entity_id, age, gender }) => ({ entity_id, query: { age, gender } }))
+        return HttpResponse.json({ success: true, results: { demographics }, duration: 12 })
+      })
+    )
   )
 }
 

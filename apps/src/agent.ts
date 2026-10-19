@@ -5,7 +5,7 @@ import type { DemographicCheck } from './demographics'
 import { callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import { blankEvidence, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
+import { blankEvidence, globalGateway, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -328,8 +328,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     // visitor's; past their limit, it opens empty. Tests turn this off.
     if (firstStart && this.opensOnSample && this.env.SAMPLE_NETWORK === 'on') {
       const visitor = this.limitKey(props?.visitor)
-      const refused = await this.env.QlooGateway.getByName('global')
-        .reserveCalls(visitor, sampleRoster.length)
+      const refused = await this.gateway()
+        .then((gateway) => gateway.reserveCalls(visitor, sampleRoster.length))
         // A gateway that can't count doesn't keep the sample from opening; its lookups say why they fail.
         .catch(() => null)
       if (!refused) this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample })
@@ -484,10 +484,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const startedBy = this.memberName()
     const { down, limited, refused, stored, network } = await this.admit(async () => {
       const network = await this.networkRoster()
-      const admitted = await this.env.QlooGateway.getByName('global').admitLaunch(
-        visitor,
-        onSampleLaunch(this.state, name)
-      )
+      // Whether Qloo can be called is the gateway's this run's calls go through; the model run counts
+      // in the global one either way.
+      const health = await (await this.gateway()).health()
+      const admitted = await globalGateway(this.env).admitLaunch(visitor, onSampleLaunch(this.state, name), health)
       return { ...admitted, network }
     })
     if (refused) throw new Refusal('limit', `${refused}.`)
@@ -985,13 +985,15 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // Counts `n` Qloo calls against the visitor's calls for the day before they're made, or refuses them
   // with the reason, before anything is numbered or kept (TRD agent limits).
   protected async reserveCalls(visitor: string, n: number) {
-    const refused = await this.env.QlooGateway.getByName('global').reserveCalls(visitor, n)
+    const refused = await (await this.gateway()).reserveCalls(visitor, n)
     if (refused) throw new Refusal('limit', `${refused}.`)
   }
 
-  // Counts a model run against the daily limits, or refuses it with the reason (TRD agent limits).
+  // Counts a model run against the daily limits, or refuses it with the reason (TRD agent limits). Model
+  // runs spend Crossfeed's Anthropic key, so they count in the global gateway, whichever gateway the
+  // agent's Qloo calls go through (ADR 0004).
   private async countModelRun(visitor: string) {
-    const { refused } = await this.env.QlooGateway.getByName('global').startModelRun(visitor)
+    const { refused } = await globalGateway(this.env).startModelRun(visitor)
     if (refused) throw new Refusal('limit', `${refused}.`)
   }
 
@@ -1008,6 +1010,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith('visitor:'))
     if (tag) this.lastVisitor = tag
     return this.limitKey()
+  }
+
+  // The gateway this agent's Qloo calls go through, and its Qloo limits count in: the global one, which
+  // the demo and every network without a Qloo key of its own share, with its cache. A network's agents
+  // use the network's own instance while it has a key (network-agent.ts, ADR 0004).
+  protected async gateway(): Promise<DurableObjectStub<QlooGateway>> {
+    return globalGateway(this.env)
   }
 
   // Who every Qloo call and model run of this agent counts against, for the per-visitor limits (TRD
@@ -1419,8 +1428,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.storeSampleRun(run, { state, evidence })
   }
 
+  // The sample run is the demo's, kept in the global gateway, which any session's start replays it from.
   private storeSampleRun(run: string, sampleRun: SampleRun) {
-    void this.keepAliveWhile(() => this.env.QlooGateway.getByName('global').keepSampleRun(JSON.stringify(sampleRun)))
+    void this.keepAliveWhile(() => globalGateway(this.env).keepSampleRun(JSON.stringify(sampleRun)))
       .then(() => log({ event: 'sample_run', run, calls: sampleRun.evidence.length }))
       .catch((e) => log({ event: 'sample_run', run, error: message(e) }))
   }
@@ -1429,7 +1439,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // run ended with, rather than the run's snapshot, where the programmer may since have edited the
   // order. The gateway writes it only while the copy is still this run's, so a run kept since stays.
   private async keepTopic(run: string, topic: Topic) {
-    const gateway = this.env.QlooGateway.getByName('global')
+    const gateway = globalGateway(this.env)
     const stored = await gateway.sampleRun()
     const kept: SampleRun | null = stored && JSON.parse(stored)
     if (kept?.state.run?.id !== run) return
@@ -1504,13 +1514,19 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const call = callNumber(seq)
     const settled = this.watch(call, run)
     const started = Date.now()
-    // Every request calls one gateway method; noting which lets a failed record name its request.
+    // Every request calls one gateway method; noting which lets a failed record name its request. The
+    // gateway is looked up as the method is called, so a gateway that can't be reached fails the call.
     let asked: keyof typeof REQUESTS | undefined
-    const gateway = new Proxy(this.env.QlooGateway.getByName('global'), {
-      get: (stub, key) => {
-        if (typeof key !== 'string' || !Object.hasOwn(REQUESTS, key)) return Reflect.get(stub, key)
+    const gateway = new Proxy({} as DurableObjectStub<QlooGateway>, {
+      get: (_, key) => {
+        if (typeof key !== 'string' || !Object.hasOwn(REQUESTS, key)) return undefined
         const method = (asked = key as keyof typeof REQUESTS)
-        return reserved ? Reflect.get(stub, key) : (...args: unknown[]) => stub.forVisitor(visitor, method, args)
+        return async (...args: unknown[]) => {
+          const stub = await this.gateway()
+          return reserved
+            ? Reflect.apply(Reflect.get(stub, method), stub, args)
+            : stub.forVisitor(visitor, method, args)
+        }
       }
     })
     let result: QlooResult<T>

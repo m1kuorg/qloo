@@ -53,6 +53,14 @@ export type Usage = {
   resets: string // ISO time, the next 00:00 UTC
 }
 
+// The Qloo hosts a network's own key can be for: Qloo's production API, and the hackathon's, the only
+// one a hackathon key works on (platform research).
+export const QLOO_HOSTS = ['https://api.qloo.com', 'https://hackathon.api.qloo.com']
+
+// A network's own Qloo key as its settings show it: whether it's set, and to an owner, the host it's
+// for and its last four characters. The key itself never leaves its gateway instance.
+export type OwnKey = { set: boolean; host?: string; last4?: string }
+
 // The per-visitor daily counters: tables keyed by a hash of the visitor and the day.
 type Counter = 'model_runs' | 'free_starts' | 'visitor_calls' | 'signups'
 
@@ -98,7 +106,14 @@ export const blankEvidence = ({ method, endpoint }: QlooRequest, params: Params)
   affinities: []
 })
 
-// The only code that calls Qloo: one global instance, reached over Durable Object RPC.
+// The global instance: the demo's and every network's without a Qloo key of its own, and where model
+// runs and the stored sample run are counted and kept for everyone (ADR 0004).
+export const globalGateway = (env: Env) => env.QlooGateway.getByName(GLOBAL)
+const GLOBAL = 'global'
+
+// The only code that calls Qloo, reached over Durable Object RPC: the global instance, on Crossfeed's
+// key, and one instance per network that brings its own key, `network:<networkId>`, on that key, with
+// its own cache and Qloo counts (ADR 0004).
 export class QlooGateway extends DurableObject<Env> {
   // At most IN_FLIGHT requests in flight across all sessions, each started at least
   // QLOO_MIN_INTERVAL_MS after the last: Qloo rate-limits bursts of fast calls, not only concurrent ones.
@@ -139,6 +154,51 @@ export class QlooGateway extends DurableObject<Env> {
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS signups (key TEXT PRIMARY KEY, day TEXT NOT NULL, count INTEGER NOT NULL)'
     )
+    // A network's own Qloo key, in its own instance: the host it's for, the key sealed with AES-GCM
+    // under QLOO_KEY_SECRET (seal), and its last four characters, all its settings ever show of it.
+    ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS own_key (id INTEGER PRIMARY KEY CHECK (id = 1), host TEXT NOT NULL, sealed TEXT NOT NULL, last4 TEXT NOT NULL)'
+    )
+  }
+
+  // The network's own key, if this instance has one, as an owner sees it.
+  ownKey(): OwnKey {
+    const [own] = this.ctx.storage.sql
+      .exec<{ host: string; last4: string }>('SELECT host, last4 FROM own_key')
+      .toArray()
+    return own ? { set: true, host: own.host, last4: own.last4 } : { set: false }
+  }
+
+  // Wipes this instance, as removing the network's own key or deleting the network does: its key, cache,
+  // and counts. It resets a moment later, cutting off any request still queued or in flight, so the
+  // next call meets a new, empty instance.
+  async wipe() {
+    await this.ctx.storage.deleteAll()
+    setTimeout(() => this.ctx.abort('This gateway instance was wiped.'), 0)
+  }
+
+  // Tests `key` with one search on `host`, past the cache, and keeps it as this network's own only once
+  // Qloo answers, replacing any key before it; or says why Qloo refused it, keeping nothing. The search
+  // counts against today's cap like any request, but among no one's calls.
+  async setKey(host: string, key: string): Promise<string | null> {
+    if (!QLOO_HOSTS.includes(host)) throw new Error(`${host} isn't one of Qloo's hosts.`)
+    const url = new URL(REQUESTS.search.endpoint, host)
+    url.search = String(new URLSearchParams(KEY_TEST))
+    if (!this.spend()) return `${capReached(this.env.QLOO_DAILY_CALL_CAP)}, so the key can't be tested until then.`
+    await this.takeSlot()
+    const tested = await this.attempt(url, undefined, Number(this.env.QLOO_TIMEOUT_MS), key).finally(() =>
+      this.releaseSlot()
+    )
+    console.log(JSON.stringify({ event: 'qloo_key_test', status: tested.status }))
+    if (!tested.ok)
+      return `The key’s test search on ${new URL(host).host} failed: ${tested.error}. The key isn’t saved: check it, and that it’s for that host, then try again.`
+    this.ctx.storage.sql.exec(
+      'INSERT OR REPLACE INTO own_key (id, host, sealed, last4) VALUES (1, ?, ?, ?)',
+      host,
+      await seal(this.env.QLOO_KEY_SECRET, key),
+      key.slice(-4)
+    )
+    return null
   }
 
   // Why `visitor` can't create another account today, or null when they can
@@ -190,12 +250,13 @@ export class QlooGateway extends DurableObject<Env> {
 
   // Decides how a launch starts, in one call: as a model run, counted; or, while Qloo can't be called
   // or a model run limit is reached, as a free start, counted against FREE_START_DAILY_CAP, with the
-  // stored sample run when `sample`; or not at all, once the visitor's free starts are used.
-  async admitLaunch(visitor: string, sample: boolean): Promise<Admission> {
+  // stored sample run when `sample`; or not at all, once the visitor's free starts are used. `down` is
+  // why Qloo can't be called, as the gateway the run's calls go through says (health): this one, or a
+  // network's own (ADR 0004).
+  async admitLaunch(visitor: string, sample: boolean, down: QlooDown | null): Promise<Admission> {
     const day = utcDay()
     const key = await sha256(`${visitor}:${day}`)
     // From here on nothing awaits, so concurrent starts can't both pass a limit.
-    const down = this.health()
     const limited = down ? null : this.countModelRun(key, day, whoCounts(visitor)).refused
     if (!down && !limited) return { down, limited, refused: null, stored: null }
     // A limit that isn't a number refuses every start, rather than none.
@@ -436,11 +497,13 @@ export class QlooGateway extends DurableObject<Env> {
     cache: CacheUse = 'use'
   ): Promise<QlooResult<unknown>> {
     const { method, endpoint } = qlooRequest
-    const url = new URL(endpoint, this.env.QLOO_BASE_URL)
+    const evidence = blankEvidence(qlooRequest, params)
+    const credentials = await this.credentials()
+    if (typeof credentials === 'string') return this.fail(evidence, credentials)
+    const url = new URL(endpoint, credentials.host)
     const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
     if (method === 'GET') url.search = String(query)
     const payload = method === 'POST' ? JSON.stringify(params) : undefined
-    const evidence = blankEvidence(qlooRequest, params)
     // Latency runs from the first request sent, so time queued behind other calls isn't blamed on Qloo.
     const started = Date.now()
     let sentAt: number | undefined
@@ -462,7 +525,7 @@ export class QlooGateway extends DurableObject<Env> {
         if (!this.spend()) return this.fail(evidence, capReached(this.env.QLOO_DAILY_CALL_CAP) + retried(evidence))
         await this.takeSlot()
         sentAt ??= Date.now()
-        const attempt = await this.attempt(url, payload, timeoutMs).finally(() => this.releaseSlot())
+        const attempt = await this.attempt(url, payload, timeoutMs, credentials.key).finally(() => this.releaseSlot())
         evidence.status = attempt.status
         if (attempt.ok) {
           const body = JSON.stringify(attempt.data)
@@ -496,6 +559,23 @@ export class QlooGateway extends DurableObject<Env> {
       const { endpoint: e, status, latencyMs, retries, cacheHit } = evidence
       console.log(JSON.stringify({ event: 'qloo_call', endpoint: e, status, latencyMs, retries, cacheHit }))
     }
+  }
+
+  // Where this instance sends Qloo requests, and with which key: the network's own, for a network's
+  // instance, or Crossfeed's, for the global one. Or why it can't send any: a network's instance whose
+  // key was removed, or one QLOO_KEY_SECRET no longer opens.
+  private async credentials(): Promise<{ host: string; key: string } | string> {
+    const [own] = this.ctx.storage.sql
+      .exec<{ host: string; sealed: string }>('SELECT host, sealed FROM own_key')
+      .toArray()
+    if (!own)
+      return this.ctx.id.name === GLOBAL
+        ? { host: this.env.QLOO_BASE_URL, key: this.env.QLOO_API_KEY }
+        : "The network's own Qloo key was removed, so its calls go through Crossfeed's shared key from now on"
+    const key = await unseal(this.env.QLOO_KEY_SECRET, own.sealed).catch(() => null)
+    if (key === null)
+      return "The network's own Qloo key can't be read, since Crossfeed's secret for it has changed. An owner adds the key again in settings"
+    return { host: own.host, key }
   }
 
   // Counts one request against today's cap, or refuses it once the cap is reached. Counted when
@@ -537,12 +617,12 @@ export class QlooGateway extends DurableObject<Env> {
 
   // One request to Qloo. Rate limits, gateway errors, and timeouts are worth retrying; a 400 or
   // any other error is not, and keeps Qloo's message.
-  private async attempt(url: URL, payload: string | undefined, timeoutMs: number): Promise<Attempt> {
+  private async attempt(url: URL, payload: string | undefined, timeoutMs: number, key: string): Promise<Attempt> {
     try {
       const response = await fetch(url, {
         method: payload === undefined ? 'GET' : 'POST',
         headers: {
-          'X-Api-Key': this.env.QLOO_API_KEY,
+          'X-Api-Key': key,
           ...(payload !== undefined && { 'Content-Type': 'application/json' })
         },
         body: payload,
@@ -596,6 +676,40 @@ const retried = ({ retries }: CallEvidence) =>
   retries ? `, after ${retries} ${retries === 1 ? 'retry' : 'retries'}` : ''
 
 type CacheRow = { status: number; body: string }
+
+// The one search a network's own key is tested with before it's saved: any podcast Qloo knows.
+const KEY_TEST = { query: 'The Rewatchables', types: 'urn:entity:podcast', take: '1' }
+
+// A network's own Qloo key sealed for storage: AES-GCM under a key derived from QLOO_KEY_SECRET, with a
+// fresh IV each time, kept as `<iv>.<ciphertext>` in base64.
+async function seal(secret: string, key: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const sealed = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await sealing(secret), utf8.encode(key))
+  return `${base64(iv)}.${base64(new Uint8Array(sealed))}`
+}
+
+// The key `seal` sealed, or a throw when another secret sealed it.
+async function unseal(secret: string, sealed: string) {
+  const [iv, data] = sealed.split('.').map(unbase64)
+  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, await sealing(secret), data))
+}
+
+// The AES-GCM key behind `seal`, derived from QLOO_KEY_SECRET with HKDF, so any secret long enough to
+// guess at makes a key of the right size.
+async function sealing(secret: string) {
+  const material = await crypto.subtle.importKey('raw', utf8.encode(secret), 'HKDF', false, ['deriveKey'])
+  return crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(), info: utf8.encode('crossfeed:qloo-key') },
+    material,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  )
+}
+
+const utf8 = new TextEncoder()
+const base64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
+const unbase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0))
 
 // A hash of the method, path, and parameters sorted by name, so one request is one entry.
 async function cacheKey(method: string, endpoint: string, params: URLSearchParams) {

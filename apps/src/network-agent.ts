@@ -10,6 +10,7 @@ import {
   type RosterCopy,
   type State
 } from './agent'
+import { globalGateway } from './gateway'
 import { Refusal } from './refusal'
 import { sample, sampleRoster } from './sample'
 
@@ -32,6 +33,17 @@ export const launchAgentName = (networkId: string, launchId: string) => `${netwo
 // What a network's agents count against for the per-visitor limits: the network, from the agent's
 // name, which is the network's ID for its own agent and `<networkId>:<launchId>` for a launch's.
 export const networkLimitKey = (name: string) => `network:${name.split(':')[0]}`
+
+// A network's own gateway instance, `network:<networkId>` (ADR 0004), from an agent's name as
+// networkLimitKey reads it: where the network's own Qloo key, its cache, and its Qloo counts live.
+export const ownGateway = (env: Env, name: string) => env.QlooGateway.getByName(networkLimitKey(name))
+
+// The gateway a network's Qloo calls go through, and its launches': its own instance while it has a key
+// of its own, else the global one, as every other network's and the demo's do.
+export async function networkGateway(env: Env, name: string) {
+  const own = ownGateway(env, name)
+  return (await own.ownKey()).set ? own : globalGateway(env)
+}
 
 // What a deleted network's open pages, and its launches', say as they close.
 export const NETWORK_DELETED = 'This network was deleted.'
@@ -60,6 +72,11 @@ export class NetworkAgent extends CrossfeedAgent {
   // makes them, and with no connection at all, as the Worker's own calls have (TRD agent limits).
   protected limitKey() {
     return networkLimitKey(this.name)
+  }
+
+  // Its Qloo calls go through its own gateway instance while it has a Qloo key of its own (ADR 0004).
+  protected gateway() {
+    return networkGateway(this.env, this.name)
   }
 
   // Tags a connection with its member, beside its visitor.

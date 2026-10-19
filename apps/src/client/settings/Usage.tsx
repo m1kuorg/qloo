@@ -4,8 +4,10 @@ import { StateLine } from '../states'
 
 // The settings' usage module: what the network has used today against the beta's daily caps, as the
 // gateway counts them for the network whichever member or API key spends them, and when they reset.
-// Every member sees it, so a refused run is never a surprise. `usage` is read as the page loads.
-export function UsageModule({ network, usage }: { network: NetworkPage; usage: Usage }) {
+// Every member sees it, so a refused run is never a surprise. `usage` is read as the page loads, and
+// again as the network's own Qloo key comes or goes (`ownKey`), since its Qloo calls count in its own
+// gateway instance while it has one.
+export function UsageModule({ network, usage, ownKey }: { network: NetworkPage; usage: Usage; ownKey: boolean }) {
   const rows = [
     {
       name: 'Model runs',
@@ -15,7 +17,8 @@ export function UsageModule({ network, usage }: { network: NetworkPage; usage: U
     {
       name: 'Qloo calls',
       ...usage.qlooCalls,
-      reached: 'No more Qloo calls today: roster imports and comp searches are refused'
+      reached: 'No more Qloo calls today: roster imports and comp searches are refused',
+      on: ownKey ? 'On the network’s own Qloo key' : null
     }
   ]
   return (
@@ -37,6 +40,7 @@ export function UsageModule({ network, usage }: { network: NetworkPage; usage: U
               <dt>{r.name}</dt>
               <dd>
                 <b>{r.used.toLocaleString('en-US')}</b> of {r.limit.toLocaleString('en-US')} today
+                {'on' in r && r.on && <span className="tg">{r.on}</span>}
               </dd>
             </div>
           ))}
