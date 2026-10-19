@@ -19,6 +19,7 @@ export default defineConfig({
       // are off whatever wrangler.jsonc or .dev.vars says; a test of the flow turns them on itself.
       // The run limits and the sign-up and network caps are wrangler.jsonc's, whatever .dev.vars
       // says; a test lowers them itself. Passkeys belong to the origin tests send from.
+      // Accounts are on, as the product's tests need; a test of the demo without them turns them off.
       miniflare: {
         bindings: {
           QLOO_BASE_URL: 'https://qloo.test',
@@ -35,6 +36,7 @@ export default defineConfig({
           QLOO_VISITOR_DAILY_CALL_CAP: '2000',
           SAMPLE_NETWORK: 'off',
           GUEST_PITCHES: 'off',
+          ACCOUNTS: 'on',
           RP_ID: 'crossfeed.test',
           APP_ORIGINS: 'https://crossfeed.test',
           SIGNUP_VISITOR_DAILY_CAP: '5',

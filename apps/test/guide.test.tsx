@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { State } from '../src/agent'
 import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeInsights, fakeQloo, fakeTopic, text, toolUse, topicNames, turn } from './fake'
-import { openSession, type Session } from './session'
+import { links, openSession, type Session } from './session'
 
 // Made-up IDs and scores for seven of the sample's public show names; every other name misses.
 const ids: Record<string, string> = {
@@ -103,7 +103,7 @@ afterEach(() => open.splice(0).forEach((s) => s.close()))
 
 // The page as the session's browser renders it from synced state.
 const page = (state: State) =>
-  renderToStaticMarkup(<Workspace page="roster" agent={{ state, stub: {} } as unknown as Agent} />)
+  renderToStaticMarkup(<Workspace page="roster" agent={{ state, stub: {} } as unknown as Agent} links={links} />)
 const words = (html: string) =>
   html
     .replace(/<[^>]+>/g, ' ')

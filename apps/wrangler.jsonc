@@ -25,6 +25,9 @@
     // Starts a visitor makes in a UTC day that call no model: replays, and runs that stop at once. They
     // cost no spend, but each keeps a run, so this bounds the storage a visitor can fill.
     "FREE_START_DAILY_CAP": "100",
+    // "on" opens accounts and everything behind them; "off" hides them, as production does until the
+    // product is checked on the preview deployment (#155). Tests turn it on.
+    "ACCOUNTS": "off",
     // "on" shows the guest pitch flow; "off" hides it. #57 switched it on after its live check.
     "GUEST_PITCHES": "on",
     // A new session opens on the sample network (TRD demo data); tests turn it off.
@@ -66,7 +69,7 @@
     // The Worker crossfeed-preview, for checking the product on real Workers before production, with
     // its own D1 database, Durable Objects, and secrets. Wrangler doesn't inherit vars, secrets, D1, or
     // Durable Object bindings, so each is repeated here: keep vars in step with the top level's, apart
-    // from the host in RP_ID and APP_ORIGINS. Deploy it only with `bun run deploy:preview` (apps/README.md).
+    // from the host in RP_ID and APP_ORIGINS, and ACCOUNTS, on here to check the product. Deploy it only with `bun run deploy:preview` (apps/README.md).
     "preview": {
       "vars": {
         "QLOO_BASE_URL": "https://hackathon.api.qloo.com",
@@ -80,6 +83,7 @@
         "RUN_VISITOR_DAILY_CAP": "10",
         "RUN_DAILY_CAP": "200",
         "FREE_START_DAILY_CAP": "100",
+        "ACCOUNTS": "on",
         "GUEST_PITCHES": "on",
         "SAMPLE_NETWORK": "on",
         "RP_ID": "crossfeed-preview.m1kuorg.workers.dev",

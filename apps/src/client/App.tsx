@@ -35,17 +35,23 @@ import { InsertionOrderPanel } from './InsertionOrder'
 import { Source } from './Source'
 import { sentence, SlowCalls, slowText, StateLine } from './states'
 
-// The session's agent; the server picks the instance from the session cookie.
-const useSession = () => useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgent', basePath: 'agents/session' })
+// The page's agent, at the path the server gives. The server picks the instance, as the demo's does
+// from the session cookie. `basePath` takes the path without its leading slash.
+const useSession = (path: string) =>
+  useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgent', basePath: path.replace(/^\//, '') })
 export type Session = ReturnType<typeof useSession>
 
-// `page` is the server's choice of page: "roster", or "inbox" while GUEST_PITCHES is on.
-export function App({ page }: { page: string | undefined }) {
-  return <Workspace page={page} agent={useSession()} />
+// Where the island's pages link, as the server gives them.
+export type Links = { roster: string }
+
+// The server's choices: `page`, "roster", or "inbox" while GUEST_PITCHES is on; the agent's path;
+// and the links.
+export function App({ page, agentPath, links }: { page: string | undefined; agentPath: string; links: Links }) {
+  return <Workspace page={page} agent={useSession(agentPath)} links={links} />
 }
 
 // The page for a connected session; tests render it from a session's synced state.
-export function Workspace({ page, agent }: { page: string | undefined; agent: Session }) {
+export function Workspace({ page, agent, links }: { page: string | undefined; agent: Session; links: Links }) {
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
   const shown = viewing?.state ?? agent.state
@@ -113,6 +119,7 @@ export function Workspace({ page, agent }: { page: string | undefined; agent: Se
           discardReply={(pitchId) => agent.stub.discardReply(pitchId)}
           openCall={openCall}
           opened={opened}
+          links={links}
         />
       </>
     )

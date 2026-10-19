@@ -27,7 +27,7 @@ printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nVISITOR_SALT=%s\nGUEST_PITCHES=on
 bunx wrangler d1 migrations apply DB --local
 ```
 
-`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `VISITOR_SALT` salts the hash that keys a visitor's model run count; any random value works locally. `GUEST_PITCHES=on` shows the guest pitch flow, as `wrangler.jsonc` does in production since #57; `off` hides it. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself. `RP_ID` is the passkey relying party's ID and `APP_ORIGINS` the comma-separated origins a member's browser may send from. `wrangler.jsonc` sets them to each environment's host, so locally they're `localhost` and the dev server's origin: use the port you run it on.
+`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `VISITOR_SALT` salts the hash that keys a visitor's model run count; any random value works locally. `GUEST_PITCHES=on` shows the guest pitch flow, as `wrangler.jsonc` does in production since #57; `off` hides it. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself. `ACCOUNTS` is `off` in `wrangler.jsonc`, which hides accounts and every link to them, such as the demo's "Create your network"; add `ACCOUNTS=on` to `.dev.vars` to work on them. Tests run with it on, and a test of the demo without accounts sets `env.ACCOUNTS = 'off'` itself. `RP_ID` is the passkey relying party's ID and `APP_ORIGINS` the comma-separated origins a member's browser may send from. `wrangler.jsonc` sets them to each environment's host, so locally they're `localhost` and the dev server's origin: use the port you run it on.
 
 `bunx wrangler d1 migrations apply DB --local` creates the D1 directory's tables, from `migrations/`, in the dev server's local copy of the database under `.wrangler/state`. Run it again after pulling a new migration.
 
@@ -77,7 +77,7 @@ Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo 
 
 ### Driving a session
 
-`openSession()` in `test/session.ts` is a visitor. It loads `/` for a session cookie, then opens the agent's WebSocket the way `useAgent` does:
+`openSession()` in `test/session.ts` is a visitor. It loads `/demo` for a session cookie, then opens the agent's WebSocket the way `useAgent` does:
 
 - `call(method, ...args)` calls a `@callable` action and resolves with its result, after the state it set has arrived.
 - `importRoster(text, format?)` imports a roster and resolves once every show's search has settled. `call('importRoster', ...)` resolves as soon as the shows are pending, before any search returns.
@@ -85,6 +85,8 @@ Fixtures are synthetic: made-up names, IDs, and scores. Never paste a real Qloo 
 - `state()` is the latest synced state, and `until(ready)` waits for synced state that passes `ready`, such as a finished run.
 - `frames()` is every raw frame the server sent, which is everything the visitor's browser receives.
 - `openSession(cookie)` reconnects as the same visitor, like a reload; `openSession()` is a new visitor.
+
+A test that renders a page of the island from a session's state, such as `Workspace` from `src/client/App.tsx`, passes it `links` from `test/session.ts`, the links the demo gives its pages.
 
 ## Check types
 
@@ -123,7 +125,7 @@ Secrets live on the `crossfeed` Worker in the `qloo` Cloudflare account, and are
 
 ### Deploy the preview
 
-The `preview` environment in `wrangler.jsonc` is a separate Worker, `crossfeed-preview`, at <https://crossfeed-preview.m1kuorg.workers.dev>, with its own D1 database (`crossfeed-preview`), Durable Objects, and secrets. Merged work is checked there before it reaches production. Deploy it the same way, from an up-to-date `main`:
+The `preview` environment in `wrangler.jsonc` is a separate Worker, `crossfeed-preview`, at <https://crossfeed-preview.m1kuorg.workers.dev>, with its own D1 database (`crossfeed-preview`), Durable Objects, and secrets, and with `ACCOUNTS` on. Merged work is checked there before it reaches production. Deploy it the same way, from an up-to-date `main`:
 
 ```sh
 cd apps && bun install && bun run deploy:preview
@@ -137,7 +139,7 @@ Wrangler can't set secrets on a Worker that doesn't exist yet, so the first depl
 
 Done means the behaviour works against the real APIs, first locally and then on <https://crossfeed.m1kuorg.workers.dev>, checked by hand or with `playwright-cli`:
 
-1.  Open the app in a fresh browser session. It opens on the sample network from `src/sample-network.json`: the top bar says "The Ringer · sample network" and "Sample data · not affiliated with The Ringer", every downloads, status, description, and CPM figure has a sample label beside it, and the launch field holds "The Watch", labelled "Sample launch". Every row says "Looking it up in Qloo…", then fills in as its search returns, within a few seconds when the gateway's cache is warm.
+1.  Open `/demo` in a fresh browser session; `/` redirects there until the landing page takes it. It opens on the sample network from `src/sample-network.json`: the top bar says "The Ringer · sample network" and "Sample data · not affiliated with The Ringer", every downloads, status, description, and CPM figure has a sample label beside it, and the launch field holds "The Watch", labelled "Sample launch". Every row says "Looking it up in Qloo…", then fills in as its search returns, within a few seconds when the gateway's cache is warm.
 1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo still failed after the gateway's retries, or the daily cap was reached; its reason is in the row.
 1.  Select Binge Mode and pick one of its candidates. Select The Zach Lowe Show, search for a comp such as The Lowe Post, and map it. Leave out The Press Box. Change a show's downloads: that figure loses its sample label.
 1.  Reload: the roster and the edits stay. A private window opens on a fresh sample network.
@@ -167,7 +169,7 @@ In a fresh browser session, check the guide through the sample launch:
 
 With `GUEST_PITCHES=on`, as deployed, check the inbox too:
 
-1.  Open Inbox in the top bar and load the sample inbox. Within about 30 seconds every pitch shows its guest and work: 31 matched, Digger ambiguous, 4 not in Qloo (Hollywood, Ending; One Helluva Ride; Look at Me; Katabasis), and 4 set aside with no public work. Claude's reading varies a little from run to run.
+1.  Open Inbox in the top bar, at `/demo/inbox`, and load the sample inbox. Within about 30 seconds every pitch shows its guest and work: 31 matched, Digger ambiguous, 4 not in Qloo (Hollywood, Ending; One Helluva Ride; Look at Me; Katabasis), and 4 set aside with no public work. Claude's reading varies a little from run to run.
 1.  Select Digger. Qloo lists the 2026 film twice, and its two candidates read apart: one has Qloo's line about the film, the other says "No description in Qloo". Pick the described one and reload: the match stays.
 1.  Open a pitch's call: its parameters are only the work's title, type, and `take`.
 1.  With the roster imported, "Rank against a show" has The Big Picture and its three past guests' films filled in from the sample. Select "Rank pitches": the rail's Run module looks up the three films and ranks the pitches, and within about 20 seconds four lists appear, 10 books, 8 films, 5 TV shows, and 4 podcasts (New Heights matches as New Heights with Jason & Travis Kelce), each by rank and band with no decimals and its own call. Atmosphere, Hamnet, The Bride!, and Pluribus are not scored, nor are the misses and Digger until it's confirmed.
@@ -175,7 +177,9 @@ With `GUEST_PITCHES=on`, as deployed, check the inbox too:
 1.  The run goes on to find the tags 11 top pitches share with The Big Picture, one compare call each, then drafts 40 replies in two calls. Under each top pitch in the lists, its tags follow as words with the compare's call; open one: side `a` is the show alone and side `b` the work, entity IDs only.
 1.  "Replies" lists every pitch under Book, Later, or Decline: about 11, 18, and 11. Each Book reply shows its episode angle, the tags it's built from with their call, the sender it goes to, and a draft that names no guest and gives no reason. Copy is disabled on every draft.
 1.  Approve one reply: only it shows Approved, and Copy puts its exact text on the clipboard. Edit another, discard a third, and reload: the edit and the discard stay, and Restore brings the discarded one back as a draft.
-1.  With `GUEST_PITCHES=off`, there's no Inbox link and `/inbox` is a 404.
+1.  An old `/inbox` link redirects to `/demo/inbox`. With `GUEST_PITCHES=off`, there's no Inbox link and `/demo/inbox` is a 404.
+
+With `ACCOUNTS=on`, the top bar ends with a "Create your network" link; with it off, as deployed, there's none.
 
 To cap the deployed Worker without a code change, deploy from up-to-date `main` with `bunx wrangler deploy --var QLOO_DAILY_CALL_CAP:0` (after `bun run build`), check, then `bun run deploy` again to restore `wrangler.jsonc`'s cap. `--var RUN_VISITOR_DAILY_CAP:n`, `--var RUN_DAILY_CAP:n`, `--var FREE_START_DAILY_CAP:n`, and `--var QLOO_VISITOR_DAILY_CALL_CAP:n` lower the per-visitor and daily limits the same way.
 
@@ -212,7 +216,9 @@ Agent log lines show each model call's tokens and cache reads (`"event":"model_c
 
 ## Where things go
 
-- `src/index.tsx`: the Worker's routes, the session cookie, and the cron handler.
+- `src/index.tsx`: the Worker. It mounts one route module per surface from `src/routes/` on the one Hono app, and exports the Durable Objects and the cron handler. A new surface, such as the landing page, accounts, the app, the API, or MCP, gets its own module there, mounted at `/` with its full paths.
+- `src/routes/demo.tsx`: the demo, which any visitor opens without signing in. `/demo` is the roster page and `/demo/inbox` the inbox; `/inbox` redirects to it for good, and `/` to `/demo` until the landing page replaces it. It owns the `crossfeed_session` cookie, a UUID that names the session's `CrossfeedAgent` (any other value is replaced, and names no agent), the agent connection at `/agents/session`, and the insertion order export.
+- `src/shell.tsx`: the server-rendered demo shell, the black top bar with the demo's sections and, while `ACCOUNTS` is on, "Create your network".
 - `src/health.ts`: the daily health check the cron runs. A new check logs its own `health_check` line through `report`.
 - `migrations/`: the D1 directory's schema, one SQL file per migration, made with `bunx wrangler d1 migrations create DB <name>`. `0001_directory.sql` holds every directory table: members, passkeys, sessions, challenges, networks, memberships, invites, API keys, and the agent instances still to wipe. Never edit an applied migration; add a new one.
 - `src/network-agent.ts` and `src/launch-agent.ts`: `NetworkAgent` and `LaunchAgent`, a signed-in network's and a launch's agents (ADR 0001), for now plain subclasses of `CrossfeedAgent` that no route reaches.
@@ -232,7 +238,7 @@ Agent log lines show each model call's tokens and cache reads (`"event":"model_c
 - `src/inbox.ts`: the inbox's types, reading the sample inbox or pasted pitches into rows, and reading the past guests a pitch run ranks against. `loadInbox` returns at once and reads the pitches in the background, five at a time.
 - `src/extract.ts`: the pitch reader, one structured-output call per pitch. Single model calls beside the agent loop, such as the topic baseline, use `structured` from `src/claude.ts`.
 - `src/topic.ts`: the topic baseline, one structured-output call per run that `startLaunch` starts beside the agent loop, cached in the agent by a hash of its request, and the topic moves `withMoves` works out from it and the fit chart, whichever lands last.
-- `src/client/`: the React island. `main.tsx` passes the server's `data-page` to `App.tsx`, which renders the roster page or `Inbox.tsx`. `controls.tsx` holds the shared form pieces, such as `useAction` and `PickOne`. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. The agent's open question is the exception: it comes before the chart column in `.main`, and the grid sets it atop the rail, so a single column, below 960px, reaches it before the chart. In one column the roster section also moves, after the rail (`useOneColumn`). It renders from `shown`, the latest state or an earlier run's while one is viewed; render a run's results from `shown` so an earlier run shows its own, and hide editing controls while `viewing` is set. `InsertionOrder.tsx` is the rail's insertion order module. `Guide.tsx` is the rail's guide through the sample launch: a step the page alone sees, such as opening a why-it-moved line, calls `markGuide`. `states.tsx` holds the empty, loading, slow, failed, missed, and error states: put a state's words in a `StateLine` rather than styling your own, and name slow calls with `SlowCalls`. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
+- `src/client/`: the React island. `main.tsx` passes the server's `data-page`, `data-agent-path`, and `data-roster-link` to `App.tsx`, which renders the roster page or `Inbox.tsx`. The pages take their agent's path and their links to other pages as props rather than naming them; the insertion order's CSV link is still written in `InsertionOrder.tsx`. `controls.tsx` holds the shared form pieces, such as `useAction` and `PickOne`. `App.tsx` lays out the chart column and the rail; add rail modules as `<section className="mod">` inside `.rail`. The agent's open question is the exception: it comes before the chart column in `.main`, and the grid sets it atop the rail, so a single column, below 960px, reaches it before the chart. In one column the roster section also moves, after the rail (`useOneColumn`). It renders from `shown`, the latest state or an earlier run's while one is viewed; render a run's results from `shown` so an earlier run shows its own, and hide editing controls while `viewing` is set. `InsertionOrder.tsx` is the rail's insertion order module. `Guide.tsx` is the rail's guide through the sample launch: a step the page alone sees, such as opening a why-it-moved line, calls `markGuide`. `states.tsx` holds the empty, loading, slow, failed, missed, and error states: put a state's words in a `StateLine` rather than styling your own, and name slow calls with `SlowCalls`. `Evidence.tsx` is the rail's evidence module: a cited call number is a `button.call` that opens its record, fetched with `getEvidence`. Label Qloo data with `<Source of="qloo" />` and agent text with `<Source of="agent" />` from `Source.tsx`, wherever they appear.
 - `src/style.css`: the tokens and components from [DESIGN.md](/docs/DESIGN.md).
 
 ## See also

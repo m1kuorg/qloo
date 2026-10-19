@@ -9,10 +9,11 @@ window.$RefreshReg$ = () => {}
 window.$RefreshSig$ = () => (type) => type
 window.__vite_plugin_react_preamble_installed__ = true`
 
-// The server-rendered shell: the black top bar with the app's sections, then the React island in #root.
-export const renderer = jsxRenderer(({ children }, c) => {
-  const sections = [{ href: '/', label: 'Roster' }]
-  if (c.env.GUEST_PITCHES === 'on') sections.push({ href: '/inbox', label: 'Inbox' })
+// The demo shell: the black top bar with the demo's sections and, while ACCOUNTS is on, a way to
+// create a network of one's own, then the React island in #root.
+export const demoShell = jsxRenderer(({ children }, c) => {
+  const sections = [{ href: '/demo', label: 'Roster' }]
+  if (c.env.GUEST_PITCHES === 'on') sections.push({ href: '/demo/inbox', label: 'Inbox' })
   return (
     <html lang="en">
       <head>
@@ -40,6 +41,13 @@ export const renderer = jsxRenderer(({ children }, c) => {
             })}
           </nav>
           <span id="shell-notice" class="shell-notice" />
+          {c.env.ACCOUNTS === 'on' && (
+            <span class="shell-create">
+              <a class="lnk" href="/app/new">
+                Create your network
+              </a>
+            </span>
+          )}
         </header>
         {children}
       </body>
