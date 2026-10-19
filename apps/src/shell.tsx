@@ -48,13 +48,13 @@ export const marketingShell = (title: string | null, description?: string) =>
             Crossfeed
           </a>
           <nav class="nav" aria-label="Site">
-            {c.req.path.startsWith('/docs') ? (
-              <a class="on" href="/docs" aria-current="page">
-                Developers
-              </a>
-            ) : (
-              <a href="/docs">Developers</a>
-            )}
+            <a
+              class={c.req.path.startsWith('/docs') ? 'on' : undefined}
+              href="/docs"
+              aria-current={c.req.path.startsWith('/docs') ? 'page' : undefined}
+            >
+              Developers
+            </a>
             <a href="/demo">Sample network</a>
           </nav>
           {c.env.ACCOUNTS === 'on' && (

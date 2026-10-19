@@ -15,19 +15,28 @@ import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { REFUSALS, type RefusalCode } from '../refusal'
 import { marketingShell } from '../shell'
-import { MAX_UPLOAD_BYTES } from '../upload'
+import { MAX_UPLOAD_BYTES, megabytes } from '../upload'
 import { apiDocument } from './api'
+import { cap } from './marketing'
 import { RELAY, listedTools } from './mcp'
 
 export const docs = new Hono<{ Bindings: Env }>()
 
-// The docs' pages, in reading order.
+// The docs' pages, in reading order, each with what /llms.txt says it holds.
 const PAGES = [
-  { path: '/docs', title: 'Overview' },
-  { path: '/docs/api', title: 'REST API' },
-  { path: '/docs/sdk', title: 'TypeScript SDK' },
-  { path: '/docs/mcp', title: 'MCP server' },
-  { path: '/docs/agents', title: 'Skills and plugin' }
+  { path: '/docs', title: 'Overview', holds: "what a program can and can't do, API keys, limits, and errors" },
+  { path: '/docs/api', title: 'REST API', holds: 'every route under /api/v1, generated from the OpenAPI document' },
+  {
+    path: '/docs/sdk',
+    title: 'TypeScript SDK',
+    holds: '@crossfeed/sdk: installing it from the repo, the client, wait helpers, and errors'
+  },
+  { path: '/docs/mcp', title: 'MCP server', holds: 'the tools at /mcp, and the claude mcp add command' },
+  {
+    path: '/docs/agents',
+    title: 'Skills and plugin',
+    holds: 'two Agent Skills, and the Claude Code plugin that installs them with the MCP server'
+  }
 ] as const
 type Path = (typeof PAGES)[number]['path']
 
@@ -44,6 +53,8 @@ const frontmatter = (text: string) =>
 const NETWORK_ID = '0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40'
 // Where every route of a network is.
 const NETWORK_PATH = '/api/v1/networks/{networkId}'
+// API_LIMITER's limit in wrangler.jsonc, which the binding doesn't expose to read.
+const REQUESTS_A_MINUTE = 120
 
 // What each refusal code means, beside the status refusal.ts gives it.
 const MEANS: Record<RefusalCode | 'internal', string> = {
@@ -52,7 +63,7 @@ const MEANS: Record<RefusalCode | 'internal', string> = {
   forbidden: "The caller can't do this, such as an API key deleting a launch.",
   not_found: "No such resource, or one the key can't reach, such as another network.",
   conflict: "The resource's state refuses it, such as an import over a roster without `replace=true`.",
-  too_large: `An upload over ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`,
+  too_large: `An upload over ${megabytes(MAX_UPLOAD_BYTES, 0)}.`,
   unreadable: "An upload that can't be read, such as a CSV with no `name` column.",
   limit: "A daily cap, the network's or all of Crossfeed's. Counts reset at 00:00 UTC.",
   rate_limited: 'Too many requests a minute with one key. Wait a minute: it answers `Retry-After: 60`.',
@@ -62,9 +73,6 @@ const STATUSES = { ...REFUSALS, internal: 500 }
 // The codes each status answers with.
 const CODES: Record<number, string[]> = {}
 for (const [code, status] of Object.entries(STATUSES)) (CODES[status] ??= []).push(code)
-
-// A daily limit from wrangler.jsonc, formatted, as the beta terms show it.
-const count = (value: string) => (Number(value) || 0).toLocaleString('en-US')
 
 // Text with Markdown's code spans, as the OpenAPI document and the tools write them, set as code.
 const Prose = ({ text }: { text: string }) => (
@@ -82,6 +90,46 @@ const Code = ({ label, file, children }: { label?: string; file?: string; childr
   </figure>
 )
 
+// A URL path, which may break after any of its slashes on a narrow screen.
+const UrlPath = ({ path }: { path: string }) => (
+  <>
+    {path.split('/').map((part, i) =>
+      i === 0 ? (
+        part
+      ) : (
+        <>
+          /<wbr />
+          {part}
+        </>
+      )
+    )}
+  </>
+)
+
+// The OpenAPI document's URL: a link while accounts are on, as the API serves it then.
+const OpenApi = ({ accounts }: { accounts: boolean }) =>
+  accounts ? (
+    <a href="/api/v1/openapi.json">
+      <code>
+        <UrlPath path="/api/v1/openapi.json" />
+      </code>
+    </a>
+  ) : (
+    <code>
+      <UrlPath path="/api/v1/openapi.json" />
+    </code>
+  )
+
+// The command that connects Claude Code to the MCP server of the deployment at `origin`.
+const McpAdd = ({ origin }: { origin: string }) => (
+  <Code label="Shell">{`
+claude mcp add --transport http crossfeed ${origin}/mcp \\
+  --header "Authorization: Bearer $CROSSFEED_API_KEY"
+
+claude mcp list   # crossfeed: ${origin}/mcp (HTTP) - ✔ Connected
+`}</Code>
+)
+
 // The note every page carries while accounts are off, as in production until the product opens.
 const Closed = () => (
   <p class="dk-closed">
@@ -95,7 +143,7 @@ type Page = { path: Path; lede: Child; sections: Section[] }
 
 // A docs page: the docs' contents in the rail, with the page's sections under it, then the page, then
 // the way on to the next one.
-function Docs({ page, origin, accounts }: { page: Page; origin: string; accounts: boolean }) {
+function Docs({ page, accounts }: { page: Page; accounts: boolean }) {
   const at = PAGES.findIndex((p) => p.path === page.path)
   const next = PAGES[at + 1]
   return (
@@ -134,7 +182,7 @@ function Docs({ page, origin, accounts }: { page: Page; origin: string; accounts
           <div class="rec-row">
             <dt>OpenAPI</dt>
             <dd>
-              {accounts ? <a href="/api/v1/openapi.json">/api/v1/openapi.json</a> : <code>/api/v1/openapi.json</code>}
+              <OpenApi accounts={accounts} />
             </dd>
           </div>
           <div class="rec-row">
@@ -146,13 +194,15 @@ function Docs({ page, origin, accounts }: { page: Page; origin: string; accounts
           <div class="rec-row">
             <dt>Auth</dt>
             <dd>
-              <code>Authorization: Bearer cf_live_…</code>
+              <code>Bearer cf_live_…</code>
             </dd>
           </div>
           <div class="rec-row">
             <dt>For agents</dt>
             <dd>
-              <a href="/llms.txt">/llms.txt</a>
+              <a href="/llms.txt">
+                <code>/llms.txt</code>
+              </a>
             </dd>
           </div>
         </dl>
@@ -209,7 +259,9 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
                 Every resource of a network under <code>/api/v1</code>, for scripts in any language, described by an
                 OpenAPI 3.1 document.
               </td>
-              <td>An API key</td>
+              <td>
+                <span class="dk-k">Reached with </span>An API key
+              </td>
             </tr>
             <tr>
               <th scope="row">
@@ -218,7 +270,9 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
               <td>
                 A typed method for every route, and helpers that wait for long work, in Node, Bun, Deno, and Workers.
               </td>
-              <td>An API key and the network&apos;s ID</td>
+              <td>
+                <span class="dk-k">Reached with </span>An API key and the network&apos;s ID
+              </td>
             </tr>
             <tr>
               <th scope="row">
@@ -227,7 +281,9 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
               <td>
                 {tools} tools for assistants such as Claude Code, over Streamable HTTP at <code>/mcp</code>.
               </td>
-              <td>An API key</td>
+              <td>
+                <span class="dk-k">Reached with </span>An API key
+              </td>
             </tr>
             <tr>
               <th scope="row">
@@ -238,7 +294,7 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
                 installs them with the MCP server.
               </td>
               <td>
-                An API key in <code>CROSSFEED_API_KEY</code>
+                <span class="dk-k">Reached with </span>An API key in <code>CROSSFEED_API_KEY</code>
               </td>
             </tr>
           </tbody>
@@ -331,7 +387,7 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
               <tr>
                 <th scope="row">Requests</th>
                 <td>
-                  120 requests a minute per API key, the MCP server&apos;s included; past it, 429{' '}
+                  {REQUESTS_A_MINUTE} requests a minute per API key, the MCP server&apos;s included; past it, 429{' '}
                   <code>rate_limited</code>
                 </td>
               </tr>
@@ -340,18 +396,25 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
                   Model runs<small>a launch run, an inbox load, or a pitch run</small>
                 </th>
                 <td>
-                  {count(env.RUN_VISITOR_DAILY_CAP)} a day per network; past it, 429 <code>limit</code>
+                  {cap(env.RUN_VISITOR_DAILY_CAP)} a day per network; past it, 429 <code>limit</code>
                 </td>
               </tr>
               <tr>
                 <th scope="row">Qloo calls</th>
-                <td>{count(env.QLOO_VISITOR_DAILY_CALL_CAP)} a day per network</td>
+                <td>
+                  {cap(env.QLOO_VISITOR_DAILY_CALL_CAP)} a day per network, counted on the network&apos;s own Qloo key
+                  apart from everyone else&apos;s once an owner adds one
+                </td>
               </tr>
               <tr>
                 <th scope="row">A run</th>
                 <td>
                   At most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls
                 </td>
+              </tr>
+              <tr>
+                <th scope="row">Launches</th>
+                <td>At most {cap(env.LAUNCHES_PER_NETWORK)} a network keeps at once</td>
               </tr>
               <tr>
                 <th scope="row">Roster</th>
@@ -467,7 +530,10 @@ function RouteEntry({ route }: { route: Route }) {
     <div class="dk-op">
       <h3 id={route.id}>{op.summary}</h3>
       <p class="dk-ep">
-        <span class="chip">{route.method}</span> <code>{route.path}</code>
+        <span class="chip">{route.method}</span>{' '}
+        <code>
+          <UrlPath path={route.path} />
+        </code>
       </p>
       {op.description && (
         <p>
@@ -556,20 +622,10 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
       <>
         Every resource of a network, under{' '}
         <code>
-          {origin}/api/v1/networks/{'{networkId}'}
+          <UrlPath path={`${origin}${NETWORK_PATH}`} />
         </code>
         . This reference is generated from the API&apos;s OpenAPI 3.1 document, the contract its requests are validated
-        against
-        {accounts ? (
-          <>
-            , served at <a href="/api/v1/openapi.json">/api/v1/openapi.json</a>
-          </>
-        ) : (
-          <>
-            , served at <code>/api/v1/openapi.json</code>
-          </>
-        )}
-        .
+        against, served at <OpenApi accounts={accounts} />.
       </>
     ),
     sections: [
@@ -580,17 +636,16 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
           <>
             <p>
               Each route takes the network&apos;s ID, from its settings, and one of its API keys as{' '}
-              <code>Authorization: Bearer cf_live_…</code>. Bodies are JSON unless a route takes a file. The{' '}
-              <a href="/docs#errors">errors</a> and <a href="/docs#limits">limits</a> are the same for every route. The
-              inbox and pitch run routes answer 404 while guest pitches are switched off.
+              <code>Authorization: Bearer cf_live_…</code>. The paths below are under <code>{NETWORK_PATH}</code>.
+              Bodies are JSON unless a route takes a file. The <a href="/docs#errors">errors</a> and{' '}
+              <a href="/docs#limits">limits</a> are the same for every route. The inbox and pitch run routes answer 404
+              while guest pitches are switched off.
             </p>
             <table class="mk-table dk-routes">
               <thead>
                 <tr>
                   <th scope="col">Method</th>
-                  <th scope="col">
-                    Path<small>under /api/v1/networks/{'{networkId}'}</small>
-                  </th>
+                  <th scope="col">Path</th>
                   <th scope="col">What it does</th>
                 </tr>
               </thead>
@@ -601,7 +656,9 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
                       <span class="chip">{r.method}</span>
                     </td>
                     <td>
-                      <code>{r.path.replace(NETWORK_PATH, '') || '/'}</code>
+                      <code>
+                        <UrlPath path={r.path.replace(NETWORK_PATH, '') || '/'} />
+                      </code>
                     </td>
                     <td>
                       <a href={`#${r.id}`}>{r.op.summary}</a>
@@ -822,12 +879,7 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
       body: (
         <>
           <p>With one of the network&apos;s API keys in your environment:</p>
-          <Code label="Shell">{`
-claude mcp add --transport http crossfeed ${origin}/mcp \\
-  --header "Authorization: Bearer $CROSSFEED_API_KEY"
-
-claude mcp list   # crossfeed: ${origin}/mcp (HTTP) - ✔ Connected
-`}</Code>
+          <McpAdd origin={origin} />
           <p>
             Any MCP client that sends a header of your choice connects the same way. The{' '}
             <a href="/docs/agents">plugin</a> sets the server up with two skills that teach the assistant the flows.
@@ -861,7 +913,9 @@ claude mcp list   # crossfeed: ${origin}/mcp (HTTP) - ✔ Connected
                   <tr>
                     <th scope="row">
                       <code>{tool.name}</code>
-                      <small>{effect(tool)}</small>
+                      <small>
+                        <span class="chip">{effect(tool)}</span>
+                      </small>
                     </th>
                     <td>
                       <Prose text={(tool.description ?? '').replace(RELAY, '').trim()} />
@@ -905,8 +959,9 @@ claude mcp list   # crossfeed: ${origin}/mcp (HTTP) - ✔ Connected
           </p>
           <p>
             A refusal is a tool result marked as an error, with <code>{'{ error: { code, message } }'}</code> and the
-            API&apos;s codes. Only the key check answers with an HTTP status: 401 without a key, and 429 past 120
-            requests a minute.
+            API&apos;s codes. Only the checks before any tool runs answer with an HTTP status: 401 without a key or with
+            an unknown or revoked one, 429 past {REQUESTS_A_MINUTE} requests a minute, 403 to a browser whose{' '}
+            <code>Origin</code> is neither Crossfeed&apos;s nor a local one, and 404 while accounts aren&apos;t open.
           </p>
         </>
       )
@@ -1020,8 +1075,8 @@ const agentsPage = (origin: string): Page => ({
             its fields only, so any client that reads skills can use it. Both hold the assistant to the same rules: put
             each of the agent&apos;s questions to you exactly as it&apos;s asked and answer with your words, never with
             its own; leave approval to a member, in the app, and give the page where it happens; keep guest names, email
-            addresses, and sender details out of what it sends; and read a ranking&apos;s Qloo evidence before saying
-            why a show or a work ranks where it does.
+            addresses, and sender details out of every field but the ones made for them, such as the pitches it loads;
+            and explain a rank only from the Qloo evidence behind it.
           </p>
         </>
       )
@@ -1069,18 +1124,26 @@ claude                                # then: "Plan promos for our launch"
       id: 'without',
       title: 'Without the plugin',
       body: (
-        <p>
-          Connect the server with <a href="/docs/mcp#connect">claude mcp add</a>, and copy a skill&apos;s directory from{' '}
-          <code>plugins/crossfeed/skills</code> into <code>~/.claude/skills</code>, or wherever your client reads skills
-          from. Each skill&apos;s text is also served here, at a stable URL:{' '}
-          {Object.keys(SKILLS).map((name, i) => (
-            <>
-              {i > 0 && ' and '}
-              <a href={skillUrl(name)}>{skillUrl(name)}</a>
-            </>
-          ))}
-          .
-        </p>
+        <>
+          <p>Connect the MCP server with one of the network&apos;s API keys in your environment:</p>
+          <McpAdd origin={origin} />
+          <p>
+            Then copy a skill&apos;s directory from <code>plugins/crossfeed/skills</code> into{' '}
+            <code>~/.claude/skills</code>, or wherever your client reads skills from. Each skill&apos;s text is also
+            served here, at a stable URL:{' '}
+            {Object.keys(SKILLS).map((name, i) => (
+              <>
+                {i > 0 && ' and '}
+                <a href={skillUrl(name)}>
+                  <code>
+                    <UrlPath path={skillUrl(name)} />
+                  </code>
+                </a>
+              </>
+            ))}
+            .
+          </p>
+        </>
       )
     }
   ]
@@ -1089,30 +1152,30 @@ claude                                # then: "Plan promos for our launch"
 // The deployment the request reached, whose URLs the examples use.
 const originOf = (c: Context) => new URL(c.req.url).origin
 // A docs page on the marketing shell.
-const show = (c: Context<{ Bindings: Env }>, page: Page) =>
-  c.render(<Docs page={page} origin={originOf(c)} accounts={c.env.ACCOUNTS === 'on'} />)
+const renderPage = (c: Context<{ Bindings: Env }>, page: Page) =>
+  c.render(<Docs page={page} accounts={c.env.ACCOUNTS === 'on'} />)
 const shell = (title: string) => marketingShell(`${title} · Developer docs`)
 
 docs.get('/docs', marketingShell('Developer docs'), async (c) =>
-  show(c, overview(c.env, originOf(c), (await listedTools()).length))
+  renderPage(c, overview(c.env, originOf(c), (await listedTools()).length))
 )
 docs.get('/docs/api', shell('REST API'), (c) =>
-  show(c, apiPage(apiDocument(originOf(c)), originOf(c), c.env.ACCOUNTS === 'on'))
+  renderPage(c, apiPage(apiDocument(originOf(c)), originOf(c), c.env.ACCOUNTS === 'on'))
 )
-docs.get('/docs/sdk', shell('TypeScript SDK'), (c) => show(c, sdkPage(originOf(c))))
-docs.get('/docs/mcp', shell('MCP server'), async (c) => show(c, mcpPage(await listedTools(), originOf(c))))
-docs.get('/docs/agents', shell('Skills and plugin'), (c) => show(c, agentsPage(originOf(c))))
+docs.get('/docs/sdk', shell('TypeScript SDK'), (c) => renderPage(c, sdkPage(originOf(c))))
+docs.get('/docs/mcp', shell('MCP server'), async (c) => renderPage(c, mcpPage(await listedTools(), originOf(c))))
+docs.get('/docs/agents', shell('Skills and plugin'), (c) => renderPage(c, agentsPage(originOf(c))))
 
 // Each skill's text, as its SKILL.md holds it.
 docs.get('/docs/agents/:name/SKILL.md', (c) => {
-  const text = SKILLS[c.req.param('name') as keyof typeof SKILLS]
-  if (!text) return c.notFound()
-  return c.body(text, 200, { 'Content-Type': 'text/markdown; charset=utf-8' })
+  const name = c.req.param('name')
+  if (!Object.hasOwn(SKILLS, name)) return c.notFound()
+  return c.body(SKILLS[name as keyof typeof SKILLS], 200, { 'Content-Type': 'text/markdown; charset=utf-8' })
 })
 
 // The docs for agents, as llms.txt (llmstxt.org) sets them out: what Crossfeed is and the rules a
 // program works by, then links. While accounts are off it links nothing they'd hide.
-docs.get('/llms.txt', async (c) => {
+docs.get('/llms.txt', (c) => {
   const origin = originOf(c)
   const accounts = c.env.ACCOUNTS === 'on'
   const link = (title: string, path: string, note: string) => `- [${title}](${origin}${path}): ${note}`
@@ -1129,23 +1192,7 @@ docs.get('/llms.txt', async (c) => {
     '',
     '## Docs',
     '',
-    link('Overview', '/docs', "what a program can and can't do, API keys, limits, and errors"),
-    link('REST API', '/docs/api', 'every route under /api/v1, generated from the OpenAPI document'),
-    link(
-      'TypeScript SDK',
-      '/docs/sdk',
-      '@crossfeed/sdk: installing it from the repo, the client, wait helpers, and errors'
-    ),
-    link(
-      'MCP server',
-      '/docs/mcp',
-      `the ${(await listedTools()).length} tools at /mcp, and the claude mcp add command`
-    ),
-    link(
-      'Skills and plugin',
-      '/docs/agents',
-      'two Agent Skills, and the Claude Code plugin that installs them with the MCP server'
-    ),
+    ...PAGES.map((p) => link(p.title, p.path, p.holds)),
     '',
     '## Reference',
     '',

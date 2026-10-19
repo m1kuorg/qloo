@@ -601,7 +601,14 @@ export async function listedTools(): Promise<ListToolsResult['tools']> {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
     }),
-    { authInfo: { token: '', clientId: 'docs', scopes: [], extra: { network: '<networkId>' } } }
+    {
+      authInfo: {
+        token: '',
+        clientId: 'docs',
+        scopes: [],
+        extra: { network: '<networkId>', keyName: 'Developer docs' }
+      }
+    }
   )
   const body = await res.text()
   // The handler answers as a server-sent event, or as JSON.

@@ -23,6 +23,7 @@ const hrefs = (html: string) => [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].ma
 const words = (html: string) =>
   html
     .replace(/<(script|style)[\s\S]*?<\/\1>/g, '')
+    .replace(/<wbr\s*\/?>/g, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&#39;|&apos;/g, "'")
     .replace(/&quot;/g, '"')
@@ -303,7 +304,8 @@ describe('the developer docs', () => {
     expect(text).toContain('claude plugin marketplace add ./qloo claude plugin install crossfeed@crossfeed')
     expect(text).toContain('"Authorization": "Bearer ${CROSSFEED_API_KEY}"')
     expect(text).toContain('"url": "${CROSSFEED_URL:-https://crossfeed.m1kuorg.workers.dev}/mcp"')
-    expect((await get('/docs/agents/approve-orders/SKILL.md')).status).toBe(404)
+    for (const name of ['approve-orders', 'toString', 'constructor'])
+      expect((await get(`/docs/agents/${name}/SKILL.md`)).status, name).toBe(404)
   })
 
   it('describe the API, the SDK, and the MCP server in /llms.txt, linking every docs page', async () => {

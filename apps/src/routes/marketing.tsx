@@ -756,7 +756,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
 }
 
 // A daily limit from wrangler.jsonc, formatted; a value that isn't a number shows as 0.
-const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
+export const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
 
 function Terms({ env }: { env: Env }) {
   return (
