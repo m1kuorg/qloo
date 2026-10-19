@@ -3,6 +3,7 @@ import type { Role } from '../directory'
 import { InvitePage, NewNetworkPage, SignInPage, wireSignOut } from './Account'
 import { App } from './App'
 import { DashboardPage } from './Dashboard'
+import { NetworkInboxPage } from './NetworkInbox'
 import { RosterPage } from './Roster'
 import { SettingsPage } from './Settings'
 
@@ -31,6 +32,8 @@ createRoot(root).render(
     />
   ) : d.page === 'network-roster' ? (
     <RosterPage agentPath={d.agentPath!} network={network()} />
+  ) : d.page === 'network-inbox' ? (
+    <NetworkInboxPage agentPath={d.agentPath!} network={network()} />
   ) : d.page === 'settings' ? (
     <SettingsPage
       agentPath={d.agentPath!}

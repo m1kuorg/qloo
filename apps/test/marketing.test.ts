@@ -115,6 +115,9 @@ describe('the privacy page and the beta terms', () => {
     expect(text).toContain("Never a pitch's text, a guest's name, an email address, or a sender's details.")
     expect(text).toContain('Crossfeed never stores your IP address or writes it to its own logs.')
     expect(text).toContain("Crossfeed can't delete a session yet")
+    expect(text).toContain(
+      "Uploads: a file you upload is read in your browser. A roster file's text is sent and imported like pasted names; of pitch emails, only each one's sender, subject, and text are sent, never its attachments or other headers. The files themselves aren't kept."
+    )
   })
 
   it('says the beta is free, without warranty, and limited as the Worker is configured', async () => {
@@ -129,16 +132,19 @@ describe('the privacy page and the beta terms', () => {
   it('say what an account keeps and how many networks a member can create, only while accounts are on', async () => {
     env.NETWORKS_PER_MEMBER = '2'
     const kept = 'With an account: your name'
+    const approvals = 'with the member who approved each reply'
     const counts = "each visitor's and each network's counts for the day"
     const cap = 'A member can create at most 2 networks.'
     const network =
       "A network counts as one visitor of its own, whichever of its members makes the network's calls and runs."
     expect(words(await page('/privacy'))).toContain(kept)
+    expect(words(await page('/privacy'))).toContain(approvals)
     expect(words(await page('/privacy'))).toContain(counts)
     expect(words(await page('/terms'))).toContain(cap)
     expect(words(await page('/terms'))).toContain(network)
     env.ACCOUNTS = 'off'
     expect(words(await page('/privacy'))).not.toContain(kept)
+    expect(words(await page('/privacy'))).not.toContain(approvals)
     expect(words(await page('/privacy'))).toContain("each visitor's counts for the day")
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)
