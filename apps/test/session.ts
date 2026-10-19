@@ -150,6 +150,24 @@ export const api =
     return exports.default.fetch(`${origin}${path}`, { ...init, headers })
   }
 
+// A network the member creates the way /app/new does, and an API key its owner makes in settings.
+export async function networkWithKey(member?: Member) {
+  const ada = member ?? (await openMember())
+  const created = await ada.fetch('/app/new', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Night Shift Audio' })
+  })
+  const { id } = await created.json<{ id: string }>()
+  const made = await ada.fetch(`/app/${id}/settings/api-keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Nightly sync' })
+  })
+  const { secret } = await made.json<{ secret: string }>()
+  return { ada, network: id, call: api(secret) }
+}
+
 export type Member = {
   id: string
   name: string

@@ -543,16 +543,19 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     // Checked again once the run is counted, since the inbox or the roster may have changed meanwhile.
     const ready = () => {
       const inbox = this.state.inbox
-      if (!inbox) throw new Error('Load an inbox first.')
-      if (inbox.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
-      if (typeof given.show !== 'string' || !given.show) throw new Error('Pick the roster show the pitches are for.')
+      if (!inbox) throw new Refusal('conflict', 'Load an inbox first.')
+      if (inbox.status === 'reading')
+        throw new Refusal('conflict', 'The inbox is still loading. Wait for it to finish.')
+      if (typeof given.show !== 'string' || !given.show)
+        throw new Refusal('invalid', 'Pick the roster show the pitches are for.')
       const show = this.show(given.show)
       // A show left out of launches can still be booked.
       if (!show.entity || (show.resolution !== 'resolved' && show.resolution !== 'mapped'))
-        throw new Error(`${show.name} isn't matched in Qloo. Settle it in the roster first.`)
+        throw new Refusal('conflict', `${show.name} isn't matched in Qloo. Settle it in the roster first.`)
       const pastGuests = readPastGuests(given.pastGuests)
       if (!inbox.pitches.some(rankable))
-        throw new Error(
+        throw new Refusal(
+          'conflict',
           'No pitched work is matched in Qloo, so there is nothing to rank. Confirm the ambiguous matches.'
         )
       this.idle()
@@ -560,8 +563,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     }
     ready()
     // A pitch run is a model run (TRD agent limits).
-    const refused = await this.countModelRun(visitor)
-    if (refused) throw new Error(`${refused}.`)
+    await this.countModelRun(visitor)
     const { show, pastGuests } = ready()
     const { run, startedAt } = this.beginRun()
     this.setState({
@@ -600,7 +602,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const run = this.state.run
     const question = run?.status === 'waiting' ? run.question : null
     if (!run || !question || question.id !== questionId)
-      throw new Error('That question is no longer open: it was already answered, or its run has ended.')
+      throw new Refusal('conflict', 'That question is no longer open: it was already answered, or its run has ended.')
     const given = typeof reply === 'object' && reply !== null ? reply : {} // it arrives as untrusted JSON
     const { answer, stored, launch, record } = settle(question, given, this.state.launch)
     let notice = 'Asked the programmer. Their answer follows.'
@@ -688,8 +690,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   @callable()
   getRun(id: string): RunSnapshot {
     const [row] = this.sql<{ snapshot: string | null }>`SELECT snapshot FROM runs WHERE id = ${id}`
-    if (!row) throw new Error('This session has no run with that ID.')
-    if (!row.snapshot) throw new Error("That run hasn't ended yet.")
+    if (!row) throw new Refusal('not_found', 'This session has no run with that ID.')
+    if (!row.snapshot) throw new Refusal('conflict', "That run hasn't ended yet.")
     return JSON.parse(row.snapshot)
   }
 
@@ -703,11 +705,14 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.inboxBusy()
     const read = readInbox(source)
     // Reading the pitches is a model run (TRD agent limits).
-    const refused = await this.countModelRun(visitor)
-    if (refused) throw new Error(`${refused}.`)
+    await this.countModelRun(visitor)
     this.inboxBusy() // again, since a pitch run may have started meanwhile
     const inbox: Inbox = { id: crypto.randomUUID(), status: 'reading', ...read }
-    // The last pitch run's lists name the old inbox's pitches, so they go with it.
+    // The last pitch run's lists name the old inbox's pitches, so they go with it, and the run ends if
+    // it's still waiting on a question, as when a new run starts.
+    const run = this.state.run
+    if (run?.status === 'waiting' && run.id === this.state.booking?.run)
+      this.finish(run.id, 'Left unanswered: a new inbox was loaded instead.')
     this.setState({ ...this.state, inbox, booking: null })
     void this.keepAliveWhile(() => this.readPitches(inbox)).catch((e) =>
       this.finishInbox(inbox.id, `Reading stopped: ${message(e)}`)
@@ -720,10 +725,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.guestPitches()
     const inbox = this.state.inbox
     const pitch = inbox?.pitches.find((p) => p.id === pitchId)
-    if (!inbox || !pitch) throw new Error(`No pitch ${pitchId} in the inbox.`)
+    if (!inbox || !pitch) throw new Refusal('not_found', `No pitch ${pitchId} in the inbox.`)
     const entity = pitch.match?.candidates.find((c) => c.id === entityId)
     if (!pitch.match || !entity)
-      throw new Error(`That isn't one of the candidates for ${pitch.work?.title ?? pitchId}.`)
+      throw new Refusal('invalid', `That isn't one of the candidates for ${pitch.work?.title ?? pitchId}.`)
     const match = { ...pitch.match, resolution: 'resolved' as const, entity }
     this.editPitch(inbox.id, pitchId, (p) => ({ ...p, match }))
   }
@@ -734,9 +739,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   editReply(pitchId: string, draft: string) {
     const reply = this.editableReply(pitchId)
     const text = typeof draft === 'string' ? draft.trim() : ''
-    if (!text) throw new Error('A reply needs some text. Discard it instead to leave it out.')
+    if (!text) throw new Refusal('invalid', 'A reply needs some text. Discard it instead to leave it out.')
     if (text.length > MAX_REPLY_CHARS)
-      throw new Error(`A reply is at most ${MAX_REPLY_CHARS.toLocaleString('en-US')} characters. Shorten it.`)
+      throw new Refusal(
+        'invalid',
+        `A reply is at most ${MAX_REPLY_CHARS.toLocaleString('en-US')} characters. Shorten it.`
+      )
     this.saveReply({ ...reply, draft: text, status: 'draft' })
   }
 
@@ -901,9 +909,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     if (refused) throw new Refusal('limit', `${refused}.`)
   }
 
-  // Counts a model run against the daily limits, or returns why one can't start (TRD agent limits).
+  // Counts a model run against the daily limits, or refuses it with the reason (TRD agent limits).
   private async countModelRun(visitor: string) {
-    return (await this.env.QlooGateway.getByName('global').startModelRun(visitor)).refused
+    const { refused } = await this.env.QlooGateway.getByName('global').startModelRun(visitor)
+    if (refused) throw new Refusal('limit', `${refused}.`)
   }
 
   // The member on this call's connection, from the tag a network's agent gives it (network-agent.ts);
@@ -950,7 +959,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // Refuses while a run is in progress or starting: one run at a time per session.
   private idle() {
     if (this.state.run?.status === 'running' || this.starting)
-      throw new Error('A run is already in progress. Wait for it to finish.')
+      throw new Refusal('conflict', 'A run is already in progress. Wait for it to finish.')
   }
 
   // Holds the session while a start asks the gateway whether it may run, so a second start meanwhile,
@@ -1054,14 +1063,15 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   private guestPitches() {
-    if (this.env.GUEST_PITCHES !== 'on') throw new Error("Guest pitches aren't switched on.")
+    if (this.env.GUEST_PITCHES !== 'on') throw new Refusal('not_found', "Guest pitches aren't switched on.")
   }
 
   // Refuses to replace the inbox while it's loading or its pitches are being ranked.
   private inboxBusy() {
-    if (this.state.inbox?.status === 'reading') throw new Error('The inbox is still loading. Wait for it to finish.')
+    if (this.state.inbox?.status === 'reading')
+      throw new Refusal('conflict', 'The inbox is still loading. Wait for it to finish.')
     if (this.state.run?.status === 'running' && this.state.booking?.run === this.state.run.id)
-      throw new Error('The pitches are being ranked. Wait for the run to finish.')
+      throw new Refusal('conflict', 'The pitches are being ranked. Wait for the run to finish.')
   }
 
   // A reply of the latest pitch run, once that run has ended: until then the agent can still redraft it.
@@ -1069,18 +1079,25 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.guestPitches()
     const booking = this.state.booking
     const reply = booking?.replies?.find((r) => r.pitch === pitchId)
-    if (!booking || !reply) throw new Error(`There's no drafted reply to ${pitchId}. Reload to see the latest.`)
+    if (!booking || !reply)
+      throw new Refusal('not_found', `There's no drafted reply to ${pitchId}. Reload to see the latest.`)
     if (inProgress(this.state.run, booking.run))
-      throw new Error('The agent is still drafting replies. Approve, edit, or discard them once the run has ended.')
+      throw new Refusal(
+        'conflict',
+        'The agent is still drafting replies. Approve, edit, or discard them once the run has ended.'
+      )
     return reply
   }
 
-  // Only an approved reply keeps who approved it.
+  // Only an approved reply keeps who approved it. The run that drafted it has ended, so its snapshot
+  // keeps the replies too, and an earlier run shows them as the booker left them, as with an order.
   private saveReply({ approvedBy, ...change }: PitchReply) {
     const reply = change.status === 'approved' && approvedBy ? { ...change, approvedBy } : change
     const booking = this.state.booking!
     const replies = booking.replies!.map((r) => (r.pitch === reply.pitch ? reply : r))
     this.setState({ ...this.state, booking: { ...booking, replies } })
+    this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.booking.replies', json(${JSON.stringify(replies)}))
+      WHERE id = ${booking.run} AND snapshot IS NOT NULL`
   }
 
   private async readPitches(inbox: Inbox) {
@@ -1532,19 +1549,20 @@ function settle(
 ): { answer: string; stored: Partial<Run>; launch?: Launch; record?: string } {
   const typed = typeof reply.text === 'string' ? reply.text.trim() : ''
   const choice = reply.choice
-  if (choice !== undefined && !question.options.includes(choice)) throw new Error("That isn't one of the options.")
+  if (choice !== undefined && !question.options.includes(choice))
+    throw new Refusal('invalid', "That isn't one of the options.")
   if (typed && !takesText(question.kind, launch))
-    throw new Error('This question is answered with its form, not typed text.')
+    throw new Refusal('invalid', 'This question is answered with its form, not typed text.')
   if (question.kind === 'launch') return settleLaunch(choice, typed, launch)
   if (question.kind === 'comps') {
     const comps = readComps(reply.comps ?? [])
     // A name instead of comps is the name Qloo lists the launch under, as with a launch question.
     if (comps.length === 0) {
       if (!typed || !launch?.name)
-        throw new Error(`Name up to ${MAX_COMPS} comps, or type the name Qloo lists the launch under.`)
+        throw new Refusal('invalid', `Name up to ${MAX_COMPS} comps, or type the name Qloo lists the launch under.`)
       return settleLaunch(undefined, typed, launch)
     }
-    if (typed) throw new Error('Name comps or type the name Qloo lists the launch under, not both.')
+    if (typed) throw new Refusal('invalid', 'Name comps or type the name Qloo lists the launch under, not both.')
     return {
       answer: `Comps: ${comps.join(', ')}.`,
       stored: {},
@@ -1559,17 +1577,18 @@ function settle(
     return { answer: `Slot budget: ${amount}.`, stored: { budget } }
   }
   if (question.kind === 'exclusions') {
-    if (!Array.isArray(reply.exclude)) throw new Error('List the shows to leave out, or none.')
+    if (!Array.isArray(reply.exclude)) throw new Refusal('invalid', 'List the shows to leave out, or none.')
     const exclusions = [...new Set(reply.exclude)]
     const unknown = exclusions.find((name) => !question.options.includes(name))
-    if (unknown !== undefined) throw new Error(`"${unknown}" isn't one of the shows this launch can leave out.`)
+    if (unknown !== undefined)
+      throw new Refusal('invalid', `"${unknown}" isn't one of the shows this launch can leave out.`)
     const answer = exclusions.length
       ? `Leave out of this launch: ${exclusions.join(', ')}.`
       : 'No exclusions for this launch.'
     return { answer, stored: { exclusions } }
   }
   const answer = [choice, typed].filter(Boolean).join('\n\n')
-  if (!answer) throw new Error('Pick an option or type an answer.')
+  if (!answer) throw new Refusal('invalid', 'Pick an option or type an answer.')
   return { answer, stored: typed ? { typed: true } : {} }
 }
 
@@ -1580,14 +1599,15 @@ function settleLaunch(
   name: string,
   launch: Launch | null
 ): { answer: string; stored: Partial<Run>; launch: Launch } {
-  if (choice !== undefined && name) throw new Error('Pick a candidate or type a name, not both.')
-  if (choice === undefined && !name) throw new Error('Pick a candidate or type the name Qloo lists it under.')
+  if (choice !== undefined && name) throw new Refusal('invalid', 'Pick a candidate or type a name, not both.')
+  if (choice === undefined && !name)
+    throw new Refusal('invalid', 'Pick a candidate or type the name Qloo lists it under.')
   if (name)
     return { answer: `Look it up as "${name}".`, stored: {}, launch: { name, match: null, comps: launch?.comps ?? [] } }
   const match = launch?.match
   const candidates = match?.resolution === 'ambiguous' ? match.candidates : []
   const entity = candidates[candidateLabels(candidates).indexOf(choice!)]
-  if (!match || !entity) throw new Error("The launch's candidates have changed. Start the run again.")
+  if (!match || !entity) throw new Refusal('conflict', "The launch's candidates have changed. Start the run again.")
   return {
     answer: `The launch is ${choice}.`,
     stored: {},
@@ -1600,16 +1620,16 @@ function settleLaunch(
 
 function readBudget({ slots, dollars }: Reply): Budget {
   if (slots === undefined && dollars === undefined)
-    throw new Error('Give the budget as a number of promo slots or a dollar amount.')
+    throw new Refusal('invalid', 'Give the budget as a number of promo slots or a dollar amount.')
   if (slots !== undefined && dollars !== undefined)
-    throw new Error('Give the budget as promo slots or dollars, not both.')
+    throw new Refusal('invalid', 'Give the budget as promo slots or dollars, not both.')
   if (slots !== undefined) {
     if (!Number.isSafeInteger(slots) || slots < 1)
-      throw new Error('The slot budget must be a whole number of slots, 1 or more.')
+      throw new Refusal('invalid', 'The slot budget must be a whole number of slots, 1 or more.')
     return { slots }
   }
   if (typeof dollars !== 'number' || !Number.isFinite(dollars) || dollars <= 0)
-    throw new Error('The dollar budget must be an amount above $0.')
+    throw new Refusal('invalid', 'The dollar budget must be an amount above $0.')
   return { dollars }
 }
 
@@ -1621,7 +1641,8 @@ function readComps(names: unknown): string[] {
   for (const name of given.map((n) => n.trim()).filter(Boolean))
     if (!comps.some((c) => sameName(c, name))) comps.push(name)
   if (comps.length > MAX_COMPS)
-    throw new Error(
+    throw new Refusal(
+      'invalid',
       `${comps.length} comps is over the limit of ${MAX_COMPS}. Name up to ${MAX_COMPS} released shows to stand in for the launch.`
     )
   return comps
@@ -1648,17 +1669,18 @@ function confirmComps(
   picks: unknown,
   launch: Launch
 ): { answer: string; stored: Partial<Run>; launch: Launch; record: string } {
-  if (!Array.isArray(picks) || picks.length !== offered.length) throw new Error('Confirm or reject each comp.')
+  if (!Array.isArray(picks) || picks.length !== offered.length)
+    throw new Refusal('invalid', 'Confirm or reject each comp.')
   const comps = [...launch.comps]
   const lines = offered.map((name, i) => {
     const at = comps.findIndex((c) => c.name === name)
-    if (at < 0) throw new Error("The launch's comps have changed. Start the run again.")
+    if (at < 0) throw new Refusal('conflict', "The launch's comps have changed. Start the run again.")
     if (picks[i] === null) {
       comps[at] = { ...comps[at], status: 'rejected', entity: null }
       return `${name}: none of these.`
     }
     const entity = offeredBy(comps[at].match).find((c) => c.id === picks[i])
-    if (!entity) throw new Error(`That isn't one of the matches for ${name}.`)
+    if (!entity) throw new Refusal('invalid', `That isn't one of the matches for ${name}.`)
     comps[at] = { ...comps[at], status: 'confirmed', entity }
     return `${name}: ${candidateLabels([entity])[0]}.`
   })
