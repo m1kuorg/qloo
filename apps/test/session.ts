@@ -1,8 +1,8 @@
 // A visitor session driven the way the UI drives it: load the page for a session cookie, then
 // talk to the session's agent over the same WebSocket and JSON protocol `useAgent` uses.
-import { reset } from 'cloudflare:test'
-import { exports } from 'cloudflare:workers'
-import { afterEach } from 'vitest'
+import { applyD1Migrations, reset, type D1Migration } from 'cloudflare:test'
+import { env, exports } from 'cloudflare:workers'
+import { afterEach, beforeEach } from 'vitest'
 import type { State } from '../src/agent'
 import type { RosterFormat } from '../src/roster'
 
@@ -11,6 +11,13 @@ import type { RosterFormat } from '../src/roster'
 // setup.ts, because a reset registered from a setup file crashes the next file's worker with
 // "Message is too large" when files share a worker, as on CI.
 afterEach(() => reset())
+// The reset wipes the D1 directory too, so each test gets its schema again from the migrations
+// vitest.config.ts read into TEST_MIGRATIONS, a binding only tests have, so Env doesn't list it.
+// applyD1Migrations skips those already applied.
+beforeEach(() => {
+  const { TEST_MIGRATIONS } = env as unknown as { TEST_MIGRATIONS: D1Migration[] }
+  return applyD1Migrations(env.DB, TEST_MIGRATIONS)
+})
 
 const origin = 'https://crossfeed.test'
 

@@ -28,15 +28,82 @@
     // "on" shows the guest pitch flow; "off" hides it. #57 switched it on after its live check.
     "GUEST_PITCHES": "on",
     // A new session opens on the sample network (TRD demo data); tests turn it off.
-    "SAMPLE_NETWORK": "on"
+    "SAMPLE_NETWORK": "on",
+    // The passkey relying party's ID, and the origins (comma-separated) a member's browser may send
+    // from: each environment's own host, never read from the request.
+    "RP_ID": "crossfeed.m1kuorg.workers.dev",
+    "APP_ORIGINS": "https://crossfeed.m1kuorg.workers.dev",
+    // Sign-ups one visitor makes in a UTC day, joining through an invite aside, and the networks one
+    // member can create.
+    "SIGNUP_VISITOR_DAILY_CAP": "5",
+    "NETWORKS_PER_MEMBER": "3"
   },
   // VISITOR_SALT salts the hash of a visitor's IP address that keys their model run count.
   "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT"] },
+  // The directory: members, passkeys, sessions, networks, and API keys (ADR 0001). Its migrations
+  // are applied before each deploy, and by test/session.ts before each test.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "crossfeed",
+      "database_id": "8c6c6a5e-3f49-46f5-a5d1-32adb53f0cba",
+      "migrations_dir": "migrations"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       { "name": "CrossfeedAgent", "class_name": "CrossfeedAgent" },
-      { "name": "QlooGateway", "class_name": "QlooGateway" }
+      { "name": "QlooGateway", "class_name": "QlooGateway" },
+      { "name": "NetworkAgent", "class_name": "NetworkAgent" },
+      { "name": "LaunchAgent", "class_name": "LaunchAgent" }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CrossfeedAgent", "QlooGateway"] }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["CrossfeedAgent", "QlooGateway"] },
+    { "tag": "v2", "new_sqlite_classes": ["NetworkAgent", "LaunchAgent"] }
+  ],
+  "env": {
+    // The Worker crossfeed-preview, for checking the product on real Workers before production, with
+    // its own D1 database, Durable Objects, and secrets. Wrangler doesn't inherit vars, secrets, D1, or
+    // Durable Object bindings, so each is repeated here: keep vars in step with the top level's, apart
+    // from the host in RP_ID and APP_ORIGINS. Deploy it only with `bun run deploy:preview` (apps/README.md).
+    "preview": {
+      "vars": {
+        "QLOO_BASE_URL": "https://hackathon.api.qloo.com",
+        "QLOO_DAILY_CALL_CAP": "1000",
+        "QLOO_VISITOR_DAILY_CALL_CAP": "2000",
+        "QLOO_TIMEOUT_MS": "20000",
+        "QLOO_RETRY_DELAYS_MS": "1000,3000",
+        "QLOO_MIN_INTERVAL_MS": "400",
+        "QLOO_SLOW_MS": "8000",
+        "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+        "RUN_VISITOR_DAILY_CAP": "10",
+        "RUN_DAILY_CAP": "200",
+        "FREE_START_DAILY_CAP": "100",
+        "GUEST_PITCHES": "on",
+        "SAMPLE_NETWORK": "on",
+        "RP_ID": "crossfeed-preview.m1kuorg.workers.dev",
+        "APP_ORIGINS": "https://crossfeed-preview.m1kuorg.workers.dev",
+        "SIGNUP_VISITOR_DAILY_CAP": "5",
+        "NETWORKS_PER_MEMBER": "3"
+      },
+      "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT"] },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "crossfeed-preview",
+          "database_id": "adffa0cf-3e05-4541-8e43-fd8c270f4246",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "CrossfeedAgent", "class_name": "CrossfeedAgent" },
+          { "name": "QlooGateway", "class_name": "QlooGateway" },
+          { "name": "NetworkAgent", "class_name": "NetworkAgent" },
+          { "name": "LaunchAgent", "class_name": "LaunchAgent" }
+        ]
+      }
+    }
+  }
 }

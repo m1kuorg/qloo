@@ -1,6 +1,6 @@
 # Crossfeed app
 
-The Crossfeed Worker: a Hono app with a React island, a `CrossfeedAgent` per visitor session, and a global `QlooGateway`, on Cloudflare Workers. It's deployed at <https://crossfeed.m1kuorg.workers.dev>. This is the how-to every ticket follows; [TRD.md](/docs/TRD.md) holds the design.
+The Crossfeed Worker: a Hono app with a React island, a `CrossfeedAgent` per visitor session, a global `QlooGateway`, and the D1 directory of members and networks, on Cloudflare Workers. It's deployed at <https://crossfeed.m1kuorg.workers.dev>. This is the how-to every ticket follows; [TRD.md](/docs/TRD.md) holds the design.
 
 Contents:
 
@@ -12,6 +12,7 @@ Contents:
 1.  [Check types](#check-types)
 1.  [CI](#ci)
 1.  [Deploy](#deploy)
+    1.  [Deploy the preview](#deploy-the-preview)
 1.  [Live check](#live-check)
 1.  [Where things go](#where-things-go)
 1.  [See also](#see-also)
@@ -22,10 +23,13 @@ Run these in `apps/`, with `QLOO_API_KEY` and `ANTHROPIC_API_KEY` in your enviro
 
 ```sh
 bun install
-printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nVISITOR_SALT=%s\nGUEST_PITCHES=on\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" "$(openssl rand -hex 16)" > .dev.vars
+printf 'QLOO_API_KEY=%s\nANTHROPIC_API_KEY=%s\nVISITOR_SALT=%s\nGUEST_PITCHES=on\nRP_ID=localhost\nAPP_ORIGINS=http://localhost:%s\n' "$QLOO_API_KEY" "$ANTHROPIC_API_KEY" "$(openssl rand -hex 16)" 5128 > .dev.vars
+bunx wrangler d1 migrations apply DB --local
 ```
 
-`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `VISITOR_SALT` salts the hash that keys a visitor's model run count; any random value works locally. `GUEST_PITCHES=on` shows the guest pitch flow, as `wrangler.jsonc` does in production since #57; `off` hides it. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself.
+`.dev.vars` is git-ignored. Never commit it, a key, or a Qloo response. `VISITOR_SALT` salts the hash that keys a visitor's model run count; any random value works locally. `GUEST_PITCHES=on` shows the guest pitch flow, as `wrangler.jsonc` does in production since #57; `off` hides it. Tests run with it off, and a test of the flow sets `env.GUEST_PITCHES = 'on'` itself. `RP_ID` is the passkey relying party's ID and `APP_ORIGINS` the comma-separated origins a member's browser may send from. `wrangler.jsonc` sets them to each environment's host, so locally they're `localhost` and the dev server's origin: use the port you run it on.
+
+`bunx wrangler d1 migrations apply DB --local` creates the D1 directory's tables, from `migrations/`, in the dev server's local copy of the database under `.wrangler/state`. Run it again after pulling a new migration.
 
 After changing `wrangler.jsonc`, run `bun run cf-typegen` to regenerate `Env` in `worker-configuration.d.ts`.
 
@@ -57,6 +61,8 @@ Outbound HTTP is the one seam. `test/fake.ts` holds the fakes, which [`@msw/clou
 - `fakeDemographics(answer)` serves `POST /v2/insights` demographics requests, those with `filter.type=urn:demographics`: the entries of a list of `{ entity_id, age, gender }` whose entity the request names, in the list's order as Qloo answers in no set order, or an HTTP status. `fakeInsights` leaves those requests to it, so the two can be registered in either order.
 - `requests` records every request a fake served, in order, with the time it arrived (`at`) and how many Qloo requests were in flight (`inFlight`). `test/setup.ts` clears it after each test.
 - `test/session.ts` wipes every Durable Object after each test, so the gateway's shared cache and daily count start empty. Keep `cloudflare:test` out of `test/setup.ts`: imported there, it crashes the next test file's worker when files share one, as on CI.
+- The wipe takes D1 with it, so `test/session.ts` applies the directory's migrations again before each test, with `applyD1Migrations` on `env.DB`. `vitest.config.ts` reads them from `migrations/` with `readD1Migrations` into the test-only `TEST_MIGRATIONS` binding. A test file that uses D1 imports `./session`, as `test/directory.test.ts` does.
+- Tests run with `RP_ID` `crossfeed.test` and `APP_ORIGINS` `https://crossfeed.test`, the origin `test/session.ts` sends from, and with the sign-up and network caps at `wrangler.jsonc`'s values, whatever `.dev.vars` says.
 - Tests run with a 1-second Qloo timeout, retry delays of 10 and 30 ms, and no pacing (`vitest.config.ts`). A test that needs another value assigns it to `env` from `cloudflare:workers` and restores it afterwards, as `configure()` in `test/gateway.test.ts` does.
 - Tests run with `SAMPLE_NETWORK` off, so a new session starts with an empty roster and makes no Qloo calls of its own. `test/sample.test.ts` turns it on to test the sample network.
 - `fakeClaude(script)` is the scripted model. Each Messages API request gets the next turn, streamed as the API streams it, after an empty thinking block like Haiku 5.5's. Build turns with `turn(toolUse(name, input), text(...))`, which ends in tool calls if it has any, or `refusal(category)`. Tool use IDs are `toolu_<turn>_<block>`. A script entry can be an async function of the request, to hold a turn while the test looks at a running run. A request past the end of the script gets a 400.
@@ -109,7 +115,21 @@ git fetch origin main && git checkout --detach origin/main
 cd apps && bun install && bun run deploy
 ```
 
+`bun run deploy` builds, applies the directory's new migrations to the `crossfeed` D1 database (`wrangler d1 migrations apply DB --remote`, which lists them and asks before applying), then deploys the `crossfeed` Worker.
+
 Secrets live on the `crossfeed` Worker in the `qloo` Cloudflare account, and are set once with `bunx wrangler secret put QLOO_API_KEY`, `ANTHROPIC_API_KEY`, and `VISITOR_SALT` (a random value, such as `openssl rand -hex 32`; changing it restarts every visitor's count). List them with `bunx wrangler secret list`.
+
+### Deploy the preview
+
+The `preview` environment in `wrangler.jsonc` is a separate Worker, `crossfeed-preview`, at <https://crossfeed-preview.m1kuorg.workers.dev>, with its own D1 database (`crossfeed-preview`), Durable Objects, and secrets. Merged work is checked there before it reaches production. Deploy it the same way, from an up-to-date `main`:
+
+```sh
+cd apps && bun install && bun run deploy:preview
+```
+
+`bun run deploy:preview` builds with `CLOUDFLARE_ENV=preview`, applies migrations to `crossfeed-preview`, and runs `wrangler deploy --env preview`. Don't run `bunx wrangler deploy --env preview` by hand after `bun run build`: the Vite plugin picks the environment when it builds, and Wrangler deploys whatever the build was for, production included. `bunx wrangler deploy --env preview --dry-run` after `CLOUDFLARE_ENV=preview bun run build` shows what would deploy without deploying. `wrangler secret` and `wrangler d1` read `wrangler.jsonc` itself, whatever was built, so `--env preview` is enough for them.
+
+Wrangler can't set secrets on a Worker that doesn't exist yet, so the first deploy takes them from a file: write `QLOO_API_KEY`, `ANTHROPIC_API_KEY`, and a new `VISITOR_SALT` as `NAME=value` lines to a file outside the repo, run `bun run deploy:preview --secrets-file <file>`, and delete the file. Afterwards, set and list them with `bunx wrangler secret put <NAME> --env preview` and `bunx wrangler secret list --env preview`. `bunx wrangler d1 migrations list crossfeed-preview --env preview --remote` lists the migrations not yet applied.
 
 ## Live check
 
@@ -192,6 +212,8 @@ Agent log lines show each model call's tokens and cache reads (`"event":"model_c
 
 - `src/index.tsx`: the Worker's routes, the session cookie, and the cron handler.
 - `src/health.ts`: the daily health check the cron runs. A new check logs its own `health_check` line through `report`.
+- `migrations/`: the D1 directory's schema, one SQL file per migration, made with `bunx wrangler d1 migrations create DB <name>`. `0001_directory.sql` holds every directory table: members, passkeys, sessions, challenges, networks, memberships, invites, and API keys. Never edit an applied migration; add a new one.
+- `src/network-agent.ts` and `src/launch-agent.ts`: `NetworkAgent` and `LaunchAgent`, a signed-in network's and a launch's agents (ADR 0001), for now plain subclasses of `CrossfeedAgent` that no route reaches.
 - `src/agent.ts`: `CrossfeedAgent`. Its synced `State` type and its `@callable` actions are the client protocol. `startLaunch` returns at once and runs the Claude tool loop in the background, writing a progress note per tool call. When a run ends, the agent keeps the state it ended with, which `getRun` returns. A completed sample launch run answered with the sample answers, on the unchanged sample with nothing the visitor typed, is also kept in the gateway, and while Qloo can't be called, `startLaunch` replays it instead of running, or stops any other run. The replay copies whatever state the stored run holds, except the session's own `inbox` and `runs`; a new session-level field that a launch run doesn't own joins `inbox` in `keepSampleRun`.
 - `src/limits.ts`: the run limits, shared by the agent and the UI.
 - `src/claude.ts`: the model settings for every agent turn. Change them only with the TRD's model settings.

@@ -8,6 +8,8 @@ import { visitorTag } from './visitor'
 
 export { CrossfeedAgent } from './agent'
 export { QlooGateway } from './gateway'
+export { LaunchAgent } from './launch-agent'
+export { NetworkAgent } from './network-agent'
 
 // The visitor session: a random ID in a cookie names the session's CrossfeedAgent.
 const SESSION_COOKIE = 'crossfeed_session'
