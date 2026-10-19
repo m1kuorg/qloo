@@ -28,11 +28,11 @@ async function signIn(authenticator: Authenticator) {
   return post('/auth/sign-in', { challenge, response: await authenticator.authenticate(options) })
 }
 
-// Who /app says is signed in with `cookie`, or where it sends them instead.
+// Who the app's account menu says is signed in with `cookie`, on /app/new, or where it sends them instead.
 const appFor = async (cookie: string) => {
-  const page = await get('/app', { headers: { Cookie: cookie }, redirect: 'manual' })
+  const page = await get('/app/new', { headers: { Cookie: cookie }, redirect: 'manual' })
   return page.status === 200
-    ? (await page.text()).match(/data-member-name="([^"]*)"/)?.[1]
+    ? (await page.text()).match(/Account: <\/span><span class="acct-name">([^<]*)</)?.[1]
     : `${page.status} ${page.headers.get('location')}`
 }
 
@@ -67,7 +67,7 @@ describe('signing up', () => {
       /^__Host-crossfeed_member=[\w-]{43}; Max-Age=2592000; Path=\/; HttpOnly; Secure; SameSite=Lax$/
     )
 
-    const app = await get('/app', { headers: { Cookie: cookie.split(';')[0] } })
+    const app = await get('/app/new', { headers: { Cookie: cookie.split(';')[0] } })
     expect(app.status).toBe(200)
     expect(await app.text()).toContain('Ada Programmer')
   })
@@ -211,21 +211,21 @@ describe('a session', () => {
     const out = await post('/auth/sign-out', {}, { Cookie: cookie })
     expect(out.status).toBe(200)
     expect(out.headers.get('set-cookie')).toMatch(/^__Host-crossfeed_member=; Max-Age=0; Path=\/; Secure/)
-    expect(await appFor(cookie)).toBe('302 /sign-in?next=/app')
+    expect(await appFor(cookie)).toBe('302 /sign-in?next=/app/new')
   })
 
   it('lasts 30 days from its last use, then sends the member to sign in', async () => {
     const { cookie } = await openMember({ name: 'Ada Programmer' })
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.now() + 29 * DAY)
-    const used = await get('/app', { headers: { Cookie: cookie } })
+    const used = await get('/app/new', { headers: { Cookie: cookie } })
     expect(used.status).toBe(200)
     // The cookie is extended with the session.
     expect(used.headers.get('set-cookie')).toMatch(/Max-Age=2592000/)
     vi.setSystemTime(Date.now() + 29 * DAY)
     expect(await appFor(cookie)).toBe('Ada Programmer')
     vi.setSystemTime(Date.now() + 30 * DAY + 1)
-    expect(await appFor(cookie)).toBe('302 /sign-in?next=/app')
+    expect(await appFor(cookie)).toBe('302 /sign-in?next=/app/new')
   })
 })
 
@@ -264,13 +264,6 @@ describe('the way in', () => {
       ).headers.get('location')
     expect(await go('/app/new')).toBe('/app/new')
     expect(await go('//crossfeed.example/app')).toBe('/app')
-  })
-
-  it('takes a signed-in member from /app/new to /app until there are networks to create', async () => {
-    const { cookie } = await openMember()
-    const res = await get('/app/new', { headers: { Cookie: cookie }, redirect: 'manual' })
-    expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe('/app')
   })
 })
 
@@ -385,7 +378,7 @@ describe('headers', () => {
     for (const [path, headers] of [
       ['/demo', {}],
       ['/sign-in', {}],
-      ['/app', { Cookie: cookie }]
+      ['/app/new', { Cookie: cookie }]
     ] as const) {
       const page = await get(path, { headers })
       expect(page.status).toBe(200)

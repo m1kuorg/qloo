@@ -167,6 +167,100 @@ export async function signOut(db: D1Database, token: string) {
     .run()
 }
 
+// What a member is in a network: its `owner` can change it and manage its members, and a `member`
+// works in it.
+export type Role = 'owner' | 'member'
+
+// A network as one of its members sees it.
+export type Network = { id: string; name: string; role: Role }
+
+// Creates a network named `name`, owned by the member who creates it, unless they've already created
+// `cap` networks, whoever owns them now. The cap and both rows are one batch, so two creations at once
+// can't both pass it. Null when the cap refuses it.
+export async function createNetwork(db: D1Database, memberId: string, name: string, cap: number) {
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  const [network] = await db.batch([
+    db
+      .prepare(
+        'INSERT INTO networks (id, name, created_by, created) SELECT ?, ?, ?, ? WHERE (SELECT count(*) FROM networks WHERE created_by = ?) < ?'
+      )
+      .bind(id, name, memberId, now, memberId, cap),
+    db
+      .prepare(
+        "INSERT INTO memberships (network_id, member_id, role, joined, last_opened) SELECT id, ?, 'owner', ?, ? FROM networks WHERE id = ?"
+      )
+      .bind(memberId, now, now, id)
+  ])
+  return network.meta.changes ? id : null
+}
+
+// The networks a member belongs to, by name.
+export async function memberNetworks(db: D1Database, memberId: string): Promise<Network[]> {
+  const { results } = await db
+    .prepare(
+      'SELECT n.id, n.name, m.role FROM memberships m JOIN networks n ON n.id = m.network_id WHERE m.member_id = ? ORDER BY n.name COLLATE NOCASE, n.created'
+    )
+    .bind(memberId)
+    .all<Network>()
+  return results
+}
+
+// The network a member opened last, or the one they joined last when they've opened none; null
+// when they belong to none.
+export async function lastNetwork(db: D1Database, memberId: string) {
+  return db
+    .prepare(
+      'SELECT network_id FROM memberships WHERE member_id = ? ORDER BY last_opened DESC NULLS LAST, joined DESC LIMIT 1'
+    )
+    .bind(memberId)
+    .first<string>('network_id')
+}
+
+// Member `memberId`'s role in network `networkId`, or null when they don't belong to it, or there's no
+// such network.
+export async function memberRole(db: D1Database, networkId: string, memberId: string) {
+  return db
+    .prepare('SELECT role FROM memberships WHERE network_id = ? AND member_id = ?')
+    .bind(networkId, memberId)
+    .first<Role>('role')
+}
+
+// Network `networkId` as member `memberId` sees it, marked as the one they opened last, in the
+// statement that checks they belong to it. Null when they don't, or there's no such network.
+export async function openNetwork(db: D1Database, networkId: string, memberId: string) {
+  return db
+    .prepare(
+      'UPDATE memberships SET last_opened = ? WHERE network_id = ? AND member_id = ? RETURNING network_id AS id, (SELECT name FROM networks WHERE id = network_id) AS name, role'
+    )
+    .bind(Date.now(), networkId, memberId)
+    .first<Network>()
+}
+
+// Renames network `networkId` when member `memberId` is one of its owners, in the statement that
+// checks it. False when they aren't.
+export async function renameNetwork(db: D1Database, networkId: string, memberId: string, name: string) {
+  const { meta } = await db
+    .prepare(
+      "UPDATE networks SET name = ? WHERE id = ? AND EXISTS (SELECT 1 FROM memberships WHERE network_id = networks.id AND member_id = ? AND role = 'owner')"
+    )
+    .bind(name, networkId, memberId)
+    .run()
+  return meta.changes > 0
+}
+
+// What a network's setup checklist reads from the directory: whether a teammate was invited or has
+// joined, and whether an API key was ever made, revoked or not.
+export async function setupProgress(db: D1Database, networkId: string) {
+  const row = await db
+    .prepare(
+      'SELECT (SELECT count(*) FROM memberships WHERE network_id = ?1) > 1 OR EXISTS (SELECT 1 FROM invites WHERE network_id = ?1) AS invited, EXISTS (SELECT 1 FROM api_keys WHERE network_id = ?1) AS apiKey'
+    )
+    .bind(networkId)
+    .first<{ invited: number; apiKey: number }>()
+  return { invited: row?.invited === 1, apiKey: row?.apiKey === 1 }
+}
+
 // What the daily cron clears: sessions and challenges that have expired.
 export async function purgeExpired(db: D1Database) {
   const now = Date.now()

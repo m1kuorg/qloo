@@ -27,6 +27,10 @@ export type InsertionOrder = Priced & {
   status: 'draft' | 'approved'
 }
 
+// Why `cpm` can't be the network's CPM in dollars, or null when it can.
+export const cpmProblem = (cpm: unknown) =>
+  typeof cpm === 'number' && Number.isFinite(cpm) && cpm > 0 ? null : 'The CPM must be a dollar amount above 0.'
+
 // One promo slot's value on a show, or the figure it's missing: the insertion order prices its lines
 // with it, and the fit chart shows it per show.
 export function slotPrice(downloads: number | null, cpm: number | null): Pick<OrderLine, 'slotValue' | 'gap'> {

@@ -28,6 +28,7 @@ const words = (html: string) =>
 
 const vars = {
   ACCOUNTS: env.ACCOUNTS,
+  NETWORKS_PER_MEMBER: env.NETWORKS_PER_MEMBER,
   GUEST_PITCHES: env.GUEST_PITCHES,
   RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
 }
@@ -123,5 +124,16 @@ describe('the privacy page and the beta terms', () => {
     expect(text).toContain('Model runs a launch run, an inbox load, or a pitch run 7 200')
     expect(text).toContain('Qloo calls cache hits count for a visitor, not for everyone 2,000 1,000')
     expect(text).toContain('A run makes at most 12 model turns and 60 Qloo calls')
+  })
+
+  it('say what an account keeps and how many networks a member can create, only while accounts are on', async () => {
+    env.NETWORKS_PER_MEMBER = '2'
+    const kept = 'With an account: your name'
+    const cap = 'A member can create at most 2 networks.'
+    expect(words(await page('/privacy'))).toContain(kept)
+    expect(words(await page('/terms'))).toContain(cap)
+    env.ACCOUNTS = 'off'
+    expect(words(await page('/privacy'))).not.toContain(kept)
+    expect(words(await page('/terms'))).not.toContain(cap)
   })
 })

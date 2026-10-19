@@ -13,7 +13,7 @@ import {
 } from '@simplewebauthn/server'
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { Hono, type Context } from 'hono'
-import { accountsOn, appOrigins, endSession, nextPath, sameOrigin, setSession, signedIn } from '../auth'
+import { accountsOn, appOrigins, endSession, jsonBody, nextPath, sameOrigin, setSession, signedIn } from '../auth'
 import {
   findPasskey,
   recover,
@@ -25,6 +25,7 @@ import {
   type Challenge
 } from '../directory'
 import { appShell } from '../shell'
+import { readName } from '../text'
 import { visitorTag } from '../visitor'
 
 export const auth = new Hono<{ Bindings: Env }>()
@@ -36,13 +37,8 @@ auth.use('/auth/*', accountsOn, sameOrigin, async (c, next) => {
   c.header('Cache-Control', 'no-store')
 })
 
-const MAX_NAME = 64
-
 // A ceremony that can't go on, in words for the sign-in page.
 const refuse = (c: Context, error: string, status: 400 | 409 | 429 = 400) => c.json({ error }, status)
-
-// The request's JSON body, or an empty object when it has none.
-const body = async (c: Context) => ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>
 
 // The challenge a ceremony's second request names, taken so it can't be used again, while it's
 // still good; null once it's used, expired, or was never given.
@@ -82,11 +78,9 @@ async function signupRefused(c: Context<{ Bindings: Env }>, count: boolean) {
 
 // Sign-up, first step: the name the member gave, and a new passkey's options for their browser.
 auth.post('/auth/sign-up/options', async (c) => {
-  const { name } = await body(c)
-  const named = typeof name === 'string' ? name.trim() : ''
-  if (!named) return refuse(c, 'Enter your name.')
-  if (named.length > MAX_NAME) return refuse(c, `Use a name of at most ${MAX_NAME} characters.`)
-  if (/\p{Cc}/u.test(named)) return refuse(c, 'Use a name without control characters.')
+  const read = readName((await jsonBody(c)).name, 'Enter your name.')
+  if ('error' in read) return refuse(c, read.error)
+  const named = read.name
   const capped = await signupRefused(c, false)
   if (capped) return refuse(c, capped, 429)
   const memberId = crypto.randomUUID()
@@ -106,7 +100,7 @@ auth.post('/auth/sign-up/options', async (c) => {
 
 // Sign-up, second step: the browser's new passkey. The member is written only once it verifies.
 auth.post('/auth/sign-up', async (c) => {
-  const { challenge, response } = await body(c)
+  const { challenge, response } = await jsonBody(c)
   const started = await takeStarted(c, 'sign-up', challenge)
   if (!started) return refuse(c, STALE)
   const registration = await verified('sign-up', () =>
@@ -153,7 +147,7 @@ auth.post('/auth/sign-in/options', async (c) => {
 // Sign-in, second step: the browser's signature with one of a member's passkeys. A signature
 // counter of 0, as synced passkeys send, is accepted.
 auth.post('/auth/sign-in', async (c) => {
-  const { challenge, response } = await body(c)
+  const { challenge, response } = await jsonBody(c)
   const started = await takeStarted(c, 'sign-in', challenge)
   if (!started) return refuse(c, STALE)
   const answer = response as AuthenticationResponseJSON
@@ -184,7 +178,7 @@ auth.post('/auth/sign-in', async (c) => {
 // Recovery, for a member who lost every passkey: their recovery code signs them in once, and they
 // get a new one to keep.
 auth.post('/auth/recover', async (c) => {
-  const { code } = await body(c)
+  const { code } = await jsonBody(c)
   if (typeof code !== 'string' || !code.trim()) return refuse(c, 'Enter your recovery code.')
   const recovered = await recover(c.env.DB, code)
   if (!recovered)

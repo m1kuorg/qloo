@@ -1,22 +1,11 @@
 import { browserSupportsWebAuthn, startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, useAction } from './controls'
+import { Alert, send, useAction } from './controls'
+import { MAX_NAME } from '../text'
 import { StateLine } from './states'
 
 // The accounts pages of the island: signing in or up with a passkey, or back in with a recovery
-// code, and, until there are networks, the signed-in member's page.
-
-// A write to the Worker's auth routes, as JSON. `fetch` sends the page's Origin, which they check.
-async function send<T>(path: string, body: object = {}): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  })
-  const answer = (await res.json().catch(() => null)) as { error?: string } | null
-  if (!res.ok || !answer) throw new Error(answer?.error ?? `Crossfeed answered ${res.status}. Try again.`)
-  return answer as T
-}
+// code, creating a network, and signing out from the app shell's account menu.
 
 // What went wrong with the browser's passkey prompt, in words. A prompt the person closed, or one
 // that timed out, is a NotAllowedError.
@@ -249,28 +238,64 @@ export function RecoveryCode({ code, next }: { code: string; next: string }) {
   )
 }
 
-// The signed-in member's page until there are networks: who they are, and a way to sign out.
-export function MemberPage({ name }: { name: string }) {
+// Naming a new network, which its creator then owns. `cap` is how many networks one member can create.
+export function NewNetworkPage({ cap }: { cap: number }) {
   const { busy, error, run } = useAction()
-  const signOut = () =>
+  const [name, setName] = useState('')
+  const create = () =>
     run(async () => {
-      await send('/auth/sign-out')
-      window.location.assign('/sign-in')
+      const { id } = await send<{ id: string }>('/app/new', { name })
+      window.location.assign(`/app/${id}`)
     })
   return (
     <main className="acct">
       <header className="acct-hd">
-        <h1>{name}</h1>
-        <p className="help">You’re signed in to Crossfeed. You don’t belong to a network yet.</p>
+        <h1>Create a network</h1>
+        <p className="help">
+          A network holds your roster, its launches, and your booking inbox, for you and the teammates you invite. You
+          own the networks you create, up to {cap}.
+        </p>
       </header>
-      <div className="saved">
+      <form
+        className="way"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void create()
+        }}
+      >
+        <label htmlFor="network-name">Network name, as its members will see it</label>
+        <input
+          id="network-name"
+          className="acct-in"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoComplete="organization"
+          maxLength={MAX_NAME}
+          autoFocus
+          required
+        />
         <div className="acts">
-          <button className="btn" type="button" disabled={busy} onClick={() => void signOut()}>
-            {busy ? 'Signing out…' : 'Sign out'}
+          <button className="btn pri" type="submit" disabled={busy || !name.trim()}>
+            {busy ? 'Creating…' : 'Create network'}
           </button>
         </div>
         <Alert error={error} />
-      </div>
+      </form>
     </main>
   )
+}
+
+// The app shell's account menu: its Sign out button ends the session, then goes to the sign-in page.
+// The shell is server-rendered, so the island finds the button rather than rendering it.
+export function wireSignOut(button: HTMLButtonElement) {
+  button.addEventListener('click', async () => {
+    button.disabled = true
+    try {
+      await send('/auth/sign-out')
+      window.location.assign('/sign-in')
+    } catch {
+      button.disabled = false
+      button.textContent = 'Sign out failed. Try again'
+    }
+  })
 }

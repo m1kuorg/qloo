@@ -842,7 +842,7 @@ function Anchors({
 }
 
 // A pitch's state in one word: still being read, its work's match, or why it was set aside.
-const stateLabel = (p: Pitch) =>
+export const stateLabel = (p: Pitch) =>
   ({
     reading: 'Reading',
     looking_up: 'Looking up',

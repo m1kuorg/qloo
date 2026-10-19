@@ -19,7 +19,7 @@ import {
   type WorkMatch
 } from './inbox'
 import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
-import { dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
+import { cpmProblem, dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
@@ -163,6 +163,22 @@ export type State = {
   insertionOrder: InsertionOrder | null // the current run's order, once drafted; only the programmer edits or approves it
   slowCalls: SlowCall[] // this session's Qloo calls still waiting longer than they should
   guide: Guide // the sample launch's guide, for the session rather than any run
+  // A signed-in network's agent only (network-agent.ts): its launches, newest first, and the members
+  // who dismissed its setup checklist.
+  launches?: LaunchSummary[]
+  checklistDismissed?: string[]
+}
+
+// A launch as its network's dashboard lists it, reported by the launch's agent (#162).
+export type LaunchSummary = {
+  id: string
+  name: string
+  status: 'new' | 'running' | 'waiting' | 'ranked' | 'order drafted' | 'order approved' | 'failed' | 'stopped'
+  finalists: number
+  slots: number | null
+  slotValue: number | null // dollars
+  startedBy: string | null // the member who started its last run
+  lastRun: string | null // ISO time
 }
 
 // The guide through the sample launch (#54): the steps the visitor did in the page, where the agent
@@ -210,6 +226,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     slowCalls: [],
     guide: { seen: [], dismissed: false }
   }
+
+  // Whether a new instance opens on the sample network, as a demo session does.
+  protected opensOnSample = true
 
   // Whether a launch is asking the gateway if it may start (see admit).
   private starting = false
@@ -265,7 +284,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     if (this.state.slowCalls?.length) this.setState({ ...this.state, slowCalls: [] })
     // A new session opens on the sample network, looked up like an import, so its calls count among the
     // visitor's; past their limit, it opens empty. Tests turn this off.
-    if (firstStart && this.env.SAMPLE_NETWORK === 'on') {
+    if (firstStart && this.opensOnSample && this.env.SAMPLE_NETWORK === 'on') {
       const visitor = props?.visitor ?? `session:${this.name}`
       const refused = await this.env.QlooGateway.getByName('global')
         .reserveCalls(visitor, sampleRoster.length)
@@ -394,8 +413,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // The network's CPM in dollars, which prices every promo slot.
   @callable()
   setCpm(cpm: number) {
-    if (typeof cpm !== 'number' || !Number.isFinite(cpm) || cpm <= 0)
-      throw new Error('The CPM must be a dollar amount above 0.')
+    const problem = cpmProblem(cpm)
+    if (problem) throw new Error(problem)
     const s = this.state.sample
     this.setState({ ...this.state, cpm, sample: s && { ...s, cpm: s.cpm && cpm === this.state.cpm } })
     this.repriceOrder()

@@ -1,6 +1,7 @@
 // A visitor session driven the way the UI drives it: load the page for a session cookie, then
 // talk to the session's agent over the same WebSocket and JSON protocol `useAgent` uses. And a
 // member, signed up the way the sign-in page does it, with the software authenticator.
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { applyD1Migrations, reset, type D1Migration } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, beforeEach } from 'vitest'
@@ -54,11 +55,15 @@ export async function openSession(cookie?: string, ip?: string): Promise<Session
     cookie = page.headers.get('set-cookie')?.split(';')[0]
     if (!cookie) throw new Error('GET /demo set no session cookie')
   }
-  const upgrade = await exports.default.fetch(`${origin}/agents/session`, {
-    headers: { Upgrade: 'websocket', Cookie: cookie, ...(ip && { 'CF-Connecting-IP': ip }) }
-  })
+  return { cookie, ...(await connect('/agents/session', { Cookie: cookie, ...(ip && { 'CF-Connecting-IP': ip }) })) }
+}
+
+// An agent's connection, opened at `path` with `headers` the way `useAgent` opens it, once its
+// first state has arrived.
+async function connect(path: string, headers: Record<string, string>): Promise<Omit<Session, 'cookie'>> {
+  const upgrade = await exports.default.fetch(`${origin}${path}`, { headers: { Upgrade: 'websocket', ...headers } })
   const ws = upgrade.webSocket
-  if (!ws) throw new Error(`/agents/session did not upgrade: ${upgrade.status} ${await upgrade.text()}`)
+  if (!ws) throw new Error(`${path} did not upgrade: ${upgrade.status} ${await upgrade.text()}`)
   ws.accept()
 
   let state: State | undefined
@@ -104,7 +109,6 @@ export async function openSession(cookie?: string, ip?: string): Promise<Session
     })
 
   return {
-    cookie,
     state: () => state,
     frames: () => frames,
     call,
@@ -127,6 +131,7 @@ export async function openSession(cookie?: string, ip?: string): Promise<Session
 }
 
 export type Member = {
+  id: string
   name: string
   // The session cookie, as the member's browser sends it back.
   cookie: string
@@ -137,6 +142,9 @@ export type Member = {
   // A request from the member's browser on the app's origin: it carries their cookie, and an
   // Origin header as a page's write does.
   fetch: (path: string, init?: RequestInit) => Promise<Response>
+  // Opens an agent's connection from one of the app's pages, such as a network's at
+  // `/agents/network/<id>`: it carries their cookie and the page's Origin, plus any `headers`.
+  connect: (path: string, headers?: Record<string, string>) => Promise<Omit<Session, 'cookie'>>
 }
 
 // Signs a new member up through both steps of the passkey ceremony, as the sign-in page does. `ip`
@@ -154,13 +162,15 @@ export async function openMember({
     })
   const started = await post('/auth/sign-up/options', { name })
   if (started.status !== 200) throw new Error(`Sign-up options returned ${started.status}: ${await started.text()}`)
-  const { challenge, options } = await started.json<{ challenge: string; options: never }>()
-  const done = await post('/auth/sign-up', { challenge, response: await authenticator.register(options) })
+  const { challenge, options } = await started.json<{ challenge: string; options: { user: { id: string } } }>()
+  const done = await post('/auth/sign-up', { challenge, response: await authenticator.register(options as never) })
   if (done.status !== 200) throw new Error(`Sign-up returned ${done.status}: ${await done.text()}`)
   const { recoveryCode } = await done.json<{ recoveryCode: string }>()
   const cookie = done.headers.get('set-cookie')?.split(';')[0]
   if (!cookie) throw new Error('Sign-up set no session cookie')
   return {
+    // The member's ID, the passkey's user handle.
+    id: new TextDecoder().decode(isoBase64URL.toBuffer(options.user.id)),
     name,
     cookie,
     recoveryCode,
@@ -170,6 +180,14 @@ export async function openMember({
       headers.set('Cookie', cookie)
       if (init.method && !['GET', 'HEAD'].includes(init.method)) headers.set('Origin', origin)
       return exports.default.fetch(`${origin}${path}`, { ...init, headers })
-    }
+    },
+    connect: (path, headers = {}) => connect(path, { Cookie: cookie, Origin: origin, ...headers })
   }
 }
+
+// Adds a member to a network as a `member`, as an invite will (#165). Until invites exist, it writes
+// the membership row itself, the one D1 write outside the directory's storage tests.
+export const joinNetwork = (network: string, member: Member) =>
+  env.DB.prepare("INSERT INTO memberships (network_id, member_id, role, joined) VALUES (?, ?, 'member', ?)")
+    .bind(network, member.id, Date.now())
+    .run()
