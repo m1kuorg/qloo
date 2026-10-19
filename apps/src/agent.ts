@@ -87,7 +87,7 @@ const pendingShow = (evidence: string): Pick<Show, 'resolution' | 'entity' | 'ca
 })
 
 // One Qloo comparison ranks at most 50 candidates, and scores from separate calls aren't comparable.
-const MAX_SHOWS = 50
+export const MAX_SHOWS = 50
 
 // What a launch run starts from: a released launch's name, or up to three comps standing in for an
 // unreleased one (#40).

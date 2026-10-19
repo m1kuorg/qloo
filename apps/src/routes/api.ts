@@ -1587,8 +1587,9 @@ api.openapi(
   }
 )
 
-// The API's contract, generated from the routes' schemas.
-api.doc31('/api/v1/openapi.json', (c) => ({
+// The API's contract, generated from the routes' schemas, for the deployment at `origin`: served
+// below, and read by the developer docs.
+const contract = (origin: string) => ({
   openapi: '3.1.0',
   info: {
     title: 'Crossfeed API',
@@ -1596,10 +1597,12 @@ api.doc31('/api/v1/openapi.json', (c) => ({
     description:
       "Act for one network: its roster, launches, and inbox. Authenticate with one of the network's API keys, made by an owner in its settings, as `Authorization: Bearer cf_live_…`. Nothing here approves an insertion order or a reply: only a member does, in the app. Long work, such as an import, answers 202 with the resource's current status; poll the resource until it settles. Examples use made-up shows and figures."
   },
-  servers: [{ url: new URL(c.req.url).origin }],
+  servers: [{ url: origin }],
   // Either one: an API key, or a member's session.
   security: [{ apiKey: [] }, { session: [] }] as Record<string, string[]>[]
-}))
+})
+export const apiDocument = (origin: string) => api.getOpenAPI31Document(contract(origin))
+api.doc31('/api/v1/openapi.json', (c) => contract(new URL(c.req.url).origin))
 api.openAPIRegistry.registerComponent('securitySchemes', 'apiKey', {
   type: 'http',
   scheme: 'bearer',
