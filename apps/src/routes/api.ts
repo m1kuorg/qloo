@@ -143,6 +143,11 @@ const context = (c: Context<ApiEnv>): OperationContext => ({
   caller: c.var.caller
 })
 
+// One of the document's named schemas, or null. `.nullable()` on a named schema would make the
+// schema itself nullable in the document, and so every other use of it, such as a run a read
+// answers with, in the types generated from it.
+const orNull = <T extends z.ZodType>(schema: T) => z.union([schema, z.null()])
+
 // The documented answer to each refusal a route can give.
 const ErrorBody = z
   .object({
@@ -293,11 +298,11 @@ const Show = z
       description:
         '`pending` until its search settles; `resolved` to its match, `mapped` to a comp, `ambiguous` among its candidates, `missed` when Qloo has no match, or `failed` with the error. Only resolved and mapped shows are scored.'
     }),
-    entity: Candidate.nullable().openapi({ description: 'The matched Qloo entity, or the comp it was mapped to.' }),
+    entity: orNull(Candidate).openapi({ description: 'The matched Qloo entity, or the comp it was mapped to.' }),
     candidates: z.array(Candidate).openapi({ description: 'Up to three candidates for an ambiguous name.' }),
     evidence: z.string().openapi({ description: 'The call number of the search behind its resolution.' }),
     error: z.string().nullable(),
-    compSearch: CompSearch.nullable(),
+    compSearch: orNull(CompSearch),
     downloads: z.number().int().nullable().openapi({ description: 'Downloads per episode.' }),
     status: z.string().nullable().openapi({ description: "The network's own word for it, such as `active`." }),
     description: z.string().nullable(),
@@ -536,7 +541,7 @@ const WorkMatch = z
       description:
         '`resolved` to its match, `ambiguous` among same-title candidates until a work is confirmed, `missed` when Qloo has no such work, or `failed` with the error.'
     }),
-    entity: WorkCandidate.nullable(),
+    entity: orNull(WorkCandidate),
     candidates: z.array(WorkCandidate),
     evidence: z.string().openapi({ description: "The search's call number in the network's evidence." }),
     error: z.string().nullable()
@@ -560,8 +565,8 @@ const Pitch = z
       .string()
       .nullable()
       .openapi({ description: "The pitched guest's name, as the agent read it. It never reaches Qloo." }),
-    work: Work.nullable(),
-    match: WorkMatch.nullable().openapi({ description: 'Null until its work has been searched.' }),
+    work: orNull(Work),
+    match: orNull(WorkMatch).openapi({ description: 'Null until its work has been searched.' }),
     error: z.string().nullable()
   })
   .openapi('Pitch')
@@ -807,7 +812,7 @@ const Reply = z
     pitch: z.string(),
     verdict: z.enum(['book', 'decline', 'later']),
     angle: z.string().nullable().openapi({ description: "A top pitch's episode angle, built from its shared tags." }),
-    sharedTags: SharedTags.nullable(),
+    sharedTags: orNull(SharedTags),
     draft: z.string().openapi({ description: "The reply to the pitch's sender." }),
     status: z.enum(['draft', 'approved', 'discarded']).openapi({
       description:
@@ -826,7 +831,7 @@ const PitchRun = z
     }),
     show: z.string().openapi({ description: 'The roster show the pitches are ranked against.' }),
     startedAt: z.string(),
-    question: Question.nullable(),
+    question: orNull(Question),
     notes: z.array(Note),
     error: z.string().nullable(),
     closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
@@ -834,7 +839,7 @@ const PitchRun = z
       z.object({
         guest: z.string(),
         work: Work,
-        match: WorkMatch.nullable().openapi({ description: 'Null until its work has been searched.' })
+        match: orNull(WorkMatch).openapi({ description: 'Null until its work has been searched.' })
       })
     ),
     lists: z.array(PitchList).nullable().openapi({ description: 'One per work type, once the pitches are ranked.' }),
@@ -1124,7 +1129,7 @@ const Chart = z
           leadingComp: Anchor.nullable().openapi({
             description: 'The comp that clearly drove its fit; null with one anchor, or when none did.'
           }),
-          sharedTags: SharedTags.nullable().openapi({ description: "A finalist's, once they're compared." }),
+          sharedTags: orNull(SharedTags).openapi({ description: "A finalist's, once they're compared." }),
           topicRank: z.number().int().nullable().openapi({
             description: 'Its rank by topic alone among the charted shows; null until the baseline is in.'
           }),
@@ -1200,14 +1205,14 @@ const LaunchRun = RunFields.extend({
   plan: z
     .object({
       name: z.string().nullable(),
-      entity: Candidate.nullable().openapi({ description: "The launch's match in Qloo, once the run has one." }),
+      entity: orNull(Candidate).openapi({ description: "The launch's match in Qloo, once the run has one." }),
       comps: z.array(
         z.object({
           name: z.string(),
           status: z.enum(['unconfirmed', 'confirmed', 'rejected']).openapi({
             description: 'Only a comp confirmed in an answer is scored; `rejected` when none of its matches is it.'
           }),
-          entity: Candidate.nullable(),
+          entity: orNull(Candidate),
           candidates: z.array(Candidate).openapi({
             description:
               "What a `confirm_comps` answer picks from, by ID: the comp's match, or its candidates when two feeds share its name."
@@ -1219,7 +1224,7 @@ const LaunchRun = RunFields.extend({
       description:
         "The launch as this run plans it: its name, its match in Qloo once found, and any comps, each confirmed or not in the run's answers."
     }),
-  question: Question.nullable(),
+  question: orNull(Question),
   notes: z.array(Note),
   error: z.string().nullable().openapi({ description: 'Why the run failed or stopped.' }),
   closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
@@ -1228,7 +1233,7 @@ const LaunchRun = RunFields.extend({
     .nullable()
     .openapi({ description: 'The slot budget, once answered.' }),
   exclusions: z.array(z.string()).nullable().openapi({ description: 'The shows left out of this run, once answered.' }),
-  chart: Chart.nullable(),
+  chart: orNull(Chart),
   topic: z
     .object({
       status: z.enum(['ranking', 'ranked', 'refused', 'failed']),
@@ -1261,7 +1266,7 @@ const LaunchRun = RunFields.extend({
     })
     .nullable()
     .openapi({ description: "The finalists' listeners checked against the launch's." }),
-  insertionOrder: InsertionOrder.nullable()
+  insertionOrder: orNull(InsertionOrder)
 }).openapi('LaunchRun', { example: EXAMPLE_RUN })
 
 const Launch = LaunchFields.extend({
@@ -1269,7 +1274,7 @@ const Launch = LaunchFields.extend({
     description: "The network's roster has changed since the latest run copied it: run again to rank it as it is."
   }),
   runs: z.array(LaunchRunSummary).openapi({ description: 'Every run, oldest first.' }),
-  latestRun: LaunchRun.nullable()
+  latestRun: orNull(LaunchRun)
 }).openapi('Launch', {
   example: {
     ...EXAMPLE_LAUNCH,

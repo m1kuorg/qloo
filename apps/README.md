@@ -11,6 +11,7 @@ Contents:
     1.  [Driving a session](#driving-a-session)
     1.  [Driving a member](#driving-a-member)
     1.  [Driving the API](#driving-the-api)
+    1.  [Driving the SDK](#driving-the-sdk)
 1.  [Check types](#check-types)
 1.  [CI](#ci)
 1.  [Deploy](#deploy)
@@ -125,7 +126,7 @@ Some of a network agent's callers have no connection, such as the API and a laun
 
 ### Driving the API
 
-`api(secret)` in `test/session.ts` is a program with an API key: it sends `Authorization: Bearer <secret>` and no cookie or `Origin`, as `curl` does, and returns a `fetch(path, init)`. An owner makes the key the way the settings page does, by posting `{ name }` to `/app/<id>/settings/api-keys` with `member.fetch`, which answers the secret once (`test/api-keys.test.ts`, `test/api.test.ts`). `networkWithKey(member?)` does both for a new network and returns `{ ada, network, call }`, `call` being the key's `fetch`. `member.fetch('/api/v1/...')` is the same member's session instead, with the app's `Origin` on writes.
+`api(secret)` in `test/session.ts` is a program with an API key: it sends `Authorization: Bearer <secret>` and no cookie or `Origin`, as `curl` does, and returns a `fetch(path, init)`. An owner makes the key the way the settings page does, by posting `{ name }` to `/app/<id>/settings/api-keys` with `member.fetch`, which answers the secret once (`test/api-keys.test.ts`, `test/api.test.ts`). `networkWithKey(member?)` does both for a new network and returns `{ ada, network, secret, call }`, `call` being the key's `fetch`. `member.fetch('/api/v1/...')` is the same member's session instead, with the app's `Origin` on writes.
 
 - Long work answers 202 with the resource's current status, so a test polls the resource until it settles, as a program does: `poll(call, path, ready)` in `test/session.ts` reads `path` until its JSON passes `ready` (`settled` in `test/api.test.ts` predates it). A fake answering at once may settle before the 202 is written; `fakeQloo({ latencyMs })` keeps the work pending long enough to see it.
 - Every refusal is `{ error: { code, message } }`; assert both. A new endpoint goes in `src/routes/api.ts` with its zod schemas, and `test/api.test.ts`'s OpenAPI test fails until it's in the document. Its examples must use made-up shows: the same test checks the document names nothing the demo looks up in Qloo.
@@ -134,22 +135,31 @@ Some of a network agent's callers have no connection, such as the API and a laun
 - The inbox and pitch run routes need `GUEST_PITCHES` on, as the page does: a test turns it on in `beforeEach` and off again after.
 - The rate limits count in fixed one-minute windows that the per-test reset clears. A test of a limit sends requests until one is refused, up to twice the limit and two more, since a window can roll over mid-test (`untilRefused` in `test/api-keys.test.ts`).
 
+### Driving the SDK
+
+`test/sdk.test.ts` drives the Worker through the TypeScript SDK in [`packages/sdk`](/packages/sdk/README.md), imported from its source, as a program using it would. `client()` there makes a network and its key with `networkWithKey` and returns `crossfeed`, a `Crossfeed` client whose `fetch` is `exports.default.fetch`, so its requests reach the Worker in the tests' isolate. Its wait helpers poll as they do for a program; give them `{ interval: 10 }` so a test doesn't wait a second between reads. Approval stays the app's, through the member's launch connection, as in the API's tests.
+
+- A refusal rejects as a `CrossfeedError`; `refusal(call)` there returns its `code`, `status`, and `message` to assert, failing the test if the call succeeds.
+- "reach every route the OpenAPI document describes" calls each of the SDK's methods once and fails while a documented route has no method. A new API route needs its method in `packages/sdk/src/index.ts` and a call there.
+- "match the OpenAPI document the Worker serves" fails once the API's document differs from `packages/sdk/openapi.json`, and "are generated from that document" once the SDK's types weren't generated from it. After changing the API, run `bun run generate` in `packages/sdk`, which writes the document and regenerates the types, then commit both.
+
 ## Check types
 
 ```sh
 bun run typecheck
 ```
 
-`apps/` typechecks with TypeScript 7. The repo root installs TypeScript 5 for `openapi-typescript`, which needs the compiler API that TypeScript 7 dropped, so run `openapi-typescript` from the root.
+`apps/` typechecks with TypeScript 7. The repo root installs TypeScript 5 for `openapi-typescript`, which needs the compiler API that TypeScript 7 dropped, so run `openapi-typescript` from the root. `packages/sdk` typechecks with its own TypeScript 5: run `bun run typecheck` there. `apps/` typechecks the SDK's source too, as its tests import it.
 
 Client files under `src/client/` use React JSX. Server files that render the HTML shell use Hono JSX and start with `/** @jsxImportSource hono/jsx */`.
 
 ## CI
 
-[`.github/workflows/ci.yml`](/.github/workflows/ci.yml) runs on every pull request, including a retitle, and on every push to `main`. One job installs both packages with `bun install --frozen-lockfile`, then runs these steps. Each step runs even when an earlier one fails, so one run reports every failure:
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml) runs on every pull request, including a retitle, and on every push to `main`. One job installs the repo root, `apps/`, and `packages/sdk` with `bun install --frozen-lockfile` (the SDK without its build script), then runs these steps. Each step runs even when an earlier one fails, so one run reports every failure:
 
 1.  **Format:** `bun run lint` at the repo root, Prettier's check.
 1.  **Typecheck:** `bun run typecheck` in `apps/`.
+1.  **Typecheck SDK:** `bun run typecheck` in `packages/sdk`. Format covers its files with the rest of the repo, but for its generated `openapi.json` and `src/openapi.ts`.
 1.  **Test:** `bun run test` in `apps/`.
 1.  **PR title:** the title through `bunx commitlint`, on pull requests only.
 1.  **Secrets:** `gitleaks git` on the commits the pull request or push adds.
@@ -312,6 +322,7 @@ Then the API, with `ACCOUNTS=on`, as an owner signed in:
 1.  With `GUEST_PITCHES=on`, load pitch emails: `curl -X POST .../inbox -H "Authorization: Bearer <key>" -H 'Content-Type: application/mbox' --data-binary @pitches.mbox` answers 202 with the inbox `reading` and each email's sender and subject. `GET .../inbox` reads it back, `done` once every pitch is read, each with its guest, work, and Qloo match; the inbox page shows the same pitches. `message/rfc822` takes one `.eml`, `text/plain` pitches separated by lines of `---`, and `application/json` `{"pitches": [{"from", "subject", "body"}]}`. Loading again answers 409 `conflict` until it adds `?replace=true`. `PATCH .../inbox/pitches/<pitchId>` with `{"entityId": …}` confirms an ambiguous work.
 1.  `POST .../pitch-runs` with `{"show": "<a matched roster show>", "pastGuests": [{"guest": …, "work": {"title": …, "type": "film", "year": …}}]}` answers 202 with the run `running`. Poll `GET .../pitch-runs/<runId>` until it's `completed`, or `waiting` on a `question`, answered by `POST .../pitch-runs/<runId>/answer` with `{"questionId": …, "choice": …}`; a real pitch run rarely asks, since no guest step tells it to. The completed run has one list per work type and a reply to every pitch, as the inbox page shows. `PATCH .../pitch-runs/<runId>/replies/<pitchId>` with `{"draft": …}` rewords a reply and `POST .../replies/<pitchId>/discard` leaves it out; the page follows. Nothing approves one: `.../approve` is a 404 and `{"status": "approved"}` a 400; approve it on the page, and the run then reads it `approved` with `approvedBy`. Load a new inbox and the run still reads with its replies as they were left, but changing them answers 409. Open the page's evidence: no Qloo request names a sender or a guest. With `GUEST_PITCHES=off`, every inbox and pitch run route is a 404 `not_found` saying guest pitches aren't switched on; the document still lists them.
 1.  Plan a launch: `POST .../launches` with `{"name": …}`, or `{"comps": [up to three released shows]}`, answers 201 with the launch `new`, and the dashboard lists it at once. `POST .../launches/<launchId>/runs` with no body runs it as planned (or with a name or comps, anew) and answers 202 with the run `running`. Poll `GET .../launches/<launchId>/runs/<runId>` until it's `waiting` on a `question` or done; answer each with `POST .../runs/<runId>/answer` and the fields its kind takes (`{"questionId": …, "slots": 20}` for a budget, `{"exclude": []}` for exclusions, `picks` from the plan's comp `candidates` for `confirm_comps`). `GET .../launches/<launchId>` reads the latest run in full: the chart's ranks, bands, and moves, the topic baseline, the demographics flags, and the draft order, as the launch page shows them. `PATCH .../insertion-orders/<orderId>` with `{"lines": […]}` edits the draft, and `{"status": "approved"}` is a 400. `GET .../insertion-orders/<orderId>/csv` answers 409 `conflict` until a member approves the order on the launch page, then the CSV the page exports. `GET .../launches/<launchId>/evidence` lists a record for every call number the run cites. `DELETE .../launches/<launchId>` with the key answers 403 `forbidden`; deleting is the dashboard's.
+1.  Through the SDK: build it with `bun install` in `packages/sdk`, add it to a scratch project outside the repo with `bun add <repo>/packages/sdk`, and run a short Bun script with the key, the network's ID, and `baseUrl: 'http://localhost:<port>'`, as [its README](/packages/sdk/README.md) does: import a roster and `waitForRoster`, create a launch, start a run and answer each question `waitForRun` stops on, until the run is `completed` with a draft order; `insertionOrders.exportCsv` rejects with a `CrossfeedError` `conflict` 409 until a member approves the order on the launch page, then resolves with the page's CSV. Load pitches, `waitForInbox`, start a pitch run on a matched show, and `waitForRun({ pitchRunId })` to its replies. The dashboard, launch, and inbox pages show what the script did.
 1.  Another network's ID answers 404 `not_found`, no key 401 `unauthorized`, and past 120 requests in a minute the key answers 429 `rate_limited` with `Retry-After: 60`. "Revoke" asks first; once revoked, the key's next request answers 401. `/api/v1/openapi.json` is the OpenAPI 3.1 document of every route.
 1.  `POST /auth/sign-in/options` 21 times in a minute with one `CF-Connecting-IP` answers 429 the 21st time; another address still gets through.
 
