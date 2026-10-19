@@ -656,12 +656,12 @@ function Privacy({ accounts }: { accounts: boolean }) {
             keys are kept only as hashes, with each key&apos;s name and first characters, who made it, when, and the
             last minute it was used. Each network&apos;s roster, CPM, and inbox are kept in its own storage, with the
             member who approved each reply, and each of its launches in storage of its own: its runs, a copy of the
-            roster and CPM each run ranked, with their Qloo records, the name of the member who started each run, and of
-            the member who approved each insertion order, and when. Only the network&apos;s members and its API keys can
-            open them. A network&apos;s own Qloo key, if an owner adds one, is kept encrypted in the network&apos;s own
-            Qloo storage, with the host it&apos;s for and its last four characters, the only part of it anyone is shown.
-            That storage also caches the answers to the network&apos;s Qloo calls and counts them, apart from every
-            other network&apos;s.
+            roster and CPM each run ranked, with their Qloo records, the name of the member or API key that started each
+            run, and of the member who approved each insertion order, and when. Only the network&apos;s members and its
+            API keys can open them. A network&apos;s own Qloo key, if an owner adds one, is kept encrypted in the
+            network&apos;s own Qloo storage, with the host it&apos;s for and its last four characters, the only part of
+            it anyone is shown. That storage also caches the answers to the network&apos;s Qloo calls and counts them,
+            apart from every other network&apos;s.
           </li>
         )}
         <li>

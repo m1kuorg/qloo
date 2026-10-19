@@ -156,7 +156,7 @@ export type RunSummary = {
   pitchesFor?: string // a guest pitch run's show
   status: Run['status']
   startedAt: string // ISO time
-  startedBy?: string // the member who started it, on a launch's agent; absent on the demo's
+  startedBy?: string // who started it, on a launch's agent: a member by name, or `API key “<name>”`; absent on the demo's
   replayed?: true // the stored sample run, replayed
 }
 
@@ -201,7 +201,7 @@ export type LaunchSummary = {
   finalists: number
   slots: number | null
   slotValue: number | null // dollars
-  startedBy: string | null // the member who started its last run
+  startedBy: string | null // who started its last run, as RunSummary says
   lastRun: string | null // ISO time
 }
 
@@ -472,9 +472,15 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.repriceOrder()
   }
 
-  // Starts a launch run and returns at once; the run's progress arrives in synced state.
+  // Starts a launch run and returns at once; the run's progress arrives in synced state. A page's run
+  // names the member on its connection as its starter.
   @callable()
   async startLaunch(input: LaunchInput) {
+    return this.runLaunch(input, this.memberName())
+  }
+
+  // Starts a launch run as `startLaunch` does, naming `startedBy` as who started it, or no one.
+  protected async runLaunch(input: LaunchInput, startedBy: string | null) {
     const { name, comps } = readLaunch(input, 'to start a run')
     // Decided before anything runs: while Qloo can't be called, or a daily model run limit is reached,
     // the unchanged sample launch replays the stored sample run and any other run stops, so neither
@@ -482,7 +488,6 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     // free starts are used, the start is refused before it keeps anything. A launch's agent first
     // fetches the roster it will rank, which may refuse the start too.
     const visitor = this.visitor()
-    const startedBy = this.memberName()
     const { down, limited, refused, stored, network } = await this.admit(async () => {
       const network = await this.networkRoster()
       // Whether Qloo can be called is up to the gateway this run's calls will go through; the model
@@ -583,7 +588,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 
   // The name of the member on the current call's connection, to say who started a run or approved an
   // order: a launch's member (launch-agent.ts). A demo session names no one. Read it before the call's
-  // first await.
+  // first await. A program's run is named by the Worker instead (`LaunchAgent.startLaunchAs`).
   protected memberName(): string | null {
     return null
   }

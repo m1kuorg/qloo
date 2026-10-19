@@ -139,7 +139,7 @@ describe('the privacy page and the beta terms', () => {
       "A network counts as one visitor of its own, whichever of its members makes the network's calls and runs."
     const keys = "A network's API keys are kept only as hashes"
     const signOff =
-      'the name of the member who started each run, and of the member who approved each insertion order, and when'
+      'the name of the member or API key that started each run, and of the member who approved each insertion order, and when'
     const launchGone =
       "Deleting a launch, which any of the network's members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records."
     const networkGone =
