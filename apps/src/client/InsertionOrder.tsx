@@ -14,6 +14,7 @@ export function InsertionOrderPanel({
   budget,
   actions,
   readOnly,
+  exportHref,
   cites,
   openCall,
   opened
@@ -25,6 +26,7 @@ export function InsertionOrderPanel({
   budget: Budget | null
   actions: { edit: (lines: LineInput[]) => Promise<void>; approve: () => Promise<void> } | null
   readOnly: string | null // why there are no actions, such as an earlier run being viewed
+  exportHref: string | null // where an approved order's CSV downloads, if it has an export here
   cites: Record<string, string> // by show, the compare call behind the shared tags its angle draws on
   openCall: (call: string) => void
   opened: string | null
@@ -106,9 +108,11 @@ export function InsertionOrderPanel({
           {actions ? (
             <div className="acts">
               {approved ? (
-                <a className="btn" href={`/api/insertion-orders/${order.id}.csv`} download>
-                  Export CSV
-                </a>
+                exportHref && (
+                  <a className="btn" href={exportHref} download>
+                    Export CSV
+                  </a>
+                )
               ) : (
                 <button className="btn pri" type="button" disabled={busy} onClick={() => void run(actions.approve)}>
                   Approve
@@ -121,8 +125,8 @@ export function InsertionOrderPanel({
             </div>
           ) : (
             <div className="acts">
-              {approved && (
-                <a className="btn" href={`/api/insertion-orders/${order.id}.csv`} download>
+              {approved && exportHref && (
+                <a className="btn" href={exportHref} download>
                   Export CSV
                 </a>
               )}

@@ -22,6 +22,9 @@ export type Evidence = {
     explainability: { id: string; score: number }[]
   }[]
   replayed?: true // copied from the stored sample run by a replay: no request was made for it
+  // The network's call this record copies, as a launch's run started: the network's agent made the
+  // request when its roster was looked up, and the launch's run made none.
+  copiedFrom?: string
 }
 
 export type CallEvidence = Omit<Evidence, 'call' | 'run'>

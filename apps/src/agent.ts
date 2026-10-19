@@ -147,6 +147,7 @@ export type RunSummary = {
   pitchesFor?: string // a guest pitch run's show
   status: Run['status']
   startedAt: string // ISO time
+  startedBy?: string // the member who started it, on a launch's agent; absent on the demo's
   replayed?: true // the stored sample run, replayed
 }
 
@@ -179,10 +180,11 @@ export type State = {
   checklistDismissed?: string[]
 }
 
-// A launch as its network's dashboard lists it, reported by the launch's agent (#162).
+// A launch as its network's dashboard lists it, reported by the launch's agent (launch-agent.ts).
 export type LaunchSummary = {
   id: string
-  name: string
+  name: string | null // null for an unreleased launch planned from comps
+  comps: string[] // the comps standing in for an unreleased launch; empty for a released one
   status: 'new' | 'running' | 'waiting' | 'ranked' | 'order drafted' | 'order approved' | 'failed' | 'stopped'
   finalists: number
   slots: number | null
@@ -206,8 +208,12 @@ export type RunSnapshot = Omit<State, 'runs' | 'guide'>
 // less the visitor's own guest pitches, and every evidence record that cites. The gateway keeps the latest.
 type SampleRun = { state: Omit<RunSnapshot, 'inbox' | 'booking'>; evidence: Evidence[] }
 
+// What a launch's run ranks, copied from its network's agent as the run starts (launch-agent.ts): the
+// roster and CPM, and the evidence records the roster cites.
+export type RosterCopy = { roster: Show[]; cpm: number | null; evidence: Evidence[] }
+
 // A call number wherever it appears in state, such as "C-07".
-const CALL = /\bC-\d+\b/g
+export const CALL = /\bC-\d+\b/g
 
 // Pitches read at once: each is one model call, then one Qloo search the gateway paces.
 const READ_CONCURRENCY = 5
@@ -449,29 +455,39 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // Starts a launch run and returns at once; the run's progress arrives in synced state.
   @callable()
   async startLaunch(input: LaunchInput) {
-    const given = typeof input === 'object' && input !== null ? input : {} // it arrives as untrusted JSON
-    const comps = 'comps' in given ? readComps(given.comps) : null
-    if (comps?.length === 0) throw new Error('Name at least one comp to start a run.')
-    const name = comps ? null : 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
-    if (name === '') throw new Error('Name the launch to start a run.')
+    const { name, comps } = readLaunch(input, 'to start a run')
     // Decided before anything runs: while Qloo can't be called, or a daily model run limit is reached,
     // the unchanged sample launch replays the stored sample run and any other run stops, so neither
     // calls Qloo or Claude, nor counts as a model run. Each is a free start, and once the visitor's
-    // free starts are used, the start is refused before it keeps anything.
+    // free starts are used, the start is refused before it keeps anything. A launch's agent first
+    // fetches the roster it will rank, which may refuse the start too.
     const visitor = this.visitor()
-    const { down, limited, refused, stored } = await this.admit(() =>
-      this.env.QlooGateway.getByName('global').admitLaunch(visitor, onSampleLaunch(this.state, name))
-    )
+    const startedBy = this.runStarter()
+    const { down, limited, refused, stored, network } = await this.admit(async () => {
+      const network = await this.networkRoster()
+      const admitted = await this.env.QlooGateway.getByName('global').admitLaunch(
+        visitor,
+        onSampleLaunch(this.state, name)
+      )
+      return { ...admitted, network }
+    })
     if (refused) throw new Error(`${refused}.`)
     const { run, startedAt } = this.beginRun()
     this.setState({
       ...this.state,
+      ...(network && this.copyRoster(network)),
       launch: { name, match: null, comps: (comps ?? []).map(newComp) },
       run: newRun(run),
       // Sessions from before run limits have no list.
       runs: [
         ...(this.state.runs ?? []),
-        { id: run, launch: name, status: 'running', startedAt: new Date(startedAt).toISOString() }
+        {
+          id: run,
+          launch: name,
+          status: 'running',
+          startedAt: new Date(startedAt).toISOString(),
+          ...(startedBy && { startedBy })
+        }
       ],
       ranking: null,
       demographics: null,
@@ -530,6 +546,24 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.append(run, { role: 'user', content: `${launch} Plan its promos.\n\n${roster}` })
     void this.keepAliveWhile(() => this.runLoop(run)).catch((e) => this.finish(run, `The run stopped: ${message(e)}`))
     return { runId: run }
+  }
+
+  // Where a launch run's roster comes from: a demo session ranks its own, and a launch's agent copies
+  // its network's as the run starts (launch-agent.ts), before anything else, so a refusal keeps nothing.
+  protected async networkRoster(): Promise<RosterCopy | null> {
+    return null
+  }
+
+  // Who starts a launch run on the current call, for its run list: a launch's member (launch-agent.ts).
+  // A demo session lists no one. Read it before the call's first await.
+  protected runStarter(): string | null {
+    return null
+  }
+
+  // A network's roster and CPM as a launch's run copies them, with the records the roster cites copied
+  // into this log under new numbers, each marked with the network's call it copies.
+  private copyRoster({ roster, cpm, evidence }: RosterCopy): Pick<State, 'roster' | 'cpm'> {
+    return { roster: this.copyEvidence(roster, evidence, (copy, from) => ({ ...copy, copiedFrom: from.call })), cpm }
   }
 
   // Starts a guest pitch run and returns at once. The past guests' works are looked up in Qloo like
@@ -1334,16 +1368,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // it cites copied into this session's log under new numbers and labelled replayed. Nothing calls
   // Qloo or Claude.
   private replay(run: string, stored: SampleRun, reason: string) {
-    const seqs = stored.evidence.map(() => this.numberCall())
-    const numbers = new Map(stored.evidence.map((e, i) => [e.call, callNumber(seqs[i])]))
-    const renumbered = JSON.stringify(stored)
-      .replace(CALL, (call) => numbers.get(call) ?? call)
-      .replaceAll(stored.state.run!.id, run)
-    const { state, evidence }: SampleRun = JSON.parse(renumbered)
-    evidence.forEach((e, i) => {
-      const record: Evidence = { ...e, replayed: true }
-      this.sql`UPDATE evidence SET record = ${JSON.stringify(record)} WHERE seq = ${seqs[i]}`
-    })
+    const { state: ended, evidence }: SampleRun = JSON.parse(
+      JSON.stringify(stored).replaceAll(stored.state.run!.id, run)
+    )
+    const state = this.copyEvidence(ended, evidence, (copy) => ({ ...copy, replayed: true }))
     this.setState({
       ...this.state,
       ...state,
@@ -1352,6 +1380,20 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     })
     // Runs stored before closing lines have none.
     this.complete(run, state.run!.closing ?? null)
+  }
+
+  // Copies evidence records into this log under new numbers, in their order, each labelled by `mark`
+  // from the record it copies, and returns `cites` with their calls renumbered. The replay copies the
+  // stored sample run's records, and a launch's run its network's roster's.
+  private copyEvidence<T>(cites: T, evidence: Evidence[], mark: (copy: Evidence, from: Evidence) => Evidence): T {
+    const seqs = evidence.map(() => this.numberCall())
+    const numbers = new Map(evidence.map((e, i) => [e.call, callNumber(seqs[i])]))
+    const renumber = <U>(value: U): U =>
+      JSON.parse(JSON.stringify(value).replace(CALL, (call) => numbers.get(call) ?? call))
+    evidence.forEach((e, i) => {
+      this.sql`UPDATE evidence SET record = ${JSON.stringify(mark(renumber(e), e))} WHERE seq = ${seqs[i]}`
+    })
+    return renumber(cites)
   }
 
   // Pauses or resumes the run, here and in the session's list of runs.
@@ -1613,6 +1655,23 @@ function readBudget({ slots, dollars }: Reply): Budget {
   return { dollars }
 }
 
+// A launch as the programmer named it, from untrusted JSON: a released launch's trimmed name, or
+// its comps (readComps). Throws, saying what's missing `to` do what they asked, such as "to start a run".
+export function readLaunch(
+  input: unknown,
+  to: string
+): { name: string; comps: null } | { name: null; comps: string[] } {
+  const given = typeof input === 'object' && input !== null ? input : {}
+  if ('comps' in given) {
+    const comps = readComps(given.comps)
+    if (comps.length === 0) throw new Refusal('invalid', `Name at least one comp ${to}.`)
+    return { name: null, comps }
+  }
+  const name = 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
+  if (!name) throw new Refusal('invalid', `Name the launch ${to}.`)
+  return { name, comps: null }
+}
+
 // Comp names as the programmer gave them: trimmed, blanks dropped, and the same name once. Throws
 // past the limit.
 function readComps(names: unknown): string[] {
@@ -1621,13 +1680,14 @@ function readComps(names: unknown): string[] {
   for (const name of given.map((n) => n.trim()).filter(Boolean))
     if (!comps.some((c) => sameName(c, name))) comps.push(name)
   if (comps.length > MAX_COMPS)
-    throw new Error(
+    throw new Refusal(
+      'invalid',
       `${comps.length} comps is over the limit of ${MAX_COMPS}. Name up to ${MAX_COMPS} released shows to stand in for the launch.`
     )
   return comps
 }
 
-const newComp = (name: string): Comp => ({ name, match: null, status: 'unconfirmed', entity: null })
+export const newComp = (name: string): Comp => ({ name, match: null, status: 'unconfirmed', entity: null })
 
 // A run as it starts: running, with nothing asked or answered yet.
 const newRun = (id: string): Run => ({
