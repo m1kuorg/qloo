@@ -4,7 +4,7 @@ import type { Role } from '../directory'
 import type { Inbox } from '../inbox'
 import type { NetworkAgent } from '../network-agent'
 import { dollars } from '../order'
-import { useLaunchFields } from './App'
+import { launchTitle, useLaunchFields } from './App'
 import { Alert, ScrollTable, useAction } from './controls'
 import { stateLabel } from './Inbox'
 import { StateLine } from './states'
@@ -196,7 +196,7 @@ function Launches({ launches, network }: { launches: LaunchSummary[]; network: N
             <tr key={l.id}>
               <td>
                 <a className="nm" href={`${network.links.launches}/${l.id}`}>
-                  {l.name ?? l.comps.join(' · ')}
+                  {launchTitle(l.name, l.comps)}
                 </a>
                 {l.name === null && <div className="tg">Unreleased, from comps</div>}
               </td>

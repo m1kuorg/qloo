@@ -9,6 +9,7 @@ import {
   type RosterCopy,
   type State
 } from './agent'
+import { Refusal } from './refusal'
 import { sample, sampleRoster } from './sample'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
@@ -23,6 +24,9 @@ export function memberTag({ request }: ConnectionContext) {
   const member = request.headers.get(MEMBER_HEADER)
   return member ? [`${MEMBER_TAG}${member}`] : []
 }
+
+// A launch's agent's name: its network's ID and its own, as ADR 0001 names it.
+export const launchAgentName = (networkId: string, launchId: string) => `${networkId}:${launchId}`
 
 // What a network's agents count against for the per-visitor limits: the network, from the agent's
 // name, which is the network's ID for its own agent and `<networkId>:<launchId>` for a launch's.
@@ -62,7 +66,7 @@ export class NetworkAgent extends CrossfeedAgent {
     super.kick(memberId)
     await Promise.all(
       (this.state.launches ?? []).map(async ({ id }) =>
-        (await getAgentByName(this.env.LaunchAgent, `${this.name}:${id}`)).kick(memberId)
+        (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).kick(memberId)
       )
     )
   }
@@ -90,19 +94,9 @@ export class NetworkAgent extends CrossfeedAgent {
   async createLaunch(input: LaunchInput) {
     const { name, comps } = readLaunch(input, 'to plan it')
     const id = crypto.randomUUID()
-    await (await getAgentByName(this.env.LaunchAgent, `${this.name}:${id}`)).plan({ name, comps: comps ?? [] })
-    const launch: LaunchSummary = {
-      id,
-      name,
-      comps: comps ?? [],
-      status: 'new',
-      finalists: 0,
-      slots: null,
-      slotValue: null,
-      startedBy: null,
-      lastRun: null
-    }
-    this.setState({ ...this.state, launches: [launch, ...(this.state.launches ?? [])] })
+    const launch = await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))
+    const summary: LaunchSummary = { id, ...(await launch.plan({ name, comps: comps ?? [] })) }
+    this.setState({ ...this.state, launches: [summary, ...(this.state.launches ?? [])] })
     return { id }
   }
 
@@ -113,7 +107,8 @@ export class NetworkAgent extends CrossfeedAgent {
   rosterForLaunch(): RosterCopy {
     const pending = this.state.roster.filter((s) => s.resolution === 'pending').length
     if (pending > 0)
-      throw new Error(
+      throw new Refusal(
+        'conflict',
         `The network's roster is still looking up ${pending === 1 ? '1 show' : `${pending} shows`} in Qloo. Start the run once the lookups have settled, so it ranks every show.`
       )
     const roster = this.state.roster.map((s) => ({ ...s, compSearch: null }))

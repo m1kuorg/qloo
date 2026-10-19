@@ -8,6 +8,9 @@ const ROSTER =
 const INBOX = "A launch has no inbox: guest pitches go to the network's inbox, on its own page."
 const NO_GUIDE = "A launch has no guide: it's the sample network's, at /demo."
 
+// How many times a launch tries to report a change to its network.
+const REPORT_ATTEMPTS = 3
+
 // One instance per launch of a signed-in network, named `<networkId>:<launchId>` (ADR 0001). Its own
 // class keeps its namespace apart from the demo's sessions and the networks'. It holds the launch, its
 // runs, and their rankings and insertion orders; the roster and the inbox are its network's.
@@ -37,16 +40,13 @@ export class LaunchAgent extends CrossfeedAgent {
   }
 
   // After any change to what the network's list says of the launch, reports it there, in order, so
-  // every member's dashboard follows the launch live. A report that fails waits for the next change.
+  // every member's dashboard follows the launch live.
   onStateChanged(state: State) {
     const summary = summaryOf(state)
     const said = JSON.stringify(summary)
     if (said === this.reported) return
     this.reported = said
-    const [network, launch] = this.name.split(':')
-    this.reports = this.reports
-      .then(async () => (await getAgentByName(this.env.NetworkAgent, network)).reportLaunch(launch, summary))
-      .catch((e) => console.error(JSON.stringify({ event: 'launch_report', launch, error: String(e) })))
+    this.reports = this.reports.then(() => this.report(summary, said))
     void this.keepAliveWhile(() => this.reports)
   }
 
@@ -54,15 +54,43 @@ export class LaunchAgent extends CrossfeedAgent {
   private reported: string | null = null
   private reports = Promise.resolve()
 
-  // Each run ranks the network's roster as it stands when the run starts.
-  protected async networkRoster(): Promise<RosterCopy> {
-    return (await getAgentByName(this.env.NetworkAgent, this.name.split(':')[0])).rosterForLaunch()
+  // Sends a report, trying a failed one twice more unless a newer one replaces it. One that still
+  // fails is logged, and the next change sends the row whole again.
+  private async report(summary: Omit<LaunchSummary, 'id'>, said: string) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await (await getAgentByName(this.env.NetworkAgent, this.networkId)).reportLaunch(this.launchId, summary)
+      } catch (e) {
+        console.error(JSON.stringify({ event: 'launch_report', launch: this.launchId, attempt, error: String(e) }))
+        if (this.reported !== said) return
+        if (attempt === REPORT_ATTEMPTS) {
+          this.reported = null
+          return
+        }
+        await new Promise((retry) => setTimeout(retry, attempt * 1000))
+      }
+    }
   }
 
-  // Sets the launch it plans, named or from comps, as its network creates it. Over RPC only: a page
-  // starts a run instead, which may name it anew.
+  // The network's ID and the launch's, from the agent's name (launchAgentName).
+  private get networkId() {
+    return this.name.split(':')[0]
+  }
+
+  private get launchId() {
+    return this.name.split(':')[1]
+  }
+
+  // Each run ranks the network's roster as it stands when the run starts.
+  protected async networkRoster(): Promise<RosterCopy> {
+    return (await getAgentByName(this.env.NetworkAgent, this.networkId)).rosterForLaunch()
+  }
+
+  // Sets the launch it plans, named or from comps, as its network creates it, and returns the row the
+  // network lists for it. Over RPC only: a page starts a run instead, which may name it anew.
   plan({ name, comps }: { name: string | null; comps: string[] }) {
     this.setState({ ...this.state, launch: { name, match: null, comps: comps.map(newComp) } })
+    return summaryOf(this.state)
   }
 
   // The roster and the inbox are the network's (ADR 0001), so a launch's agent refuses their actions,

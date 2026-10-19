@@ -25,7 +25,7 @@ import {
   type Member,
   type Network
 } from '../directory'
-import { MEMBER_HEADER, MEMBER_NAME_HEADER } from '../network-agent'
+import { launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER } from '../network-agent'
 import { cpmProblem } from '../order'
 import { appShell, networkLinks, type AppVariables } from '../shell'
 import { readName } from '../text'
@@ -320,7 +320,7 @@ appPages.get('/agents/launch/:networkId/:launchId', accountsOn, async (c) => {
   const { networkId, launchId } = c.req.param()
   const member = await upgradingMember(c, networkId)
   if (!member || !(await listsLaunch(c.env, networkId, launchId))) return c.notFound()
-  return forward(c, await getAgentByName(c.env.LaunchAgent, `${networkId}:${launchId}`), member)
+  return forward(c, await getAgentByName(c.env.LaunchAgent, launchAgentName(networkId, launchId)), member)
 })
 
 // The member asking to connect to one of network `networkId`'s agents: signed in, upgrading to a

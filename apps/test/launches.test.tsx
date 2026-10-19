@@ -13,6 +13,7 @@ import { Dashboard } from '../src/client/Dashboard'
 import { EvidencePanel } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
+import { refusalCode } from '../src/refusal'
 import { networkLinks } from '../src/shell'
 import {
   fakeClaude,
@@ -176,7 +177,8 @@ describe('creating a launch', () => {
 
   it('refuses a launch with no name, no comps, or more than three comps, and lists nothing', async () => {
     const ada = await openMember()
-    const agent = await connect(ada, `/agents/network/${await created(ada)}`)
+    const network = await created(ada)
+    const agent = await connect(ada, `/agents/network/${network}`)
     for (const [input, error] of [
       [{ name: '  ' }, 'Name the launch to plan it.'],
       [{ comps: ['', ' '] }, 'Name at least one comp to plan it.'],
@@ -184,6 +186,10 @@ describe('creating a launch', () => {
       [null, 'Name the launch to plan it.']
     ] as const)
       await expect(agent.call('createLaunch', input), JSON.stringify(input)).rejects.toThrow(error)
+    // The API, calling over RPC, reads why from the refusal's code.
+    const rpc = await getAgentByName(env.NetworkAgent, network)
+    const refused = await (async () => rpc.createLaunch({ name: ' ' }))().catch((e: unknown) => e)
+    expect(refusalCode(refused)).toBe('invalid')
     expect(agent.state()!.launches).toEqual([])
   })
 })
@@ -457,6 +463,11 @@ describe("a launch's run", () => {
     )
     expect(agent.state()).toEqual(before)
     expect(modelRequests()).toEqual([])
+    // Over RPC, as the API will start a run, the refusal says it's the roster's state.
+    const { id } = await roster.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const rpc = await getAgentByName(env.LaunchAgent, `${network}:${id}`)
+    const refused = await (async () => rpc.startLaunch({ name: 'Night Shift Cinema' }))().catch((e: unknown) => e)
+    expect(refusalCode(refused)).toBe('conflict')
 
     answer.resolve()
     await roster.until((s) => s.roster.every((r) => r.resolution !== 'pending'))
@@ -809,6 +820,9 @@ describe('the pages, as a member reads them', () => {
     expect(read).toContain('Corner Booth Resolved Corner Booth')
     expect(read).toContain('Network CPM CPM $25 per 1,000 downloads')
     expect(read).toContain("Each run takes the network's CPM as it starts.")
+    expect(read).toContain(
+      "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them."
+    )
     for (const elsewhere of [
       'Import roster',
       'Upload a file',

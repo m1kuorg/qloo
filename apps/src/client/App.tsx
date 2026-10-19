@@ -250,6 +250,7 @@ export function Workspace({
               runs={runs}
               viewing={viewing?.id ?? null}
               view={async (id) => setViewing(id === null ? null : { id, state: await agent.stub.getRun(id) })}
+              counted={network ? 'network' : 'visitor'}
             />
           )}
           {(!network || roster.length > 0) && <RosterCheck roster={roster} />}
@@ -498,8 +499,14 @@ function LaunchHeader({
   )
 }
 
-// What a launch goes by: its name, or for an unreleased one, its comps.
-const launchName = (launch: Launch | null | undefined) => launch?.name ?? launch?.comps.map((c) => c.name).join(' · ')
+// What a launch goes by: its name, or for an unreleased one, its comps. The dashboard lists it so too.
+export const launchTitle = (name: string | null, comps: string[]) => name ?? comps.join(' · ')
+const launchName = (launch: Launch | null | undefined) =>
+  launch &&
+  launchTitle(
+    launch.name,
+    launch.comps.map((c) => c.name)
+  )
 
 // A form's launch: released, by its name, or unreleased, by up to three comps, starting from
 // `prefill`. The launch header starts a run from it, and the dashboard plans a new launch.
@@ -941,11 +948,13 @@ function OpenQuestion({ question, launch, agent }: { question: Question; launch:
 function RunList({
   runs,
   viewing,
-  view
+  view,
+  counted
 }: {
   runs: RunSummary[]
   viewing: string | null
   view: (id: string | null) => Promise<void>
+  counted: 'visitor' | 'network' // whom the daily limits on model runs count
 }) {
   const { busy, error, run } = useAction()
   const latest = runs.at(-1)?.id
@@ -993,8 +1002,10 @@ function RunList({
           })}
       </ol>
       <p className="help">
-        Each run starts fresh; earlier ones stay here to compare. Model runs are limited per visitor and per UTC day,
-        across browsers. Runs that replay or stop at once have a higher limit of their own.
+        Each run starts fresh; earlier ones stay here to compare.{' '}
+        {counted === 'network'
+          ? "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them. Runs that stop at once have a higher limit of their own."
+          : 'Model runs are limited per visitor and per UTC day, across browsers. Runs that replay or stop at once have a higher limit of their own.'}
       </p>
       <Alert error={error} />
     </section>

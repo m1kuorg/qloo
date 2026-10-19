@@ -1664,11 +1664,11 @@ export function readLaunch(
   const given = typeof input === 'object' && input !== null ? input : {}
   if ('comps' in given) {
     const comps = readComps(given.comps)
-    if (comps.length === 0) throw new Error(`Name at least one comp ${to}.`)
+    if (comps.length === 0) throw new Refusal('invalid', `Name at least one comp ${to}.`)
     return { name: null, comps }
   }
   const name = 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
-  if (!name) throw new Error(`Name the launch ${to}.`)
+  if (!name) throw new Refusal('invalid', `Name the launch ${to}.`)
   return { name, comps: null }
 }
 
@@ -1680,7 +1680,8 @@ function readComps(names: unknown): string[] {
   for (const name of given.map((n) => n.trim()).filter(Boolean))
     if (!comps.some((c) => sameName(c, name))) comps.push(name)
   if (comps.length > MAX_COMPS)
-    throw new Error(
+    throw new Refusal(
+      'invalid',
       `${comps.length} comps is over the limit of ${MAX_COMPS}. Name up to ${MAX_COMPS} released shows to stand in for the launch.`
     )
   return comps
