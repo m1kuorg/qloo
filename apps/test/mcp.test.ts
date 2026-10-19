@@ -333,7 +333,8 @@ describe('planning a launch through the MCP server', () => {
     expect(created.text).toContain(page)
 
     const started = await client.call('start_launch_run', { launchId })
-    expect(started.structured).toMatchObject({ status: 'running' })
+    // The run names the assistant's API key as its starter, as the launch page's run list shows.
+    expect(started.structured).toMatchObject({ status: 'running', startedBy: 'API key “Nightly sync”' })
     const runId = started.structured.id
     const read = (ready: (launch: any) => boolean) => client.until('get_launch', { launchId }, ready)
 

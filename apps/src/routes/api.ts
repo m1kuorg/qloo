@@ -102,7 +102,7 @@ const caller: MiddlewareHandler<ApiEnv> = async (c, next) => {
   if (authorization !== undefined) {
     const key = await keyFor(c.env, authorization)
     if (key.networkId !== network) throw new Refusal('not_found', NOT_FOUND)
-    c.set('caller', { keyId: key.id })
+    c.set('caller', { keyId: key.id, keyName: key.name })
   } else {
     const member = await signedIn(c)
     if (!member)
@@ -1072,7 +1072,8 @@ const LaunchFields = z.object({
   slots: z.number().int().nullable().openapi({ description: "Its insertion order's promo slots." }),
   slotValue: z.number().nullable().openapi({ description: "Its insertion order's total value, in dollars." }),
   startedBy: z.string().nullable().openapi({
-    description: 'The member who started its latest run in the app, by name; null for one started through the API.'
+    description:
+      'Who started its latest run: a member, by name, or an API key, as `API key “<its name>”`; null before its first run, or when no one was recorded.'
   }),
   lastRun: z.string().nullable().openapi({ description: 'When its latest run started.' })
 })
@@ -1096,10 +1097,10 @@ const RunFields = z.object({
       '`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`.'
   }),
   startedAt: z.string(),
-  startedBy: z
-    .string()
-    .nullable()
-    .openapi({ description: 'The member who started it in the app, by name; null for a run started through the API.' })
+  startedBy: z.string().nullable().openapi({
+    description:
+      'Who started it: a member, in the app or with their session, by name, or an API key, as `API key “<its name>”`; null when no one was recorded.'
+  })
 })
 const LaunchRunSummary = RunFields.openapi('LaunchRunSummary')
 

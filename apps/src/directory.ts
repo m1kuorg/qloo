@@ -548,19 +548,23 @@ export async function revokeApiKey(db: D1Database, networkId: string, keyId: str
   return meta.changes > 0
 }
 
-// The API key a request's secret is, and the network it acts for, while it isn't revoked; null when
-// no key in use has that secret. A use more than a minute after the last is noted as its last use.
-export async function apiKeyFor(db: D1Database, secret: string): Promise<{ id: string; networkId: string } | null> {
+// The API key a request's secret is, its name, and the network it acts for, while it isn't revoked;
+// null when no key in use has that secret. A use more than a minute after the last is noted as its
+// last use.
+export async function apiKeyFor(
+  db: D1Database,
+  secret: string
+): Promise<{ id: string; name: string; networkId: string } | null> {
   const hash = await sha256(secret)
   const row = await db
-    .prepare('SELECT id, network_id, last_used FROM api_keys WHERE secret_hash = ? AND revoked IS NULL')
+    .prepare('SELECT id, name, network_id, last_used FROM api_keys WHERE secret_hash = ? AND revoked IS NULL')
     .bind(hash)
-    .first<{ id: string; network_id: string; last_used: number | null }>()
+    .first<{ id: string; name: string; network_id: string; last_used: number | null }>()
   if (!row) return null
   const now = Date.now()
   if (row.last_used === null || now - row.last_used >= SEEN_EVERY_MS)
     await db.prepare('UPDATE api_keys SET last_used = ? WHERE id = ?').bind(now, row.id).run()
-  return { id: row.id, networkId: row.network_id }
+  return { id: row.id, name: row.name, networkId: row.network_id }
 }
 
 // Network `networkId`'s name, or null when there's no such network.
