@@ -184,6 +184,16 @@ export async function poll<T>(
   }
 }
 
+// Sends requests until one is refused, at most twice the limit and two more: a fixed minute's window
+// may roll over once while they go, which starts the count again.
+export async function untilRefused(send: () => Promise<Response>, limit: number) {
+  for (let sent = 1; sent <= 2 * limit + 2; sent++) {
+    const res = await send()
+    if (res.status !== 200) return { sent, res }
+  }
+  throw new Error(`No request of ${2 * limit + 2} was refused`)
+}
+
 // A refusal as a program branches on it: the status, and the error's code and message.
 export const refused = async (res: Response) => [res.status, (await res.json<{ error: object }>()).error]
 

@@ -2,7 +2,7 @@
 // with one of the network's API keys, listing the tools, then calling them to plan a launch to a draft
 // order and to rank a day's pitches, relaying each of the agent's questions with the human's answer.
 import { env, exports } from 'cloudflare:workers'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   fakeClaude,
   fakeInsights,
@@ -15,7 +15,7 @@ import {
   turn,
   type Extracted
 } from './fake'
-import { networkWithKey } from './session'
+import { networkWithKey, untilRefused } from './session'
 
 const origin = 'https://crossfeed.test'
 
@@ -146,10 +146,19 @@ describe('the MCP server', () => {
     }
   })
 
-  it('has no tool that approves, and tells the assistant to relay every question to the human', async () => {
+  it('has no tool that approves, says where a member does, and tells the assistant to relay every question', async () => {
     env.GUEST_PITCHES = 'on'
-    const { secret } = await networkWithKey()
+    const { network, secret } = await networkWithKey()
     const tools = await assistant(secret).tools()
+    const described = (name: string) => tools.find((t) => t.name === name)!.description
+    for (const name of ['start_launch_run', 'get_launch', 'edit_order'])
+      expect(described(name), name).toContain(
+        `Only a member of the network approves an insertion order, in the app on its launch's page, ${origin}/app/${network}/launches/<launchId>.`
+      )
+    for (const name of ['start_pitch_run', 'get_pitch_run'])
+      expect(described(name), name).toContain(
+        `Only a member of the network approves a reply, in the app on the inbox page, ${origin}/app/${network}/inbox.`
+      )
     for (const tool of tools) {
       expect(tool.name).not.toMatch(/approv/)
       expect(tool.description, tool.name).toContain(
@@ -215,9 +224,8 @@ describe('the MCP server', () => {
     } finally {
       env.ACCOUNTS = 'on'
     }
-    // At most twice the limit and two more: a fixed minute's window may roll over once while they go.
-    let res = await client.post('tools/list')
-    for (let sent = 1; res.status === 200 && sent <= 2 * 120 + 2; sent++) res = await client.post('tools/list')
+    // 120 requests a minute per key, as wrangler.jsonc's API_LIMITER allows.
+    const { res } = await untilRefused(() => client.post('tools/list'), 120)
     expect(res.status).toBe(429)
     expect(res.headers.get('Retry-After')).toBe('60')
     expect(await res.json()).toEqual({
@@ -418,12 +426,14 @@ const scores: Record<string, { entity_id: string; name: string; affinity: number
 }
 
 describe('triaging pitches through the MCP server', () => {
+  beforeEach(() => {
+    env.GUEST_PITCHES = 'on'
+  })
   afterEach(() => {
     env.GUEST_PITCHES = 'off'
   })
 
   it("loads the pitches, confirms a work, and relays the run's question before reading its replies", async () => {
-    env.GUEST_PITCHES = 'on'
     fakeQloo({ search: works })
     fakeInsights((body) => scores[String(body['filter.type'])])
     fakeReader(3, (pitch) => Object.entries(readings).find(([title]) => pitch.includes(title))![1])
@@ -510,7 +520,6 @@ describe('triaging pitches through the MCP server', () => {
   })
 
   it('loads JSON pitches too, and refuses both kinds at once, or loading over pitches without replace', async () => {
-    env.GUEST_PITCHES = 'on'
     fakeQloo({ search: works })
     fakeReader(2, (pitch) => Object.entries(readings).find(([title]) => pitch.includes(title))![1])
     const client = assistant((await networkWithKey()).secret)

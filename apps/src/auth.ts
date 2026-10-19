@@ -1,8 +1,9 @@
 // A member's session in the browser, and the guards every accounts route shares: the ACCOUNTS
-// switch, the same-origin check on writes, and where `?next` may lead.
+// switch, the same-origin check on writes, where `?next` may lead, and a program's API key.
 import type { Context, MiddlewareHandler } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
-import { SESSION_MS, sessionMember, type Member } from './directory'
+import { SESSION_MS, apiKeyFor, sessionMember, type Member } from './directory'
+import { Refusal } from './refusal'
 
 // The session cookie, `__Host-crossfeed_member`: the session's token, sent only to this host over
 // HTTPS, never to scripts, and on top-level navigations from other sites but not their requests.
@@ -67,4 +68,22 @@ export function nextPath(c: Context, next: string | undefined) {
   const here = new URL(c.req.url).origin
   const url = new URL(next, here)
   return url.origin === here ? `${url.pathname}${url.search}${url.hash}` : '/app'
+}
+
+// The API key an `Authorization: Bearer` header sends, while it's in use and under its requests a
+// minute. The REST API and the MCP server both take keys through it.
+export async function keyFor(env: Env, authorization: string) {
+  const secret = /^Bearer\s+(cf_live_\S+)\s*$/i.exec(authorization)?.[1]
+  const key = secret ? await apiKeyFor(env.DB, secret) : null
+  if (!key)
+    throw new Refusal(
+      'unauthorized',
+      'This API key is unknown or was revoked. Send a key from the network\'s settings as "Authorization: Bearer cf_live_…".'
+    )
+  if (!(await env.API_LIMITER.limit({ key: key.id })).success)
+    throw new Refusal(
+      'rate_limited',
+      'This API key made too many requests in the last minute. Wait a minute, then try again.'
+    )
+  return key
 }

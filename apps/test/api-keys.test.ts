@@ -5,7 +5,7 @@ import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ApiKey } from '../src/directory'
 import { sha256 } from '../src/text'
-import { api, openMember, type Member } from './session'
+import { api, openMember, untilRefused, type Member } from './session'
 
 // A network the member creates the way /app/new does.
 async function created(member: Member, name = 'Night Shift Audio') {
@@ -250,16 +250,6 @@ describe("the API's auth", () => {
 })
 
 describe('rate limits', () => {
-  // Sends requests until one is refused, at most twice the limit and two more: a fixed minute's window
-  // may roll over once while they go, which starts the count again.
-  async function untilRefused(send: () => Promise<Response>, limit: number) {
-    for (let sent = 1; sent <= 2 * limit + 2; sent++) {
-      const res = await send()
-      if (res.status !== 200) return { sent, res }
-    }
-    throw new Error(`No request of ${2 * limit + 2} was refused`)
-  }
-
   it("refuse a key past its requests a minute with 429, and leave the network's other keys alone", async () => {
     const ada = await openMember()
     const network = await created(ada)

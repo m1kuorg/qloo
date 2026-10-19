@@ -8,7 +8,6 @@ import { z } from '@hono/zod-openapi'
 import {
   McpServer,
   localhostAllowedOrigins,
-  type AuthInfo,
   type CallToolResult,
   type StandardSchemaWithJSON,
   type ToolCallback
@@ -17,7 +16,7 @@ import { createMcpHandler } from 'agents/mcp/server'
 import { env } from 'cloudflare:workers'
 import { Hono } from 'hono'
 import type { Question, Show } from '../agent'
-import { accountsOn, appOrigins } from '../auth'
+import { accountsOn, appOrigins, keyFor } from '../auth'
 import type { Evidence } from '../evidence'
 import type { PitchList } from '../fit'
 import type { Pitch, WorkCandidate } from '../inbox'
@@ -64,7 +63,6 @@ import {
   ShowChange,
   WorkConfirmation,
   batchPitches,
-  keyFor,
   pitchRunInput,
   refusal
 } from './api'
@@ -77,12 +75,13 @@ const RELAY =
 // What a tool gives back: text for the assistant to read, and the operation's result.
 type Answered = { text: string; structured: Record<string, unknown> }
 
-// One server per request, for the network the request's key reaches. `origin` is where the app is,
-// for the pages a member approves on.
-function crossfeed(ctx: OperationContext, origin: string) {
+// The server for one request, for the network the request's key reaches. Its links go to the app's
+// own origin, where a member signs in to approve.
+function serverFor(ctx: OperationContext) {
   const links = networkLinks(env, ctx.network)
-  const app = (path: string) => `${origin}${path}`
+  const app = (path: string) => `${appOrigins(env)[0]}${path}`
   const launchPage = (id: string) => app(`${links.launches}/${id}`)
+  const approvesOrder = `Only a member of the network approves an insertion order, in the app on its launch's page, ${launchPage('<launchId>')}.`
   const server = new McpServer(
     { name: 'crossfeed', version: '1.0.0' },
     {
@@ -138,8 +137,8 @@ function crossfeed(ctx: OperationContext, origin: string) {
       }) as ToolCallback<S>
     )
   const READ = { readOnlyHint: true, destructiveHint: false }
-  const ADD = { readOnlyHint: false, destructiveHint: false }
-  const CHANGE = { readOnlyHint: false, destructiveHint: true }
+  const WRITE = { readOnlyHint: false, destructiveHint: false }
+  const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true }
   const none = z.object({})
   const launchId = z.string().describe('The ID the launch answered with when it was created.')
 
@@ -177,7 +176,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
       format: z.enum(['csv', 'lines']),
       replace: z.boolean().optional().describe('Import over a roster that has shows.')
     }),
-    CHANGE,
+    DESTRUCTIVE,
     async ({ roster, format, replace = false }) => {
       const read = await readRosterUpload([new File([roster], format === 'csv' ? 'roster.csv' : 'roster.txt')])
       const imported = await importRoster(ctx, { ...read, replace })
@@ -189,7 +188,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
     'update_show',
     "Settle or edit one show, named as on the roster: pick one of an ambiguous show's candidates (`entityId`), map a show Qloo has no match for to one of its comp search's results (`compId`), or change its downloads per episode, status, or exclusion from launches. A field left out stays as it is.",
     ShowChange.extend({ name: z.string().describe('The show, named as on the roster.') }),
-    CHANGE,
+    DESTRUCTIVE,
     async ({ name, ...patch }) => {
       const show = await updateShow(ctx, { name, patch })
       return { text: showLine(show), structured: show }
@@ -200,7 +199,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
     'search_comps',
     "Search Qloo for a comparable show to stand in for one it has no match for. It returns at once with the search pending; read the roster until it's settled, then map the show to a result with update_show and `compId`.",
     CompQuery.extend({ name: z.string().describe('The show, named as on the roster.') }),
-    ADD,
+    WRITE,
     async (input) => {
       const show = await searchComps(ctx, input)
       return { text: showLine(show), structured: show }
@@ -219,7 +218,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
     'create_launch',
     "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's dashboard; start a run with start_launch_run to rank the roster for it.",
     LaunchPlan,
-    ADD,
+    WRITE,
     async (plan) => {
       const launch = await createLaunch(ctx, plan)
       return {
@@ -231,9 +230,9 @@ function crossfeed(ctx: OperationContext, origin: string) {
 
   tool(
     'start_launch_run',
-    "Start a run of a launch: it ranks the network's roster by fit with the launch's listeners in Qloo, asks the human what it needs, such as the budget, and drafts an insertion order priced at the network's CPM. With no name or comps it plans the launch as it stands. It returns at once; read the launch with get_launch until the run is done or waiting on a question. It counts as one of the network's model runs, and ends a run left waiting.",
+    `Start a run of a launch: it ranks the network's roster by fit with the launch's listeners in Qloo, asks the human what it needs, such as the budget, and drafts an insertion order priced at the network's CPM. With no name or comps it plans the launch as it stands. It returns at once; read the launch with get_launch until the run is done or waiting on a question. It counts as one of the network's model runs, and ends a run left waiting. ${approvesOrder}`,
     LaunchPlan.extend({ launchId }),
-    CHANGE,
+    DESTRUCTIVE,
     async ({ launchId, ...plan }) => {
       const run = await startLaunchRun(ctx, { launchId, plan })
       return {
@@ -245,7 +244,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
 
   tool(
     'get_launch',
-    'Read a launch: its status, and its latest run as it stands: the question it waits on and how to answer it, the chart of roster shows by fit, and the draft insertion order.',
+    `Read a launch: its status, and its latest run as it stands: the question it waits on and how to answer it, the chart of roster shows by fit, and the draft insertion order. ${approvesOrder}`,
     z.object({ launchId }),
     READ,
     async (input) => {
@@ -258,7 +257,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
     'answer_launch_question',
     "Answer the question a launch's latest run is waiting on, with the human's words, by its ID and with the fields its kind takes: `choice` or `text` for `choice`; `choice` (one of its options) or `text` (the name Qloo lists the launch under) for `launch`; `slots` or `dollars` for `budget`; `exclude`, from its options, for `exclusions`; `comps` or `text` for `comps`; and `picks` for `confirm_comps`. The run resumes; read the launch again with get_launch.",
     Answer.extend({ launchId, runId: z.string().describe('The run waiting on the question.') }),
-    ADD,
+    WRITE,
     async ({ launchId, runId, questionId, ...answer }) => {
       const run = await answerLaunchRun(ctx, { launchId, runId, questionId, answer })
       return { text: `Answered. ${runLine(run)}\nRead the launch again with get_launch.`, structured: run }
@@ -267,9 +266,9 @@ function crossfeed(ctx: OperationContext, origin: string) {
 
   tool(
     'edit_order',
-    "Change the lines of a launch's current insertion order, once its run has ended: each finalist's promo slots and host-read angle, or drop a show by leaving its line out. Code prices it again at the network's CPM. Editing an approved order returns it to draft. Only a member of the network approves an order, in the app.",
+    `Change the lines of a launch's current insertion order, once its run has ended: each finalist's promo slots and host-read angle, or drop a show by leaving its line out. Code prices it again at the network's CPM. Editing an approved order returns it to draft. ${approvesOrder}`,
     OrderChange.extend({ launchId, orderId: z.string().describe('Such as IO-0001.') }),
-    CHANGE,
+    DESTRUCTIVE,
     async ({ launchId, orderId, lines }) => {
       const order = await editOrder(ctx, { launchId, orderId, lines })
       return { text: orderText(order, launchPage(launchId)), structured: order }
@@ -295,6 +294,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
   // The inbox and its pitch runs exist only while guest pitches are on, as in the app.
   const inbox = links.inbox
   if (!inbox) return server
+  const approvesReply = `Only a member of the network approves a reply, in the app on the inbox page, ${app(inbox)}.`
   const runId = z.string().describe('The ID the pitch run answered with when it started.')
 
   tool(
@@ -316,7 +316,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
       pitches: PitchBatch.shape.pitches.optional(),
       replace: z.boolean().optional().describe('Load over an inbox that has pitches.')
     }),
-    CHANGE,
+    DESTRUCTIVE,
     async ({ text, pitches, replace = false }) => {
       if ((text === undefined) === (pitches === undefined))
         throw new Refusal('invalid', 'Give the pitches as `text` or as `pitches`: one of the two.')
@@ -333,7 +333,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
     'confirm_work',
     "Confirm which of an ambiguous work's same-title candidates a pitch is about, by the human's choice. Only a work matched in Qloo is ranked.",
     WorkConfirmation.extend({ pitchId: z.string().describe('Such as pitch-03.') }),
-    CHANGE,
+    DESTRUCTIVE,
     async (input) => {
       const pitch = await confirmWork(ctx, input)
       return { text: pitchLine(pitch), structured: pitch }
@@ -342,9 +342,9 @@ function crossfeed(ctx: OperationContext, origin: string) {
 
   tool(
     'start_pitch_run',
-    "Start a pitch run: it ranks the inbox's pitched works against a roster show matched in Qloo, and against its best past guests' works too, then drafts a reply to every pitch. It returns at once; read it with get_pitch_run until it's done or waiting on a question. It counts as one of the network's model runs, and ends a run left waiting.",
+    `Start a pitch run: it ranks the inbox's pitched works against a roster show matched in Qloo, and against its best past guests' works too, then drafts a reply to every pitch. It returns at once; read it with get_pitch_run until it's done or waiting on a question. It counts as one of the network's model runs, and ends a run left waiting. ${approvesReply}`,
     PitchRunStart,
-    CHANGE,
+    DESTRUCTIVE,
     async (input) => {
       const run = await startPitchRun(ctx, pitchRunInput(input))
       return {
@@ -356,7 +356,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
 
   tool(
     'get_pitch_run',
-    'Read a pitch run: its status, the question it waits on and how to answer it, its ranked lists, one per work type, and the reply it drafted to each pitch.',
+    `Read a pitch run: its status, the question it waits on and how to answer it, its ranked lists, one per work type, and the reply it drafted to each pitch. ${approvesReply}`,
     z.object({ runId }),
     READ,
     async (input) => {
@@ -369,7 +369,7 @@ function crossfeed(ctx: OperationContext, origin: string) {
     'answer_pitch_question',
     "Answer the question a pitch run is waiting on, with the human's words, by its ID: one of its options as `choice`, or their own words as `text`. The run resumes; read it again with get_pitch_run.",
     Answer.extend({ runId }),
-    ADD,
+    WRITE,
     async ({ runId, questionId, ...answer }) => {
       const run = await answerPitchRun(ctx, { runId, questionId, answer })
       return { text: `Answered. ${pitchRunLine(run)}\nRead it again with get_pitch_run.`, structured: run }
@@ -423,8 +423,11 @@ const launchLine = (launch: LaunchRow) =>
   `${launch.name ?? launch.comps.join(' · ')} (launch ${launch.id}): ${launch.status}` +
   (launch.slots === null ? '' : `, ${launch.slots} slots worth ${dollars(launch.slotValue ?? 0)}`)
 
-const runLine = (run: LaunchRun) =>
-  `Run ${run.id}: ${run.status}.${run.error ? ` ${run.error}` : ''}${run.closing ? ` It ended saying: ${run.closing}` : ''}`
+// Where a run stands, and why it stopped or what it said as it ended.
+const ended = (run: Pick<LaunchRun, 'status' | 'error' | 'closing'>) =>
+  `${run.status}.${run.error ? ` ${run.error}` : ''}${run.closing ? ` It ended saying: ${run.closing}` : ''}`
+
+const runLine = (run: LaunchRun) => `Run ${run.id}: ${ended(run)}`
 
 // A launch as the assistant reads it: where it stands, what its latest run waits on, and its results.
 function launchText(launch: LaunchInfo, page: string) {
@@ -435,7 +438,7 @@ function launchText(launch: LaunchInfo, page: string) {
   if (!run) return [...lines, 'No run yet: start one with start_launch_run.'].join('\n')
   if (run.question)
     lines.push(
-      ...relay(
+      ...questionLines(
         `Run ${run.id}`,
         run.question,
         `answer_launch_question with launchId "${launch.id}", runId "${run.id}"`,
@@ -464,9 +467,9 @@ function launchText(launch: LaunchInfo, page: string) {
 }
 
 // A run's open question, for the assistant to put to the human as it is, and how to answer it with
-// `answering`, the answer tool and the IDs it takes.
-const relay = (run: string, question: Question, answering: string, launchRun?: LaunchRun) => [
-  `${run} is waiting on a question for the human (${question.kind}): ${question.question}`,
+// `answering`, the answer tool and the IDs it takes. `waiting` names the run.
+const questionLines = (waiting: string, question: Question, answering: string, launchRun?: LaunchRun) => [
+  `${waiting} is waiting on a question for the human (${question.kind}): ${question.question}`,
   `Ask the human this question as it is, and answer with their words: call ${answering}, questionId "${question.id}", and their answer ${howToAnswer(question, launchRun)}. Never answer it yourself.`
 ]
 
@@ -531,14 +534,13 @@ function pitchLine(pitch: Pitch) {
   return `${who}: ${work}, ${found}`
 }
 
-const pitchRunLine = (run: PitchRun) =>
-  `Pitch run ${run.id} for ${run.show}: ${run.status}.${run.error ? ` ${run.error}` : ''}${run.closing ? ` It ended saying: ${run.closing}` : ''}`
+const pitchRunLine = (run: PitchRun) => `Pitch run ${run.id} for ${run.show}: ${ended(run)}`
 
 // A pitch run as the assistant reads it: what it waits on, its ranked lists, its drafted replies, and
 // where a member approves them.
 function pitchRunText(run: PitchRun, inbox: string) {
   const lines = run.question
-    ? relay(`Pitch run ${run.id}`, run.question, `answer_pitch_question with runId "${run.id}"`)
+    ? questionLines(`Pitch run ${run.id}`, run.question, `answer_pitch_question with runId "${run.id}"`)
     : [pitchRunLine(run)]
   for (const list of run.lists ?? []) lines.push(...listText(list))
   if (run.replies) {
@@ -576,17 +578,13 @@ const evidenceText = (e: Evidence) =>
 // Created once and shared by every request, as the agents SDK says; each request gets its own server.
 // A browser's Origin may be a local one, as the handler allows by default, or one of the app's own
 // (APP_ORIGINS), which the handler would allow by default only on workers.dev, not a custom domain.
-// Clients that send no Origin, as Claude Code doesn't, pass either way.
+// Clients that send no Origin, as Claude Code doesn't, pass either way. The route below always
+// passes the key's ID and network as `authInfo`.
 const handler = createMcpHandler(
-  ({ authInfo, requestInfo }) => crossfeed(contextOf(authInfo), new URL(requestInfo!.url).origin),
+  ({ authInfo }) =>
+    serverFor({ env, network: authInfo!.extra!.network as string, caller: { keyId: authInfo!.clientId } }),
   { allowedOriginHostnames: [...localhostAllowedOrigins(), ...appOrigins(env).map((o) => new URL(o).hostname)] }
 )
-
-// The operations' context from what the route's key check passed through.
-function contextOf(authInfo: AuthInfo | undefined): OperationContext {
-  if (!authInfo) throw new Error('The MCP handler was reached without an API key.')
-  return { env, network: authInfo.extra!.network as string, caller: { keyId: authInfo.clientId } }
-}
 
 export const mcp = new Hono<{ Bindings: Env }>()
 

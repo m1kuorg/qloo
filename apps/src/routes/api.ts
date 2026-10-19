@@ -6,8 +6,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import type { Context, MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { accountsOn, fromAppPage, signedIn } from '../auth'
-import { apiKeyFor, memberRole } from '../directory'
+import { accountsOn, fromAppPage, keyFor, signedIn } from '../auth'
+import { memberRole } from '../directory'
 import { workTypes, type PitchInput } from '../inbox'
 import {
   answerLaunchRun,
@@ -92,24 +92,6 @@ api.onError((err, c) => {
 })
 
 const NOT_FOUND = "There's no such network, or this API key or member can't reach it."
-
-// The API key an `Authorization: Bearer` header sends, while it's in use and under its requests a
-// minute. The REST API and the MCP server both take keys through it.
-export async function keyFor(env: Env, authorization: string) {
-  const secret = /^Bearer\s+(cf_live_\S+)\s*$/i.exec(authorization)?.[1]
-  const key = secret ? await apiKeyFor(env.DB, secret) : null
-  if (!key)
-    throw new Refusal(
-      'unauthorized',
-      'This API key is unknown or was revoked. Send a key from the network\'s settings as "Authorization: Bearer cf_live_…".'
-    )
-  if (!(await env.API_LIMITER.limit({ key: key.id })).success)
-    throw new Refusal(
-      'rate_limited',
-      'This API key made too many requests in the last minute. Wait a minute, then try again.'
-    )
-  return key
-}
 
 // Who's asking, for every route under a network: one of its API keys, in `Authorization: Bearer`,
 // or else a member's session cookie, which must come from one of the app's pages to write. A key
