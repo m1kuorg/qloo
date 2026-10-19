@@ -81,23 +81,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 
 ### Terminology
 
-Crossfeed uses Qloo's own words (entity, tag, signal, filter, affinity) as defined in the [brief](BRIEF.md#qloo-in-brief), plus these:
-
-- **Network:** a company that owns a roster of podcasts and sells ads on them.
-- **Roster:** the network's own shows, the closed list Crossfeed scores.
-- **Launch:** the new show a network is promoting, released or not.
-- **Comp:** a released show that stands in for an unreleased launch; up to three per launch.
-- **Listeners:** the people who hear a show. Crossfeed says listeners, not audience, because Audience is a Qloo term for a group defined by signals.
-- **Fit:** how a roster show or pitched work ranks against the launch or show in Qloo, shown as a rank and a band.
-- **Finalist:** a roster show the insertion order can use: one of the top five by fit after exclusions.
-- **Promo slot:** one host-read promo for the launch on one episode of a roster show.
-- **Slot value:** the ad revenue a promo slot displaces: downloads per episode times CPM, divided by 1,000.
-- **Insertion order:** the approved launch plan: which shows, how many slots, each slot's angle, and the total slot value.
-- **Host-read angle:** a drafted line for a host, built from the tags the show and the launch share.
-- **Pitch:** an email in the booking inbox proposing a guest.
-- **Public work:** the book, show, film, or podcast a pitched guest is promoting; the only thing about a guest that reaches Qloo.
-- **Verdict:** a booker's decision on a pitch: book, decline, or later.
-- **Evidence:** the Qloo calls, entities, tags, and affinities behind a claim.
+Crossfeed uses Qloo's own words (entity, tag, signal, filter, affinity) as defined in the [brief](BRIEF.md#qloo-in-brief), plus the terms in [GLOSSARY.md](/GLOSSARY.md), such as network, member, roster, launch, comp, fit, finalist, slot value, insertion order, pitch, public work, verdict, and evidence.
 
 ## Brand Commitments
 
