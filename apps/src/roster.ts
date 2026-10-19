@@ -10,11 +10,16 @@ export type RosterRow = {
   description: string | null // one line, for the topic baseline
 }
 
-export function parseRoster(text: string, format: RosterFormat): RosterRow[] {
+// A show's figures beside its name, which an import may or may not bring.
+export type RosterFigure = Exclude<keyof RosterRow, 'name'>
+
+// The roster's rows, and the figures the text brings: a CSV's columns among them, and none for
+// pasted names.
+export function parseRoster(text: string, format: RosterFormat): { rows: RosterRow[]; figures: RosterFigure[] } {
   if (format === 'csv') return csvRows(text)
   if (format !== 'lines') throw new Error(`Unknown roster format "${format}".`)
   // One show per name, ignoring case; a pasted name carries nothing for a repeat to disagree on.
-  return [...new Map(lines(text).map((name) => [name.toLowerCase(), row(name)])).values()]
+  return { rows: [...new Map(lines(text).map((name) => [name.toLowerCase(), row(name)])).values()], figures: [] }
 }
 
 const row = (name: string, fields: Partial<RosterRow> = {}): RosterRow => ({
@@ -31,11 +36,12 @@ const lines = (text: string) =>
     .map((l) => l.trim())
     .filter(Boolean)
 
-const COLUMNS = ['name', 'downloads', 'status', 'description'] as const
+const FIGURES: RosterFigure[] = ['downloads', 'status', 'description']
+const COLUMNS = ['name', ...FIGURES] as const
 
 // The header names the columns, in any order and case; only `name` is required, and other
 // columns are ignored.
-function csvRows(text: string): RosterRow[] {
+function csvRows(text: string): { rows: RosterRow[]; figures: RosterFigure[] } {
   const [header, ...records] = parseCsv(text)
   const index = Object.fromEntries(
     COLUMNS.map((c) => [c, (header ?? []).findIndex((h) => h.trim().toLowerCase() === c)])
@@ -46,7 +52,7 @@ function csvRows(text: string): RosterRow[] {
     )
   const cell = (record: string[], column: (typeof COLUMNS)[number]) => (record[index[column]] ?? '').trim() || null
   const seen = new Map<string, number>()
-  return records.flatMap((record, i) => {
+  const rows = records.flatMap((record, i) => {
     if (record.every((f) => !f.trim())) return []
     const line = i + 2
     const name = cell(record, 'name')
@@ -61,6 +67,7 @@ function csvRows(text: string): RosterRow[] {
     }
     return [row(name, fields)]
   })
+  return { rows, figures: FIGURES.filter((f) => index[f] >= 0) }
 }
 
 function downloads(value: string | null, line: number) {

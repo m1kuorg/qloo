@@ -28,6 +28,7 @@ import { takesText } from '../tools/ask-human'
 import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
 import type { Topic } from '../topic'
+import { readRosterUpload } from '../upload'
 import { Alert, bandMeter, listOf, percentile, PickOne, ScrollTable, useAction, useIntoView } from './controls'
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Guide } from './Guide'
@@ -66,8 +67,7 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
   const slowCalls = agent.state?.slowCalls ?? []
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
-  const [opened, setOpened] = useState<Opened | null>(null)
-  const latest = useRef<string | null>(null)
+  const { opened, openCall } = useEvidence(agent)
   const oneColumn = useOneColumn()
   // The roster section moves when the page crosses one column, which remounts it; names typed into
   // its import box are kept here so the move doesn't drop them.
@@ -77,20 +77,6 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
   const guide = agent.state?.guide
   const markSeen = (mark: GuideMark) => {
     if (sample && !guide?.dismissed && !guide?.seen.includes(mark)) void guiding.run(() => agent.stub.markGuide(mark))
-  }
-  // Opens a call's evidence, or closes it when it's already open. Only the latest click's answer lands.
-  const openCall = async (call: string) => {
-    const closing = opened?.call === call
-    latest.current = closing ? null : call
-    if (closing) return setOpened(null)
-    setOpened({ call, status: 'loading' })
-    try {
-      const log = await agent.stub.getEvidence()
-      if (latest.current === call) setOpened({ call, status: 'loaded', record: log.find((e) => e.call === call) })
-    } catch (err) {
-      if (latest.current === call)
-        setOpened({ call, status: 'failed', error: err instanceof Error ? err.message : String(err) })
-    }
   }
   const shell = sample && <SampleShell sample={sample} />
   if (page === 'inbox') {
@@ -147,6 +133,7 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
           roster={roster}
           draft={importDraft}
           importRoster={(text, format) => agent.stub.importRoster(text, format)}
+          keepsSettledShows={false}
         />
       )}
       <RosterTable
@@ -259,6 +246,27 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
       </main>
     </>
   )
+}
+
+// The rail's evidence module: `openCall` opens a call's record, or closes it when it's already open.
+// Only the latest click's answer lands.
+export function useEvidence(agent: Session) {
+  const [opened, setOpened] = useState<Opened | null>(null)
+  const latest = useRef<string | null>(null)
+  const openCall = async (call: string) => {
+    const closing = opened?.call === call
+    latest.current = closing ? null : call
+    if (closing) return setOpened(null)
+    setOpened({ call, status: 'loading' })
+    try {
+      const log = await agent.stub.getEvidence()
+      if (latest.current === call) setOpened({ call, status: 'loaded', record: log.find((e) => e.call === call) })
+    } catch (err) {
+      if (latest.current === call)
+        setOpened({ call, status: 'failed', error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  return { opened, openCall }
 }
 
 // Whether the page is one column, as style.css lays it out below 960px. Rendered without a window,
@@ -1273,15 +1281,19 @@ function DemographicSummary({
   )
 }
 
-// The import answers at once, and each show fills in through synced state as its search settles.
-function RosterImport({
+// The import answers at once, and each show fills in through synced state as its search settles. A
+// file can come from the picker or be dropped anywhere on the page, so one dropped beside the form
+// imports too, rather than opening in the browser.
+export function RosterImport({
   roster,
   draft,
-  importRoster
+  importRoster,
+  keepsSettledShows
 }: {
   roster: Show[]
   draft: { current: string } // what's typed, kept by the page across a remount
   importRoster: (text: string, format: RosterFormat) => Promise<void>
+  keepsSettledShows: boolean // whether an import keeps the shows already on the roster, as a network's does
 }) {
   const [text, setTyped] = useState(() => draft.current)
   const setText = (value: string) => {
@@ -1300,15 +1312,23 @@ function RosterImport({
     setImporting(`Looking up ${count} shows…`)
     if (await run(() => importRoster(text, 'lines'))) setText('')
   }
-  const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const csv = e.target.files?.[0]
-    e.target.value = ''
-    if (!csv) return
-    setImporting(`Importing ${csv.name}…`)
-    await run(async () => importRoster(await csv.text(), 'csv'))
+  const upload = (files: File[]) => {
+    setImporting(files.length === 1 ? `Importing ${files[0].name}…` : 'Importing…')
+    return run(async () => {
+      const { text, format } = await readRosterUpload(files)
+      await importRoster(text, format)
+    })
   }
+  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])]
+    e.target.value = ''
+    if (files.length) void upload(files)
+  }
+  // A file dropped while an import is still running isn't imported; the cue says to wait.
+  const dragging = useFileDrop((files) => (busy ? null : upload(files)))
   return (
     <form className="import" onSubmit={submit}>
+      {dragging && <DropCue busy={busy} />}
       <label className="lbl" htmlFor="roster-names">
         Show names
       </label>
@@ -1329,18 +1349,82 @@ function RosterImport({
               : 'Import roster'}
         </button>
         <button className="btn" type="button" disabled={busy} onClick={() => file.current?.click()}>
-          Upload CSV
+          Upload a file
         </button>
-        <input ref={file} type="file" accept=".csv,text/csv" hidden onChange={upload} />
-        <small>Replaces the current roster, up to 50 shows.</small>
+        <input ref={file} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={pick} />
+        <small>
+          {keepsSettledShows
+            ? 'Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
+            : 'Replaces the current roster, up to 50 shows.'}
+        </small>
       </div>
       <p className="help">
-        A CSV needs a <code>name</code> column; <code>downloads</code>, <code>status</code>, and{' '}
-        <code>description</code> are optional.
+        Drop a file anywhere on the page, or upload one: a CSV needs a <code>name</code> column, and{' '}
+        <code>downloads</code>, <code>status</code>, and <code>description</code> are optional; a text file has one show
+        name per line.
       </p>
       <Alert error={error} />
     </form>
   )
+}
+
+// While a file is dragged over the page, the window is ruled in ink, as keyboard focus is, with a line
+// along its foot saying what a drop imports, wherever the page is scrolled; while an import is still
+// running, the line alone says to wait. It's portalled to the body, since the chart column's
+// container query would otherwise hold a fixed box inside it.
+function DropCue({ busy }: { busy: boolean }) {
+  return createPortal(
+    <div className="drop-cue" data-busy={busy || undefined} role="status">
+      <p>
+        {busy
+          ? 'Wait for this import to finish, then drop the file again.'
+          : 'Drop the file to import it: a CSV, or a text file with one show name per line.'}
+      </p>
+    </div>,
+    document.body
+  )
+}
+
+// Whether files are being dragged over the page, which takes a drop anywhere on it and hands the
+// files to `drop`, so the browser never opens one in place of the page. Drags of anything else, such
+// as selected text, pass through.
+function useFileDrop(drop: (files: File[]) => unknown) {
+  const [dragging, setDragging] = useState(false)
+  const latest = useRef(drop)
+  latest.current = drop
+  useEffect(() => {
+    // Entering a child of the page fires before leaving its parent, so count to know when the drag left.
+    let depth = 0
+    const files = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false
+    const enter = (e: DragEvent) => {
+      if (!files(e)) return
+      depth++
+      setDragging(true)
+    }
+    const leave = (e: DragEvent) => {
+      if (files(e) && --depth <= 0) {
+        depth = 0
+        setDragging(false)
+      }
+    }
+    const over = (e: DragEvent) => {
+      if (files(e)) e.preventDefault()
+    }
+    const dropped = (e: DragEvent) => {
+      if (!files(e)) return
+      e.preventDefault()
+      depth = 0
+      setDragging(false)
+      void latest.current([...e.dataTransfer!.files])
+    }
+    const listeners = { dragenter: enter, dragleave: leave, dragover: over, drop: dropped }
+    for (const [type, listener] of Object.entries(listeners)) window.addEventListener(type, listener as EventListener)
+    return () => {
+      for (const [type, listener] of Object.entries(listeners))
+        window.removeEventListener(type, listener as EventListener)
+    }
+  }, [])
+  return dragging
 }
 
 const resolutionLabel: Record<Show['resolution'], string> = {
@@ -1353,7 +1437,7 @@ const resolutionLabel: Record<Show['resolution'], string> = {
 }
 
 // The shows Qloo failed to look up, which no ranking can score until they're looked up again.
-function RosterFailures({ roster }: { roster: Show[] }) {
+export function RosterFailures({ roster }: { roster: Show[] }) {
   const failed = roster.filter((s) => s.resolution === 'failed' && !s.excluded).map((s) => s.name)
   if (failed.length === 0) return null
   const one = failed.length === 1
@@ -1380,7 +1464,7 @@ function MatchChip({ show, slow }: { show: Show; slow: boolean }) {
   )
 }
 
-function RosterTable({
+export function RosterTable({
   roster,
   selected,
   select,
@@ -1549,7 +1633,7 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
 }
 
 // The selected show: settle its match, edit its figures, or leave it out.
-function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close: () => void }) {
+export function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close: () => void }) {
   const { busy, error, run } = useAction()
   const update = (patch: ShowPatch) => run(() => agent.stub.updateShow(show.name, patch))
   const ref = useIntoView<HTMLElement>()
@@ -1722,7 +1806,7 @@ function ShowFields({
   )
 }
 
-function RosterCheck({ roster }: { roster: Show[] }) {
+export function RosterCheck({ roster }: { roster: Show[] }) {
   const count = (r: Show['resolution']) => roster.filter((s) => s.resolution === r && !s.excluded).length
   const rows: [string, number][] = [
     ...(count('pending') > 0 ? [['Looking up', count('pending')] as [string, number]] : []),
