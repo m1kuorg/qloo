@@ -509,6 +509,10 @@ api.openapi(
   }
 )
 
+// What a ranking ranked against, such as a launch or a show, and a row's third of its ranking.
+const Anchor = z.object({ id: z.string(), name: z.string() })
+const Band = z.enum(['top', 'middle', 'bottom'])
+
 const Work = z
   .object({ title: z.string(), type: z.enum(workTypes), year: z.number().int().nullable() })
   .openapi('Work', { description: "A guest's public work. Only its title and type reach Qloo." })
@@ -777,7 +781,7 @@ const PitchList = z
       description:
         "`show`: ranked against the show and the past guests' works; `same_type`: against only the past guests' works of this type, as Qloo scored none against the show; `unranked`, with the reason in `error`."
     }),
-    anchors: z.array(z.object({ id: z.string(), name: z.string() })),
+    anchors: z.array(Anchor),
     calls: z.array(z.string()).openapi({ description: "Its ranking calls' numbers in the network's evidence." }),
     error: z.string().nullable(),
     rows: z
@@ -786,7 +790,7 @@ const PitchList = z
           pitch: z.string(),
           entity: WorkCandidate,
           rank: z.number().int().openapi({ description: 'From 1, within this list only.' }),
-          band: z.enum(['top', 'middle', 'bottom']),
+          band: Band,
           sharedTags: SharedTags.optional()
         })
       )
@@ -1058,7 +1062,7 @@ const LAUNCH_STATUSES = [
   'failed',
   'stopped'
 ] as const
-const launchRow = z.object({
+const LaunchFields = z.object({
   id: z.string(),
   name: z.string().nullable().openapi({ description: "The launch's name; null for one planned from comps alone." }),
   comps: z.array(z.string()).openapi({
@@ -1072,10 +1076,9 @@ const launchRow = z.object({
   finalists: z.number().int(),
   slots: z.number().int().nullable().openapi({ description: "Its insertion order's promo slots." }),
   slotValue: z.number().nullable().openapi({ description: "Its insertion order's total value, in dollars." }),
-  startedBy: z
-    .string()
-    .nullable()
-    .openapi({ description: 'The member who started its latest run, by name; null for a run a program started.' }),
+  startedBy: z.string().nullable().openapi({
+    description: 'The member who started its latest run in the app, by name; null for one started through the API.'
+  }),
   lastRun: z.string().nullable().openapi({ description: 'When its latest run started.' })
 })
 const EXAMPLE_LAUNCH = {
@@ -1089,25 +1092,26 @@ const EXAMPLE_LAUNCH = {
   startedBy: 'Ada Programmer',
   lastRun: '2026-10-19T14:02:11.000Z'
 } as const
-const LaunchSummary = launchRow.openapi('LaunchSummary', { example: EXAMPLE_LAUNCH })
+const LaunchSummary = LaunchFields.openapi('LaunchSummary', { example: EXAMPLE_LAUNCH })
 
-const runRow = z.object({
+const RunFields = z.object({
   id: z.string(),
   status: z.enum(['running', 'waiting', 'completed', 'stopped', 'failed']).openapi({
     description:
       '`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`.'
   }),
   startedAt: z.string(),
-  startedBy: z.string().nullable().openapi({ description: 'The member who started it, by name; null for a program.' })
+  startedBy: z
+    .string()
+    .nullable()
+    .openapi({ description: 'The member who started it in the app, by name; null for a run started through the API.' })
 })
-const LaunchRunSummary = runRow.openapi('LaunchRunSummary')
+const LaunchRunSummary = RunFields.openapi('LaunchRunSummary')
 
 const Chart = z
   .object({
     call: z.string().openapi({ description: "The ranking's call number in the launch's evidence." }),
-    anchors: z
-      .array(z.object({ id: z.string(), name: z.string() }))
-      .openapi({ description: 'What the roster was ranked against: the launch, or its comps.' }),
+    anchors: z.array(Anchor).openapi({ description: 'What the roster was ranked against: the launch, or its comps.' }),
     error: z.string().nullable().openapi({ description: 'Why Qloo gave no ranking; then `rows` is empty.' }),
     rows: z
       .array(
@@ -1115,12 +1119,11 @@ const Chart = z
           rank: z.number().int().openapi({ description: 'Fit rank, from 1.' }),
           show: z.string(),
           entity: Candidate.openapi({ description: 'What Qloo scored for it: its match, or the comp it maps to.' }),
-          band: z.enum(['top', 'middle', 'bottom']).openapi({ description: 'Its third of the chart by fit rank.' }),
+          band: Band.openapi({ description: 'Its third of the chart by fit rank.' }),
           finalist: z.boolean().openapi({ description: 'One of the top five by fit, not left out of this run.' }),
-          leadingComp: z
-            .object({ id: z.string(), name: z.string() })
-            .nullable()
-            .openapi({ description: 'The comp that clearly drove its fit; null with one anchor, or when none did.' }),
+          leadingComp: Anchor.nullable().openapi({
+            description: 'The comp that clearly drove its fit; null with one anchor, or when none did.'
+          }),
           sharedTags: SharedTags.nullable().openapi({ description: "A finalist's, once they're compared." }),
           topicRank: z.number().int().nullable().openapi({
             description: 'Its rank by topic alone among the charted shows; null until the baseline is in.'
@@ -1172,111 +1175,112 @@ const InsertionOrder = z
       'The launch plan priced as the inventory it spends: a slot is worth downloads per episode × CPM ÷ 1,000.'
   })
 
-const LaunchRun = runRow
-  .extend({
-    plan: z
-      .object({
-        name: z.string().nullable(),
-        entity: Candidate.nullable().openapi({ description: "The launch's match in Qloo, once the run has one." }),
-        comps: z.array(
-          z.object({
-            name: z.string(),
-            status: z.enum(['unconfirmed', 'confirmed', 'rejected']).openapi({
-              description: 'Only a comp confirmed in an answer is scored; `rejected` when none of its matches is it.'
-            }),
-            entity: Candidate.nullable(),
-            candidates: z.array(Candidate).openapi({
-              description:
-                "What a `confirm_comps` answer picks from, by ID: the comp's match, or its candidates when two feeds share its name."
-            })
-          })
-        )
-      })
-      .openapi({
-        description:
-          "The launch as this run plans it: its name, its match in Qloo once found, and any comps, each confirmed or not in the run's answers."
-      }),
-    question: Question.nullable(),
-    notes: z.array(Note),
-    error: z.string().nullable().openapi({ description: 'Why the run failed or stopped.' }),
-    closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
-    budget: z
-      .union([z.object({ slots: z.number().int() }), z.object({ dollars: z.number() })])
-      .nullable()
-      .openapi({ description: 'The slot budget, once answered.' }),
-    exclusions: z
-      .array(z.string())
-      .nullable()
-      .openapi({ description: 'The shows left out of this run, once answered.' }),
-    chart: Chart.nullable(),
-    topic: z
-      .object({
-        status: z.enum(['ranking', 'ranked', 'refused', 'failed']),
-        order: z.array(z.string()).openapi({ description: 'The roster by topic alone, most on-topic first.' }),
-        error: z.string().nullable()
-      })
-      .nullable()
-      .openapi({
-        description: 'The topic baseline: what planning by topic alone would rank, from show names and descriptions.'
-      }),
-    demographics: z
-      .object({
-        call: z.string(),
-        error: z.string().nullable(),
-        profile: z
-          .object({
-            from: z.array(z.string()),
-            ages: z.array(z.string()),
-            skew: z.enum(['male', 'female']).nullable(),
-            disagree: z.array(z.string())
-          })
-          .nullable()
-          .openapi({
-            description:
-              "The launch's listeners in words: their leading age groups, any skew, and where comps disagree."
+const EXAMPLE_RUN = {
+  id: '9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d',
+  status: 'waiting',
+  startedAt: '2026-10-19T14:02:11.000Z',
+  startedBy: 'Ada Programmer',
+  plan: {
+    name: 'Night Shift Cinema',
+    entity: { id: 'p-0301', name: 'Night Shift Cinema', popularity: 0.6 },
+    comps: []
+  },
+  question: { id: 'toolu_03', kind: 'budget', question: 'What is the slot budget?', options: [] },
+  notes: [{ text: 'Ranking 5 shows against Night Shift Cinema', status: 'done' }],
+  error: null,
+  closing: null,
+  budget: null,
+  exclusions: null,
+  chart: null,
+  topic: { status: 'ranked', order: ['Field Notes', 'Deep Cuts'], error: null },
+  demographics: null,
+  insertionOrder: null
+} as const
+const LaunchRun = RunFields.extend({
+  plan: z
+    .object({
+      name: z.string().nullable(),
+      entity: Candidate.nullable().openapi({ description: "The launch's match in Qloo, once the run has one." }),
+      comps: z.array(
+        z.object({
+          name: z.string(),
+          status: z.enum(['unconfirmed', 'confirmed', 'rejected']).openapi({
+            description: 'Only a comp confirmed in an answer is scored; `rejected` when none of its matches is it.'
           }),
-        rows: z.array(z.object({ show: z.string(), reasons: z.array(z.string()).nullable() })).openapi({
-          description:
-            "Each finalist, in fit order, flagged with why its listeners differ from the launch's; empty reasons when they don't, null when Qloo had none."
+          entity: Candidate.nullable(),
+          candidates: z.array(Candidate).openapi({
+            description:
+              "What a `confirm_comps` answer picks from, by ID: the comp's match, or its candidates when two feeds share its name."
+          })
         })
-      })
-      .nullable()
-      .openapi({ description: "The finalists' listeners checked against the launch's." }),
-    insertionOrder: InsertionOrder.nullable()
-  })
-  .openapi('LaunchRun', {
-    example: {
-      id: '9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d',
-      status: 'waiting',
-      startedAt: '2026-10-19T14:02:11.000Z',
-      startedBy: 'Ada Programmer',
-      plan: {
-        name: 'Night Shift Cinema',
-        entity: { id: 'p-0301', name: 'Night Shift Cinema', popularity: 0.6 },
-        comps: []
-      },
-      question: { id: 'toolu_03', kind: 'budget', question: 'What is the slot budget?', options: [] },
-      notes: [{ text: 'Ranking 5 shows against Night Shift Cinema', status: 'done' }],
-      error: null,
-      closing: null,
-      budget: null,
-      exclusions: null,
-      chart: null,
-      topic: { status: 'ranked', order: ['Field Notes', 'Deep Cuts'], error: null },
-      demographics: null,
-      insertionOrder: null
-    }
-  })
-
-const Launch = launchRow
-  .extend({
-    rosterChanged: z.boolean().openapi({
-      description: "The network's roster has changed since the latest run copied it: run again to rank it as it is."
+      )
+    })
+    .openapi({
+      description:
+        "The launch as this run plans it: its name, its match in Qloo once found, and any comps, each confirmed or not in the run's answers."
     }),
-    runs: z.array(LaunchRunSummary).openapi({ description: 'Every run, oldest first.' }),
-    latestRun: LaunchRun.nullable()
-  })
-  .openapi('Launch', { example: { ...EXAMPLE_LAUNCH, rosterChanged: false, runs: [], latestRun: null } })
+  question: Question.nullable(),
+  notes: z.array(Note),
+  error: z.string().nullable().openapi({ description: 'Why the run failed or stopped.' }),
+  closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
+  budget: z
+    .union([z.object({ slots: z.number().int() }), z.object({ dollars: z.number() })])
+    .nullable()
+    .openapi({ description: 'The slot budget, once answered.' }),
+  exclusions: z.array(z.string()).nullable().openapi({ description: 'The shows left out of this run, once answered.' }),
+  chart: Chart.nullable(),
+  topic: z
+    .object({
+      status: z.enum(['ranking', 'ranked', 'refused', 'failed']),
+      order: z.array(z.string()).openapi({ description: 'The roster by topic alone, most on-topic first.' }),
+      error: z.string().nullable()
+    })
+    .nullable()
+    .openapi({
+      description: 'The topic baseline: what planning by topic alone would rank, from show names and descriptions.'
+    }),
+  demographics: z
+    .object({
+      call: z.string(),
+      error: z.string().nullable(),
+      profile: z
+        .object({
+          from: z.array(z.string()),
+          ages: z.array(z.string()),
+          skew: z.enum(['male', 'female']).nullable(),
+          disagree: z.array(z.string())
+        })
+        .nullable()
+        .openapi({
+          description: "The launch's listeners in words: their leading age groups, any skew, and where comps disagree."
+        }),
+      rows: z.array(z.object({ show: z.string(), reasons: z.array(z.string()).nullable() })).openapi({
+        description:
+          "Each finalist, in fit order, flagged with why its listeners differ from the launch's; empty reasons when they don't, null when Qloo had none."
+      })
+    })
+    .nullable()
+    .openapi({ description: "The finalists' listeners checked against the launch's." }),
+  insertionOrder: InsertionOrder.nullable()
+}).openapi('LaunchRun', { example: EXAMPLE_RUN })
+
+const Launch = LaunchFields.extend({
+  rosterChanged: z.boolean().openapi({
+    description: "The network's roster has changed since the latest run copied it: run again to rank it as it is."
+  }),
+  runs: z.array(LaunchRunSummary).openapi({ description: 'Every run, oldest first.' }),
+  latestRun: LaunchRun.nullable()
+}).openapi('Launch', {
+  example: {
+    ...EXAMPLE_LAUNCH,
+    status: 'waiting',
+    slots: null,
+    slotValue: null,
+    rosterChanged: false,
+    runs: [{ id: EXAMPLE_RUN.id, status: 'waiting', startedAt: EXAMPLE_RUN.startedAt, startedBy: 'Ada Programmer' }],
+    latestRun: EXAMPLE_RUN
+  }
+})
 
 // What a launch is planned from, by name or comps.
 const LaunchPlan = z
@@ -1578,7 +1582,7 @@ api.openapi(
           'text/csv': {
             schema: z.string().openapi({
               example:
-                'Show,Slots,Angle,Slot value (USD),Line value (USD)\r\nDeep Cuts,6,Its listeners stay for the long interviews.,300,1800\r\nTotal,6,,,1800\r\n'
+                '\uFEFFShow,Slots,Angle,Slot value (USD),Line value (USD)\r\nDeep Cuts,6,Its listeners stay for the long interviews.,300,1800\r\nTotal,6,,,1800\r\n'
             })
           }
         }

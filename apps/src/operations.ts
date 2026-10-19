@@ -6,6 +6,7 @@
 import { getAgentByName } from 'agents'
 import type {
   Comp,
+  Launch,
   LaunchInput,
   LaunchSummary,
   Note,
@@ -180,15 +181,8 @@ export async function startLaunchRun(
 ): Promise<LaunchRun> {
   const launch = await launchAgent(env, network, input.launchId)
   const { name, comps } = input.plan
-  // As the launch page's "Run again" does: from its comps, if it has any.
-  const now = name === undefined && comps === undefined ? (await stateOf(launch)).launch : null
-  const { runId } = await launch.startLaunch(
-    now
-      ? now.comps.length
-        ? { comps: now.comps.map((c) => c.name) }
-        : { name: now.name ?? '' }
-      : launchInput(input.plan)
-  )
+  const planned = name === undefined && comps === undefined ? (await stateOf(launch)).launch : null
+  const { runId } = await launch.startLaunch(planned ? asItStands(planned) : launchInput(input.plan))
   return launchRunOf(launch, await stateOf(launch), runId)
 }
 
@@ -207,7 +201,7 @@ export async function answerLaunchRun(
 ): Promise<LaunchRun> {
   const launch = await launchAgent(env, network, input.launchId)
   const state = await stateOf(launch)
-  listedRun(state, input.runId)
+  listedLaunchRun(state, input.runId)
   if (state.run?.id !== input.runId)
     throw new Refusal('conflict', 'That run has ended, so it has no question to answer.')
   await launch.answer(input.questionId, input.answer)
@@ -221,8 +215,7 @@ export async function editOrder(
   input: { launchId: string; orderId: string; lines: LineInput[] }
 ): Promise<InsertionOrder> {
   const launch = await launchAgent(env, network, input.launchId)
-  await launch.editInsertionOrder(input.orderId, input.lines)
-  return (await stateOf(launch)).insertionOrder!
+  return (await launch.editInsertionOrder(input.orderId, input.lines)) as InsertionOrder
 }
 
 // An insertion order of the launch, the current one or an earlier run's, as CSV for ad operations,
@@ -236,7 +229,10 @@ export async function exportOrder(
   if (exported.status === 200) return exported.csv
   throw exported.status === 404
     ? new Refusal('not_found', `There's no insertion order ${input.orderId} in this launch.`)
-    : new Refusal('conflict', exported.error)
+    : new Refusal(
+        'conflict',
+        `${input.orderId} is a draft. A member of the network approves it on the launch's page in the app; then it exports.`
+      )
 }
 
 // The launch's evidence log: one record per Qloo call its runs made or copied from the roster's
@@ -259,6 +255,11 @@ export async function deleteLaunch({ env, network, caller }: OperationContext, i
   await launchAgent(env, network, input.launchId) // refused unless the network lists it
   await wipeLaunch(env, network, input.launchId)
 }
+
+// The launch as it stands, to run again, as the launch page's "Run again" does: from its comps, if
+// it has any, since a launch only gains comps when its name can't be ranked.
+const asItStands = ({ name, comps }: Launch): LaunchInput =>
+  comps.length ? { comps: comps.map((c) => c.name) } : { name: name ?? '' }
 
 // The launch input the agent takes, from a plan that gives its name or its comps, not both.
 function launchInput({ name, comps }: LaunchPlan): LaunchInput {
@@ -312,7 +313,7 @@ export type Chart = Omit<Ranking, 'rows'> & {
 }
 
 // Run `id` as the launch's list of runs has it, or a refusal when the list has no such run.
-function listedRun(state: State, id: string) {
+function listedLaunchRun(state: State, id: string) {
   const summary = state.runs.find((r) => r.id === id)
   if (!summary) throw new Refusal('not_found', `There's no run ${id} of this launch.`)
   return summary
@@ -321,7 +322,7 @@ function listedRun(state: State, id: string) {
 // Run `id` of the launch: the latest from the agent's synced state, and an earlier one from what it
 // ended with.
 async function launchRunOf(launch: LaunchStub, state: State, id: string): Promise<LaunchRun> {
-  const summary = listedRun(state, id)
+  const summary = listedLaunchRun(state, id)
   const ended = state.run?.id === id ? state : ((await launch.getRun(id)) as unknown as RunSnapshot)
   const { run, launch: plan, ranking, topic, demographics, insertionOrder } = ended
   return {

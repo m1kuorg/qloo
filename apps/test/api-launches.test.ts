@@ -19,7 +19,7 @@ import {
   turn,
   type Demographic
 } from './fake'
-import { networkWithKey, poll } from './session'
+import { networkWithKey, poll, refused } from './session'
 
 type Call = Awaited<ReturnType<typeof networkWithKey>>['call']
 
@@ -103,11 +103,11 @@ const patch = (call: Call, path: string, body: unknown) =>
 
 // A network with an API key whose roster is imported, settled, and priced through the API, as a
 // program sets one up, with Qloo's answers faked.
-async function rosterReady(made?: Awaited<ReturnType<typeof networkWithKey>>) {
+async function rosterReady() {
   fakeQloo({ search })
   fakeInsights((body) => fit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id)))
   fakeDemographics([...demographics, listeners('e-0502', -0.07)])
-  const { ada, network, call } = made ?? (await networkWithKey())
+  const { ada, network, call } = await networkWithKey()
   const roster = `/api/v1/networks/${network}/roster`
   const settled = () => poll<{ status: string }>(call, roster, (r) => r.status === 'settled')
   await call(roster, { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv })
@@ -132,9 +132,6 @@ type Launch = { id: string; status: string; latestRun: LaunchRun | null } & Reco
 // Polls a launch's run, as a program waiting on it does, until it stops running: done, or waiting on
 // its question.
 const runRead = (call: Call, path: string) => poll<LaunchRun>(call, path, (run) => run.status !== 'running')
-
-// A refusal as a program branches on it: the status, and the error's code and message.
-const refused = async (res: Response) => [res.status, (await res.json<{ error: object }>()).error]
 
 const post = (call: Call, path: string, body?: unknown) =>
   call(path, {
@@ -555,15 +552,19 @@ async function drafted(more: Parameters<typeof fakeClaude>[0] = []) {
   const launches = `/api/v1/networks/${ready.network}/launches`
   const { id } = await (await post(ready.call, launches, { name: 'Night Shift Cinema' })).json<Launch>()
   const launch = `${launches}/${id}`
-  let run = await runRead(
-    ready.call,
-    `${launch}/runs/${(await (await post(ready.call, `${launch}/runs`)).json<LaunchRun>()).id}`
-  )
+  return { ...ready, id, launch, run: await runToOrder(ready.call, launch) }
+}
+
+// Starts a run of `launch` and answers its budget, 20 slots, and its exclusions, none, as the planned
+// script asks them, then returns the run as it next stops.
+async function runToOrder(call: Call, launch: string) {
+  const { id } = await (await post(call, `${launch}/runs`)).json<LaunchRun>()
+  let run = await runRead(call, `${launch}/runs/${id}`)
   for (const answer of [{ slots: 20 }, { exclude: [] }]) {
-    await post(ready.call, `${launch}/runs/${run.id}/answer`, { questionId: run.question!.id, ...answer })
-    run = await runRead(ready.call, `${launch}/runs/${run.id}`)
+    await post(call, `${launch}/runs/${id}/answer`, { questionId: run.question!.id, ...answer })
+    run = await runRead(call, `${launch}/runs/${id}`)
   }
-  return { ...ready, id, launch, run }
+  return run
 }
 
 describe("a launch's insertion order", () => {
@@ -583,7 +584,11 @@ describe("a launch's insertion order", () => {
     expect(run.insertionOrder).toMatchObject({ id: 'IO-0001', status: 'draft', slots: 20 })
     expect(await refused(await call(`${order}/csv`))).toEqual([
       409,
-      { code: 'conflict', message: 'IO-0001 is a draft. Approve it before exporting.' }
+      {
+        code: 'conflict',
+        message:
+          "IO-0001 is a draft. A member of the network approves it on the launch's page in the app; then it exports."
+      }
     ])
 
     // Lines as the run reads them, priced fields and all, with one dropped and one changed.
@@ -624,18 +629,20 @@ describe("a launch's insertion order", () => {
     const back = await (await patch(call, order, { lines: lines.map((l) => ({ ...l, angle: `${l.angle} ` })) })).json()
     expect(back).toMatchObject({ status: 'draft' })
     expect(back).not.toHaveProperty('approvedBy')
-    expect((await call(`${order}/csv`)).status).toBe(409)
+    expect(await refused(await call(`${order}/csv`))).toEqual([
+      409,
+      {
+        code: 'conflict',
+        message:
+          "IO-0001 is a draft. A member of the network approves it on the launch's page in the app; then it exports."
+      }
+    ])
     const again = await ada.connect(`/agents/launch/${network}/${id}`)
     await again.call('approveInsertionOrder', 'IO-0001')
     again.close()
 
     // A re-run drafts its own order; the earlier one can't be edited, but still exports as approved.
-    const second = (await (await post(call, `${launch}/runs`)).json<LaunchRun>()).id
-    let rerun = await runRead(call, `${launch}/runs/${second}`)
-    for (const answer of [{ slots: 20 }, { exclude: [] }]) {
-      await post(call, `${launch}/runs/${second}/answer`, { questionId: rerun.question!.id, ...answer })
-      rerun = await runRead(call, `${launch}/runs/${second}`)
-    }
+    const rerun = await runToOrder(call, launch)
     expect(rerun).toMatchObject({ status: 'waiting', insertionOrder: { id: 'IO-0002', status: 'draft' } })
     expect(await refused(await patch(call, `${launch}/insertion-orders/IO-0002`, { lines }))).toEqual([
       409,
@@ -659,7 +666,10 @@ describe("a launch's insertion order", () => {
   it("is never approved through the API, which refuses lines the order can't take", async () => {
     const { call, launch } = await drafted()
     const order = `${launch}/insertion-orders/IO-0001`
-    expect((await post(call, `${order}/approve`)).status).toBe(404)
+    expect(await refused(await post(call, `${order}/approve`))).toEqual([
+      404,
+      { code: 'not_found', message: 'The API has no such route. See /api/v1/openapi.json.' }
+    ])
     const line = { show: 'Corner Booth', slots: 8, angle: 'Call-ins.' }
     for (const [path, change, status, error] of [
       [
@@ -723,7 +733,7 @@ describe("a launch's evidence", () => {
     const { evidence } = await res.json<{ evidence: Evidence[] }>()
     const calls = evidence.map((e) => e.call)
     expect(new Set(calls).size).toBe(calls.length)
-    const { runs: _, ...latest } = (await (await call(launch)).json<Launch>()).latestRun! as Record<string, unknown>
+    const latest = (await (await call(launch)).json<Launch>()).latestRun!
     // The run cites its ranking call and its demographics call.
     const cited = [...new Set(JSON.stringify(latest).match(/\bC-\d+\b/g))]
     expect(cited).toEqual([(run.chart as { call: string }).call, (run.demographics as { call: string }).call])
@@ -766,18 +776,22 @@ describe('deleting a launch', () => {
       method: 'DELETE',
       headers: { Cookie: ada.cookie, Origin: 'https://elsewhere.test' }
     })
-    expect(elsewhere.status).toBe(403)
-    expect((await ada.fetch(`${launches}/${crypto.randomUUID()}`, { method: 'DELETE' })).status).toBe(404)
+    expect(await refused(elsewhere)).toEqual([
+      403,
+      {
+        code: 'forbidden',
+        message: 'A write signed in with a session must come from a Crossfeed page. Programs use an API key.'
+      }
+    ])
+    const gone = [404, { code: 'not_found', message: "There's no such launch in this network." }]
+    expect(await refused(await ada.fetch(`${launches}/${crypto.randomUUID()}`, { method: 'DELETE' }))).toEqual(gone)
 
     const deleted = await ada.fetch(launch, { method: 'DELETE' })
     expect(deleted.status).toBe(204)
     expect(await (await call(launches)).json()).toEqual({ launches: [] })
     for (const res of [await call(launch), await call(`${launch}/evidence`), await post(call, `${launch}/runs`)])
-      expect(await refused(res)).toEqual([
-        404,
-        { code: 'not_found', message: "There's no such launch in this network." }
-      ])
-    expect((await ada.fetch(launch, { method: 'DELETE' })).status).toBe(404)
+      expect(await refused(res)).toEqual(gone)
+    expect(await refused(await ada.fetch(launch, { method: 'DELETE' }))).toEqual(gone)
   })
 })
 
@@ -793,7 +807,10 @@ describe("a launch's routes", () => {
         404,
         { code: 'not_found', message: "There's no such launch in this network." }
       ])
-    expect((await other.call(`/api/v1/networks/${network}/launches/${id}`)).status).toBe(404)
+    expect(await refused(await other.call(`/api/v1/networks/${network}/launches/${id}`))).toEqual([
+      404,
+      { code: 'not_found', message: "There's no such network, or this API key or member can't reach it." }
+    ])
     // A member's session reads them too.
     expect((await ada.fetch(`/api/v1/networks/${network}/launches/${id}`)).status).toBe(200)
   })

@@ -718,6 +718,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // The programmer's edit of the current insertion order: slot counts, dropped shows, and reworded
   // angles, priced again in code. Editing an approved order returns it to draft. The budget bounds
   // the agent's draft, not this: the final plan is the programmer's, and the UI shows it over budget.
+  // Returns the order as saved.
   @callable()
   editInsertionOrder(id: string, lines: LineInput[]) {
     const order = this.editableOrder(id)
@@ -726,6 +727,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     if (problem) throw new Refusal('invalid', problem)
     const edited = lines.map(({ show, slots, angle }) => ({ show, slots, angle: angle.trim() }))
     this.saveOrder({ ...order, ...priceLines(edited, this.state.roster, this.state.cpm), status: 'draft' })
+    return this.state.insertionOrder!
   }
 
   // The programmer's approval: only an approved order exports. It takes a person in the app, on the
