@@ -8,32 +8,45 @@ import type { Context, MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { accountsOn, fromAppPage, signedIn } from '../auth'
 import { apiKeyFor, memberRole } from '../directory'
+import { workTypes, type PitchInput } from '../inbox'
 import {
+  answerPitchRun,
+  confirmWork,
+  discardReply,
+  editReply,
+  getInbox,
   getNetwork,
+  getPitchRun,
   getRoster,
   getUsage,
   importRoster,
+  loadInbox,
   searchComps,
+  startPitchRun,
   updateNetwork,
   updateShow,
   type Caller,
   type OperationContext
 } from '../operations'
 import { REFUSALS, Refusal, refusalCode, type RefusalCode } from '../refusal'
-import { readRosterUpload, type Upload } from '../upload'
+import { readPitchUpload, readRosterUpload, tooBig, type Upload } from '../upload'
 
 type ApiEnv = { Bindings: Env; Variables: { caller: Caller } }
 
 // Answers a refusal as JSON, with its code's status.
 const refuse = (c: Context, code: RefusalCode, message: string) => c.json({ error: { code, message } }, REFUSALS[code])
 
+// Which field of a request doesn't match its schema, and why.
+const invalidField = (error: z.ZodError) => {
+  const issue = error.issues[0]
+  const where = issue?.path.length ? `${issue.path.join('.')}: ` : ''
+  return `${where}${issue?.message ?? 'The request is invalid.'}`
+}
+
 export const api = new OpenAPIHono<ApiEnv>({
   // A request that doesn't match its route's schema says which field, and why.
   defaultHook: (result, c) => {
-    if (result.success) return
-    const issue = result.error.issues[0]
-    const where = issue?.path.length ? `${issue.path.join('.')}: ` : ''
-    return refuse(c, 'invalid', `${where}${issue?.message ?? 'The request is invalid.'}`)
+    if (!result.success) return refuse(c, 'invalid', invalidField(result.error))
   }
 })
 
@@ -102,7 +115,14 @@ const caller: MiddlewareHandler<ApiEnv> = async (c, next) => {
   }
   await next()
 }
-// Hono's `/*` matches the network's own path too.
+// The inbox and its pitch runs exist only while guest pitches are on, as in the app. The document
+// describes them either way, so the contract doesn't change with the deployment's switch.
+const guestPitches: MiddlewareHandler<ApiEnv> = async (c, next) => {
+  if (c.env.GUEST_PITCHES !== 'on') throw new Refusal('not_found', "Guest pitches aren't switched on.")
+  await next()
+}
+// Hono's `/*` matches the path itself too.
+for (const path of ['inbox', 'pitch-runs']) api.use(`/api/v1/networks/:networkId/${path}/*`, guestPitches)
 api.use('/api/v1/networks/:networkId/*', caller)
 
 // What an operation runs with, from a route under a network.
@@ -335,6 +355,18 @@ api.openapi(
   async (c) => c.json(await getRoster(context(c)), 200)
 )
 
+// A request body's media type, lowercased, without its parameters.
+const mediaType = (c: Context) => c.req.header('Content-Type')?.split(';')[0].trim().toLowerCase() ?? ''
+
+// The request's body as the upload module reads a file named `name`, sized from Content-Length, so a
+// body that says it's over the limit is refused before it's read.
+const bodyFile = async (c: Context, name: string): Promise<Upload> => {
+  const length = Number(c.req.header('Content-Length'))
+  return Number.isFinite(length)
+    ? { name, size: length, text: () => c.req.text(), arrayBuffer: () => c.req.arrayBuffer() }
+    : new File([await c.req.arrayBuffer()], name)
+}
+
 // What a roster body's type says it is, as the upload module reads files by their extension.
 const ROSTER_BODIES: Record<string, string> = { 'text/csv': 'roster.csv', 'text/plain': 'roster.txt' }
 
@@ -373,19 +405,13 @@ api.openapi(
     }
   }),
   async (c) => {
-    const type = c.req.header('Content-Type')?.split(';')[0].trim().toLowerCase() ?? ''
-    const name = ROSTER_BODIES[type]
+    const name = ROSTER_BODIES[mediaType(c)]
     if (!name)
       throw new Refusal(
         'invalid',
         'Send the roster as text/csv, with a name column, or as text/plain, with one show name per line.'
       )
-    // A body that says it's over the limit is refused before it's read.
-    const length = Number(c.req.header('Content-Length'))
-    const file: Upload = Number.isFinite(length)
-      ? { name, size: length, text: () => c.req.text(), arrayBuffer: () => c.req.arrayBuffer() }
-      : new File([await c.req.arrayBuffer()], name)
-    const { text, format } = await readRosterUpload([file])
+    const { text, format } = await readRosterUpload([await bodyFile(c, name)])
     const replace = c.req.valid('query').replace === 'true'
     return c.json(await importRoster(context(c), { text, format, replace }), 202)
   }
@@ -470,6 +496,539 @@ api.openapi(
     const { name } = c.req.valid('param')
     return c.json(await searchComps(context(c), { name, query: c.req.valid('json').query }), 202)
   }
+)
+
+const Work = z
+  .object({ title: z.string(), type: z.enum(workTypes), year: z.number().int().nullable() })
+  .openapi('Work', { description: "A guest's public work. Only its title and type reach Qloo." })
+
+const WorkCandidate = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    popularity: z.number().nullable(),
+    disambiguation: z
+      .string()
+      .nullable()
+      .openapi({ description: "Its year, and a book's author, to tell same-title works apart." }),
+    description: z.string().nullable().openapi({ description: "Qloo's line on what it is." })
+  })
+  .openapi('WorkCandidate')
+
+const WorkMatch = z
+  .object({
+    resolution: z.enum(['resolved', 'ambiguous', 'missed', 'failed']).openapi({
+      description:
+        '`resolved` to its match, `ambiguous` among same-title candidates until a work is confirmed, `missed` when Qloo has no such work, or `failed` with the error.'
+    }),
+    entity: WorkCandidate.nullable(),
+    candidates: z.array(WorkCandidate),
+    evidence: z.string().openapi({ description: "The search's call number in the network's evidence." }),
+    error: z.string().nullable()
+  })
+  .openapi('WorkMatch', { description: "How the work's search in Qloo resolved." })
+
+const Pitch = z
+  .object({
+    id: z.string().openapi({ example: 'pitch-01' }),
+    from: z
+      .string()
+      .nullable()
+      .openapi({ description: "The sender's name and address. It stays in Crossfeed: it never reaches Qloo." }),
+    subject: z.string().nullable(),
+    body: z.string(),
+    status: z.enum(['reading', 'looking_up', 'read', 'no_work', 'unreadable', 'failed']).openapi({
+      description:
+        "`reading` while the agent reads it, `looking_up` while its work is searched in Qloo, then `read`. A pitch with no public work (`no_work`) or that the agent can't read (`unreadable`) is set aside and never reaches Qloo; `failed` says why in `error`."
+    }),
+    guest: z
+      .string()
+      .nullable()
+      .openapi({ description: "The pitched guest's name, as the agent read it. It never reaches Qloo." }),
+    work: Work.nullable(),
+    match: WorkMatch.nullable().openapi({ description: 'Null until its work has been searched.' }),
+    error: z.string().nullable()
+  })
+  .openapi('Pitch')
+
+const Inbox = z
+  .object({
+    status: z.enum(['empty', 'reading', 'done']).openapi({
+      description: '`empty` until pitches are loaded, `reading` while any is still being read; poll until `done`.'
+    }),
+    sample: z
+      .object({ notice: z.string() })
+      .nullable()
+      .openapi({ description: "The sample inbox's notice, while the sample inbox is loaded." }),
+    pitches: z.array(Pitch),
+    skipped: z
+      .array(z.object({ pitch: z.string(), why: z.string() }))
+      .openapi({ description: 'Emails left out of the last upload, each named by its subject or sender, and why.' })
+  })
+  .openapi('Inbox', {
+    example: {
+      status: 'reading',
+      sample: null,
+      pitches: [
+        {
+          id: 'pitch-01',
+          from: 'Pat Lindqvist <pat@example.com>',
+          subject: 'Ada Quill on Night Ferry',
+          body: "Ada Quill's novel Night Ferry is about a projectionist on a car ferry.",
+          status: 'reading',
+          guest: null,
+          work: null,
+          match: null,
+          error: null
+        }
+      ],
+      skipped: [{ pitch: 'Weekly Digest <digest@example.com>', why: 'is over the 10,000-character limit' }]
+    }
+  })
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/inbox',
+    tags: ['Inbox'],
+    summary: 'Read the inbox',
+    request: { params: NetworkParams },
+    responses: {
+      200: { description: 'The inbox.', content: { 'application/json': { schema: Inbox } } },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json(await getInbox(context(c)), 200)
+)
+
+// Pitches given one by one, rather than as email files.
+const PitchBatch = z
+  .object({
+    pitches: z.array(
+      z.object({
+        from: z.string().nullable().optional().openapi({ description: "The sender's name and address." }),
+        subject: z.string().nullable().optional(),
+        body: z.string()
+      })
+    )
+  })
+  .openapi('PitchBatch', {
+    example: {
+      pitches: [
+        {
+          from: 'Pat Lindqvist <pat@example.com>',
+          subject: 'Ada Quill on Night Ferry',
+          body: "Ada Quill's novel Night Ferry is about a projectionist on a car ferry."
+        }
+      ]
+    }
+  })
+api.openAPIRegistry.register('PitchBatch', PitchBatch)
+
+// What a pitch file body's type says it is, as the upload module reads files by their extension.
+const PITCH_BODIES: Record<string, string> = {
+  'message/rfc822': 'pitch.eml',
+  'application/mbox': 'pitches.mbox',
+  'text/plain': 'pitches.txt'
+}
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/inbox',
+    tags: ['Inbox'],
+    summary: 'Load the inbox',
+    description:
+      "Send the pitches as the body: one email as `message/rfc822` (an .eml file), an mbox export as `application/mbox`, plain text with a line of three dashes between pitches as `text/plain` (a pitch's first lines may give its `From:` and `Subject:`), or JSON pitches, at most 50 pitches and 5 MB. Of each email, only its sender, subject, and text are kept, never its attachments or other headers, and only its work's title and type reach Qloo. An email with no text, or over 10,000 characters, is skipped and named. It answers 202 at once with the pitches reading; poll the inbox until it's done. Reading the pitches counts as one of the network's model runs. Over an inbox that has pitches, it needs `replace=true`: they go, with the last pitch run's lists and replies.",
+    request: {
+      params: NetworkParams,
+      query: z.object({
+        replace: z
+          .enum(['true', 'false'])
+          .optional()
+          .openapi({ description: 'Load over an inbox that has pitches.', example: 'true' })
+      }),
+      body: {
+        required: true,
+        content: {
+          'message/rfc822': { schema: z.string().openapi({ format: 'binary' }) },
+          'application/mbox': { schema: z.string().openapi({ format: 'binary' }) },
+          'text/plain': {
+            schema: z.string().openapi({
+              example:
+                "From: Pat Lindqvist <pat@example.com>\nSubject: Ada Quill on Night Ferry\n\nAda Quill's novel Night Ferry is about a projectionist on a car ferry.\n---\nCy Lund on making Low Tide on a shoestring.\n"
+            })
+          },
+          // Validated in the handler, which tells the JSON apart from the files.
+          'application/json': { schema: { $ref: '#/components/schemas/PitchBatch' } }
+        }
+      }
+    },
+    responses: {
+      202: {
+        description: 'The inbox, with its new pitches reading.',
+        content: { 'application/json': { schema: Inbox } }
+      },
+      ...errors(400, 401, 403, 404, 409, 413, 422, 429)
+    }
+  }),
+  async (c) => {
+    const type = mediaType(c)
+    const name = PITCH_BODIES[type]
+    let pitches: PitchInput[]
+    if (name) pitches = await readPitchUpload([await bodyFile(c, name)])
+    else if (type === 'application/json') {
+      const file = await bodyFile(c, 'pitches.json')
+      tooBig(file)
+      let json: unknown
+      try {
+        json = JSON.parse(await file.text())
+      } catch {
+        throw new Refusal('invalid', "The body isn't valid JSON. Send it as application/json.")
+      }
+      const batch = PitchBatch.safeParse(json)
+      if (!batch.success) throw new Refusal('invalid', invalidField(batch.error))
+      pitches = batch.data.pitches.map(({ from, subject, body }) => ({
+        from: from ?? null,
+        subject: subject ?? null,
+        body
+      }))
+    } else
+      throw new Refusal(
+        'invalid',
+        'Send the pitches as message/rfc822 (an .eml file), application/mbox, text/plain with a line of three dashes between pitches, or application/json.'
+      )
+    const replace = c.req.valid('query').replace === 'true'
+    return c.json(await loadInbox(context(c), { pitches, replace }), 202)
+  }
+)
+
+api.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/api/v1/networks/{networkId}/inbox/pitches/{pitchId}',
+    tags: ['Inbox'],
+    summary: "Confirm a pitch's work",
+    description:
+      "Confirm which of an ambiguous work's same-title candidates the pitch is about (`entityId`). Only a work matched in Qloo is ranked.",
+    request: {
+      params: NetworkParams.extend({ pitchId: z.string().openapi({ example: 'pitch-03' }) }),
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: z
+              .object({ entityId: z.string().openapi({ description: "One of its work's candidates." }) })
+              .openapi('WorkConfirmation', { example: { entityId: 'f-0002' } })
+          }
+        }
+      }
+    },
+    responses: {
+      200: { description: 'The pitch, its work confirmed.', content: { 'application/json': { schema: Pitch } } },
+      ...errors(400, 401, 403, 404, 429)
+    }
+  }),
+  async (c) => {
+    const { pitchId } = c.req.valid('param')
+    return c.json(await confirmWork(context(c), { pitchId, entityId: c.req.valid('json').entityId }), 200)
+  }
+)
+
+const Question = z
+  .object({
+    id: z.string().openapi({ description: 'Answer with this ID, so an answer meant for another question is refused.' }),
+    kind: z.enum(['choice', 'launch', 'budget', 'exclusions', 'comps', 'confirm_comps']).openapi({
+      description:
+        'A `choice` question is answered with one of its `options` as `choice`, or your own words as `text`; each other kind with the Answer fields named for it.'
+    }),
+    question: z.string(),
+    options: z.array(z.string())
+  })
+  .openapi('Question', { description: 'The question the run is waiting on.' })
+
+const Note = z
+  .object({ text: z.string(), status: z.enum(['running', 'done', 'failed']) })
+  .openapi('Note', { description: 'One step of the run, such as a ranking call, as the app shows it.' })
+
+const SharedTags = z
+  .object({
+    call: z.string(),
+    tags: z.array(z.string()).openapi({ description: "The tags in Qloo's order, as words, never scores." }),
+    error: z.string().nullable()
+  })
+  .openapi('SharedTags', { description: "The tags a work's listeners share with the show's, from one compare call." })
+
+const PitchList = z
+  .object({
+    type: z.enum(workTypes),
+    path: z.enum(['show', 'same_type', 'unranked']).openapi({
+      description:
+        "`show`: ranked against the show and the past guests' works; `same_type`: against only the past guests' works of this type, as Qloo scored none against the show; `unranked`, with the reason in `error`."
+    }),
+    anchors: z.array(z.object({ id: z.string(), name: z.string() })),
+    calls: z.array(z.string()).openapi({ description: "Its ranking calls' numbers in the network's evidence." }),
+    error: z.string().nullable(),
+    rows: z
+      .array(
+        z.object({
+          pitch: z.string(),
+          entity: WorkCandidate,
+          rank: z.number().int().openapi({ description: 'From 1, within this list only.' }),
+          band: z.enum(['top', 'middle', 'bottom']),
+          sharedTags: SharedTags.optional()
+        })
+      )
+      .openapi({ description: 'In fit order.' }),
+    notScored: z.array(z.object({ pitch: z.string(), reason: z.string() }))
+  })
+  .openapi('PitchList', {
+    description:
+      "The pitched works of one type, ranked against the show by one Qloo call. Another type's list comes from another call, so ranks from two lists can't be compared."
+  })
+
+const Reply = z
+  .object({
+    pitch: z.string(),
+    verdict: z.enum(['book', 'decline', 'later']),
+    angle: z.string().nullable().openapi({ description: "A top pitch's episode angle, built from its shared tags." }),
+    sharedTags: SharedTags.nullable(),
+    draft: z.string().openapi({ description: "The reply to the pitch's sender." }),
+    status: z.enum(['draft', 'approved', 'discarded']).openapi({
+      description:
+        'Only a member approves a reply, in the app; editing an approved reply returns it to `draft`, and so does editing a discarded one.'
+    }),
+    approvedBy: z.string().optional().openapi({ description: 'The ID of the member who approved it.' })
+  })
+  .openapi('Reply')
+
+const PitchRun = z
+  .object({
+    id: z.string(),
+    status: z.enum(['running', 'waiting', 'completed', 'stopped', 'failed']).openapi({
+      description:
+        '`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`.'
+    }),
+    show: z.string().openapi({ description: 'The roster show the pitches are ranked against.' }),
+    startedAt: z.string(),
+    question: Question.nullable(),
+    notes: z.array(Note),
+    error: z.string().nullable(),
+    closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
+    pastGuests: z.array(
+      z.object({
+        guest: z.string(),
+        work: Work,
+        match: WorkMatch.nullable().openapi({ description: 'Null until its work has been searched.' })
+      })
+    ),
+    lists: z.array(PitchList).nullable().openapi({ description: 'One per work type, once the pitches are ranked.' }),
+    replies: z.array(Reply).nullable().openapi({ description: 'One per pitch, in inbox order, once drafted.' })
+  })
+  .openapi('PitchRun', {
+    example: {
+      id: '5f0c2a8e-1b7d-4c3e-9a64-0d2e8f1b3c57',
+      status: 'waiting',
+      show: 'Deep Cuts',
+      startedAt: '2026-10-19T14:02:11.000Z',
+      question: {
+        id: 'toolu_01',
+        kind: 'choice',
+        question: 'Hold the film pitches for next season?',
+        options: ['Yes', 'No']
+      },
+      notes: [{ text: 'Ranking 3 pitched works against Deep Cuts', status: 'done' }],
+      error: null,
+      closing: null,
+      pastGuests: [],
+      lists: null,
+      replies: null
+    }
+  })
+
+// An answer to a run's question, by the question's ID. Which fields it takes follows the question's
+// kind; the agent refuses any other.
+const Answer = z
+  .object({
+    questionId: z.string(),
+    choice: z.string().optional().openapi({ description: "One of a `choice` question's options." }),
+    text: z.string().optional().openapi({ description: 'Your own words, for a `choice` question.' }),
+    slots: z.number().optional().openapi({ description: 'A `budget` in promo slots.' }),
+    dollars: z.number().optional().openapi({ description: 'A `budget` in dollars.' }),
+    exclude: z.array(z.string()).optional().openapi({ description: 'The `exclusions`: shows to leave out.' }),
+    comps: z.array(z.string()).optional().openapi({ description: 'For `comps`, up to three released shows.' }),
+    picks: z
+      .array(z.string().nullable())
+      .optional()
+      .openapi({ description: "For `confirm_comps`, each comp's entity ID in the question's order, or null for none." })
+  })
+  .openapi('Answer', { example: { questionId: 'toolu_01', choice: 'Yes' } })
+
+// A pitch run of the network's, by its ID.
+const RunParams = NetworkParams.extend({
+  runId: z.string().openapi({ description: 'The ID the run answered with when it started.' })
+})
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/pitch-runs',
+    tags: ['Pitch runs'],
+    summary: 'Start a pitch run',
+    description:
+      "Rank the inbox's pitched works against a roster show matched in Qloo, and against its best past guests' works too, then draft a reply to every pitch. Only each work's title and type reach Qloo, never a guest's name or a sender. It answers 202 at once with the run running; poll it until it's done or waiting on a question. It counts as one of the network's model runs, and a new run ends one left waiting.",
+    request: {
+      params: NetworkParams,
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: z
+              .object({
+                show: z.string().openapi({ description: 'The show, named as on the roster.' }),
+                pastGuests: z
+                  .array(
+                    z.object({
+                      guest: z.string(),
+                      work: z.object({
+                        title: z.string(),
+                        type: z.enum(workTypes),
+                        year: z.number().int().nullable().optional()
+                      })
+                    })
+                  )
+                  .optional()
+                  .openapi({
+                    description:
+                      "Up to three of the show's best past guests and their public works. A guest's name is used to match a book by its author, and never reaches Qloo."
+                  })
+              })
+              .openapi('PitchRunStart', {
+                example: {
+                  show: 'Deep Cuts',
+                  pastGuests: [{ guest: 'Mo Reyes', work: { title: 'Talking with Ghosts', type: 'book', year: 2022 } }]
+                }
+              })
+          }
+        }
+      }
+    },
+    responses: {
+      202: { description: 'The run, running.', content: { 'application/json': { schema: PitchRun } } },
+      ...errors(400, 401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => {
+    const { show, pastGuests = [] } = c.req.valid('json')
+    const guests = pastGuests.map(({ guest, work }) => ({ guest, work: { ...work, year: work.year ?? null } }))
+    return c.json(await startPitchRun(context(c), { show, pastGuests: guests }), 202)
+  }
+)
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/pitch-runs/{runId}',
+    tags: ['Pitch runs'],
+    summary: 'Read a pitch run',
+    description:
+      'Its status, any question it waits on, and as they arrive, its ranked lists and drafted replies. An earlier run reads as it ended.',
+    request: { params: RunParams },
+    responses: {
+      200: { description: 'The run.', content: { 'application/json': { schema: PitchRun } } },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json(await getPitchRun(context(c), c.req.valid('param')), 200)
+)
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/pitch-runs/{runId}/answer',
+    tags: ['Pitch runs'],
+    summary: "Answer a pitch run's question",
+    description:
+      'Answer the question the run is waiting on, by its ID: with one of its options as `choice`, or your own words as `text`. The run resumes, answering 202; poll it again. A run started later, or loading the inbox, ends a run left waiting.',
+    request: {
+      params: RunParams,
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: Answer
+          }
+        }
+      }
+    },
+    responses: {
+      202: { description: 'The run, resumed.', content: { 'application/json': { schema: PitchRun } } },
+      ...errors(400, 401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => {
+    const { questionId, ...answer } = c.req.valid('json')
+    return c.json(await answerPitchRun(context(c), { ...c.req.valid('param'), questionId, answer }), 202)
+  }
+)
+
+// One of a pitch run's replies, by its pitch.
+const ReplyParams = RunParams.extend({ pitchId: z.string().openapi({ example: 'pitch-01' }) })
+
+api.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/api/v1/networks/{networkId}/pitch-runs/{runId}/replies/{pitchId}',
+    tags: ['Replies'],
+    summary: 'Edit a reply',
+    description:
+      "Reword one of the latest pitch run's drafted replies, once the run has ended. Editing an approved reply returns it to draft, and editing a discarded one restores it. Only a member approves a reply, in the app.",
+    request: {
+      params: ReplyParams,
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: z
+              .strictObject(
+                { draft: z.string().openapi({ description: 'At most 5,000 characters.' }) },
+                {
+                  error: (issue) =>
+                    issue.code === 'unrecognized_keys'
+                      ? "Only a reply's draft can be changed through the API. A member approves a reply, in the app."
+                      : undefined
+                }
+              )
+              .openapi('ReplyChange', {
+                example: { draft: "Thanks for thinking of us. We'd love to book Night Ferry." }
+              })
+          }
+        }
+      }
+    },
+    responses: {
+      200: { description: 'The reply as edited.', content: { 'application/json': { schema: Reply } } },
+      ...errors(400, 401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => c.json(await editReply(context(c), { ...c.req.valid('param'), draft: c.req.valid('json').draft }), 200)
+)
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/pitch-runs/{runId}/replies/{pitchId}/discard',
+    tags: ['Replies'],
+    summary: 'Discard a reply',
+    description:
+      "Leave one of the latest pitch run's drafted replies out, once the run has ended. Editing it restores it.",
+    request: { params: ReplyParams },
+    responses: {
+      200: { description: 'The reply, discarded.', content: { 'application/json': { schema: Reply } } },
+      ...errors(401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => c.json(await discardReply(context(c), c.req.valid('param')), 200)
 )
 
 // The API's contract, generated from the routes' schemas.

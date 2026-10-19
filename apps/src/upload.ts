@@ -37,7 +37,8 @@ export async function readRosterUpload(files: readonly Upload[]): Promise<{ text
 export async function readPitchUpload(files: readonly Upload[]): Promise<PitchInput[]> {
   const other = files.find((f) => !PITCH_TYPES.includes(extension(f.name)))
   if (other)
-    throw new Error(
+    throw new Refusal(
+      'unreadable',
       `"${other.name}" isn't a pitch file. Upload emails as .eml files or an .mbox export, or pitches as a .txt with a line of three dashes between them.`
     )
   const pitches: PitchInput[] = []
@@ -45,7 +46,7 @@ export async function readPitchUpload(files: readonly Upload[]): Promise<PitchIn
     const type = extension(file.name)
     if (type === 'txt') {
       const texts = splitPitches((await read(file)).replace(/\r\n?/g, '\n'))
-      if (texts.length === 0) throw new Error(`"${file.name}" has no pitch in it.`)
+      if (texts.length === 0) throw new Refusal('unreadable', `"${file.name}" has no pitch in it.`)
       pitches.push(...texts.map(headed))
       continue
     }
@@ -55,7 +56,10 @@ export async function readPitchUpload(files: readonly Upload[]): Promise<PitchIn
     else {
       const emails = messages(bytes)
       if (!emails)
-        throw new Error(`"${file.name}" isn't an mbox export: its first line should start an email with "From ".`)
+        throw new Refusal(
+          'unreadable',
+          `"${file.name}" isn't an mbox export: its first line should start an email with "From ".`
+        )
       for (const raw of emails) pitches.push(await email(raw))
     }
   }
@@ -173,7 +177,7 @@ async function readBytes(file: Upload) {
 const extension = (name: string) => name.slice(name.lastIndexOf('.') + 1).toLowerCase()
 
 // Refuses a file over the limit before it's read.
-function tooBig(file: Upload) {
+export function tooBig(file: Upload) {
   if (file.size > MAX_UPLOAD_BYTES)
     throw new Refusal(
       'too_large',

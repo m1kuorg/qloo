@@ -7,7 +7,7 @@ import { api as routes } from '../src/routes/api'
 import sampleInbox from '../src/sample-inbox.json'
 import sampleNetwork from '../src/sample-network.json'
 import { fakeQloo, requests } from './fake'
-import { api, openMember, type Member } from './session'
+import { api, networkWithKey, openMember } from './session'
 
 // Synthetic shows: two exact matches, one name shared by two feeds, and one Qloo doesn't have.
 const search = {
@@ -25,24 +25,6 @@ type Roster = { status: 'pending' | 'settled'; shows: Show[]; sample: { network:
 
 const saved = { QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP }
 afterEach(() => Object.assign(env, saved))
-
-// A network the member creates the way /app/new does, and an API key its owner makes in settings.
-async function networkWithKey(member?: Member) {
-  const ada = member ?? (await openMember())
-  const created = await ada.fetch('/app/new', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Night Shift Audio' })
-  })
-  const { id } = await created.json<{ id: string }>()
-  const made = await ada.fetch(`/app/${id}/settings/api-keys`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Nightly sync' })
-  })
-  const { secret } = await made.json<{ secret: string }>()
-  return { ada, network: id, call: api(secret) }
-}
 
 type Call = ReturnType<typeof api>
 

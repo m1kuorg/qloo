@@ -150,6 +150,40 @@ export const api =
     return exports.default.fetch(`${origin}${path}`, { ...init, headers })
   }
 
+// A network the member creates the way /app/new does, and an API key its owner makes in settings.
+export async function networkWithKey(member?: Member) {
+  const ada = member ?? (await openMember())
+  const created = await ada.fetch('/app/new', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Night Shift Audio' })
+  })
+  const { id } = await created.json<{ id: string }>()
+  const made = await ada.fetch(`/app/${id}/settings/api-keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Nightly sync' })
+  })
+  const { secret } = await made.json<{ secret: string }>()
+  return { ada, network: id, call: api(secret) }
+}
+
+// Reads `path` with `call` until its JSON passes `ready`, as a program waiting on long work polls the
+// resource, and returns it.
+export async function poll<T>(
+  call: (path: string) => Promise<Response>,
+  path: string,
+  ready: (body: T) => boolean
+): Promise<T> {
+  for (;;) {
+    const res = await call(path)
+    if (res.status !== 200) throw new Error(`GET ${path} returned ${res.status}: ${await res.text()}`)
+    const body = await res.json<T>()
+    if (ready(body)) return body
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
 export type Member = {
   id: string
   name: string
