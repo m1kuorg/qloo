@@ -561,6 +561,7 @@ describe("the inbox page's words", () => {
     await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
     const read = inboxPage(await loaded(agent), network)
     expect(read).toContain('Inbox · Uploaded pitches')
+    expect(read).toContain('Read 1 pitch Rank against a show')
     expect(read).toContain('Read pitches Load sample inbox Upload files Replaces the current inbox, up to 50 pitches.')
     expect(read).toContain(
       'Drop email files anywhere on the page, or upload them: .eml files, an .mbox export, or a .txt with a line of three dashes between pitches.'

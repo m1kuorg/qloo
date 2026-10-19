@@ -112,7 +112,7 @@ export function InboxPage({
             <div className="status" role="status">
               <b>{reading ? 'Reading' : 'Read'}</b>
               <p className="count">
-                {reading ? `${done} of ${inbox.pitches.length} pitches read` : `${inbox.pitches.length} pitches`}
+                {reading ? `${done} of ${pitchCount(inbox.pitches.length)} read` : pitchCount(inbox.pitches.length)}
               </p>
               <SlowCalls calls={slowCalls} />
             </div>
@@ -271,6 +271,8 @@ function SkippedPitches({ skipped }: { skipped: Skipped[] }) {
     </StateLine>
   )
 }
+
+const pitchCount = (n: number) => `${n} ${n === 1 ? 'pitch' : 'pitches'}`
 
 export const typeLabel: Record<WorkType, string> = {
   book: 'Book',
