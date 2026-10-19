@@ -180,7 +180,11 @@ describe('uploading a roster file', () => {
     expect(agent.state()!.roster.map((s) => s.name)).toEqual(['Paper Trail', 'Field Notes'])
   })
 
-  it('refuses another type, more or fewer than one file, an empty file, and one over 5 MB unread', async () => {
+  it('refuses another type, more or fewer than one file, an empty file, and one over 5 MB unread, and keeps the roster', async () => {
+    fakeQloo({ search })
+    const ada = await openMember()
+    const agent = await connect(ada, await created(ada))
+    await agent.importRoster('Deep Cuts')
     const big: Upload = {
       name: 'roster.csv',
       size: 6 * 1024 * 1024,
@@ -200,7 +204,9 @@ describe('uploading a roster file', () => {
       [[new File(['\n \n'], 'roster.txt')], '"roster.txt" is empty.'],
       [[big], '"roster.csv" is 6.0 MB, over the 5 MB limit for an upload.']
     ] as const)
-      await expect(readRosterUpload(files)).rejects.toThrow(error)
+      await expect(upload(agent, ...files)).rejects.toThrow(error)
+    expect(agent.state()!.roster.map((s) => s.name)).toEqual(['Deep Cuts'])
+    expect(requests).toHaveLength(1)
   })
 
   it('refuses a CSV without a name column, or over 50 shows, saying why, and keeps the roster it has', async () => {
@@ -296,7 +302,7 @@ describe('re-importing the roster', () => {
     ])
   })
 
-  it('takes the sample labels off the figures the file brings, and leaves the sample', async () => {
+  it("takes the sample labels off the figures the file brings, and the sample's notice once none is left", async () => {
     fakeQloo({ search: {} })
     const ada = await openMember()
     const network = await created(ada)
@@ -309,6 +315,14 @@ describe('re-importing the roster', () => {
       ['The Watch', 41000, 'active', ['status', 'description']],
       ['House of R', null, 'active', ['status', 'description']]
     ])
+    // Sample figures are left, so the notice naming the sample's network stays with them.
+    expect(agent.state()!.sample).toMatchObject({ network: 'The Ringer' })
+
+    await agent.importRoster(
+      'name,status,description\nThe Watch,active,Our TV show\nHouse of R,hiatus,Our fantasy show',
+      'csv'
+    )
+    expect(agent.state()!.roster.map((s) => s.sample)).toEqual([[], []])
     expect(agent.state()!.sample).toBeNull()
   })
 

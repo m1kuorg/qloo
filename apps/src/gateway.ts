@@ -159,7 +159,7 @@ export class QlooGateway extends DurableObject<Env> {
     // A limit that isn't a number refuses every call, rather than none.
     const limit = Number(this.env.QLOO_VISITOR_DAILY_CALL_CAP) || 0
     if (this.used('visitor_calls', key, day) + n > limit)
-      return `This would take you past ${limit} Qloo calls today, the most ${one(visitor)} can make in a UTC day, cache hits included; they reset at 00:00 UTC`
+      return `This would take you past ${limit} Qloo calls today, the most ${whoCounts(visitor)} can make in a UTC day, cache hits included; they reset at 00:00 UTC`
     this.add('visitor_calls', key, day, n)
     return null
   }
@@ -178,7 +178,7 @@ export class QlooGateway extends DurableObject<Env> {
   // calls Claude asks, so a replay never counts.
   async startModelRun(visitor: string): Promise<ModelRuns> {
     const day = utcDay()
-    return this.countModelRun(await sha256(`${visitor}:${day}`), day, one(visitor))
+    return this.countModelRun(await sha256(`${visitor}:${day}`), day, whoCounts(visitor))
   }
 
   // Decides how a launch starts, in one call: as a model run, counted; or, while Qloo can't be called
@@ -189,7 +189,7 @@ export class QlooGateway extends DurableObject<Env> {
     const key = await sha256(`${visitor}:${day}`)
     // From here on nothing awaits, so concurrent starts can't both pass a limit.
     const down = this.health()
-    const limited = down ? null : this.countModelRun(key, day, one(visitor)).refused
+    const limited = down ? null : this.countModelRun(key, day, whoCounts(visitor)).refused
     if (!down && !limited) return { down, limited, refused: null, stored: null }
     // A limit that isn't a number refuses every start, rather than none.
     const limit = Number(this.env.FREE_START_DAILY_CAP) || 0
@@ -197,7 +197,7 @@ export class QlooGateway extends DurableObject<Env> {
       return {
         down,
         limited,
-        refused: `You've started ${limit === 1 ? '1 run' : `${limit} runs`} today that replayed or stopped at once, the most ${one(visitor)} can start in a UTC day; they reset at 00:00 UTC`,
+        refused: `You've started ${limit === 1 ? '1 run' : `${limit} runs`} today that replayed or stopped at once, the most ${whoCounts(visitor)} can start in a UTC day; they reset at 00:00 UTC`,
         stored: null
       }
     this.add('free_starts', key, day)
@@ -561,7 +561,7 @@ type Attempt =
 const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n} model runs`)
 
 // Who a per-visitor limit counts, in its refusal: a signed-in network's agents count as their network.
-const one = (visitor: string) => (visitor.startsWith('network:') ? 'one network' : 'one visitor')
+const whoCounts = (visitor: string) => (visitor.startsWith('network:') ? 'one network' : 'one visitor')
 
 // Today in UTC, such as "2026-10-18": the day the caps count in.
 const utcDay = () => new Date().toISOString().slice(0, 10)

@@ -38,7 +38,7 @@ export function NetworkRoster({ agent, network }: { agent: NetworkConnection; ne
                 roster={roster}
                 draft={importDraft}
                 importRoster={(text, format) => agent.stub.importRoster(text, format)}
-                keeps
+                keepsSettledShows
               />
               {roster.length > 0 ? (
                 <RosterTable
@@ -66,7 +66,7 @@ export function NetworkRoster({ agent, network }: { agent: NetworkConnection; ne
               <RosterCheck roster={roster} />
             </>
           )}
-          <NetworkCpm cpm={state ? state.cpm : undefined} network={network} />
+          <CpmRecord cpm={state ? state.cpm : undefined} network={network} />
         </aside>
       </main>
     </>
@@ -79,7 +79,9 @@ function EmptyRoster({ start }: { start: () => Promise<unknown> }) {
   const { busy, error, run } = useAction()
   return (
     <div className="empty">
-      <p>No roster yet.</p>
+      <p>
+        <StateLine kind="empty">No roster yet.</StateLine>
+      </p>
       <div className="acts">
         <button type="button" className="btn" disabled={busy} onClick={() => void run(start)}>
           Start from the sample roster
@@ -108,7 +110,7 @@ function SampleRoster({ sample }: { sample: Sample }) {
 
 // The CPM that prices every launch's slots, which an owner changes in settings. `cpm` is undefined
 // until the agent is connected.
-function NetworkCpm({ cpm, network }: { cpm: number | null | undefined; network: NetworkPage }) {
+function CpmRecord({ cpm, network }: { cpm: number | null | undefined; network: NetworkPage }) {
   return (
     <section className="mod" aria-labelledby="cpm-h">
       <div className="mh">

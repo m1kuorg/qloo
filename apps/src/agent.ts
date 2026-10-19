@@ -68,7 +68,7 @@ export type ShowPatch = {
 const PATCH_KEYS = ['entityId', 'compId', 'downloads', 'status', 'excluded']
 
 // A show waiting on its search, citing the call it waits on.
-const pending = (evidence: string): Pick<Show, 'resolution' | 'entity' | 'candidates' | 'evidence' | 'error'> => ({
+const pendingShow = (evidence: string): Pick<Show, 'resolution' | 'entity' | 'candidates' | 'evidence' | 'error'> => ({
   resolution: 'pending',
   entity: null,
   candidates: [],
@@ -765,7 +765,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const calls = rows.map(({ name }) => (this.toLookUp(name, keep) ? this.numberCall() : null))
     const roster = rows.map(({ name, ...fields }, i): Show => {
       const seq = calls[i]
-      const looking = seq === null ? null : pending(callNumber(seq))
+      const looking = seq === null ? null : pendingShow(callNumber(seq))
       const kept = keep && this.onRoster(name)
       if (!kept) return { name, ...looking!, compSearch: null, ...fields, excluded: false }
       const brought = Object.fromEntries(keep.map((f) => [f, fields[f]]))
@@ -773,7 +773,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       const sample = kept.sample && { sample: kept.sample.filter((f) => !keep.includes(f)) }
       return { ...kept, ...brought, ...sample, ...looking }
     })
-    this.setState({ ...this.state, ...alongside, roster })
+    // While a kept show still holds a sample figure, the notice naming the sample's network stays too.
+    const stillSample = keep && roster.some((s) => s.sample?.length) ? { sample: this.state.sample } : {}
+    this.setState({ ...this.state, ...alongside, ...stillSample, roster })
     // All at once: the gateway paces, limits, and retries the calls.
     void this.keepAliveWhile(() =>
       Promise.all(roster.flatMap((show, i) => (calls[i] === null ? [] : [this.lookUpShow(show.name, calls[i])])))

@@ -133,7 +133,7 @@ export function Workspace({ page, agent, links }: { page: string | undefined; ag
           roster={roster}
           draft={importDraft}
           importRoster={(text, format) => agent.stub.importRoster(text, format)}
-          keeps={false}
+          keepsSettledShows={false}
         />
       )}
       <RosterTable
@@ -1288,12 +1288,12 @@ export function RosterImport({
   roster,
   draft,
   importRoster,
-  keeps
+  keepsSettledShows
 }: {
   roster: Show[]
   draft: { current: string } // what's typed, kept by the page across a remount
   importRoster: (text: string, format: RosterFormat) => Promise<void>
-  keeps: boolean // whether an import keeps the shows already on the roster, as a network's does
+  keepsSettledShows: boolean // whether an import keeps the shows already on the roster, as a network's does
 }) {
   const [text, setTyped] = useState(() => draft.current)
   const setText = (value: string) => {
@@ -1353,7 +1353,7 @@ export function RosterImport({
         </button>
         <input ref={file} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={pick} />
         <small>
-          {keeps
+          {keepsSettledShows
             ? 'Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
             : 'Replaces the current roster, up to 50 shows.'}
         </small>
