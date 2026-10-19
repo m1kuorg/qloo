@@ -92,7 +92,7 @@ describe('the dashboard', () => {
     const read = words(html)
     expect(read).toContain('Night Shift Audio')
     expect(read).toContain(
-      'Launch Status Finalists Slots Slot value Last run No launches yet. Each launch you plan is listed here with its status, finalists, promo slots, and their slot value.'
+      'Launch Status Finalists Slots Slot value Last run Actions No launches yet. Each launch you plan is listed here with its status, finalists, promo slots, and their slot value.'
     )
     expect(read).toContain('Roster No shows yet Open')
     expect(read).toContain('CPM Not set Set')

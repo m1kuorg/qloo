@@ -649,8 +649,9 @@ function Privacy({ accounts }: { accounts: boolean }) {
             keys are kept only as hashes, with each key&apos;s name and first characters, who made it, when, and the
             last minute it was used. Each network&apos;s roster, CPM, and inbox are kept in its own storage, with the
             member who approved each reply, and each of its launches in storage of its own: its runs, a copy of the
-            roster and CPM each run ranked, with their Qloo records, and the name of the member who started each run.
-            Only the network&apos;s members and its API keys can open them.
+            roster and CPM each run ranked, with their Qloo records, the name of the member who started each run, and of
+            the member who approved each insertion order, and when. Only the network&apos;s members and its API keys can
+            open them.
           </li>
         )}
         <li>
@@ -690,7 +691,9 @@ function Privacy({ accounts }: { accounts: boolean }) {
       {accounts && (
         <p>
           Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it close.
-          What you added to the network stays with the network.
+          What you added to the network stays with the network. Deleting a launch, which any of the network&apos;s
+          members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records. A
+          wipe that fails is tried again by the next day&apos;s cleanup.
         </p>
       )}
 

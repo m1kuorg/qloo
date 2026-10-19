@@ -55,8 +55,9 @@ const useSession = (path: string) =>
   useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgent', basePath: path.replace(/^\//, '') })
 export type Session = ReturnType<typeof useSession>
 
-// Where the island's pages link, as the server gives them.
-export type Links = { roster: string }
+// Where the island's pages link, as the server gives them. `orders` is where a launch's approved
+// insertion orders export, as `<orders>/<id>.csv`; the demo's export has its own route.
+export type Links = { roster: string; orders?: string }
 
 // The server's choices: `page`, "roster", or "inbox" while GUEST_PITCHES is on; the agent's path;
 // and the links.
@@ -129,6 +130,11 @@ export function Workspace({
               {runs.length > 0
                 ? `The latest run ranks ${network.name}'s roster as it stood when that run started.`
                 : `Each run ranks ${network.name}'s roster as it stands when the run starts.`}{' '}
+              {runs.length > 0 && agent.state?.rosterChanged && (
+                <>
+                  <b>It has changed since then, so run again to rank it as it is now.</b>{' '}
+                </>
+              )}
               Edit its shows on{' '}
               <a className="lnk" href={links.roster}>
                 the roster page
@@ -227,8 +233,7 @@ export function Workspace({
               )}
               openCall={openCall}
               opened={opened?.call ?? null}
-              // A launch's export arrives under its network's address (#163).
-              exportHref={network ? null : `/api/insertion-orders/${shown.insertionOrder.id}.csv`}
+              exportHref={`${links.orders ?? '/api/insertion-orders'}/${shown.insertionOrder.id}.csv`}
               actions={
                 viewing || inProgress(run, shown.insertionOrder.run)
                   ? null
@@ -977,6 +982,7 @@ function RunList({
                   <b>Run {r.n}</b> · {r.pitchesFor ? `Pitches for ${r.pitchesFor}` : (r.launch ?? 'From comps')}{' '}
                   <span className="tg">
                     {new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {r.startedBy && ` by ${r.startedBy}`}
                   </span>
                 </span>
                 <span className="tg">

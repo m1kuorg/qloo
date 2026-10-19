@@ -19,7 +19,16 @@ import {
   type WorkMatch
 } from './inbox'
 import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
-import { cpmProblem, dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
+import {
+  cpmProblem,
+  dollars,
+  lineProblem,
+  priceLines,
+  toCsv,
+  type InsertionOrder,
+  type LineInput,
+  type OrderExport
+} from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
 import { Refusal } from './refusal'
@@ -178,6 +187,9 @@ export type State = {
   // who dismissed its setup checklist.
   launches?: LaunchSummary[]
   checklistDismissed?: string[]
+  // A launch's agent only (launch-agent.ts): whether its network's roster has changed since the latest
+  // run copied it; absent until a run has.
+  rosterChanged?: boolean
 }
 
 // A launch as its network's dashboard lists it, reported by the launch's agent (launch-agent.ts).
@@ -211,6 +223,13 @@ type SampleRun = { state: Omit<RunSnapshot, 'inbox' | 'booking'>; evidence: Evid
 // What a launch's run ranks, copied from its network's agent as the run starts (launch-agent.ts): the
 // roster and CPM, and the evidence records the roster cites.
 export type RosterCopy = { roster: Show[]; cpm: number | null; evidence: Evidence[] }
+
+// A roster as one string, to tell whether two copies of it differ: each show as the roster page shows
+// it, but for its call numbers, which a launch's copy renumbers.
+export const rosterKey = (roster: Show[]) =>
+  JSON.stringify(
+    roster.map((s) => [s.name, s.resolution, s.entity?.id ?? null, s.downloads, s.status, s.description, s.excluded])
+  )
 
 // A call number wherever it appears in state, such as "C-07".
 export const CALL = /\bC-\d+\b/g
@@ -462,7 +481,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     // free starts are used, the start is refused before it keeps anything. A launch's agent first
     // fetches the roster it will rank, which may refuse the start too.
     const visitor = this.visitor()
-    const startedBy = this.runStarter()
+    const startedBy = this.memberName()
     const { down, limited, refused, stored, network } = await this.admit(async () => {
       const network = await this.networkRoster()
       const admitted = await this.env.QlooGateway.getByName('global').admitLaunch(
@@ -554,16 +573,19 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return null
   }
 
-  // Who starts a launch run on the current call, for its run list: a launch's member (launch-agent.ts).
-  // A demo session lists no one. Read it before the call's first await.
-  protected runStarter(): string | null {
+  // The name of the member on the current call's connection, to say who started a run or approved an
+  // order: a launch's member (launch-agent.ts). A demo session names no one. Read it before the call's
+  // first await.
+  protected memberName(): string | null {
     return null
   }
 
   // A network's roster and CPM as a launch's run copies them, with the records the roster cites copied
-  // into this log under new numbers, each marked with the network's call it copies.
-  private copyRoster({ roster, cpm, evidence }: RosterCopy): Pick<State, 'roster' | 'cpm'> {
-    return { roster: this.copyEvidence(roster, evidence, (copy, from) => ({ ...copy, copiedFrom: from.call })), cpm }
+  // into this log under new numbers, each marked with the network's call it copies. The copy is the
+  // roster as it now stands.
+  private copyRoster({ roster, cpm, evidence }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'rosterChanged'> {
+    const copied = this.copyEvidence(roster, evidence, (copy, from) => ({ ...copy, copiedFrom: from.call }))
+    return { roster: copied, cpm, rosterChanged: false }
   }
 
   // Starts a guest pitch run and returns at once. The past guests' works are looked up in Qloo like
@@ -698,16 +720,26 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.saveOrder({ ...order, ...priceLines(edited, this.state.roster, this.state.cpm), status: 'draft' })
   }
 
-  // The programmer's approval: only an approved order exports.
+  // The programmer's approval: only an approved order exports. It takes a person in the app, on the
+  // page's connection, so the Worker's own calls, and the API through them, can never approve (ADR
+  // 0002). On a launch's agent it records the member who approved, and when.
   @callable()
   approveInsertionOrder(id: string) {
-    this.saveOrder({ ...this.editableOrder(id), status: 'approved' })
+    if (!getCurrentAgent().connection)
+      throw new Error('An insertion order is approved in the app, by a person; nothing else can approve one.')
+    const order = this.editableOrder(id)
+    const by = this.memberName()
+    this.saveOrder({
+      ...order,
+      status: 'approved',
+      ...(by && { approvedBy: by, approvedAt: new Date().toISOString() })
+    })
   }
 
   // An approved order from this session as CSV, the current one or an earlier run's, for the export
   // route. It's an RPC method for the Worker, not a callable, and refuses a draft. An earlier order
   // is read from the run that drafted it, which keeps it as the programmer left it.
-  exportInsertionOrder(id: string): { status: 200; csv: string } | { status: 404 | 409; error: string } {
+  exportInsertionOrder(id: string): OrderExport {
     const [earlier] = this.sql<{ order: string }>`
       SELECT json_extract(snapshot, '$.insertionOrder') AS "order" FROM runs
       WHERE json_extract(snapshot, '$.insertionOrder.id') = ${id} AND json_extract(snapshot, '$.insertionOrder.run') = id`
@@ -1052,8 +1084,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Stores the current order, and puts it in its run's snapshot once the run has ended, so an
-  // earlier run shows, and exports, its order as the programmer left it.
-  private saveOrder(order: InsertionOrder) {
+  // earlier run shows, and exports, its order as the programmer left it. Who approved it, and when, go
+  // with any change back to draft.
+  private saveOrder({ approvedBy, approvedAt, ...change }: InsertionOrder) {
+    const order = change.status === 'approved' && approvedBy ? { ...change, approvedBy, approvedAt } : change
     this.setState({ ...this.state, insertionOrder: order })
     this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.insertionOrder', json(${JSON.stringify(order)}))
       WHERE id = ${order.run} AND snapshot IS NOT NULL`

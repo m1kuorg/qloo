@@ -4,6 +4,7 @@ import {
   CrossfeedAgent,
   MEMBER_TAG,
   readLaunch,
+  rosterKey,
   type LaunchInput,
   type LaunchSummary,
   type RosterCopy,
@@ -60,6 +61,30 @@ export class NetworkAgent extends CrossfeedAgent {
   async getConnectionTags(connection: Connection, context: ConnectionContext) {
     return [...(await super.getConnectionTags(connection, context)), ...memberTag(context)]
   }
+
+  // After a change to the roster, once no show is still being looked up, tells each launch how it now
+  // stands, so a launch's page says when it has changed since that launch's latest run. Other changes
+  // to the network's state send nothing.
+  onStateChanged(state: State) {
+    if (state.roster.some((s) => s.resolution === 'pending')) return
+    const key = rosterKey(state.roster)
+    if (key === this.announced) return
+    this.announced = key
+    void this.keepAliveWhile(() =>
+      Promise.all(
+        (state.launches ?? []).map(async ({ id }) => {
+          try {
+            await (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).rosterIs(key)
+          } catch (e) {
+            console.error(JSON.stringify({ event: 'roster_notice', launch: id, error: String(e) }))
+          }
+        })
+      )
+    )
+  }
+
+  // The roster as the launches were last told it stands.
+  private announced: string | null = null
 
   // Closes the member's connections to the network's agent and to each of its launches'.
   async kick(memberId: string) {
@@ -122,6 +147,14 @@ export class NetworkAgent extends CrossfeedAgent {
     const launches = this.state.launches ?? []
     if (!launches.some((l) => l.id === id)) return
     this.setState({ ...this.state, launches: launches.map((l) => (l.id === id ? { id, ...summary } : l)) })
+  }
+
+  // Takes launch `id` off the network's list, as its deletion does before wiping it (wipe.ts): its row
+  // leaves every member's dashboard, and the Worker's routes to it answer 404. Over RPC only.
+  dropLaunch(id: string) {
+    const launches = this.state.launches ?? []
+    if (launches.some((l) => l.id === id))
+      this.setState({ ...this.state, launches: launches.filter((l) => l.id !== id) })
   }
 
   // Whether the network's list has launch `id`, for the Worker's routes to it. Over RPC only.

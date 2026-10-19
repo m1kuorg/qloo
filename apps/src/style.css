@@ -724,7 +724,9 @@ button.call,
 }
 
 /* A wide table on a narrow screen scrolls sideways in here, so the page never does. */
+/* The frame holds what it scrolls, a visually hidden heading included: positioned, it clips them. */
 .scroll-x {
+  position: relative;
   overflow-x: auto;
 }
 
@@ -1121,6 +1123,12 @@ fieldset {
 .sec-help {
   max-width: 88ch;
   margin: -4px 0 12px;
+}
+
+/* What a reader must act on in a help line, such as a launch's roster having changed since its run. */
+.sec-help b {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* The Weekly Chart: tall rows, so the position numerals have room. */
@@ -3068,7 +3076,8 @@ a.wm {
   margin-bottom: 4px;
 }
 
-/* Wide enough that, scrolling in its frame on a phone, the launch's name keeps about 200px. */
+/* Wide enough that, scrolling in its frame on a phone, the launch's name keeps about 160px, and narrow
+   enough to fit the chart column without scrolling from about 1,260px. */
 .launches {
   min-width: 760px;
 }
@@ -3090,8 +3099,13 @@ a.wm {
   width: 104px;
 }
 
+/* Last run's day and who started it wrap to two lines rather than take the name's room. */
 .launches th:nth-child(6) {
-  width: 152px;
+  width: 128px;
+}
+
+.launches th:nth-child(7) {
+  width: 64px;
 }
 
 .launches .nm {
@@ -3263,16 +3277,20 @@ a.wm {
   border-bottom-color: transparent;
 }
 
-.members .ask td {
+.members .ask td,
+.launches .ask td {
   height: auto;
   padding: 0 12px 12px;
 }
 
-.members .ask p {
+.members .ask p,
+.launches .ask p {
   max-width: 52ch;
+  white-space: normal;
 }
 
-.members .ask .acts {
+.members .ask .acts,
+.launches .ask .acts {
   margin-top: 8px;
 }
 

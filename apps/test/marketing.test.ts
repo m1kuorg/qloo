@@ -138,11 +138,17 @@ describe('the privacy page and the beta terms', () => {
     const network =
       "A network counts as one visitor of its own, whichever of its members makes the network's calls and runs."
     const keys = "A network's API keys are kept only as hashes"
+    const signOff =
+      'the name of the member who started each run, and of the member who approved each insertion order, and when'
+    const launchGone =
+      "Deleting a launch, which any of the network's members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records. A wipe that fails is tried again by the next day's cleanup."
     const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
     expect(words(await page('/privacy'))).toContain(kept)
     expect(words(await page('/privacy'))).toContain(approvals)
     expect(words(await page('/privacy'))).toContain(counts)
     expect(words(await page('/privacy'))).toContain(keys)
+    expect(words(await page('/privacy'))).toContain(signOff)
+    expect(words(await page('/privacy'))).toContain(launchGone)
     expect(words(await page('/terms'))).toContain(cap)
     expect(words(await page('/terms'))).toContain(network)
     expect(words(await page('/terms'))).toContain(perMinute)
@@ -150,6 +156,7 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).not.toContain(kept)
     expect(words(await page('/privacy'))).not.toContain(keys)
     expect(words(await page('/privacy'))).not.toContain(approvals)
+    expect(words(await page('/privacy'))).not.toContain(launchGone)
     expect(words(await page('/privacy'))).toContain("each visitor's counts for the day")
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)

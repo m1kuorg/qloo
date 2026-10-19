@@ -3,7 +3,8 @@
 // network's list as it changes. Each test drives a network through the Worker's routes and its
 // agents' client protocol, or the Worker's own RPC to an agent, as the API will call it.
 import { getAgentByName } from 'agents'
-import { env } from 'cloudflare:workers'
+import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
+import { env, exports } from 'cloudflare:workers'
 import { http } from 'msw'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +14,9 @@ import { Dashboard } from '../src/client/Dashboard'
 import { EvidencePanel } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
+import worker from '../src/index'
+import { LaunchAgent } from '../src/launch-agent'
+import { NetworkAgent } from '../src/network-agent'
 import { refusalCode } from '../src/refusal'
 import { networkLinks } from '../src/shell'
 import {
@@ -28,7 +32,7 @@ import {
   turn,
   type ModelRequest
 } from './fake'
-import { openMember, openSession, type Member, type Session } from './session'
+import { connect as connectVia, openMember, openSession, type Member, type Session } from './session'
 
 // A made-up network: Field Notes is ambiguous until settled, Ghost Signal isn't in Qloo until mapped
 // to a comp, and Back Lot is left out. Night Shift Cinema, the launch, isn't on the roster.
@@ -89,6 +93,7 @@ const draft = toolUse('draft_insertion_order', {
 
 const open: Omit<Session, 'cookie'>[] = []
 const saved = {
+  ACCOUNTS: env.ACCOUNTS,
   GUEST_PITCHES: env.GUEST_PITCHES,
   SAMPLE_NETWORK: env.SAMPLE_NETWORK,
   QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP
@@ -97,6 +102,7 @@ afterEach(() => {
   open.splice(0).forEach((agent) => agent.close())
   Object.assign(env, saved)
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 // A network the member creates, as /app/new does.
@@ -218,7 +224,8 @@ describe("a launch's page and agent", () => {
         'data-network-name="Night Shift Audio"',
         `data-role="${role}"`,
         `data-roster-link="/app/${network}/roster"`,
-        `data-settings-link="/app/${network}/settings"`
+        `data-settings-link="/app/${network}/settings"`,
+        `data-orders-link="/app/${network}/launches/${id}/insertion-orders"`
       ])
         expect(root).toContain(attribute)
       // A launch belongs to the dashboard, which lists it.
@@ -527,6 +534,228 @@ describe("the network's list of launches", () => {
   })
 })
 
+// A launch run to a drafted insertion order on the made-up roster, as `member` starts and answers it.
+async function drafted(member: Member, network: string) {
+  const roster = await rosterOf(member, network)
+  rankAsked()
+  fakeClaude([
+    turn(resolve('Night Shift Cinema')),
+    turn(rank('e-0001')),
+    turn(askBudget),
+    turn(askExclusions),
+    turn(draft),
+    turn(text('Drafted the insertion order.'))
+  ])
+  const { id, agent } = await launch(member, network)
+  await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+  const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+  await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+  const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+  await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+  await agent.until(ended)
+  return { id, agent, roster }
+}
+
+describe("approving a launch's insertion order", () => {
+  it('takes a member on the launch page, records who approved it and when, and an edit clears both', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await teammate(ada, network)
+    const { id, agent } = await drafted(ada, network)
+    const graces = await connect(grace, `/agents/launch/${network}/${id}`)
+    const order = agent.state()!.insertionOrder!
+
+    const before = Date.now()
+    await graces.call('approveInsertionOrder', order.id)
+    const approved = (await agent.until((s) => s.insertionOrder?.status === 'approved')).insertionOrder!
+    expect(approved.approvedBy).toBe('Grace Booker')
+    expect(Date.parse(approved.approvedAt!)).toBeGreaterThanOrEqual(before - 1000)
+    expect(Date.parse(approved.approvedAt!)).toBeLessThanOrEqual(Date.now())
+
+    // An edit returns it to draft, and the approval with it.
+    await agent.call('editInsertionOrder', order.id, [{ show: 'Corner Booth', slots: 2, angle: 'Call-ins.' }])
+    expect(agent.state()!.insertionOrder).toEqual(
+      expect.not.objectContaining({ approvedBy: expect.anything(), approvedAt: expect.anything() })
+    )
+    expect(agent.state()!.insertionOrder!.status).toBe('draft')
+  })
+
+  it("is refused over RPC, and on a launch's connection that carries no member, and changes nothing", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    const order = agent.state()!.insertionOrder!
+    const stub = async () => getAgentByName(env.LaunchAgent, `${network}:${id}`)
+    const refused = 'Only a member of the network, signed in to the app, can approve an insertion order.'
+
+    // The Worker's own call, with no connection, as the API would make it.
+    await expect((async () => (await stub()).approveInsertionOrder(order.id))()).rejects.toThrow(refused)
+    // Straight to the agent, as a Worker route that forgot to name the member would let it through.
+    const bare = await connectVia(`/agents/launch/${network}/${id}`, {}, async (request) =>
+      (await stub()).fetch(request)
+    )
+    open.push(bare)
+    await expect(bare.call('approveInsertionOrder', order.id)).rejects.toThrow(refused)
+    expect(agent.state()!.insertionOrder).toEqual(order)
+  })
+})
+
+describe("exporting a launch's insertion order", () => {
+  // The body as sent, byte-order mark included: Response.text() would drop it.
+  const body = async (res: Response) => new TextDecoder('utf-8', { ignoreBOM: true }).decode(await res.arrayBuffer())
+
+  it("downloads an approved order as CSV for the network's members, and refuses a draft with 409", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await teammate(ada, network)
+    const { id, agent } = await drafted(ada, network)
+    const path = `/app/${network}/launches/${id}/insertion-orders/IO-0001.csv`
+
+    const draft = await ada.fetch(path)
+    expect(draft.status).toBe(409)
+    expect(await draft.text()).toBe('IO-0001 is a draft. Approve it before exporting.')
+
+    await agent.call('approveInsertionOrder', 'IO-0001')
+    for (const member of [ada, grace]) {
+      const res = await member.fetch(path)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toBe('text/csv; charset=utf-8')
+      expect(res.headers.get('content-disposition')).toBe('attachment; filename="IO-0001.csv"')
+      expect(res.headers.get('cache-control')).toBe('no-store')
+      expect(await body(res)).toBe(
+        '\uFEFFShow,Slots,Angle,Slot value (USD),Line value (USD)\r\n' +
+          'Corner Booth,8,Late-night regulars stay up for the call-ins.,1200,9600\r\n' +
+          'Slow Burn,6,Its long interviews share the slow pace.,1000,6000\r\n' +
+          'Paper Route,4,Morning commuters who follow the same hosts.,650,2600\r\n' +
+          'Field Notes,2,Shares the field-recording style.,438,876\r\n' +
+          'Total,20,,,19076\r\n'
+      )
+    }
+    expect((await ada.fetch(`/app/${network}/launches/${id}/insertion-orders/IO-0002.csv`)).status).toBe(404)
+  })
+
+  it("answers 404 to anyone not a member, for a launch the network doesn't list, and while accounts are off", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    await agent.call('approveInsertionOrder', 'IO-0001')
+    const other = await created(ada, 'Day Shift Audio')
+    const stranger = await openMember({ name: 'Mal Stranger' })
+    const csvOf = (net: string, launch: string) => `/app/${net}/launches/${launch}/insertion-orders/IO-0001.csv`
+
+    expect((await stranger.fetch(csvOf(network, id))).status).toBe(404)
+    expect((await ada.fetch(csvOf(other, id))).status).toBe(404)
+    expect((await ada.fetch(csvOf(network, crypto.randomUUID()))).status).toBe(404)
+    // Signed out, it's the sign-in page, and back.
+    const signedOut = await exports.default.fetch(`https://crossfeed.test${csvOf(network, id)}`, { redirect: 'manual' })
+    expect(signedOut.status).toBe(302)
+    expect(signedOut.headers.get('location')).toBe(`/sign-in?next=${csvOf(network, id)}`)
+    env.ACCOUNTS = 'off'
+    expect((await ada.fetch(csvOf(network, id))).status).toBe(404)
+  })
+})
+
+describe('deleting a launch', () => {
+  const remove = (member: Member, network: string, id: string) =>
+    member.fetch(`/app/${network}/launches/${id}/delete`, { method: 'POST' })
+  // What the launch's agent holds, read over RPC as the Worker would.
+  const held = async (network: string, id: string) => {
+    const stub = await getAgentByName(env.LaunchAgent, `${network}:${id}`)
+    const state = await stub.state
+    return { launch: state.launch, runs: state.runs.length, evidence: (await stub.getEvidence()).length }
+  }
+  // A wiped agent's instance is gone once the runtime has reset it, a moment after its wipe: the next
+  // call meets a new, empty one.
+  const wipedOut = (network: string, id: string) =>
+    vi.waitFor(async () => expect(await held(network, id)).toEqual({ launch: null, runs: 0, evidence: 0 }))
+  // Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
+  async function runCron() {
+    const handler: ExportedHandler<Env> = worker
+    const ctx = createExecutionContext()
+    await handler.scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+    await waitOnExecutionContext(ctx)
+  }
+
+  it("takes it off every member's dashboard at once, closes its pages, wipes its agent, and its addresses answer 404", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await teammate(ada, network)
+    const { id, agent, roster } = await drafted(ada, network)
+    await agent.call('approveInsertionOrder', 'IO-0001')
+    const { id: kept } = await roster.call<{ id: string }>('createLaunch', { name: 'The Long Take' })
+    const dashboard = await connect(grace, `/agents/network/${network}`)
+    const page = await connect(grace, `/agents/launch/${network}/${id}`)
+    expect(await held(network, id)).toMatchObject({ runs: 1 })
+    const failed = vi.spyOn(console, 'error')
+
+    const res = await remove(grace, network, id)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({})
+    expect((await dashboard.until((s) => s.launches!.length === 1)).launches!.map((l) => l.id)).toEqual([kept])
+    expect(await page.closed()).toEqual({ code: 4410, reason: 'This launch was deleted.' })
+    await wipedOut(network, id)
+    expect(failed.mock.calls.flat().filter((line) => String(line).includes('"event":"wipe_failed"'))).toEqual([])
+
+    expect((await ada.fetch(`/app/${network}/launches/${id}`)).status).toBe(404)
+    await expect(ada.connect(`/agents/launch/${network}/${id}`)).rejects.toThrow('did not upgrade: 404')
+    expect((await ada.fetch(`/app/${network}/launches/${id}/insertion-orders/IO-0001.csv`)).status).toBe(404)
+    expect((await remove(ada, network, id)).status).toBe(404)
+    // The other launch is as it was.
+    expect((await ada.fetch(`/app/${network}/launches/${kept}`)).status).toBe(200)
+    expect((await held(network, kept)).launch).toEqual({ name: 'The Long Take', match: null, comps: [] })
+  })
+
+  it("answers 404 to anyone not a member and for a launch the network doesn't list, and refuses a write from elsewhere", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id } = await launch(ada, network)
+    const stranger = await openMember({ name: 'Mal Stranger' })
+
+    expect((await remove(stranger, network, id)).status).toBe(404)
+    expect((await remove(ada, network, crypto.randomUUID())).status).toBe(404)
+    const elsewhere = await exports.default.fetch(`https://crossfeed.test/app/${network}/launches/${id}/delete`, {
+      method: 'POST',
+      headers: { Cookie: ada.cookie, Origin: 'https://elsewhere.test' }
+    })
+    expect(elsewhere.status).toBe(403)
+    env.ACCOUNTS = 'off'
+    expect((await remove(ada, network, id)).status).toBe(404)
+    env.ACCOUNTS = 'on'
+    expect((await ada.fetch(`/app/${network}/launches/${id}`)).status).toBe(200)
+  })
+
+  it('wipes a launch whose wipe failed at the daily cron, and keeps one whose deletion stopped before the list let go', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    const { id: other } = await launch(ada, network, { name: 'The Long Take' })
+    const failed = vi.spyOn(console, 'error')
+
+    // The list lets go of the first, but its wipe fails: it's off the dashboard, and kept for the cron.
+    vi.spyOn(LaunchAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    expect((await remove(ada, network, id)).status).toBe(200)
+    expect((await ada.fetch(`/app/${network}/launches/${id}`)).status).toBe(404)
+    expect(failed.mock.calls.flat().some((line) => String(line).includes('"event":"wipe_failed"'))).toBe(true)
+    expect(await held(network, id)).toMatchObject({ runs: 1 })
+    // The second's deletion stops before the list lets go of it, so it stays a launch.
+    vi.spyOn(NetworkAgent.prototype, 'dropLaunch').mockImplementationOnce(() => {
+      throw new Error('The network is overloaded.')
+    })
+    expect((await remove(ada, network, other)).status).toBe(500)
+    agent.close()
+
+    // The cron retries a wipe once it's a minute old, so it never races a deletion under way.
+    await runCron()
+    expect(await held(network, id)).toMatchObject({ runs: 1 })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 2 * 60_000)
+    await runCron()
+    await wipedOut(network, id)
+    expect((await ada.fetch(`/app/${network}/launches/${other}`)).status).toBe(200)
+    expect((await held(network, other)).launch).toEqual({ name: 'The Long Take', match: null, comps: [] })
+  })
+})
+
 describe('two launches of one network', () => {
   it("run at the same time, neither changing the other's state, and the list follows both", async () => {
     const ada = await openMember()
@@ -721,9 +950,13 @@ describe('the pages, as a member reads them', () => {
         createLaunch={async () => ({ id: 'l-1' })}
       />
     )
-  const workspace = (network: string, agent: Omit<Session, 'cookie'>) =>
+  const workspace = (network: string, agent: Omit<Session, 'cookie'>, id = 'l-1') =>
     renderToStaticMarkup(
-      <LaunchWorkspace agent={{ state: agent.state(), stub: {} } as unknown as Agent} network={page(network)} />
+      <LaunchWorkspace
+        agent={{ state: agent.state(), stub: {} } as unknown as Agent}
+        network={page(network)}
+        orders={`/app/${network}/launches/${id}/insertion-orders`}
+      />
     )
 
   it('puts New launch atop the dashboard, and lists each launch by name or comps, linked to its page', async () => {
@@ -740,10 +973,15 @@ describe('the pages, as a member reads them', () => {
 
     const html = dashboard(network, agent.state())
     expect(words(html)).toContain(
-      'Blank Check · Filmspotting Unreleased, from comps New – – – Not run yet The Night Watch New – – – Not run yet'
+      'Blank Check · Filmspotting Unreleased, from comps New – – – Not run yet Delete The Night Watch New – – – Not run yet Delete'
     )
     expect(html).toContain(`href="/app/${network}/launches/${id}"`)
     expect(html).toContain(`href="/app/${network}/launches/${fromComps}"`)
+    // Each row ends with Delete, which asks before it deletes.
+    expect(html).toContain(
+      '<button class="lnk" type="button" aria-expanded="false" aria-label="Delete The Night Watch">Delete</button>'
+    )
+    expect(html).toContain('aria-label="Delete Blank Check · Filmspotting"')
   })
 
   it("marks a launch's status as the run moves, a failed or stopped one in its state's colour", async () => {
@@ -786,6 +1024,69 @@ describe('the pages, as a member reads them', () => {
     expect(words(html)).toContain('Launch · Blank Check · Filmspotting Qloo data Comps: Blank Check not looked up')
     expect(html).toMatch(/<input class="comp-name" aria-label="Comp 1"[^>]*value="Blank Check"/)
     expect(html).toMatch(/<input class="comp-name" aria-label="Comp 2"[^>]*value="Filmspotting"/)
+  })
+
+  it('names who started each run and who approved the order, and when, and exports it under the launch', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await teammate(ada, network)
+    const { id, agent } = await drafted(ada, network)
+    const draftHtml = workspace(network, agent, id)
+    expect(words(draftHtml)).toMatch(/Run 1 · Night Shift Cinema \S+( [AP]M)? by Ada Programmer/)
+    expect(draftHtml).not.toContain('Export CSV')
+
+    const graces = await connect(grace, `/agents/launch/${network}/${id}`)
+    await graces.call('approveInsertionOrder', 'IO-0001')
+    await agent.until((s) => s.insertionOrder?.status === 'approved')
+    const html = workspace(network, agent, id)
+    const at = new Date(agent.state()!.insertionOrder!.approvedAt!)
+    const day = at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const time = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    expect(words(html)).toContain(`Approved by Grace Booker on ${day} at ${time}.`)
+    expect(html).toContain(
+      `<a class="btn" href="/app/${network}/launches/${id}/insertion-orders/IO-0001.csv" download="">Export CSV</a>`
+    )
+  })
+
+  it("says when the network's roster has changed since the latest run, until it's as the run copied it", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const roster = await rosterOf(ada, network)
+    rankAsked()
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(text('Ranked.')),
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(text('Ranked again.'))
+    ])
+    const { agent } = await launch(ada, network)
+    const changed = 'It has changed since then, so run again to rank it as it is now.'
+    // Not run yet: there's no copy to compare.
+    await roster.call('updateShow', 'Slow Burn', { downloads: 41000 })
+    expect(words(workspace(network, agent))).not.toContain(changed)
+
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    await agent.until(ended)
+    expect(words(workspace(network, agent))).not.toContain(changed)
+    // A teammate's edit on the roster page shows on the launch's page as it's made.
+    await roster.call('updateShow', 'Paper Route', { excluded: true })
+    await agent.until((s) => s.rosterChanged === true)
+    expect(words(workspace(network, agent))).toContain(
+      `Roster The latest run ranks Night Shift Audio's roster as it stood when that run started. ${changed} Edit its shows on the roster page .`
+    )
+    // Put back as it was, the roster is the run's again.
+    await roster.call('updateShow', 'Paper Route', { excluded: false })
+    await agent.until((s) => s.rosterChanged === false)
+    expect(words(workspace(network, agent))).not.toContain(changed)
+
+    await roster.call('updateShow', 'Paper Route', { downloads: 30000 })
+    await agent.until((s) => s.rosterChanged === true)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const again = await agent.until((s) => ended(s) && s.run?.closing === 'Ranked again.')
+    expect(again.rosterChanged).toBe(false)
+    expect(words(workspace(network, agent))).not.toContain(changed)
   })
 
   it("shows the launch's workspace with the roster it ranks read-only, linked to the roster page", async () => {

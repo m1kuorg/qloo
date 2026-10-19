@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Budget, Show } from '../agent'
 import { dollars, priceLines, type InsertionOrder, type LineInput, type OrderLine, type Priced } from '../order'
 import { Alert, useAction } from './controls'
+import { day } from './Dashboard'
 import { Source } from './Source'
 
 // The rail's insertion order: the run's plan priced as the inventory it spends. The agent drafts
@@ -105,6 +106,12 @@ export function InsertionOrderPanel({
             <Totals priced={order} sample={order.lines.some(sample)} />
           </table>
           <Checks priced={order} budget={budget} />
+          {approved && order.approvedBy && order.approvedAt && (
+            <p className="help io-note">
+              Approved by {order.approvedBy} on {day(order.approvedAt)} at{' '}
+              {new Date(order.approvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
+            </p>
+          )}
           {actions ? (
             <div className="acts">
               {approved ? (
