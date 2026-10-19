@@ -4,16 +4,36 @@
 // RPC. The adapter has already checked that the caller reaches the network. A refusal is a `Refusal`
 // with its code (refusal.ts), whether this module or the agent threw it.
 import { getAgentByName } from 'agents'
-import type { Note, Question, Reply, Run, RunSnapshot, Show, ShowPatch, State } from './agent'
+import type {
+  Comp,
+  Launch,
+  LaunchInput,
+  LaunchSummary,
+  Note,
+  Question,
+  Reply,
+  Run,
+  RunSnapshot,
+  RunSummary,
+  Show,
+  ShowPatch,
+  State
+} from './agent'
+import type { DemographicCheck } from './demographics'
+import type { Evidence } from './evidence'
 import { networkName, renameNetwork, renameNetworkForKey, type Member, type Role } from './directory'
-import type { PitchList } from './fit'
+import type { FitRow, PitchList, Ranking } from './fit'
 import type { Usage } from './gateway'
 import type { Inbox, PastGuest, Pitch, PitchInput, PitchReply, Skipped } from './inbox'
-import { networkLimitKey } from './network-agent'
-import { cpmProblem } from './order'
+import { summaryOf } from './launch-agent'
+import { launchAgentName, networkLimitKey } from './network-agent'
+import { cpmProblem, type InsertionOrder, type LineInput } from './order'
 import { Refusal } from './refusal'
+import { offeredBy, type Candidate } from './resolve'
 import type { RosterFormat } from './roster'
 import { readName } from './text'
+import type { Topic } from './topic'
+import { deleteLaunch as wipeLaunch } from './wipe'
 
 // Who's asking: a member signed in to the app, with their role in the network, or one of the
 // network's API keys.
@@ -104,6 +124,241 @@ export async function searchComps({ env, network }: OperationContext, input: { n
   const networkAgent = await agent(env, network)
   await networkAgent.searchComps(input.name, input.query)
   return showOf(await stateOf(networkAgent), input.name)
+}
+
+// A launch as the network's list has it, its status in the API's words: `order drafted` is
+// `order_drafted`, as every code a program reads is one word.
+export type LaunchRow = Omit<LaunchSummary, 'status'> & { status: ApiStatus<LaunchSummary['status']> }
+type ApiStatus<S extends string> = S extends `${infer A} ${infer B}` ? `${A}_${B}` : S
+const rowOf = (row: LaunchSummary): LaunchRow => ({
+  ...row,
+  status: row.status.replace(' ', '_') as LaunchRow['status']
+})
+
+// The network's launches as its dashboard lists them, newest first. Each launch reports its row to
+// the list after it changes, so the list can lag a moment behind the launch itself.
+export async function listLaunches({ env, network }: OperationContext): Promise<LaunchRow[]> {
+  return ((await stateOf(await agent(env, network))).launches ?? []).map(rowOf)
+}
+
+// A launch as a program reads it: its row in the network's list, as its own agent has it now; whether
+// the network's roster has changed since its latest run copied it; its runs, oldest first; and its
+// latest run in full.
+export type LaunchInfo = LaunchRow & {
+  rosterChanged: boolean
+  runs: LaunchRunSummary[]
+  latestRun: LaunchRun | null
+}
+export type LaunchRunSummary = { id: string; status: Run['status']; startedAt: string; startedBy: string | null }
+
+// What a launch is planned from: a released launch's name, or up to three comps for an unreleased one.
+export type LaunchPlan = { name?: string; comps?: string[] }
+
+// Plans a new launch, named or from comps, on the network's list, and returns it.
+export async function createLaunch(ctx: OperationContext, plan: LaunchPlan): Promise<LaunchInfo> {
+  const { id } = await (await agent(ctx.env, ctx.network)).createLaunch(launchInput(plan))
+  return getLaunch(ctx, { launchId: id })
+}
+
+export async function getLaunch({ env, network }: OperationContext, input: { launchId: string }): Promise<LaunchInfo> {
+  const launch = await launchAgent(env, network, input.launchId)
+  const state = await stateOf(launch)
+  return {
+    ...rowOf({ id: input.launchId, ...summaryOf(state) }),
+    rosterChanged: state.rosterChanged ?? false,
+    runs: state.runs.map(runSummaryOf),
+    latestRun: state.run && (await launchRunOf(launch, state, state.run.id))
+  }
+}
+
+// Starts a run of the launch and returns at once with it running: planned from `plan`, or with none,
+// from the launch as it stands, which earlier runs' answers may have renamed or given comps. It
+// ranks the network's roster and CPM as they are now, and counts as one of the network's model runs.
+// Poll it: it may stop to ask a question, which `answerLaunchRun` answers.
+export async function startLaunchRun(
+  { env, network }: OperationContext,
+  input: { launchId: string; plan: LaunchPlan }
+): Promise<LaunchRun> {
+  const launch = await launchAgent(env, network, input.launchId)
+  const { name, comps } = input.plan
+  const planned = name === undefined && comps === undefined ? (await stateOf(launch)).launch : null
+  const { runId } = await launch.startLaunch(planned ? asItStands(planned) : launchInput(input.plan))
+  return launchRunOf(launch, await stateOf(launch), runId)
+}
+
+export async function getLaunchRun(
+  { env, network }: OperationContext,
+  input: { launchId: string; runId: string }
+): Promise<LaunchRun> {
+  const launch = await launchAgent(env, network, input.launchId)
+  return launchRunOf(launch, await stateOf(launch), input.runId)
+}
+
+// Answers the open question of the launch's latest run, which resumes, as `answerPitchRun` does.
+export async function answerLaunchRun(
+  { env, network }: OperationContext,
+  input: { launchId: string; runId: string; questionId: string; answer: Reply }
+): Promise<LaunchRun> {
+  const launch = await launchAgent(env, network, input.launchId)
+  const state = await stateOf(launch)
+  listedLaunchRun(state, input.runId)
+  if (state.run?.id !== input.runId)
+    throw new Refusal('conflict', 'That run has ended, so it has no question to answer.')
+  await launch.answer(input.questionId, input.answer)
+  return launchRunOf(launch, await stateOf(launch), input.runId)
+}
+
+// Changes the lines of the launch's current insertion order, once its run has ended, and returns it
+// priced again. Editing an approved order returns it to draft, so a member must approve it again.
+export async function editOrder(
+  { env, network }: OperationContext,
+  input: { launchId: string; orderId: string; lines: LineInput[] }
+): Promise<InsertionOrder> {
+  const launch = await launchAgent(env, network, input.launchId)
+  return (await launch.editInsertionOrder(input.orderId, input.lines)) as InsertionOrder
+}
+
+// An insertion order of the launch, the current one or an earlier run's, as CSV for ad operations,
+// once a member has approved it in the app.
+export async function exportOrder(
+  { env, network }: OperationContext,
+  input: { launchId: string; orderId: string }
+): Promise<string> {
+  const launch = await launchAgent(env, network, input.launchId)
+  const exported = await launch.exportInsertionOrder(input.orderId)
+  if (exported.status === 200) return exported.csv
+  throw exported.status === 404
+    ? new Refusal('not_found', `There's no insertion order ${input.orderId} in this launch.`)
+    : new Refusal(
+        'conflict',
+        `${input.orderId} is a draft. A member of the network approves it on the launch's page in the app; then it exports.`
+      )
+}
+
+// The launch's evidence log: one record per Qloo call its runs made or copied from the roster's
+// lookups, oldest first, each with what was sent and what came back.
+export async function getLaunchEvidence(
+  { env, network }: OperationContext,
+  input: { launchId: string }
+): Promise<Evidence[]> {
+  return (await launchAgent(env, network, input.launchId)).getEvidence()
+}
+
+// Deletes the launch for every member, with its runs and their evidence, as the dashboard does. It's
+// a member's, signed in: an API key can't delete one.
+export async function deleteLaunch({ env, network, caller }: OperationContext, input: { launchId: string }) {
+  if (!('member' in caller))
+    throw new Refusal(
+      'forbidden',
+      "A launch is deleted by a member of the network, signed in to the app. An API key can't delete one."
+    )
+  await launchAgent(env, network, input.launchId) // refused unless the network lists it
+  await wipeLaunch(env, network, input.launchId)
+}
+
+// The launch as it stands, to run again, as the launch page's "Run again" does: from its comps, if
+// it has any, since a launch only gains comps when its name can't be ranked.
+const asItStands = ({ name, comps }: Launch): LaunchInput =>
+  comps.length ? { comps: comps.map((c) => c.name) } : { name: name ?? '' }
+
+// The launch input the agent takes, from a plan that gives its name or its comps, not both.
+function launchInput({ name, comps }: LaunchPlan): LaunchInput {
+  if (name !== undefined && comps !== undefined)
+    throw new Refusal('invalid', 'Name the launch or give its comps, not both.')
+  return comps !== undefined ? { comps } : { name: name ?? '' }
+}
+
+// Launch `id` on the network's list, whose own agent keeps its runs, or a refusal when the list has
+// no such launch, as after its deletion.
+async function launchAgent(env: Env, network: string, id: string) {
+  if (!(await (await agent(env, network)).listsLaunch(id)))
+    throw new Refusal('not_found', "There's no such launch in this network.")
+  return getAgentByName(env.LaunchAgent, launchAgentName(network, id))
+}
+type LaunchStub = Awaited<ReturnType<typeof launchAgent>>
+
+const runSummaryOf = ({ id, status, startedAt, startedBy }: RunSummary): LaunchRunSummary => ({
+  id,
+  status,
+  startedAt,
+  startedBy: startedBy ?? null
+})
+
+// A launch's run as a program reads it: its status, the question it waits on, its progress notes,
+// the launch it plans, and as they arrive, its chart, topic baseline, demographics check, and
+// insertion order. A member approves the order in the app; nothing here can.
+export type LaunchRun = LaunchRunSummary & {
+  plan: {
+    name: string | null
+    entity: Candidate | null
+    // Each comp, with what a `confirm_comps` answer picks from: its match, or its candidates.
+    comps: (Pick<Comp, 'name' | 'status' | 'entity'> & { candidates: Candidate[] })[]
+  }
+  question: Question | null
+  notes: Note[]
+  error: string | null
+  closing: string | null
+  budget: Run['budget']
+  exclusions: string[] | null
+  chart: Chart | null
+  topic: Pick<Topic, 'status' | 'order' | 'error'> | null
+  demographics: DemographicCheck | null
+  insertionOrder: InsertionOrder | null
+}
+
+// The fit chart: each row's fit rank, band, and finalist mark, with its topic rank and move once the
+// topic baseline is in.
+export type Chart = Omit<Ranking, 'rows'> & {
+  rows: (FitRow & { topicRank: number | null; move: number | null; climber: boolean })[]
+}
+
+// Run `id` as the launch's list of runs has it, or a refusal when the list has no such run.
+function listedLaunchRun(state: State, id: string) {
+  const summary = state.runs.find((r) => r.id === id)
+  if (!summary) throw new Refusal('not_found', `There's no run ${id} of this launch.`)
+  return summary
+}
+
+// Run `id` of the launch: the latest from the agent's synced state, and an earlier one from what it
+// ended with.
+async function launchRunOf(launch: LaunchStub, state: State, id: string): Promise<LaunchRun> {
+  const summary = listedLaunchRun(state, id)
+  const ended = state.run?.id === id ? state : ((await launch.getRun(id)) as unknown as RunSnapshot)
+  const { run, launch: plan, ranking, topic, demographics, insertionOrder } = ended
+  return {
+    ...runSummaryOf(summary),
+    plan: {
+      name: plan!.name,
+      entity: plan!.match?.entity ?? null,
+      comps: plan!.comps.map(({ name, status, entity, match }) => ({
+        name,
+        status,
+        entity,
+        candidates: offeredBy(match)
+      }))
+    },
+    question: run!.question,
+    notes: run!.notes,
+    error: run!.error,
+    closing: run!.closing,
+    budget: run!.budget,
+    exclusions: run!.exclusions,
+    chart: ranking && {
+      ...ranking,
+      rows: ranking.rows.map((row) => {
+        const moved = topic?.moves.find((m) => m.show === row.show)
+        return {
+          ...row,
+          topicRank: moved?.topicRank ?? null,
+          move: moved?.move ?? null,
+          climber: moved?.climber ?? false
+        }
+      })
+    },
+    topic: topic && { status: topic.status, order: topic.order, error: topic.error },
+    demographics,
+    insertionOrder
+  }
 }
 
 // The network's inbox as a program reads it: `empty` until pitches are loaded, `reading` while the
@@ -291,6 +546,6 @@ const inboxOf = ({ inbox }: State): InboxInfo => ({
 const agent = (env: Env, network: string) => getAgentByName(env.NetworkAgent, network)
 type NetworkStub = Awaited<ReturnType<typeof agent>>
 
-// The agent's synced state, read over RPC. RPC's types widen its tuples, such as a resolved show's
+// An agent's synced state, read over RPC. RPC's types widen its tuples, such as a resolved show's
 // empty candidates, so it's read back as the agent's own type.
-const stateOf = async (stub: NetworkStub) => (await stub.state) as unknown as State
+const stateOf = async (stub: NetworkStub | LaunchStub) => (await stub.state) as unknown as State

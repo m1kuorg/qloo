@@ -201,7 +201,7 @@ export class LaunchAgent extends CrossfeedAgent {
 // What the network's list says of a launch, from its state: its latest run's status, or once that
 // run has completed, its order's; its finalists, its order's slots and their total value; and who
 // started its latest run, and when.
-function summaryOf({ launch, run, runs, ranking, insertionOrder: order }: State): Omit<LaunchSummary, 'id'> {
+export function summaryOf({ launch, run, runs, ranking, insertionOrder: order }: State): Omit<LaunchSummary, 'id'> {
   const last = runs.at(-1)
   return {
     name: launch?.name ?? null,

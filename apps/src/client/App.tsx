@@ -238,7 +238,9 @@ export function Workspace({
                 viewing || inProgress(run, shown.insertionOrder.run)
                   ? null
                   : {
-                      edit: (lines) => agent.stub.editInsertionOrder(shown.insertionOrder!.id, lines),
+                      edit: async (lines) => {
+                        await agent.stub.editInsertionOrder(shown.insertionOrder!.id, lines)
+                      },
                       approve: () => agent.stub.approveInsertionOrder(shown.insertionOrder!.id)
                     }
               }

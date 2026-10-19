@@ -20,7 +20,7 @@ import {
   turn,
   type Extracted
 } from './fake'
-import { networkWithKey, poll } from './session'
+import { networkWithKey, poll, refused } from './session'
 
 beforeEach(() => {
   env.GUEST_PITCHES = 'on'
@@ -49,9 +49,6 @@ const search = {
     { entity_id: 'f-0002', name: 'Static Bloom', popularity: 0.3, disambiguation: '2021' }
   ]
 }
-
-// A refusal as a program branches on it: the status, and the error's code and message.
-const refused = async (res: Response) => [res.status, (await res.json<{ error: object }>()).error]
 
 // Sends pitch files as the body, as `curl --data-binary @export.mbox -H 'Content-Type: application/mbox'` does.
 const loadInbox = (call: Call, network: string, body: BodyInit, type: string, query = '') =>
