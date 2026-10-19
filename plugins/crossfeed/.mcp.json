@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "crossfeed": {
+      "type": "http",
+      "url": "${CROSSFEED_URL:-https://crossfeed.m1kuorg.workers.dev}/mcp",
+      "headers": { "Authorization": "Bearer ${CROSSFEED_API_KEY}" }
+    }
+  }
+}
