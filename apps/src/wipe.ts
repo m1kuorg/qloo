@@ -4,6 +4,9 @@ import { getAgentByName } from 'agents'
 import { noteWipe, wipeDone, wipesDue } from './directory'
 import { launchAgentName } from './network-agent'
 
+// The binding a launch's wipe is noted under: launch agents are the only instances wiped so far.
+const LAUNCH = 'LaunchAgent'
+
 // A wipe the cron retries only once it's this old, so it never races a deletion still under way.
 const RETRY_AFTER_MS = 60_000
 
@@ -12,30 +15,38 @@ const RETRY_AFTER_MS = 60_000
 // the cron, since the launch is gone from the network either way.
 export async function deleteLaunch(env: Env, networkId: string, launchId: string) {
   const name = launchAgentName(networkId, launchId)
-  await noteWipe(env.DB, 'LaunchAgent', name)
+  await noteWipe(env.DB, LAUNCH, name)
   await (await getAgentByName(env.NetworkAgent, networkId)).dropLaunch(launchId)
-  await wipe(env, name)
-}
-
-// Wipes launch agent `name` and crosses its wipe off, or logs why it couldn't, keeping it noted.
-async function wipe(env: Env, name: string) {
-  try {
-    await (await getAgentByName(env.LaunchAgent, name)).destroy()
-    await wipeDone(env.DB, 'LaunchAgent', name)
-  } catch (e) {
-    console.error(JSON.stringify({ event: 'wipe_failed', binding: 'LaunchAgent', name, error: String(e) }))
-  }
+  await wipe(env, name).catch((e) => wipeFailed(LAUNCH, name, e))
 }
 
 // The daily cron's retry of each wipe noted over a minute ago and not done. A launch its network still
 // lists was never let go of, as when its deletion stopped before the list let go, so it's kept and its
-// wipe crossed off. Launch agents are the only instances wiped so far.
+// wipe crossed off. Every wipe is tried, and then any that failed, or that names a binding nothing here
+// wipes, fails the cron's run; they stay noted for the next.
 export async function retryWipes(env: Env) {
+  let failed = 0
   for (const { binding, name } of await wipesDue(env.DB, Date.now() - RETRY_AFTER_MS)) {
-    if (binding !== 'LaunchAgent') continue
-    const [networkId, launchId] = name.split(':')
-    if (await (await getAgentByName(env.NetworkAgent, networkId)).listsLaunch(launchId))
-      await wipeDone(env.DB, binding, name)
-    else await wipe(env, name)
+    try {
+      if (binding !== LAUNCH) throw new Error(`Nothing wipes a ${binding} yet.`)
+      const [networkId, launchId] = name.split(':') // as launchAgentName names it
+      if (await (await getAgentByName(env.NetworkAgent, networkId)).listsLaunch(launchId))
+        await wipeDone(env.DB, binding, name)
+      else await wipe(env, name)
+    } catch (e) {
+      failed++
+      wipeFailed(binding, name, e)
+    }
   }
+  if (failed > 0)
+    throw new Error(`${failed} agent ${failed === 1 ? 'wipe' : 'wipes'} failed; the next daily run tries again.`)
 }
+
+// Wipes launch agent `name`, then crosses its wipe off.
+async function wipe(env: Env, name: string) {
+  await (await getAgentByName(env.LaunchAgent, name)).destroy()
+  await wipeDone(env.DB, LAUNCH, name)
+}
+
+const wipeFailed = (binding: string, name: string, error: unknown) =>
+  console.error(JSON.stringify({ event: 'wipe_failed', binding, name, error: String(error) }))

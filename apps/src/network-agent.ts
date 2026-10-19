@@ -36,6 +36,8 @@ export const networkLimitKey = (name: string) => `network:${name.split(':')[0]}`
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."
 const NO_GUIDE = "A network has no guide: it's the sample network's, at /demo."
+// Where a network's agent keeps the roster it last told its launches (rosterKey).
+const ANNOUNCED = 'crossfeed_roster_announced'
 
 // One instance per signed-in network, named by the network's ID (ADR 0001). Its own class keeps its
 // namespace apart from the demo's sessions, so no session cookie can name it. It opens empty, with no
@@ -64,27 +66,28 @@ export class NetworkAgent extends CrossfeedAgent {
 
   // After a change to the roster, once no show is still being looked up, tells each launch how it now
   // stands, so a launch's page says when it has changed since that launch's latest run. Other changes
-  // to the network's state send nothing.
+  // to the network's state send nothing. What was sent is kept in storage, so waking up sends nothing
+  // new; a notice that fails forgets it, so the next change of any kind sends it again.
   onStateChanged(state: State) {
     if (state.roster.some((s) => s.resolution === 'pending')) return
     const key = rosterKey(state.roster)
-    if (key === this.announced) return
-    this.announced = key
+    const { kv } = this.ctx.storage
+    if (key === kv.get(ANNOUNCED)) return
+    kv.put(ANNOUNCED, key)
     void this.keepAliveWhile(() =>
       Promise.all(
         (state.launches ?? []).map(async ({ id }) => {
           try {
-            await (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).rosterIs(key)
+            const launch = await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))
+            await launch.noteNetworkRoster(key)
           } catch (e) {
+            kv.delete(ANNOUNCED)
             console.error(JSON.stringify({ event: 'roster_notice', launch: id, error: String(e) }))
           }
         })
       )
     )
   }
-
-  // The roster as the launches were last told it stands.
-  private announced: string | null = null
 
   // Closes the member's connections to the network's agent and to each of its launches'.
   async kick(memberId: string) {

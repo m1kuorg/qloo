@@ -571,6 +571,9 @@ describe("approving a launch's insertion order", () => {
     expect(approved.approvedBy).toBe('Grace Booker')
     expect(Date.parse(approved.approvedAt!)).toBeGreaterThanOrEqual(before - 1000)
     expect(Date.parse(approved.approvedAt!)).toBeLessThanOrEqual(Date.now())
+    // Approving it again, as from a page that hadn't seen the approval, keeps the first.
+    await agent.call('approveInsertionOrder', order.id)
+    expect(agent.state()!.insertionOrder).toEqual(approved)
 
     // An edit returns it to draft, and the approval with it.
     await agent.call('editInsertionOrder', order.id, [{ show: 'Corner Booth', slots: 2, angle: 'Call-ins.' }])
@@ -731,8 +734,10 @@ describe('deleting a launch', () => {
     const { id: other } = await launch(ada, network, { name: 'The Long Take' })
     const failed = vi.spyOn(console, 'error')
 
-    // The list lets go of the first, but its wipe fails: it's off the dashboard, and kept for the cron.
-    vi.spyOn(LaunchAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    // The list lets go of the first, but its wipe fails, twice: it's off the dashboard, and kept for the cron.
+    vi.spyOn(LaunchAgent.prototype, 'destroy')
+      .mockRejectedValueOnce(new Error('The agent is overloaded.'))
+      .mockRejectedValueOnce(new Error('The agent is overloaded.'))
     expect((await remove(ada, network, id)).status).toBe(200)
     expect((await ada.fetch(`/app/${network}/launches/${id}`)).status).toBe(404)
     expect(failed.mock.calls.flat().some((line) => String(line).includes('"event":"wipe_failed"'))).toBe(true)
@@ -749,6 +754,9 @@ describe('deleting a launch', () => {
     expect(await held(network, id)).toMatchObject({ runs: 1 })
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.now() + 2 * 60_000)
+    // A retry that fails again fails the cron's run, and is kept for the next.
+    await expect(runCron()).rejects.toThrow('1 agent wipe failed')
+    expect(await held(network, id)).toMatchObject({ runs: 1 })
     await runCron()
     await wipedOut(network, id)
     expect((await ada.fetch(`/app/${network}/launches/${other}`)).status).toBe(200)

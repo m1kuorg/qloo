@@ -1,5 +1,5 @@
 import { callable, getAgentByName, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
-import { CrossfeedAgent, newComp, rosterKey, type LaunchSummary, type RosterCopy, type State } from './agent'
+import { CrossfeedAgent, newComp, rosterKey, type LaunchSummary, type RosterCopy, type Show, type State } from './agent'
 import { finalistsOf } from './fit'
 import { MEMBER_NAME_HEADER, memberTag, networkLimitKey } from './network-agent'
 
@@ -103,11 +103,22 @@ export class LaunchAgent extends CrossfeedAgent {
   }
 
   // The network's roster as it now stands (rosterKey), which the network sends after each change to
-  // it: the page says so while it differs from the copy the latest run ranks. Over RPC only.
-  rosterIs(key: string) {
+  // it. The page says the roster has changed while it differs from the copy the latest run ranks.
+  // Over RPC only.
+  noteNetworkRoster(key: string) {
+    this.heardRoster = key
     if (this.state.runs.length === 0) return
-    const changed = key !== rosterKey(this.state.roster)
+    const changed = this.rosterChangedSince(this.state.roster)
     if (changed !== this.state.rosterChanged) this.setState({ ...this.state, rosterChanged: changed })
+  }
+
+  // The network's roster as it last said it stands, if it has since this instance started.
+  private heardRoster: string | null = null
+
+  // A run's copy differs from the network's roster when the network has since said otherwise, as when
+  // a change lands while the copy is on its way.
+  protected rosterChangedSince(copy: Show[]) {
+    return this.heardRoster !== null && this.heardRoster !== rosterKey(copy)
   }
 
   // Sets the launch it plans, named or from comps, as its network creates it, and returns the row the

@@ -142,8 +142,7 @@ appPages.get('/app/:networkId/launches/:launchId', async (c) => {
 // is refused with 409. The demo's export is the same, under the visitor's session instead.
 appPages.get('/app/:networkId/launches/:launchId/insertion-orders/:file{.+\\.csv}', async (c) => {
   const { networkId, launchId, file } = c.req.param()
-  if (!(await memberRole(c.env.DB, networkId, c.var.member.id)) || !(await listsLaunch(c.env, networkId, launchId)))
-    return c.notFound()
+  if (!(await membersLaunch(c, networkId, launchId))) return c.notFound()
   const id = file.slice(0, -'.csv'.length)
   const launch = await getAgentByName(c.env.LaunchAgent, launchAgentName(networkId, launchId))
   return csvDownload(id, await launch.exportInsertionOrder(id))
@@ -153,8 +152,7 @@ appPages.get('/app/:networkId/launches/:launchId/insertion-orders/:file{.+\\.csv
 // once, its address and agent answer 404, and its agent's storage is wiped (wipe.ts).
 appPages.post('/app/:networkId/launches/:launchId/delete', async (c) => {
   const { networkId, launchId } = c.req.param()
-  if (!(await memberRole(c.env.DB, networkId, c.var.member.id)) || !(await listsLaunch(c.env, networkId, launchId)))
-    return c.notFound()
+  if (!(await membersLaunch(c, networkId, launchId))) return c.notFound()
   await deleteLaunch(c.env, networkId, launchId)
   return c.json({})
 })
@@ -369,6 +367,11 @@ function forward(c: Context<AppEnv>, agent: { fetch: (request: Request) => Promi
   headers.set(MEMBER_NAME_HEADER, encodeURIComponent(member.name))
   return agent.fetch(new Request(c.req.raw, { headers }))
 }
+
+// Whether the member is in network `networkId` and its list has launch `launchId`, for the routes under a
+// launch that aren't its page.
+const membersLaunch = async (c: Context<AppEnv>, networkId: string, launchId: string) =>
+  Boolean(await memberRole(c.env.DB, networkId, c.var.member.id)) && (await listsLaunch(c.env, networkId, launchId))
 
 // Whether network `networkId`'s list of launches has launch `launchId`.
 const listsLaunch = async (env: Env, networkId: string, launchId: string) =>

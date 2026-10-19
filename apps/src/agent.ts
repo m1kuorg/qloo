@@ -573,6 +573,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return null
   }
 
+  // Whether a network's roster has changed since the copy a launch's run takes of it, as far as the
+  // launch has heard (launch-agent.ts): a change can land while the copy is on its way. A demo session
+  // copies no roster.
+  protected rosterChangedSince(_copy: Show[]) {
+    return false
+  }
+
   // The name of the member on the current call's connection, to say who started a run or approved an
   // order: a launch's member (launch-agent.ts). A demo session names no one. Read it before the call's
   // first await.
@@ -581,11 +588,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // A network's roster and CPM as a launch's run copies them, with the records the roster cites copied
-  // into this log under new numbers, each marked with the network's call it copies. The copy is the
-  // roster as it now stands.
+  // into this log under new numbers, each marked with the network's call it copies.
   private copyRoster({ roster, cpm, evidence }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'rosterChanged'> {
     const copied = this.copyEvidence(roster, evidence, (copy, from) => ({ ...copy, copiedFrom: from.call }))
-    return { roster: copied, cpm, rosterChanged: false }
+    return { roster: copied, cpm, rosterChanged: this.rosterChangedSince(copied) }
   }
 
   // Starts a guest pitch run and returns at once. The past guests' works are looked up in Qloo like
@@ -722,12 +728,14 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 
   // The programmer's approval: only an approved order exports. It takes a person in the app, on the
   // page's connection, so the Worker's own calls, and the API through them, can never approve (ADR
-  // 0002). On a launch's agent it records the member who approved, and when.
+  // 0002). On a launch's agent it records the member who approved, and when; approving it again, as
+  // from a page that hadn't seen the approval, keeps the first.
   @callable()
   approveInsertionOrder(id: string) {
     if (!getCurrentAgent().connection)
       throw new Error('An insertion order is approved in the app, by a person; nothing else can approve one.')
     const order = this.editableOrder(id)
+    if (order.status === 'approved') return
     const by = this.memberName()
     this.saveOrder({
       ...order,
