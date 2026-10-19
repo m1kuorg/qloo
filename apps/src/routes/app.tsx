@@ -157,10 +157,10 @@ appPages.post('/app/:networkId/settings/network', async (c) => {
 const OWNERS_ONLY = 'Only an owner can invite and manage members.'
 
 // The answer to give a member who isn't one of network `id`'s owners: 404 outside the network, 403 to
-// a member. Null for an owner.
-async function refuseNonOwner(c: Context<AppEnv>, id: string) {
+// a member, saying `ownersOnly`. Null for an owner.
+async function refuseNonOwner(c: Context<AppEnv>, id: string, ownersOnly = OWNERS_ONLY) {
   const role = await memberRole(c.env.DB, id, c.var.member.id)
-  return role === 'owner' ? null : role ? c.json({ error: OWNERS_ONLY }, 403) : c.notFound()
+  return role === 'owner' ? null : role ? c.json({ error: ownersOnly }, 403) : c.notFound()
 }
 
 // The answer to a change that would leave the network with no owner.
@@ -238,8 +238,8 @@ const KEYS_OWNERS_ONLY = 'Only an owner can create and revoke API keys.'
 
 appPages.post('/app/:networkId/settings/api-keys', async (c) => {
   const id = c.req.param('networkId')
-  const role = await memberRole(c.env.DB, id, c.var.member.id)
-  if (role !== 'owner') return role ? c.json({ error: KEYS_OWNERS_ONLY }, 403) : c.notFound()
+  const refused = await refuseNonOwner(c, id, KEYS_OWNERS_ONLY)
+  if (refused) return refused
   const read = readName((await jsonBody(c)).name, 'Name the key, such as the script or assistant that will use it.')
   if ('error' in read) return c.json({ error: read.error }, 400)
   const key = await createApiKey(c.env.DB, id, c.var.member.id, read.name)
@@ -250,8 +250,8 @@ appPages.post('/app/:networkId/settings/api-keys', async (c) => {
 // Revokes a key, effective at once: its next request answers 401.
 appPages.post('/app/:networkId/settings/api-keys/:keyId/revoke', async (c) => {
   const id = c.req.param('networkId')
-  const role = await memberRole(c.env.DB, id, c.var.member.id)
-  if (role !== 'owner') return role ? c.json({ error: KEYS_OWNERS_ONLY }, 403) : c.notFound()
+  const refused = await refuseNonOwner(c, id, KEYS_OWNERS_ONLY)
+  if (refused) return refused
   if (!(await revokeApiKey(c.env.DB, id, c.req.param('keyId'), c.var.member.id)))
     return c.json({ error: 'This key was revoked already. Reload to see the keys in use.' }, 409)
   return c.json({ keys: await apiKeys(c.env.DB, id) })

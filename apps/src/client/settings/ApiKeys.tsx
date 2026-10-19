@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react'
 import type { ApiKey } from '../../directory'
 import { MAX_NAME } from '../../text'
-import { Alert, ScrollTable, send, useAction } from '../controls'
+import { Alert, ScrollTable, send, ShownOnce, useAction } from '../controls'
 import { day, type NetworkPage } from '../Dashboard'
 import { StateLine } from '../states'
 
@@ -36,7 +36,6 @@ function OwnerKeys({ network, keys: listed }: { network: NetworkPage; keys: ApiK
   const [keys, setKeys] = useState(listed)
   const [name, setName] = useState('')
   const [made, setMade] = useState<{ id: string; secret: string } | null>(null)
-  const [copied, setCopied] = useState<boolean | null>(null)
   // The key whose revocation waits on a yes.
   const [asking, setAsking] = useState<string | null>(null)
   const { busy, error, run } = useAction()
@@ -46,7 +45,6 @@ function OwnerKeys({ network, keys: listed }: { network: NetworkPage; keys: ApiK
     run(async () => {
       const answer = await send<{ id: string; secret: string; keys: ApiKey[] }>(path, { name })
       setMade({ id: answer.id, secret: answer.secret })
-      setCopied(null)
       setKeys(answer.keys)
       setName('')
     })
@@ -56,14 +54,6 @@ function OwnerKeys({ network, keys: listed }: { network: NetworkPage; keys: ApiK
       setAsking(null)
       if (made?.id === id) setMade(null)
     })
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(made!.secret)
-      setCopied(true)
-    } catch {
-      setCopied(false)
-    }
-  }
 
   return (
     <div className="set-body wide api-keys">
@@ -91,31 +81,10 @@ function OwnerKeys({ network, keys: listed }: { network: NetworkPage; keys: ApiK
         </div>
       </form>
       {made && (
-        <div className="new-link">
-          <label htmlFor="key-secret">New API key</label>
-          <input
-            id="key-secret"
-            className="acct-in key-in"
-            value={made.secret}
-            readOnly
-            onFocus={(e) => e.target.select()}
-            spellCheck={false}
-          />
-          <div className="acts">
-            <button className="btn" type="button" onClick={() => void copy()}>
-              {copied ? 'Copied' : 'Copy key'}
-            </button>
-          </div>
-          {copied === false && (
-            <StateLine kind="error" role="alert">
-              This browser didn’t let Crossfeed copy it. Select the key and copy it yourself.
-            </StateLine>
-          )}
-          <p className="help">
-            Copy it now and keep it where your script keeps secrets: Crossfeed shows each key only once. Send it as{' '}
-            <code>Authorization: Bearer</code> and the key.
-          </p>
-        </div>
+        <ShownOnce key={made.id} id="key-secret" label="New API key" noun="key" value={made.secret} mono>
+          Copy it now and keep it where your script keeps secrets: Crossfeed shows each key only once. Send it as{' '}
+          <code>Authorization: Bearer</code> and the key.
+        </ShownOnce>
       )}
       <Alert error={error} />
       {keys.length === 0 ? (

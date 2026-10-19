@@ -132,6 +132,59 @@ export const ScrollTable = ({ label, children }: { label: string; children: Reac
   </div>
 )
 
+// Something shown once, such as a new invite link or API key, on Panel Grey in a read-only field that
+// selects itself, with a button that copies it, and `children` saying what to do with it. Key it by
+// what it shows, so a new one starts uncopied.
+export function ShownOnce({
+  id,
+  label,
+  noun,
+  value,
+  mono = false,
+  children
+}: {
+  id: string
+  label: string
+  noun: string
+  value: string
+  mono?: boolean
+  children: ReactNode
+}) {
+  const [copied, setCopied] = useState<boolean | null>(null)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+  return (
+    <div className="new-link">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        className={mono ? 'acct-in key-in' : 'acct-in'}
+        value={value}
+        readOnly
+        onFocus={(e) => e.target.select()}
+        spellCheck={false}
+      />
+      <div className="acts">
+        <button className="btn" type="button" onClick={() => void copy()}>
+          {copied ? 'Copied' : `Copy ${noun}`}
+        </button>
+      </div>
+      {copied === false && (
+        <StateLine kind="error" role="alert">
+          This browser didn’t let Crossfeed copy it. Select the {noun} and copy it yourself.
+        </StateLine>
+      )}
+      <p className="help">{children}</p>
+    </div>
+  )
+}
+
 // A rail module opened from a table row can sit far from it, as in a single column: it's brought into
 // view once, and `focus`, if given, then takes focus without scrolling again. A block body, because
 // newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.

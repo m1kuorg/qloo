@@ -72,6 +72,7 @@ describe('API keys in settings', () => {
     // The secret reads the network through the API.
     const read = await api(secret)(`/api/v1/networks/${network}`)
     expect(read.status).toBe(200)
+    expect(read.headers.get('Cache-Control')).toBe('no-store')
     expect(await read.json()).toEqual({ id: network, name: 'Night Shift Audio', cpm: null })
   })
 
@@ -147,14 +148,22 @@ describe("the API's auth", () => {
       expect(res.status).toBe(404)
       expect(await res.json()).toEqual(NOT_FOUND)
     }
-    // The owner's own session doesn't reach the other network either.
+    // The owner's own session doesn't reach the other network either, nor writes to it from anywhere.
     expect((await ada.fetch(`/api/v1/networks/${theirs}`)).status).toBe(404)
+    const write = await exports.default.fetch(`${origin}/api/v1/networks/${theirs}`, {
+      method: 'PATCH',
+      headers: { Cookie: ada.cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Mine now' })
+    })
+    expect(write.status).toBe(404)
   })
 
   it('refuses a request with no key or session, or with a key Crossfeed never made, with 401', async () => {
     const network = await created(await openMember())
     const anonymous = await exports.default.fetch(`${origin}/api/v1/networks/${network}`)
     expect(anonymous.status).toBe(401)
+    // No cache keeps an answer, refusals included.
+    expect(anonymous.headers.get('Cache-Control')).toBe('no-store')
     expect((await anonymous.json<{ error: { code: string } }>()).error.code).toBe('unauthorized')
     for (const authorization of ['Bearer cf_live_madeup', 'Basic YWRhOnNlY3JldA==', 'Bearer ', ''])
       expect(

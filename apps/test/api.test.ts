@@ -352,9 +352,10 @@ describe('the network', () => {
       by(`/api/v1/networks/${network}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: typeof body === 'string' ? body : JSON.stringify(body)
       })
     for (const [body, message] of [
+      ['{"name": "Night Shift', "The body isn't valid JSON. Send it as application/json."],
       [{ name: '  ' }, 'Name the network.'],
       [{ name: 'x'.repeat(65) }, 'Use a name of at most 64 characters.'],
       [{ cpm: 0 }, 'The CPM must be a dollar amount above 0.'],

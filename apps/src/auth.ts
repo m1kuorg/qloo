@@ -46,11 +46,15 @@ export const accountsOn: MiddlewareHandler<{ Bindings: Env }> = async (c, next) 
 // The origins a member's browser may send from (APP_ORIGINS, comma-separated).
 export const appOrigins = (env: Env) => env.APP_ORIGINS.split(',').map((o) => o.trim())
 
+// Whether a request may act for the member whose cookie it carries: a read, or a write from one of the
+// app's own pages.
+export const fromAppPage = <E extends { Bindings: Env }>(c: Context<E>) =>
+  ['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) || appOrigins(c.env).includes(c.req.header('Origin') ?? '')
+
 // A write must come from one of the app's own pages: another site's form or script can't sign a
 // member in, out, or up, or act as them.
 export const sameOrigin: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && !appOrigins(c.env).includes(c.req.header('Origin') ?? ''))
-    return c.text('This request must come from a Crossfeed page.', 403)
+  if (!fromAppPage(c)) return c.text('This request must come from a Crossfeed page.', 403)
   await next()
 }
 

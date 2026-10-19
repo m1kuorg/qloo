@@ -15,15 +15,15 @@ import { readName } from './text'
 
 // Who's asking: a member signed in to the app, with their role in the network, or one of the
 // network's API keys.
-export type Caller = { member: Member; role: Role } | { key: string }
+export type Caller = { member: Member; role: Role } | { keyId: string }
 
 // What every operation runs with.
-export type Context = { env: Env; network: string; caller: Caller }
+export type OperationContext = { env: Env; network: string; caller: Caller }
 
 // The network as a program reads it.
 export type NetworkInfo = { id: string; name: string; cpm: number | null }
 
-export async function getNetwork({ env, network }: Context): Promise<NetworkInfo> {
+export async function getNetwork({ env, network }: OperationContext): Promise<NetworkInfo> {
   const name = await networkName(env.DB, network)
   if (name === null) throw new Refusal('not_found', 'There is no such network.')
   const { cpm } = await stateOf(await agent(env, network))
@@ -33,7 +33,7 @@ export async function getNetwork({ env, network }: Context): Promise<NetworkInfo
 // Renames the network, sets its CPM, or both: a member must be one of its owners, as in its settings;
 // an API key, which an owner made, may. A field left out stays as it is, and the CPM can't be cleared.
 export async function updateNetwork(
-  { env, network, caller }: Context,
+  { env, network, caller }: OperationContext,
   input: { name?: string; cpm?: number }
 ): Promise<NetworkInfo> {
   if ('member' in caller && caller.role !== 'owner') throw new Refusal('forbidden', OWNERS_ONLY)
@@ -45,7 +45,7 @@ export async function updateNetwork(
     const renamed =
       'member' in caller
         ? await renameNetwork(env.DB, network, caller.member.id, read.name)
-        : await renameNetworkForKey(env.DB, network, caller.key, read.name)
+        : await renameNetworkForKey(env.DB, network, caller.keyId, read.name)
     if (!renamed) throw new Refusal('forbidden', OWNERS_ONLY)
   }
   if (input.cpm !== undefined) await (await agent(env, network)).setCpm(input.cpm)
@@ -55,7 +55,7 @@ const OWNERS_ONLY = "Only an owner, or an API key an owner made, can change the 
 
 // What the network has used today against its own daily caps, and when they reset. Crossfeed's caps
 // across all networks and visitors apply too.
-export async function getUsage({ env, network }: Context): Promise<Usage> {
+export async function getUsage({ env, network }: OperationContext): Promise<Usage> {
   return env.QlooGateway.getByName('global').usage(networkLimitKey(network))
 }
 
@@ -67,7 +67,7 @@ export type Roster = {
   sample: { network: string; notice: string } | null
 }
 
-export async function getRoster({ env, network }: Context): Promise<Roster> {
+export async function getRoster({ env, network }: OperationContext): Promise<Roster> {
   return rosterOf(await stateOf(await agent(env, network)))
 }
 
@@ -75,7 +75,7 @@ export async function getRoster({ env, network }: Context): Promise<Roster> {
 // each settles as its search returns. Over a roster that has shows, it needs `replace`: the shows
 // already on it keep their matches, and only the figures the import brings change.
 export async function importRoster(
-  { env, network }: Context,
+  { env, network }: OperationContext,
   input: { text: string; format: RosterFormat; replace: boolean }
 ): Promise<Roster> {
   const networkAgent = await agent(env, network)
@@ -90,7 +90,7 @@ export async function importRoster(
 
 // Settles or edits one show, named as on the roster: picks one of its candidates, maps it to a comp
 // its comp search found, or changes its figures or exclusion. Returns the show as it is now.
-export async function updateShow({ env, network }: Context, input: { name: string; patch: ShowPatch }) {
+export async function updateShow({ env, network }: OperationContext, input: { name: string; patch: ShowPatch }) {
   const networkAgent = await agent(env, network)
   await networkAgent.updateShow(input.name, input.patch)
   return showOf(await stateOf(networkAgent), input.name)
@@ -98,7 +98,7 @@ export async function updateShow({ env, network }: Context, input: { name: strin
 
 // Searches Qloo for a comp to stand in for a show it has no match for, and returns at once with the
 // show's comp search pending; map the show to one of its results once it's done.
-export async function searchComps({ env, network }: Context, input: { name: string; query: string }) {
+export async function searchComps({ env, network }: OperationContext, input: { name: string; query: string }) {
   const networkAgent = await agent(env, network)
   await networkAgent.searchComps(input.name, input.query)
   return showOf(await stateOf(networkAgent), input.name)

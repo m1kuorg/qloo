@@ -6,7 +6,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import type { Context, MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { accountsOn, appOrigins, signedIn } from '../auth'
+import { accountsOn, fromAppPage, signedIn } from '../auth'
 import { apiKeyFor, memberRole } from '../directory'
 import {
   getNetwork,
@@ -17,7 +17,7 @@ import {
   updateNetwork,
   updateShow,
   type Caller,
-  type Context as OperationContext
+  type OperationContext
 } from '../operations'
 import { REFUSALS, Refusal, refusalCode, type RefusalCode } from '../refusal'
 import { readRosterUpload, type Upload } from '../upload'
@@ -49,6 +49,9 @@ api.onError((err, c) => {
     if (code === 'rate_limited') c.header('Retry-After', '60')
     return refuse(c, code, err.message)
   }
+  // The JSON validator's own refusals: a body that isn't JSON, or isn't declared as JSON.
+  if (err instanceof HTTPException && err.status === 400)
+    return refuse(c, 'invalid', "The body isn't valid JSON. Send it as application/json.")
   if (err instanceof HTTPException && err.status === 415)
     return refuse(c, 'invalid', 'Send this body as application/json, with a matching Content-Type.')
   console.error(JSON.stringify({ event: 'api_error', path: c.req.path, error: String(err) }))
@@ -80,7 +83,7 @@ const caller: MiddlewareHandler<ApiEnv> = async (c, next) => {
         'This API key made too many requests in the last minute. Wait a minute, then try again.'
       )
     if (key.networkId !== network) throw new Refusal('not_found', NOT_FOUND)
-    c.set('caller', { key: key.id })
+    c.set('caller', { keyId: key.id })
   } else {
     const member = await signedIn(c)
     if (!member)
@@ -88,13 +91,13 @@ const caller: MiddlewareHandler<ApiEnv> = async (c, next) => {
         'unauthorized',
         'Send one of the network\'s API keys as "Authorization: Bearer cf_live_…", or sign in to Crossfeed.'
       )
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && !appOrigins(c.env).includes(c.req.header('Origin') ?? ''))
+    const role = await memberRole(c.env.DB, network, member.id)
+    if (!role) throw new Refusal('not_found', NOT_FOUND)
+    if (!fromAppPage(c))
       throw new Refusal(
         'forbidden',
         'A write signed in with a session must come from a Crossfeed page. Programs use an API key.'
       )
-    const role = await memberRole(c.env.DB, network, member.id)
-    if (!role) throw new Refusal('not_found', NOT_FOUND)
     c.set('caller', { member, role })
   }
   await next()
