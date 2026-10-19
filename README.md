@@ -39,6 +39,7 @@ The [apps README](apps/README.md) is the full how-to: tests, type checks, CI, de
 ## Repository
 
 - [`apps/`](apps/): the Cloudflare Worker, with the agent, the Qloo gateway, and the React UI.
+- [`packages/sdk/`](packages/sdk/): `@crossfeed/sdk`, the TypeScript client of the REST API, typed from its OpenAPI document.
 - [`docs/SUBMISSION.md`](docs/SUBMISSION.md): the hackathon submission.
 - [`docs/PRD.md`](docs/PRD.md), [`docs/TRD.md`](docs/TRD.md), [`docs/PRODUCT.md`](docs/PRODUCT.md), and [`docs/DESIGN.md`](docs/DESIGN.md): what Crossfeed does, how it's built, its terms, and its look.
 

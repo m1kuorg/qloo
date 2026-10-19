@@ -6,8 +6,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import type { Context, MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { accountsOn, fromAppPage, signedIn } from '../auth'
-import { apiKeyFor, memberRole } from '../directory'
+import { accountsOn, fromAppPage, keyFor, signedIn } from '../auth'
+import { memberRole } from '../directory'
 import { workTypes, type PitchInput } from '../inbox'
 import {
   answerLaunchRun,
@@ -67,12 +67,18 @@ api.use('/api/v1/*', accountsOn, async (c, next) => {
   c.header('Cache-Control', 'no-store')
 })
 
-api.onError((err, c) => {
+// Answers an error that's a refusal with its code's status, and how long to wait when rate limited;
+// null for any other error. The MCP server answers its key check's refusals with it too.
+export function refusal(c: Context, err: unknown) {
   const code = refusalCode(err)
-  if (code) {
-    if (code === 'rate_limited') c.header('Retry-After', '60')
-    return refuse(c, code, err.message)
-  }
+  if (!code) return null
+  if (code === 'rate_limited') c.header('Retry-After', '60')
+  return refuse(c, code, (err as Error).message)
+}
+
+api.onError((err, c) => {
+  const refused = refusal(c, err)
+  if (refused) return refused
   // The JSON validator's own refusals: a body that isn't JSON, or isn't declared as JSON.
   if (err instanceof HTTPException && err.status === 400)
     return refuse(c, 'invalid', "The body isn't valid JSON. Send it as application/json.")
@@ -94,18 +100,7 @@ const caller: MiddlewareHandler<ApiEnv> = async (c, next) => {
   const network = c.req.param('networkId')!
   const authorization = c.req.header('Authorization')
   if (authorization !== undefined) {
-    const secret = /^Bearer\s+(cf_live_\S+)\s*$/i.exec(authorization)?.[1]
-    const key = secret ? await apiKeyFor(c.env.DB, secret) : null
-    if (!key)
-      throw new Refusal(
-        'unauthorized',
-        'This API key is unknown or was revoked. Send a key from the network\'s settings as "Authorization: Bearer cf_live_…".'
-      )
-    if (!(await c.env.API_LIMITER.limit({ key: key.id })).success)
-      throw new Refusal(
-        'rate_limited',
-        'This API key made too many requests in the last minute. Wait a minute, then try again.'
-      )
+    const key = await keyFor(c.env, authorization)
     if (key.networkId !== network) throw new Refusal('not_found', NOT_FOUND)
     c.set('caller', { keyId: key.id })
   } else {
@@ -142,6 +137,11 @@ const context = (c: Context<ApiEnv>): OperationContext => ({
   network: c.req.param('networkId')!,
   caller: c.var.caller
 })
+
+// One of the document's named schemas, or null. `.nullable()` on a named schema would make the
+// schema itself nullable in the document, and so every other use of it, such as a run a read
+// answers with, in the types generated from it.
+const orNull = <T extends z.ZodType>(schema: T) => z.union([schema, z.null()])
 
 // The documented answer to each refusal a route can give.
 const ErrorBody = z
@@ -293,11 +293,11 @@ const Show = z
       description:
         '`pending` until its search settles; `resolved` to its match, `mapped` to a comp, `ambiguous` among its candidates, `missed` when Qloo has no match, or `failed` with the error. Only resolved and mapped shows are scored.'
     }),
-    entity: Candidate.nullable().openapi({ description: 'The matched Qloo entity, or the comp it was mapped to.' }),
+    entity: orNull(Candidate).openapi({ description: 'The matched Qloo entity, or the comp it was mapped to.' }),
     candidates: z.array(Candidate).openapi({ description: 'Up to three candidates for an ambiguous name.' }),
     evidence: z.string().openapi({ description: 'The call number of the search behind its resolution.' }),
     error: z.string().nullable(),
-    compSearch: CompSearch.nullable(),
+    compSearch: orNull(CompSearch),
     downloads: z.number().int().nullable().openapi({ description: 'Downloads per episode.' }),
     status: z.string().nullable().openapi({ description: "The network's own word for it, such as `active`." }),
     description: z.string().nullable(),
@@ -433,6 +433,22 @@ const ShowParams = NetworkParams.extend({
   name: z.string().openapi({ description: "The show's name as on the roster, URL-encoded.", example: 'Field Notes' })
 })
 
+// How a show is settled or edited.
+export const ShowChange = z
+  .strictObject({
+    entityId: z.string().optional().openapi({ description: 'One of its candidates.' }),
+    compId: z.string().optional().openapi({ description: "One of its comp search's results." }),
+    downloads: z
+      .number()
+      .int({ error: 'Downloads per episode must be a whole number, 0 or more.' })
+      .min(0, { error: 'Downloads per episode must be a whole number, 0 or more.' })
+      .nullable()
+      .optional(),
+    status: z.string().nullable().optional(),
+    excluded: z.boolean().optional()
+  })
+  .openapi('ShowChange', { example: { entityId: 'p-0101' } })
+
 api.openapi(
   createRoute({
     method: 'patch',
@@ -445,24 +461,7 @@ api.openapi(
       params: ShowParams,
       body: {
         required: true,
-        content: {
-          'application/json': {
-            schema: z
-              .strictObject({
-                entityId: z.string().optional().openapi({ description: 'One of its candidates.' }),
-                compId: z.string().optional().openapi({ description: "One of its comp search's results." }),
-                downloads: z
-                  .number()
-                  .int({ error: 'Downloads per episode must be a whole number, 0 or more.' })
-                  .min(0, { error: 'Downloads per episode must be a whole number, 0 or more.' })
-                  .nullable()
-                  .optional(),
-                status: z.string().nullable().optional(),
-                excluded: z.boolean().optional()
-              })
-              .openapi('ShowChange', { example: { entityId: 'p-0101' } })
-          }
-        }
+        content: { 'application/json': { schema: ShowChange } }
       }
     },
     responses: {
@@ -476,6 +475,8 @@ api.openapi(
   }
 )
 
+export const CompQuery = z.object({ query: z.string().openapi({ example: 'Paper Trail Weekly' }) }).openapi('CompQuery')
+
 api.openapi(
   createRoute({
     method: 'post',
@@ -488,11 +489,7 @@ api.openapi(
       params: ShowParams,
       body: {
         required: true,
-        content: {
-          'application/json': {
-            schema: z.object({ query: z.string().openapi({ example: 'Paper Trail Weekly' }) }).openapi('CompQuery')
-          }
-        }
+        content: { 'application/json': { schema: CompQuery } }
       }
     },
     responses: {
@@ -536,7 +533,7 @@ const WorkMatch = z
       description:
         '`resolved` to its match, `ambiguous` among same-title candidates until a work is confirmed, `missed` when Qloo has no such work, or `failed` with the error.'
     }),
-    entity: WorkCandidate.nullable(),
+    entity: orNull(WorkCandidate),
     candidates: z.array(WorkCandidate),
     evidence: z.string().openapi({ description: "The search's call number in the network's evidence." }),
     error: z.string().nullable()
@@ -560,8 +557,8 @@ const Pitch = z
       .string()
       .nullable()
       .openapi({ description: "The pitched guest's name, as the agent read it. It never reaches Qloo." }),
-    work: Work.nullable(),
-    match: WorkMatch.nullable().openapi({ description: 'Null until its work has been searched.' }),
+    work: orNull(Work),
+    match: orNull(WorkMatch).openapi({ description: 'Null until its work has been searched.' }),
     error: z.string().nullable()
   })
   .openapi('Pitch')
@@ -617,7 +614,7 @@ api.openapi(
 )
 
 // Pitches given one by one, rather than as email files.
-const PitchBatch = z
+export const PitchBatch = z
   .object({
     pitches: z.array(
       z.object({
@@ -639,6 +636,10 @@ const PitchBatch = z
     }
   })
 api.openAPIRegistry.register('PitchBatch', PitchBatch)
+
+// A batch's pitches as the agent reads them: a sender or subject left out is none.
+export const batchPitches = ({ pitches }: z.infer<typeof PitchBatch>): PitchInput[] =>
+  pitches.map(({ from, subject, body }) => ({ from: from ?? null, subject: subject ?? null, body }))
 
 // What a pitch file body's type says it is, as the upload module reads files by their extension.
 const PITCH_BODIES: Record<string, string> = {
@@ -703,11 +704,7 @@ api.openapi(
       }
       const batch = PitchBatch.safeParse(json)
       if (!batch.success) throw new Refusal('invalid', invalidField(batch.error))
-      pitches = batch.data.pitches.map(({ from, subject, body }) => ({
-        from: from ?? null,
-        subject: subject ?? null,
-        body
-      }))
+      pitches = batchPitches(batch.data)
     } else
       throw new Refusal(
         'invalid',
@@ -717,6 +714,10 @@ api.openapi(
     return c.json(await loadInbox(context(c), { pitches, replace }), 202)
   }
 )
+
+export const WorkConfirmation = z
+  .object({ entityId: z.string().openapi({ description: "One of its work's candidates." }) })
+  .openapi('WorkConfirmation', { example: { entityId: 'f-0002' } })
 
 api.openapi(
   createRoute({
@@ -730,13 +731,7 @@ api.openapi(
       params: NetworkParams.extend({ pitchId: z.string().openapi({ example: 'pitch-03' }) }),
       body: {
         required: true,
-        content: {
-          'application/json': {
-            schema: z
-              .object({ entityId: z.string().openapi({ description: "One of its work's candidates." }) })
-              .openapi('WorkConfirmation', { example: { entityId: 'f-0002' } })
-          }
-        }
+        content: { 'application/json': { schema: WorkConfirmation } }
       }
     },
     responses: {
@@ -807,7 +802,7 @@ const Reply = z
     pitch: z.string(),
     verdict: z.enum(['book', 'decline', 'later']),
     angle: z.string().nullable().openapi({ description: "A top pitch's episode angle, built from its shared tags." }),
-    sharedTags: SharedTags.nullable(),
+    sharedTags: orNull(SharedTags),
     draft: z.string().openapi({ description: "The reply to the pitch's sender." }),
     status: z.enum(['draft', 'approved', 'discarded']).openapi({
       description:
@@ -826,7 +821,7 @@ const PitchRun = z
     }),
     show: z.string().openapi({ description: 'The roster show the pitches are ranked against.' }),
     startedAt: z.string(),
-    question: Question.nullable(),
+    question: orNull(Question),
     notes: z.array(Note),
     error: z.string().nullable(),
     closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
@@ -834,7 +829,7 @@ const PitchRun = z
       z.object({
         guest: z.string(),
         work: Work,
-        match: WorkMatch.nullable().openapi({ description: 'Null until its work has been searched.' })
+        match: orNull(WorkMatch).openapi({ description: 'Null until its work has been searched.' })
       })
     ),
     lists: z.array(PitchList).nullable().openapi({ description: 'One per work type, once the pitches are ranked.' }),
@@ -863,7 +858,7 @@ const PitchRun = z
 
 // An answer to a run's question, by the question's ID. Which fields it takes follows the question's
 // kind; the agent refuses any other.
-const Answer = z
+export const Answer = z
   .object({
     questionId: z.string(),
     choice: z
@@ -890,6 +885,39 @@ const RunParams = NetworkParams.extend({
   runId: z.string().openapi({ description: 'The ID the run answered with when it started.' })
 })
 
+export const PitchRunStart = z
+  .object({
+    show: z.string().openapi({ description: 'The show, named as on the roster.' }),
+    pastGuests: z
+      .array(
+        z.object({
+          guest: z.string(),
+          work: z.object({
+            title: z.string(),
+            type: z.enum(workTypes),
+            year: z.number().int().nullable().optional()
+          })
+        })
+      )
+      .optional()
+      .openapi({
+        description:
+          "Up to three of the show's best past guests and their public works. A guest's name is used to match a book by its author, and never reaches Qloo."
+      })
+  })
+  .openapi('PitchRunStart', {
+    example: {
+      show: 'Deep Cuts',
+      pastGuests: [{ guest: 'Mo Reyes', work: { title: 'Talking with Ghosts', type: 'book', year: 2022 } }]
+    }
+  })
+
+// A pitch run's start as the agent takes it: a work's year left out is unknown.
+export const pitchRunInput = ({ show, pastGuests = [] }: z.infer<typeof PitchRunStart>) => ({
+  show,
+  pastGuests: pastGuests.map(({ guest, work }) => ({ guest, work: { ...work, year: work.year ?? null } }))
+})
+
 api.openapi(
   createRoute({
     method: 'post',
@@ -902,36 +930,7 @@ api.openapi(
       params: NetworkParams,
       body: {
         required: true,
-        content: {
-          'application/json': {
-            schema: z
-              .object({
-                show: z.string().openapi({ description: 'The show, named as on the roster.' }),
-                pastGuests: z
-                  .array(
-                    z.object({
-                      guest: z.string(),
-                      work: z.object({
-                        title: z.string(),
-                        type: z.enum(workTypes),
-                        year: z.number().int().nullable().optional()
-                      })
-                    })
-                  )
-                  .optional()
-                  .openapi({
-                    description:
-                      "Up to three of the show's best past guests and their public works. A guest's name is used to match a book by its author, and never reaches Qloo."
-                  })
-              })
-              .openapi('PitchRunStart', {
-                example: {
-                  show: 'Deep Cuts',
-                  pastGuests: [{ guest: 'Mo Reyes', work: { title: 'Talking with Ghosts', type: 'book', year: 2022 } }]
-                }
-              })
-          }
-        }
+        content: { 'application/json': { schema: PitchRunStart } }
       }
     },
     responses: {
@@ -939,11 +938,7 @@ api.openapi(
       ...errors(400, 401, 403, 404, 409, 429)
     }
   }),
-  async (c) => {
-    const { show, pastGuests = [] } = c.req.valid('json')
-    const guests = pastGuests.map(({ guest, work }) => ({ guest, work: { ...work, year: work.year ?? null } }))
-    return c.json(await startPitchRun(context(c), { show, pastGuests: guests }), 202)
-  }
+  async (c) => c.json(await startPitchRun(context(c), pitchRunInput(c.req.valid('json'))), 202)
 )
 
 api.openapi(
@@ -1124,7 +1119,7 @@ const Chart = z
           leadingComp: Anchor.nullable().openapi({
             description: 'The comp that clearly drove its fit; null with one anchor, or when none did.'
           }),
-          sharedTags: SharedTags.nullable().openapi({ description: "A finalist's, once they're compared." }),
+          sharedTags: orNull(SharedTags).openapi({ description: "A finalist's, once they're compared." }),
           topicRank: z.number().int().nullable().openapi({
             description: 'Its rank by topic alone among the charted shows; null until the baseline is in.'
           }),
@@ -1200,14 +1195,14 @@ const LaunchRun = RunFields.extend({
   plan: z
     .object({
       name: z.string().nullable(),
-      entity: Candidate.nullable().openapi({ description: "The launch's match in Qloo, once the run has one." }),
+      entity: orNull(Candidate).openapi({ description: "The launch's match in Qloo, once the run has one." }),
       comps: z.array(
         z.object({
           name: z.string(),
           status: z.enum(['unconfirmed', 'confirmed', 'rejected']).openapi({
             description: 'Only a comp confirmed in an answer is scored; `rejected` when none of its matches is it.'
           }),
-          entity: Candidate.nullable(),
+          entity: orNull(Candidate),
           candidates: z.array(Candidate).openapi({
             description:
               "What a `confirm_comps` answer picks from, by ID: the comp's match, or its candidates when two feeds share its name."
@@ -1219,7 +1214,7 @@ const LaunchRun = RunFields.extend({
       description:
         "The launch as this run plans it: its name, its match in Qloo once found, and any comps, each confirmed or not in the run's answers."
     }),
-  question: Question.nullable(),
+  question: orNull(Question),
   notes: z.array(Note),
   error: z.string().nullable().openapi({ description: 'Why the run failed or stopped.' }),
   closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
@@ -1228,7 +1223,7 @@ const LaunchRun = RunFields.extend({
     .nullable()
     .openapi({ description: 'The slot budget, once answered.' }),
   exclusions: z.array(z.string()).nullable().openapi({ description: 'The shows left out of this run, once answered.' }),
-  chart: Chart.nullable(),
+  chart: orNull(Chart),
   topic: z
     .object({
       status: z.enum(['ranking', 'ranked', 'refused', 'failed']),
@@ -1261,7 +1256,7 @@ const LaunchRun = RunFields.extend({
     })
     .nullable()
     .openapi({ description: "The finalists' listeners checked against the launch's." }),
-  insertionOrder: InsertionOrder.nullable()
+  insertionOrder: orNull(InsertionOrder)
 }).openapi('LaunchRun', { example: EXAMPLE_RUN })
 
 const Launch = LaunchFields.extend({
@@ -1269,7 +1264,7 @@ const Launch = LaunchFields.extend({
     description: "The network's roster has changed since the latest run copied it: run again to rank it as it is."
   }),
   runs: z.array(LaunchRunSummary).openapi({ description: 'Every run, oldest first.' }),
-  latestRun: LaunchRun.nullable()
+  latestRun: orNull(LaunchRun)
 }).openapi('Launch', {
   example: {
     ...EXAMPLE_LAUNCH,
@@ -1283,7 +1278,7 @@ const Launch = LaunchFields.extend({
 })
 
 // What a launch is planned from, by name or comps.
-const LaunchPlan = z
+export const LaunchPlan = z
   .strictObject({
     name: z.string().optional().openapi({ description: "A released launch's name, as Qloo lists it." }),
     comps: z
@@ -1513,6 +1508,32 @@ api.openapi(
 // An insertion order of the launch, by its ID.
 const OrderParams = LaunchParams.extend({ orderId: z.string().openapi({ example: 'IO-0001' }) })
 
+export const OrderChange = z
+  .strictObject(
+    {
+      lines: z
+        .array(
+          z.object({
+            show: z.string().openapi({ description: "One of the run's finalists, named as on the roster." }),
+            slots: z.number().openapi({ description: 'Whole promo slots, 1 or more.' }),
+            angle: z.string()
+          })
+        )
+        .openapi({ description: 'Every line of the order as it should be, one per show.' })
+    },
+    {
+      error: (issue) =>
+        issue.code === 'unrecognized_keys' && issue.keys.includes('status')
+          ? "Only an order's lines change through the API. A member approves an insertion order, in the app."
+          : undefined
+    }
+  )
+  .openapi('OrderChange', {
+    example: {
+      lines: [{ show: 'Deep Cuts', slots: 6, angle: 'Its listeners stay for the long interviews.' }]
+    }
+  })
+
 api.openapi(
   createRoute({
     method: 'patch',
@@ -1525,37 +1546,7 @@ api.openapi(
       params: OrderParams,
       body: {
         required: true,
-        content: {
-          'application/json': {
-            schema: z
-              .strictObject(
-                {
-                  lines: z
-                    .array(
-                      z.object({
-                        show: z
-                          .string()
-                          .openapi({ description: "One of the run's finalists, named as on the roster." }),
-                        slots: z.number().openapi({ description: 'Whole promo slots, 1 or more.' }),
-                        angle: z.string()
-                      })
-                    )
-                    .openapi({ description: 'Every line of the order as it should be, one per show.' })
-                },
-                {
-                  error: (issue) =>
-                    issue.code === 'unrecognized_keys' && issue.keys.includes('status')
-                      ? "Only an order's lines change through the API. A member approves an insertion order, in the app."
-                      : undefined
-                }
-              )
-              .openapi('OrderChange', {
-                example: {
-                  lines: [{ show: 'Deep Cuts', slots: 6, angle: 'Its listeners stay for the long interviews.' }]
-                }
-              })
-          }
-        }
+        content: { 'application/json': { schema: OrderChange } }
       }
     },
     responses: {

@@ -9,6 +9,7 @@ import { appPages } from './routes/app'
 import { auth } from './routes/auth'
 import { demo } from './routes/demo'
 import { marketing } from './routes/marketing'
+import { mcp } from './routes/mcp'
 import { retryWipes } from './wipe'
 
 export { CrossfeedAgent } from './agent'
@@ -28,6 +29,7 @@ app.route('/', demo)
 app.route('/', auth)
 app.route('/', appPages)
 app.route('/', api)
+app.route('/', mcp)
 
 export default {
   fetch: app.fetch,

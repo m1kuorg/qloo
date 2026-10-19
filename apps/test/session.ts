@@ -150,7 +150,8 @@ export const api =
     return exports.default.fetch(`${origin}${path}`, { ...init, headers })
   }
 
-// A network the member creates the way /app/new does, and an API key its owner makes in settings.
+// A network the member creates the way /app/new does, and an API key its owner makes in settings:
+// its secret, and `call`, a program's requests with it.
 export async function networkWithKey(member?: Member) {
   const ada = member ?? (await openMember())
   const created = await ada.fetch('/app/new', {
@@ -165,7 +166,7 @@ export async function networkWithKey(member?: Member) {
     body: JSON.stringify({ name: 'Nightly sync' })
   })
   const { secret } = await made.json<{ secret: string }>()
-  return { ada, network: id, call: api(secret) }
+  return { ada, network: id, secret, call: api(secret) }
 }
 
 // Reads `path` with `call` until its JSON passes `ready`, as a program waiting on long work polls the
@@ -182,6 +183,16 @@ export async function poll<T>(
     if (ready(body)) return body
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
+}
+
+// Sends requests until one is refused, at most twice the limit and two more: a fixed minute's window
+// may roll over once while they go, which starts the count again.
+export async function untilRefused(send: () => Promise<Response>, limit: number) {
+  for (let sent = 1; sent <= 2 * limit + 2; sent++) {
+    const res = await send()
+    if (res.status !== 200) return { sent, res }
+  }
+  throw new Error(`No request of ${2 * limit + 2} was refused`)
 }
 
 // A refusal as a program branches on it: the status, and the error's code and message.

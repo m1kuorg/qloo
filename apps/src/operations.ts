@@ -1,5 +1,5 @@
 // What a program can do for a network, one function per operation, shared by the REST API
-// (routes/api.ts) and the MCP server to come (#171), which are thin adapters over it. Each operation
+// (routes/api.ts) and the MCP server (routes/mcp.ts), which are thin adapters over it. Each operation
 // takes the network, the caller, and its input, and calls the directory or the network's agent over
 // RPC. The adapter has already checked that the caller reaches the network. A refusal is a `Refusal`
 // with its code (refusal.ts), whether this module or the agent threw it.
