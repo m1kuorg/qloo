@@ -148,7 +148,9 @@ function Launches({ launches }: { launches: LaunchSummary[] }) {
   )
 }
 
-const day = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+// A day as the app writes it, such as "Oct 19", from an ISO string or epoch ms.
+export const day = (when: string | number) =>
+  new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 // One line each for the roster, the inbox, and the CPM, with where to change them.
 function NetworkLines({ state, network }: { state: State; network: NetworkPage }) {

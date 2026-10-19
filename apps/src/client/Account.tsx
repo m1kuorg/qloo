@@ -287,7 +287,7 @@ export function InvitePage({ memberName }: { memberName: string | null }) {
         <h1>Join {invite.network}</h1>
         <p className="help">
           You’re invited to {invite.network} on Crossfeed, as a member: you’ll work on its roster, launches, and inbox
-          with the rest of its team. The link works once.
+          with its other members. The link works once.
         </p>
         {supported === false && !memberName && (
           <StateLine kind="error" role="alert">

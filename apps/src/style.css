@@ -3127,7 +3127,7 @@ a.wm {
   margin-top: 8px;
 }
 
-/* A module whose body is a table takes the column's whole width. */
+/* A module whose body is a table is wider than a form's, to the column's 576px. */
 .set-body.wide {
   max-width: 576px;
 }
@@ -3240,7 +3240,7 @@ a.wm {
 .new-link {
   display: grid;
   gap: 8px;
-  padding: 12px 16px 14px;
+  padding: 12px 16px 16px;
   background: var(--panel);
 }
 
@@ -3278,7 +3278,6 @@ a.wm {
 
 .invite-list .tg {
   display: block;
-  margin-top: 2px;
 }
 
 /* A network's page once it has lost the network, with why and the way out. */

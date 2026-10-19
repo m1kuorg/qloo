@@ -40,7 +40,7 @@ auth.use('/auth/*', accountsOn, sameOrigin, async (c, next) => {
   c.header('Cache-Control', 'no-store')
 })
 
-// A ceremony that can't go on, in words for the sign-in page.
+// A request that can't go on, in words for the sign-in or invite page.
 const refuse = (c: Context, error: string, status: 400 | 401 | 404 | 409 | 410 | 429 = 400) => c.json({ error }, status)
 
 // The challenge a ceremony's second request names, taken so it can't be used again, while it's

@@ -91,7 +91,7 @@ export async function signUp(
         member.id
       ),
     insertSession(db, await sha256(secrets.token), member.id, now),
-    ...(hash ? useInvite(db, hash, member.id, now) : [])
+    ...(hash ? joinThrough(db, hash, member.id, now) : [])
   ])
   if (!written.meta.changes) return null
   return { ...secrets, network: (used?.results[0] as { network_id: string } | undefined)?.network_id ?? null }
@@ -317,36 +317,36 @@ export async function setupProgress(db: D1Database, networkId: string) {
 }
 
 // An invite link works once, for seven days, unless an owner revokes it first.
-export const INVITE_MS = 7 * 24 * 60 * 60_000
+const INVITE_MS = 7 * 24 * 60 * 60_000
 
 // An invite still open, as its network's owners see it: when it was made, by whom (null once they've
 // gone), and when it expires. Its token was shown once, when it was made, and can't be read back.
 export type Invite = { id: string; created: number; expires: number; by: string | null }
 
-// Makes an invite to network `networkId` when member `memberId` is one of its owners, checked in the
+// Makes an invite to network `networkId` when member `by` is one of its owners, checked in the
 // statement that writes it. Returns its ID and its token, which only its hash is kept for; null when
 // they aren't an owner.
-export async function createInvite(db: D1Database, networkId: string, memberId: string) {
+export async function createInvite(db: D1Database, networkId: string, by: string) {
   const invite = { id: crypto.randomUUID(), token: token() }
   const now = Date.now()
   const { meta } = await db
     .prepare(
       "INSERT INTO invites (id, token_hash, network_id, created_by, created, expires) SELECT ?, ?, network_id, member_id, ?, ? FROM memberships WHERE network_id = ? AND member_id = ? AND role = 'owner'"
     )
-    .bind(invite.id, await sha256(invite.token), now, now + INVITE_MS, networkId, memberId)
+    .bind(invite.id, await sha256(invite.token), now, now + INVITE_MS, networkId, by)
     .run()
   return meta.changes ? invite : null
 }
 
-// Revokes invite `inviteId` to network `networkId` when member `memberId` is one of its owners and the
-// invite is still open, in one statement. False when it isn't: it was used, revoked, or expired.
-export async function revokeInvite(db: D1Database, networkId: string, inviteId: string, memberId: string) {
+// Revokes invite `inviteId` to network `networkId` when member `by` is one of its owners and the invite
+// is still open, in one statement. False when it isn't: it was used, revoked, or expired.
+export async function revokeInvite(db: D1Database, networkId: string, inviteId: string, by: string) {
   const now = Date.now()
   const { meta } = await db
     .prepare(
       "UPDATE invites SET revoked = ?1 WHERE id = ?2 AND network_id = ?3 AND used IS NULL AND revoked IS NULL AND expires > ?1 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = ?3 AND member_id = ?4 AND role = 'owner')"
     )
-    .bind(now, inviteId, networkId, memberId)
+    .bind(now, inviteId, networkId, by)
     .run()
   return meta.changes > 0
 }
@@ -363,7 +363,7 @@ export async function openInvites(db: D1Database, networkId: string): Promise<In
 }
 
 // Why an invite can't be used any more, or `open` while it can.
-export type InviteState = 'open' | 'used' | 'revoked' | 'expired'
+type InviteState = 'open' | 'used' | 'revoked' | 'expired'
 
 // The invite a link's token names: its network, and whether it can still be used. Null when no
 // invite has that token.
@@ -388,7 +388,7 @@ export async function findInvite(db: D1Database, token: string) {
 export async function joinByInvite(db: D1Database, token: string, memberId: string) {
   const hash = await sha256(token)
   const [, , member] = await db.batch([
-    ...useInvite(db, hash, memberId, Date.now()),
+    ...joinThrough(db, hash, memberId, Date.now()),
     db
       .prepare(
         'SELECT network_id FROM invites WHERE token_hash = ?2 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = invites.network_id AND member_id = ?1)'
@@ -420,7 +420,7 @@ const insertSession = (db: D1Database, tokenHash: string, memberId: string, now:
 // member: the first statement marks it used while it's open and they aren't in the network yet,
 // returning its network; the second adds the membership only that use wrote. Run in a batch, so no
 // other use comes between.
-const useInvite = (db: D1Database, hash: string, memberId: string, now: number) => [
+const joinThrough = (db: D1Database, hash: string, memberId: string, now: number) => [
   db
     .prepare(
       'UPDATE invites SET used = ?1, used_by = ?2 WHERE token_hash = ?3 AND used IS NULL AND revoked IS NULL AND expires > ?1 AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = invites.network_id AND member_id = ?2) RETURNING network_id'
