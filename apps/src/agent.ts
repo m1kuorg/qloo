@@ -214,6 +214,9 @@ const READ_CONCURRENCY = 5
 // A reply the booker edits stays email-sized.
 const MAX_REPLY_CHARS = 5_000
 
+// The tag a network's or launch's agent gives a connection, before its member's ID.
+export const MEMBER_TAG = 'member:'
+
 // What the Worker passes a session when it starts: its visitor (visitor.ts), if the request had an address.
 export type SessionProps = { visitor: string | null }
 
@@ -899,8 +902,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // The member on this call's connection, from the tag a network's agent gives it (network-agent.ts);
   // null on the demo's connections and with no connection at all.
   protected member() {
-    const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith('member:'))
-    return tag ? tag.slice('member:'.length) : null
+    const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith(MEMBER_TAG))
+    return tag ? tag.slice(MEMBER_TAG.length) : null
   }
 
   // Who this call counts against (see limitKey), noting the visitor by their connection's tag first,

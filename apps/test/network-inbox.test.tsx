@@ -222,11 +222,42 @@ describe('uploading pitch files', () => {
     expect(page).toContain('Read pitches Load sample inbox Upload files')
   })
 
+  it("reads an email's own charset, odd HTML, and an mbox's unescaped body lines without breaking an email", async () => {
+    // An 8-bit Latin-1 email: "Café Nocturne" with é as the single byte 0xE9.
+    const latin1 = new TextEncoder().encode(
+      'From: Lee Park <lee@example.com>\r\nSubject: Cafe\r\nContent-Type: text/plain; charset=iso-8859-1\r\nContent-Transfer-Encoding: 8bit\r\n\r\nCaf? Nocturne, a novel.\r\n'
+    )
+    latin1[latin1.indexOf('?'.charCodeAt(0))] = 0xe9
+    const html = [
+      'From: Mo Reyes <mo@example.com>',
+      'Subject: Talking with Ghosts',
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      '<table><tr><td>Mo&nbsp;Reyes</td><td title="a > b">hosts</td></tr></table><p>Talking&#99999999;with Ghosts</p>',
+      ''
+    ].join('\r\n')
+    // A byte-order mark, then an email whose body has a line starting "From " after a blank line, unescaped.
+    const unescaped = `\uFEFFFrom MAILER-DAEMON Mon Oct 12 09:30:00 2026\n${staticBloom.replace(/\r\n/g, '\n').replace('\nFrom the first', '\n\nFrom the first')}\n`
+
+    const pitches = await readPitchUpload([
+      new File([latin1], 'cafe.eml'),
+      new File([html], 'ghosts.eml'),
+      new File([unescaped], 'one.mbox')
+    ])
+
+    expect(pitches.map((p) => p.body)).toEqual([
+      'Café Nocturne, a novel.',
+      'Mo Reyes hosts\n\nTalking&#99999999;with Ghosts',
+      'Ben Ochoa directed Static Bloom.\n\nFrom the first frame, it was a film about radio.'
+    ])
+  })
+
   it('refuses another type, an empty file, one over 5 MB unread, and a file with no pitch in it, saying which', async () => {
     const big: Upload = {
       name: 'export.mbox',
       size: 6 * 1024 * 1024,
-      text: () => Promise.reject(new Error('A file over the limit was read.'))
+      text: () => Promise.reject(new Error('A file over the limit was read.')),
+      arrayBuffer: () => Promise.reject(new Error('A file over the limit was read.'))
     }
     for (const [files, error] of [
       [
@@ -238,7 +269,11 @@ describe('uploading pitch files', () => {
       [[big], '"export.mbox" is 6.0 MB, over the 5 MB limit for an upload.'],
       [
         [new File([nightFerry], 'Ada Quill.mbox')],
-        '"Ada Quill.mbox" isn\'t an mbox export: none of its lines starts an email with "From ".'
+        '"Ada Quill.mbox" isn\'t an mbox export: its first line should start an email with "From ".'
+      ],
+      [
+        [new File([`A note before the emails.\n\n${mbox}`], 'Pitches.mbox')],
+        '"Pitches.mbox" isn\'t an mbox export: its first line should start an email with "From ".'
       ],
       [[new File(['---\n  ---\n'], 'pitches.txt')], '"pitches.txt" has no pitch in it.']
     ] as const)

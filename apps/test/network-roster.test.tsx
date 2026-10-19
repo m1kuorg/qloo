@@ -188,7 +188,8 @@ describe('uploading a roster file', () => {
     const big: Upload = {
       name: 'roster.csv',
       size: 6 * 1024 * 1024,
-      text: () => Promise.reject(new Error('A file over the limit was read.'))
+      text: () => Promise.reject(new Error('A file over the limit was read.')),
+      arrayBuffer: () => Promise.reject(new Error('A file over the limit was read.'))
     }
     for (const [files, error] of [
       [

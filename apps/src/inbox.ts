@@ -130,7 +130,7 @@ export function readInbox(
       // The answer key in each pitch's `expected` is for checking extraction, so it's left out.
       pitches: sampleInbox.pitches.map((p) => pitch(p.id, p.body, `${p.senderName} <${p.senderEmail}>`, p.subject))
     }
-  if (Array.isArray(given.pitches)) return uploaded(given.pitches)
+  if (Array.isArray(given.pitches)) return readUploaded(given.pitches)
   if (typeof given.text !== 'string') throw new Error('Load the sample inbox, paste pitches, or upload them.')
   const texts = splitPitches(given.text)
   if (texts.length === 0) throw new Error('Paste at least one pitch.')
@@ -143,7 +143,7 @@ export function readInbox(
     sample: false,
     notice: null,
     show: null,
-    pitches: texts.map((body, i) => pitch(`pitch-${String(i + 1).padStart(2, '0')}`, body))
+    pitches: texts.map((body, i) => pitch(pitchId(i), body))
   }
 }
 
@@ -156,7 +156,7 @@ export const splitPitches = (text: string) =>
 
 // The pitches of uploaded files, as untrusted JSON. A pitch with no text, or too long to read, is
 // skipped and named, so one such email doesn't sink the rest.
-function uploaded(given: unknown[]): Pick<Inbox, 'sample' | 'uploaded' | 'skipped' | 'notice' | 'show' | 'pitches'> {
+function readUploaded(given: unknown[]) {
   if (given.length === 0) throw new Error('Upload at least one pitch.')
   if (given.length > MAX_PITCHES)
     throw new Error(`${given.length} pitches is over the ${MAX_PITCHES}-pitch limit. Upload ${MAX_PITCHES} or fewer.`)
@@ -165,8 +165,7 @@ function uploaded(given: unknown[]): Pick<Inbox, 'sample' | 'uploaded' | 'skippe
   given.forEach((g, i) => {
     const { from, subject, body } = (typeof g === 'object' && g !== null ? g : {}) as Record<string, unknown>
     if (typeof body !== 'string') throw new Error(`Pitch ${i + 1} needs its text.`)
-    const optional = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
-    const read = { from: optional(from), subject: optional(subject), body: body.trim() }
+    const read = { from: textOrNull(from), subject: textOrNull(subject), body: body.trim() }
     const name = read.subject ?? read.from ?? `Pitch ${i + 1}`
     // Its sender and subject count, as Claude reads them with its text.
     const length = (read.from?.length ?? 0) + (read.subject?.length ?? 0) + read.body.length
@@ -179,13 +178,19 @@ function uploaded(given: unknown[]): Pick<Inbox, 'sample' | 'uploaded' | 'skippe
     throw new Error(`No pitch here can be read: ${listOf(skipped.map((s) => `"${s.pitch}" ${s.why}`))}.`)
   return {
     sample: false,
-    uploaded: true,
+    uploaded: true as const,
     ...(skipped.length > 0 && { skipped }),
     notice: null,
     show: null,
-    pitches: kept.map((p, i) => pitch(`pitch-${String(i + 1).padStart(2, '0')}`, p.body, p.from, p.subject))
+    pitches: kept.map((p, i) => pitch(pitchId(i), p.body, p.from, p.subject))
   }
 }
+
+// A trimmed string, or null for anything else or nothing at all.
+const textOrNull = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+
+// The ID of the inbox's pitch at index `i`, such as "pitch-01".
+const pitchId = (i: number) => `pitch-${String(i + 1).padStart(2, '0')}`
 
 const YEARS = [1800, 2100]
 

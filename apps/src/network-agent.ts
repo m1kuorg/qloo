@@ -1,5 +1,5 @@
 import { callable, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
-import { CrossfeedAgent, type State } from './agent'
+import { CrossfeedAgent, MEMBER_TAG, type State } from './agent'
 import { sample, sampleRoster } from './sample'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
@@ -38,7 +38,7 @@ export class NetworkAgent extends CrossfeedAgent {
   // Tags a connection with its member, beside its visitor.
   async getConnectionTags(connection: Connection, context: ConnectionContext) {
     const member = context.request.headers.get(MEMBER_HEADER)
-    return [...(await super.getConnectionTags(connection, context)), ...(member ? [`member:${member}`] : [])]
+    return [...(await super.getConnectionTags(connection, context)), ...(member ? [`${MEMBER_TAG}${member}`] : [])]
   }
 
   // Starts the network's roster from the sample network's shows, each figure labelled sample until a
