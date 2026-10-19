@@ -647,8 +647,10 @@ function Privacy({ accounts }: { accounts: boolean }) {
             and when you joined and last opened it. Invite links are kept only as hashes, with who made each, who used
             it, and when, and are deleted once they expire, seven days after they&apos;re made. A network&apos;s API
             keys are kept only as hashes, with each key&apos;s name and first characters, who made it, when, and the
-            last minute it was used. Each network&apos;s roster, CPM, inbox, and launches are kept in its own storage,
-            which only its members and its API keys can open, with the member who approved each reply.
+            last minute it was used. Each network&apos;s roster, CPM, and inbox are kept in its own storage, with the
+            member who approved each reply, and each of its launches in storage of its own: its runs, a copy of the
+            roster and CPM each run ranked, with their Qloo records, and the name of the member who started each run.
+            Only the network&apos;s members and its API keys can open them.
           </li>
         )}
         <li>

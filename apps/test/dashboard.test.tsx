@@ -59,7 +59,7 @@ async function island(member: Member, path: string) {
       id: d.networkId,
       name: d.networkName,
       role: d.role as 'owner' | 'member',
-      links: { roster: d.rosterLink, inbox: d.inboxLink ?? null, settings: d.settingsLink }
+      links: { roster: d.rosterLink, inbox: d.inboxLink ?? null, settings: d.settingsLink, launches: d.launchesLink }
     }
   }
 }
@@ -73,7 +73,14 @@ const words = (html: string) =>
     .trim()
 
 const dashboard = async (member: Member, id: string, state: State | undefined) =>
-  renderToStaticMarkup(<Dashboard {...await island(member, `/app/${id}`)} state={state} dismiss={async () => {}} />)
+  renderToStaticMarkup(
+    <Dashboard
+      {...await island(member, `/app/${id}`)}
+      state={state}
+      dismiss={async () => {}}
+      createLaunch={async () => ({ id: 'l-1' })}
+    />
+  )
 
 const STEPS = ['Import the roster', 'Set the CPM', 'Plan a launch', 'Invite a teammate', 'Create an API key']
 
@@ -169,6 +176,7 @@ describe('the dashboard', () => {
         {
           id: 'l-1',
           name: 'The Night Watch',
+          comps: [],
           status: 'order approved',
           finalists: 5,
           slots: 20,
@@ -178,9 +186,10 @@ describe('the dashboard', () => {
         }
       ]
     }
-    const read = words(await dashboard(ada, id, state))
-    expect(read).toContain('The Night Watch order approved 5 20 $52,000 Oct 19, Ada Programmer')
-    expect(read).not.toContain('No launches yet')
+    const html = await dashboard(ada, id, state)
+    expect(words(html)).toContain('The Night Watch Order approved 5 20 $52,000 Oct 19, Ada Programmer')
+    expect(html).toContain(`href="/app/${id}/launches/l-1"`)
+    expect(words(html)).not.toContain('No launches yet')
   })
 })
 

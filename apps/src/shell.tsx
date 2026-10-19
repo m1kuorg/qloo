@@ -123,7 +123,8 @@ export const networkLinks = (env: Env, id: string) => ({
   dashboard: `/app/${id}`,
   roster: `/app/${id}/roster`,
   inbox: env.GUEST_PITCHES === 'on' ? `/app/${id}/inbox` : null,
-  settings: `/app/${id}/settings`
+  settings: `/app/${id}/settings`,
+  launches: `/app/${id}/launches` // each launch's page is under it, by the launch's ID
 })
 
 // The app shell, for signing in and for a signed-in member's pages: the black top bar with the
@@ -175,9 +176,15 @@ export const appShell = jsxRenderer(({ children }, c) => {
           {sections && (
             <nav class="nav" aria-label="Network">
               {sections.map(({ href, label }) => {
-                const current = c.req.path === href
+                // A launch's page belongs to the dashboard, which lists it.
+                const current =
+                  c.req.path === href
+                    ? 'page'
+                    : href === links.dashboard && c.req.path.startsWith(`${links.launches}/`)
+                      ? 'true'
+                      : undefined
                 return (
-                  <a class={current ? 'on' : undefined} href={href} aria-current={current ? 'page' : undefined}>
+                  <a class={current ? 'on' : undefined} href={href} aria-current={current}>
                     {label}
                   </a>
                 )

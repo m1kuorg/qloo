@@ -52,6 +52,7 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
         </span>
         <span className="chips">
           {opened?.status === 'loaded' && opened.record?.replayed && <span className="chip">Replayed</span>}
+          {opened?.status === 'loaded' && opened.record?.copiedFrom && <span className="chip">From the roster</span>}
           <Source of="qloo" />
         </span>
       </div>
@@ -90,6 +91,12 @@ function EvidenceRecord({ record }: { record: Evidence }) {
       <dl className="rec kv">
         {record.replayed && (
           <Row label="Replayed">From the stored sample run, as Qloo answered it then; no new request</Row>
+        )}
+        {record.copiedFrom && (
+          <Row label="Copied">
+            From the network&apos;s roster, its call {record.copiedFrom}, as Qloo answered it then; the run made no new
+            request
+          </Row>
         )}
         <Row label="Request">
           <code>

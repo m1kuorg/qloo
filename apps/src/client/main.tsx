@@ -3,6 +3,7 @@ import type { Role } from '../directory'
 import { InvitePage, NewNetworkPage, SignInPage, wireSignOut } from './Account'
 import { App } from './App'
 import { DashboardPage } from './Dashboard'
+import { LaunchPage } from './Launch'
 import { NetworkInboxPage } from './NetworkInbox'
 import { RosterPage } from './Roster'
 import { SettingsPage } from './Settings'
@@ -14,7 +15,7 @@ const network = () => ({
   id: d.networkId!,
   name: d.networkName!,
   role: d.role as Role,
-  links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink! }
+  links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink!, launches: d.launchesLink! }
 })
 createRoot(root).render(
   d.page === 'sign-in' ? (
@@ -30,6 +31,8 @@ createRoot(root).render(
       memberId={d.memberId!}
       setup={{ invited: d.invited === 'true', apiKey: d.apiKey === 'true' }}
     />
+  ) : d.page === 'launch' ? (
+    <LaunchPage agentPath={d.agentPath!} network={network()} />
   ) : d.page === 'network-roster' ? (
     <RosterPage agentPath={d.agentPath!} network={network()} />
   ) : d.page === 'network-inbox' ? (

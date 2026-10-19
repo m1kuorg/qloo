@@ -496,6 +496,7 @@ describe("the inbox's members", () => {
         memberId={ada.id}
         setup={{ invited: true, apiKey: false }}
         dismiss={async () => {}}
+        createLaunch={async () => ({ id: 'l-1' })}
       />
     )
     expect(words(dashboard)).toContain('Inbox 2 pitches: 1 not in Qloo, 1 set aside Open')
