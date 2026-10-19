@@ -3,42 +3,43 @@
 // with no island. Nothing here is a Qloo response: the chart and every other illustration use
 // made-up shows, and each says so where it appears.
 import { Hono } from 'hono'
+import { bandMeter, FINALISTS, type Band as Third } from '../fit'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
+import { CSV_HEADER } from '../order'
 import { marketingShell } from '../shell'
+import { moveGlyph, moveWords } from '../text'
+import { CLIMB } from '../topic'
+import { SESSION_DAYS } from './demo'
 
 export const marketing = new Hono<{ Bindings: Env }>()
 
 // The hero's illustration: a made-up network's roster ranked against a made-up true-crime launch.
 // `last` is the rank a topic-only plan gives the show; bands are thirds of a 12-show roster.
 const LAUNCH = 'Lantern Hollow'
-const chart = [
-  { rank: 1, last: 1, show: 'Dead Air Archive', genre: 'True crime', bars: 3 },
-  { rank: 2, last: 7, show: 'The Long Table', genre: 'History', bars: 3 },
-  { rank: 3, last: 2, show: 'Motive & Means', genre: 'True crime', bars: 3 },
-  { rank: 4, last: 5, show: 'Ledger Lines', genre: 'Business', bars: 3 },
-  { rank: 5, last: 9, show: 'Back Roads Radio', genre: 'Travel', bars: 2 },
-  { rank: 6, last: 3, show: 'Courtroom Sketch', genre: 'Legal news', bars: 2 }
+const chart: { rank: number; last: number; show: string; genre: string; band: Third }[] = [
+  { rank: 1, last: 1, show: 'Dead Air Archive', genre: 'True crime', band: 'top' },
+  { rank: 2, last: 7, show: 'The Long Table', genre: 'History', band: 'top' },
+  { rank: 3, last: 2, show: 'Motive & Means', genre: 'True crime', band: 'top' },
+  { rank: 4, last: 5, show: 'Ledger Lines', genre: 'Business', band: 'top' },
+  { rank: 5, last: 9, show: 'Back Roads Radio', genre: 'Travel', band: 'middle' },
+  { rank: 6, last: 3, show: 'Courtroom Sketch', genre: 'Legal news', band: 'middle' }
 ]
-const band = { 3: 'Strong', 2: 'Good', 1: 'Fair' } as Record<number, string>
 // The climber whose why line is open, as a selected climber's is in the app.
 const SELECTED = 'The Long Table'
-const FINALISTS = 5
 
-const Band = ({ bars }: { bars: number }) => (
-  <span class={`band b${bars}`}>
-    <i aria-hidden="true" />
-    <i aria-hidden="true" />
-    <i aria-hidden="true" />
-    {band[bars]}
-  </span>
-)
-
-const moveGlyph = (move: number) => (move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '=')
-const moveWords = (move: number) =>
-  move === 0
-    ? 'Same as topic rank'
-    : `${move > 0 ? 'Up' : 'Down'} ${Math.abs(move)} place${Math.abs(move) === 1 ? '' : 's'}`
+// The fit band's meter and word, as the app's charts set it.
+const Band = ({ band }: { band: Third }) => {
+  const { bars, word } = bandMeter[band]
+  return (
+    <span class={`band b${bars}`}>
+      <i aria-hidden="true" />
+      <i aria-hidden="true" />
+      <i aria-hidden="true" />
+      {word}
+    </span>
+  )
+}
 
 // The Weekly Chart, as the app sets it, at the hero's scale.
 function Chart() {
@@ -75,7 +76,7 @@ function Chart() {
       <tbody>
         {chart.map((r) => {
           const move = r.last - r.rank
-          const climber = move >= 3
+          const climber = move >= CLIMB
           const open = r.show === SELECTED
           return (
             <>
@@ -97,7 +98,7 @@ function Chart() {
                   <div class="tg">{r.genre}</div>
                 </td>
                 <td>
-                  <Band bars={r.bars} />
+                  <Band band={r.band} />
                 </td>
               </tr>
               {open && (
@@ -107,15 +108,15 @@ function Chart() {
                   <td colspan={5}>
                     <p class="mk-why">
                       <span class="lbl">Why it moved</span>
-                      Topic alone ranks it 7th: it&apos;s a history show. Its listeners overlap {LAUNCH}&apos;s more
-                      than any show&apos;s but Dead Air Archive&apos;s, through the tags they share:{' '}
+                      Topic alone ranks it 7th: it&apos;s a history show. Listener overlap with {LAUNCH} ranks it 2nd{' '}
+                      <span class="call">C-14</span>, and the tags they share are{' '}
                       {['Investigative', 'Small-town', 'Slow-burn'].map((t, i) => (
                         <>
                           {i > 0 && '\u00a0· '}
                           <span class="nw">{t}</span>
                         </>
-                      ))}
-                      . <span class="call">C-14</span>
+                      ))}{' '}
+                      <span class="call">C-17</span>
                     </p>
                   </td>
                 </tr>
@@ -147,7 +148,7 @@ const key = [
     text: 'Up three places or more: the show a topic plan would have missed.'
   },
   {
-    glyph: <Band bars={3} />,
+    glyph: <Band band="top" />,
     term: 'Fit band',
     text: 'Strong, Good, or Fair: thirds of the ranking. The raw scores stay in the evidence.'
   },
@@ -159,7 +160,7 @@ const key = [
   {
     glyph: <span class="call">C-14</span>,
     term: 'Call number',
-    text: 'The Qloo call behind the line. In the app, open it for the request and everything Qloo returned.'
+    text: "The Qloo call behind a claim. In the app, open it for the request's parameters and the names, tags, and scores Qloo returned."
   }
 ]
 
@@ -298,13 +299,14 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
             <Fig title="The agent's question">
               <div class="mk-ask">
                 <p class="q">What is the slot budget for {LAUNCH}&apos;s promos, as a slot count or a dollar amount?</p>
+                {/* Native radios, inert: the illustration shows them and nothing can pick one. */}
                 <ul class="mk-radios">
                   <li>
-                    <span class="mk-radio on" aria-hidden="true" />
+                    <input type="radio" name="mk-budget" checked inert />
                     <span class="vh">Picked: </span>Promo slots
                   </li>
                   <li>
-                    <span class="mk-radio" aria-hidden="true" />A dollar budget
+                    <input type="radio" name="mk-budget" inert />A dollar budget
                   </li>
                 </ul>
               </div>
@@ -391,12 +393,12 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
               <tbody>
                 {(
                   [
-                    ['Harbor Lights', 'a ghost story', 3, 'Book'],
-                    ['Salt and Iron', 'a film about cooking', 3, 'Book'],
-                    ['The Canal Years', 'a history film, right on your topic', 2, 'Later'],
-                    ['Founders, Again', 'history for everyone', 1, 'Decline']
+                    ['Harbor Lights', 'a ghost story', 'top', 'Book'],
+                    ['Salt and Iron', 'a film about cooking', 'top', 'Book'],
+                    ['The Canal Years', 'a history film, right on your topic', 'middle', 'Later'],
+                    ['Founders, Again', 'history for everyone', 'bottom', 'Decline']
                   ] as const
-                ).map(([work, framed, bars, reply], i) => (
+                ).map(([work, framed, band, reply], i) => (
                   <tr>
                     <td class="pos">{i + 1}</td>
                     <td>
@@ -404,7 +406,7 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
                       <div class="tg">Pitched as {framed}</div>
                     </td>
                     <td>
-                      <Band bars={bars} />
+                      <Band band={band} />
                     </td>
                     <td>
                       <span class="chip">{reply}</span>
@@ -422,8 +424,8 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
           <h2 id="mk-evidence">Evidence on every line</h2>
           <p>
             Every match, rank, and tag in the app cites the Qloo call that produced it. Open the call number to see the
-            request, its parameters, and what Qloo returned, including the raw scores the chart leaves out. Claude
-            explains and drafts from those records, and never makes up a score.
+            request&apos;s parameters and what Qloo returned for it: names, tags, and the raw scores the chart leaves
+            out. Claude explains and drafts from those records, and never makes up a score.
           </p>
           <dl class="mk-sources">
             <div>
@@ -485,7 +487,7 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
               ],
               [
                 'Makes up a score.',
-                'Every ranking is a Qloo call you can open. The model narrates the evidence and drafts from it.'
+                'Every fit ranking is a Qloo call you can open. The model narrates the evidence and drafts from it.'
               ],
               [
                 "Prices a plan with numbers you didn't give it.",
@@ -536,12 +538,15 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
           </div>
           <div class="rec-row">
             <dt>Evidence</dt>
-            <dd>A record of every Qloo call: its request and what came back, numbered per session</dd>
+            <dd>
+              A record of every Qloo call: its parameters and the names, tags, and scores it returned, numbered per
+              session
+            </dd>
           </div>
           <div class="rec-row">
             <dt>Export</dt>
             <dd>
-              An approved insertion order as CSV, headed <code>Show,Slots,Angle,Slot value (USD),Line value (USD)</code>
+              An approved insertion order as CSV, headed <code>{CSV_HEADER.join(',')}</code>
             </dd>
           </div>
         </dl>
@@ -629,7 +634,7 @@ function Privacy() {
       <ul>
         <li>
           <b>In your browser:</b> one cookie, <code>crossfeed_session</code>, a random ID that names your session.
-          It&apos;s HttpOnly and lasts 30 days. There are no analytics, ads, or third-party scripts.
+          It&apos;s HttpOnly and lasts {SESSION_DAYS} days. There are no analytics, ads, or third-party scripts.
         </li>
         <li>
           <b>In your session:</b> the roster and your edits, launches, every run with its conversation with Claude,
@@ -648,9 +653,10 @@ function Privacy() {
 
       <h2>Your address</h2>
       <p>
-        Crossfeed never stores or logs your IP address. When the page connects to its agent, the address is hashed with
-        a secret salt, and the hash stays with the connection. The day&apos;s counts are kept under a hash of that hash
-        and the UTC day, and earlier days&apos; counts are deleted.
+        Crossfeed never stores your IP address or writes it to its own logs. When the page connects to its agent, the
+        address is hashed with a secret salt, and the hash stays with the connection. The day&apos;s counts are kept
+        under a hash of that hash and the UTC day, and earlier days&apos; counts are deleted. Cloudflare, which runs
+        Crossfeed, also records each request the Worker serves in its own logs.
       </p>
 
       <h2>How deletion works</h2>
@@ -673,8 +679,8 @@ function Privacy() {
   )
 }
 
-// A limit from wrangler.jsonc as the gateway reads it: a value that isn't a number allows none.
-const count = (value: string) => (Number(value) || 0).toLocaleString('en-US')
+// A daily limit from wrangler.jsonc, formatted; a value that isn't a number shows as 0.
+const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
 
 function Terms({ env }: { env: Env }) {
   return (
@@ -690,7 +696,8 @@ function Terms({ env }: { env: Env }) {
       <p>
         Crossfeed is provided as is, with no warranty of any kind. It can be wrong, slow, capped, or offline, and it can
         change or end at any time. Its rankings describe overlapping audiences in Qloo, not a promise of results. Check
-        a plan before you approve it: nothing leaves Crossfeed until you do, and what you approve is your decision.
+        a plan before you approve it: no order exports and no reply can be copied until you do, and what you approve is
+        your decision.
       </p>
 
       <h2>Daily limits</h2>
@@ -715,22 +722,22 @@ function Terms({ env }: { env: Env }) {
             <th scope="row">
               Model runs<small>a launch run, an inbox load, or a pitch run</small>
             </th>
-            <td class="r">{count(env.RUN_VISITOR_DAILY_CAP)}</td>
-            <td class="r">{count(env.RUN_DAILY_CAP)}</td>
+            <td class="r">{cap(env.RUN_VISITOR_DAILY_CAP)}</td>
+            <td class="r">{cap(env.RUN_DAILY_CAP)}</td>
           </tr>
           <tr>
             <th scope="row">
               Starts that call no model<small>a replay, or a run that stops at once</small>
             </th>
-            <td class="r">{count(env.FREE_START_DAILY_CAP)}</td>
+            <td class="r">{cap(env.FREE_START_DAILY_CAP)}</td>
             <td class="r">–</td>
           </tr>
           <tr>
             <th scope="row">
               Qloo calls<small>cache hits count for a visitor, not for everyone</small>
             </th>
-            <td class="r">{count(env.QLOO_VISITOR_DAILY_CALL_CAP)}</td>
-            <td class="r">{count(env.QLOO_DAILY_CALL_CAP)}</td>
+            <td class="r">{cap(env.QLOO_VISITOR_DAILY_CALL_CAP)}</td>
+            <td class="r">{cap(env.QLOO_DAILY_CALL_CAP)}</td>
           </tr>
         </tbody>
       </table>

@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import type { Child } from 'hono/jsx'
 import { jsxRenderer } from 'hono/jsx-renderer'
 import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
 
@@ -9,20 +10,28 @@ window.$RefreshReg$ = () => {}
 window.$RefreshSig$ = () => (type) => type
 window.__vite_plugin_react_preamble_installed__ = true`
 
+// The head every shell shares: the page's title, Vite's client in development, and the stylesheet.
+// A shell adds what else its pages load, such as the island's script.
+const Head = ({ title, children }: { title: string; children?: Child }) => (
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <ViteClient />
+    <Link href="/src/style.css" rel="stylesheet" />
+    {children}
+  </head>
+)
+
 // The marketing shell: server-rendered pages with no island, under the black top bar with the
 // wordmark, the developers band, the sample network, and, while ACCOUNTS is on, Sign in. The footer
 // links the privacy page and the beta terms. `title` names the page before the product.
 export const marketingShell = (title: string | null, description?: string) =>
   jsxRenderer(({ children }, c) => (
     <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{title ? `${title} · Crossfeed` : 'Crossfeed'}</title>
+      <Head title={title ? `${title} · Crossfeed` : 'Crossfeed'}>
         {description && <meta name="description" content={description} />}
-        <ViteClient />
-        <Link href="/src/style.css" rel="stylesheet" />
-      </head>
+      </Head>
       <body>
         <header class="top mk-top">
           <a class="wm" href="/">
@@ -33,7 +42,7 @@ export const marketingShell = (title: string | null, description?: string) =>
             <a href="/demo">Sample network</a>
           </nav>
           {c.env.ACCOUNTS === 'on' && (
-            <span class="mk-sign">
+            <span class="shell-create mk-sign">
               <a class="lnk" href="/sign-in">
                 Sign in
               </a>
@@ -63,15 +72,10 @@ export const demoShell = jsxRenderer(({ children }, c) => {
   if (c.env.GUEST_PITCHES === 'on') sections.push({ href: '/demo/inbox', label: 'Inbox' })
   return (
     <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Crossfeed</title>
-        <ViteClient />
+      <Head title="Crossfeed">
         {import.meta.env.DEV && <script type="module" dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
-        <Link href="/src/style.css" rel="stylesheet" />
         <Script src="/src/client/main.tsx" />
-      </head>
+      </Head>
       <body>
         <header class="top">
           <span class="wm">Crossfeed</span>

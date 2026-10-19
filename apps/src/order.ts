@@ -70,10 +70,12 @@ export function lineProblem(lines: unknown, finalists: string[]): string | null 
 // The order as a CSV for ad operations: a row per line, then the total. Money is whole dollars with
 // no symbol, so a spreadsheet reads numbers; a missing value is an empty cell, and the total's row
 // says it's incomplete. The byte-order mark makes spreadsheets read it as UTF-8.
+export const CSV_HEADER = ['Show', 'Slots', 'Angle', 'Slot value (USD)', 'Line value (USD)']
+
 export function toCsv(order: InsertionOrder) {
   const gaps = order.lines.filter((l) => l.gap).map((l) => `${l.show} (${l.gap})`)
   const rows = [
-    ['Show', 'Slots', 'Angle', 'Slot value (USD)', 'Line value (USD)'],
+    CSV_HEADER,
     ...order.lines.map((l) => [l.show, l.slots, l.angle, l.slotValue, l.value]),
     ['Total', order.slots, gaps.length ? `Incomplete: no value for ${gaps.join(', ')}` : null, null, order.total]
   ]

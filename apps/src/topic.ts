@@ -17,7 +17,7 @@ export type Topic = {
 // minus fit rank, so a climb is positive.
 export type Move = { show: string; topicRank: number; move: number; climber: boolean }
 
-const CLIMB = 3 // places a show must climb over its topic rank to be highlighted
+export const CLIMB = 3 // places a show must climb over its topic rank to be highlighted
 
 const instructions = `You plan a podcast network's launch promos by topic alone. Rank the roster shows by how closely each one's topic matches the launch's topic, most similar first. Use only the show names and descriptions given. Include every roster show exactly once.
 

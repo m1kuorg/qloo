@@ -1910,23 +1910,17 @@ a.btn {
   text-decoration: none;
 }
 
+/* Sign in takes the demo's "Create your network" treatment (.shell-create) at the bar's end. */
 .mk-sign {
   margin-left: auto;
-  white-space: nowrap;
 }
 
 .mk-sign .lnk {
   display: inline-block;
   padding: 4px 0;
-  color: #a3a3a3;
 }
 
-.mk-sign .lnk:hover {
-  color: #fff;
-}
-
-.top .wm:focus-visible,
-.top .mk-sign :focus-visible {
+.top .wm:focus-visible {
   outline-offset: 2px;
 }
 
@@ -2050,20 +2044,27 @@ a.btn {
   padding-bottom: 12px;
 }
 
+.mk-chart {
+  /* The three columns before the show's, which its why line starts after. */
+  --c-pos: 128px;
+  --c-lw: 112px;
+  --c-mv: 72px;
+}
+
 .mk-chart td {
   height: 80px;
 }
 
 .mk-chart .c-pos {
-  width: 128px;
+  width: var(--c-pos);
 }
 
 .mk-chart .c-lw {
-  width: 112px;
+  width: var(--c-lw);
 }
 
 .mk-chart .c-mv {
-  width: 72px;
+  width: var(--c-mv);
 }
 
 .mk-chart .c-band {
@@ -2094,9 +2095,9 @@ a.btn {
   padding-bottom: 16px;
 }
 
-/* Under the show column, past position, last week, and move. */
+/* Under the show column: past position, last week, and move, as both cells pad the same 8px. */
 .mk-why {
-  margin-left: 304px;
+  margin-left: calc(var(--c-pos) + var(--c-lw) + var(--c-mv));
   max-width: 64em;
 }
 
@@ -2232,7 +2233,7 @@ a.btn {
 
 .mk-steps p {
   grid-column: 2;
-  margin-top: 6px;
+  margin-top: 8px;
   max-width: 38em;
   font-size: 15px;
   line-height: 1.6;
@@ -2278,16 +2279,11 @@ a.btn {
   min-height: 26px;
 }
 
-.mk-radio {
+.mk-radios input {
   width: 14px;
   height: 14px;
-  border: 1px solid var(--grey);
-  border-radius: 50%;
-  background: #fff;
-}
-
-.mk-radio.on {
-  border: 4px solid var(--ink);
+  margin: 0;
+  accent-color: var(--ink);
 }
 
 .mk-frag.chart th:first-child {
@@ -2329,7 +2325,7 @@ a.btn {
   grid-template-columns: 104px minmax(0, 1fr);
   gap: 12px;
   align-items: baseline;
-  padding: 10px 0;
+  padding: 12px 0;
   border-top: 1px solid var(--line);
   max-width: 38em;
 }
@@ -2375,7 +2371,7 @@ a.btn {
 .mk-table td {
   text-align: left;
   vertical-align: top;
-  padding: 14px 12px 14px 0;
+  padding: 12px 12px 12px 0;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2571,11 +2567,6 @@ a.btn {
     padding: 2px 8px 0;
   }
 
-  .mk-sign {
-    flex-basis: 100%;
-    margin: 0 0 12px;
-  }
-
   .mk {
     --gutter: 16px;
   }
@@ -2685,12 +2676,12 @@ a.btn {
   }
 
   .mk-never tbody th {
-    padding: 14px 0 0;
+    padding: 12px 0 0;
     border-bottom: 0;
   }
 
   .mk-never td {
-    padding: 4px 0 14px;
+    padding: 4px 0 12px;
   }
 
   .mk-foot {

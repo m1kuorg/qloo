@@ -112,7 +112,7 @@ describe('the privacy page and the beta terms', () => {
     for (const heading of ['What reaches Qloo', 'What reaches Anthropic', 'What Crossfeed keeps', 'How deletion works'])
       expect(text).toContain(heading)
     expect(text).toContain("Never a pitch's text, a guest's name, an email address, or a sender's details.")
-    expect(text).toContain('Crossfeed never stores or logs your IP address.')
+    expect(text).toContain('Crossfeed never stores your IP address or writes it to its own logs.')
     expect(text).toContain("Crossfeed can't delete a session yet")
   })
 

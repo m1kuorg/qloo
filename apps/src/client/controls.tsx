@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import type { Band } from '../fit'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
 
@@ -30,13 +29,7 @@ export const Alert = ({ error }: { error: string | null }) =>
     </StateLine>
   )
 
-// Fit bands as the charts word them: a meter of three bars filled from the left, then the word.
-export const bandMeter: Record<Band, { bars: number; word: string }> = {
-  top: { bars: 3, word: 'Strong' },
-  middle: { bars: 2, word: 'Good' },
-  bottom: { bars: 1, word: 'Fair' }
-}
-
+export { bandMeter } from '../fit'
 export { listOf } from '../text'
 
 export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))

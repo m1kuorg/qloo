@@ -9,6 +9,8 @@ import { visitorTag } from '../visitor'
 
 // The visitor session: a random ID in a cookie names the session's CrossfeedAgent.
 const SESSION_COOKIE = 'crossfeed_session'
+// How long the cookie lasts; the privacy page says so.
+export const SESSION_DAYS = 30
 // Where the session's agent connects.
 const AGENT_PATH = '/agents/session'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -33,7 +35,7 @@ const page = (c: Context<{ Bindings: Env }>, page: 'roster' | 'inbox') => {
       secure: new URL(c.req.url).protocol === 'https:',
       sameSite: 'Lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 30
+      maxAge: 60 * 60 * 24 * SESSION_DAYS
     })
   }
   return c.render(<div id="root" data-page={page} data-agent-path={AGENT_PATH} data-roster-link="/demo" />)
