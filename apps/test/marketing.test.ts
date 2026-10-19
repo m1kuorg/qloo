@@ -29,6 +29,7 @@ const words = (html: string) =>
 const vars = {
   ACCOUNTS: env.ACCOUNTS,
   NETWORKS_PER_MEMBER: env.NETWORKS_PER_MEMBER,
+  LAUNCHES_PER_NETWORK: env.LAUNCHES_PER_NETWORK,
   GUEST_PITCHES: env.GUEST_PITCHES,
   RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
 }
@@ -129,12 +130,13 @@ describe('the privacy page and the beta terms', () => {
     expect(text).toContain('A run makes at most 12 model turns and 60 Qloo calls')
   })
 
-  it('say what an account keeps, how many networks a member can create, and the per-minute limits, only while accounts are on', async () => {
+  it('say what an account keeps, how many networks a member can create and launches a network can keep, and the per-minute limits, only while accounts are on', async () => {
     env.NETWORKS_PER_MEMBER = '2'
+    env.LAUNCHES_PER_NETWORK = '40'
     const kept = 'With an account: your name'
     const approvals = 'with the member who approved each reply'
     const counts = "each visitor's and each network's counts for the day"
-    const cap = 'A member can create at most 2 networks.'
+    const cap = 'A member can create at most 2 networks, and a network can keep at most 40 launches at once.'
     const network =
       "A network counts as one visitor of its own, whichever of its members makes the network's calls and runs."
     const keys = "A network's API keys are kept only as hashes"

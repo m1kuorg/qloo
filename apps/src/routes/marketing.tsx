@@ -805,10 +805,16 @@ function Terms({ env }: { env: Env }) {
         </tbody>
       </table>
       <p>
-        {env.ACCOUNTS === 'on' && <>A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks. </>}A run makes
-        at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most {MAX_PITCHES}{' '}
-        pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each. At a limit, the unchanged sample
-        launch replays its stored run; anything else is refused or stops, and says which limit it reached.
+        {env.ACCOUNTS === 'on' && (
+          <>
+            A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks, and a network can keep at most{' '}
+            {cap(env.LAUNCHES_PER_NETWORK)} launches at once.{' '}
+          </>
+        )}
+        A run makes at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most{' '}
+        {MAX_PITCHES} pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each. At a limit, the
+        unchanged sample launch replays its stored run; anything else is refused or stops, and says which limit it
+        reached.
         {env.ACCOUNTS === 'on' && (
           <>
             {' '}

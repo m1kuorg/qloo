@@ -2618,7 +2618,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2710,7 +2710,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2774,7 +2774,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2837,7 +2837,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2981,7 +2981,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3086,7 +3086,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3201,7 +3201,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3264,7 +3264,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3419,7 +3419,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3522,7 +3522,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3626,7 +3626,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3700,7 +3700,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3814,7 +3814,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3937,7 +3937,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4040,7 +4040,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4115,7 +4115,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4131,7 +4131,7 @@
           "Launches"
         ],
         "summary": "Create a launch",
-        "description": "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it.",
+        "description": "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it. A network keeps a limited number of launches at once, as the terms say: past it, a new one is refused with `limit` until a member deletes one on the dashboard.",
         "parameters": [
           {
             "schema": {
@@ -4207,7 +4207,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4281,7 +4281,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4356,7 +4356,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4441,7 +4441,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4555,7 +4555,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4639,7 +4639,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4763,7 +4763,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4886,7 +4886,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4980,7 +4980,7 @@
             }
           },
           "429": {
-            "description": "A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.",
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
             "content": {
               "application/json": {
                 "schema": {

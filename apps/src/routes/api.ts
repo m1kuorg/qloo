@@ -162,7 +162,7 @@ const DESCRIBED: Partial<Record<number, string>> = {
   409: "The resource's state refuses this (`conflict`).",
   413: 'The upload is over the size limit (`too_large`).',
   422: "The upload can't be read (`unreadable`).",
-  429: 'A daily cap (`limit`) or the per-minute rate limit (`rate_limited`) refuses this.'
+  429: 'A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.'
 }
 const errors = (...statuses: (keyof typeof DESCRIBED & number)[]) =>
   Object.fromEntries(
@@ -1318,7 +1318,7 @@ api.openapi(
     tags: ['Launches'],
     summary: 'Create a launch',
     description:
-      "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it.",
+      "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it. A network keeps a limited number of launches at once, as the terms say: past it, a new one is refused with `limit` until a member deletes one on the dashboard.",
     request: {
       params: NetworkParams,
       body: { required: true, content: { 'application/json': { schema: LaunchPlan } } }

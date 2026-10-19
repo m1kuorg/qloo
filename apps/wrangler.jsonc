@@ -36,10 +36,11 @@
     // from: each environment's own host, never read from the request.
     "RP_ID": "crossfeed.m1kuorg.workers.dev",
     "APP_ORIGINS": "https://crossfeed.m1kuorg.workers.dev",
-    // Sign-ups one visitor makes in a UTC day, joining through an invite aside, and the networks one
-    // member can create.
+    // Sign-ups one visitor makes in a UTC day, joining through an invite aside, the networks one member
+    // can create, and the launches one network can keep at once.
     "SIGNUP_VISITOR_DAILY_CAP": "5",
-    "NETWORKS_PER_MEMBER": "3"
+    "NETWORKS_PER_MEMBER": "3",
+    "LAUNCHES_PER_NETWORK": "100"
   },
   // VISITOR_SALT salts the hash of a visitor's IP address that keys their model run count.
   // QLOO_KEY_SECRET encrypts each network's own Qloo key in its gateway instance (ADR 0004).
@@ -99,7 +100,8 @@
         "RP_ID": "crossfeed-preview.m1kuorg.workers.dev",
         "APP_ORIGINS": "https://crossfeed-preview.m1kuorg.workers.dev",
         "SIGNUP_VISITOR_DAILY_CAP": "5",
-        "NETWORKS_PER_MEMBER": "3"
+        "NETWORKS_PER_MEMBER": "3",
+        "LAUNCHES_PER_NETWORK": "100"
       },
       "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT", "QLOO_KEY_SECRET"] },
       "d1_databases": [
