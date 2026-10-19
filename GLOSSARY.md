@@ -23,6 +23,10 @@ A link an owner shares that lets one person join the network as a member.
 The credential a member signs in with, kept by their device or password manager.
 _Avoid_: Password, login
 
+**Recovery code**:
+A one-time code a member keeps to sign in after losing every passkey.
+_Avoid_: Backup code, reset link
+
 **API key**:
 A secret that lets a program act for one network through the API, the SDK, or the MCP server, short of approving anything.
 _Avoid_: Token, access token

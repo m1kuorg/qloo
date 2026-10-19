@@ -4,5 +4,6 @@ Members sign up and sign in with a passkey only, verified with `@simplewebauthn/
 
 ## Consequences
 
-- A member who loses every passkey can't recover their account by email; they add a second passkey from the account page, and an owner can invite them again.
+- With no email, recovery is a one-time recovery code, shown once at sign-up and stored only as a hash. It signs the member in to add a new passkey, and is replaced each time it's used.
+- Crossfeed asks a member for a name only. An unverified email would be personal data with no use.
 - OAuth sign-in can be added later beside passkeys without changing how sessions work.
