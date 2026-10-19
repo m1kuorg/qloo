@@ -2,6 +2,19 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
 
+// A write to one of the Worker's routes, as JSON, answered with JSON or `{ error }`. `fetch` sends the
+// page's Origin, which every signed-in write needs; an HTML form wouldn't (apps/README.md).
+export async function send<T>(path: string, body: object = {}): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  const answer = (await res.json().catch(() => null)) as { error?: string } | null
+  if (!res.ok || !answer) throw new Error(answer?.error ?? `Crossfeed answered ${res.status}. Try again.`)
+  return answer as T
+}
+
 // Runs one action at a time for a form, keeping its error for the form to show.
 export function useAction() {
   const [busy, setBusy] = useState(false)

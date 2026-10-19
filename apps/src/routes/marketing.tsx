@@ -587,7 +587,7 @@ const Doc = ({ id, title, lede, children }: { id: string; title: string; lede: s
   </main>
 )
 
-function Privacy() {
+function Privacy({ accounts }: { accounts: boolean }) {
   return (
     <Doc
       id="privacy"
@@ -640,6 +640,14 @@ function Privacy() {
           <b>In your session:</b> the roster and your edits, launches, every run with its conversation with Claude,
           insertion orders, the pitches you load, draft replies, and the evidence record of every Qloo call.
         </li>
+        {accounts && (
+          <li>
+            <b>With an account:</b> your name; your passkeys&apos; public keys, each with the browser it was added from;
+            and only hashes of your session and recovery code. The networks you create or join, with your role in each
+            and when you last opened it. Each network&apos;s roster, CPM, inbox, and launches are kept in its own
+            storage, which only its members can open.
+          </li>
+        )}
         <li>
           <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached privately with
           no expiry; the sample launch&apos;s stored run, which replays when Qloo can&apos;t be called; and each
@@ -742,10 +750,10 @@ function Terms({ env }: { env: Env }) {
         </tbody>
       </table>
       <p>
-        A run makes at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most{' '}
-        {MAX_PITCHES} pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each. At a limit, the
-        unchanged sample launch replays its stored run; anything else is refused or stops, and says which limit it
-        reached.
+        {env.ACCOUNTS === 'on' && <>A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks. </>}A run makes
+        at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most {MAX_PITCHES}{' '}
+        pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each. At a limit, the unchanged sample
+        launch replays its stored run; anything else is refused or stops, and says which limit it reached.
       </p>
 
       <h2>Acceptable use</h2>
@@ -768,5 +776,5 @@ function Terms({ env }: { env: Env }) {
   )
 }
 
-marketing.get('/privacy', marketingShell('Privacy'), (c) => c.render(<Privacy />))
+marketing.get('/privacy', marketingShell('Privacy'), (c) => c.render(<Privacy accounts={c.env.ACCOUNTS === 'on'} />))
 marketing.get('/terms', marketingShell('Beta terms'), (c) => c.render(<Terms env={c.env} />))

@@ -12,6 +12,18 @@ export const moveWords = (move: number) =>
     ? 'Same as topic rank'
     : `${move > 0 ? 'Up' : 'Down'} ${Math.abs(move)} place${Math.abs(move) === 1 ? '' : 's'}`
 
+// The longest name a member or a network can have.
+export const MAX_NAME = 64
+
+// A name as typed, trimmed, or why it can't be one; `missing` says what to do when there's none.
+export function readName(value: unknown, missing: string): { name: string } | { error: string } {
+  const name = typeof value === 'string' ? value.trim() : ''
+  if (!name) return { error: missing }
+  if (name.length > MAX_NAME) return { error: `Use a name of at most ${MAX_NAME} characters.` }
+  if (/\p{Cc}/u.test(name)) return { error: 'Use a name without control characters.' }
+  return { name }
+}
+
 // The SHA-256 hash of `text`, in hex: the gateway's cache keys and the topic baselines' (topic.ts).
 export async function sha256(text: string) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))

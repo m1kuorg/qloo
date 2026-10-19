@@ -2,6 +2,7 @@
 import type { Child } from 'hono/jsx'
 import { jsxRenderer } from 'hono/jsx-renderer'
 import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
+import type { Member, Network } from './directory'
 
 // @vitejs/plugin-react's Fast Refresh preamble, which Vite injects only into HTML it serves itself.
 const reactRefresh = `import RefreshRuntime from '/@react-refresh'
@@ -112,18 +113,90 @@ export const demoShell = jsxRenderer(({ children }, c) => {
   )
 })
 
+// What the app shell shows besides the wordmark, as a page's handler sets it: the signed-in member,
+// with their account menu; their networks, in the switcher; and the network the page belongs to,
+// with its sections. The sign-in page sets none of them.
+export type AppVariables = { member?: Member; networks?: Network[]; network?: Network }
+
 // The app shell, for signing in and for a signed-in member's pages: the black top bar with the
-// wordmark, then the React island in #root. The network switcher and account menu come with networks.
-export const appShell = jsxRenderer(({ children }) => (
-  <html lang="en">
-    <IslandHead />
-    <body>
-      <header class="top">
-        <a class="wm" href="/">
-          Crossfeed
-        </a>
-      </header>
-      {children}
-    </body>
-  </html>
-))
+// wordmark, the network switcher, the network's sections, and the account menu, then the React
+// island in #root.
+export const appShell = jsxRenderer(({ children }, c) => {
+  const { member, networks, network } = c.var as AppVariables
+  const sections = network && [
+    { href: `/app/${network.id}`, label: 'Dashboard' },
+    { href: `/app/${network.id}/roster`, label: 'Roster' },
+    ...(c.env.GUEST_PITCHES === 'on' ? [{ href: `/app/${network.id}/inbox`, label: 'Inbox' }] : []),
+    { href: `/app/${network.id}/settings`, label: 'Settings' }
+  ]
+  return (
+    <html lang="en">
+      <IslandHead />
+      <body>
+        <header class="top app-top">
+          <a class="wm" href={member ? '/app' : '/'}>
+            Crossfeed
+          </a>
+          {networks && networks.length > 0 && (
+            <details class="menu switch">
+              <summary>
+                <span class="vh">Network: </span>
+                {network ? <span data-current-network>{network.name}</span> : 'Your networks'}
+              </summary>
+              <div class="menu-panel">
+                <ul aria-label="Your networks">
+                  {networks.map((n) => (
+                    <li>
+                      {n.id === network?.id ? (
+                        <a href={`/app/${n.id}`} aria-current="true" data-current-network>
+                          {n.name}
+                        </a>
+                      ) : (
+                        <a href={`/app/${n.id}`}>{n.name}</a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <a class="menu-new" href="/app/new">
+                  New network
+                </a>
+              </div>
+            </details>
+          )}
+          {sections && (
+            <nav class="nav" aria-label="Network">
+              {sections.map(({ href, label }) => {
+                const current = c.req.path === href
+                return (
+                  <a class={current ? 'on' : undefined} href={href} aria-current={current ? 'page' : undefined}>
+                    {label}
+                  </a>
+                )
+              })}
+            </nav>
+          )}
+          {member && (
+            <details class="menu acct-menu">
+              <summary>
+                <span class="vh">Account: </span>
+                <span class="acct-name">{member.name}</span>
+                <span class="acct-short" aria-hidden="true">
+                  Account
+                </span>
+              </summary>
+              <div class="menu-panel">
+                <p>
+                  Signed in as <b>{member.name}</b>
+                </p>
+                <button type="button" class="btn" data-sign-out>
+                  Sign out
+                </button>
+              </div>
+            </details>
+          )}
+        </header>
+        {children}
+      </body>
+    </html>
+  )
+})

@@ -21,11 +21,17 @@ export function setSession(c: Context, token: string) {
 
 // The signed-in member, or null. A session in use is extended, and so is its cookie.
 export async function signedIn<E extends { Bindings: Env }>(c: Context<E>): Promise<Member | null> {
-  const token = getCookie(c, COOKIE, 'host')
-  const member = token ? await sessionMember(c.env.DB, token) : null
+  const member = await session(c)
   if (!member) return null
-  if (member.extended) setSession(c, token!)
+  if (member.extended) setSession(c, getCookie(c, COOKIE, 'host')!)
   return { id: member.id, name: member.name }
+}
+
+// The signed-in member, or null, leaving the cookie as it is: for an answer that can't take a header,
+// such as an agent's WebSocket upgrade. The session is still extended; the next page extends the cookie.
+export async function session<E extends { Bindings: Env }>(c: Context<E>) {
+  const token = getCookie(c, COOKIE, 'host')
+  return token ? sessionMember(c.env.DB, token) : null
 }
 
 // Clears the session cookie, and returns the token it held, for the directory to end its session.
@@ -47,6 +53,9 @@ export const sameOrigin: MiddlewareHandler<{ Bindings: Env }> = async (c, next) 
     return c.text('This request must come from a Crossfeed page.', 403)
   await next()
 }
+
+// A request's JSON body, or an empty object when it has none.
+export const jsonBody = async (c: Context) => ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>
 
 // Where `?next` may lead: a path on this origin, or else /app.
 export function nextPath(c: Context, next: string | undefined) {

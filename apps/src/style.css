@@ -819,6 +819,11 @@ button.call[aria-pressed='true'] {
   cursor: pointer;
 }
 
+/* A link set as a link-style button, such as "Open" beside the dashboard's roster line, in ink. */
+a.lnk {
+  color: var(--ink);
+}
+
 .q {
   font-size: 15px;
   font-weight: 600;
@@ -2823,5 +2828,413 @@ a.wm {
   .code {
     padding: 12px 16px;
     font-size: 17px;
+  }
+}
+
+/* The app shell's bar: the wordmark, the network switcher after the bar's divider, the network's
+   sections, and the account menu at the end. Each menu opens a flat white sheet hung from the bar,
+   ruled in ink, never shadowed (DESIGN.md's Flat Chart Rule). */
+.app-top {
+  position: relative;
+  z-index: 2;
+}
+
+.menu {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  min-height: 48px;
+}
+
+.menu summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--t-quick) ease-out;
+}
+
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The menu's chevron: two sides of a square, turned to point down, and up while it's open. */
+.menu summary::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  margin-top: -3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--t-quick) ease-out;
+}
+
+.menu[open] summary::after {
+  margin-top: 3px;
+  transform: rotate(225deg);
+}
+
+.switch {
+  margin-left: 16px;
+}
+
+/* The switcher fills the bar's height to be easy to hit; its divider is the network name's 20px. */
+.switch summary {
+  max-width: 296px;
+  padding: 0 4px 0 16px;
+  background: linear-gradient(var(--ink-hover), var(--ink-hover)) left center / 1px 20px no-repeat;
+  font-size: 12px;
+  color: #b5b5b5;
+}
+
+/* The network's name in Top Bar Meta, as DESIGN.md's bar sets it, white while it's a control in use. */
+.switch summary:hover,
+.switch[open] summary {
+  color: #fff;
+}
+
+.switch summary [data-current-network] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acct-menu {
+  margin-left: auto;
+  padding-left: 24px;
+}
+
+.acct-menu summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: #a3a3a3;
+}
+
+.acct-short {
+  display: none;
+}
+
+.acct-menu summary:hover,
+.acct-menu[open] summary {
+  color: #fff;
+}
+
+.menu-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 264px;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 8px 0;
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
+}
+
+.acct-menu .menu-panel {
+  left: auto;
+  right: 0;
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+
+.acct-menu .menu-panel p {
+  font-size: 12px;
+  color: var(--mid);
+}
+
+.acct-menu .menu-panel b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.menu-panel ul {
+  list-style: none;
+}
+
+.menu-panel ul a {
+  display: block;
+  padding: 8px 16px;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition: background-color var(--t-quick) ease-out;
+}
+
+.menu-panel ul a:hover {
+  background: var(--panel);
+}
+
+/* The network on view is the selected row: Panel Grey, in 600. */
+.menu-panel ul a[aria-current] {
+  background: var(--panel);
+  font-weight: 600;
+}
+
+.menu-new {
+  display: block;
+  margin-top: 8px;
+  padding: 10px 16px 4px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  text-underline-offset: 2px;
+}
+
+/* On the white sheet, focus takes the page's ink ring again. */
+.top .menu-panel :focus-visible {
+  outline-color: var(--ink);
+  outline-offset: -2px;
+}
+
+.top .menu-panel .btn:focus-visible,
+.top .menu-new:focus-visible {
+  outline-offset: 2px;
+}
+
+.top .menu summary:focus-visible {
+  outline-offset: 4px;
+}
+
+/* The dashboard: the launches table in the wide column, and the network's lines and setup in the
+   rail beside it, from the top. */
+.dash .chart-col {
+  padding-top: 16px;
+}
+
+@media (min-width: 961px) {
+  .dash .rail {
+    grid-row: 1 / span 2;
+  }
+}
+
+.dash-h {
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.launches {
+  min-width: 640px;
+}
+
+.launches td {
+  height: 44px;
+}
+
+.launches th:nth-child(2) {
+  width: 132px;
+}
+
+.launches th:nth-child(3),
+.launches th:nth-child(4) {
+  width: 84px;
+}
+
+.launches th:nth-child(5) {
+  width: 104px;
+}
+
+.launches th:nth-child(6) {
+  width: 152px;
+}
+
+.launches .nm {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.launches td.empty {
+  height: auto;
+  padding: 20px 12px;
+  font-size: 13px;
+  white-space: normal;
+}
+
+/* With no launches there's nothing to scroll to: the sentence keeps the column's width. */
+.launches.none {
+  min-width: 0;
+}
+
+/* The roster, inbox, and CPM, one record row each: what's there, then where to change it. */
+.rec.kv.lines .rec-row {
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: baseline;
+}
+
+.lines dd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.lines .lnk {
+  flex: none;
+}
+
+/* The setup checklist reads like the guide: each step still to do in ink, with how under it, and
+   each one done in Column Grey. */
+.checklist .steps li {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.checklist .steps li[data-done] {
+  color: var(--mid);
+  font-weight: 400;
+}
+
+.checklist .steps .lnk {
+  font-weight: 600;
+}
+
+/* Settings: one module per job down one column, its heading and what it's for beside its fields. */
+.set {
+  max-width: 944px;
+  padding: 0 32px 32px;
+}
+
+.set-mod {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px 0;
+}
+
+.set-about .lbl {
+  color: var(--ink);
+}
+
+.set-about .help {
+  margin-top: 6px;
+  max-width: 40ch;
+}
+
+.set-body {
+  max-width: 400px;
+}
+
+.set-body > .help {
+  margin-top: 8px;
+}
+
+.set-form {
+  display: grid;
+  gap: 6px;
+}
+
+.set-form label {
+  font-size: 12px;
+  color: var(--grey);
+}
+
+.set-form label + * + label {
+  margin-top: 8px;
+}
+
+.set-form .acct-in,
+.set-cpm {
+  max-width: 320px;
+}
+
+.set-form .acts {
+  margin-top: 12px;
+}
+
+.set .rec {
+  margin-top: 0;
+}
+
+@media (max-width: 860px) {
+  /* The bar wraps: the network's sections take a row of their own under the switcher and the menu. */
+  .app-top {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 48px;
+  }
+
+  .app-top .nav {
+    order: 3;
+    flex-basis: 100%;
+    height: 40px;
+    margin: 0 -12px;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-top {
+    padding: 0 16px;
+  }
+
+  .switch summary {
+    max-width: 36vw;
+  }
+
+  /* The bar's first row keeps the wordmark, the switcher, and the menu: the menu says Account, and
+     the member's name stays for screen readers and in the menu itself. */
+  .acct-menu {
+    padding-left: 16px;
+  }
+
+  .acct-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .acct-short {
+    display: inline;
+  }
+
+  /* Each menu's sheet hangs from the whole bar, across the page inside its gutters. */
+  .menu {
+    position: static;
+  }
+
+  .menu-panel,
+  .acct-menu .menu-panel {
+    left: 16px;
+    right: 16px;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .set {
+    padding: 0 16px 32px;
+  }
+
+  /* On a phone the empty table's headings would crowd: its sentence stands under the black rule. */
+  .launches.none thead {
+    display: none;
+  }
+
+  .launches.none td.empty {
+    border-top: 1px solid var(--ink);
+    padding-left: 0;
+  }
+
+  .set-mod {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .set-body {
+    max-width: none;
+  }
+
+  .set-form .acct-in,
+  .set-cpm {
+    max-width: none;
   }
 }
