@@ -9,6 +9,19 @@ window.$RefreshReg$ = () => {}
 window.$RefreshSig$ = () => (type) => type
 window.__vite_plugin_react_preamble_installed__ = true`
 
+// The <head> of every page with the React island: the styles, and the island's script.
+const IslandHead = () => (
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crossfeed</title>
+    <ViteClient />
+    {import.meta.env.DEV && <script type="module" dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
+    <Link href="/src/style.css" rel="stylesheet" />
+    <Script src="/src/client/main.tsx" />
+  </head>
+)
+
 // The demo shell: the black top bar with the demo's sections and, while ACCOUNTS is on, a way to
 // create a network of one's own, then the React island in #root.
 export const demoShell = jsxRenderer(({ children }, c) => {
@@ -16,15 +29,7 @@ export const demoShell = jsxRenderer(({ children }, c) => {
   if (c.env.GUEST_PITCHES === 'on') sections.push({ href: '/demo/inbox', label: 'Inbox' })
   return (
     <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Crossfeed</title>
-        <ViteClient />
-        {import.meta.env.DEV && <script type="module" dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
-        <Link href="/src/style.css" rel="stylesheet" />
-        <Script src="/src/client/main.tsx" />
-      </head>
+      <IslandHead />
       <body>
         <header class="top">
           <span class="wm">Crossfeed</span>
@@ -54,3 +59,19 @@ export const demoShell = jsxRenderer(({ children }, c) => {
     </html>
   )
 })
+
+// The app shell, for signing in and for a signed-in member's pages: the black top bar with the
+// wordmark, then the React island in #root. The network switcher and account menu come with networks.
+export const appShell = jsxRenderer(({ children }) => (
+  <html lang="en">
+    <IslandHead />
+    <body>
+      <header class="top">
+        <a class="wm" href="/">
+          Crossfeed
+        </a>
+      </header>
+      {children}
+    </body>
+  </html>
+))
