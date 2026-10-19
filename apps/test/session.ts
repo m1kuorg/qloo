@@ -165,7 +165,7 @@ export async function networkWithKey(member?: Member) {
     body: JSON.stringify({ name: 'Nightly sync' })
   })
   const { secret } = await made.json<{ secret: string }>()
-  return { ada, network: id, call: api(secret) }
+  return { ada, network: id, secret, call: api(secret) }
 }
 
 // Reads `path` with `call` until its JSON passes `ready`, as a program waiting on long work polls the
