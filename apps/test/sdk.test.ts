@@ -3,23 +3,24 @@
 // each CrossfeedError's code and status.
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { Crossfeed, CrossfeedError } from '../../packages/sdk/src/index'
+import { Crossfeed, CrossfeedError, type CrossfeedOptions } from '../../packages/sdk/src/index'
 import generated from '../../packages/sdk/src/openapi.ts?raw'
 import { sha256 } from '../src/text'
 import { fakeClaude, fakeInsights, fakeQloo, fakeReader, text, toolUse, turn } from './fake'
 import { networkWithKey } from './session'
 
-// A program's client for a new network, made the way the SDK's README makes one, its requests sent
-// to the Worker in the tests' isolate.
+// A program's client, made the way the SDK's README makes one, its requests sent to the Worker in
+// the tests' isolate unless `fetch` sends them another way.
+const sdk = (
+  apiKey: string,
+  networkId: string,
+  fetch: CrossfeedOptions['fetch'] = (url, init) => exports.default.fetch(url, init)
+) => new Crossfeed({ apiKey, networkId, baseUrl: 'https://crossfeed.test', fetch })
+
+// And one for a new network, with its key.
 async function client() {
   const made = await networkWithKey()
-  const crossfeed = new Crossfeed({
-    apiKey: made.secret,
-    networkId: made.network,
-    baseUrl: 'https://crossfeed.test',
-    fetch: (url, init) => exports.default.fetch(url, init)
-  })
-  return { ...made, crossfeed }
+  return { ...made, crossfeed: sdk(made.secret, made.network) }
 }
 
 // What a call refused with, as a program branches on it.
@@ -59,18 +60,14 @@ describe("the SDK's methods", () => {
   it('reach every route the OpenAPI document describes', async () => {
     const { secret, network } = await networkWithKey()
     const sent: string[] = []
-    const crossfeed = new Crossfeed({
-      apiKey: secret,
-      networkId: network,
-      baseUrl: 'https://crossfeed.test',
-      fetch: (url, init) => {
-        sent.push(`${init.method} ${new URL(url).pathname}`)
-        return exports.default.fetch(url, init)
-      }
+    const crossfeed = sdk(secret, network, (url, init) => {
+      sent.push(`${init.method} ${new URL(url).pathname}`)
+      return exports.default.fetch(url, init)
     })
     const [launch, run, order, pitch] = ['launch-1', 'run-1', 'IO-0001', 'pitch-01']
     const answer = { questionId: 'toolu_01', choice: 'Yes' }
-    // One call of each method; what each answers, mostly refusals of made-up IDs, doesn't matter here.
+    // One call of each method. What each answers, mostly refusals of made-up IDs, doesn't matter here,
+    // so long as a refusal is the API's.
     for (const call of [
       () => crossfeed.network.get(),
       () => crossfeed.network.update({}),
@@ -98,7 +95,7 @@ describe("the SDK's methods", () => {
       () => crossfeed.replies.edit(run, pitch, 'Thanks.'),
       () => crossfeed.replies.discard(run, pitch)
     ])
-      await call().catch(() => {})
+      await call().catch((error) => expect(error).toBeInstanceOf(CrossfeedError))
 
     const { paths } = JSON.parse(await served()) as { paths: Record<string, object> }
     const documented = Object.entries(paths).flatMap(([path, methods]) =>
@@ -125,17 +122,18 @@ describe('a client', () => {
       status: 400,
       message: 'The CPM must be a dollar amount above 0.'
     })
-    const unknown = new Crossfeed({
-      apiKey: `${secret}x`,
-      networkId: network,
-      baseUrl: 'https://crossfeed.test',
-      fetch: (url, init) => exports.default.fetch(url, init)
-    })
-    expect(await refusal(unknown.network.get())).toEqual({
+    expect(await refusal(sdk(`${secret}x`, network).network.get())).toEqual({
       code: 'unauthorized',
       status: 401,
       message:
         'This API key is unknown or was revoked. Send a key from the network\'s settings as "Authorization: Bearer cf_live_…".'
+    })
+    // An answer that isn't one of Crossfeed's errors, as from a proxy, or a wrong baseUrl.
+    const proxy = sdk(secret, network, async () => new Response('<h1>502 Bad Gateway</h1>', { status: 502 }))
+    expect(await refusal(proxy.network.get())).toEqual({
+      code: 'unexpected_response',
+      status: 502,
+      message: `GET /api/v1/networks/${network} answered 502, not with one of Crossfeed's errors. Check baseUrl. It said: <h1>502 Bad Gateway</h1>`
     })
   })
 })
@@ -413,7 +411,7 @@ describe("the SDK's wait helpers", () => {
 
   it('reject with a timeout CrossfeedError once their time is up, and with the reason once aborted', async () => {
     fakeQloo({ search, latencyMs: 500 })
-    const { crossfeed } = await client()
+    const { crossfeed, secret, network } = await client()
     await crossfeed.roster.import('Corner Booth\n', { type: 'text/plain' })
     expect(await refusal(crossfeed.waitForRoster({ interval: 10, timeout: 50 }))).toEqual({
       code: 'timeout',
@@ -426,6 +424,16 @@ describe("the SDK's wait helpers", () => {
     const waiting = crossfeed.waitForRoster({ interval: 60_000, signal: stop.signal })
     setTimeout(() => stop.abort(), 100)
     await expect(waiting).rejects.toMatchObject({ name: 'AbortError' })
+    // So it does when the read it was waiting on ends after the abort, with a fetch that ignores signals.
+    const late = new AbortController()
+    const ignoring = sdk(secret, network, async (url, init) => {
+      const res = await exports.default.fetch(url, { ...init, signal: undefined })
+      late.abort()
+      return res
+    })
+    await expect(ignoring.waitForRoster({ interval: 60_000, signal: late.signal })).rejects.toMatchObject({
+      name: 'AbortError'
+    })
     // An aborted signal stops a wait before it reads anything.
     await expect(crossfeed.waitForInbox({ signal: AbortSignal.abort() })).rejects.toMatchObject({ name: 'AbortError' })
   })

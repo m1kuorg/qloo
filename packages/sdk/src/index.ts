@@ -3,7 +3,7 @@
 // `fetch`, so it runs in Node, Bun, Deno, and Workers alike. Every refusal rejects as a
 // CrossfeedError with the API's code, message, and HTTP status. Nothing here approves an insertion
 // order or a reply: only a member does, in the app.
-import type { components, paths } from './openapi'
+import type { components, paths } from './openapi.ts'
 
 export type { components, paths }
 export type Schemas = components['schemas']
@@ -69,6 +69,9 @@ export class CrossfeedError extends Error {
   }
 }
 
+/** What stops a read, such as a wait helper's. */
+export type ReadOptions = { signal?: AbortSignal }
+
 /** A file to send as a request's body. */
 export type FileBody = string | Blob | BufferSource
 
@@ -78,7 +81,7 @@ type Operation<R extends Route, M extends Method> = NonNullable<paths[R][M]>
 // A route's path parameters, but for the network's, which the client fills in.
 type Params<O> = O extends { parameters: { path: infer P } } ? Omit<P, 'networkId'> : never
 type Query<O> = O extends { parameters: { query?: infer Q } } ? Q : never
-type Json<O> = O extends { requestBody?: { content: { 'application/json': infer B } } } ? B : never
+type JsonBody<O> = O extends { requestBody?: { content: { 'application/json': infer B } } } ? B : never
 // The media types a route takes a file in.
 type Files<O> = O extends { requestBody?: { content: infer C } } ? Exclude<keyof C, 'application/json'> : never
 // What a route answers when it succeeds, as JSON.
@@ -87,9 +90,9 @@ type Success<O> = O extends { responses: infer R }
     ? T
     : never
   : never
-type Call<O> = ({} extends Params<O> ? { params?: undefined } : { params: Params<O> }) & {
+type RequestOptions<O> = ({} extends Params<O> ? { params?: undefined } : { params: Params<O> }) & {
   query?: Query<O>
-  json?: Json<O>
+  json?: JsonBody<O>
   file?: { body: FileBody; type: Files<O> }
   signal?: AbortSignal
 }
@@ -134,7 +137,7 @@ export class Crossfeed {
 
   /** The network's roster of shows, each matched in Qloo. */
   readonly roster = {
-    get: () => this.#json('get', '/api/v1/networks/{networkId}/roster', {}),
+    get: ({ signal }: ReadOptions = {}) => this.#json('get', '/api/v1/networks/{networkId}/roster', { signal }),
     /**
      * Imports a roster file: a CSV with a `name` column and optional `downloads`, `status`, and
      * `description` columns, or, as `text/plain`, one show name per line. It answers at once with
@@ -142,7 +145,10 @@ export class Crossfeed {
      * `replace: true`.
      */
     import: (file: FileBody, { type = 'text/csv', replace }: { type?: RosterFile; replace?: boolean } = {}) =>
-      this.#json('post', '/api/v1/networks/{networkId}/roster', { query: flag(replace), file: { body: file, type } }),
+      this.#json('post', '/api/v1/networks/{networkId}/roster', {
+        query: replaceQuery(replace),
+        file: { body: file, type }
+      }),
     /** Picks an ambiguous show's candidate, maps it to a comp, or changes its figures or exclusion. */
     updateShow: (name: string, change: Schemas['ShowChange']) =>
       this.#json('patch', '/api/v1/networks/{networkId}/roster/shows/{name}', { params: { name }, json: change }),
@@ -154,7 +160,7 @@ export class Crossfeed {
       })
   }
 
-  /** The network's launches, each planned as its own project. */
+  /** The network's launches, each with its own runs and insertion orders. */
   readonly launches = {
     list: () => this.#json('get', '/api/v1/networks/{networkId}/launches', {}),
     /** Plans a launch by its name, as Qloo lists a released show, or by up to three released shows as comps. */
@@ -176,9 +182,10 @@ export class Crossfeed {
      */
     start: (launchId: string, plan?: LaunchPlan) =>
       this.#json('post', '/api/v1/networks/{networkId}/launches/{launchId}/runs', { params: { launchId }, json: plan }),
-    get: (launchId: string, runId: string) =>
+    get: (launchId: string, runId: string, { signal }: ReadOptions = {}) =>
       this.#json('get', '/api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}', {
-        params: { launchId, runId }
+        params: { launchId, runId },
+        signal
       }),
     /** Answers the question the run waits on, with the person's own words; wait with `waitForRun` again. */
     answer: (launchId: string, runId: string, answer: Answer) =>
@@ -218,13 +225,13 @@ export class Crossfeed {
 
   /** The network's inbox of guest pitches, while guest pitches are switched on. */
   readonly inbox = {
-    get: () => this.#json('get', '/api/v1/networks/{networkId}/inbox', {}),
+    get: ({ signal }: ReadOptions = {}) => this.#json('get', '/api/v1/networks/{networkId}/inbox', { signal }),
     load: ((
       source: Schemas['PitchBatch'] | FileBody,
       { type, replace }: { type?: PitchFile; replace?: boolean } = {}
     ) =>
       this.#json('post', '/api/v1/networks/{networkId}/inbox', {
-        query: flag(replace),
+        query: replaceQuery(replace),
         ...(type ? { file: { body: source as FileBody, type } } : { json: source as Schemas['PitchBatch'] })
       })) as LoadInbox,
     /** Confirms which of an ambiguous work's same-title candidates a pitch is about. */
@@ -240,7 +247,8 @@ export class Crossfeed {
     /** Starts a pitch run against a roster show matched in Qloo; wait with `waitForRun`. */
     start: (start: Schemas['PitchRunStart']) =>
       this.#json('post', '/api/v1/networks/{networkId}/pitch-runs', { json: start }),
-    get: (runId: string) => this.#json('get', '/api/v1/networks/{networkId}/pitch-runs/{runId}', { params: { runId } }),
+    get: (runId: string, { signal }: ReadOptions = {}) =>
+      this.#json('get', '/api/v1/networks/{networkId}/pitch-runs/{runId}', { params: { runId }, signal }),
     /** Answers the question the run waits on, with the person's own words; wait with `waitForRun` again. */
     answer: (runId: string, answer: Answer) =>
       this.#json('post', '/api/v1/networks/{networkId}/pitch-runs/{runId}/answer', { params: { runId }, json: answer })
@@ -263,7 +271,7 @@ export class Crossfeed {
   /** Resolves with the roster once no show or comp search is still being looked up in Qloo. */
   waitForRoster(options: WaitOptions = {}): Promise<Roster> {
     return poll(
-      (signal) => this.#json('get', '/api/v1/networks/{networkId}/roster', { signal }),
+      (signal) => this.roster.get({ signal }),
       (roster) => roster.status === 'settled',
       'The roster was still pending',
       options
@@ -283,13 +291,8 @@ export class Crossfeed {
   ): Promise<LaunchRun | PitchRun> {
     const read =
       'pitchRunId' in run
-        ? (signal?: AbortSignal) =>
-            this.#json('get', '/api/v1/networks/{networkId}/pitch-runs/{runId}', {
-              params: { runId: run.pitchRunId },
-              signal
-            })
-        : (signal?: AbortSignal) =>
-            this.#json('get', '/api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}', { params: run, signal })
+        ? (signal?: AbortSignal) => this.pitchRuns.get(run.pitchRunId, { signal })
+        : (signal?: AbortSignal) => this.runs.get(run.launchId, run.runId, { signal })
     const id = 'pitchRunId' in run ? run.pitchRunId : run.runId
     const settled = await poll<LaunchRun | PitchRun>(
       read,
@@ -305,7 +308,7 @@ export class Crossfeed {
   /** Resolves with the inbox once no pitch is still being read. */
   waitForInbox(options: WaitOptions = {}): Promise<Inbox> {
     return poll(
-      (signal) => this.#json('get', '/api/v1/networks/{networkId}/inbox', { signal }),
+      (signal) => this.inbox.get({ signal }),
       (inbox) => inbox.status !== 'reading',
       'The inbox was still reading',
       options
@@ -317,7 +320,7 @@ export class Crossfeed {
   async #send<R extends Route, M extends Method>(
     method: M,
     route: R,
-    { params, query, json, file, signal }: Call<Operation<R, M>>
+    { params, query, json, file, signal }: RequestOptions<Operation<R, M>>
   ): Promise<Response> {
     const values: Record<string, string> = { ...params, networkId: this.#networkId }
     const url = new URL(this.#baseUrl + route.replace(/\{(\w+)\}/g, (_, name) => encodeURIComponent(values[name])))
@@ -347,14 +350,14 @@ export class Crossfeed {
   async #json<R extends Route, M extends Method>(
     method: M,
     route: R,
-    request: Call<Operation<R, M>>
+    request: RequestOptions<Operation<R, M>>
   ): Promise<Success<Operation<R, M>>> {
     return (await this.#send(method, route, request)).json()
   }
 }
 
 // A `replace` query: left out unless given.
-const flag = (replace?: boolean): { replace?: 'true' | 'false' } =>
+const replaceQuery = (replace?: boolean): { replace?: 'true' | 'false' } =>
   replace === undefined ? {} : { replace: replace ? 'true' : 'false' }
 
 // A body's JSON, or undefined when it isn't JSON.
@@ -390,8 +393,11 @@ async function poll<T>(
   }
 }
 
+// Resolves after `ms` milliseconds, or rejects with `signal`'s reason once it aborts, at once if it
+// already has, as when a `fetch` that ignores signals finished a read after the abort.
 function sleep(ms: number, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason)
     const abort = () => {
       clearTimeout(timer)
       reject(signal!.reason)

@@ -129,6 +129,7 @@ Every refusal rejects with a `CrossfeedError`: the API's stable `code`, a `messa
 ```ts
 import { CrossfeedError } from '@crossfeed/sdk'
 
+const csv = await readFile('roster.csv', 'utf8')
 try {
   await crossfeed.roster.import(csv)
 } catch (error) {

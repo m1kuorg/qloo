@@ -381,6 +381,9 @@ describe('the network', () => {
   })
 })
 
+// A schema in the document, as far as the nullable check below reads one.
+type Schema = { type?: string | string[]; anyOf?: Schema[]; oneOf?: Schema[] }
+
 describe('the OpenAPI document', () => {
   const doc = async () => {
     const res = await exports.default.fetch('https://crossfeed.test/api/v1/openapi.json')
@@ -389,7 +392,7 @@ describe('the OpenAPI document', () => {
       openapi: string
       paths: Record<string, Record<string, unknown>>
       servers: { url: string }[]
-      components: { schemas: Record<string, { type?: string | string[] }> }
+      components: { schemas: Record<string, Schema> }
     }>()
   }
 
@@ -417,7 +420,10 @@ describe('the OpenAPI document', () => {
   // run that a read answers with, in the SDK's generated types.
   it('makes a field nullable where it is, never a named schema every use of it shares', async () => {
     const { components } = await doc()
-    const nullable = Object.entries(components.schemas).filter(([, schema]) => [schema.type].flat().includes('null'))
+    const takesNull = (schema: Schema) =>
+      [schema.type].flat().includes('null') ||
+      [...(schema.anyOf ?? []), ...(schema.oneOf ?? [])].some((option) => option.type === 'null')
+    const nullable = Object.entries(components.schemas).filter(([, schema]) => takesNull(schema))
     expect(nullable.map(([name]) => name)).toEqual([])
   })
 
