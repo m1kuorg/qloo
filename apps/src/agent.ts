@@ -5,7 +5,7 @@ import type { DemographicCheck } from './demographics'
 import { callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
-import { blankEvidence, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
+import { blankEvidence, globalGateway, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
   readInbox,
@@ -328,11 +328,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     // visitor's; past their limit, it opens empty. Tests turn this off.
     if (firstStart && this.opensOnSample && this.env.SAMPLE_NETWORK === 'on') {
       const visitor = this.limitKey(props?.visitor)
-      const refused = await this.env.QlooGateway.getByName('global')
+      const gateway = await this.gateway()
+      const refused = await gateway
         .reserveCalls(visitor, sampleRoster.length)
         // A gateway that can't count doesn't keep the sample from opening; its lookups say why they fail.
         .catch(() => null)
-      if (!refused) this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample })
+      if (!refused) this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample }, gateway)
     }
   }
 
@@ -367,9 +368,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     }
     pending()
     const keep = this.keepsSettledShows ? figures : null
-    await this.reserveCalls(visitor, rows.filter((r) => this.toLookUp(r.name, keep)).length)
+    const gateway = await this.reserveCalls(visitor, rows.filter((r) => this.toLookUp(r.name, keep)).length)
     pending() // again, since another import may have started meanwhile
-    this.lookUpRoster(rows, this.leaveSample(), keep)
+    this.lookUpRoster(rows, this.leaveSample(), gateway, keep)
   }
 
   // Empties a roster that is still the sample network, ready for the visitor's own import.
@@ -413,12 +414,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     ready()
     const q = query.trim()
     if (!q) throw new Refusal('invalid', 'Type the name of a comparable show.')
-    await this.reserveCalls(visitor, 1)
+    const gateway = await this.reserveCalls(visitor, 1)
     ready() // again, since an import may have replaced the show meanwhile
     const seq = this.numberCall()
     const compSearch: CompSearch = { query: q, call: callNumber(seq), status: 'pending', results: [], error: null }
     this.editShow(name, (show) => ({ ...show, compSearch }))
-    void this.keepAliveWhile(() => this.findComps(name, compSearch, seq))
+    void this.keepAliveWhile(() => this.findComps(name, compSearch, seq, gateway))
   }
 
   // Settles or edits one show, named as imported. A patch that fails changes nothing.
@@ -484,10 +485,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const startedBy = this.memberName()
     const { down, limited, refused, stored, network } = await this.admit(async () => {
       const network = await this.networkRoster()
-      const admitted = await this.env.QlooGateway.getByName('global').admitLaunch(
-        visitor,
-        onSampleLaunch(this.state, name)
-      )
+      // Whether Qloo can be called is up to the gateway this run's calls will go through; the model
+      // run counts in the global gateway either way.
+      const health = await (await this.gateway()).health()
+      const admitted = await globalGateway(this.env).admitLaunch(visitor, onSampleLaunch(this.state, name), health)
       return { ...admitted, network }
     })
     if (refused) throw new Refusal('limit', `${refused}.`)
@@ -856,12 +857,14 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Replaces the roster with these rows, each pending on its search, together with any other state
-  // that changes with it, and returns; each row fills in as its search settles. With `keep`, a show
-  // already on the roster keeps its name, match, candidates, comp search, exclusion, and every figure
-  // but those in `keep`, which the rows bring, and only a lookup that failed is made again.
+  // that changes with it, and returns; each row fills in as its search settles, through `gateway`, where
+  // its calls were reserved (reserveCalls). With `keep`, a show already on the roster keeps its name,
+  // match, candidates, comp search, exclusion, and every figure but those in `keep`, which the rows
+  // bring, and only a lookup that failed is made again.
   protected lookUpRoster(
     rows: (RosterRow & Pick<Show, 'sample'>)[],
     alongside: Partial<State>,
+    gateway: DurableObjectStub<QlooGateway>,
     keep: RosterFigure[] | null = null
   ) {
     // Numbered now, in roster order, so a pending show cites the call it waits on.
@@ -881,7 +884,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.setState({ ...this.state, ...alongside, ...stillSample, roster })
     // All at once: the gateway paces, limits, and retries the calls.
     void this.keepAliveWhile(() =>
-      Promise.all(roster.flatMap((show, i) => (calls[i] === null ? [] : [this.lookUpShow(show.name, calls[i])])))
+      Promise.all(
+        roster.flatMap((show, i) => (calls[i] === null ? [] : [this.lookUpShow(show.name, calls[i], gateway)]))
+      )
     )
   }
 
@@ -905,10 +910,15 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
-  private async lookUpShow(name: string, seq: number) {
+  private async lookUpShow(name: string, seq: number, reserved: DurableObjectStub<QlooGateway>) {
     let match: Lookup
     try {
-      const { call, result } = await this.qloo((gateway) => gateway.search(name, 'urn:entity:podcast'), null, seq, true)
+      const { call, result } = await this.qloo(
+        (gateway) => gateway.search(name, 'urn:entity:podcast'),
+        null,
+        seq,
+        reserved
+      )
       match = lookup(name, call, result)
     } catch (e) {
       // Anything else that breaks still settles the show, so the import can't stay pending.
@@ -919,14 +929,14 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Runs a pending comp search and fills it in, unless a newer search or an import replaced it.
-  private async findComps(name: string, search: CompSearch, seq: number) {
+  private async findComps(name: string, search: CompSearch, seq: number, reserved: DurableObjectStub<QlooGateway>) {
     let landed: CompSearch
     try {
       const { result } = await this.qloo(
         (gateway) => gateway.search(search.query, 'urn:entity:podcast', 5),
         null,
         seq,
-        true
+        reserved
       )
       landed = result.ok
         ? {
@@ -983,15 +993,21 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Counts `n` Qloo calls against the visitor's calls for the day before they're made, or refuses them
-  // with the reason, before anything is numbered or kept (TRD agent limits).
+  // with the reason, before anything is numbered or kept (TRD agent limits). It returns the gateway it
+  // counted them in, which makes them, so they count where they're made even if the network's Qloo key
+  // comes or goes meanwhile.
   protected async reserveCalls(visitor: string, n: number) {
-    const refused = await this.env.QlooGateway.getByName('global').reserveCalls(visitor, n)
+    const gateway = await this.gateway()
+    const refused = await gateway.reserveCalls(visitor, n)
     if (refused) throw new Refusal('limit', `${refused}.`)
+    return gateway
   }
 
-  // Counts a model run against the daily limits, or refuses it with the reason (TRD agent limits).
+  // Counts a model run against the daily limits, or refuses it with the reason (TRD agent limits). Model
+  // runs spend Crossfeed's Anthropic key, so they count in the global gateway, whichever gateway the
+  // agent's Qloo calls go through (ADR 0004).
   private async countModelRun(visitor: string) {
-    const { refused } = await this.env.QlooGateway.getByName('global').startModelRun(visitor)
+    const { refused } = await globalGateway(this.env).startModelRun(visitor)
     if (refused) throw new Refusal('limit', `${refused}.`)
   }
 
@@ -1008,6 +1024,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith('visitor:'))
     if (tag) this.lastVisitor = tag
     return this.limitKey()
+  }
+
+  // The gateway this agent's Qloo calls go through, and its Qloo limits count in: the global one, which
+  // the demo and every network without a Qloo key of its own share, with its cache. A network's agents
+  // use the network's own instance while it has a key (network-agent.ts, ADR 0004).
+  protected async gateway(): Promise<DurableObjectStub<QlooGateway>> {
+    return globalGateway(this.env)
   }
 
   // Who every Qloo call and model run of this agent counts against, for the per-visitor limits (TRD
@@ -1419,8 +1442,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.storeSampleRun(run, { state, evidence })
   }
 
+  // The sample run is the demo's, kept in the global gateway, which any session's start replays it from.
   private storeSampleRun(run: string, sampleRun: SampleRun) {
-    void this.keepAliveWhile(() => this.env.QlooGateway.getByName('global').keepSampleRun(JSON.stringify(sampleRun)))
+    void this.keepAliveWhile(() => globalGateway(this.env).keepSampleRun(JSON.stringify(sampleRun)))
       .then(() => log({ event: 'sample_run', run, calls: sampleRun.evidence.length }))
       .catch((e) => log({ event: 'sample_run', run, error: message(e) }))
   }
@@ -1429,7 +1453,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // run ended with, rather than the run's snapshot, where the programmer may since have edited the
   // order. The gateway writes it only while the copy is still this run's, so a run kept since stays.
   private async keepTopic(run: string, topic: Topic) {
-    const gateway = this.env.QlooGateway.getByName('global')
+    const gateway = globalGateway(this.env)
     const stored = await gateway.sampleRun()
     const kept: SampleRun | null = stored && JSON.parse(stored)
     if (kept?.state.run?.id !== run) return
@@ -1493,24 +1517,29 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // numbered it earlier, so numbers follow the order calls were made, and appends the gateway's
   // evidence, success or failure. A gateway that throws instead of answering, such as one reset by
   // a deploy, fails the call like Qloo failing would, with its own record. Each call counts among the
-  // visitor's Qloo calls today, unless the caller `reserved` it first (reserveCalls).
+  // visitor's Qloo calls today in the agent's gateway, unless the caller `reserved` it first in a
+  // gateway (reserveCalls), which then makes it.
   private async qloo<T>(
     request: (gateway: DurableObjectStub<QlooGateway>) => Promise<QlooResult<T>>,
     run: string | null = null,
     seq = this.numberCall(),
-    reserved = false
+    reserved: DurableObjectStub<QlooGateway> | null = null
   ): Promise<{ call: string; result: QlooResult<T> }> {
     const visitor = this.limitKey()
     const call = callNumber(seq)
     const settled = this.watch(call, run)
     const started = Date.now()
-    // Every request calls one gateway method; noting which lets a failed record name its request.
+    // Every request calls one gateway method; noting which lets a failed record name its request. The
+    // gateway is looked up as the method is called, so a gateway that can't be reached fails the call.
     let asked: keyof typeof REQUESTS | undefined
-    const gateway = new Proxy(this.env.QlooGateway.getByName('global'), {
-      get: (stub, key) => {
-        if (typeof key !== 'string' || !Object.hasOwn(REQUESTS, key)) return Reflect.get(stub, key)
+    const gateway = new Proxy({} as DurableObjectStub<QlooGateway>, {
+      get: (_, key) => {
+        if (typeof key !== 'string' || !Object.hasOwn(REQUESTS, key)) return undefined
         const method = (asked = key as keyof typeof REQUESTS)
-        return reserved ? Reflect.get(stub, key) : (...args: unknown[]) => stub.forVisitor(visitor, method, args)
+        return async (...args: unknown[]) => {
+          if (reserved) return Reflect.apply(Reflect.get(reserved, method), reserved, args)
+          return (await this.gateway()).forVisitor(visitor, method, args)
+        }
       }
     })
     let result: QlooResult<T>

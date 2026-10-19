@@ -10,6 +10,7 @@ import {
   type RosterCopy,
   type State
 } from './agent'
+import { globalGateway } from './gateway'
 import { Refusal } from './refusal'
 import { sample, sampleRoster } from './sample'
 
@@ -32,6 +33,19 @@ export const launchAgentName = (networkId: string, launchId: string) => `${netwo
 // What a network's agents count against for the per-visitor limits: the network, from the agent's
 // name, which is the network's ID for its own agent and `<networkId>:<launchId>` for a launch's.
 export const networkLimitKey = (name: string) => `network:${name.split(':')[0]}`
+
+// The name of a network's own gateway instance (ADR 0004), from an agent's name as networkLimitKey reads
+// it: `network:<networkId>`, the same as the key its limits count under. And the instance, where the
+// network's own Qloo key, its cache, and its Qloo counts live.
+export const ownGatewayName = networkLimitKey
+export const ownGateway = (env: Env, name: string) => env.QlooGateway.getByName(ownGatewayName(name))
+
+// The gateway a network's Qloo calls go through, and its launches': its own instance while it has a key
+// of its own, else the global one, as every other network's and the demo's do.
+export async function networkGateway(env: Env, name: string) {
+  const own = ownGateway(env, name)
+  return (await own.ownKey()).set ? own : globalGateway(env)
+}
 
 // What a deleted network's open pages, and its launches', say as they close.
 export const NETWORK_DELETED = 'This network was deleted.'
@@ -60,6 +74,11 @@ export class NetworkAgent extends CrossfeedAgent {
   // makes them, and with no connection at all, as the Worker's own calls have (TRD agent limits).
   protected limitKey() {
     return networkLimitKey(this.name)
+  }
+
+  // Its Qloo calls go through its own gateway instance while it has a Qloo key of its own (ADR 0004).
+  protected gateway() {
+    return networkGateway(this.env, this.name)
   }
 
   // Tags a connection with its member, beside its visitor.
@@ -122,9 +141,9 @@ export class NetworkAgent extends CrossfeedAgent {
         )
     }
     empty()
-    await this.reserveCalls(this.limitKey(), sampleRoster.length)
+    const gateway = await this.reserveCalls(this.limitKey(), sampleRoster.length)
     empty() // again, since an import may have started meanwhile
-    this.lookUpRoster(sampleRoster, { sample: { ...sample, cpm: false } })
+    this.lookUpRoster(sampleRoster, { sample: { ...sample, cpm: false } }, gateway)
   }
 
   // Plans a new launch, named or from up to three comps: its own agent takes it, then it joins the

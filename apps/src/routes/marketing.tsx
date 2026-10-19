@@ -606,8 +606,15 @@ function Privacy({ accounts }: { accounts: boolean }) {
       <p>
         Never a pitch&apos;s text, a guest&apos;s name, an email address, or a sender&apos;s details. A pitch with no
         public work is set aside, and a work title that holds an email address, or the guest&apos;s or sender&apos;s
-        name, isn&apos;t sent. Requests carry Crossfeed&apos;s key and nothing about you. Qloo&apos;s terms let it
-        improve its service from the anonymized lists of entities sent to its recommendation endpoint.
+        name, isn&apos;t sent. Requests carry Crossfeed&apos;s key and nothing about you.
+        {accounts && (
+          <>
+            {' '}
+            A network that adds its own Qloo key sends its requests with that key instead, to the Qloo host it chose.
+          </>
+        )}{' '}
+        Qloo&apos;s terms let it improve its service from the anonymized lists of entities sent to its recommendation
+        endpoint.
       </p>
 
       <h2>What reaches Anthropic</h2>
@@ -651,7 +658,10 @@ function Privacy({ accounts }: { accounts: boolean }) {
             member who approved each reply, and each of its launches in storage of its own: its runs, a copy of the
             roster and CPM each run ranked, with their Qloo records, the name of the member who started each run, and of
             the member who approved each insertion order, and when. Only the network&apos;s members and its API keys can
-            open them.
+            open them. A network&apos;s own Qloo key, if an owner adds one, is kept encrypted in the network&apos;s own
+            Qloo storage, with the host it&apos;s for and its last four characters, the only part of it anyone is shown.
+            That storage also caches the answers to the network&apos;s Qloo calls and counts them, apart from every
+            other network&apos;s.
           </li>
         )}
         <li>
@@ -693,14 +703,15 @@ function Privacy({ accounts }: { accounts: boolean }) {
           Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it close.
           What you added to the network stays with the network. Deleting a launch, which any of the network&apos;s
           members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records.
-          Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once,
-          then wipes its own storage and each of its launches&apos;. A wipe that fails is tried again by the next
-          day&apos;s cleanup, which also deletes expired sessions, sign-in challenges, and invite links. Deleting your
-          account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and
-          memberships at once. What you did in a network stays with it: its launches keep your name on the runs you
-          started and the orders you approved, and its API keys and invite links you made stay, made by no one.
-          It&apos;s refused while you&apos;re a network&apos;s only owner. &ldquo;Sign out everywhere&rdquo; deletes
-          every session of yours.
+          Removing a network&apos;s own Qloo key, which only an owner can do, wipes its Qloo storage at once: the key,
+          its cached answers, and its counts. Deleting a network, which only an owner can do, deletes its memberships,
+          invite links, and API keys at once, then wipes its own storage, each of its launches&apos;, and its Qloo
+          storage. A wipe that fails is tried again by the next day&apos;s cleanup, which also deletes expired sessions,
+          sign-in challenges, and invite links. Deleting your account, on your account page, deletes your account with
+          its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it:
+          its launches keep your name on the runs you started and the orders you approved, and its API keys and invite
+          links you made stay, made by no one. It&apos;s refused while you&apos;re a network&apos;s only owner.
+          &ldquo;Sign out everywhere&rdquo; deletes every session of yours.
         </p>
       )}
 
@@ -727,6 +738,13 @@ function Terms({ env }: { env: Env }) {
         The beta is free: Crossfeed charges nothing and asks for no payment details. Its Qloo calls run on
         Crossfeed&apos;s Qloo Agentic Hackathon key, so the beta can&apos;t be sold, and it may stop scoring when Qloo
         deactivates hackathon keys after the hackathon closes.
+        {env.ACCOUNTS === 'on' && (
+          <>
+            {' '}
+            A network&apos;s owner can add the network&apos;s own Qloo key in its settings; its Qloo calls then run on
+            that key, under the owner&apos;s own agreement with Qloo.
+          </>
+        )}
       </p>
 
       <h2>No warranty</h2>
@@ -745,7 +763,8 @@ function Terms({ env }: { env: Env }) {
           <>
             {' '}
             A network counts as one visitor of its own, whichever of its members makes the network&apos;s calls and
-            runs.
+            runs. A network with its own Qloo key counts its Qloo calls on that key, apart from everyone else&apos;s,
+            against the same limits; its model runs count with everyone&apos;s.
           </>
         )}
       </p>

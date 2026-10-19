@@ -1,7 +1,7 @@
 import { callable, getAgentByName, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
 import { CrossfeedAgent, newComp, rosterKey, type LaunchSummary, type RosterCopy, type Show, type State } from './agent'
 import { finalistsOf } from './fit'
-import { MEMBER_NAME_HEADER, memberTag, networkLimitKey } from './network-agent'
+import { MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimitKey } from './network-agent'
 
 const ROSTER =
   "A launch ranks its network's roster, which members edit on the network's roster page. Each run copies the roster as it starts."
@@ -22,6 +22,11 @@ export class LaunchAgent extends CrossfeedAgent {
   // A launch's Qloo calls and model runs count among its network's (TRD agent limits).
   protected limitKey() {
     return networkLimitKey(this.name)
+  }
+
+  // And through its network's gateway: its own instance while the network has a Qloo key of its own.
+  protected gateway() {
+    return networkGateway(this.env, this.name)
   }
 
   // Tags a connection with its member, beside its visitor, as a network's agent does.

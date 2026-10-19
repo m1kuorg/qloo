@@ -1,17 +1,20 @@
 // Wiping agents once the directory or their network has let go of them: a launch's, when it's deleted,
-// and a network's with all of its launches', when the network is; and the daily cron's retry of a wipe
-// that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
+// and a network's with all of its launches' and its own Qloo gateway instance, when the network is; and
+// the daily cron's retry of a wipe that failed. The directory notes each wipe before it starts and
+// crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
 import { dropNetwork, networkName, noteWipe, wipeDone, wipesDue, type Instance } from './directory'
-import { launchAgentName, NETWORK_DELETED } from './network-agent'
+import { launchAgentName, NETWORK_DELETED, ownGatewayName } from './network-agent'
 
-// The bindings a wipe is noted under, and how each wipes its instance (`destroy`), saying `reason` to
-// the pages it closes, if it closes any.
+// The bindings a wipe is noted under, and how each wipes its instance (an agent's `destroy`, a gateway's
+// `wipe`), saying `reason` to the pages it closes, if it closes any.
 const LAUNCH = 'LaunchAgent'
 const NETWORK = 'NetworkAgent'
+const GATEWAY = 'QlooGateway'
 const WIPERS: Record<string, (env: Env, name: string, reason?: string) => Promise<void>> = {
   [LAUNCH]: async (env, name, reason) => (await getAgentByName(env.LaunchAgent, name)).destroy(reason),
-  [NETWORK]: async (env, name) => (await getAgentByName(env.NetworkAgent, name)).destroy()
+  [NETWORK]: async (env, name) => (await getAgentByName(env.NetworkAgent, name)).destroy(),
+  [GATEWAY]: (env, name) => env.QlooGateway.getByName(name).wipe()
 }
 
 // A wipe the cron retries only once it's this old, so it never races a deletion still under way.
@@ -27,11 +30,13 @@ export async function deleteLaunch(env: Env, networkId: string, launchId: string
   await wipe(env, launch).catch((e) => wipeFailed(launch, e))
 }
 
-// Every agent instance network `networkId` has, from the launches it lists: each launch's, then its
-// own. The one place a network's instances are listed, so its deletion wipes them all.
+// Every instance network `networkId` has, from the launches it lists: each launch's agent, then its own,
+// then its own Qloo gateway instance, last, since its agents' calls reach it until they're wiped (ADR
+// 0004). The one place a network's instances are listed, so its deletion wipes them all.
 const networkInstances = (networkId: string, launches: string[]): Instance[] => [
   ...launches.map((id) => ({ binding: LAUNCH, name: launchAgentName(networkId, id) })),
-  { binding: NETWORK, name: networkId }
+  { binding: NETWORK, name: networkId },
+  { binding: GATEWAY, name: ownGatewayName(networkId) }
 ]
 
 // Deletes network `networkId` for good, once owner `by` has typed its name: its directory rows go first,

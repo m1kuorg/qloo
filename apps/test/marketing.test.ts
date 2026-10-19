@@ -143,10 +143,20 @@ describe('the privacy page and the beta terms', () => {
     const launchGone =
       "Deleting a launch, which any of the network's members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records."
     const networkGone =
-      "Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage and each of its launches'. A wipe that fails is tried again by the next day's cleanup, which also deletes expired sessions, sign-in challenges, and invite links."
+      "Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage, each of its launches', and its Qloo storage. A wipe that fails is tried again by the next day's cleanup, which also deletes expired sessions, sign-in challenges, and invite links."
     const accountGone =
       "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it: its launches keep your name on the runs you started and the orders you approved, and its API keys and invite links you made stay, made by no one. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
     const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
+    const ownKey =
+      "A network's own Qloo key, if an owner adds one, is kept encrypted in the network's own Qloo storage, with the host it's for and its last four characters, the only part of it anyone is shown."
+    const ownKeySent =
+      'A network that adds its own Qloo key sends its requests with that key instead, to the Qloo host it chose.'
+    const keyGone =
+      "Removing a network's own Qloo key, which only an owner can do, wipes its Qloo storage at once: the key, its cached answers, and its counts."
+    const ownKeyTerms =
+      "A network's owner can add the network's own Qloo key in its settings; its Qloo calls then run on that key, under the owner's own agreement with Qloo."
+    const ownKeyLimits =
+      "A network with its own Qloo key counts its Qloo calls on that key, apart from everyone else's, against the same limits; its model runs count with everyone's."
     expect(words(await page('/privacy'))).toContain(kept)
     expect(words(await page('/privacy'))).toContain(approvals)
     expect(words(await page('/privacy'))).toContain(counts)
@@ -155,6 +165,8 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).toContain(launchGone)
     expect(words(await page('/privacy'))).toContain(networkGone)
     expect(words(await page('/privacy'))).toContain(accountGone)
+    for (const line of [ownKey, ownKeySent, keyGone]) expect(words(await page('/privacy'))).toContain(line)
+    for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).toContain(line)
     expect(words(await page('/terms'))).toContain(cap)
     expect(words(await page('/terms'))).toContain(network)
     expect(words(await page('/terms'))).toContain(perMinute)
@@ -164,6 +176,8 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).not.toContain(approvals)
     expect(words(await page('/privacy'))).not.toContain(launchGone)
     expect(words(await page('/privacy'))).not.toContain(accountGone)
+    for (const line of [ownKey, ownKeySent, keyGone]) expect(words(await page('/privacy'))).not.toContain(line)
+    for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).not.toContain(line)
     expect(words(await page('/privacy'))).toContain("each visitor's counts for the day")
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)

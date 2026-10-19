@@ -42,7 +42,8 @@
     "NETWORKS_PER_MEMBER": "3"
   },
   // VISITOR_SALT salts the hash of a visitor's IP address that keys their model run count.
-  "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT"] },
+  // QLOO_KEY_SECRET encrypts each network's own Qloo key in its gateway instance (ADR 0004).
+  "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT", "QLOO_KEY_SECRET"] },
   // The directory: members, passkeys, sessions, networks, and API keys (ADR 0001). Its migrations
   // are applied before each deploy, and by test/session.ts before each test.
   "d1_databases": [
@@ -100,7 +101,7 @@
         "SIGNUP_VISITOR_DAILY_CAP": "5",
         "NETWORKS_PER_MEMBER": "3"
       },
-      "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT"] },
+      "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT", "QLOO_KEY_SECRET"] },
       "d1_databases": [
         {
           "binding": "DB",
