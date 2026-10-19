@@ -1,12 +1,13 @@
 // Wiping agents once the directory or their network has let go of them: a launch's, when it's deleted,
 // and a network's with all of its launches' and its own Qloo gateway instance, when the network is; and
-// the daily cron's retry of a wipe that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
+// the daily cron's retry of a wipe that failed. The directory notes each wipe before it starts and
+// crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
 import { dropNetwork, networkName, noteWipe, wipeDone, wipesDue, type Instance } from './directory'
-import { launchAgentName, NETWORK_DELETED, networkLimitKey } from './network-agent'
+import { launchAgentName, NETWORK_DELETED, ownGatewayName } from './network-agent'
 
-// The bindings a wipe is noted under, and how each wipes its instance (`destroy`), saying `reason` to
-// the pages it closes, if it closes any.
+// The bindings a wipe is noted under, and how each wipes its instance (an agent's `destroy`, a gateway's
+// `wipe`), saying `reason` to the pages it closes, if it closes any.
 const LAUNCH = 'LaunchAgent'
 const NETWORK = 'NetworkAgent'
 const GATEWAY = 'QlooGateway'
@@ -35,7 +36,7 @@ export async function deleteLaunch(env: Env, networkId: string, launchId: string
 const networkInstances = (networkId: string, launches: string[]): Instance[] => [
   ...launches.map((id) => ({ binding: LAUNCH, name: launchAgentName(networkId, id) })),
   { binding: NETWORK, name: networkId },
-  { binding: GATEWAY, name: networkLimitKey(networkId) }
+  { binding: GATEWAY, name: ownGatewayName(networkId) }
 ]
 
 // Deletes network `networkId` for good, once owner `by` has typed its name: its directory rows go first,

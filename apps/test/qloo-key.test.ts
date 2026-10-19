@@ -3,7 +3,8 @@
 // the network's and its launches' Qloo calls go with that key to its host, with a cache and Qloo counts
 // of their own, while model runs still count in the global gateway. Removing it, or deleting the
 // network, wipes the instance. Each test drives the Worker's routes and the agents' client protocol,
-// and reads what Qloo was sent from the fake seam.
+// and reads what Qloo was sent from the fake seam; two read the gateway instance itself, as storage
+// tests do.
 import {
   createExecutionContext,
   createScheduledController,
@@ -109,7 +110,7 @@ describe("a network's own Qloo key", () => {
       400,
       {
         error:
-          'The key’s test search on hackathon.api.qloo.com failed: Qloo returned 401: Invalid authentication credentials. The key isn’t saved: check it, and that it’s for that host, then try again.'
+          "The key's test search on hackathon.api.qloo.com failed: Qloo returned 401: Invalid authentication credentials. The key isn't saved: check it, and that it's for that host, then try again."
       }
     ])
     expect(sent()).toEqual([[`${HACKATHON}/search`, UNKNOWN]])
@@ -167,6 +168,10 @@ describe("a network's own Qloo key", () => {
     expect(sent()).toEqual([])
 
     expect((await addKey(ada, network, PRODUCTION, OWN)).status).toBe(200)
+    expect(await refusal(await addKey(ada, network, HACKATHON, OWN))).toEqual([
+      409,
+      { error: 'The network has its own Qloo key already. Remove it, then add the new one.' }
+    ])
     expect(await refusal(await remove(grace))).toEqual([
       403,
       { error: "Only an owner can add or remove the network's Qloo key." }
@@ -287,7 +292,7 @@ describe("a network's own Qloo key", () => {
     expect((await settings(ada, own)).usage.qlooCalls.used).toBe(1)
   })
 
-  it('is kept sealed with QLOO_KEY_SECRET, so no other secret opens it', async () => {
+  it('is kept sealed with QLOO_KEY_SECRET, so no other secret opens it, and no run spends a model run on it', async () => {
     const ada = await openMember()
     const own = await created(ada)
     fakeQloo({ search, keys: [OWN] })
@@ -311,6 +316,16 @@ describe("a network's own Qloo key", () => {
       'failed',
       "The network's own Qloo key can't be read, since Crossfeed's secret for it has changed. An owner adds the key again in settings"
     ])
+    // A launch's run that couldn't call Qloo stops at once, as while Qloo is failing, spending no model run.
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const launch = await connect(ada, `/agents/launch/${own}/${id}`)
+    await launch.call('startLaunch', { name: 'Night Shift Cinema' })
+    const { run } = await launch.until((s) => s.run !== null && s.run.status !== 'running')
+    expect([run?.status, run?.error]).toEqual([
+      'failed',
+      "The network's own Qloo key can't be read, since Crossfeed's secret for it has changed. An owner adds the key again in settings, so runs on your own data wait until Qloo answers again. Only the sample launch, on the unchanged sample network, replays its stored run."
+    ])
+    expect((await settings(ada, own)).usage.modelRuns.used).toBe(0)
   })
 
   it('is wiped with its network, and by the daily cron when that wipe failed', async () => {

@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import type { CallEvidence } from './evidence'
+import { isQlooHost } from './qloo-hosts'
 import { sha256 } from './text'
 
 export type QlooEntity = {
@@ -52,10 +53,6 @@ export type Usage = {
   modelRuns: { used: number; limit: number }
   resets: string // ISO time, the next 00:00 UTC
 }
-
-// The Qloo hosts a network's own key can be for: Qloo's production API, and the hackathon's, the only
-// one a hackathon key works on (platform research).
-export const QLOO_HOSTS = ['https://api.qloo.com', 'https://hackathon.api.qloo.com']
 
 // A network's own Qloo key as its settings show it: whether it's set, and to an owner, the host it's
 // for and its last four characters. The key itself never leaves its gateway instance.
@@ -171,7 +168,7 @@ export class QlooGateway extends DurableObject<Env> {
 
   // Wipes this instance, as removing the network's own key or deleting the network does: its key, cache,
   // and counts. It resets a moment later, cutting off any request still queued or in flight, so the
-  // next call meets a new, empty instance.
+  // next call meets a new, empty instance; a call that reaches it in that moment fails.
   async wipe() {
     await this.ctx.storage.deleteAll()
     setTimeout(() => this.ctx.abort('This gateway instance was wiped.'), 0)
@@ -181,7 +178,8 @@ export class QlooGateway extends DurableObject<Env> {
   // Qloo answers, replacing any key before it; or says why Qloo refused it, keeping nothing. The search
   // counts against today's cap like any request, but among no one's calls.
   async setKey(host: string, key: string): Promise<string | null> {
-    if (!QLOO_HOSTS.includes(host)) throw new Error(`${host} isn't one of Qloo's hosts.`)
+    // The key goes nowhere but Qloo, whatever the caller checked.
+    if (!isQlooHost(host)) throw new Error(`${host} isn't one of Qloo's hosts.`)
     const url = new URL(REQUESTS.search.endpoint, host)
     url.search = String(new URLSearchParams(KEY_TEST))
     if (!this.spend()) return `${capReached(this.env.QLOO_DAILY_CALL_CAP)}, so the key can't be tested until then.`
@@ -191,7 +189,7 @@ export class QlooGateway extends DurableObject<Env> {
     )
     console.log(JSON.stringify({ event: 'qloo_key_test', status: tested.status }))
     if (!tested.ok)
-      return `The key’s test search on ${new URL(host).host} failed: ${tested.error}. The key isn’t saved: check it, and that it’s for that host, then try again.`
+      return `The key's test search on ${new URL(host).host} failed: ${tested.error}. The key isn't saved: check it, and that it's for that host, then try again.`
     this.ctx.storage.sql.exec(
       'INSERT OR REPLACE INTO own_key (id, host, sealed, last4) VALUES (1, ?, ?, ?)',
       host,
@@ -332,9 +330,12 @@ export class QlooGateway extends DurableObject<Env> {
     )
   }
 
-  // Why Qloo can't be called now, or null when it can: today's cap is reached, or the latest request
-  // sent failed after its retries in the last few minutes. Cache hits say nothing either way.
-  health(): QlooDown | null {
+  // Why Qloo can't be called now, or null when it can: this instance has no key it can send, today's
+  // cap is reached, or the latest request sent failed after its retries in the last few minutes. Cache
+  // hits say nothing either way.
+  async health(): Promise<QlooDown | null> {
+    const credentials = await this.credentials()
+    if (typeof credentials === 'string') return { capped: false, reason: credentials }
     const cap = Number(this.env.QLOO_DAILY_CALL_CAP)
     if (this.callsToday() >= cap) return { capped: true, reason: capReached(cap) }
     const [failing] = this.ctx.storage.sql

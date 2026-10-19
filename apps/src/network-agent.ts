@@ -34,9 +34,11 @@ export const launchAgentName = (networkId: string, launchId: string) => `${netwo
 // name, which is the network's ID for its own agent and `<networkId>:<launchId>` for a launch's.
 export const networkLimitKey = (name: string) => `network:${name.split(':')[0]}`
 
-// A network's own gateway instance, `network:<networkId>` (ADR 0004), from an agent's name as
-// networkLimitKey reads it: where the network's own Qloo key, its cache, and its Qloo counts live.
-export const ownGateway = (env: Env, name: string) => env.QlooGateway.getByName(networkLimitKey(name))
+// The name of a network's own gateway instance (ADR 0004), from an agent's name as networkLimitKey reads
+// it: `network:<networkId>`, the same as the key its limits count under. And the instance, where the
+// network's own Qloo key, its cache, and its Qloo counts live.
+export const ownGatewayName = networkLimitKey
+export const ownGateway = (env: Env, name: string) => env.QlooGateway.getByName(ownGatewayName(name))
 
 // The gateway a network's Qloo calls go through, and its launches': its own instance while it has a key
 // of its own, else the global one, as every other network's and the demo's do.
@@ -139,9 +141,9 @@ export class NetworkAgent extends CrossfeedAgent {
         )
     }
     empty()
-    await this.reserveCalls(this.limitKey(), sampleRoster.length)
+    const gateway = await this.reserveCalls(this.limitKey(), sampleRoster.length)
     empty() // again, since an import may have started meanwhile
-    this.lookUpRoster(sampleRoster, { sample: { ...sample, cpm: false } })
+    this.lookUpRoster(sampleRoster, { sample: { ...sample, cpm: false } }, gateway)
   }
 
   // Plans a new launch, named or from up to three comps: its own agent takes it, then it joins the

@@ -47,7 +47,7 @@ export function Settings({
   qlooKey: loadedKey
 }: { state: State | undefined; network: NetworkPage } & MembersProps) {
   // Adding or removing the Qloo key moves where the network's Qloo calls count, so usage follows it.
-  const [{ key: qlooKey, usage }, setKey] = useState({ key: loadedKey, usage: loaded })
+  const [{ key: qlooKey, usage }, setKeyAndUsage] = useState({ key: loadedKey, usage: loaded })
   return (
     <>
       <header className="hd">
@@ -57,8 +57,8 @@ export function Settings({
         <NetworkModule network={network} cpm={state ? state.cpm : undefined} />
         <MembersModule network={network} memberId={memberId} members={members} invites={invites} />
         <ApiKeysModule network={network} keys={apiKeys} />
-        <QlooKeyModule network={network} qlooKey={qlooKey} onChange={setKey} />
-        <UsageModule network={network} usage={usage} ownKey={qlooKey.set} />
+        <QlooKeyModule network={network} qlooKey={qlooKey} onChange={setKeyAndUsage} />
+        <UsageModule network={network} usage={usage} hasOwnKey={qlooKey.set} />
         <DangerZoneModule network={network} />
       </main>
     </>

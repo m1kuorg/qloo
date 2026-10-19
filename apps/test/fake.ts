@@ -4,7 +4,7 @@
 import { setupNetwork } from '@msw/cloudflare'
 import { env } from 'cloudflare:workers'
 import { delay, http, HttpResponse } from 'msw'
-import { QLOO_HOSTS } from '../src/gateway'
+import { QLOO_HOSTS } from '../src/qloo-hosts'
 
 export const network = setupNetwork()
 
@@ -22,7 +22,7 @@ export const requests: RecordedRequest[] = []
 
 // Every host the gateway sends Qloo requests to: Crossfeed's own key's, and each a network's own key may
 // be for, so the Qloo fakes serve them all and record which one a request went to.
-const qlooHosts = () => [env.QLOO_BASE_URL, ...QLOO_HOSTS]
+const qlooHosts = () => [env.QLOO_BASE_URL, ...QLOO_HOSTS.map((h) => h.url)]
 
 // Each request Qloo got, as Qloo reads it: its path, every decoded parameter, and its body, lowercased,
 // to check what never reaches Qloo, such as a guest's name.

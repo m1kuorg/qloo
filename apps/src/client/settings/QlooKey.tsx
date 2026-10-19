@@ -1,20 +1,15 @@
 import { useState } from 'react'
 import type { OwnKey, Usage } from '../../gateway'
+import { QLOO_HOSTS } from '../../qloo-hosts'
 import { Alert, send, useAction } from '../controls'
 import type { NetworkPage } from '../Dashboard'
 import { StateLine } from '../states'
-
-// The hosts an owner can choose, as the gateway takes them (QLOO_HOSTS), with what each is for.
-const HOSTS = [
-  { host: 'https://api.qloo.com', name: 'Qloo’s production API', note: '' },
-  { host: 'https://hackathon.api.qloo.com', name: 'Qloo’s hackathon API', note: ', where hackathon keys work' }
-]
 
 const hostName = (host: string | undefined) => (host ? new URL(host).host : '')
 
 // What saving or removing the key answers: the key as the settings show it, and today's usage, now
 // read where the network's Qloo calls count.
-export type KeyChange = { key: OwnKey; usage: Usage }
+type KeyChange = { key: OwnKey; usage: Usage }
 
 // The settings' Qloo key module: the network's own Qloo key (ADR 0004). An owner picks the host it's
 // for and pastes it; the gateway tests it with one search before it keeps it, and from then on it shows
@@ -95,13 +90,13 @@ function AddKey({ network, onChange }: { network: NetworkPage; onChange: (change
       <fieldset disabled={busy}>
         <legend>Host</legend>
         <div className="opts">
-          {HOSTS.map((h) => (
-            <label key={h.host}>
-              <input type="radio" name="qloo-host" checked={host === h.host} onChange={() => setHost(h.host)} />
+          {QLOO_HOSTS.map((h) => (
+            <label key={h.url}>
+              <input type="radio" name="qloo-host" checked={host === h.url} onChange={() => setHost(h.url)} />
               <span>
                 {h.name}
                 <span className="tg opt-desc">
-                  {hostName(h.host)}
+                  {hostName(h.url)}
                   {h.note}
                 </span>
               </span>
