@@ -11,7 +11,6 @@ import {
   createApiKey,
   createInvite,
   createNetwork,
-  deleteMember,
   lastNetwork,
   memberNetworks,
   memberPasskeys,
@@ -35,13 +34,20 @@ import {
   type Network
 } from '../directory'
 import { globalGateway } from '../gateway'
-import { launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER, networkLimitKey, ownGateway } from '../network-agent'
+import {
+  kickMember,
+  launchAgentName,
+  MEMBER_HEADER,
+  MEMBER_NAME_HEADER,
+  networkLimitKey,
+  ownGateway
+} from '../network-agent'
 import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
 import { isQlooHost } from '../qloo-hosts'
 import { appShell, networkLinks, type AppVariables } from '../shell'
 import { listOf, readName } from '../text'
-import { deleteLaunch, deleteNetwork } from '../wipe'
+import { deleteAccount, deleteLaunch, deleteNetwork } from '../wipe'
 
 type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
 
@@ -143,18 +149,24 @@ appPages.post('/app/account/sign-out-everywhere', async (c) => {
   endSession(c)
   const networks = await memberNetworks(c.env.DB, id)
   await Promise.all(
-    networks.map((n) => kick(c.env, n.id, id, 'You signed out everywhere. Sign in again to keep working.'))
+    networks.map((n) => kickMember(c.env, n.id, id, 'You signed out everywhere. Sign in again to keep working.'))
   )
   return c.json({})
 })
 
 // Deletes the member's account: them, their passkeys, sessions, and memberships, unless they're any
 // network's only owner, which would leave it with no one to run it. What they made in each network
-// stays with it. Their open pages close.
+// stays with it, but each launch forgets their name (wipe.ts). Their open pages close.
 appPages.post('/app/account/delete', async (c) => {
   const { id } = c.var.member
   const networks = await accountNetworks(c.env.DB, id)
-  if (!(await deleteMember(c.env.DB, id))) {
+  if (
+    !(await deleteAccount(
+      c.env,
+      id,
+      networks.map((n) => n.id)
+    ))
+  ) {
     const only = networks.filter((n) => n.onlyOwner).map((n) => n.name)
     return c.json(
       {
@@ -166,7 +178,6 @@ appPages.post('/app/account/delete', async (c) => {
     )
   }
   endSession(c)
-  await Promise.all(networks.map((n) => kick(c.env, n.id, id, 'Your account was deleted.')))
   return c.json({})
 })
 
@@ -369,7 +380,7 @@ appPages.post('/app/:networkId/settings/members/:memberId/remove', async (c) => 
   const memberId = c.req.param('memberId')
   if (!(await memberRole(c.env.DB, id, memberId))) return c.notFound()
   if (!(await removeMember(c.env.DB, id, memberId, c.var.member.id))) return refuseLastOwner(c)
-  await kick(c.env, id, memberId)
+  await kickMember(c.env, id, memberId)
   return c.json({ members: await networkMembers(c.env.DB, id) })
 })
 
@@ -379,7 +390,7 @@ appPages.post('/app/:networkId/settings/members/leave', async (c) => {
   if (!(await memberRole(c.env.DB, id, c.var.member.id))) return c.notFound()
   if (!(await removeMember(c.env.DB, id, c.var.member.id, c.var.member.id)))
     return c.json({ error: "You're this network's last owner. Make someone else an owner before you leave." }, 409)
-  await kick(c.env, id, c.var.member.id)
+  await kickMember(c.env, id, c.var.member.id)
   return c.json({})
 })
 
@@ -469,11 +480,6 @@ appPages.post('/app/:networkId/settings/delete', async (c) => {
   if (!(await deleteNetwork(c.env, id, c.var.member.id))) return c.json({ error: ownersOnly }, 403)
   return c.json({})
 })
-
-// Closes a member's open connections to the network's agent and its launches', once the directory
-// has let them go, saying `reason` if it isn't that they left the network.
-const kick = async (env: Env, networkId: string, memberId: string, reason?: string) =>
-  (await getAgentByName(env.NetworkAgent, networkId)).kick(memberId, reason)
 
 // What every network page tells the island: where the network's agent connects, the network and the
 // member's role in it, and where its pages are.
