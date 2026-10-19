@@ -20,6 +20,7 @@ export type NetworkPage = {
 // The network's agent, at the path the server gives, which checks the member's session and membership.
 export const useNetwork = (path: string) =>
   useAgent<NetworkAgent, State>({ agent: 'NetworkAgent', basePath: path.replace(/^\//, '') })
+export type NetworkConnection = ReturnType<typeof useNetwork>
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
 // invited or has joined, and whether an API key was ever created.

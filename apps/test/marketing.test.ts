@@ -129,11 +129,18 @@ describe('the privacy page and the beta terms', () => {
   it('say what an account keeps and how many networks a member can create, only while accounts are on', async () => {
     env.NETWORKS_PER_MEMBER = '2'
     const kept = 'With an account: your name'
+    const counts = "each visitor's and each network's counts for the day"
     const cap = 'A member can create at most 2 networks.'
+    const network =
+      "A network counts as one visitor of its own, whichever of its members makes the network's calls and runs."
     expect(words(await page('/privacy'))).toContain(kept)
+    expect(words(await page('/privacy'))).toContain(counts)
     expect(words(await page('/terms'))).toContain(cap)
+    expect(words(await page('/terms'))).toContain(network)
     env.ACCOUNTS = 'off'
     expect(words(await page('/privacy'))).not.toContain(kept)
+    expect(words(await page('/privacy'))).toContain("each visitor's counts for the day")
     expect(words(await page('/terms'))).not.toContain(cap)
+    expect(words(await page('/terms'))).not.toContain(network)
   })
 })

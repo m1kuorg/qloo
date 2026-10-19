@@ -3,6 +3,7 @@ import type { Role } from '../directory'
 import { InvitePage, NewNetworkPage, SignInPage, wireSignOut } from './Account'
 import { App } from './App'
 import { DashboardPage } from './Dashboard'
+import { RosterPage } from './Roster'
 import { SettingsPage } from './Settings'
 
 const root = document.getElementById('root')!
@@ -28,6 +29,8 @@ createRoot(root).render(
       memberId={d.memberId!}
       setup={{ invited: d.invited === 'true', apiKey: d.apiKey === 'true' }}
     />
+  ) : d.page === 'network-roster' ? (
+    <RosterPage agentPath={d.agentPath!} network={network()} />
   ) : d.page === 'settings' ? (
     <SettingsPage
       agentPath={d.agentPath!}

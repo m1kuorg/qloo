@@ -194,6 +194,51 @@ textarea {
   margin: -4px 0 16px;
 }
 
+/* A network's roster page has no section heading above the notice, so it starts where the import
+   form's label would. */
+.net-roster .sample-notice {
+  margin-top: 6px;
+}
+
+/* A file dragged over a page that takes it: the window ruled in ink, as keyboard focus is, and a line
+   along its foot saying what a drop imports. While an import runs, the line alone says to wait. */
+.drop-cue {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  border: 2px solid var(--ink);
+}
+
+.drop-cue[data-busy] {
+  border: 0;
+}
+
+.drop-cue p {
+  flex: 1;
+  background: #fff;
+  border-top: 1px solid var(--ink);
+  padding: 12px 30px;
+  font-weight: 600;
+}
+
+/* Without the frame, the line keeps to the page's gutters. */
+.drop-cue[data-busy] p {
+  padding: 12px 32px;
+}
+
+@media (max-width: 600px) {
+  .drop-cue p {
+    padding: 12px 14px;
+  }
+
+  .drop-cue[data-busy] p {
+    padding: 12px 16px;
+  }
+}
+
 /* Top bar: the one filled black region besides primary buttons. */
 .top {
   height: 48px;
@@ -3012,7 +3057,8 @@ a.wm {
 }
 
 @media (min-width: 961px) {
-  .dash .rail {
+  .dash .rail,
+  .net-roster .rail {
     grid-row: 1 / span 2;
   }
 }

@@ -21,7 +21,7 @@ import {
 import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
 import { cpmProblem, dollars, lineProblem, priceLines, toCsv, type InsertionOrder, type LineInput } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
-import { parseRoster, type RosterFormat, type RosterRow } from './roster'
+import { parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
 import { listOf } from './text'
 import { tools, type ToolContext, type ToolResult } from './tools'
@@ -66,6 +66,15 @@ export type ShowPatch = {
   excluded?: boolean
 }
 const PATCH_KEYS = ['entityId', 'compId', 'downloads', 'status', 'excluded']
+
+// A show waiting on its search, citing the call it waits on.
+const pendingShow = (evidence: string): Pick<Show, 'resolution' | 'entity' | 'candidates' | 'evidence' | 'error'> => ({
+  resolution: 'pending',
+  entity: null,
+  candidates: [],
+  evidence,
+  error: null
+})
 
 // One Qloo comparison ranks at most 50 candidates, and scores from separate calls aren't comparable.
 const MAX_SHOWS = 50
@@ -230,6 +239,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // Whether a new instance opens on the sample network, as a demo session does.
   protected opensOnSample = true
 
+  // Whether a roster import keeps the shows already on the roster as they were settled, as a signed-in
+  // network's does, rather than looking every show up again, as a demo session's does.
+  protected keepsSettledShows = false
+
   // Whether a launch is asking the gateway if it may start (see admit).
   private starting = false
 
@@ -285,7 +298,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     // A new session opens on the sample network, looked up like an import, so its calls count among the
     // visitor's; past their limit, it opens empty. Tests turn this off.
     if (firstStart && this.opensOnSample && this.env.SAMPLE_NETWORK === 'on') {
-      const visitor = props?.visitor ?? `session:${this.name}`
+      const visitor = this.limitKey(props?.visitor)
       const refused = await this.env.QlooGateway.getByName('global')
         .reserveCalls(visitor, sampleRoster.length)
         // A gateway that can't count doesn't keep the sample from opening; its lookups say why they fail.
@@ -302,11 +315,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // Replaces the roster with pasted show names, one per line, or a CSV with a `name` column and
   // optional `downloads`, `status`, and `description` columns. Each show is resolved through Qloo.
   // It returns once every show is pending, and each show fills in as its search settles: one search
-  // can take a minute when Qloo hangs, past the client's 30-second call timeout.
+  // can take a minute when Qloo hangs, past the client's 30-second call timeout. Where the agent keeps
+  // settled shows, a show already on the roster stays as it is but for the figures the import brings,
+  // and only new shows, and those whose lookup failed, are looked up.
   @callable()
   async importRoster(text: string, format: RosterFormat = 'lines') {
     const visitor = this.visitor()
-    const rows = parseRoster(text, format)
+    const { rows, figures } = parseRoster(text, format)
     if (rows.length === 0)
       throw new Error(format === 'csv' ? 'The CSV has no show rows.' : 'Paste at least one show name, one per line.')
     if (rows.length > MAX_SHOWS)
@@ -318,9 +333,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
         throw new Error('The last import is still looking up its shows. Wait for it to finish.')
     }
     pending()
-    await this.reserveCalls(visitor, rows.length)
+    const keep = this.keepsSettledShows ? figures : null
+    await this.reserveCalls(visitor, rows.filter((r) => this.toLookUp(r.name, keep)).length)
     pending() // again, since another import may have started meanwhile
-    this.lookUpRoster(rows, this.leaveSample())
+    this.lookUpRoster(rows, this.leaveSample(), keep)
   }
 
   // Empties a roster that is still the sample network, ready for the visitor's own import.
@@ -737,24 +753,45 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Replaces the roster with these rows, each pending on its search, together with any other state
-  // that changes with it, and returns; each row fills in as its search settles.
-  private lookUpRoster(rows: (RosterRow & Pick<Show, 'sample'>)[], alongside: Partial<State>) {
+  // that changes with it, and returns; each row fills in as its search settles. With `keep`, a show
+  // already on the roster keeps its name, match, candidates, comp search, exclusion, and every figure
+  // but those in `keep`, which the rows bring, and only a lookup that failed is made again.
+  protected lookUpRoster(
+    rows: (RosterRow & Pick<Show, 'sample'>)[],
+    alongside: Partial<State>,
+    keep: RosterFigure[] | null = null
+  ) {
     // Numbered now, in roster order, so a pending show cites the call it waits on.
-    const calls = rows.map(() => this.numberCall())
-    const roster = rows.map(({ name, ...fields }, i): Show => ({
-      name,
-      resolution: 'pending',
-      entity: null,
-      candidates: [],
-      evidence: callNumber(calls[i]),
-      error: null,
-      compSearch: null,
-      ...fields,
-      excluded: false
-    }))
-    this.setState({ ...this.state, ...alongside, roster })
+    const calls = rows.map(({ name }) => (this.toLookUp(name, keep) ? this.numberCall() : null))
+    const roster = rows.map(({ name, ...fields }, i): Show => {
+      const seq = calls[i]
+      const looking = seq === null ? null : pendingShow(callNumber(seq))
+      const kept = keep && this.onRoster(name)
+      if (!kept) return { name, ...looking!, compSearch: null, ...fields, excluded: false }
+      const brought = Object.fromEntries(keep.map((f) => [f, fields[f]]))
+      // A sample figure the import brings is the network's own from then on.
+      const sample = kept.sample && { sample: kept.sample.filter((f) => !keep.includes(f)) }
+      return { ...kept, ...brought, ...sample, ...looking }
+    })
+    // While a kept show still holds a sample figure, the notice naming the sample's network stays too.
+    const stillSample = keep && roster.some((s) => s.sample?.length) ? { sample: this.state.sample } : {}
+    this.setState({ ...this.state, ...alongside, ...stillSample, roster })
     // All at once: the gateway paces, limits, and retries the calls.
-    void this.keepAliveWhile(() => Promise.all(rows.map(({ name }, i) => this.lookUpShow(name, calls[i]))))
+    void this.keepAliveWhile(() =>
+      Promise.all(roster.flatMap((show, i) => (calls[i] === null ? [] : [this.lookUpShow(show.name, calls[i])])))
+    )
+  }
+
+  // The show already on the roster by this name, ignoring case, as an import reads names.
+  private onRoster(name: string) {
+    return this.state.roster.find((s) => s.name.toLowerCase() === name.toLowerCase())
+  }
+
+  // Whether an import looks this show up: every show, unless it keeps settled shows (`keep`), when
+  // only a show new to the roster, or one whose lookup failed, is.
+  private toLookUp(name: string, keep: RosterFigure[] | null) {
+    const kept = keep && this.onRoster(name)
+    return !kept || kept.resolution === 'failed'
   }
 
   // What leaving the sample network changes besides the roster: its CPM goes too, unless the visitor
@@ -844,7 +881,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 
   // Counts `n` Qloo calls against the visitor's calls for the day before they're made, or refuses them
   // with the reason, before anything is numbered or kept (TRD agent limits).
-  private async reserveCalls(visitor: string, n: number) {
+  protected async reserveCalls(visitor: string, n: number) {
     const refused = await this.env.QlooGateway.getByName('global').reserveCalls(visitor, n)
     if (refused) throw new Error(`${refused}.`)
   }
@@ -854,15 +891,22 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return (await this.env.QlooGateway.getByName('global').startModelRun(visitor)).refused
   }
 
-  // The visitor whose call this is, by their connection's tag, so one visitor's model runs count
-  // together across sessions. Without an address, as in local tests, the session stands in. Read it
-  // before the call's first await.
-  // It's kept for the session's background work, such as a run's Qloo calls, which may outlive the
-  // connection that started it.
+  // Who this call counts against (see limitKey), noting the visitor by their connection's tag first,
+  // so one visitor's model runs count together across sessions. Read it before the call's first await.
   private visitor() {
     const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith('visitor:'))
     if (tag) this.lastVisitor = tag
-    return this.lastVisitor ?? `session:${this.name}`
+    return this.limitKey()
+  }
+
+  // Who every Qloo call and model run of this agent counts against, for the per-visitor limits (TRD
+  // agent limits). A demo session counts the visitor of the latest call on any of its connections,
+  // kept for its background work, such as a run's Qloo calls, which may outlive the connection that
+  // started it; before any call, `started`, the visitor the Worker passed as the session started.
+  // Without an address, as in local tests, the session stands in. A signed-in network's agents count
+  // the network instead (network-agent.ts).
+  protected limitKey(started: string | null = null) {
+    return this.lastVisitor ?? started ?? `session:${this.name}`
   }
 
   // Tags a connection with the visitor (visitor.ts). It runs before the connection is accepted, so
@@ -1318,7 +1362,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     seq = this.numberCall(),
     reserved = false
   ): Promise<{ call: string; result: QlooResult<T> }> {
-    const visitor = this.lastVisitor ?? `session:${this.name}`
+    const visitor = this.limitKey()
     const call = callNumber(seq)
     const settled = this.watch(call, run)
     const started = Date.now()
