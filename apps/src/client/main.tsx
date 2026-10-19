@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import type { Role } from '../directory'
 import { InvitePage, NewNetworkPage, SignInPage, wireSignOut } from './Account'
+import { AccountPage } from './AccountPage'
 import { App } from './App'
 import { DashboardPage } from './Dashboard'
 import { LaunchPage } from './Launch'
@@ -22,6 +23,14 @@ createRoot(root).render(
     <SignInPage next={d.next!} />
   ) : d.page === 'invite' ? (
     <InvitePage memberName={d.memberName ?? null} />
+  ) : d.page === 'account' ? (
+    <AccountPage
+      name={d.memberName!}
+      passkeys={JSON.parse(d.passkeys!)}
+      sessions={Number(d.sessions)}
+      networks={JSON.parse(d.networks!)}
+      recovered={d.recovered === 'true'}
+    />
   ) : d.page === 'new-network' ? (
     <NewNetworkPage cap={Number(d.cap)} />
   ) : d.page === 'dashboard' ? (
@@ -45,6 +54,7 @@ createRoot(root).render(
       members={JSON.parse(d.members!)}
       invites={d.invites ? JSON.parse(d.invites) : null}
       apiKeys={d.apiKeys ? JSON.parse(d.apiKeys) : null}
+      usage={JSON.parse(d.usage!)}
     />
   ) : (
     <App page={d.page} agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />

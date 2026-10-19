@@ -1028,12 +1028,11 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Closes every open connection of member `memberId`, tagged `member:<id>` by a network's or a
-  // launch's agent, as when they're removed from the network or leave it. The Worker calls it over RPC
-  // once the directory has let them go, and no page can. 4403 is a close code the client takes as
-  // final, so the page stops reconnecting and says why.
-  kick(memberId: string) {
-    for (const connection of this.getConnections(`${MEMBER_TAG}${memberId}`))
-      connection.close(4403, "You're no longer a member of this network.")
+  // launch's agent, as when they're removed from the network or leave it, saying `reason`. The Worker
+  // calls it over RPC once the directory has let them go, and no page can. 4403 is a close code the
+  // client takes as final, so the page stops reconnecting and says why.
+  kick(memberId: string, reason = "You're no longer a member of this network.") {
+    for (const connection of this.getConnections(`${MEMBER_TAG}${memberId}`)) connection.close(4403, reason)
   }
 
   // Refuses while a run is in progress or starting: one run at a time per session.

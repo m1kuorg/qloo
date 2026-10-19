@@ -11,7 +11,7 @@ import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
 import { api, openMember, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
-const saved = { GUEST_PITCHES: env.GUEST_PITCHES }
+const saved = { GUEST_PITCHES: env.GUEST_PITCHES, QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP }
 afterEach(() => {
   vi.useRealTimers()
   open.splice(0).forEach((agent) => agent.close())
@@ -54,6 +54,7 @@ async function island(member: Member, path: string) {
     members: d.members ? JSON.parse(d.members) : [],
     invites: d.invites ? JSON.parse(d.invites) : null,
     apiKeys: d.apiKeys ? JSON.parse(d.apiKeys) : null,
+    usage: d.usage ? JSON.parse(d.usage) : null,
     setup: { invited: d.invited === 'true', apiKey: d.apiKey === 'true' },
     network: {
       id: d.networkId,
@@ -195,7 +196,7 @@ describe('the dashboard', () => {
 
 describe('settings', () => {
   const settings = async (member: Member, id: string, state: State | undefined) => {
-    const { network, memberId, members, invites, apiKeys } = await island(member, `/app/${id}/settings`)
+    const { network, memberId, members, invites, apiKeys, usage } = await island(member, `/app/${id}/settings`)
     return renderToStaticMarkup(
       <Settings
         state={state}
@@ -204,6 +205,7 @@ describe('settings', () => {
         members={members}
         invites={invites}
         apiKeys={apiKeys}
+        usage={usage}
       />
     )
   }
@@ -308,5 +310,43 @@ describe('settings', () => {
     expect(read).toContain('Only an owner can create and revoke API keys.')
     expect(read).not.toContain('Nightly sync')
     expect(read).not.toContain('Create API key')
+  })
+
+  it("show every member today's usage against the network's caps, and when they reset", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    fakeQloo({ search: { 'Corner Booth': [{ entity_id: 'e-0501', name: 'Corner Booth', popularity: 0.6 }] } })
+    await agent.importRoster('Corner Booth')
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+
+    for (const member of [ada, grace]) {
+      const read = words(await settings(member, id, agent.state()))
+      expect(read).toContain(
+        'Usage Beta What Night Shift Audio can use each UTC day, whichever member or API key uses it.'
+      )
+      expect(read).toContain('Model runs 0 of 10 today Qloo calls 1 of 2,000 today Resets 00:00 UTC, in 9 h 30 min')
+    }
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '1'
+    expect(words(await settings(ada, id, agent.state()))).toContain(
+      'Qloo calls 1 of 1 today Resets 00:00 UTC, in 9 h 30 min Limit reached No more Qloo calls today: roster imports and comp searches are refused until 00:00 UTC.'
+    )
+  })
+
+  it('give an owner the danger zone, to delete the network once they type its name, and a member none of it', async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const html = await settings(ada, id, agent.state())
+    const read = words(html)
+    expect(read).toContain('Danger zone Deleting Night Shift Audio wipes its roster')
+    expect(read).toContain('Type Night Shift Audio to delete it Delete network')
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Delete network<\/button>/)
+
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+    const theirs = words(await settings(grace, id, await (await connect(grace, id)).until(() => true)))
+    expect(theirs).toContain('Danger zone')
+    expect(theirs).toContain('Only an owner can delete the network.')
+    expect(theirs).not.toContain('Delete network')
   })
 })

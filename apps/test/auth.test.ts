@@ -32,7 +32,7 @@ async function signIn(authenticator: Authenticator) {
 const appFor = async (cookie: string) => {
   const page = await get('/app/new', { headers: { Cookie: cookie }, redirect: 'manual' })
   return page.status === 200
-    ? (await page.text()).match(/Account: <\/span><span class="acct-name">([^<]*)</)?.[1]
+    ? (await page.text()).match(/Account: <\/span><span class="acct-name"[^>]*>([^<]*)</)?.[1]
     : `${page.status} ${page.headers.get('location')}`
 }
 
@@ -391,7 +391,7 @@ describe('headers', () => {
 })
 
 describe('the daily cron', () => {
-  it('purges expired sessions and challenges from the directory', async () => {
+  it('purges expired sessions and challenges from the directory, and logs how many', async () => {
     // The cron's health check searches Qloo too.
     fakeQloo({ search: { 'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }] } })
     await openMember({ name: 'Gone Away' })
@@ -400,6 +400,7 @@ describe('the daily cron', () => {
     vi.setSystemTime(Date.now() + 30 * 24 * 60 * 60_000 + 1)
     const kept = await openMember({ name: 'Still Here' })
     await post('/auth/sign-in/options', {})
+    const logged = vi.spyOn(console, 'log')
 
     const handler: ExportedHandler<Env> = worker
     const ctx = createExecutionContext()
@@ -411,5 +412,8 @@ describe('the daily cron', () => {
     expect(await count('sessions')).toBe(1)
     expect(await count('challenges')).toBe(1)
     expect(await appFor(kept.cookie)).toBe('Still Here')
+    expect(logged).toHaveBeenCalledWith(
+      JSON.stringify({ event: 'directory_purged', sessions: 1, challenges: 1, invites: 0 })
+    )
   })
 })

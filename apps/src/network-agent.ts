@@ -33,6 +33,9 @@ export const launchAgentName = (networkId: string, launchId: string) => `${netwo
 // name, which is the network's ID for its own agent and `<networkId>:<launchId>` for a launch's.
 export const networkLimitKey = (name: string) => `network:${name.split(':')[0]}`
 
+// What a deleted network's open pages, and its launches', say as they close.
+export const NETWORK_DELETED = 'This network was deleted.'
+
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."
 const NO_GUIDE = "A network has no guide: it's the sample network's, at /demo."
@@ -89,12 +92,20 @@ export class NetworkAgent extends CrossfeedAgent {
     )
   }
 
+  // Lets go of the network as its deletion wipes it, once the directory has (wipe.ts): its open pages
+  // close for good, saying why, so none plans another launch, and it returns the launches it lists, to
+  // be wiped with it. Over RPC only.
+  letGo() {
+    for (const connection of this.getConnections()) connection.close(4410, NETWORK_DELETED)
+    return (this.state.launches ?? []).map((l) => l.id)
+  }
+
   // Closes the member's connections to the network's agent and to each of its launches'.
-  async kick(memberId: string) {
-    super.kick(memberId)
+  async kick(memberId: string, reason?: string) {
+    super.kick(memberId, reason)
     await Promise.all(
       (this.state.launches ?? []).map(async ({ id }) =>
-        (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).kick(memberId)
+        (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).kick(memberId, reason)
       )
     )
   }
