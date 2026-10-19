@@ -3,7 +3,7 @@
 // that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
 import { dropNetwork, networkName, noteWipe, wipeDone, wipesDue, type Instance } from './directory'
-import { launchAgentName } from './network-agent'
+import { launchAgentName, NETWORK_DELETED } from './network-agent'
 
 // The bindings a wipe is noted under, and how each wipes its instance (`destroy`), saying `reason` to
 // the pages it closes, if it closes any.
@@ -11,7 +11,7 @@ const LAUNCH = 'LaunchAgent'
 const NETWORK = 'NetworkAgent'
 const WIPERS: Record<string, (env: Env, name: string, reason?: string) => Promise<void>> = {
   [LAUNCH]: async (env, name, reason) => (await getAgentByName(env.LaunchAgent, name)).destroy(reason),
-  [NETWORK]: async (env, name, reason) => (await getAgentByName(env.NetworkAgent, name)).destroy(reason)
+  [NETWORK]: async (env, name) => (await getAgentByName(env.NetworkAgent, name)).destroy()
 }
 
 // A wipe the cron retries only once it's this old, so it never races a deletion still under way.
@@ -27,26 +27,32 @@ export async function deleteLaunch(env: Env, networkId: string, launchId: string
   await wipe(env, launch).catch((e) => wipeFailed(launch, e))
 }
 
-// Every agent instance network `networkId` has: each of its launches', then its own. The one place a
-// network's instances are listed, so its deletion wipes them all.
-async function networkInstances(env: Env, networkId: string): Promise<Instance[]> {
-  const { launches } = await (await getAgentByName(env.NetworkAgent, networkId)).state
-  return [
-    ...(launches ?? []).map(({ id }) => ({ binding: LAUNCH, name: launchAgentName(networkId, id) })),
-    { binding: NETWORK, name: networkId }
-  ]
-}
+// Every agent instance network `networkId` has, from the launches it lists: each launch's, then its
+// own. The one place a network's instances are listed, so its deletion wipes them all.
+const networkInstances = (networkId: string, launches: string[]): Instance[] => [
+  ...launches.map((id) => ({ binding: LAUNCH, name: launchAgentName(networkId, id) })),
+  { binding: NETWORK, name: networkId }
+]
 
 // Deletes network `networkId` for good, once owner `by` has typed its name: its directory rows go first,
 // with a wipe noted for each of its instances in the same batch, so its pages, agents, and API answer
-// 404 from then on; then each instance is wiped, closing its open pages, its launches' before its own.
-// A wipe that fails is logged and left for the cron. False when `by` isn't one of its owners, and
-// nothing changed.
+// 404 from then on. Then its agent lets go, closing its open pages, and any launch planned on one since
+// its list was read is noted too; then each instance is wiped, its launches' before its own, closing
+// their pages. A wipe that fails is logged and left for the cron. False when `by` isn't one of its
+// owners, and nothing changed.
 export async function deleteNetwork(env: Env, networkId: string, by: string) {
-  const instances = await networkInstances(env, networkId)
+  const agent = await getAgentByName(env.NetworkAgent, networkId)
+  const instances = networkInstances(
+    networkId,
+    ((await agent.state).launches ?? []).map((l) => l.id)
+  )
   if (!(await dropNetwork(env.DB, networkId, by, instances))) return false
-  for (const instance of instances)
-    await wipe(env, instance, 'This network was deleted.').catch((e) => wipeFailed(instance, e))
+  for (const late of networkInstances(networkId, await agent.letGo()))
+    if (!instances.some((i) => i.name === late.name)) {
+      await noteWipe(env.DB, late.binding, late.name)
+      instances.unshift(late)
+    }
+  for (const instance of instances) await wipe(env, instance, NETWORK_DELETED).catch((e) => wipeFailed(instance, e))
   return true
 }
 

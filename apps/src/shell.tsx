@@ -195,14 +195,16 @@ export const appShell = jsxRenderer(({ children }, c) => {
             <details class="menu acct-menu">
               <summary>
                 <span class="vh">Account: </span>
-                <span class="acct-name">{member.name}</span>
+                <span class="acct-name" data-signed-in>
+                  {member.name}
+                </span>
                 <span class="acct-short" aria-hidden="true">
                   Account
                 </span>
               </summary>
               <div class="menu-panel">
                 <p>
-                  Signed in as <b>{member.name}</b>
+                  Signed in as <b data-signed-in>{member.name}</b>
                 </p>
                 <a
                   class="menu-acct"

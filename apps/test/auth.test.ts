@@ -32,7 +32,7 @@ async function signIn(authenticator: Authenticator) {
 const appFor = async (cookie: string) => {
   const page = await get('/app/new', { headers: { Cookie: cookie }, redirect: 'manual' })
   return page.status === 200
-    ? (await page.text()).match(/Account: <\/span><span class="acct-name">([^<]*)</)?.[1]
+    ? (await page.text()).match(/Account: <\/span><span class="acct-name"[^>]*>([^<]*)</)?.[1]
     : `${page.status} ${page.headers.get('location')}`
 }
 

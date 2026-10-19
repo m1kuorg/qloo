@@ -129,7 +129,7 @@ describe('invite links', () => {
     expect(grace.network).toBe(network)
     const settings = await (await grace.fetch(`/app/${network}/settings`)).text()
     expect(settings).toContain('data-role="member"')
-    expect(settings).toContain('<span class="acct-name">Grace Booker</span>')
+    expect(settings).toMatch(/<span class="acct-name"[^>]*>Grace Booker<\/span>/)
   })
 
   it("don't count a sign-up through one against the visitor's sign-up cap, and let one through past it", async () => {

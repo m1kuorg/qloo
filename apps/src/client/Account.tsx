@@ -26,7 +26,8 @@ export const prompted = async <T,>(prompt: () => Promise<T>, closed: string, alr
   }
 }
 
-type Ceremony = { challenge: string; options: never }
+// A passkey ceremony's first answer: its challenge's ID, and the options for the browser.
+export type Ceremony = { challenge: string; options: never }
 
 export function SignInPage({ next }: { next: string }) {
   // A recovery code to show once, after a sign-up or a recovery, until the member says they've saved

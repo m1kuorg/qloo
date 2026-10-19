@@ -153,10 +153,12 @@ appPages.post('/app/account/delete', async (c) => {
   const { id } = c.var.member
   const networks = await accountNetworks(c.env.DB, id)
   if (!(await deleteMember(c.env.DB, id))) {
-    const only = (await accountNetworks(c.env.DB, id)).filter((n) => n.onlyOwner).map((n) => n.name)
+    const only = networks.filter((n) => n.onlyOwner).map((n) => n.name)
     return c.json(
       {
-        error: `You're the only owner of ${listOf(only)}. Make someone else an owner, or delete the network, before you delete your account.`
+        error: only.length
+          ? `You're the only owner of ${listOf(only)}. Make someone else an owner, or delete the network, before you delete your account.`
+          : 'Your networks changed while your account was being deleted. Reload, and try again.'
       },
       409
     )

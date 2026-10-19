@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccountPage } from '../src/client/AccountPage'
 import { softwareAuthenticator } from './authenticator'
-import { openMember, type Member } from './session'
+import { addPasskey, openMember, type Member } from './session'
 
 afterEach(() => vi.useRealTimers())
 
@@ -43,18 +43,6 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-// Adds a passkey from another device, as the account page does.
-async function addPasskey(member: Member, ua: string) {
-  const started = await member.fetch('/auth/passkeys/options', { method: 'POST' })
-  const { challenge, options } = await started.json<{ challenge: string; options: never }>()
-  const response = await softwareAuthenticator().register(options)
-  await member.fetch('/auth/passkeys', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'User-Agent': ua },
-    body: JSON.stringify({ challenge, response })
-  })
-}
-
 describe('the account page', () => {
   it("shows the member's name, passkeys by browser and date, sessions, and networks", async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -64,6 +52,7 @@ describe('the account page', () => {
     vi.setSystemTime(new Date('2026-10-21T09:00:00Z'))
     await addPasskey(
       ada,
+      softwareAuthenticator(),
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36'
     )
     const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(night.id) })
@@ -112,7 +101,7 @@ describe('the account page', () => {
     vi.setSystemTime(new Date('2026-10-19T12:00:00Z'))
     const ada = await openMember()
     vi.setSystemTime(new Date('2026-10-19T12:05:00Z'))
-    await addPasskey(ada, 'curl/8.7')
+    await addPasskey(ada, softwareAuthenticator(), 'curl/8.7')
     expect(words(await page(ada))).toContain(
       'Passkey Oct 19, 12:00 PM Never Remove Passkey Oct 19, 12:05 PM Never Remove'
     )

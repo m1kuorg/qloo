@@ -168,4 +168,24 @@ describe('deleting a network', () => {
       JSON.stringify({ event: 'wipes_retried', wiped: 0, kept: 0, failed: 0 })
     )
   })
+
+  it('wipes a launch planned on an open page while the network was being deleted', async () => {
+    const ada = await openMember()
+    const { id, launches } = await network(ada)
+    const page = await connect(ada, `/agents/network/${id}`)
+    // A launch is planned on the network's agent, as an open page's call would, after the deletion read
+    // the network's list and before the agent let go.
+    let late = ''
+    const letGo = NetworkAgent.prototype.letGo
+    // Its RPC caller awaits it, so the stand-in may take a moment.
+    const planThenLetGo = async function (this: NetworkAgent) {
+      late = (await this.createLaunch({ name: 'Paper Route' })).id
+      return letGo.call(this)
+    }
+    vi.spyOn(NetworkAgent.prototype, 'letGo').mockImplementationOnce(planThenLetGo as never)
+
+    expect((await remove(ada, id, 'Night Shift Audio')).status).toBe(200)
+    expect(await page.closed()).toEqual(DELETED)
+    await wipedOut(id, [...launches, late])
+  })
 })

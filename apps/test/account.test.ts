@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import type { AccountNetwork, AccountPasskey, ApiKey, NetworkMember } from '../src/directory'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
-import { openMember, type Member, type Session } from './session'
+import { addPasskey, openMember, type Member, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
 
@@ -50,19 +50,6 @@ const CHROME_ON_MAC =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36'
 const IPHONE =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1'
-
-// Adds a passkey made by `device` to the member's account, through both steps of the ceremony, as the
-// account page does from a browser with user agent `ua`.
-async function addPasskey(member: Member, device: Authenticator, ua = CHROME_ON_MAC) {
-  const started = await member.fetch('/auth/passkeys/options', { method: 'POST', headers: { 'User-Agent': ua } })
-  if (started.status !== 200) return started
-  const { challenge, options } = await started.json<{ challenge: string; options: never }>()
-  return member.fetch('/auth/passkeys', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'User-Agent': ua },
-    body: JSON.stringify({ challenge, response: await device.register(options) })
-  })
-}
 
 // Signs in with `device`'s passkey through both steps, as the sign-in page does.
 async function signInWith(device: Authenticator) {
@@ -122,7 +109,7 @@ describe('the account page', () => {
     expect((await accountPage(ada)).name).toBe('Ada Lovelace')
     // The account menu, and the network's members, say so.
     const settings = await (await ada.fetch(`/app/${network}/settings`)).text()
-    expect(settings).toContain('<span class="acct-name">Ada Lovelace</span>')
+    expect(settings).toMatch(/<span class="acct-name"[^>]*>Ada Lovelace<\/span>/)
     expect(settings).toContain('&quot;name&quot;:&quot;Ada Lovelace&quot;')
 
     for (const name of ['', 'x'.repeat(200), 'Ada\u0007']) {
@@ -196,7 +183,7 @@ describe('passkeys', () => {
   it('can be removed, but never the last, and a removed one signs no one in', async () => {
     const ada = await openMember()
     const phone = softwareAuthenticator()
-    await addPasskey(ada, phone)
+    await addPasskey(ada, phone, CHROME_ON_MAC)
     const [first, second] = (await accountPage(ada)).passkeys
 
     const removed = await post(ada, `/app/account/passkeys/${first.id}/remove`)
@@ -220,7 +207,7 @@ describe('passkeys', () => {
 
   it('lets only one of two removals at once take the last but one', async () => {
     const ada = await openMember()
-    await addPasskey(ada, softwareAuthenticator())
+    await addPasskey(ada, softwareAuthenticator(), CHROME_ON_MAC)
     const both = (await accountPage(ada)).passkeys
     const answers = await Promise.all(both.map((p) => post(ada, `/app/account/passkeys/${p.id}/remove`)))
     expect(answers.map((a) => a.status).sort()).toEqual([200, 409])

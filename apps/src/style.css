@@ -3456,8 +3456,9 @@ a.wm {
   margin-top: 12px;
 }
 
-/* A choice waiting on a yes outside a table, such as signing out everywhere: Panel Grey, as a table's
-   row waiting on one is, with its black button and a link-style way back. */
+/* What waits on the member outside a table, on Panel Grey as a table's row waiting on a yes is: a
+   choice, such as signing out everywhere, with its black button and a link-style way back, or the
+   recovered member's prompt to add a passkey. */
 .set-ask {
   display: grid;
   justify-items: start;
@@ -3475,8 +3476,8 @@ a.wm {
 }
 
 /* The account page's passkeys and networks: the members table's grammar, each row's action at its
-   end, a removal or a leave asking first on Panel Grey under its row. */
-/* Added fits a time beside its day, for two passkeys from one browser on one day. */
+   end, a removal or a leave asking first on Panel Grey under its row. Added fits a time beside its day,
+   for two passkeys from one browser on one day. */
 .passkeys th:nth-child(2) {
   width: 128px;
 }

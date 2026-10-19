@@ -145,7 +145,7 @@ describe('the privacy page and the beta terms', () => {
     const networkGone =
       "Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage and each of its launches'. A wipe that fails is tried again by the next day's cleanup, which also deletes expired sessions, sign-in challenges, and invite links."
     const accountGone =
-      "Deleting your account, on your account page, deletes your name, passkeys, recovery code, sessions, and memberships at once; what you made in a network stays with it, made by no one. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
+      "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it: its launches keep your name on the runs you started and the orders you approved, and its API keys and invite links you made stay, made by no one. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
     const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
     expect(words(await page('/privacy'))).toContain(kept)
     expect(words(await page('/privacy'))).toContain(approvals)

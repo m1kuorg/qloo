@@ -72,6 +72,7 @@ async function takeStarted(c: Context<{ Bindings: Env }>, kind: string, id: unkn
 }
 const STALE = 'This passkey request has expired or was already used. Try again.'
 const UNVERIFIED = "Crossfeed couldn't verify this passkey. Try again."
+const SIGN_IN_TO_ADD = 'Sign in to add a passkey.'
 
 // Verifies a browser's answer, or says why it can't be: the reason goes to the log, not the page.
 async function verified<T>(ceremony: string, verify: () => Promise<T & { verified: boolean }>) {
@@ -266,7 +267,6 @@ auth.post('/auth/passkeys', async (c) => {
   }
   return c.json({ passkeys: await memberPasskeys(c.env.DB, member.id) })
 })
-const SIGN_IN_TO_ADD = 'Sign in to add a passkey.'
 
 // Sign-in, first step: options for any passkey the browser holds for Crossfeed, so the page asks
 // for nothing else.

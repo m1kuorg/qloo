@@ -215,7 +215,7 @@ export async function signOut(db: D1Database, token: string) {
     .run()
 }
 
-// Ends every session of member `memberId`'s, on every browser.
+// Ends every one of member `memberId`'s sessions, on every browser.
 export async function signOutEverywhere(db: D1Database, memberId: string) {
   await db.prepare('DELETE FROM sessions WHERE member_id = ?').bind(memberId).run()
 }
@@ -309,7 +309,7 @@ export async function accountNetworks(db: D1Database, memberId: string): Promise
   return results.map((n) => ({ ...n, onlyOwner: n.onlyOwner === 1 }))
 }
 
-// Whether membership `m` is its network's only owner's.
+// Whether membership `m` makes its member the network's only owner.
 const ONLY_OWNER =
   "(m.role = 'owner' AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.network_id = m.network_id AND o.role = 'owner' AND o.member_id != m.member_id))"
 

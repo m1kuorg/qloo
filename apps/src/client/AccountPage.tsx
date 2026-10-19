@@ -2,7 +2,7 @@ import { startRegistration } from '@simplewebauthn/browser'
 import { Fragment, useState, type ReactNode } from 'react'
 import type { AccountNetwork, AccountPasskey } from '../directory'
 import { listOf, MAX_NAME } from '../text'
-import { prompted, RecoveryCode } from './Account'
+import { prompted, RecoveryCode, type Ceremony } from './Account'
 import { Alert, ScrollTable, send, useAction } from './controls'
 import { day } from './Dashboard'
 import { StateLine } from './states'
@@ -67,7 +67,7 @@ function NameModule({ name: saved }: { name: string }) {
       setName(answer.name)
       setDone(true)
       // The account menu is the server's: it shows the new name without a reload.
-      document.querySelectorAll('.acct-name, .acct-menu .menu-panel b').forEach((el) => (el.textContent = answer.name))
+      document.querySelectorAll('[data-signed-in]').forEach((el) => (el.textContent = answer.name))
     })
   return (
     <section className="mod set-mod" aria-labelledby="acct-name-h">
@@ -106,8 +106,6 @@ function NameModule({ name: saved }: { name: string }) {
     </section>
   )
 }
-
-type Ceremony = { challenge: string; options: never }
 
 function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recovered: boolean }) {
   const [passkeys, setPasskeys] = useState(listed)
@@ -404,8 +402,8 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
   return (
     <section className="mod set-mod" aria-labelledby="acct-delete-h">
       <About id="acct-delete-h" title="Delete account">
-        Deletes your name, passkeys, recovery code, and sessions, and takes you out of every network. What you added to
-        a network stays with it.
+        Deletes your account, passkeys, recovery code, and sessions, and takes you out of every network. What you did in
+        a network stays with it, such as the runs you started and the orders you approved, under your name.
       </About>
       <div className="set-body">
         {asking ? (
