@@ -7,6 +7,7 @@ import { checkHealth } from './health'
 import { appPages } from './routes/app'
 import { auth } from './routes/auth'
 import { demo } from './routes/demo'
+import { marketing } from './routes/marketing'
 
 export { CrossfeedAgent } from './agent'
 export { QlooGateway } from './gateway'
@@ -20,6 +21,7 @@ const app = new Hono<{ Bindings: Env }>()
 const secure = secureHeaders({ referrerPolicy: 'no-referrer' })
 app.use((c, next) => (c.req.path.startsWith('/agents/') ? next() : secure(c, next)))
 
+app.route('/', marketing)
 app.route('/', demo)
 app.route('/', auth)
 app.route('/', appPages)

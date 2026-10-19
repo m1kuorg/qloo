@@ -95,8 +95,8 @@ export type PitchReply = {
 export type InboxSource = { sample: true } | { text: string }
 
 // Each pitch costs one model call and one Qloo search, and one ranking takes at most 50 works.
-const MAX_PITCHES = 50
-const MAX_PITCH_CHARS = 10_000
+export const MAX_PITCHES = 50
+export const MAX_PITCH_CHARS = 10_000
 
 export function readInbox(source: unknown): Pick<Inbox, 'sample' | 'notice' | 'show' | 'pitches'> {
   const given = (typeof source === 'object' && source !== null ? source : {}) as Record<string, unknown>

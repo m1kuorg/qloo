@@ -23,10 +23,11 @@ import type { Ranking } from '../fit'
 import { inProgress, MAX_COMPS } from '../limits'
 import { dollars, slotPrice } from '../order'
 import { offeredBy, sameName } from '../resolve'
+import { moveGlyph, moveWords } from '../text'
 import { takesText } from '../tools/ask-human'
 import type { RosterFormat } from '../roster'
 import type { Sample, SampleFigure } from '../sample'
-import type { Move, Topic } from '../topic'
+import type { Topic } from '../topic'
 import { Alert, bandMeter, listOf, percentile, PickOne, ScrollTable, useAction, useIntoView } from './controls'
 import { CallButton, EvidencePanel, type Opened } from './Evidence'
 import { Guide } from './Guide'
@@ -892,11 +893,6 @@ function RunList({
 }
 
 // A move as the chart sets it: ▲ for a climb over topic rank, ▼ for a fall, = for none.
-const moveGlyph = ({ move }: Move) => (move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '=')
-const moveWords = ({ move }: Move) =>
-  move === 0
-    ? 'Same as topic rank'
-    : `${move > 0 ? 'Up' : 'Down'} ${Math.abs(move)} place${Math.abs(move) === 1 ? '' : 's'}`
 
 // The Weekly Chart: the roster ranked by listener overlap with the launch, position first, then band.
 // Raw affinities stay in the ranking call's evidence. Beside fit rank, last week is the rank a
@@ -1071,8 +1067,8 @@ function FitChart({
                       <td className={`mv${!move || move.move < 0 ? ' dn' : move.move === 0 ? ' eq' : ''}`}>
                         {move && (
                           <>
-                            <span aria-hidden="true">{moveGlyph(move)}</span>
-                            <span className="vh">{moveWords(move)}</span>
+                            <span aria-hidden="true">{moveGlyph(move.move)}</span>
+                            <span className="vh">{moveWords(move.move)}</span>
                           </>
                         )}
                       </td>
