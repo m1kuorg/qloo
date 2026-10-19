@@ -419,7 +419,8 @@ describe("a launch's run, refused", () => {
   afterEach(() => Object.assign(env, saved))
 
   it("doesn't start while the roster is still being looked up, while a run is under way, or past the network's caps", async () => {
-    fakeQloo({ search, latencyMs: 100 })
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({ search, held: lookups.promise })
     const { network, call } = await networkWithKey()
     const launches = `/api/v1/networks/${network}/launches`
     const { id } = await (await post(call, launches, { name: 'Night Shift Cinema' })).json<Launch>()
@@ -438,6 +439,7 @@ describe("a launch's run, refused", () => {
           "The network's roster is still looking up 6 shows in Qloo. Start the run once the lookups have settled, so it ranks every show."
       }
     ])
+    lookups.resolve()
     await poll<{ status: string }>(call, `/api/v1/networks/${network}/roster`, (r) => r.status === 'settled')
 
     for (const [body, message] of [

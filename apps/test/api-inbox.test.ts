@@ -63,7 +63,8 @@ const rosterSettled = (call: Call, network: string) =>
 
 describe('loading the inbox', () => {
   it('takes an .mbox body, answers 202 while reading, and reads each email for its guest and work', async () => {
-    fakeQloo({ search, latencyMs: 50 })
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({ search, held: lookups.promise })
     reader()
     const { network, call } = await networkWithKey()
     expect(await (await call(`/api/v1/networks/${network}/inbox`)).json()).toEqual({
@@ -83,6 +84,7 @@ describe('loading the inbox', () => {
       ['pitch-03', 'Ben Ochoa <ben.ochoa@example.com>', 'Static Bloom']
     ])
 
+    lookups.resolve()
     const inbox = await inboxRead(call, network)
     expect(inbox.status).toBe('done')
     expect(
@@ -201,7 +203,8 @@ describe('loading the inbox', () => {
   })
 
   it("answers 409 while the inbox is still reading, and 429 past the network's model runs", async () => {
-    fakeQloo({ search, latencyMs: 100 })
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({ search, held: lookups.promise })
     reader(1)
     const { network, call } = await networkWithKey()
     await loadInbox(call, network, nightFerry, 'message/rfc822')
@@ -210,6 +213,7 @@ describe('loading the inbox', () => {
     expect(await busy.json()).toEqual({
       error: { code: 'conflict', message: 'The inbox is still loading. Wait for it to finish.' }
     })
+    lookups.resolve()
     await inboxRead(call, network)
 
     env.RUN_VISITOR_DAILY_CAP = '1'

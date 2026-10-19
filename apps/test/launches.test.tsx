@@ -181,6 +181,26 @@ describe('creating a launch', () => {
     expect(second).not.toBe(id)
   })
 
+  it('never shows a member a listed launch without what it was planned with, not even for a moment', async () => {
+    const reports = vi.spyOn(NetworkAgent.prototype, 'reportLaunch')
+    const ada = await openMember()
+    const network = await created(ada)
+    const adas = await connect(ada, `/agents/network/${network}`)
+    const names = ['The Night Watch', 'Paper Moons', 'Slow Burn']
+    for (const name of names) await adas.call('createLaunch', { name })
+    // Each launch's agent reports its row once it's planned, and the list is settled once all three
+    // have; each report reaches the member as a state change, so the check runs on each.
+    await adas.until(() => names.every((name) => reports.mock.calls.some(([, s]) => s.name === name)))
+
+    const listed = adas
+      .frames()
+      .map((f) => JSON.parse(f))
+      .filter((m) => m.type === 'cf_agent_state')
+      .flatMap((m: { state: State }) => m.state.launches ?? [])
+    expect(listed.filter((l) => l.name === null)).toEqual([])
+    expect(reports.mock.calls.filter(([, s]) => s.name === null && s.comps.length === 0)).toEqual([])
+  })
+
   it('refuses a launch with no name, no comps, or more than three comps, and lists nothing', async () => {
     const ada = await openMember()
     const network = await created(ada)

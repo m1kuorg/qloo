@@ -45,8 +45,9 @@ async function settled(call: Call, network: string): Promise<Roster> {
 
 describe('importing a roster', () => {
   it('takes a CSV body, answers 202 with the shows pending, and settles as Qloo answers', async () => {
-    // Qloo answers a little later, so the import's answer finds its shows still out.
-    fakeQloo({ search, latencyMs: 50 })
+    // Qloo answers once the test has read the import's answer, which finds its shows still out.
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({ search, held: lookups.promise })
     const { network, call } = await networkWithKey()
     expect(await (await call(`/api/v1/networks/${network}/roster`)).json()).toEqual({
       status: 'settled',
@@ -64,6 +65,7 @@ describe('importing a roster', () => {
       ['Paper Trail', 'pending', 900]
     ])
 
+    lookups.resolve()
     const roster = await settled(call, network)
     expect(roster.shows.map((s) => [s.name, s.resolution, s.entity?.id ?? null, s.candidates.length])).toEqual([
       ['Deep Cuts', 'resolved', 'p-0001', 0],
@@ -177,7 +179,8 @@ describe('importing a roster', () => {
   })
 
   it("answers 409 while the last import's shows are still out, and 429 past the network's Qloo calls", async () => {
-    fakeQloo({ search, latencyMs: 100 })
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({ search, held: lookups.promise })
     const { network, call } = await networkWithKey()
     await importRoster(call, network, 'Deep Cuts\n', 'text/plain')
     const busy = await importRoster(call, network, 'Signal Boost\n', 'text/plain', '?replace=true')
@@ -185,6 +188,7 @@ describe('importing a roster', () => {
     expect(await busy.json()).toEqual({
       error: { code: 'conflict', message: 'The last import is still looking up its shows. Wait for it to finish.' }
     })
+    lookups.resolve()
     await settled(call, network)
 
     env.QLOO_VISITOR_DAILY_CALL_CAP = '2'
@@ -252,13 +256,15 @@ describe("a roster's shows", () => {
   })
 
   it("refuse what the show can't take with 400, a show not on the roster with 404, and one still being looked up with 409", async () => {
-    fakeQloo({ search, latencyMs: 100 })
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({ search, held: lookups.promise })
     const { network, call } = await networkWithKey()
     await importRoster(call, network, 'Field Notes\nPaper Trail\n', 'text/plain')
     expect(await error(await compSearch(call, network, 'Paper Trail', 'The Paper Trail Show'))).toEqual([
       409,
       { code: 'conflict', message: 'Paper Trail is still being looked up in Qloo.' }
     ])
+    lookups.resolve()
     await settled(call, network)
 
     for (const [name, body, refused] of [
