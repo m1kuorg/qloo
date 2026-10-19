@@ -5,6 +5,7 @@
 import type { PitchList, SharedTags } from './fit'
 import { MAX_PAST_GUESTS } from './limits'
 import { personalIn, type Candidate } from './resolve'
+import { Refusal } from './refusal'
 import sampleInbox from './sample-inbox.json'
 import { listOf } from './text'
 
@@ -131,14 +132,21 @@ export function readInbox(
       pitches: sampleInbox.pitches.map((p) => pitch(p.id, p.body, `${p.senderName} <${p.senderEmail}>`, p.subject))
     }
   if (Array.isArray(given.pitches)) return readUploaded(given.pitches)
-  if (typeof given.text !== 'string') throw new Error('Load the sample inbox, paste pitches, or upload them.')
+  if (typeof given.text !== 'string')
+    throw new Refusal('invalid', 'Load the sample inbox, paste pitches, or upload them.')
   const texts = splitPitches(given.text)
-  if (texts.length === 0) throw new Error('Paste at least one pitch.')
+  if (texts.length === 0) throw new Refusal('unreadable', 'Paste at least one pitch.')
   if (texts.length > MAX_PITCHES)
-    throw new Error(`${texts.length} pitches is over the ${MAX_PITCHES}-pitch limit. Paste ${MAX_PITCHES} or fewer.`)
+    throw new Refusal(
+      'unreadable',
+      `${texts.length} pitches is over the ${MAX_PITCHES}-pitch limit. Paste ${MAX_PITCHES} or fewer.`
+    )
   const long = texts.findIndex((t) => t.length > MAX_PITCH_CHARS)
   if (long >= 0)
-    throw new Error(`Pitch ${long + 1} is over ${MAX_PITCH_CHARS.toLocaleString('en-US')} characters. Shorten it.`)
+    throw new Refusal(
+      'unreadable',
+      `Pitch ${long + 1} is over ${MAX_PITCH_CHARS.toLocaleString('en-US')} characters. Shorten it.`
+    )
   return {
     sample: false,
     notice: null,
@@ -157,14 +165,17 @@ export const splitPitches = (text: string) =>
 // The pitches of uploaded files, as untrusted JSON. A pitch with no text, or too long to read, is
 // skipped and named, so one such email doesn't sink the rest.
 function readUploaded(given: unknown[]) {
-  if (given.length === 0) throw new Error('Upload at least one pitch.')
+  if (given.length === 0) throw new Refusal('unreadable', 'Upload at least one pitch.')
   if (given.length > MAX_PITCHES)
-    throw new Error(`${given.length} pitches is over the ${MAX_PITCHES}-pitch limit. Upload ${MAX_PITCHES} or fewer.`)
+    throw new Refusal(
+      'unreadable',
+      `${given.length} pitches is over the ${MAX_PITCHES}-pitch limit. Upload ${MAX_PITCHES} or fewer.`
+    )
   const kept: PitchInput[] = []
   const skipped: Skipped[] = []
   given.forEach((g, i) => {
     const { from, subject, body } = (typeof g === 'object' && g !== null ? g : {}) as Record<string, unknown>
-    if (typeof body !== 'string') throw new Error(`Pitch ${i + 1} needs its text.`)
+    if (typeof body !== 'string') throw new Refusal('invalid', `Pitch ${i + 1} needs its text.`)
     const read = { from: textOrNull(from), subject: textOrNull(subject), body: body.trim() }
     const name = read.subject ?? read.from ?? `Pitch ${i + 1}`
     // Its sender and subject count, as Claude reads them with its text.
@@ -175,7 +186,10 @@ function readUploaded(given: unknown[]) {
     else kept.push(read)
   })
   if (kept.length === 0)
-    throw new Error(`No pitch here can be read: ${listOf(skipped.map((s) => `"${s.pitch}" ${s.why}`))}.`)
+    throw new Refusal(
+      'unreadable',
+      `No pitch here can be read: ${listOf(skipped.map((s) => `"${s.pitch}" ${s.why}`))}.`
+    )
   return {
     sample: false,
     uploaded: true as const,
@@ -197,22 +211,22 @@ const YEARS = [1800, 2100]
 // The past guests the booker named, each with their public work. A guest's name is needed because a
 // book is matched by its author. Anything else is refused, so a run never starts on part of them.
 export function readPastGuests(given: unknown): Omit<PastGuest, 'match'>[] {
-  if (!Array.isArray(given)) throw new Error("Name the show's best past guests and their public works.")
-  if (given.length > MAX_PAST_GUESTS) throw new Error(`Name at most ${MAX_PAST_GUESTS} past guests.`)
+  if (!Array.isArray(given)) throw new Refusal('invalid', "Name the show's best past guests and their public works.")
+  if (given.length > MAX_PAST_GUESTS) throw new Refusal('invalid', `Name at most ${MAX_PAST_GUESTS} past guests.`)
   return given.map((g, i) => {
     const { guest, work } = (typeof g === 'object' && g !== null ? g : {}) as Record<string, any>
     const name = typeof guest === 'string' ? guest.trim() : ''
     const title = typeof work?.title === 'string' ? work.title.trim() : ''
-    if (!name || !title) throw new Error(`Past guest ${i + 1} needs a name and a work title.`)
+    if (!name || !title) throw new Refusal('invalid', `Past guest ${i + 1} needs a name and a work title.`)
     if (!workTypes.includes(work.type))
-      throw new Error(`Past guest ${i + 1}'s work needs a type: book, film, TV show, or podcast.`)
+      throw new Refusal('invalid', `Past guest ${i + 1}'s work needs a type: book, film, TV show, or podcast.`)
     const year = work.year ?? null
     if (year !== null && !(Number.isInteger(year) && year >= YEARS[0] && year <= YEARS[1]))
-      throw new Error(`Past guest ${i + 1}'s year must be a whole year, such as 2024, or left empty.`)
+      throw new Refusal('invalid', `Past guest ${i + 1}'s year must be a whole year, such as 2024, or left empty.`)
     const personal = personalIn(title, [name])
-    if (personal === 'email') throw new Error(`Past guest ${i + 1}'s work title holds an email address.`)
+    if (personal === 'email') throw new Refusal('invalid', `Past guest ${i + 1}'s work title holds an email address.`)
     if (personal === 'name')
-      throw new Error(`Past guest ${i + 1}'s work title holds their name, so it isn't sent to Qloo.`)
+      throw new Refusal('invalid', `Past guest ${i + 1}'s work title holds their name, so it isn't sent to Qloo.`)
     return { guest: name, work: { title, type: work.type, year } }
   })
 }

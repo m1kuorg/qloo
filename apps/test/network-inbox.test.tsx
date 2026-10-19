@@ -1,7 +1,7 @@
 // A network's inbox: its own page, kept by the network's agent, loaded from pitch files read by the
 // upload module as the page reads them, shared live by its members, with replies only a member
 // approves. Each test drives a network through the Worker's routes, its agent's client protocol, or
-// the Worker's own RPC to the agent, as the API will call it.
+// the Worker's own RPC to the agent, as the API calls it; the API's own tests are in api-inbox.test.ts.
 import { getAgentByName } from 'agents'
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -9,10 +9,32 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
 import { InboxWorkspace, Workspace, type Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
+import type { Pitch } from '../src/inbox'
 import { networkLinks } from '../src/shell'
 import { readPitchUpload, type Upload } from '../src/upload'
-import { fakeClaude, fakeInsights, fakeQloo, requests, text, toolUse, turn, type ModelRequest } from './fake'
-import { connect as connectVia, links, openMember, openSession, type Member, type Session } from './session'
+import { mbox, nightFerry, paperMoons, staticBloom } from './emails'
+import {
+  fakeClaude,
+  fakeInsights,
+  fakeQloo,
+  fakeReader,
+  qlooRequests,
+  requests,
+  text,
+  toolUse,
+  turn,
+  type Extracted
+} from './fake'
+import {
+  connect as connectVia,
+  links,
+  networkWithKey,
+  openMember,
+  openSession,
+  poll,
+  type Member,
+  type Session
+} from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 beforeEach(() => {
@@ -44,89 +66,12 @@ async function connect(member: Member, network: string) {
 const teammate = async (owner: Member, network: string) =>
   openMember({ name: 'Grace Booker', invite: await owner.invite(network) })
 
-// The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
-const pitchText = (request: ModelRequest): string =>
-  request.messages
-    .flatMap((m: { content: string | { type: string; text?: string }[] }) =>
-      typeof m.content === 'string' ? [m.content] : m.content.map((b) => b.text ?? '')
-    )
-    .join('\n')
-
-type Extracted = { guest: string; work: { title: string; type: string; year: number | null } | null }
-// Scripts one extraction per pitch, chosen from the pitch's text.
-const fakeReader = (count: number, answer: (pitch: string) => Extracted) =>
-  fakeClaude(
-    Array.from(
-      { length: count },
-      () => (request: ModelRequest) => turn(text(JSON.stringify(answer(pitchText(request)))))
-    )
-  )
-
 const loaded = (agent: Omit<Session, 'cookie'>) => agent.until((s: State) => s.inbox?.status === 'done')
 
 // Reads files the way the inbox page does when they're dropped or picked, then loads their pitches
 // over the agent as the page sends them.
 const upload = async (agent: Omit<Session, 'cookie'>, ...files: Upload[]) =>
   agent.call('loadInbox', { pitches: await readPitchUpload(files) })
-
-// Synthetic pitch emails: made-up senders at example.com, guests, and works.
-const nightFerry = [
-  'From: Pat Lindqvist <pat.lindqvist@example.com>',
-  'To: bookings@nightshift.example',
-  'Subject: Ada Quill on Night Ferry',
-  'Date: Mon, 12 Oct 2026 09:30:00 +0000',
-  'Content-Type: text/plain; charset=utf-8',
-  '',
-  "Hi team, Ada Quill's novel Night Ferry is about a projectionist on a car ferry.",
-  ''
-].join('\r\n')
-
-// An HTML-only email, as some mail clients send.
-const paperMoons = [
-  'From: "Rue Vance" <rue@example.com>',
-  'Subject: =?utf-8?Q?Paper_Moons_=E2=80=94_new_edition?=',
-  'MIME-Version: 1.0',
-  'Content-Type: text/html; charset=utf-8',
-  '',
-  '<html><body><p>Rue Vance has a new edition of <b>Paper Moons</b> out.</p><p>From the author&#39;s desk.</p></body></html>',
-  ''
-].join('\r\n')
-
-// A multipart email with plain and HTML parts and an attachment.
-const staticBloom = [
-  'From: Ben Ochoa <ben.ochoa@example.com>',
-  'Subject: Static Bloom',
-  'MIME-Version: 1.0',
-  'Content-Type: multipart/mixed; boundary="mixed"',
-  '',
-  '--mixed',
-  'Content-Type: multipart/alternative; boundary="alt"',
-  '',
-  '--alt',
-  'Content-Type: text/plain; charset=utf-8',
-  '',
-  'Ben Ochoa directed Static Bloom.',
-  'From the first frame, it was a film about radio.',
-  '--alt',
-  'Content-Type: text/html; charset=utf-8',
-  '',
-  '<p>Ben Ochoa directed <i>Static Bloom</i>.</p>',
-  '--alt--',
-  '--mixed',
-  'Content-Type: application/pdf; name="press-kit.pdf"',
-  'Content-Disposition: attachment; filename="press-kit.pdf"',
-  'Content-Transfer-Encoding: base64',
-  '',
-  'JVBERi0xLjQK',
-  '--mixed--',
-  ''
-].join('\r\n')
-
-// An mbox export holding the three: each message after a "From " line, and a body line that starts
-// with "From " escaped as ">From ", as mail clients write it.
-const mbox = [nightFerry, paperMoons, staticBloom.replace('\r\nFrom the first', '\r\n>From the first')]
-  .map((m, i) => `From MAILER-DAEMON Mon Oct 12 09:3${i}:00 2026\n${m.replace(/\r\n/g, '\n')}\n`)
-  .join('')
 
 describe('uploading pitch files', () => {
   it('splits a text file on lines of dashes, taking a From and Subject line atop a pitch as its sender and subject', async () => {
@@ -316,61 +261,69 @@ describe('loading uploaded pitches', () => {
 })
 
 describe("an uploaded .mbox's private details", () => {
-  it("never reach Qloo: no sender's name or address, and no guest's name", async () => {
-    // A fourth email, whose work Claude reads with the sender's name in its title.
-    const lowTide = [
-      'From: Cy Lund <cy.lund@example.com>',
-      'Subject: Low Tide',
-      '',
-      'I made Low Tide on a shoestring and would love to talk about it.',
-      ''
-    ].join('\n')
-    const file = `${mbox}From MAILER-DAEMON Mon Oct 12 09:40:00 2026\n${lowTide}\n`
-    fakeQloo({
-      search: {
-        'Night Ferry': [
-          { entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.81, disambiguation: '2019, Ada Quill' }
-        ],
-        'Paper Moons': [
-          { entity_id: 'b-0002', name: 'Paper Moons', popularity: 0.5, disambiguation: '2016, Rue Vance' }
-        ],
-        'Static Bloom': [{ entity_id: 'f-0001', name: 'Static Bloom', popularity: 0.5, disambiguation: '2021' }]
+  it.each(['uploaded in the app', 'sent to the API'])(
+    "never reach Qloo, %s: no sender's name or address, and no guest's name",
+    async (how) => {
+      // A fourth email, whose work Claude reads with the sender's name in its title.
+      const lowTide = [
+        'From: Cy Lund <cy.lund@example.com>',
+        'Subject: Low Tide',
+        '',
+        'I made Low Tide on a shoestring and would love to talk about it.',
+        ''
+      ].join('\n')
+      const file = `${mbox}From MAILER-DAEMON Mon Oct 12 09:40:00 2026\n${lowTide}\n`
+      fakeQloo({
+        search: {
+          'Night Ferry': [
+            { entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.81, disambiguation: '2019, Ada Quill' }
+          ],
+          'Paper Moons': [
+            { entity_id: 'b-0002', name: 'Paper Moons', popularity: 0.5, disambiguation: '2016, Rue Vance' }
+          ],
+          'Static Bloom': [{ entity_id: 'f-0001', name: 'Static Bloom', popularity: 0.5, disambiguation: '2021' }]
+        }
+      })
+      const read: Record<string, Extracted> = {
+        'Night Ferry': { guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } },
+        'Paper Moons': { guest: 'Rue Vance', work: { title: 'Paper Moons', type: 'book', year: 2016 } },
+        'Static Bloom': { guest: 'Ben Ochoa', work: { title: 'Static Bloom', type: 'film', year: 2021 } },
+        'Low Tide': { guest: 'Cy Lund', work: { title: "Cy Lund's Low Tide", type: 'film', year: null } }
       }
-    })
-    const read: Record<string, Extracted> = {
-      'Night Ferry': { guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } },
-      'Paper Moons': { guest: 'Rue Vance', work: { title: 'Paper Moons', type: 'book', year: 2016 } },
-      'Static Bloom': { guest: 'Ben Ochoa', work: { title: 'Static Bloom', type: 'film', year: 2021 } },
-      'Low Tide': { guest: 'Cy Lund', work: { title: "Cy Lund's Low Tide", type: 'film', year: null } }
+      fakeReader(4, (text) => Object.entries(read).find(([title]) => text.includes(title))![1])
+      const { ada, network, call } = await networkWithKey()
+      let inbox: { status: string; pitches: Pitch[] }
+      if (how === 'uploaded in the app') {
+        const agent = await connect(ada, network)
+        await upload(agent, new File([file], 'Pitches.mbox'))
+        inbox = (await loaded(agent)).inbox!
+      } else {
+        const res = await call(`/api/v1/networks/${network}/inbox`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/mbox' },
+          body: file
+        })
+        expect(res.status).toBe(202)
+        inbox = await poll<typeof inbox>(call, `/api/v1/networks/${network}/inbox`, (i) => i.status !== 'reading')
+      }
+
+      expect(inbox.pitches.map((p) => [p.from, p.status])).toEqual([
+        ['Pat Lindqvist <pat.lindqvist@example.com>', 'read'],
+        ['Rue Vance <rue@example.com>', 'read'],
+        ['Ben Ochoa <ben.ochoa@example.com>', 'read'],
+        ['Cy Lund <cy.lund@example.com>', 'unreadable']
+      ])
+      const sent = qlooRequests()
+      expect(sent).toHaveLength(3)
+      const senders = ['Pat Lindqvist', 'pat.lindqvist@example.com', 'rue@example.com', 'ben.ochoa@example.com']
+      const personal = [...senders, 'cy.lund@example.com', ...Object.values(read).map((r) => r.guest), '@']
+      for (const detail of personal)
+        expect(
+          sent.filter((r) => r.includes(detail.toLowerCase())),
+          detail
+        ).toEqual([])
     }
-    fakeReader(4, (text) => Object.entries(read).find(([title]) => text.includes(title))![1])
-    const ada = await openMember()
-    const agent = await connect(ada, await created(ada))
-
-    await upload(agent, new File([file], 'Pitches.mbox'))
-    const { inbox } = await loaded(agent)
-
-    expect(inbox!.pitches.map((p) => [p.from, p.status])).toEqual([
-      ['Pat Lindqvist <pat.lindqvist@example.com>', 'read'],
-      ['Rue Vance <rue@example.com>', 'read'],
-      ['Ben Ochoa <ben.ochoa@example.com>', 'read'],
-      ['Cy Lund <cy.lund@example.com>', 'unreadable']
-    ])
-    // Each request as Qloo reads it: the path, every decoded parameter, and the body.
-    const sent = requests
-      .filter((r) => r.url.origin === new URL(env.QLOO_BASE_URL).origin)
-      .map((r) =>
-        [r.url.pathname, ...[...r.url.searchParams].map(([k, v]) => `${k}=${v}`), r.body].join('\n').toLowerCase()
-      )
-    expect(sent).toHaveLength(3)
-    const senders = ['Pat Lindqvist', 'pat.lindqvist@example.com', 'rue@example.com', 'ben.ochoa@example.com']
-    const personal = [...senders, 'cy.lund@example.com', ...Object.values(read).map((r) => r.guest), '@']
-    for (const detail of personal)
-      expect(
-        sent.filter((r) => r.includes(detail.toLowerCase())),
-        detail
-      ).toEqual([])
-  })
+  )
 })
 
 // An agent with the show on its roster, the Night Ferry pitch uploaded, and a pitch run to its end

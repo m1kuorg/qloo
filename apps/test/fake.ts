@@ -19,6 +19,15 @@ export type RecordedRequest = {
 // Every request a fake served, in order. Cleared after each test by setup.ts.
 export const requests: RecordedRequest[] = []
 
+// Each request Qloo got, as Qloo reads it: its path, every decoded parameter, and its body, lowercased,
+// to check what never reaches Qloo, such as a guest's name.
+export const qlooRequests = () =>
+  requests
+    .filter((r) => r.url.origin === new URL(env.QLOO_BASE_URL).origin)
+    .map((r) =>
+      [r.url.pathname, ...[...r.url.searchParams].map(([k, v]) => `${k}=${v}`), r.body].join('\n').toLowerCase()
+    )
+
 let inFlight = 0
 
 // Typed structurally, because MSW's DOM Request and the Workers Request types differ.
@@ -281,6 +290,24 @@ const anthropicRequests = (): ModelRequest[] =>
 
 // The body of every request the scripted model got, in order. Topic baseline requests aren't among them.
 export const modelRequests = (): ModelRequest[] => anthropicRequests().filter((r) => !isTopic(r))
+
+// The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
+const pitchText = (request: ModelRequest): string =>
+  request.messages
+    .flatMap((m: { content: string | { type: string; text?: string }[] }) =>
+      typeof m.content === 'string' ? [m.content] : m.content.map((b) => b.text ?? '')
+    )
+    .join('\n')
+
+export type Extracted = { guest: string; work: { title: string; type: string; year: number | null } | null }
+// Scripts the model's reading of `count` pitches, each answer chosen from the pitch's text.
+export const fakeReader = (count: number, answer: (pitch: string) => Extracted) =>
+  fakeClaude(
+    Array.from(
+      { length: count },
+      () => (request: ModelRequest) => turn(text(JSON.stringify(answer(pitchText(request)))))
+    )
+  )
 
 // The topic baseline: the run's one structured call that ranks the roster by topic alone.
 const isTopic = (body: ModelRequest) => body.output_config?.format?.schema?.properties?.ranking !== undefined
