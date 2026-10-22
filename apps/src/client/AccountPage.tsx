@@ -359,7 +359,11 @@ function NetworksModule({ networks, onlyOwner }: { networks: AccountNetwork[]; o
                     {asking === n.id && (
                       <tr className="on ask">
                         <td colSpan={3}>
-                          <p>Leave {n.name}? Your open pages of it close, and you’ll need a new invite to come back.</p>
+                          <p>
+                            Leave {n.name}? Your open pages of it close
+                            {n.role === 'owner' && ', the API keys and invite links you made in it are revoked'}, and
+                            you’ll need a new invite to come back.
+                          </p>
                           <div className="acts">
                             <button className="btn pri" type="button" disabled={busy} onClick={() => void leave(n.id)}>
                               {busy ? 'Leaving…' : 'Leave'}
@@ -401,9 +405,9 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
   return (
     <section className="mod set-mod" aria-labelledby="acct-delete-h">
       <About id="acct-delete-h" title="Delete account">
-        Deletes your account, passkeys, recovery code, and sessions, and takes you out of every network. What you did in
-        your networks stays with them, such as the runs you started and the orders you approved, but under “Former
-        member”, not your name.
+        Deletes your account, passkeys, recovery code, and sessions, takes you out of every network, and revokes the API
+        keys and invite links you made. What you did in your networks stays with them, such as the runs you started and
+        the orders you approved, but under “Former member”, not your name.
       </About>
       <div className="set-body">
         {asking ? (

@@ -285,7 +285,7 @@ describe('deleting an account', () => {
     const ada = await openMember()
     const network = await created(ada)
     const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(network) })
-    // Grace, an owner beside Ada, makes a key: it's the network's, so it stays.
+    // Grace, an owner beside Ada, makes a key: it goes with her.
     await post(ada, `/app/${network}/settings/members/${grace.id}/role`, { role: 'owner' })
     const { secret } = await (
       await post(grace, `/app/${network}/settings/api-keys`, { name: 'Nightly sync' })
@@ -309,19 +309,19 @@ describe('deleting an account', () => {
     })
     expect(recovered.status).toBe(400)
 
-    // The network keeps its owner, and the key Grace made, now made by no one.
+    // The network keeps its owner, and the key Grace made is revoked.
     const settings = await (await ada.fetch(`/app/${network}/settings`)).text()
     const data = (name: string) =>
       JSON.parse(settings.match(new RegExp(`data-${name}="([^"]*)"`))![1].replace(/&quot;/g, '"'))
     expect((data('members') as NetworkMember[]).map((m) => m.name)).toEqual(['Ada Programmer'])
-    expect((data('api-keys') as ApiKey[]).map((k) => [k.name, k.by])).toEqual([['Nightly sync', null]])
+    expect(data('api-keys') as ApiKey[]).toEqual([])
     expect(
       (
         await exports.default.fetch(`${origin}/api/v1/networks/${network}`, {
           headers: { Authorization: `Bearer ${secret}` }
         })
       ).status
-    ).toBe(200)
+    ).toBe(401)
   })
 
   it("is refused while the member is any network's only owner, naming each", async () => {

@@ -316,17 +316,20 @@ const ONLY_OWNER =
 // Deletes member `memberId`, with their passkeys, sessions, and memberships, unless they're any
 // network's only owner, so no network is left without an owner, and notes `instances`, the networks
 // that must forget their name (wipe.ts), in the same batch, so none is left unnoted. What they made in
-// a network stays with it, made by no one. False when it's refused, and nothing was written.
+// a network stays with it, made by no one, but for the API keys and invite links they made, which are
+// revoked in the batch too. False when it's refused, and nothing was written.
 export async function deleteMember(db: D1Database, memberId: string, instances: Instance[]) {
   const allowed = `EXISTS (SELECT 1 FROM members WHERE id = ?1) AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.member_id = ?1 AND ${ONLY_OWNER})`
   const now = Date.now()
   const results = await db.batch([
-    // Noted before the member goes, while their memberships are still there to check.
+    // Noted and revoked before the member goes, while their memberships are still there to check and
+    // their keys and invites still name them.
     ...instances.map(({ binding, name }) =>
       db
         .prepare(`INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?2, ?3, ?4 WHERE ${allowed}`)
         .bind(memberId, binding, name, now)
     ),
+    ...REVOKE_MADE.map((revoke) => db.prepare(`${revoke} AND ${allowed}`).bind(memberId, now)),
     db.prepare(`DELETE FROM members WHERE id = ?1 AND ${allowed}`).bind(memberId)
   ])
   return results.at(-1)!.meta.changes > 0
@@ -383,29 +386,55 @@ export async function networkMembers(db: D1Database, networkId: string): Promise
 
 // Gives member `memberId` role `role` in network `networkId`, when member `by` is one of its owners and
 // the network keeps another owner if it's a demotion, in one statement, so two owners demoting each
-// other at once can't leave it with none. False when either check refuses it.
+// other at once can't leave it with none. A demoted owner's API keys and invite links in the network
+// are revoked in the same batch. False when either check refuses it.
 export async function setRole(db: D1Database, networkId: string, memberId: string, role: Role, by: string) {
-  const { meta } = await db
-    .prepare(
-      "UPDATE memberships SET role = ?4 WHERE network_id = ?1 AND member_id = ?2 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner') AND (?4 = 'owner' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
-    )
-    .bind(networkId, memberId, by, role)
-    .run()
-  return meta.changes > 0
+  const [changed] = await db.batch([
+    db
+      .prepare(
+        "UPDATE memberships SET role = ?4 WHERE network_id = ?1 AND member_id = ?2 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner') AND (?4 = 'owner' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
+      )
+      .bind(networkId, memberId, by, role),
+    ...revokeUnowned(db, networkId, memberId)
+  ])
+  return changed.meta.changes > 0
 }
 
 // Takes member `memberId` out of network `networkId`, when member `by` is one of its owners or is
 // `memberId` leaving, and the network keeps another owner if they're one, in one statement, so two
-// owners leaving at once can't leave it with none. False when either check refuses it.
+// owners leaving at once can't leave it with none. Their API keys and invite links in the network are
+// revoked in the same batch. False when either check refuses it.
 export async function removeMember(db: D1Database, networkId: string, memberId: string, by: string) {
-  const { meta } = await db
-    .prepare(
-      "DELETE FROM memberships WHERE network_id = ?1 AND member_id = ?2 AND (?2 = ?3 OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner')) AND (role = 'member' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
-    )
-    .bind(networkId, memberId, by)
-    .run()
-  return meta.changes > 0
+  const [removed] = await db.batch([
+    db
+      .prepare(
+        "DELETE FROM memberships WHERE network_id = ?1 AND member_id = ?2 AND (?2 = ?3 OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner')) AND (role = 'member' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
+      )
+      .bind(networkId, memberId, by),
+    ...revokeUnowned(db, networkId, memberId)
+  ])
+  return removed.meta.changes > 0
 }
+
+// Revoking what member ?1 made, at time ?2: their API keys still in use and their invite links still
+// open. Only an owner makes either, so one who stops being an owner loses both, and neither keeps
+// acting for, or letting anyone into, a network they no longer run. Each is a statement's start, for
+// the caller to narrow with `AND`.
+const REVOKE_MADE = [
+  'UPDATE api_keys SET revoked = ?2 WHERE created_by = ?1 AND revoked IS NULL',
+  'UPDATE invites SET revoked = ?2 WHERE created_by = ?1 AND used IS NULL AND revoked IS NULL'
+]
+
+// Revokes member `memberId`'s API keys and invite links in network `networkId` unless they're still
+// one of its owners, for the batch that may have just removed or demoted them.
+const revokeUnowned = (db: D1Database, networkId: string, memberId: string) =>
+  REVOKE_MADE.map((revoke) =>
+    db
+      .prepare(
+        `${revoke} AND network_id = ?3 AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = ?3 AND member_id = ?1 AND role = 'owner')`
+      )
+      .bind(memberId, Date.now(), networkId)
+  )
 
 // What a network's setup checklist reads from the directory: whether a teammate was invited or has
 // joined, and whether an API key was ever made, revoked or not.

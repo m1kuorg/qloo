@@ -502,3 +502,56 @@ describe('leaving a network', () => {
     expect(answers.map((a) => a.status).sort()).toEqual([200, 409])
   })
 })
+
+describe('an owner who stops being one', () => {
+  // Grace, made an owner beside Ada, makes an API key and an invite link, and so does Ada.
+  async function twoOwners() {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(network) })
+    await setRole(ada, network, grace, 'owner')
+    const keyOf = async (member: Member) =>
+      (
+        await (
+          await post(member, `/app/${network}/settings/api-keys`, { name: member.name })
+        ).json<{ secret: string }>()
+      ).secret
+    return {
+      ada,
+      grace,
+      network,
+      keys: { ada: await keyOf(ada), grace: await keyOf(grace) },
+      links: { ada: await ada.invite(network), grace: await grace.invite(network) }
+    }
+  }
+
+  // Whether an API key still reads the network, and an invite link still lets someone join.
+  const keyReaches = async (secret: string, network: string) =>
+    (
+      await exports.default.fetch(`${origin}/api/v1/networks/${network}/roster`, {
+        headers: { Authorization: `Bearer ${secret}` }
+      })
+    ).status
+  const linkOpens = async (link: string) =>
+    (await exports.default.fetch(`${origin}/auth/invite`, write({ token: tokenOf(link) }))).status
+
+  const ways: [string, (o: Awaited<ReturnType<typeof twoOwners>>) => Promise<Response>][] = [
+    ["they're removed", ({ ada, grace, network }) => post(ada, `/app/${network}/settings/members/${grace.id}/remove`)],
+    ["they're made a member", ({ ada, grace, network }) => setRole(ada, network, grace, 'member')],
+    ['they leave', ({ grace, network }) => post(grace, `/app/${network}/settings/members/leave`)],
+    ['they delete their account', ({ grace }) => post(grace, '/app/account/delete')]
+  ]
+  for (const [way, stop] of ways)
+    it(`loses the API keys and open invite links they made once ${way}, and the other owner keeps theirs`, async () => {
+      const owners = await twoOwners()
+      const { network, keys, links } = owners
+      expect([await keyReaches(keys.grace, network), await linkOpens(links.grace)]).toEqual([200, 200])
+
+      expect((await stop(owners)).status).toBe(200)
+      expect([await keyReaches(keys.grace, network), await linkOpens(links.grace)]).toEqual([401, 410])
+      await expect(openMember({ name: 'Lin Editor', invite: links.grace })).rejects.toThrow(
+        'Sign-up options returned 410'
+      )
+      expect([await keyReaches(keys.ada, network), await linkOpens(links.ada)]).toEqual([200, 200])
+    })
+})

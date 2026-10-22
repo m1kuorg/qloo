@@ -56,7 +56,8 @@ export function MembersModule({
         </h2>
         <p className="help">
           Everyone who can open {network.name}. Owners invite people, change roles, and remove members; members work on
-          the roster, launches, and inbox.
+          the roster, launches, and inbox. An owner who leaves, is removed, or is made a member loses the API keys and
+          invite links they made: each is revoked at once.
         </p>
       </div>
       <div className="set-body wide">
@@ -75,7 +76,7 @@ export function MembersModule({
             <tbody>
               {members.map((m) => {
                 const self = m.id === memberId
-                const out = outWords(self, m.name, network.name)
+                const out = outWords(self, m.name, network.name, m.role === 'owner')
                 // A network keeps at least one owner, so its last one has no "Make member".
                 const canSetRole = owner && !(m.role === 'owner' && ownerCount === 1)
                 return (
@@ -143,20 +144,21 @@ export function MembersModule({
   )
 }
 
-// Taking a member out, in words: the member leaving, or an owner removing someone else.
-const outWords = (self: boolean, member: string, network: string) =>
+// Taking a member out, in words: the member leaving, or an owner removing someone else. An owner's API
+// keys and invite links go with them.
+const outWords = (self: boolean, member: string, network: string, owner: boolean) =>
   self
     ? {
         act: 'Leave',
         busy: 'Leaving…',
         back: 'Stay',
-        ask: `Leave ${network}? Your open pages close, and you’ll need a new invite to come back.`
+        ask: `Leave ${network}? Your open pages close${owner ? ', the API keys and invite links you made are revoked' : ''}, and you’ll need a new invite to come back.`
       }
     : {
         act: 'Remove',
         busy: 'Removing…',
         back: 'Keep',
-        ask: `Remove ${member} from ${network}? Their open pages close at once, and they’ll need a new invite to come back.`
+        ask: `Remove ${member} from ${network}? Their open pages close at once${owner ? ', the API keys and invite links they made are revoked' : ''}, and they’ll need a new invite to come back.`
       }
 
 // An owner's invite links: making one shows it once, to copy; the list shows each one still open by
