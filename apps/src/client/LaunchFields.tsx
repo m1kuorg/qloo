@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { LaunchInput } from '../agent'
 import { MAX_COMPS } from '../limits'
+import { MAX_TITLE } from '../text'
 
 // What a launch goes by: its name, or for an unreleased one, its comps. The dashboard lists it so too.
 export const launchTitle = (name: string | null, comps: string[]) => name ?? comps.join(' · ')
@@ -43,6 +44,7 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
               value={comp}
               onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
               placeholder={['Blank Check', 'Filmspotting', 'You Must Remember This'][i]}
+              maxLength={MAX_TITLE}
               disabled={disabled}
             />
           ))
@@ -52,6 +54,7 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="The Big Picture"
+            maxLength={MAX_TITLE}
             disabled={disabled}
           />
         )}

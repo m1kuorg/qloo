@@ -13,21 +13,38 @@ import {
 } from '@simplewebauthn/server'
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
-import { accountsOn, appOrigins, endSession, jsonBody, nextPath, sameOrigin, setSession, signedIn } from '../auth'
+import {
+  accountsOn,
+  appOrigins,
+  endSession,
+  jsonBody,
+  jsonLimit,
+  nextPath,
+  sameOrigin,
+  sessionToken,
+  setSession,
+  signedIn,
+  stepUpRefused
+} from '../auth'
 import {
   addPasskey,
   findInvite,
   findPasskey,
+  invitedCapped,
+  isRecoveryCode,
   joinByInvite,
   memberPasskeys,
+  proveSession,
   recover,
   saveChallenge,
   signIn,
   signOut,
+  sessionProof,
   signUp,
   takeChallenge,
   type Challenge,
-  type Member
+  type Member,
+  type Passkey
 } from '../directory'
 import { appShell } from '../shell'
 import { readName } from '../text'
@@ -37,11 +54,17 @@ export const auth = new Hono<{ Bindings: Env }>()
 
 auth.use('/sign-in', accountsOn, appShell)
 auth.use('/invite', accountsOn, appShell)
-auth.use('/auth/*', accountsOn, sameOrigin, async (c, next) => {
-  await next()
-  // Answers carry a session cookie or a recovery code: no cache keeps them.
-  c.header('Cache-Control', 'no-store')
-})
+auth.use(
+  '/auth/*',
+  accountsOn,
+  sameOrigin,
+  async (c, next) => {
+    await next()
+    // Answers carry a session cookie or a recovery code: no cache keeps them.
+    c.header('Cache-Control', 'no-store')
+  },
+  jsonLimit
+)
 
 // A request that can't go on, in words for the sign-in or invite page.
 const refuse = (c: Context, error: string, status: 400 | 401 | 404 | 409 | 410 | 429 = 400) => c.json({ error }, status)
@@ -177,6 +200,16 @@ auth.post('/auth/join', async (c) => {
   return (await openInvite(c, token)).refused!
 })
 
+// The new accounts one member's invite links can bring in a UTC day (INVITED_SIGNUP_DAILY_CAP), and
+// why an invite link refuses another past them.
+const invitedCap = (env: Env) => Number(env.INVITED_SIGNUP_DAILY_CAP) || 0
+const invitedRefused = (c: Context<{ Bindings: Env }>) =>
+  refuse(
+    c,
+    `The member who made this invite link has brought in ${invitedCap(c.env)} new accounts through their links today, the most one member can in a UTC day; it resets at 00:00 UTC. To join now, sign in with an account you have, then open the link again.`,
+    429
+  )
+
 // Why this visitor can't create another account today, or null when they can; `count` counts this
 // one. A request with no visitor address, as in local tests, isn't capped.
 async function signupRefused(c: Context<{ Bindings: Env }>, count: boolean) {
@@ -185,8 +218,9 @@ async function signupRefused(c: Context<{ Bindings: Env }>, count: boolean) {
 }
 
 // Sign-up, first step: the name the member gave, and a new passkey's options for their browser. On
-// the invite page it carries the link's token: an invite that can't be used is refused before any
-// passkey is made, and one that can skips the sign-up cap.
+// the invite page it carries the link's token: an invite that can't be used, or whose maker's links
+// have brought in their new accounts for the day, is refused before any passkey is made, and one that
+// can skips the sign-up cap.
 auth.post('/auth/sign-up/options', async (c) => {
   const { name, invite } = await jsonBody(c)
   const read = readName(name, 'Enter your name.')
@@ -195,6 +229,7 @@ auth.post('/auth/sign-up/options', async (c) => {
   if (invite !== undefined) {
     const { refused } = await openInvite(c, invite)
     if (refused) return refused
+    if (await invitedCapped(c.env.DB, invite as string, invitedCap(c.env))) return invitedRefused(c)
   } else {
     const capped = await signupRefused(c, false)
     if (capped) return refuse(c, capped, 429)
@@ -207,7 +242,8 @@ auth.post('/auth/sign-up/options', async (c) => {
 
 // Sign-up, second step: the browser's new passkey. The member is written only once it verifies. With
 // an invite's token, they join its network in the same step, uncounted by the sign-up cap, and no
-// account is made once the invite can't be used.
+// account is made once the invite can't be used, or its maker's links have brought in their new
+// accounts for the day.
 auth.post('/auth/sign-up', async (c) => {
   const { challenge, response, invite } = await jsonBody(c)
   if (invite !== undefined && (typeof invite !== 'string' || !invite)) return refuse(c, INVITE_REFUSED.unknown, 404)
@@ -223,10 +259,11 @@ auth.post('/auth/sign-up', async (c) => {
       { id: started.memberId!, name: started.name! },
       passkey,
       browserLabel(c.req.header('User-Agent') ?? ''),
-      invite as string | undefined
+      invite === undefined ? undefined : { token: invite as string, invitedCap: invitedCap(c.env) }
     )
-    // An invite that couldn't be used can never be used again, so it's refused here with why.
-    if (!signedUp) return (await openInvite(c, invite)).refused!
+    // An invite that couldn't be used can never be used again, so it's refused here with why; one
+    // still open was refused by its maker's cap for the day.
+    if (!signedUp) return (await openInvite(c, invite)).refused ?? invitedRefused(c)
     setSession(c, signedUp.token)
     const { recoveryCode, network } = signedUp
     return c.json(network ? { recoveryCode, network } : { recoveryCode })
@@ -239,10 +276,14 @@ auth.post('/auth/sign-up', async (c) => {
 // Adding a passkey, for a signed-in member on their account page: from another device or password
 // manager, so losing one doesn't lock them out, or from a new device after signing in with their
 // recovery code. The options name the member's own user handle and the passkeys they have, so a
-// device that holds one of them adds no second.
+// device that holds one of them adds no second. It needs a proof that it's them from the last five
+// minutes, which signing in with the recovery code is, for the device's first passkey.
 auth.post('/auth/passkeys/options', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
+  // Asked here, so the page asks at once, and again as the new passkey arrives.
+  const unproved = await stepUpRefused(c, member)
+  if (unproved) return unproved
   const has = await memberPasskeys(c.env.DB, member.id)
   const options = await registrationOptions(c.env, member, has)
   const challenge = await saveChallenge(c.env.DB, 'add-passkey', options.challenge, { memberId: member.id })
@@ -250,10 +291,13 @@ auth.post('/auth/passkeys/options', async (c) => {
 })
 
 // Adding a passkey, second step: the browser's new passkey, added once it verifies, for the member
-// whose request it answers. The answer is their passkeys.
+// whose request it answers, while their proof that it's them is still within five minutes. The answer
+// is their passkeys.
 auth.post('/auth/passkeys', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
+  const unproved = await stepUpRefused(c, member)
+  if (unproved) return unproved
   const { challenge, response } = await jsonBody(c)
   const started = await takeStarted(c, 'add-passkey', challenge)
   if (!started || started.memberId !== member.id) return refuse(c, STALE)
@@ -287,7 +331,22 @@ auth.post('/auth/sign-in', async (c) => {
   const handle = answer?.response?.userHandle
   if (!passkey || (handle && handle !== isoBase64URL.fromUTF8String(passkey.memberId)))
     return refuse(c, "Crossfeed doesn't know this passkey. Try another, or create an account.")
-  const authentication = await verified('sign-in', () =>
+  const authentication = await asserted(c, 'sign-in', started, answer, passkey)
+  if (!authentication) return refuse(c, UNVERIFIED)
+  setSession(c, await signIn(c.env.DB, passkey, authentication.authenticationInfo.newCounter))
+  return c.json({})
+})
+
+// A browser's signature with `passkey` for the ceremony started with `started`, user-verified, once it
+// verifies; null when it doesn't.
+const asserted = (
+  c: Context<{ Bindings: Env }>,
+  ceremony: string,
+  started: Challenge,
+  answer: AuthenticationResponseJSON,
+  passkey: Passkey
+) =>
+  verified(ceremony, () =>
     verifyAuthenticationResponse({
       response: answer,
       expectedChallenge: started.challenge,
@@ -302,8 +361,36 @@ auth.post('/auth/sign-in', async (c) => {
       requireUserVerification: true
     })
   )
+
+// Step-up, for a signed-in member whose change was refused until they confirm it's them: the browser's
+// answer to the refusal's passkey ceremony, with one of their own passkeys, or, in a browser signed in
+// with the recovery code, that code, which is only checked, so it still signs them in once. Either
+// proves the session for five minutes.
+auth.post('/auth/verify', async (c) => {
+  const member = await signedIn(c)
+  const token = sessionToken(c)
+  if (!member || !token) return refuse(c, 'Sign in first.', 401)
+  const { challenge, response, code } = await jsonBody(c)
+  if (code !== undefined) {
+    if (!(await sessionProof(c.env.DB, token))?.recovered)
+      return refuse(c, "Confirm it's you with your passkey: a recovery code confirms only a browser signed in with it.")
+    if (typeof code !== 'string' || !(await isRecoveryCode(c.env.DB, member.id, code)))
+      return refuse(c, "That isn't your recovery code. Check it, or the one Crossfeed showed you last, and try again.")
+    await proveSession(c.env.DB, token)
+    return c.json({})
+  }
+  const started = await takeStarted(c, 'step-up', challenge)
+  if (!started || started.memberId !== member.id) return refuse(c, STALE)
+  const answer = response as AuthenticationResponseJSON
+  const passkey = typeof answer?.id === 'string' ? await findPasskey(c.env.DB, answer.id) : null
+  if (!passkey || passkey.memberId !== member.id)
+    return refuse(c, "That passkey isn't one of yours. Confirm with a passkey of your account.")
+  const authentication = await asserted(c, 'step-up', started, answer, passkey)
   if (!authentication) return refuse(c, UNVERIFIED)
-  setSession(c, await signIn(c.env.DB, passkey, authentication.authenticationInfo.newCounter))
+  await proveSession(c.env.DB, token, {
+    credentialId: passkey.credentialId,
+    counter: authentication.authenticationInfo.newCounter
+  })
   return c.json({})
 })
 

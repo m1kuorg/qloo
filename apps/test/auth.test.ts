@@ -251,7 +251,9 @@ describe('the way in', () => {
       'https://crossfeed.example/app',
       '//crossfeed.example/app',
       '/\\crossfeed.example',
-      'javascript:alert(1)'
+      'javascript:alert(1)',
+      // Each reads as a path, but parses to one that starts with //, which a browser reads as a host.
+      ...AWAY_BY_DOTS
     ])
       expect(await nextOf(away)).toBe('/app')
   })
@@ -264,8 +266,14 @@ describe('the way in', () => {
       ).headers.get('location')
     expect(await go('/app/new')).toBe('/app/new')
     expect(await go('//crossfeed.example/app')).toBe('/app')
+    for (const away of AWAY_BY_DOTS) expect(await go(away)).toBe('/app')
+    // A dot segment that stays on the site still leads on.
+    expect(await go('/app/./new')).toBe('/app/new')
   })
 })
+
+// Paths that dot segments or an escaped dot turn into another host's address.
+const AWAY_BY_DOTS = ['/.//crossfeed.example/app', '/..//crossfeed.example/app', '/%2e//crossfeed.example/app']
 
 describe('a write from another site', () => {
   const postFrom = (path: string, headers: Record<string, string>) =>
@@ -281,6 +289,28 @@ describe('a write from another site', () => {
       expect(res.status).toBe(403)
     }
     expect(await appFor(cookie)).toBe('Ada Programmer')
+  })
+
+  it('is refused with no Origin even when APP_ORIGINS has an empty entry, as an upgrade to an agent is', async () => {
+    const saved = env.APP_ORIGINS
+    env.APP_ORIGINS = `${origin}, ,`
+    try {
+      const ada = await openMember()
+      const created = await ada.fetch('/app/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Night Shift Audio' })
+      })
+      const { id } = await created.json<{ id: string }>()
+      for (const path of ['/auth/sign-out', '/app/new', `/api/v1/networks/${id}`])
+        expect((await postFrom(path, { Cookie: ada.cookie })).status, path).toBe(403)
+      const upgrade = await get(`/agents/network/${id}`, { headers: { Upgrade: 'websocket', Cookie: ada.cookie } })
+      expect(upgrade.status).toBe(404)
+      // From the app's own page, each still goes through.
+      expect((await postFrom('/app/new', { Cookie: ada.cookie, Origin: origin })).status).toBe(400)
+    } finally {
+      env.APP_ORIGINS = saved
+    }
   })
 
   it('is refused for signing up, in, or back in with a recovery code too', async () => {

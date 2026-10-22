@@ -67,7 +67,8 @@ import {
   WorkConfirmation,
   batchPitches,
   pitchRunInput,
-  refusal
+  refusal,
+  uploadLimit
 } from './api'
 
 // Every tool's description ends with it, as every tool can be the one an assistant reads a run's
@@ -649,7 +650,7 @@ export async function listedTools(): Promise<ListToolsResult['tools']> {
 
 export const mcp = new Hono<{ Bindings: Env }>()
 
-mcp.all('/mcp', accountsOn, async (c) => {
+mcp.all('/mcp', accountsOn, uploadLimit, async (c) => {
   let key
   try {
     key = await keyFor(c.env, c.req.header('Authorization') ?? '')

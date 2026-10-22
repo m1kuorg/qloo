@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Budget, Launch, Question, Reply, Run } from '../agent'
 import { MAX_COMPS } from '../limits'
+import { MAX_ANSWER, MAX_TITLE } from '../text'
 import { offeredBy } from '../resolve'
 import { takesText } from '../tools/ask-human'
 import type { Session } from './App'
@@ -261,6 +262,7 @@ export function OpenQuestion({
                       aria-label={`Comp ${i + 1}`}
                       value={comp}
                       onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
+                      maxLength={MAX_TITLE}
                     />
                   </span>
                 ))}
@@ -312,6 +314,8 @@ export function OpenQuestion({
                     setText(e.target.value)
                     if (question.kind === 'launch') setChoice(undefined)
                   }}
+                  // A launch's name, or the programmer's own answer.
+                  maxLength={question.kind === 'launch' || question.kind === 'comps' ? MAX_TITLE : MAX_ANSWER}
                 />
               </span>
             </label>

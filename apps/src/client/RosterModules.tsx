@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { Show, ShowPatch, SlowCall } from '../agent'
 import { dollars } from '../order'
+import { MAX_TITLE } from '../text'
 import type { RosterFormat } from '../roster'
 import type { SampleFigure } from '../sample'
 import { readRosterUpload } from '../upload'
@@ -400,6 +401,7 @@ function CompSearch({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search Qloo podcasts"
+              maxLength={MAX_TITLE}
               disabled={searching.busy}
             />
           </span>

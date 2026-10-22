@@ -1259,6 +1259,32 @@ fieldset {
   animation-delay: calc(var(--t-state) + var(--landing, 0) * 60ms);
 }
 
+/* The landing page's chart is server-rendered under a policy that takes no style attribute, so each of
+   its bullets takes its place in the stagger from `data-landing`; the island sets --landing itself. */
+.bul[data-landing='1'] {
+  --landing: 1;
+}
+
+.bul[data-landing='2'] {
+  --landing: 2;
+}
+
+.bul[data-landing='3'] {
+  --landing: 3;
+}
+
+.bul[data-landing='4'] {
+  --landing: 4;
+}
+
+.bul[data-landing='5'] {
+  --landing: 5;
+}
+
+.bul[data-landing='6'] {
+  --landing: 6;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

@@ -14,6 +14,7 @@ import {
   type WorkType
 } from '../inbox'
 import { MAX_PAST_GUESTS } from '../limits'
+import { MAX_TITLE } from '../text'
 import { sameName } from '../resolve'
 import { readPitchUpload } from '../upload'
 import type { Links, Session } from './App'
@@ -423,6 +424,7 @@ function PitchSetup({
                     aria-label={`Past guest ${i + 1}`}
                     value={r.guest}
                     onChange={(e) => edit(i, { guest: e.target.value })}
+                    maxLength={MAX_TITLE}
                     disabled={locked}
                   />
                 </span>
@@ -431,6 +433,7 @@ function PitchSetup({
                     aria-label={`Past guest ${i + 1}'s work title`}
                     value={r.title}
                     onChange={(e) => edit(i, { title: e.target.value })}
+                    maxLength={MAX_TITLE}
                     disabled={locked}
                   />
                 </span>

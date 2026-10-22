@@ -125,11 +125,20 @@ const surnames = (guest: string) => people(guest).flatMap((name) => words(name).
 // sender ("Ada Quill <ada@example.com>"), is never sent. A name followed by "s", as in "Ada Quill's",
 // still counts.
 export function personalIn(title: string, names: (string | null)[]): 'email' | 'name' | null {
-  if (/\S+@\S+\.\S+/.test(title)) return 'email'
+  if (holdsEmail(title)) return 'email'
   const found = ` ${words(title).join(' ')} `
   const named = names.flatMap((n) => (n ? wholeNames(n) : []))
   return named.some((n) => found.includes(` ${n} `) || found.includes(` ${n}s `)) ? 'name' : null
 }
+
+// Whether `text` holds what reads as an email address, as /\S+@\S+\.\S+/ finds one, in one pass rather
+// than the pattern's backtracking: a run without spaces with something before an "@", and a "." after
+// it with something on either side.
+const holdsEmail = (text: string) =>
+  text.split(/\s+/).some((run) => {
+    const at = run.indexOf('@', 1)
+    return at > 0 && run.lastIndexOf('.', run.length - 2) > at + 1
+  })
 
 // Words that come with a name without being it, as in "Dr. Ada Quill, PhD".
 const notName = new Set([

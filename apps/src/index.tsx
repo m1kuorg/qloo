@@ -1,7 +1,7 @@
 // The Worker: one Hono app with a route module per surface in src/routes/, its Durable Objects,
 // and its cron handler.
 import { Hono } from 'hono'
-import { secureHeaders } from 'hono/secure-headers'
+import { NONCE, secureHeaders } from 'hono/secure-headers'
 import { purgeExpired } from './directory'
 import { checkHealth } from './health'
 import { api } from './routes/api'
@@ -20,9 +20,25 @@ export { NetworkAgent } from './network-agent'
 
 const app = new Hono<{ Bindings: Env }>()
 
-// Every page gets Hono's secure headers, and sends no referrer. Agent connections are left as their
-// agent answers them: a Durable Object's response can't take new headers.
-const secure = secureHeaders({ referrerPolicy: 'no-referrer' })
+// Every page gets Hono's secure headers, sends no referrer, and runs under a Content-Security-Policy of
+// the app's own origin alone, its agents' WebSockets included, with no inline script, inline style,
+// plugin, or other site's frame around it. Vite's dev server needs two allowances, in development
+// only: the React refresh preamble, an inline script, runs under the request's nonce (shell.tsx), and
+// Vite injects stylesheets as <style> elements. Agent connections are left as their agent answers
+// them: a Durable Object's response can't take new headers.
+const dev = import.meta.env.DEV
+const secure = secureHeaders({
+  referrerPolicy: 'no-referrer',
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    scriptSrc: dev ? ["'self'", NONCE] : ["'self'"],
+    styleSrc: dev ? ["'self'", "'unsafe-inline'"] : ["'self'"],
+    objectSrc: ["'none'"],
+    baseUri: ["'none'"],
+    formAction: ["'self'"],
+    frameAncestors: ["'none'"]
+  }
+})
 app.use((c, next) => (c.req.path.startsWith('/agents/') ? next() : secure(c, next)))
 
 app.route('/', marketing)

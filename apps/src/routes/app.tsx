@@ -4,7 +4,17 @@
 // doesn't are the same 404.
 import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
-import { accountsOn, appOrigins, endSession, jsonBody, sameOrigin, session, signedIn } from '../auth'
+import {
+  accountsOn,
+  endSession,
+  fromAppOrigin,
+  jsonBody,
+  jsonLimit,
+  sameOrigin,
+  session,
+  signedIn,
+  stepUpRefused
+} from '../auth'
 import {
   accountNetworks,
   apiKeys,
@@ -45,17 +55,24 @@ type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
 
 export const appPages = new Hono<AppEnv>()
 
-appPages.use('/app/*', accountsOn, sameOrigin, async (c, next) => {
-  const member = await signedIn(c)
-  if (!member) {
-    const { pathname, search } = new URL(c.req.url)
-    // `next` keeps its slashes, so the address reads as the page it leads back to.
-    return c.redirect(`/sign-in?next=${encodeURIComponent(pathname + search).replace(/%2F/g, '/')}`, 302)
-  }
-  c.set('member', member)
-  await next()
-  c.header('Cache-Control', 'no-store')
-})
+appPages.use(
+  '/app/*',
+  accountsOn,
+  sameOrigin,
+  async (c, next) => {
+    const member = await signedIn(c)
+    if (!member) {
+      const { pathname, search } = new URL(c.req.url)
+      // `next` keeps its slashes, so the address reads as the page it leads back to.
+      return c.redirect(`/sign-in?next=${encodeURIComponent(pathname + search).replace(/%2F/g, '/')}`, 302)
+    }
+    c.set('member', member)
+    await next()
+    c.header('Cache-Control', 'no-store')
+  },
+  // A signed-in member's body is read only up to the limit.
+  jsonLimit
+)
 appPages.use('/app/*', appShell)
 
 // /app opens the network the member opened last, or asks them to create their first.
@@ -128,10 +145,13 @@ appPages.post('/app/account/passkeys/:credentialId/remove', async (c) => {
   return c.json({ passkeys: await memberPasskeys(c.env.DB, id) })
 })
 
-// A new recovery code, shown this once, in place of the member's last one.
-appPages.post('/app/account/recovery-code', async (c) =>
-  c.json({ recoveryCode: await newRecoveryCode(c.env.DB, c.var.member.id) })
-)
+// A new recovery code, shown this once, in place of the member's last one, once they've proved it's them
+// in the last five minutes.
+appPages.post('/app/account/recovery-code', async (c) => {
+  const unproved = await stepUpRefused(c, c.var.member)
+  if (unproved) return unproved
+  return c.json({ recoveryCode: await newRecoveryCode(c.env.DB, c.var.member.id) })
+})
 
 // Signs the member out on every browser, as when a device is lost: every session ends, this one's
 // cookie goes, and their open pages close on every network and launch.
@@ -147,9 +167,12 @@ appPages.post('/app/account/sign-out-everywhere', async (c) => {
 })
 
 // Deletes the member's account: them, their passkeys, sessions, and memberships, unless they're any
-// network's only owner, which would leave it with no one to run it. What they made in each network
-// stays with it, but each launch forgets their name (wipe.ts). Their open pages close.
+// network's only owner, which would leave it with no one to run it, once they've proved it's them in
+// the last five minutes. What they made in each network stays with it, but each launch forgets their
+// name (wipe.ts). Their open pages close.
 appPages.post('/app/account/delete', async (c) => {
+  const unproved = await stepUpRefused(c, c.var.member)
+  if (unproved) return unproved
   const { id } = c.var.member
   const networks = await accountNetworks(c.env.DB, id)
   if (
@@ -329,7 +352,15 @@ appPages.post('/app/:networkId/settings/members/invites', async (c) => {
   const id = c.req.param('networkId')
   const refused = await refuseNonOwner(c, id)
   if (refused) return refused
-  const invite = await createInvite(c.env.DB, id, c.var.member.id)
+  const cap = Number(c.env.INVITES_PER_NETWORK) || 0
+  const invite = await createInvite(c.env.DB, id, c.var.member.id, cap)
+  if (invite === 'capped')
+    return c.json(
+      {
+        error: `${await networkName(c.env.DB, id)} has ${cap} open invite links, the most a network can keep at once. Revoke one, or wait for one to be used or to expire.`
+      },
+      429
+    )
   if (!invite) return c.json({ error: OWNERS_ONLY }, 403)
   return c.json({
     id: invite.id,
@@ -535,7 +566,7 @@ async function upgradingMember(c: Context<AppEnv>, networkId: string) {
   if (
     !member ||
     c.req.header('Upgrade')?.toLowerCase() !== 'websocket' ||
-    !appOrigins(c.env).includes(c.req.header('Origin') ?? '') ||
+    !fromAppOrigin(c) ||
     !(await memberRole(c.env.DB, networkId, member.id))
   )
     return null

@@ -462,6 +462,16 @@ describe('triaging pitches through the MCP server', () => {
     env.GUEST_PITCHES = 'off'
   })
 
+  it("refuses a past guest's work title over 200 characters before it reaches the agent", async () => {
+    const { secret } = await networkWithKey()
+    const started = await assistant(secret).call('start_pitch_run', {
+      show: 'Night Shift Cinema',
+      pastGuests: [{ guest: 'Mo Reyes', work: { title: '@'.repeat(4_000), type: 'book', year: 2022 } }]
+    })
+    expect(started.isError).toBe(true)
+    expect(started.text).toContain('Use at most 200 characters.')
+  })
+
   it("loads the pitches, confirms a work, and relays the run's question before reading its replies", async () => {
     fakeQloo({ search: works })
     fakeInsights((body) => scores[String(body['filter.type'])])

@@ -125,6 +125,9 @@ describe('asking the programmer', () => {
     )
     await expect(s.call('answer', 'toolu_1_1', { text: '   ' })).rejects.toThrow('Pick an option or type an answer.')
     await expect(s.call('answer', 'toolu_1_1', null)).rejects.toThrow('Pick an option or type an answer.')
+    await expect(s.call('answer', 'toolu_1_1', { text: 'x'.repeat(2_001) })).rejects.toThrow(
+      'An answer is at most 2,000 characters. Shorten it.'
+    )
     expect(s.state()?.run).toMatchObject({ status: 'waiting', question: { id: 'toolu_1_1' } })
     expect(modelRequests()).toHaveLength(1)
 
@@ -501,6 +504,9 @@ describe('asking which show the launch is', () => {
     expect(question(paused)).toMatchObject({ kind: 'launch', options: [] })
     await expect(s.call('answer', question(paused).id, {})).rejects.toThrow(
       'Pick a candidate or type the name Qloo lists it under.'
+    )
+    await expect(s.call('answer', question(paused).id, { text: 'G'.repeat(201) })).rejects.toThrow(
+      'Use a launch name of at most 200 characters.'
     )
 
     await s.call('answer', question(paused).id, { text: ' Glass Harbour ' })

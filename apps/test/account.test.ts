@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import type { AccountNetwork, AccountPasskey, ApiKey, NetworkMember } from '../src/directory'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
-import { addPasskey, openMember, type Member, type Session } from './session'
+import { addPasskey, confirmedFetch, openMember, type Member, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
 
@@ -129,7 +129,7 @@ describe('passkeys', () => {
     const phone = softwareAuthenticator()
 
     // The options name the member and the passkey they have, so a device that holds it adds no other.
-    const started = await ada.fetch('/auth/passkeys/options', { method: 'POST' })
+    const started = await confirmedFetch(ada, '/auth/passkeys/options', { method: 'POST' })
     const { options } = await started.json<{
       options: { user: { id: string; name: string }; excludeCredentials: { id: string }[] }
     }>()
@@ -285,7 +285,7 @@ describe('deleting an account', () => {
     const ada = await openMember()
     const network = await created(ada)
     const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(network) })
-    // Grace, an owner beside Ada, makes a key: it's the network's, so it stays.
+    // Grace, an owner beside Ada, makes a key: it goes with her.
     await post(ada, `/app/${network}/settings/members/${grace.id}/role`, { role: 'owner' })
     const { secret } = await (
       await post(grace, `/app/${network}/settings/api-keys`, { name: 'Nightly sync' })
@@ -309,19 +309,19 @@ describe('deleting an account', () => {
     })
     expect(recovered.status).toBe(400)
 
-    // The network keeps its owner, and the key Grace made, now made by no one.
+    // The network keeps its owner, and the key Grace made is revoked.
     const settings = await (await ada.fetch(`/app/${network}/settings`)).text()
     const data = (name: string) =>
       JSON.parse(settings.match(new RegExp(`data-${name}="([^"]*)"`))![1].replace(/&quot;/g, '"'))
     expect((data('members') as NetworkMember[]).map((m) => m.name)).toEqual(['Ada Programmer'])
-    expect((data('api-keys') as ApiKey[]).map((k) => [k.name, k.by])).toEqual([['Nightly sync', null]])
+    expect(data('api-keys') as ApiKey[]).toEqual([])
     expect(
       (
         await exports.default.fetch(`${origin}/api/v1/networks/${network}`, {
           headers: { Authorization: `Bearer ${secret}` }
         })
       ).status
-    ).toBe(200)
+    ).toBe(401)
   })
 
   it("is refused while the member is any network's only owner, naming each", async () => {

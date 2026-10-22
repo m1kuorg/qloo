@@ -345,6 +345,7 @@ describe('the insertion order', () => {
       [[{ ...line, slots: 0 }], 'Corner Booth needs a whole number of slots, 1 or more.'],
       [[{ ...line, slots: 1.5 }], 'Corner Booth needs a whole number of slots, 1 or more.'],
       [[{ ...line, angle: ' ' }], 'Corner Booth needs a host-read angle.'],
+      [[{ ...line, angle: 'x'.repeat(501) }], "Corner Booth's angle is over 500 characters. Shorten it."],
       [[line, line], 'Corner Booth has more than one line; give each show one line.'],
       [[{ ...line, show: 'Tin Roof' }], '"Tin Roof" isn\'t one of this run\'s finalists']
     ] as const)

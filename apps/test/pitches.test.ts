@@ -349,6 +349,30 @@ describe('starting a pitch run', () => {
     expect(s.state()?.booking).toBeNull()
     expect(requests).toHaveLength(sent)
   })
+
+  it("refuses a past guest's name or work title over 200 characters at once, before reading it, and sends nothing", async () => {
+    const s = await loaded()
+    const sent = requests.length
+    const start = (guest: string, title: string) =>
+      s.call('startPitches', { show: 'Night Shift Cinema', pastGuests: [{ guest, work: { ...film.work, title } }] })
+    const began = Date.now()
+    // A title an email-address pattern would take seconds to rule out.
+    await expect(start('Mae Ford', '@'.repeat(4_000))).rejects.toThrow(
+      "Past guest 1's work title is over 200 characters. Shorten it."
+    )
+    await expect(start('M'.repeat(201), 'Glass Harbor')).rejects.toThrow(
+      "Past guest 1's name is over 200 characters. Shorten it."
+    )
+    expect(Date.now() - began).toBeLessThan(2_000)
+    // At the limit, both are taken.
+    fakeClaude([turn(text('Ranked.'))])
+    await s.call('startPitches', {
+      show: 'Night Shift Cinema',
+      pastGuests: [{ guest: 'M'.repeat(200), work: { ...film.work, title: `Glass Harbor ${'x'.repeat(187)}` } }]
+    })
+    expect(s.state()?.booking?.pastGuests.map((g) => [g.guest.length, g.work.title.length])).toEqual([[200, 200]])
+    await finished(s)
+  })
 })
 
 // The sample inbox end to end: every Qloo request the pitch flow makes, searches and rankings,

@@ -135,6 +135,9 @@ describe('standing comps in for an unreleased launch', () => {
       '4 comps is over the limit of 3. Name up to 3 released shows to stand in for the launch.'
     )
     await expect(s.call('startLaunch', { comps: ['  ', ''] })).rejects.toThrow('Name at least one comp to start a run.')
+    await expect(s.call('startLaunch', { comps: ['Matinee Club', 'C'.repeat(201)] })).rejects.toThrow(
+      'Use comp names of at most 200 characters.'
+    )
     await expect(s.call('startLaunch', { comps: 'Matinee Club' })).rejects.toThrow(
       'Name at least one comp to start a run.'
     )

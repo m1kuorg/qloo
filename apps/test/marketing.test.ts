@@ -36,6 +36,8 @@ const vars = {
   ACCOUNTS: env.ACCOUNTS,
   NETWORKS_PER_MEMBER: env.NETWORKS_PER_MEMBER,
   LAUNCHES_PER_NETWORK: env.LAUNCHES_PER_NETWORK,
+  INVITES_PER_NETWORK: env.INVITES_PER_NETWORK,
+  INVITED_SIGNUP_DAILY_CAP: env.INVITED_SIGNUP_DAILY_CAP,
   GUEST_PITCHES: env.GUEST_PITCHES,
   RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
 }
@@ -127,6 +129,18 @@ describe('the privacy page and the beta terms', () => {
     )
   })
 
+  it('says the Qloo cache is shared, and that a cache hit can show someone else looked up the same name', async () => {
+    const shared = (who: string, someone: string) =>
+      `Qloo's responses with the requests they answered, cached with no expiry in one cache that ${who} shares. A call someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show that ${someone} looked up the same name; nothing else of theirs is shown, and the cache is never published.`
+    expect(words(await page('/privacy'))).toContain(
+      shared('every visitor and every network without its own Qloo key', 'another visitor or network')
+    )
+    env.ACCOUNTS = 'off'
+    expect(words(await page('/privacy'))).toContain(shared('every visitor', 'another visitor'))
+    for (const path of ['/', '/privacy'])
+      expect(words(await page(path)), path).not.toMatch(/privately|private to Crossfeed/)
+  })
+
   it('says the beta is free, without warranty, and limited as the Worker is configured', async () => {
     env.RUN_VISITOR_DAILY_CAP = '7'
     const text = words(await page('/terms'))
@@ -139,10 +153,13 @@ describe('the privacy page and the beta terms', () => {
   it('say what an account keeps, how many networks a member can create and launches a network can keep, and the per-minute limits, only while accounts are on', async () => {
     env.NETWORKS_PER_MEMBER = '2'
     env.LAUNCHES_PER_NETWORK = '40'
+    env.INVITES_PER_NETWORK = '15'
+    env.INVITED_SIGNUP_DAILY_CAP = '12'
     const kept = 'With an account: your name'
     const approvals = 'with the member who approved each reply'
     const counts = "each visitor's and each network's counts for the day"
-    const cap = 'A member can create at most 2 networks, and a network can keep at most 40 launches at once.'
+    const cap =
+      "A member can create at most 2 networks, and a network can keep at most 40 launches and 15 open invite links at once. One member's invite links can bring in at most 12 new accounts a UTC day."
     const network =
       "A network counts as one visitor of its own, whichever of its members makes the network's calls and runs."
     const keys = "A network's API keys are kept only as hashes"
@@ -153,7 +170,7 @@ describe('the privacy page and the beta terms', () => {
     const networkGone =
       "Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage, each of its launches', and its Qloo storage. A wipe that fails is tried again by the next day's cleanup, which also deletes expired sessions, sign-in challenges, and invite links."
     const accountGone =
-      "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you're in say “Former member” on the runs you started and the orders you approved. The API keys and invite links you made stay with their networks, made by no one. A network that can't be reached at once forgets your name at the next day's cleanup. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
+      "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you're in say “Former member” on the runs you started and the orders you approved. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or is made a member. A network that can't be reached at once forgets your name at the next day's cleanup. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
     const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
     const ownKey =
       "A network's own Qloo key, if an owner adds one, is kept encrypted in the network's own Qloo storage, with the host it's for and its last four characters, the only part of it anyone is shown."

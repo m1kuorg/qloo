@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import type { Child } from 'hono/jsx'
-import { jsxRenderer } from 'hono/jsx-renderer'
+import { jsxRenderer, useRequestContext } from 'hono/jsx-renderer'
 import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
 import type { Member, Network } from './directory'
 
@@ -25,13 +25,16 @@ const Head = ({ title, children }: { title: string; children?: Child }) => (
 )
 
 // The head of a page with the React island: the shared head, React's refresh preamble in
-// development, and the island's script.
-const IslandHead = () => (
-  <Head title="Crossfeed">
-    {import.meta.env.DEV && <script type="module" dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
-    <Script src="/src/client/main.tsx" />
-  </Head>
-)
+// development, under the policy's nonce (index.tsx), and the island's script.
+const IslandHead = () => {
+  const nonce = useRequestContext().get('secureHeadersNonce')
+  return (
+    <Head title="Crossfeed">
+      {import.meta.env.DEV && <script type="module" nonce={nonce} dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
+      <Script src="/src/client/main.tsx" />
+    </Head>
+  )
+}
 
 // The marketing shell: server-rendered pages with no island, under the black top bar with the
 // wordmark, the developer docs, the sample network, and, while ACCOUNTS is on, Sign in. The footer

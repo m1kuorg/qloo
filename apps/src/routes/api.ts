@@ -5,6 +5,7 @@
 // (refusal.ts). There's no approve route (ADR 0002).
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import type { Context, MiddlewareHandler } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { accountsOn, fromAppPage, keyFor, signedIn } from '../auth'
 import { memberRole } from '../directory'
@@ -42,7 +43,8 @@ import {
 } from '../operations'
 import { csvDownload } from '../order'
 import { REFUSALS, Refusal, refusalCode, type RefusalCode } from '../refusal'
-import { readPitchUpload, readRosterUpload, tooBig, type Upload } from '../upload'
+import { MAX_ANGLE, MAX_ANSWER, MAX_TITLE } from '../text'
+import { MAX_UPLOAD_BYTES, megabytes, readPitchUpload, readRosterUpload, tooBig, type Upload } from '../upload'
 
 type ApiEnv = { Bindings: Env; Variables: { caller: Caller } }
 
@@ -95,6 +97,15 @@ api.onError((err, c) => {
 
 const NOT_FOUND = "There's no such network, or this API key or member can't reach it."
 
+// A body to the API or the MCP server holds at most an upload, and room for a JSON envelope around
+// one: past it, as its Content-Length says or as it streams in with none, it's refused before it's
+// read further. An upload a little over the limit is refused by the upload module, naming its file.
+export const uploadLimit = bodyLimit({
+  maxSize: MAX_UPLOAD_BYTES + 64 * 1024,
+  onError: (c) =>
+    refuse(c, 'too_large', `This request is over the ${megabytes(MAX_UPLOAD_BYTES, 0)} limit for an upload.`)
+})
+
 // Who's asking, for every route under a network: one of its API keys, in `Authorization: Bearer`,
 // or else a member's session cookie, which must come from one of the app's pages to write. A key
 // reaches its own network alone; to it, as to anyone outside, every other network is the same 404.
@@ -132,6 +143,7 @@ const guestPitches: MiddlewareHandler<ApiEnv> = async (c, next) => {
 // Hono's `/*` matches the path itself too.
 for (const path of ['inbox', 'pitch-runs']) api.use(`/api/v1/networks/:networkId/${path}/*`, guestPitches)
 api.use('/api/v1/networks/:networkId/*', caller)
+api.use('/api/v1/*', uploadLimit)
 
 // What an operation runs with, from a route under a network.
 const context = (c: Context<ApiEnv>): OperationContext => ({
@@ -144,6 +156,9 @@ const context = (c: Context<ApiEnv>): OperationContext => ({
 // schema itself nullable in the document, and so every other use of it, such as a run a read
 // answers with, in the types generated from it.
 const orNull = <T extends z.ZodType>(schema: T) => z.union([schema, z.null()])
+
+// Text of at most `max` characters (text.ts), refused past it before anything reads it.
+const capped = (max: number) => z.string().max(max, { error: `Use at most ${max.toLocaleString('en-US')} characters.` })
 
 // The documented answer to each refusal a route can give.
 const ErrorBody = z
@@ -477,7 +492,9 @@ api.openapi(
   }
 )
 
-export const CompQuery = z.object({ query: z.string().openapi({ example: 'Paper Trail Weekly' }) }).openapi('CompQuery')
+export const CompQuery = z
+  .object({ query: capped(MAX_TITLE).openapi({ example: 'Paper Trail Weekly' }) })
+  .openapi('CompQuery')
 
 api.openapi(
   createRoute({
@@ -876,14 +893,14 @@ export const Answer = z
       .string()
       .optional()
       .openapi({ description: "One of a `choice` question's options, or of a `launch` question's candidates." }),
-    text: z.string().optional().openapi({
+    text: capped(MAX_ANSWER).optional().openapi({
       description:
         'Your own words, for a `choice` question; for a `launch` or `comps` question, the name Qloo lists the launch under.'
     }),
     slots: z.number().optional().openapi({ description: 'A `budget` in promo slots.' }),
     dollars: z.number().optional().openapi({ description: 'A `budget` in dollars.' }),
     exclude: z.array(z.string()).optional().openapi({ description: 'The `exclusions`: shows to leave out.' }),
-    comps: z.array(z.string()).optional().openapi({ description: 'For `comps`, up to three released shows.' }),
+    comps: z.array(capped(MAX_TITLE)).optional().openapi({ description: 'For `comps`, up to three released shows.' }),
     picks: z.array(z.string().nullable()).optional().openapi({
       description:
         "For `confirm_comps`, each comp's entity ID in the question's order, from its `candidates` in the run's plan, or null for none of them."
@@ -902,9 +919,9 @@ export const PitchRunStart = z
     pastGuests: z
       .array(
         z.object({
-          guest: z.string(),
+          guest: capped(MAX_TITLE),
           work: z.object({
-            title: z.string(),
+            title: capped(MAX_TITLE),
             type: z.enum(workTypes),
             year: z.number().int().nullable().optional()
           })
@@ -1318,9 +1335,9 @@ const Launch = LaunchFields.extend({
 // What a launch is planned from, by name or comps.
 export const LaunchPlan = z
   .strictObject({
-    name: z.string().optional().openapi({ description: "A released launch's name, as Qloo lists it." }),
+    name: capped(MAX_TITLE).optional().openapi({ description: "A released launch's name, as Qloo lists it." }),
     comps: z
-      .array(z.string())
+      .array(capped(MAX_TITLE))
       .optional()
       .openapi({ description: 'Up to three released shows to stand in for an unreleased launch.' })
   })
@@ -1554,7 +1571,7 @@ export const OrderChange = z
           z.object({
             show: z.string().openapi({ description: "One of the run's finalists, named as on the roster." }),
             slots: z.number().openapi({ description: 'Whole promo slots, 1 or more.' }),
-            angle: z.string()
+            angle: capped(MAX_ANGLE)
           })
         )
         .openapi({ description: 'Every line of the order as it should be, one per show.' })

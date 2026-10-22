@@ -2,6 +2,7 @@
 // public work it's about. The pitch goes to Anthropic; nothing here talks to Qloo.
 import { declined, structured } from './claude'
 import { workTypes, type Pitch, type Work } from './inbox'
+import { MAX_TITLE } from './text'
 import { personalIn } from './resolve'
 
 const instructions = `You read guest pitches sent to a podcast's booker. From one pitch, extract the guest and the public work the pitch is about.
@@ -67,9 +68,13 @@ export function pitchReader(env: Env) {
       return failed('failed', "Claude's reply wasn't the JSON it was asked for.")
     }
     const guest = answer.guest.trim()
+    if (guest.length > MAX_TITLE)
+      return failed('unreadable', `The guest's name is over ${MAX_TITLE} characters, so the pitch is set aside.`)
     if (!answer.work) return { status: 'no_work', guest, work: null, error: null }
     const title = answer.work.title.trim()
     if (!title) return failed('failed', 'Claude named a work type but no title.')
+    if (title.length > MAX_TITLE)
+      return failed('unreadable', `The work's title is over ${MAX_TITLE} characters, so it isn't sent to Qloo.`)
     const personal = personalIn(title, [guest, pitch.from])
     if (personal === 'email')
       return failed('unreadable', "The work's title holds an email address, so it isn't sent to Qloo.")

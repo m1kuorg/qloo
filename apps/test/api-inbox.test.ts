@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Question, Run } from '../src/agent'
 import type { PitchList } from '../src/fit'
 import type { Pitch, PitchReply } from '../src/inbox'
-import { mbox, nightFerry } from './emails'
+import { mbox, nightFerry, paperMoons } from './emails'
 import {
   fakeClaude,
   fakeInsights,
@@ -200,6 +200,21 @@ describe('loading the inbox', () => {
     }
     expect((await inboxRead(call, network)).status).toBe('empty')
     expect(requests).toEqual([])
+  })
+
+  it("reads an HTML-only email's text in one pass, however broken its tags", async () => {
+    fakeReader(3, () => ({ guest: 'Rue Vance', work: null }))
+    const { network, call } = await networkWithKey()
+    // Tags, attribute quotes, and a comment left open, each of which a pattern would take seconds over.
+    for (const broken of ['<br "'.repeat(20_000), '<p "'.repeat(25_000), '<!--'.repeat(50_000)]) {
+      const email = paperMoons.replace(/<html>.*<\/html>/, `<p>Rue Vance on Paper Moons.</p>${broken}`)
+      const began = Date.now()
+      const res = await loadInbox(call, network, email, 'message/rfc822', '?replace=true')
+      expect(Date.now() - began, broken.slice(0, 4)).toBeLessThan(1_000)
+      // What's left open runs to the end, and goes with it: the pitch is the paragraph before.
+      expect(res.status).toBe(202)
+      expect((await inboxRead(call, network)).pitches.map((p) => p.body)).toEqual(['Rue Vance on Paper Moons.'])
+    }
   })
 
   it("answers 409 while the inbox is still reading, and 429 past the network's model runs", async () => {
@@ -490,6 +505,22 @@ describe('a pitch run', () => {
         },
         400,
         { code: 'invalid', message: "Past guest 1's work title holds their name, so it isn't sent to Qloo." }
+      ],
+      [
+        {
+          show: 'Night Shift Cinema',
+          pastGuests: [{ guest: 'Mo Reyes', work: { title: '@'.repeat(4_000), type: 'book' } }]
+        },
+        400,
+        { code: 'invalid', message: 'pastGuests.0.work.title: Use at most 200 characters.' }
+      ],
+      [
+        {
+          show: 'Night Shift Cinema',
+          pastGuests: [{ guest: 'M'.repeat(201), work: { title: 'Glass Harbor', type: 'film' } }]
+        },
+        400,
+        { code: 'invalid', message: 'pastGuests.0.guest: Use at most 200 characters.' }
       ]
     ] as const)
       expect(await refused(await start(body))).toEqual([status, error])

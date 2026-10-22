@@ -2,6 +2,7 @@
 // never the model, prices it: a slot is worth downloads per episode × CPM ÷ 1,000, rounded to whole
 // dollars, and a line is worth its slots times that. Shared by the agent and the UI's live totals.
 import type { Show } from './agent'
+import { MAX_ANGLE } from './text'
 
 // What the model drafts and the programmer edits: a finalist, its promo slots, and the host-read angle.
 export type LineInput = { show: string; slots: number; angle: string }
@@ -76,6 +77,7 @@ export function lineProblem(lines: unknown, finalists: string[]): string | null 
     seen.add(show)
     if (!Number.isSafeInteger(line.slots) || line.slots! < 1) return `${show} needs a whole number of slots, 1 or more.`
     if (typeof line.angle !== 'string' || !line.angle.trim()) return `${show} needs a host-read angle.`
+    if (line.angle.trim().length > MAX_ANGLE) return `${show}'s angle is over ${MAX_ANGLE} characters. Shorten it.`
   }
   return null
 }

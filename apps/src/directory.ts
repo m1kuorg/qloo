@@ -10,6 +10,10 @@ export const SESSION_MS = 30 * 24 * 60 * 60_000
 const SEEN_EVERY_MS = 60_000
 // A passkey ceremony's challenge is good for five minutes.
 const CHALLENGE_MS = 5 * 60_000
+// A session proves its member is there for five minutes after a user-verified passkey, at sign-up,
+// sign-in, or step-up, or after the recovery code it signed in with, which adding a passkey, a new
+// recovery code, and deleting the account need.
+export const STEP_UP_MS = 5 * 60_000
 
 export type Member = { id: string; name: string }
 
@@ -57,25 +61,32 @@ export async function takeChallenge(db: D1Database, id: string, kind: string): P
 
 // Writes a new member with their first passkey and a session, all or nothing, once the passkey's
 // registration has verified. With an invite's token, they join its network in the same batch, and
-// nothing is written unless the invite is still open: an invited sign-up isn't counted against the
-// sign-up cap, so it never makes an account without using its invite. `network` is the network they
-// joined; null when the invite can't be used, and nothing was written.
+// nothing is written unless the invite is still open and its maker's links have brought in fewer than
+// `invitedCap` new accounts today: an invited sign-up isn't counted against the sign-up cap, so it
+// never makes an account without using its invite. `network` is the network they joined; null when
+// the invite can't be used, and nothing was written.
 export async function signUp(
   db: D1Database,
   member: Member,
   passkey: Omit<Passkey, 'memberId'>,
   label: string,
-  invite?: string
+  invite?: { token: string; invitedCap: number }
 ): Promise<(Secrets & { network: string | null }) | null> {
   const secrets = { token: token(), recoveryCode: recoveryCode() }
   const now = Date.now()
-  const hash = invite === undefined ? null : await sha256(invite)
+  const hash = invite === undefined ? null : await sha256(invite.token)
   const [written, , , used] = await db.batch([
     db
       .prepare(
-        `INSERT INTO members (id, name, recovery_code_hash, created) SELECT ?1, ?2, ?3, ?4${hash ? ' WHERE EXISTS (SELECT 1 FROM invites WHERE token_hash = ?5 AND used IS NULL AND revoked IS NULL AND expires > ?4)' : ''}`
+        `INSERT INTO members (id, name, recovery_code_hash, created) SELECT ?1, ?2, ?3, ?4${hash ? ` WHERE EXISTS (SELECT 1 FROM invites WHERE token_hash = ?5 AND used IS NULL AND revoked IS NULL AND expires > ?4) AND ${invitedSince('?5', '?6')} < ?7` : ''}`
       )
-      .bind(member.id, member.name, await sha256(normalCode(secrets.recoveryCode)), now, ...(hash ? [hash] : [])),
+      .bind(
+        member.id,
+        member.name,
+        await sha256(normalCode(secrets.recoveryCode)),
+        now,
+        ...(hash ? [hash, utcDayStart(now), invite!.invitedCap] : [])
+      ),
     // The passkey and the session follow the member's row, which an invite that can't be used leaves out.
     insertPasskey(db, member.id, passkey, label, now),
     insertSession(db, await sha256(secrets.token), member.id, now),
@@ -169,9 +180,9 @@ export async function recover(db: D1Database, code: string): Promise<Secrets | n
       .bind(issued, await sha256(normalCode(code))),
     db
       .prepare(
-        'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?, id, ?, ?, ? FROM members WHERE recovery_code_hash = ?'
+        'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen, verified, recovered) SELECT ?1, id, ?2, ?3, ?2, ?2, 1 FROM members WHERE recovery_code_hash = ?4'
       )
-      .bind(await sha256(secrets.token), now, now + SESSION_MS, now, issued)
+      .bind(await sha256(secrets.token), now, now + SESSION_MS, issued)
   ])
   return replaced.results.length ? secrets : null
 }
@@ -205,6 +216,42 @@ export async function sessionMember(db: D1Database, token: string): Promise<(Mem
       .bind(now, now + SESSION_MS, hash)
       .run()
   return { id: row.id, name: row.name, extended }
+}
+
+// How the session with token `token` last proved its member was there: when, null for a session from
+// before step-up, and whether it signed in with a recovery code, which can prove it again.
+export async function sessionProof(db: D1Database, token: string) {
+  const row = await db
+    .prepare('SELECT verified, recovered FROM sessions WHERE token_hash = ?')
+    .bind(await sha256(token))
+    .first<{ verified: number | null; recovered: number }>()
+  return row && { verified: row.verified, recovered: row.recovered === 1 }
+}
+
+// Notes that the session with token `token` proved its member was there just now: with `passkey`, one
+// of theirs, whose new signature counter is kept too, as at sign-in, though it signed no one in, so
+// its last use stays as it was.
+export async function proveSession(db: D1Database, token: string, passkey?: { credentialId: string; counter: number }) {
+  await db.batch([
+    db.prepare('UPDATE sessions SET verified = ? WHERE token_hash = ?').bind(Date.now(), await sha256(token)),
+    ...(passkey
+      ? [
+          db
+            .prepare('UPDATE passkeys SET counter = MAX(counter, ?) WHERE credential_id = ?')
+            .bind(passkey.counter, passkey.credentialId)
+        ]
+      : [])
+  ])
+}
+
+// Whether `code`, as typed, is member `memberId`'s recovery code now. It's only checked, so it still
+// signs them in once.
+export async function isRecoveryCode(db: D1Database, memberId: string, code: string) {
+  const row = await db
+    .prepare('SELECT 1 FROM members WHERE id = ? AND recovery_code_hash = ?')
+    .bind(memberId, await sha256(normalCode(code)))
+    .first()
+  return row !== null
 }
 
 // Ends the session with token `token`, if there is one.
@@ -316,17 +363,20 @@ const ONLY_OWNER =
 // Deletes member `memberId`, with their passkeys, sessions, and memberships, unless they're any
 // network's only owner, so no network is left without an owner, and notes `instances`, the networks
 // that must forget their name (wipe.ts), in the same batch, so none is left unnoted. What they made in
-// a network stays with it, made by no one. False when it's refused, and nothing was written.
+// a network stays with it, made by no one, but for the API keys and invite links they made, which are
+// revoked in the batch too. False when it's refused, and nothing was written.
 export async function deleteMember(db: D1Database, memberId: string, instances: Instance[]) {
   const allowed = `EXISTS (SELECT 1 FROM members WHERE id = ?1) AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.member_id = ?1 AND ${ONLY_OWNER})`
   const now = Date.now()
   const results = await db.batch([
-    // Noted before the member goes, while their memberships are still there to check.
+    // Noted and revoked before the member goes, while their memberships are still there to check and
+    // their keys and invites still name them.
     ...instances.map(({ binding, name }) =>
       db
         .prepare(`INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?2, ?3, ?4 WHERE ${allowed}`)
         .bind(memberId, binding, name, now)
     ),
+    ...REVOKE_MADE.map((revoke) => db.prepare(`${revoke} AND ${allowed}`).bind(memberId, now)),
     db.prepare(`DELETE FROM members WHERE id = ?1 AND ${allowed}`).bind(memberId)
   ])
   return results.at(-1)!.meta.changes > 0
@@ -383,29 +433,55 @@ export async function networkMembers(db: D1Database, networkId: string): Promise
 
 // Gives member `memberId` role `role` in network `networkId`, when member `by` is one of its owners and
 // the network keeps another owner if it's a demotion, in one statement, so two owners demoting each
-// other at once can't leave it with none. False when either check refuses it.
+// other at once can't leave it with none. A demoted owner's API keys and invite links in the network
+// are revoked in the same batch. False when either check refuses it.
 export async function setRole(db: D1Database, networkId: string, memberId: string, role: Role, by: string) {
-  const { meta } = await db
-    .prepare(
-      "UPDATE memberships SET role = ?4 WHERE network_id = ?1 AND member_id = ?2 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner') AND (?4 = 'owner' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
-    )
-    .bind(networkId, memberId, by, role)
-    .run()
-  return meta.changes > 0
+  const [changed] = await db.batch([
+    db
+      .prepare(
+        "UPDATE memberships SET role = ?4 WHERE network_id = ?1 AND member_id = ?2 AND EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner') AND (?4 = 'owner' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
+      )
+      .bind(networkId, memberId, by, role),
+    ...revokeUnowned(db, networkId, memberId)
+  ])
+  return changed.meta.changes > 0
 }
 
 // Takes member `memberId` out of network `networkId`, when member `by` is one of its owners or is
 // `memberId` leaving, and the network keeps another owner if they're one, in one statement, so two
-// owners leaving at once can't leave it with none. False when either check refuses it.
+// owners leaving at once can't leave it with none. Their API keys and invite links in the network are
+// revoked in the same batch. False when either check refuses it.
 export async function removeMember(db: D1Database, networkId: string, memberId: string, by: string) {
-  const { meta } = await db
-    .prepare(
-      "DELETE FROM memberships WHERE network_id = ?1 AND member_id = ?2 AND (?2 = ?3 OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner')) AND (role = 'member' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
-    )
-    .bind(networkId, memberId, by)
-    .run()
-  return meta.changes > 0
+  const [removed] = await db.batch([
+    db
+      .prepare(
+        "DELETE FROM memberships WHERE network_id = ?1 AND member_id = ?2 AND (?2 = ?3 OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner')) AND (role = 'member' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
+      )
+      .bind(networkId, memberId, by),
+    ...revokeUnowned(db, networkId, memberId)
+  ])
+  return removed.meta.changes > 0
 }
+
+// Revoking what member ?1 made, at time ?2: their API keys still in use and their invite links still
+// open. Only an owner makes either, so one who stops being an owner loses both, and neither keeps
+// acting for, or letting anyone into, a network they no longer run. Each is a statement's start, for
+// the caller to narrow with `AND`.
+const REVOKE_MADE = [
+  'UPDATE api_keys SET revoked = ?2 WHERE created_by = ?1 AND revoked IS NULL',
+  'UPDATE invites SET revoked = ?2 WHERE created_by = ?1 AND used IS NULL AND revoked IS NULL'
+]
+
+// Revokes member `memberId`'s API keys and invite links in network `networkId` unless they're still
+// one of its owners, for the batch that may have just removed or demoted them.
+const revokeUnowned = (db: D1Database, networkId: string, memberId: string) =>
+  REVOKE_MADE.map((revoke) =>
+    db
+      .prepare(
+        `${revoke} AND network_id = ?3 AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = ?3 AND member_id = ?1 AND role = 'owner')`
+      )
+      .bind(memberId, Date.now(), networkId)
+  )
 
 // What a network's setup checklist reads from the directory: whether a teammate was invited or has
 // joined, and whether an API key was ever made, revoked or not.
@@ -426,20 +502,47 @@ const INVITE_MS = 7 * 24 * 60 * 60_000
 // gone), and when it expires. Its token was shown once, when it was made, and can't be read back.
 export type Invite = { id: string; created: number; expires: number; by: string | null }
 
-// Makes an invite to network `networkId` when member `by` is one of its owners, checked in the
-// statement that writes it. Returns its ID and its token, which only its hash is kept for; null when
-// they aren't an owner.
-export async function createInvite(db: D1Database, networkId: string, by: string) {
+// Makes an invite to network `networkId` when member `by` is one of its owners and the network has
+// fewer than `cap` open, checked in the statement that writes it, so two made at once can't both pass
+// the cap. Returns its ID and its token, which only its hash is kept for; `capped` when the network
+// has `cap` open, and null when they aren't an owner.
+export async function createInvite(db: D1Database, networkId: string, by: string, cap: number) {
   const invite = { id: crypto.randomUUID(), token: token() }
   const now = Date.now()
-  const { meta } = await db
-    .prepare(
-      "INSERT INTO invites (id, token_hash, network_id, created_by, created, expires) SELECT ?, ?, network_id, member_id, ?, ? FROM memberships WHERE network_id = ? AND member_id = ? AND role = 'owner'"
-    )
-    .bind(invite.id, await sha256(invite.token), now, now + INVITE_MS, networkId, by)
-    .run()
-  return meta.changes ? invite : null
+  // How many of the network's invites are still open at time `at`, both SQL parameters.
+  const openCount = (network: string, at: string) =>
+    `(SELECT count(*) FROM invites WHERE network_id = ${network} AND used IS NULL AND revoked IS NULL AND expires > ${at})`
+  const [made, counted] = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO invites (id, token_hash, network_id, created_by, created, expires) SELECT ?1, ?2, network_id, member_id, ?3, ?4 FROM memberships WHERE network_id = ?5 AND member_id = ?6 AND role = 'owner' AND ${openCount('?5', '?3')} < ?7`
+      )
+      .bind(invite.id, await sha256(invite.token), now, now + INVITE_MS, networkId, by, cap),
+    db.prepare(`SELECT ${openCount('?1', '?2')} AS n`).bind(networkId, now)
+  ])
+  if (made.meta.changes) return invite
+  return ((counted.results[0] as { n: number } | undefined)?.n ?? 0) >= cap ? ('capped' as const) : null
 }
+
+// Whether the member who made the invite with token `token` has brought in `cap` new accounts through
+// their links today, so it can't sign anyone up until 00:00 UTC; it can still let in someone who has
+// an account.
+export async function invitedCapped(db: D1Database, token: string, cap: number) {
+  const n = await db
+    .prepare(`SELECT ${invitedSince('?1', '?2')} AS n`)
+    .bind(await sha256(token), utcDayStart(Date.now()))
+    .first<number>('n')
+  return (n ?? 0) >= cap
+}
+
+// How many new accounts the invite links of whoever made the invite with token hash `hash` have
+// brought in since `since`, both SQL parameters: the uses whose member was written at the same time,
+// as only a sign-up through a link writes its member and uses the link in one batch, at one time.
+const invitedSince = (hash: string, since: string) =>
+  `(SELECT count(*) FROM invites u JOIN members m ON m.id = u.used_by AND m.created = u.used WHERE u.created_by = (SELECT created_by FROM invites WHERE token_hash = ${hash}) AND u.used >= ${since})`
+
+// The start of the UTC day time `now` (epoch ms) falls in.
+const utcDayStart = (now: number) => new Date(now).setUTCHours(0, 0, 0, 0)
 
 // Revokes invite `inviteId` to network `networkId` when member `by` is one of its owners and the invite
 // is still open, in one statement. False when it isn't: it was used, revoked, or expired.
@@ -659,22 +762,23 @@ const insertPasskey = (
       memberId
     )
 
-// A new session for member `memberId`, started only if they exist, as a sign-up's member may not.
+// A new session for member `memberId`, started only if they exist, as a sign-up's member may not, by a
+// user-verified passkey, which proves them there.
 const insertSession = (db: D1Database, tokenHash: string, memberId: string, now: number) =>
   db
     .prepare(
-      'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?, id, ?, ?, ? FROM members WHERE id = ?'
+      'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen, verified) SELECT ?1, id, ?2, ?3, ?2, ?2 FROM members WHERE id = ?4'
     )
-    .bind(tokenHash, now, now + SESSION_MS, now, memberId)
+    .bind(tokenHash, now, now + SESSION_MS, memberId)
 
 // Uses the invite with token hash `hash` for member `memberId` and adds them to its network as a
-// member: the first statement marks it used while it's open and they aren't in the network yet,
-// returning its network; the second adds the membership only that use wrote. Run in a batch, so no
-// other use comes between.
+// member: the first statement marks it used while it's open, they exist, as a sign-up's member may
+// not, and they aren't in the network yet, returning its network; the second adds the membership only
+// that use wrote. Run in a batch, so no other use comes between.
 const joinThrough = (db: D1Database, hash: string, memberId: string, now: number) => [
   db
     .prepare(
-      'UPDATE invites SET used = ?1, used_by = ?2 WHERE token_hash = ?3 AND used IS NULL AND revoked IS NULL AND expires > ?1 AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = invites.network_id AND member_id = ?2) RETURNING network_id'
+      'UPDATE invites SET used = ?1, used_by = ?2 WHERE token_hash = ?3 AND used IS NULL AND revoked IS NULL AND expires > ?1 AND EXISTS (SELECT 1 FROM members WHERE id = ?2) AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = invites.network_id AND member_id = ?2) RETURNING network_id'
     )
     .bind(now, memberId, hash),
   db

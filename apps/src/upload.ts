@@ -122,15 +122,23 @@ async function email(raw: Uint8Array): Promise<PitchInput> {
 // The words of an HTML email, which postal-mime gives only as HTML when the email has no plain part:
 // its head, styles, scripts, and comments dropped, a line break after each block, a space for any
 // other tag but inline ones, and the entities mail commonly uses decoded; one it can't decode stays as
-// written. Claude reads it, so the layout only needs to keep words and paragraphs apart.
+// written. Claude reads it, so the layout only needs to keep words and paragraphs apart. Its tags are
+// read in one pass, so no markup, however broken, takes longer than its length: a tag, comment, or
+// dropped element left open runs to the end, and goes with it, as a browser reads it.
 function htmlText(html: string) {
-  const tag = (names: string) => new RegExp(`<\\/?(?:${names})\\b(?:[^>"']|"[^"]*"|'[^']*')*>`, 'gi')
-  return html
-    .replace(/<(head|style|script|title)\b[\s\S]*?<\/\1\s*>|<!--[\s\S]*?-->/gi, '')
-    .replace(tag('br'), '\n')
-    .replace(/<\/(p|div|li|tr|h[1-6]|blockquote|table)\s*>/gi, '\n\n')
-    .replace(tag('a|b|i|u|em|strong|span|font|small|sub|sup'), '')
-    .replace(/<(?:[^>"']|"[^"]*"|'[^']*')*>/g, ' ')
+  let text = ''
+  for (let at = 0; at < html.length;) {
+    const open = html.indexOf('<', at)
+    if (open < 0) {
+      text += html.slice(at)
+      break
+    }
+    text += html.slice(at, open)
+    const tag = markupAt(html, open)
+    text += tag?.text ?? '<'
+    at = tag?.end ?? open + 1
+  }
+  return text
     .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, name: string) => {
       const code = name[0] !== '#' ? null : Number(name[1].toLowerCase() === 'x' ? `0${name.slice(1)}` : name.slice(1))
       if (code === null) return ENTITIES[name.toLowerCase()] ?? entity
@@ -139,6 +147,59 @@ function htmlText(html: string) {
     .replace(/[ \t\u00a0]+/g, ' ')
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
+}
+
+// The markup a `<` at `open` starts: where it ends, and what the text has in its place. Null when it
+// starts none, as in "a < b", so it's text.
+function markupAt(html: string, open: number): { end: number; text: string } | null {
+  if (html.startsWith('<!--', open)) {
+    const close = html.indexOf('-->', open + 4)
+    return { end: close < 0 ? html.length : close + 3, text: '' }
+  }
+  // A declaration or processing instruction, such as <!DOCTYPE html>.
+  if (html[open + 1] === '!' || html[open + 1] === '?') return { end: tagEnd(html, open), text: ' ' }
+  const closing = html[open + 1] === '/'
+  const name = tagName(html, open + (closing ? 2 : 1))
+  if (!/^[a-z]/.test(name)) return null
+  const end = tagEnd(html, open)
+  if (!closing && DROPPED.includes(name)) return { end: elementEnd(html, name, end), text: '' }
+  const text = name === 'br' ? '\n' : closing && BLOCKS.includes(name) ? '\n\n' : INLINE.includes(name) ? '' : ' '
+  return { end, text }
+}
+
+// The elements dropped with what they hold, the blocks whose end breaks a paragraph, and the inline
+// tags that leave the words they wrap as they are.
+const DROPPED = ['head', 'style', 'script', 'title']
+const BLOCKS = ['p', 'div', 'li', 'tr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'table']
+const INLINE = ['a', 'b', 'i', 'u', 'em', 'strong', 'span', 'font', 'small', 'sub', 'sup']
+
+// The tag name that starts at `at`, lowercased: its letters and digits.
+function tagName(html: string, at: number) {
+  let end = at
+  while (end < html.length && /[a-z0-9]/i.test(html[end])) end++
+  return html.slice(at, end).toLowerCase()
+}
+
+// Past the `>` that ends the tag at `open`, which a quoted attribute value can hold; the end of the
+// HTML when nothing ends it.
+function tagEnd(html: string, open: number) {
+  for (let at = open + 1; at < html.length; at++) {
+    const c = html[at]
+    if (c === '>') return at + 1
+    if (c === '"' || c === "'") {
+      const close = html.indexOf(c, at + 1)
+      if (close < 0) return html.length
+      at = close
+    }
+  }
+  return html.length
+}
+
+// Past the end tag of element `name`, whose start tag ends at `from`; the end of the HTML when it has none.
+function elementEnd(html: string, name: string, from: number) {
+  for (let at = html.indexOf('</', from); at >= 0; at = html.indexOf('</', at + 2))
+    if (tagName(html, at + 2) === name) return tagEnd(html, at)
+  return html.length
 }
 
 const ENTITIES: Record<string, string> = {

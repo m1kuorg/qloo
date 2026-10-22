@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Budget, Show } from '../agent'
+import { MAX_ANGLE } from '../text'
 import { dollars, priceLines, type InsertionOrder, type LineInput, type OrderLine, type Priced } from '../order'
 import { Alert, day, useAction } from './controls'
 import { Source } from './Source'
@@ -252,6 +253,7 @@ function EditLines({
                     rows={3}
                     value={line.angle}
                     onChange={(e) => change(i, 'angle', e.target.value)}
+                    maxLength={MAX_ANGLE}
                   />
                 </td>
                 <td>

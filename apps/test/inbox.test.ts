@@ -293,6 +293,32 @@ describe("a pitched work's title", () => {
   })
 })
 
+describe("Claude's reading of a pitch", () => {
+  it('is set aside at once when it gives a title or a guest over 200 characters, and nothing reaches Qloo', async () => {
+    fakeQloo({ search: {} })
+    // A title an email-address pattern would take seconds to rule out, and a guest's name past the limit.
+    fakeReader(2, (text) =>
+      extraction(
+        text.includes('Night Ferry')
+          ? { guest: 'Ada Quill', work: { title: '@'.repeat(4_000), type: 'book', year: 2019 } }
+          : { guest: 'G'.repeat(201), work: { title: 'Low Tide', type: 'film', year: 2018 } }
+      )
+    )
+    const s = await session()
+    const began = Date.now()
+
+    await s.call('loadInbox', { text: `${pasted}\n---\nLow Tide is a film about a harbour town.` })
+    const { inbox } = await loaded(s)
+
+    expect(Date.now() - began).toBeLessThan(4_000)
+    expect(inbox!.pitches.map((p) => [p.status, p.error])).toEqual([
+      ['unreadable', "The work's title is over 200 characters, so it isn't sent to Qloo."],
+      ['unreadable', "The guest's name is over 200 characters, so the pitch is set aside."]
+    ])
+    expect(qlooRequests()).toEqual([])
+  })
+})
+
 describe("a guest's whole name", () => {
   it('keeps a title holding it from Qloo however the guest is written, but not a title holding a first name alone', async () => {
     fakeQloo({ search: {} })
