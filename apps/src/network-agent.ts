@@ -8,6 +8,7 @@ import {
   type LaunchInput,
   type LaunchSummary,
   type RosterCopy,
+  type SessionProps,
   type State
 } from './agent'
 import { globalGateway } from './gateway'
@@ -40,12 +41,18 @@ export const networkLimitKey = (name: string) => `network:${name.split(':')[0]}`
 export const ownGatewayName = networkLimitKey
 export const ownGateway = (env: Env, name: string) => env.QlooGateway.getByName(ownGatewayName(name))
 
+// Where a network's agent, and each of its launches', keeps whether the network has a Qloo key of its own,
+// as the network's settings last said (NetworkAgent.noteOwnKey), so no call asks its gateway instance
+// first and a network without a key never has an instance.
+const OWN_KEY = 'crossfeed_own_qloo_key'
+export const hasOwnKey = (storage: DurableObjectStorage) => storage.kv.get(OWN_KEY) === true
+export const keepOwnKey = (storage: DurableObjectStorage, set: boolean) => storage.kv.put(OWN_KEY, set)
+
 // The gateway a network's Qloo calls go through, and its launches': its own instance while it has a key
-// of its own, else the global one, as every other network's and the demo's do.
-export async function networkGateway(env: Env, name: string) {
-  const own = ownGateway(env, name)
-  return (await own.ownKey()).set ? own : globalGateway(env)
-}
+// of its own, as the agent in `storage` knows, else the global one, as every other network's and the
+// demo's do.
+export const networkGateway = (env: Env, name: string, storage: DurableObjectStorage) =>
+  hasOwnKey(storage) ? ownGateway(env, name) : globalGateway(env)
 
 // Closes member `memberId`'s open pages of network `networkId` and its launches, once the directory has
 // let them go, saying `reason` if it isn't that they left the network, as when they're removed, sign
@@ -82,9 +89,46 @@ export class NetworkAgent extends CrossfeedAgent {
     return networkLimitKey(this.name)
   }
 
+  // An agent from before #197 was never told whether the network has a Qloo key of its own, which one
+  // saved then is kept in the network's gateway instance: it asks that instance once, as it next starts.
+  // A new network's agent knows it has none until its settings say otherwise, so it asks nothing. One
+  // that can't ask goes on without, and asks again as it next starts.
+  async onStart(props?: SessionProps) {
+    const { storage } = this.ctx
+    if (storage.kv.get(OWN_KEY) === undefined)
+      if (!this.startedBefore()) keepOwnKey(storage, false)
+      else
+        await ownGateway(this.env, this.name)
+          .ownKey()
+          .then(({ set }) => keepOwnKey(storage, set))
+          .catch((e) => console.error(JSON.stringify({ event: 'own_key_lookup', error: String(e) })))
+    return super.onStart(props)
+  }
+
   // Its Qloo calls go through its own gateway instance while it has a Qloo key of its own (ADR 0004).
-  protected gateway() {
-    return networkGateway(this.env, this.name)
+  protected async gateway() {
+    return networkGateway(this.env, this.name, this.ctx.storage)
+  }
+
+  // Whether the network has a Qloo key of its own, for its settings and usage. Over RPC only.
+  hasOwnKey() {
+    return hasOwnKey(this.ctx.storage)
+  }
+
+  // Notes whether the network has a Qloo key of its own, as an owner adds or removes it in settings, and
+  // tells each launch, so a run under way sends its next call through the right gateway. A launch the
+  // notice fails to reach learns it as its next run copies the roster. Over RPC only.
+  async noteOwnKey(set: boolean) {
+    keepOwnKey(this.ctx.storage, set)
+    await Promise.all(
+      (this.state.launches ?? []).map(async ({ id }) => {
+        try {
+          await (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).noteOwnKey(set)
+        } catch (e) {
+          console.error(JSON.stringify({ event: 'own_key_notice', launch: id, error: String(e) }))
+        }
+      })
+    )
   }
 
   // Tags a connection with its member, beside its visitor.
@@ -195,10 +239,10 @@ export class NetworkAgent extends CrossfeedAgent {
   // How many launches createLaunch is planning right now, not yet on the list.
   private planning = 0
 
-  // The roster and CPM a launch's run starts from, with the evidence records the roster cites, for the
-  // launch's agent to copy (launch-agent.ts). Over RPC only. Comp searches stay here, since a launch
-  // never edits a show. Refused while a show is still being looked up, so no run ranks a roster half
-  // looked up.
+  // The roster and CPM a launch's run starts from, with the evidence records the roster cites, and
+  // whether the network has a Qloo key of its own, for the launch's agent to copy (launch-agent.ts). Over
+  // RPC only. Comp searches stay here, since a launch never edits a show. Refused while a show is still
+  // being looked up, so no run ranks a roster half looked up.
   rosterForLaunch(): RosterCopy {
     const pending = this.state.roster.filter((s) => s.resolution === 'pending').length
     if (pending > 0)
@@ -208,7 +252,12 @@ export class NetworkAgent extends CrossfeedAgent {
       )
     const roster = this.state.roster.map((s) => ({ ...s, compSearch: null }))
     const cited = new Set(JSON.stringify(roster).match(CALL))
-    return { roster, cpm: this.state.cpm, evidence: this.getEvidence().filter((e) => cited.has(e.call)) }
+    return {
+      roster,
+      cpm: this.state.cpm,
+      evidence: this.getEvidence().filter((e) => cited.has(e.call)),
+      ownKey: hasOwnKey(this.ctx.storage)
+    }
   }
 
   // A launch's status and summary, as its agent reports them after each change (launch-agent.ts), for

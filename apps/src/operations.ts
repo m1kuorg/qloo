@@ -27,7 +27,7 @@ import type { FitRow, PitchList, Ranking } from './fit'
 import { globalGateway, type Usage } from './gateway'
 import type { Inbox, PastGuest, Pitch, PitchInput, PitchReply, Skipped } from './inbox'
 import { summaryOf } from './launch-agent'
-import { launchAgentName, networkGateway, networkLimitKey } from './network-agent'
+import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
 import { Refusal } from './refusal'
 import { offeredBy, type Candidate } from './resolve'
@@ -78,13 +78,12 @@ const OWNERS_ONLY = "Only an owner, or an API key an owner made, can change the 
 
 // What the network has used today against its own daily caps, and when they reset. Crossfeed's caps
 // across all networks and visitors apply too. Its Qloo calls count in the gateway they go through, its
-// own while it has a Qloo key of its own, and its model runs in the global one (ADR 0004).
+// own while it has a Qloo key of its own, as its agent knows, and its model runs in the global one
+// (ADR 0004).
 export async function getUsage({ env, network }: OperationContext): Promise<Usage> {
   const key = networkLimitKey(network)
-  const [usage, calls] = await Promise.all([
-    globalGateway(env).usage(key),
-    networkGateway(env, network).then((gateway) => gateway.usage(key))
-  ])
+  const [usage, ownKey] = await Promise.all([globalGateway(env).usage(key), (await agent(env, network)).hasOwnKey()])
+  const calls = ownKey ? await ownGateway(env, network).usage(key) : usage
   return { ...usage, qlooCalls: calls.qlooCalls }
 }
 

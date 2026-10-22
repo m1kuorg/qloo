@@ -108,6 +108,10 @@ export const blankEvidence = ({ method, endpoint }: QlooRequest, params: Params)
 export const globalGateway = (env: Env) => env.QlooGateway.getByName(GLOBAL)
 const GLOBAL = 'global'
 
+// Why a network's instance fails a call once its wipe has begun, as when an owner removes its key.
+const WIPED =
+  "The network's own Qloo key was removed, or the network deleted, while this call was out, so it was cut off. Calls made from now on go through Crossfeed's shared key"
+
 // The only code that calls Qloo, reached over Durable Object RPC: the global instance, on Crossfeed's
 // key, and one instance per network that brings its own key, `network:<networkId>`, on that key, with
 // its own cache and Qloo counts (ADR 0004).
@@ -160,18 +164,31 @@ export class QlooGateway extends DurableObject<Env> {
 
   // The network's own key, if this instance has one, as an owner sees it.
   ownKey(): OwnKey {
-    const [own] = this.ctx.storage.sql
-      .exec<{ host: string; last4: string }>('SELECT host, last4 FROM own_key')
-      .toArray()
+    const [own] = this.sql.exec<{ host: string; last4: string }>('SELECT host, last4 FROM own_key').toArray()
     return own ? { set: true, host: own.host, last4: own.last4 } : { set: false }
   }
 
   // Wipes this instance, as removing the network's own key or deleting the network does: its key, cache,
   // and counts. It resets a moment later, cutting off any request still queued or in flight, so the
-  // next call meets a new, empty instance; a call that reaches it in that moment fails.
+  // next call meets a new, empty instance. From the wipe's start until then, any call it's still making,
+  // and any that reaches it, fails saying so (WIPED), rather than meeting the tables it dropped. A wipe
+  // that fails resets it too, with what it kept.
   async wipe() {
-    await this.ctx.storage.deleteAll()
-    setTimeout(() => this.ctx.abort('This gateway instance was wiped.'), 0)
+    this.wiped = true
+    try {
+      await this.ctx.storage.deleteAll()
+    } finally {
+      setTimeout(() => this.ctx.abort(WIPED), 0)
+    }
+  }
+
+  // Whether this instance's wipe has begun.
+  private wiped = false
+
+  // This instance's SQL storage, until its wipe begins.
+  private get sql() {
+    if (this.wiped) throw new Error(WIPED)
+    return this.ctx.storage.sql
   }
 
   // Tests `key` with one search on `host`, past the cache, and keeps it as this network's own only once
@@ -191,7 +208,7 @@ export class QlooGateway extends DurableObject<Env> {
     console.log(JSON.stringify({ event: 'qloo_key_test', status: tested.status }))
     if (!tested.ok)
       return `The key's test search on ${new URL(host).host} failed: ${tested.error}. The key isn't saved: check it, and that it's for that host, then try again.`
-    this.ctx.storage.sql.exec(
+    this.sql.exec(
       'INSERT OR REPLACE INTO own_key (id, host, sealed, last4) VALUES (1, ?, ?, ?)',
       host,
       await seal(this.env.QLOO_KEY_SECRET, key),
@@ -291,9 +308,7 @@ export class QlooGateway extends DurableObject<Env> {
   // Counts a model run under `key` (a visitor and a day, hashed), or says which limit refuses `who`.
   private countModelRun(key: string, day: string, who: string): ModelRuns {
     const used = this.used('model_runs', key, day)
-    const [all] = this.ctx.storage.sql
-      .exec<{ count: number }>('SELECT COALESCE(SUM(count), 0) AS count FROM model_runs')
-      .toArray()
+    const [all] = this.sql.exec<{ count: number }>('SELECT COALESCE(SUM(count), 0) AS count FROM model_runs').toArray()
     // A limit that isn't a number refuses every run, rather than none.
     const limit = Number(this.env.RUN_VISITOR_DAILY_CAP) || 0
     const cap = Number(this.env.RUN_DAILY_CAP) || 0
@@ -315,14 +330,14 @@ export class QlooGateway extends DurableObject<Env> {
 
   // A visitor's count today in one of the per-visitor counters, once earlier days' counts are dropped.
   private used(counter: Counter, key: string, day: string) {
-    const sql = this.ctx.storage.sql
+    const sql = this.sql
     sql.exec(`DELETE FROM ${counter} WHERE day < ?`, day)
     const [row] = sql.exec<{ count: number }>(`SELECT count FROM ${counter} WHERE key = ?`, key).toArray()
     return row?.count ?? 0
   }
 
   private add(counter: Counter, key: string, day: string, n = 1) {
-    this.ctx.storage.sql.exec(
+    this.sql.exec(
       `INSERT INTO ${counter} (key, day, count) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET count = count + ?`,
       key,
       day,
@@ -339,9 +354,7 @@ export class QlooGateway extends DurableObject<Env> {
     if (typeof credentials === 'string') return { capped: false, reason: credentials }
     const cap = Number(this.env.QLOO_DAILY_CALL_CAP)
     if (this.callsToday() >= cap) return { capped: true, reason: capReached(cap) }
-    const [failing] = this.ctx.storage.sql
-      .exec<{ at: number; error: string }>('SELECT at, error FROM failing')
-      .toArray()
+    const [failing] = this.sql.exec<{ at: number; error: string }>('SELECT at, error FROM failing').toArray()
     if (failing && Date.now() - failing.at < FAILING_FOR_MS)
       return { capped: false, reason: `Qloo is failing (${failing.error})` }
     return null
@@ -349,13 +362,13 @@ export class QlooGateway extends DurableObject<Env> {
 
   // Keeps a session's completed sample run, replacing the one kept before, for any session to replay.
   keepSampleRun(run: string) {
-    this.ctx.storage.sql.exec('INSERT OR REPLACE INTO sample_run (id, run) VALUES (1, ?)', run)
+    this.sql.exec('INSERT OR REPLACE INTO sample_run (id, run) VALUES (1, ?)', run)
   }
 
   // Replaces the kept sample run with `sampleRun` only while it's still run `run`'s, in one statement,
   // so a newer run kept meanwhile is never lost.
   patchSampleRun(run: string, sampleRun: string) {
-    this.ctx.storage.sql.exec(
+    this.sql.exec(
       "UPDATE sample_run SET run = ? WHERE id = 1 AND json_extract(run, '$.state.run.id') = ?",
       sampleRun,
       run
@@ -363,7 +376,7 @@ export class QlooGateway extends DurableObject<Env> {
   }
 
   sampleRun(): string | null {
-    const [row] = this.ctx.storage.sql.exec<{ run: string }>('SELECT run FROM sample_run').toArray()
+    const [row] = this.sql.exec<{ run: string }>('SELECT run FROM sample_run').toArray()
     return row?.run ?? null
   }
 
@@ -539,9 +552,7 @@ export class QlooGateway extends DurableObject<Env> {
     const retryDelays = this.env.QLOO_RETRY_DELAYS_MS.split(',').map(Number)
     try {
       const [hit] =
-        cache === 'bypass'
-          ? []
-          : this.ctx.storage.sql.exec<CacheRow>('SELECT status, body FROM cache WHERE key = ?', key).toArray()
+        cache === 'bypass' ? [] : this.sql.exec<CacheRow>('SELECT status, body FROM cache WHERE key = ?', key).toArray()
       // A kept answer is read again; one that no longer reads, such as one kept before its method
       // changed, is asked for again.
       const kept = hit && readAnswer(hit.status, JSON.parse(hit.body), read)
@@ -561,13 +572,8 @@ export class QlooGateway extends DurableObject<Env> {
         evidence.status = attempt.status
         if (attempt.ok) {
           const body = JSON.stringify(attempt.data)
-          this.ctx.storage.sql.exec(
-            'INSERT OR REPLACE INTO cache (key, status, body) VALUES (?, ?, ?)',
-            key,
-            attempt.status,
-            body
-          )
-          this.ctx.storage.sql.exec('DELETE FROM failing')
+          this.sql.exec('INSERT OR REPLACE INTO cache (key, status, body) VALUES (?, ?, ?)', key, attempt.status, body)
+          this.sql.exec('DELETE FROM failing')
           return { ok: true, data: attempt.value, evidence }
         }
         const delay = retryDelays[evidence.retries]
@@ -575,11 +581,7 @@ export class QlooGateway extends DurableObject<Env> {
           const error = attempt.error + retried(evidence)
           // A 400 is Qloo refusing this request's parameters, which says nothing about Qloo itself.
           if (attempt.status !== 400)
-            this.ctx.storage.sql.exec(
-              'INSERT OR REPLACE INTO failing (id, at, error) VALUES (1, ?, ?)',
-              Date.now(),
-              error
-            )
+            this.sql.exec('INSERT OR REPLACE INTO failing (id, at, error) VALUES (1, ?, ?)', Date.now(), error)
           return this.fail(evidence, error)
         }
         // About 1 then 3 seconds, give or take a fifth, so callers that failed together don't retry together.
@@ -597,9 +599,7 @@ export class QlooGateway extends DurableObject<Env> {
   // instance, or Crossfeed's, for the global one. Or why it can't send any: a network's instance whose
   // key was removed, or one QLOO_KEY_SECRET no longer opens.
   private async credentials(): Promise<{ host: string; key: string } | string> {
-    const [own] = this.ctx.storage.sql
-      .exec<{ host: string; sealed: string }>('SELECT host, sealed FROM own_key')
-      .toArray()
+    const [own] = this.sql.exec<{ host: string; sealed: string }>('SELECT host, sealed FROM own_key').toArray()
     if (!own)
       return this.ctx.id.name === GLOBAL
         ? { host: this.env.QLOO_BASE_URL, key: this.env.QLOO_API_KEY }
@@ -615,7 +615,7 @@ export class QlooGateway extends DurableObject<Env> {
   private spend() {
     if (this.callsToday() >= Number(this.env.QLOO_DAILY_CALL_CAP)) return false
     const day = utcDay()
-    this.ctx.storage.sql.exec(
+    this.sql.exec(
       'INSERT INTO daily_calls (day, count) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET count = count + 1',
       day
     )
@@ -625,7 +625,7 @@ export class QlooGateway extends DurableObject<Env> {
   // Requests counted against today's cap so far.
   private callsToday() {
     const day = utcDay()
-    const sql = this.ctx.storage.sql
+    const sql = this.sql
     const [today] = sql.exec<{ count: number }>('SELECT count FROM daily_calls WHERE day = ?', day).toArray()
     return today?.count ?? 0
   }

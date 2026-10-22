@@ -226,8 +226,9 @@ export type RunSnapshot = Omit<State, 'runs' | 'guide'>
 type SampleRun = { state: Omit<RunSnapshot, 'inbox' | 'booking'>; evidence: Evidence[] }
 
 // What a launch's run ranks, copied from its network's agent as the run starts (launch-agent.ts): the
-// roster and CPM, and the evidence records the roster cites.
-export type RosterCopy = { roster: Show[]; cpm: number | null; evidence: Evidence[] }
+// roster and CPM, and the evidence records the roster cites. And whether the network has a Qloo key of
+// its own, so the run's calls go through the right gateway.
+export type RosterCopy = { roster: Show[]; cpm: number | null; evidence: Evidence[]; ownKey: boolean }
 
 // A roster as one string, to tell whether two copies of it differ: each show as the roster page shows
 // it, but for its call numbers, which a launch's copy renumbers.
@@ -287,8 +288,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   private out: { call: string; run: string | null; timer?: ReturnType<typeof setTimeout> }[] = []
 
   async onStart(props?: SessionProps) {
-    // Only this method creates the evidence table, so a session without it is starting for the first time.
-    const firstStart = this.sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evidence'`.length === 0
+    const firstStart = !this.startedBefore()
     this.sql`CREATE TABLE IF NOT EXISTS evidence (seq INTEGER PRIMARY KEY AUTOINCREMENT, record TEXT)`
     // Each run's conversation with Claude, append-only: one row per message, thinking blocks kept.
     this.sql`CREATE TABLE IF NOT EXISTS conversation (seq INTEGER PRIMARY KEY AUTOINCREMENT, run TEXT, message TEXT)`
@@ -340,6 +340,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
         .catch(() => null)
       if (!refused) this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample }, gateway)
     }
+  }
+
+  // Whether this instance has started before: only onStart creates the evidence table, so one without it
+  // is starting for the first time.
+  protected startedBefore() {
+    return this.sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evidence'`.length > 0
   }
 
   // State changes only through actions; a client can't write it directly.

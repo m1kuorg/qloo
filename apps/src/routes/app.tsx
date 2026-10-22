@@ -33,15 +33,7 @@ import {
   type Member,
   type Network
 } from '../directory'
-import { globalGateway } from '../gateway'
-import {
-  kickMember,
-  launchAgentName,
-  MEMBER_HEADER,
-  MEMBER_NAME_HEADER,
-  networkLimitKey,
-  ownGateway
-} from '../network-agent'
+import { kickMember, launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER, ownGateway } from '../network-agent'
 import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
 import { isQlooHost } from '../qloo-hosts'
@@ -278,9 +270,10 @@ appPages.get('/app/:networkId/settings', async (c) => {
     network: network.id,
     caller: { member: c.var.member, role: network.role }
   })
-  // Whether the network has its own Qloo key; only an owner learns its host and last four characters.
-  const { set, ...shown } = await ownGateway(c.env, network.id).ownKey()
-  const qlooKey = JSON.stringify(owner ? { set, ...shown } : { set })
+  // Whether the network has its own Qloo key, as its agent knows; only an owner learns its host and last
+  // four characters, from the gateway instance that keeps it, which a network without a key never has.
+  const set = await (await getAgentByName(c.env.NetworkAgent, network.id)).hasOwnKey()
+  const qlooKey = JSON.stringify(owner && set ? await ownGateway(c.env, network.id).ownKey() : { set })
   return c.render(
     <div
       id="root"
@@ -438,31 +431,48 @@ appPages.post('/app/:networkId/settings/qloo-key', async (c) => {
   if (!pasted) return c.json({ error: 'Paste the network’s Qloo API key.' }, 400)
   if (pasted.length > MAX_QLOO_KEY || /\s/.test(pasted))
     return c.json({ error: 'That isn’t a Qloo API key: paste the key alone, as Qloo sent it.' }, 400)
+  const networkAgent = await getAgentByName(c.env.NetworkAgent, id)
   const gateway = ownGateway(c.env, id)
-  // Another key would share the first one's cache and counts, so it takes the first one's removal.
-  if ((await gateway.ownKey()).set)
+  // Another key would share the first one's cache and counts, so it takes the first one's removal. The
+  // instance is asked only once the agent says it has a key, as after a wipe that failed once it had
+  // emptied it, which leaves nothing to remove.
+  if ((await networkAgent.hasOwnKey()) && (await gateway.ownKey()).set)
     return c.json({ error: 'The network has its own Qloo key already. Remove it, then add the new one.' }, 409)
   const failed = await gateway.setKey(host, pasted)
   if (failed) return c.json({ error: failed }, 400)
+  // From here on the network's and its launches' calls go through its instance.
+  await networkAgent.noteOwnKey(true)
   const usage = await getUsage({ env: c.env, network: id, caller: { member: c.var.member, role: 'owner' } })
   return c.json({ key: await gateway.ownKey(), usage })
 })
 
 // Removes the network's own key, wiping its gateway instance with its cache and counts: its Qloo calls
-// go through the global gateway again, so its usage is read there alone, rather than through getUsage,
-// which would ask the wiped instance, still resetting, whether it has a key.
+// go through the global gateway again. Its agents hear of it before the wipe, so none of their later
+// calls reaches the wiped instance. If the wipe fails, they hear the key is back, so it stays shown and
+// can be removed again.
 appPages.post('/app/:networkId/settings/qloo-key/remove', async (c) => {
   const id = c.req.param('networkId')
   const refused = await refuseNonOwner(c, id, QLOO_KEY_OWNERS_ONLY)
   if (refused) return refused
-  const gateway = ownGateway(c.env, id)
-  if (!(await gateway.ownKey()).set)
+  const networkAgent = await getAgentByName(c.env.NetworkAgent, id)
+  if (!(await networkAgent.hasOwnKey()))
     return c.json(
       { error: 'The network has no Qloo key of its own: its calls go through Crossfeed’s shared key.' },
       409
     )
-  await gateway.wipe()
-  return c.json({ key: { set: false }, usage: await globalGateway(c.env).usage(networkLimitKey(id)) })
+  await networkAgent.noteOwnKey(false)
+  await ownGateway(c.env, id)
+    .wipe()
+    .catch(async (e) => {
+      await networkAgent
+        .noteOwnKey(true)
+        .catch((again) =>
+          console.error(JSON.stringify({ event: 'own_key_restore', network: id, error: String(again) }))
+        )
+      throw e
+    })
+  const usage = await getUsage({ env: c.env, network: id, caller: { member: c.var.member, role: 'owner' } })
+  return c.json({ key: { set: false }, usage })
 })
 
 // The settings' danger zone, for owners alone: deleting the network once the owner has typed its name,

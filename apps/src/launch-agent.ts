@@ -13,7 +13,7 @@ import {
 } from './agent'
 import { finalistsOf } from './fit'
 import type { InsertionOrder } from './order'
-import { MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimitKey } from './network-agent'
+import { keepOwnKey, MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimitKey } from './network-agent'
 
 const ROSTER =
   "A launch ranks its network's roster, which members edit on the network's roster page. Each run copies the roster as it starts."
@@ -38,9 +38,16 @@ export class LaunchAgent extends CrossfeedAgent {
     return networkLimitKey(this.name)
   }
 
-  // And through its network's gateway: its own instance while the network has a Qloo key of its own.
-  protected gateway() {
-    return networkGateway(this.env, this.name)
+  // And through its network's gateway: its own instance while the network has a Qloo key of its own, as
+  // the launch last heard, from the network's notice or its latest run's copy of the roster.
+  protected async gateway() {
+    return networkGateway(this.env, this.name, this.ctx.storage)
+  }
+
+  // Whether the network has a Qloo key of its own, which the network sends as an owner adds or removes
+  // it. Over RPC only.
+  noteOwnKey(set: boolean) {
+    keepOwnKey(this.ctx.storage, set)
   }
 
   // Tags a connection with its member, beside its visitor, as a network's agent does.
@@ -134,9 +141,12 @@ export class LaunchAgent extends CrossfeedAgent {
     return this.name.split(':')[1]
   }
 
-  // Each run ranks the network's roster as it stands when the run starts.
+  // Each run ranks the network's roster as it stands when the run starts, and its calls follow the
+  // network's Qloo key as it then stands.
   protected async networkRoster(): Promise<RosterCopy> {
-    return (await getAgentByName(this.env.NetworkAgent, this.networkId)).rosterForLaunch()
+    const copy = await (await getAgentByName(this.env.NetworkAgent, this.networkId)).rosterForLaunch()
+    this.noteOwnKey(copy.ownKey)
+    return copy
   }
 
   // Wipes the launch once its network has let go of it (wipe.ts), as when it's deleted, or its network
