@@ -74,6 +74,15 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
+// The name of each region a screen reader lists on the page: its label, or its heading's words.
+const regions = (html: string) =>
+  [...html.matchAll(/<section\b[^>]*>|<div\b[^>]*role="region"[^>]*>/g)].flatMap(([tag]) => {
+    const label = tag.match(/aria-label="([^"]+)"/)?.[1]
+    const by = tag.match(/aria-labelledby="([^"]+)"/)?.[1]
+    const heading = by && html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>`))?.[1]
+    return label ? [label] : heading ? [words(heading)] : []
+  })
+
 const dashboard = async (member: Member, id: string, state: State | undefined) =>
   renderToStaticMarkup(
     <Dashboard
@@ -270,6 +279,22 @@ describe('settings', () => {
     expect(read).not.toContain('Remove')
     expect(read).not.toContain('Invite links')
     expect(html).not.toMatch(/disabled=""[^>]*>Leave/)
+  })
+
+  it("leave the shell's top bar the one banner, and name each region once, as the dashboard does", async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    await ada.fetch(`/app/${id}/settings/api-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nightly sync' })
+    })
+    for (const html of [await dashboard(ada, id, agent.state()), await settings(ada, id, agent.state())]) {
+      expect(html).not.toContain('<header')
+      const named = regions(html)
+      expect(named.length).toBeGreaterThan(1)
+      expect(new Set(named).size).toBe(named.length)
+    }
   })
 
   it("list an owner's API keys by name, prefix, maker, and dates, each with Revoke", async () => {

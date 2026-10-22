@@ -61,7 +61,7 @@ export function MembersModule({
         </p>
       </div>
       <div className="set-body wide">
-        <ScrollTable label="Members">
+        <ScrollTable label="Members table">
           <table className="chart members">
             <thead>
               <tr>

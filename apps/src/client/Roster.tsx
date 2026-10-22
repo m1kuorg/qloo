@@ -25,10 +25,10 @@ export function NetworkRoster({ agent, network }: { agent: NetworkConnection; ne
   const importDraft = useRef('')
   return (
     <>
-      <header className="hd">
+      <section className="hd" aria-label="Roster">
         <h1>Roster</h1>
         <p className="sub-line">Every launch on {network.name} ranks this roster, as it stands when its run starts.</p>
-      </header>
+      </section>
       <main className="main net-roster">
         <div className="chart-col">
           {state ? (

@@ -50,9 +50,9 @@ export function Settings({
   const [{ key: qlooKey, usage }, setKeyAndUsage] = useState({ key: loadedKey, usage: loaded })
   return (
     <>
-      <header className="hd">
+      <section className="hd" aria-label="Settings">
         <h1>Settings</h1>
-      </header>
+      </section>
       <main className="set">
         <NetworkModule network={network} cpm={state ? state.cpm : undefined} />
         <MembersModule network={network} memberId={memberId} members={members} invites={invites} />

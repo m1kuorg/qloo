@@ -90,7 +90,7 @@ function OwnerKeys({ network, keys: listed }: { network: NetworkPage; keys: ApiK
       {keys.length === 0 ? (
         <StateLine kind="empty">No API keys in use.</StateLine>
       ) : (
-        <ScrollTable label="API keys">
+        <ScrollTable label="API keys table">
           <table className="chart keys">
             <thead>
               <tr>

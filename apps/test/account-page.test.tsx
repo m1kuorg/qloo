@@ -43,6 +43,15 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
+// The name of each region a screen reader lists on the page: its label, or its heading's words.
+const regions = (html: string) =>
+  [...html.matchAll(/<section\b[^>]*>|<div\b[^>]*role="region"[^>]*>/g)].flatMap(([tag]) => {
+    const label = tag.match(/aria-label="([^"]+)"/)?.[1]
+    const by = tag.match(/aria-labelledby="([^"]+)"/)?.[1]
+    const heading = by && html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>`))?.[1]
+    return label ? [label] : heading ? [words(heading)] : []
+  })
+
 describe('the account page', () => {
   it("shows the member's name, passkeys by browser and date, sessions, and networks", async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -94,6 +103,16 @@ describe('the account page', () => {
       'You signed in with your recovery code. Add a passkey for this device now, so you can sign in without a code next time.'
     )
     expect(read).toContain('You’re not in any network yet. Create a network')
+  })
+
+  it("leaves the shell's top bar the one banner, and names each region once", async () => {
+    const ada = await openMember()
+    await post(ada, '/app/new', { name: 'Night Shift Audio' })
+    const html = await page(ada)
+    expect(html).not.toContain('<header')
+    const named = regions(html)
+    expect(named.length).toBeGreaterThan(1)
+    expect(new Set(named).size).toBe(named.length)
   })
 
   it('tells two passkeys from one browser, added the same day, apart by the time', async () => {
