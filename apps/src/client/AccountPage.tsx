@@ -403,7 +403,8 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
     <section className="mod set-mod" aria-labelledby="acct-delete-h">
       <About id="acct-delete-h" title="Delete account">
         Deletes your account, passkeys, recovery code, and sessions, and takes you out of every network. What you did in
-        a network stays with it, such as the runs you started and the orders you approved, under your name.
+        your networks stays with them, such as the runs you started and the orders you approved, but under “Former
+        member”, not your name.
       </About>
       <div className="set-body">
         {asking ? (

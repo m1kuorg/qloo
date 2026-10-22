@@ -2563,6 +2563,500 @@ a.btn {
   font: 500 13px var(--mono);
 }
 
+/* The landing's developers band: each way in beside what it is, as the source labels sit. */
+.mk-ways {
+  margin-top: 16px;
+}
+
+.mk-ways > div {
+  grid-template-columns: 136px minmax(0, 1fr);
+}
+
+.mk-ways dt {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#developers .mk-copy > p + p {
+  margin-top: 12px;
+}
+
+#developers .mk-acts {
+  margin-top: 20px;
+}
+
+/* The developer docs (#173): a reading column beside the docs' contents. The contents take the
+   app's rail grammar on the reading side a reader expects, with the page they're on as the selected
+   row, in Panel Grey, and its sections under it. Code is data to copy, set as the app sets a key it
+   shows once: monospace on Panel Grey. Tables keep the chart's rules. */
+.dk {
+  --dk-nav: 240px;
+  /* One measure for the reading column's prose, ledes, and records. */
+  --dk-measure: 680px;
+  display: grid;
+  grid-template-columns: var(--dk-nav) minmax(0, 1fr);
+  padding: 0 var(--gutter);
+}
+
+.dk-rail {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: 56px 24px 32px 0;
+}
+
+.dk-rail h2 {
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+
+.dk-rail ol {
+  list-style: none;
+}
+
+.dk-rail a:not(.btn, .lnk) {
+  text-decoration: none;
+}
+
+.dk-rail a:not(.btn, .lnk):hover {
+  text-decoration: underline;
+}
+
+.dk-pages > li > a {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* The page on view is the selected row. */
+.dk-pages > li.on > a {
+  background: var(--panel);
+  font-weight: 600;
+}
+
+.dk-toc {
+  margin: 4px 0 8px 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.dk-toc a {
+  display: block;
+  padding: 3px 0 3px 4px;
+  font-size: 13px;
+  color: var(--mid);
+}
+
+.dk-rail .dk-toc a:not(.btn, .lnk) {
+  color: var(--mid);
+}
+
+.dk-rail .dk-toc a:hover {
+  color: var(--ink);
+}
+
+.dk-spec {
+  margin-top: 24px;
+}
+
+.dk-spec.rec.kv .rec-row {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.dk-spec.rec.kv dd {
+  overflow-wrap: normal;
+}
+
+.dk-spec code {
+  font-size: 12px;
+}
+
+/* The rail's hairline runs the column's whole height, as the rail it sits beside scrolls with it. */
+.dk-col {
+  min-width: 0;
+  max-width: 840px;
+  padding: 56px 0 72px 40px;
+  border-left: 1px solid var(--line);
+}
+
+.dk h1 {
+  font-size: clamp(32px, 4vw, 44px);
+}
+
+.dk .mk-lede {
+  max-width: var(--dk-measure);
+  margin-top: 12px;
+}
+
+.dk-closed {
+  margin-top: 16px;
+  max-width: 42em;
+  font-size: 13px;
+  color: var(--mid);
+}
+
+.dk-col section {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+
+.dk-col h2 {
+  font-size: 22px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 24px;
+}
+
+.dk-col h3 {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  scroll-margin-top: 24px;
+}
+
+.dk-col p,
+.dk-col li {
+  max-width: var(--dk-measure);
+  font-size: 15px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.dk-col h2 + p,
+.dk-col p + p,
+.dk-col p + ul,
+.dk-col ul + p,
+.dk-col table + p,
+.dk-col figure + p {
+  margin-top: 12px;
+}
+
+.dk-col ul {
+  padding-left: 20px;
+}
+
+.dk-col li + li {
+  margin-top: 8px;
+}
+
+.dk-col code {
+  font: 500 13px var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.dk-code {
+  margin-top: 16px;
+}
+
+.dk-code figcaption {
+  margin-bottom: 6px;
+}
+
+.dk-code pre {
+  padding: 14px 16px;
+  border-radius: 4px;
+  background: var(--panel);
+  overflow-x: auto;
+  font: 500 13px/1.6 var(--mono);
+  tab-size: 2;
+}
+
+/* Long lines wrap rather than hide; copied text stays as it is. */
+.dk-code pre code {
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dk .mk-table {
+  margin-top: 16px;
+}
+
+.dk .mk-table tbody th {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* Reference text, so ink, where the landing's tables set their cells as secondary. */
+.dk .mk-table td {
+  line-height: 20px;
+  color: var(--ink);
+}
+
+/* A stacked row's label, for the cell that loses its column heading on a phone. */
+.dk-k {
+  display: none;
+}
+
+.dk .mk-table tbody th code {
+  font-size: 13px;
+}
+
+.dk .mk-table td code {
+  font-size: 12px;
+}
+
+.dk-ways tbody th,
+.dk-errors tbody th {
+  width: 26%;
+  white-space: nowrap;
+}
+
+.dk-tools tbody th {
+  width: 30%;
+  overflow-wrap: anywhere;
+}
+
+/* A tool's description names app pages by their URLs, which wrap anywhere rather than widen it. */
+.dk-tools td {
+  overflow-wrap: anywhere;
+}
+
+.dk-skills tbody th {
+  width: 30%;
+}
+
+.dk-args {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--mid);
+}
+
+.dk-tools th small {
+  margin-top: 4px;
+}
+
+/* The routes at a glance: a timetable, so tighter rows than the prose tables, and its summaries
+   underlined only on hover. */
+.dk .dk-routes td {
+  padding-top: 7px;
+  padding-bottom: 7px;
+  vertical-align: middle;
+}
+
+.dk-routes td:first-child {
+  width: 80px;
+}
+
+.dk-routes td a:not(.btn, .lnk) {
+  text-decoration: none;
+}
+
+.dk-routes td a:not(.btn, .lnk):hover {
+  text-decoration: underline;
+}
+
+/* Paths break after a slash, never inside a word. */
+.dk-routes code,
+.dk-ep code {
+  overflow-wrap: normal;
+}
+
+.dk-routes .chip,
+.dk-ep .chip {
+  min-width: 60px;
+  text-align: center;
+}
+
+.dk-op {
+  margin-top: 32px;
+}
+
+.dk-op h3 + .dk-ep {
+  margin-top: 6px;
+}
+
+.dk-ep + p {
+  margin-top: 8px;
+}
+
+.dk-io.rec {
+  max-width: var(--dk-measure);
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.dk-io.rec.kv .rec-row {
+  grid-template-columns: 104px minmax(0, 1fr);
+}
+
+.dk-io code {
+  font-size: 12px;
+}
+
+.dk-io dt code {
+  color: var(--ink);
+}
+
+/* The illustration of a conversation: who speaks, then what, under the chart's rules. */
+.dk-fig {
+  margin-top: 16px;
+}
+
+.dk-talk {
+  margin-top: 0;
+}
+
+.dk .dk-talk tbody th {
+  width: 104px;
+  font-size: 13px;
+}
+
+.dk-talk tr:first-child th,
+.dk-talk tr:first-child td {
+  border-top: 1px solid var(--ink);
+}
+
+.dk-code figcaption code {
+  font: 500 12px var(--mono);
+  color: var(--mid);
+}
+
+.dk-col .dk-next {
+  max-width: none;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 56px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ink);
+}
+
+.dk-next a:not(.btn, .lnk) {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* One column: the contents go atop the page, its pages as one row and the page's sections as a row
+   under it. */
+@media (max-width: 960px) {
+  .dk {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dk-rail {
+    position: static;
+    max-height: none;
+    padding: 24px 0 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .dk-pages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .dk-pages > li.on {
+    display: contents;
+  }
+
+  .dk-toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 16px;
+    width: 100%;
+    order: 1;
+    margin: 8px 0 0;
+    padding: 8px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .dk-toc a {
+    padding: 4px 0;
+  }
+
+  .dk-spec {
+    display: none;
+  }
+
+  .dk-col {
+    padding: 32px 0 72px;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .dk-col section {
+    margin-top: 40px;
+    padding-top: 24px;
+  }
+
+  .dk-ways thead,
+  .dk-tools thead,
+  .dk-skills thead {
+    display: none;
+  }
+
+  .dk-ways,
+  .dk-ways tbody,
+  .dk-tools,
+  .dk-tools tbody,
+  .dk-skills,
+  .dk-skills tbody,
+  .dk-ways tr,
+  .dk-ways tbody th,
+  .dk-ways td,
+  .dk-tools tr,
+  .dk-tools tbody th,
+  .dk-tools td,
+  .dk-skills tr,
+  .dk-skills tbody th,
+  .dk-skills td {
+    display: block;
+    width: auto;
+  }
+
+  .dk-ways tbody th,
+  .dk-tools tbody th,
+  .dk-skills tbody th {
+    padding: 12px 0 0;
+    border-bottom: 0;
+    white-space: normal;
+  }
+
+  .dk-ways td,
+  .dk-tools td,
+  .dk-skills td {
+    padding: 4px 0 12px;
+  }
+
+  .dk-routes td:first-child {
+    width: 68px;
+  }
+
+  .dk-routes .chip {
+    min-width: 0;
+  }
+
+  .dk-ways td:not(:last-child) {
+    padding-bottom: 4px;
+    border-bottom: 0;
+  }
+
+  .dk-k {
+    display: inline;
+    color: var(--grey);
+  }
+
+  .dk-io.rec.kv .rec-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .mk-ways > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
 /* One column: the rail follows its column, under a hairline instead of beside one. */
 @media (max-width: 960px) {
   .mk-grid {

@@ -6,16 +6,21 @@ import {
   type LaunchInput,
   type LaunchSummary,
   type RosterCopy,
+  type RunSummary,
   type Show,
+  type Starter,
   type State
 } from './agent'
 import { finalistsOf } from './fit'
+import type { InsertionOrder } from './order'
 import { MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimitKey } from './network-agent'
 
 const ROSTER =
   "A launch ranks its network's roster, which members edit on the network's roster page. Each run copies the roster as it starts."
 const INBOX = "A launch has no inbox: guest pitches go to the network's inbox, on its own page."
 const NO_GUIDE = "A launch has no guide: it's the sample network's, at /demo."
+// Who a deleted member's runs and approvals say they were by (forgetMember).
+const FORMER_MEMBER = 'Former member'
 
 // How many times a launch tries to report a change to its network.
 const REPORT_ATTEMPTS = 3
@@ -56,8 +61,23 @@ export class LaunchAgent extends CrossfeedAgent {
   // Starts a run for a program, through the API or the MCP server (operations.ts), which has no
   // connection to name its member: the Worker names who started it, the member whose session called or
   // the API key. Over RPC only, so a page can't name anyone but its own member.
-  startLaunchAs(input: LaunchInput, startedBy: string) {
-    return this.runLaunch(input, startedBy)
+  startLaunchAs(input: LaunchInput, starter: Starter) {
+    return this.runLaunch(input, starter)
+  }
+
+  // Forgets member `memberId`'s name, as their account's deletion does (NetworkAgent.forgetMember): the
+  // runs they started and the orders they approved, earlier runs' orders too, say FORMER_MEMBER and keep
+  // no ID of theirs. Returns the row its network lists for it. Over RPC only.
+  forgetMember(memberId: string) {
+    const { runs, insertionOrder: order } = this.state
+    if (runs.some((r) => r.startedById === memberId) || order?.approvedById === memberId)
+      this.setState({
+        ...this.state,
+        runs: runs.map((r) => (r.startedById === memberId ? formerStarter(r) : r)),
+        insertionOrder: order?.approvedById === memberId ? formerApprover(order) : order
+      })
+    this.renameApprover(memberId, FORMER_MEMBER)
+    return summaryOf(this.state)
   }
 
   // An insertion order is a member's to approve, in the app (ADR 0002): a connection the Worker let
@@ -246,3 +266,10 @@ export function summaryOf({ launch, run, runs, ranking, insertionOrder: order }:
     lastRun: last?.startedAt ?? null
   }
 }
+
+// A run, and an order, by a member whose account was deleted: by FORMER_MEMBER, with no ID.
+const formerStarter = ({ startedById: _, ...run }: RunSummary): RunSummary => ({ ...run, startedBy: FORMER_MEMBER })
+const formerApprover = ({ approvedById: _, ...order }: InsertionOrder): InsertionOrder => ({
+  ...order,
+  approvedBy: FORMER_MEMBER
+})

@@ -9,6 +9,7 @@ import {
   McpServer,
   localhostAllowedOrigins,
   type CallToolResult,
+  type ListToolsResult,
   type StandardSchemaWithJSON,
   type ToolCallback
 } from '@modelcontextprotocol/server'
@@ -69,7 +70,7 @@ import {
 
 // Every tool's description ends with it, as every tool can be the one an assistant reads a run's
 // question through.
-const RELAY =
+export const RELAY =
   'When a run is waiting on a question, ask the human that question as it is and answer with their words; never answer it yourself.'
 
 // What a tool gives back: text for the assistant to read, and the operation's result.
@@ -589,6 +590,37 @@ const handler = createMcpHandler(
     }),
   { allowedOriginHostnames: [...localhostAllowedOrigins(), ...appOrigins(env).map((o) => new URL(o).hostname)] }
 )
+
+// The tools the server lists, as an assistant reads them with `tools/list`, for the developer docs.
+// `<networkId>` stands in for the network, so the app pages their descriptions name read as patterns.
+// The request is the docs' own, with no Origin, at a host the handler doesn't check.
+export async function listedTools(): Promise<ListToolsResult['tools']> {
+  const res = await handler.fetch(
+    new Request('https://docs.invalid/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+    }),
+    {
+      authInfo: {
+        token: '',
+        clientId: 'docs',
+        scopes: [],
+        extra: { network: '<networkId>', keyName: 'Developer docs' }
+      }
+    }
+  )
+  const body = await res.text()
+  // The handler answers as a server-sent event, or as JSON.
+  const message = res.headers.get('Content-Type')?.includes('text/event-stream')
+    ? body
+        .split('\n')
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5))
+        .join('')
+    : body
+  return (JSON.parse(message) as { result: ListToolsResult }).result.tools
+}
 
 export const mcp = new Hono<{ Bindings: Env }>()
 

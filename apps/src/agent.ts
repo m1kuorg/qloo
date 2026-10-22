@@ -87,7 +87,7 @@ const pendingShow = (evidence: string): Pick<Show, 'resolution' | 'entity' | 'ca
 })
 
 // One Qloo comparison ranks at most 50 candidates, and scores from separate calls aren't comparable.
-const MAX_SHOWS = 50
+export const MAX_SHOWS = 50
 
 // What a launch run starts from: a released launch's name, or up to three comps standing in for an
 // unreleased one (#40).
@@ -157,8 +157,12 @@ export type RunSummary = {
   status: Run['status']
   startedAt: string // ISO time
   startedBy?: string // who started it, on a launch's agent: a member by name, or `API key “<name>”`; absent on the demo's
+  startedById?: string // the member's ID, so their name can be forgotten with their account (forgetMember)
   replayed?: true // the stored sample run, replayed
 }
+
+// Who starts a launch's run: a member by name, with their ID, or an API key by its name alone.
+export type Starter = { name: string; id?: string }
 
 // A progress note code writes for a tool call, such as "Resolving The Big Picture".
 export type Note = { text: string; status: 'running' | 'done' | 'failed' }
@@ -476,11 +480,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // names the member on its connection as its starter.
   @callable()
   async startLaunch(input: LaunchInput) {
-    return this.runLaunch(input, this.memberName())
+    const name = this.memberName()
+    return this.runLaunch(input, name ? { name, id: this.member() ?? undefined } : null)
   }
 
-  // Starts a launch run as `startLaunch` does, naming `startedBy` as who started it, or no one.
-  protected async runLaunch(input: LaunchInput, startedBy: string | null) {
+  // Starts a launch run as `startLaunch` does, naming `starter` as who started it, or no one.
+  protected async runLaunch(input: LaunchInput, starter: Starter | null) {
     const { name, comps } = readLaunch(input, 'to start a run')
     // Decided before anything runs: while Qloo can't be called, or a daily model run limit is reached,
     // the unchanged sample launch replays the stored sample run and any other run stops, so neither
@@ -511,7 +516,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
           launch: name,
           status: 'running',
           startedAt: new Date(startedAt).toISOString(),
-          ...(startedBy && { startedBy })
+          ...(starter && { startedBy: starter.name, ...(starter.id && { startedById: starter.id }) })
         }
       ],
       ranking: null,
@@ -738,8 +743,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 
   // The programmer's approval: only an approved order exports. It takes a person in the app, on the
   // page's connection, so the Worker's own calls, and the API through them, can never approve (ADR
-  // 0002). On a launch's agent it records the member who approved, and when; approving it again, as
-  // from a page that hadn't seen the approval, keeps the first.
+  // 0002). On a launch's agent it records the member who approved, by name and ID, and when; approving
+  // it again, as from a page that hadn't seen the approval, keeps the first.
   @callable()
   approveInsertionOrder(id: string) {
     if (!getCurrentAgent().connection)
@@ -747,10 +752,11 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const order = this.editableOrder(id)
     if (order.status === 'approved') return
     const by = this.memberName()
+    const member = this.member()
     this.saveOrder({
       ...order,
       status: 'approved',
-      ...(by && { approvedBy: by, approvedAt: new Date().toISOString() })
+      ...(by && { approvedBy: by, ...(member && { approvedById: member }), approvedAt: new Date().toISOString() })
     })
   }
 
@@ -1144,11 +1150,22 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // Stores the current order, and puts it in its run's snapshot once the run has ended, so an
   // earlier run shows, and exports, its order as the programmer left it. Who approved it, and when, go
   // with any change back to draft.
-  private saveOrder({ approvedBy, approvedAt, ...change }: InsertionOrder) {
-    const order = change.status === 'approved' && approvedBy ? { ...change, approvedBy, approvedAt } : change
+  private saveOrder({ approvedBy, approvedById, approvedAt, ...change }: InsertionOrder) {
+    const order =
+      change.status === 'approved' && approvedBy
+        ? { ...change, approvedBy, ...(approvedById && { approvedById }), approvedAt }
+        : change
     this.setState({ ...this.state, insertionOrder: order })
     this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.insertionOrder', json(${JSON.stringify(order)}))
       WHERE id = ${order.run} AND snapshot IS NOT NULL`
+  }
+
+  // Names `name` in place of member `memberId` on each order they approved that an ended run keeps, with
+  // no ID of theirs, as their account's deletion does (LaunchAgent.forgetMember).
+  protected renameApprover(memberId: string, name: string) {
+    this.sql`UPDATE runs SET snapshot = json_set(json_remove(snapshot, '$.insertionOrder.approvedById'),
+      '$.insertionOrder.approvedBy', ${name})
+      WHERE json_extract(snapshot, '$.insertionOrder.approvedById') = ${memberId}`
   }
 
   // Prices the current order again after a figure it uses changed. An approved order whose price
