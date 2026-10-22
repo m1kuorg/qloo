@@ -1280,6 +1280,38 @@
           ]
         }
       },
+      "PitchRunSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "waiting",
+              "completed",
+              "stopped",
+              "failed"
+            ],
+            "description": "`running`, or `waiting` on its `question`; then `completed`, or `stopped` or `failed` with the reason in `error`."
+          },
+          "show": {
+            "type": "string",
+            "description": "The roster show the pitches are ranked against."
+          },
+          "startedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "show",
+          "startedAt"
+        ]
+      },
       "Answer": {
         "type": "object",
         "properties": {
@@ -3617,6 +3649,79 @@
           },
           "409": {
             "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Pitch runs"
+        ],
+        "summary": "List pitch runs",
+        "description": "The network's pitch runs, newest first: the first is the latest, whose replies the inbox holds until another run or a new inbox replaces them. Read one in full by its ID.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pitch runs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pitchRuns": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PitchRunSummary"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pitchRuns"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
             "content": {
               "application/json": {
                 "schema": {

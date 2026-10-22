@@ -236,6 +236,7 @@ describe('loading the inbox', () => {
         body: JSON.stringify({ entityId: 'b-0001' })
       }),
       await startRun(call, network, { show: 'Night Shift Cinema' }),
+      await call(`/api/v1/networks/${network}/pitch-runs`),
       await call(`/api/v1/networks/${network}/pitch-runs/run-0`)
     ]) {
       expect(res.status).toBe(404)
@@ -289,6 +290,7 @@ type PitchRun = {
   id: string
   status: Run['status']
   show: string
+  startedAt: string
   question: Question | null
   error: string | null
   closing: string | null
@@ -428,6 +430,26 @@ describe('a pitch run', () => {
         sent.filter((r) => r.includes(detail.toLowerCase())),
         detail
       ).toEqual([])
+  })
+
+  it('are listed newest first, so a program finds the latest without its ID', async () => {
+    const { network, call } = await readyToRank([
+      turn(text('Drafted nothing yet.')),
+      turn(text('Drafted nothing again.'))
+    ])
+    const list = async () => (await call(`/api/v1/networks/${network}/pitch-runs`)).json()
+    expect(await list()).toEqual({ pitchRuns: [] })
+
+    const first = await (await startRun(call, network, { show: 'Night Shift Cinema' })).json<PitchRun>()
+    await runRead(call, network, first.id)
+    const second = await (await startRun(call, network, { show: 'Night Shift Cinema' })).json<PitchRun>()
+    const latest = await runRead(call, network, second.id)
+    expect(await list()).toEqual({
+      pitchRuns: [
+        { id: second.id, status: latest.status, show: 'Night Shift Cinema', startedAt: second.startedAt },
+        { id: first.id, status: 'completed', show: 'Night Shift Cinema', startedAt: first.startedAt }
+      ]
+    })
   })
 
   it("refuses a start, a read, or an answer the network's state or the request can't take, saying why", async () => {

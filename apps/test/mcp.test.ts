@@ -115,6 +115,7 @@ const PITCH_TOOLS = [
   'load_pitches',
   'confirm_work',
   'start_pitch_run',
+  'list_pitch_runs',
   'get_pitch_run',
   'answer_pitch_question'
 ]
@@ -175,6 +176,7 @@ describe('the MCP server', () => {
       'get_launch',
       'get_evidence',
       'get_inbox',
+      'list_pitch_runs',
       'get_pitch_run'
     ])
   })
@@ -525,6 +527,17 @@ describe('triaging pitches through the MCP server', () => {
         '- pitch-02, book, draft: Paper Moons would suit the show. More soon.',
         "- pitch-03, later, draft: We'll come back to Static Bloom next season.",
         `Only a member of the network approves a reply, in the app: ${origin}/app/${network}/inbox`
+      ].join('\n')
+    )
+    // A new session finds the latest run, and the replies it drafted, without its ID.
+    const listed = await client.call('list_pitch_runs', {})
+    expect(listed.structured.pitchRuns).toEqual([
+      { id: runId, status: 'completed', show: 'Night Shift Cinema', startedAt: started.structured.startedAt }
+    ])
+    expect(listed.text).toBe(
+      [
+        `- Pitch run ${runId} for Night Shift Cinema, started ${started.structured.startedAt}: completed.`,
+        'Newest first: the first is the latest. Read one, with the replies it drafted, with get_pitch_run.'
       ].join('\n')
     )
     // The answer reached the agent as the human's own words, and no sender or guest reached Qloo.
