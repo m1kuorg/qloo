@@ -36,9 +36,7 @@ const question = (state: State) => state.run!.question!
 
 // The text boxes the open question's card offers the programmer, as the page renders it.
 const textBoxes = (state: State) => {
-  const html = renderToStaticMarkup(
-    createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent, links })
-  )
+  const html = renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links }))
   const card = html.slice(html.indexOf('class="mod ask"'))
   return card.slice(0, card.indexOf('</section>')).match(/<input(?![^>]*type=)[^>]*>/g) ?? []
 }

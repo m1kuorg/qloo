@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { sample as sampleNetwork, sampleRoster, type Sample } from '../sample'
-import { CpmRecord, RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor, useEvidence } from './App'
 import { Alert, useAction } from './controls'
-import { LostAccess, useNetwork, type NetworkConnection, type NetworkPage } from './Dashboard'
-import { EvidencePanel } from './Evidence'
+import { EvidencePanel, useEvidence } from './Evidence'
+import { LostAccess, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
+import { CpmRecord, RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor } from './RosterModules'
 import { StateLine } from './states'
 
 // The network's roster page, connected to the network's agent.

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { cpmProblem, dollars } from '../../order'
 import { MAX_NAME } from '../../text'
 import { Alert, send, useAction } from '../controls'
-import type { NetworkPage } from '../Dashboard'
+import type { NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
 
 // The settings' network module: the network's name and its CPM. An owner changes them here; a member

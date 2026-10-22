@@ -1,8 +1,8 @@
 import { Fragment, useState } from 'react'
 import type { ApiKey } from '../../directory'
 import { MAX_NAME } from '../../text'
-import { Alert, ScrollTable, send, ShownOnce, useAction } from '../controls'
-import { day, type NetworkPage } from '../Dashboard'
+import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
+import type { NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
 
 // The settings' API keys module: the keys a script or an assistant acts for the network with, through

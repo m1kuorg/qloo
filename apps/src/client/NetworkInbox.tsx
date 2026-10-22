@@ -1,5 +1,5 @@
-import { InboxWorkspace } from './App'
-import { LostAccess, useNetwork, type NetworkPage } from './Dashboard'
+import { InboxWorkspace } from './Inbox'
+import { LostAccess, useNetwork, type NetworkPage } from './NetworkPage'
 
 // The network's booking inbox, connected to the network's agent: the demo's inbox page, whose pitches,
 // rankings, and replies every member sees and works on together, until the member loses access.

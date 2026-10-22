@@ -1,13 +1,7 @@
+import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Role } from '../directory'
-import { InvitePage, NewNetworkPage, SignInPage, wireSignOut } from './Account'
-import { AccountPage } from './AccountPage'
-import { App } from './App'
-import { DashboardPage } from './Dashboard'
-import { LaunchPage } from './Launch'
-import { NetworkInboxPage } from './NetworkInbox'
-import { RosterPage } from './Roster'
-import { SettingsPage } from './Settings'
+import { send } from './controls'
 
 const root = document.getElementById('root')!
 const d = root.dataset
@@ -18,49 +12,62 @@ const network = () => ({
   role: d.role as Role,
   links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink!, launches: d.launchesLink! }
 })
-createRoot(root).render(
-  d.page === 'sign-in' ? (
-    <SignInPage next={d.next!} />
-  ) : d.page === 'invite' ? (
-    <InvitePage memberName={d.memberName ?? null} />
-  ) : d.page === 'account' ? (
-    <AccountPage
-      name={d.memberName!}
-      passkeys={JSON.parse(d.passkeys!)}
-      sessions={Number(d.sessions)}
-      networks={JSON.parse(d.networks!)}
-      recovered={d.recovered === 'true'}
-    />
-  ) : d.page === 'new-network' ? (
-    <NewNetworkPage cap={Number(d.cap)} />
-  ) : d.page === 'dashboard' ? (
-    <DashboardPage
-      agentPath={d.agentPath!}
-      network={network()}
-      memberId={d.memberId!}
-      setup={{ invited: d.invited === 'true', apiKey: d.apiKey === 'true' }}
-    />
-  ) : d.page === 'launch' ? (
-    <LaunchPage agentPath={d.agentPath!} network={network()} orders={d.ordersLink!} />
-  ) : d.page === 'network-roster' ? (
-    <RosterPage agentPath={d.agentPath!} network={network()} />
-  ) : d.page === 'network-inbox' ? (
-    <NetworkInboxPage agentPath={d.agentPath!} network={network()} />
-  ) : d.page === 'settings' ? (
-    <SettingsPage
-      agentPath={d.agentPath!}
-      network={network()}
-      memberId={d.memberId!}
-      members={JSON.parse(d.members!)}
-      invites={d.invites ? JSON.parse(d.invites) : null}
-      apiKeys={d.apiKeys ? JSON.parse(d.apiKeys) : null}
-      usage={JSON.parse(d.usage!)}
-      qlooKey={JSON.parse(d.qlooKey!)}
-    />
-  ) : (
-    <App page={d.page} agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />
-  )
-)
+// Each page's code is a chunk of its own, loaded before the island renders the page, so a page fetches
+// only what it shows; what pages share, such as React and the controls, is in shared chunks. Any other
+// page is one of the demo's, "roster" or "inbox". It isn't React.lazy: its Suspense holds back the
+// page's first render by about 300 ms.
+const pages: Record<string, () => Promise<ReactNode>> = {
+  'sign-in': () => import('./Account').then(({ SignInPage }) => <SignInPage next={d.next!} />),
+  invite: () => import('./Account').then(({ InvitePage }) => <InvitePage memberName={d.memberName ?? null} />),
+  account: () =>
+    import('./AccountPage').then(({ AccountPage }) => (
+      <AccountPage
+        name={d.memberName!}
+        passkeys={JSON.parse(d.passkeys!)}
+        sessions={Number(d.sessions)}
+        networks={JSON.parse(d.networks!)}
+        recovered={d.recovered === 'true'}
+      />
+    )),
+  'new-network': () => import('./NewNetwork').then(({ NewNetworkPage }) => <NewNetworkPage cap={Number(d.cap)} />),
+  dashboard: () =>
+    import('./Dashboard').then(({ DashboardPage }) => (
+      <DashboardPage
+        agentPath={d.agentPath!}
+        network={network()}
+        memberId={d.memberId!}
+        setup={{ invited: d.invited === 'true', apiKey: d.apiKey === 'true' }}
+      />
+    )),
+  launch: () =>
+    import('./Launch').then(({ LaunchPage }) => (
+      <LaunchPage agentPath={d.agentPath!} network={network()} orders={d.ordersLink!} />
+    )),
+  'network-roster': () =>
+    import('./Roster').then(({ RosterPage }) => <RosterPage agentPath={d.agentPath!} network={network()} />),
+  'network-inbox': () =>
+    import('./NetworkInbox').then(({ NetworkInboxPage }) => (
+      <NetworkInboxPage agentPath={d.agentPath!} network={network()} />
+    )),
+  settings: () =>
+    import('./Settings').then(({ SettingsPage }) => (
+      <SettingsPage
+        agentPath={d.agentPath!}
+        network={network()}
+        memberId={d.memberId!}
+        members={JSON.parse(d.members!)}
+        invites={d.invites ? JSON.parse(d.invites) : null}
+        apiKeys={d.apiKeys ? JSON.parse(d.apiKeys) : null}
+        usage={JSON.parse(d.usage!)}
+        qlooKey={JSON.parse(d.qlooKey!)}
+      />
+    ))
+}
+const demo = () =>
+  import('./Demo').then(({ DemoPage }) => (
+    <DemoPage page={d.page} agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />
+  ))
+void (pages[d.page ?? ''] ?? demo)().then((page) => createRoot(root).render(page))
 
 // The app shell's menus, the network switcher and the account menu: one open at a time, closed by a
 // click outside or Escape, which returns focus to the menu's button.
@@ -80,3 +87,18 @@ document.addEventListener('keydown', (e) => {
 })
 const signOut = document.querySelector<HTMLButtonElement>('[data-sign-out]')
 if (signOut) wireSignOut(signOut)
+
+// The app shell's account menu: its Sign out button ends the session, then goes to the sign-in page.
+// The shell is server-rendered, so the island finds the button rather than rendering it.
+function wireSignOut(button: HTMLButtonElement) {
+  button.addEventListener('click', async () => {
+    button.disabled = true
+    try {
+      await send('/auth/sign-out')
+      window.location.assign('/sign-in')
+    } catch {
+      button.disabled = false
+      button.textContent = 'Sign out failed. Try again'
+    }
+  })
+}

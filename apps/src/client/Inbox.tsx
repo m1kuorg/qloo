@@ -16,7 +16,7 @@ import {
 import { MAX_PAST_GUESTS } from '../limits'
 import { sameName } from '../resolve'
 import { readPitchUpload } from '../upload'
-import type { Links } from './App'
+import type { Links, Session } from './App'
 import {
   Alert,
   bandMeter,
@@ -29,9 +29,10 @@ import {
   useFileDrop,
   useIntoView
 } from './controls'
-import { CallButton, EvidencePanel, type Opened } from './Evidence'
+import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
+import { OpenQuestion, REPLIES_CHANGED, RunLog } from './Run'
 import { Source } from './Source'
-import { SlowCalls, StateLine } from './states'
+import { matchLabel, SlowCalls, stateLabel, StateLine } from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
@@ -53,6 +54,48 @@ type Page = {
   runLog: ReactNode // the latest run, when it's a pitch run
   slowCalls: SlowCall[] // Qloo calls still waiting past the slow mark
   links: Links
+}
+
+// The inbox page on a connected agent, the demo session's or a network's, with the latest run when
+// it's a pitch run. Tests render it from synced state.
+export function InboxWorkspace({ agent, links }: { agent: Session; links: Links }) {
+  const { opened, openCall } = useEvidence(agent)
+  const lastRun = agent.state?.run
+  const pitchRun = lastRun && agent.state?.booking?.run === lastRun.id ? lastRun : null
+  return (
+    <InboxPage
+      inbox={agent.state?.inbox ?? null}
+      roster={agent.state?.roster ?? []}
+      booking={agent.state?.booking ?? null}
+      pitchRunStatus={pitchRun?.status ?? null}
+      question={
+        pitchRun?.status === 'waiting' &&
+        pitchRun.question && (
+          <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
+        )
+      }
+      runLog={
+        pitchRun && (
+          <RunLog
+            run={pitchRun}
+            changedNote={agent.state?.booking?.repliesEdited ? REPLIES_CHANGED : null}
+            openCall={openCall}
+            opened={opened?.call ?? null}
+          />
+        )
+      }
+      slowCalls={agent.state?.slowCalls ?? []}
+      loadInbox={(source) => agent.stub.loadInbox(source)}
+      confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
+      startPitches={(input) => agent.stub.startPitches(input)}
+      editReply={(pitchId, draft) => agent.stub.editReply(pitchId, draft)}
+      approveReply={(pitchId) => agent.stub.approveReply(pitchId)}
+      discardReply={(pitchId) => agent.stub.discardReply(pitchId)}
+      openCall={openCall}
+      opened={opened}
+      links={links}
+    />
+  )
 }
 
 // The booker's inbox page, shown only while GUEST_PITCHES is on: load pitches, see what Claude read
@@ -856,8 +899,6 @@ function ReplyItem({
   )
 }
 
-const matchLabel = { resolved: 'Matched', ambiguous: 'Ambiguous', missed: 'Not in Qloo', failed: 'Lookup failed' }
-
 // What the latest pitch run ranked against: the show, and how each past guest's work resolved.
 function Anchors({
   booking,
@@ -906,17 +947,6 @@ function Anchors({
     </section>
   )
 }
-
-// A pitch's state in one word: still being read, its work's match, or why it was set aside.
-export const stateLabel = (p: Pitch) =>
-  ({
-    reading: 'Reading',
-    looking_up: 'Looking up',
-    no_work: 'Set aside',
-    unreadable: 'Unreadable',
-    failed: 'Failed',
-    read: p.match ? matchLabel[p.match.resolution] : 'Looking up'
-  })[p.status]
 
 // A pitch's subject, or the first line of a pasted one.
 const title = (p: Pitch) => p.subject ?? p.body.split('\n').find((l) => l.trim()) ?? p.id

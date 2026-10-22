@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Evidence } from '../evidence'
+import type { Session } from './App'
 import { Source } from './Source'
 import { StateLine } from './states'
 
@@ -188,4 +189,25 @@ function ValueTable({ title, value, rows }: { title: string; value: string; rows
       </tbody>
     </table>
   )
+}
+
+// The rail's evidence module: `openCall` opens a call's record, or closes it when it's already open.
+// Only the latest click's answer lands.
+export function useEvidence(agent: Session) {
+  const [opened, setOpened] = useState<Opened | null>(null)
+  const latest = useRef<string | null>(null)
+  const openCall = async (call: string) => {
+    const closing = opened?.call === call
+    latest.current = closing ? null : call
+    if (closing) return setOpened(null)
+    setOpened({ call, status: 'loading' })
+    try {
+      const log = await agent.stub.getEvidence()
+      if (latest.current === call) setOpened({ call, status: 'loaded', record: log.find((e) => e.call === call) })
+    } catch (err) {
+      if (latest.current === call)
+        setOpened({ call, status: 'failed', error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  return { opened, openCall }
 }

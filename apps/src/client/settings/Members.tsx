@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react'
 import type { Invite, NetworkMember } from '../../directory'
-import { Alert, ScrollTable, send, ShownOnce, useAction } from '../controls'
-import { day, type NetworkPage } from '../Dashboard'
+import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
+import type { NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
 
 // The settings' members module: who's in the network, with their role and when they joined, and, for
