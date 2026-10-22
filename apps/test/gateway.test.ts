@@ -168,6 +168,8 @@ describe('the response cache', () => {
 })
 
 describe('sharing Qloo between sessions', () => {
+  afterEach(() => vi.useRealTimers())
+
   it('keeps at most 3 requests in flight while two sessions import at once', async () => {
     fakeQloo({ search, latencyMs: 60 })
     const [a, b] = await Promise.all([session(), session()])
@@ -178,7 +180,7 @@ describe('sharing Qloo between sessions', () => {
     expect(Math.max(...requests.map((r) => r.inFlight))).toBe(3)
   })
 
-  it("spaces the start of each request by the pacing interval, and doesn't count the wait as latency", async () => {
+  it('spaces the start of each request by the pacing interval', async () => {
     configure({ QLOO_MIN_INTERVAL_MS: '40' })
     fakeQloo({ search })
     const s = await session()
@@ -191,9 +193,32 @@ describe('sharing Qloo between sessions', () => {
     // `before` gives a floor that arrival delays can't push down, unlike the gap between two arrivals.
     const arrivals = requests.map((r) => r.at - before).sort((a, b) => a - b)
     arrivals.forEach((ms, n) => expect(ms).toBeGreaterThanOrEqual(40 * n))
-    // The fake answers at once, so latency is well under one interval though the last call waited three.
+  })
+
+  it("counts a call's latency from its request, not the wait for its turn", async () => {
+    // Qloo answers only once the test lets it, and the clock moves only when the test moves it, so each
+    // latency is what the test made it however loaded the machine is, rather than a fetch's own time.
+    // Pacing stays off: its sleep runs in real time, which the stopped clock doesn't count, and it would
+    // keep the first answers held longer against the gateway's timeout, which does.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const answers = Promise.withResolvers<void>()
+    fakeQloo({ search, held: answers.promise })
+    const s = await session()
+    await s.call('importRoster', names.slice(0, 4).join('\n'))
+    // Three requests are out, the gateway's most at once, so the fourth waits for its turn while a
+    // minute passes.
+    while (requests.length < 3) await new Promise((resolve) => setTimeout(resolve, 10))
+    vi.setSystemTime(Date.now() + 60_000)
+    answers.resolve()
+    await s.until((state) => state.roster.every((show) => show.resolution !== 'pending'))
+
+    expect(requests).toHaveLength(4)
+    const queued = requests[3].url.searchParams.get('query')
     const log = await s.call<Evidence[]>('getEvidence')
-    expect(log.map((e) => e.latencyMs).filter((ms) => ms >= 40)).toEqual([])
+    // Those answered after the minute took it; the one that waited it out took none.
+    expect(log.map((e) => [e.params.query, e.latencyMs])).toEqual(
+      names.slice(0, 4).map((name) => [name, name === queued ? 0 : 60_000])
+    )
   })
 })
 
