@@ -122,22 +122,37 @@ describe('a run at its limits', () => {
   })
 
   it('counts a double-clicked start once', async () => {
+    // The runs count against a UTC day, so the test keeps to one, whenever it runs.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-17T12:00:00Z'))
     env.RUN_VISITOR_DAILY_CAP = '2'
     fakeQloo({ search })
-    fakeClaude([turn(text('Done.')), turn(text('Done.'))])
+    // The first run's turn waits until both clicks are answered, so the second click finds that run
+    // starting or running however late it reaches the agent. Answered at once, the run could end
+    // before a click slowed by a loaded machine arrived, and that click would start a run of its own.
+    const answered = Promise.withResolvers<void>()
+    fakeClaude([() => answered.promise.then(() => turn(text('Done.'))), turn(text('Done.'))])
     const s = await session(visitorA)
     const clicks = await Promise.allSettled([
       s.call('startLaunch', { name: 'Night Shift Cinema' }),
       s.call('startLaunch', { name: 'Night Shift Cinema' })
     ])
-    expect(clicks.map((c) => c.status).sort()).toEqual(['fulfilled', 'rejected'])
-    expect((await finished(s)).run?.status).toBe('completed')
+    answered.resolve()
+    // What each click got and how each run stands, for any assertion that fails.
+    const outcomes = () =>
+      JSON.stringify({
+        clicks: clicks.map((c) => (c.status === 'fulfilled' ? c.value : String(c.reason))),
+        runs: s.state()?.runs.map((r) => r.status),
+        error: s.state()?.run?.error
+      })
+    expect(clicks.map((c) => c.status).sort(), outcomes()).toEqual(['fulfilled', 'rejected'])
+    expect((await finished(s)).run?.status, outcomes()).toBe('completed')
 
     // The second model run of the day is still there, and then the limit is reached.
     await s.call('startLaunch', { name: 'Night Shift Cinema' })
-    expect((await finished(s)).run?.status).toBe('completed')
+    expect((await finished(s)).run?.status, outcomes()).toBe('completed')
     await s.call('startLaunch', { name: 'Night Shift Cinema' })
-    expect((await finished(s)).run).toMatchObject({
+    expect((await finished(s)).run, outcomes()).toMatchObject({
       status: 'stopped',
       error: expect.stringMatching(/^You've started 2 model runs today, /)
     })
