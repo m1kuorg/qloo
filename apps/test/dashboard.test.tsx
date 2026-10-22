@@ -6,9 +6,10 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
+import { LostAccess } from '../src/client/NetworkPage'
 import { Settings } from '../src/client/Settings'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
-import { api, openMember, type Member, type Session } from './session'
+import { api, openMember, regions, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 const saved = { GUEST_PITCHES: env.GUEST_PITCHES, QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP }
@@ -270,6 +271,24 @@ describe('settings', () => {
     expect(read).not.toContain('Remove')
     expect(read).not.toContain('Invite links')
     expect(html).not.toMatch(/disabled=""[^>]*>Leave/)
+  })
+
+  it("leave the shell's top bar the one banner, and name each region once, as the dashboard and a lost page do", async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    await ada.fetch(`/app/${id}/settings/api-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nightly sync' })
+    })
+    const { network: page } = await island(ada, `/app/${id}`)
+    const lost = renderToStaticMarkup(<LostAccess network={page} reason="You're no longer a member of this network." />)
+    for (const html of [await dashboard(ada, id, agent.state()), await settings(ada, id, agent.state()), lost]) {
+      expect(html).not.toContain('<header')
+      const named = regions(html)
+      expect(named.length).toBeGreaterThan(0)
+      expect(new Set(named).size).toBe(named.length)
+    }
   })
 
   it("list an owner's API keys by name, prefix, maker, and dates, each with Revoke", async () => {

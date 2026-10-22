@@ -25,8 +25,8 @@ Contents:
 
 - **Project name:** Crossfeed
 - **Elevator pitch:** An agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners want, by ranking the network's own lists in Qloo.
-- **Try it out:** <https://crossfeed.m1kuorg.workers.dev/demo> and <https://github.com/m1kuorg/qloo>
-- **Built with:** qloo, claude, anthropic, cloudflare-workers, durable-objects, cloudflare-agents, hono, react, typescript, vite, vitest
+- **Try it out:** <https://crossfeed.m1kuorg.workers.dev>, whose first button opens the sample network at <https://crossfeed.m1kuorg.workers.dev/demo>, and <https://github.com/m1kuorg/qloo>
+- **Built with:** qloo, claude, anthropic, cloudflare-workers, durable-objects, cloudflare-agents, cloudflare-d1, hono, react, typescript, vite, vitest, webauthn, openapi, mcp
 - **Video and images:** the video is `crossfeed-demo.mp4`, 2 minutes 50 seconds with captions and no voice, on the draft release `submission`, which waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63). The screenshots are from the same run on the live demo, on sample data:
   - [The chart, with a climber and its "why it moved" line](https://github.com/m1kuorg/qloo/blob/main/docs/images/chart.png)
   - [The agent's open question](https://github.com/m1kuorg/qloo/blob/main/docs/images/question.png)
@@ -99,7 +99,7 @@ This run is from the [live check], with Qloo entity IDs left out:
 3.  **Questions:** the agent asks for the slot budget, then for shows to leave out. It asks through an `ask_human` tool, which pauses the run until the human answers. The answers were 20 slots and no exclusions.
 4.  **Demographics (C-22):** The Watch's listeners over-index at ages 35 to 44 and skew male. The Bill Simmons Podcast has fewer listeners aged 35 to 44 than average. It's marked "Listeners differ" and stays a finalist, for the human to judge.
 5.  **Shared tags (C-23 to C-27):** one compare per finalist, with The Watch on side `a`. The Bill Simmons Podcast shares Conversational, Insightful, and Pop Culture.
-6.  **Insertion order:** Haiku proposes slots and a host-read angle per finalist from those tags. Code prices each slot at downloads per episode × CPM ÷ 1,000 and rejects a draft over the budget. IO-0001 put 20 slots on the five finalists for $167,200, at the sample $20 CPM. That includes 4 slots on The Bill Simmons Podcast at $14,000 each.
+6.  **Insertion order:** Haiku proposes slots and a host-read angle per finalist from those tags; code refuses an angle for a finalist Qloo returned no shared tags for. Code prices each slot at downloads per episode × CPM ÷ 1,000 and rejects a draft over the budget. IO-0001 put 20 slots on the five finalists for $167,200, at the sample $20 CPM. That includes 4 slots on The Bill Simmons Podcast at $14,000 each.
 7.  **Approval:** the programmer edits or approves the order. The CSV export answered 409 until the order was approved, then downloaded it.
 
 The run made 27 Qloo calls. Every ranking, tag, and flag on screen cites its call number. Selecting a call number opens its evidence: its parameters, status, latency, and cache hit, plus the raw scores the chart leaves out.
@@ -112,7 +112,7 @@ The guest flow runs the same way ([live check]):
 
 ### Engineering around Qloo
 
-- **One door to Qloo:** a single Durable Object is the only code that calls Qloo ([TRD gateway rules], [wrangler.jsonc]). It:
+- **One door to Qloo:** a gateway Durable Object is the only code that calls Qloo: one shared instance, plus one for each signed-in network that brings its own Qloo key ([TRD gateway rules], [wrangler.jsonc]). It:
   - caches responses privately;
   - keeps at most 3 calls in flight, and starts each at least 400 ms after the last, because bursts drew 429s in a live check;
   - times out at 20 seconds, and retries 429, 502, 503, 504, and timeouts up to twice;
@@ -123,7 +123,7 @@ The guest flow runs the same way ([live check]):
   - A run takes at most 12 model turns and 60 Qloo calls ([limits.ts]). A visitor starts at most 10 model runs a day across browsers, and all visitors together 200, which bounds model spend in code ([TRD agent limits]).
   - Approving and exporting are UI actions with no tool, so the model proposes and the human commits.
 - **Still answering when Qloo isn't:** the sample launch's last completed run is stored. When the daily cap is reached, or Qloo keeps failing, the sample launch replays it, labelled "Replayed" ([TRD replay]). A daily cron checks the key, and that the sample ranking is still cached.
-- **Tests at the network boundary:** Vitest runs the Worker in the Workers runtime. Qloo and Anthropic are replaced by hand-written responses and scripted model turns. Tests drive the Worker's routes and the agent's client protocol, as the UI does. CI runs formatting, types, tests, commit titles, and a secrets scan on every pull request.
+- **Tests at the network boundary:** Vitest runs the Worker in the Workers runtime, D1 included. Qloo and Anthropic are replaced by hand-written responses and scripted model turns, and passkeys by a software authenticator that signs as a browser does. Tests drive the Worker's routes, the agents' client protocol, the REST API, the SDK, and the MCP server, as the UI, a program, and an assistant do. CI runs formatting, types, the SDK's types, tests, commit titles, and a secrets scan on every pull request.
 
 [TRD calls]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#calls
 [TRD gateway rules]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#gateway-rules
@@ -133,7 +133,7 @@ The guest flow runs the same way ([live check]):
 
 ## Design
 
-A judge opens the demo with no login and lands on a working screen, not a chat:
+A judge opens the URL on a one-screen landing page: an illustrative chart of made-up shows, labelled as an illustration, with what Crossfeed never does and the ways in. Its first button opens the sample network with no sign-in, on a working screen, not a chat:
 
 - **Sample data, labelled:** the network opens ready, with a notice that Crossfeed isn't affiliated with The Ringer. Every download, status, description, and CPM figure is labelled "sample" until the visitor edits it.
 - **A weekly chart:** the fit chart reads like a music chart:
@@ -146,6 +146,9 @@ A judge opens the demo with no login and lands on a working screen, not a chat:
 - **A rail beside the chart:** the agent's open question sits at its top, as a form. Under it come the guide through the sample launch, the selected show, the evidence for any call, the insertion order with its totals, and the progress notes with the agent's closing line. In one column, the question comes before the chart, and the roster follows the rail.
 - **Honest states:** loading, slow, failed, missed, not scored, and replayed each have their own wording. A Qloo call still waiting after 8 seconds is named as slow ([wrangler.jsonc]).
 - **The booker's inbox:** each pitch shows its guest, the public work, and the work's Qloo match. Pitched works are ranked in one list per type. Every pitch gets a drafted reply under Book, Later, or Decline. The booker approves, edits, or discards each reply, then copies it to send.
+- **The same world, signed in:** the product's dashboard, roster, settings, and account pages keep the chart's tables under a black rule and its hairline modules, with no KPI tiles, cards, or shadows, and one black button for each page's decision ([DESIGN.md]).
+
+[DESIGN.md]: https://github.com/m1kuorg/qloo/blob/main/docs/DESIGN.md
 
 ## Potential impact
 
@@ -173,9 +176,16 @@ A judge opens the demo with no login and lands on a working screen, not a chat:
 
 ## Crossfeed as a company
 
-- **Customer:** podcast networks, sold per seat to programming and booking teams. Independent shows that trade feed swaps are a wider second tier.
+- **Customer:** podcast networks, for the programmers and bookers who plan launches and triage pitches. Independent shows that trade feed swaps are a wider second tier.
 - **Wedge and habit:** the launch plan is a high-stakes decision made with every launch. The booking inbox is daily work, which keeps the product open between launches.
 - **One engine:** both jobs are the same call, a closed list ranked against a show in Qloo. Each new list a network owns, such as candidate swap partners, is another product on that engine.
+- **The product a network signs in to, built:** the demo is one browser's session; the company is a network's members working in Crossfeed together. That product is built in this repository, on the same Worker, behind one switch (`ACCOUNTS`) that production turns on only once the whole product passes on a preview deployment ([product spec]):
+  - members sign up with a passkey, with no password or email, and invite teammates with a link that works once;
+  - a network's dashboard lists every launch with its status, finalists, slots, and slot value, and each launch keeps its own runs, so two programmers can plan two launches at once;
+  - members upload the roster as the CSV they already keep, and pitches as the `.eml` or `.mbox` their email client exports;
+  - owners manage members and API keys, see usage against the beta's daily caps, and can bring the network's own Qloo key;
+  - a REST API, a TypeScript SDK, an MCP server, two Agent Skills, and a Claude Code plugin let a network's scripts and assistants import, run, and draft, but never approve: only a member, in the app, approves an insertion order or a reply.
+- **What a paid version needs:** the launch plan and the daily inbox are work a network's programmers and bookers already do, and the API and MCP server put Crossfeed inside the tools they use. The beta is free and runs on our hackathon Qloo key, which Qloo's terms don't let us resell, so a paid Crossfeed needs a commercial Qloo agreement, or each network's own Qloo key, which an owner can already add.
 - **Next, not built yet:**
   - downloads read from the network's hosting analytics;
   - the booking inbox read from email;
@@ -183,6 +193,8 @@ A judge opens the demo with no login and lands on a working screen, not a chat:
   - swap partners from outside the roster;
   - a launch's results measured after its promos run.
 - **What we don't claim:** Crossfeed has no customers or pricing yet. This entry quotes no market size or time saving, because we have no source for one.
+
+[product spec]: https://github.com/m1kuorg/qloo/issues/155
 
 ## Known limitations
 
@@ -198,8 +210,9 @@ A judge opens the demo with no login and lands on a working screen, not a chat:
 - **Insertion order totals vary by run.** Haiku spreads the 20 slots across the finalists differently each time, so the same sample launch came to $167,200 in one live check ([live check]) and $162,800 in another ([#126 check]).
 - **A podcast named after its guest is set aside.** A work title holding the guest's or sender's whole name never reaches Qloo, so a pitch for "Conan O'Brien Needs a Friend" is set aside as unreadable rather than ranked ([#117 check]).
 - **Guest pitches are live.** They were switched on in production after their live check ([#57]). Drafted replies name no guest, because the model never sees names; the booker adds them before sending.
-- **No integrations.** Nothing is emailed or pushed to an ad server. Downloads are typed in or uploaded as CSV, and pitches are pasted or loaded from the sample.
-- **No accounts.** A session is one browser's cookie. A visitor, known only by a salted hash of their address, starts at most 10 model runs a day, and all visitors together 200. Past either, or if Qloo can't be called, only the sample launch replays; other runs stop and say why.
+- **No integrations.** Nothing is emailed or pushed to an ad server. Downloads are typed in or uploaded as CSV, and pitches are pasted, uploaded as `.eml`, `.mbox`, or text files, or loaded from the sample.
+- **No sign-in on the demo.** A session is one browser's cookie. A visitor, known only by a salted hash of their address, starts at most 10 model runs a day, and all visitors together 200. Past either, or if Qloo can't be called, only the sample launch replays; other runs stop and say why. A signed-in network counts as a visitor of its own, against the same limits.
+- **The signed-in product is a beta.** It runs on our hackathon Qloo key within each network's daily caps, which Qloo's terms don't let us resell; selling it needs a commercial Qloo agreement or each network's own key, which an owner can already add. It has no payments, no email, and passkey sign-in only, and its SDK and plugin aren't published to npm or a public marketplace.
 
 [TRD demo data]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#demo-data
 [pitch run check]: https://github.com/m1kuorg/qloo/issues/133#issuecomment-6233620198

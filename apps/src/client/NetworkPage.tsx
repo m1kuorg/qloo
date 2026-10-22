@@ -23,9 +23,9 @@ export type NetworkConnection = ReturnType<typeof useNetwork>
 export function LostAccess({ network, reason }: { network: NetworkPage; reason: string }) {
   return (
     <>
-      <header className="hd">
+      <section className="hd" aria-label="Network">
         <h1>{network.name}</h1>
-      </header>
+      </section>
       <main className="lost">
         <StateLine kind="error" role="alert">
           {reason || 'This page lost its connection to the network. Reload to try again.'}

@@ -28,9 +28,9 @@ export function AccountPage({
   const onlyOwner = networks.filter((n) => n.onlyOwner).map((n) => n.name)
   return (
     <>
-      <header className="hd">
+      <section className="hd" aria-label="Account">
         <h1>Account</h1>
-      </header>
+      </section>
       <main className="set acct-mods">
         <NameModule name={name} />
         <PasskeysModule listed={passkeys} recovered={recovered} />
@@ -148,7 +148,7 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
             </p>
           </div>
         )}
-        <ScrollTable label="Passkeys">
+        <ScrollTable label="Passkeys table">
           <table className="chart passkeys">
             <thead>
               <tr>

@@ -43,16 +43,16 @@ export function Dashboard({
 }) {
   return (
     <>
-      <header className="hd">
+      <section className="hd" aria-label="Dashboard">
         <h1>{network.name}</h1>
         <NewLaunch network={network} create={createLaunch} />
-      </header>
+      </section>
       <main className="main dash">
         <section className="chart-col" aria-labelledby="launches-h">
           <h2 className="lbl dash-h" id="launches-h">
             Launches
           </h2>
-          <ScrollTable label="Launches">
+          <ScrollTable label="Launches table">
             <Launches launches={state?.launches ?? []} network={network} />
           </ScrollTable>
         </section>

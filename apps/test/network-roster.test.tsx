@@ -15,7 +15,7 @@ import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
 import { fakeClaude, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
-import { openMember, openSession, type Member, type Session } from './session'
+import { openMember, openSession, regions, type Member, type Session } from './session'
 
 // Synthetic shows: two exact matches, one name shared by two feeds, and one Qloo doesn't have.
 const search = {
@@ -486,6 +486,21 @@ describe("the roster page's words", () => {
         />
       )
     )
+
+  it("leaves the shell's top bar the one banner, and names each region once", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const html = renderToStaticMarkup(
+      <NetworkRoster
+        agent={{ state: (await connect(ada, network)).state(), stub: {} } as unknown as NetworkConnection}
+        network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
+      />
+    )
+    expect(html).not.toContain('<header')
+    const named = regions(html)
+    expect(named.length).toBeGreaterThan(0)
+    expect(new Set(named).size).toBe(named.length)
+  })
 
   it('offers an empty network three ways in, and nothing a launch does', async () => {
     const ada = await openMember()
