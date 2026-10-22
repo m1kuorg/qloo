@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-17T00:00:00Z",
+  "generatedAt": "2026-10-22T00:00:00Z",
   "title": "Design system: Crossfeed",
   "extensions": {
     "colorMeta": {
@@ -102,6 +102,14 @@
       }
     },
     "typographyMeta": {
+      "hero-position": {
+        "displayName": "Hero position",
+        "purpose": "Fit rank in the landing page's illustrative chart, the page's largest type."
+      },
+      "hero-last-week": {
+        "displayName": "Hero last week",
+        "purpose": "Topic rank in the landing page's illustrative chart."
+      },
       "position": {
         "displayName": "Position",
         "purpose": "Fit rank in the chart's first column."
@@ -114,9 +122,29 @@
         "displayName": "Wordmark",
         "purpose": "\"Crossfeed\" in the top bar, uppercase."
       },
+      "display": {
+        "displayName": "Display",
+        "purpose": "The landing page's one headline."
+      },
+      "page-title": {
+        "displayName": "Page title",
+        "purpose": "The h1 of the docs pages, the privacy page, and the beta terms."
+      },
+      "section-heading": {
+        "displayName": "Section heading",
+        "purpose": "Each landing page section's h2."
+      },
       "headline": {
         "displayName": "Headline",
-        "purpose": "The launch title."
+        "purpose": "Every app page's h1, such as the launch title or the network's name, and the docs' h2."
+      },
+      "lede": {
+        "displayName": "Lede",
+        "purpose": "The sentence under the landing headline, and the close's."
+      },
+      "reading": {
+        "displayName": "Reading",
+        "purpose": "Prose in the docs, the privacy page, the terms, and the landing page's sections, kept to a measure."
       },
       "title": {
         "displayName": "Title",
@@ -124,7 +152,7 @@
       },
       "row-name": {
         "displayName": "Row name",
-        "purpose": "Show names in the chart and other tables."
+        "purpose": "Show names in the chart and a launch's name in the dashboard's table."
       },
       "body": {
         "displayName": "Body",
@@ -145,6 +173,14 @@
       "call-number": {
         "displayName": "Call number",
         "purpose": "A cited Qloo call such as C-21, and request strings in evidence."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Code and paths in the docs and the privacy page, on Panel Grey in a block."
+      },
+      "recovery-code": {
+        "displayName": "Recovery code",
+        "purpose": "The recovery code, shown once on Panel Grey, uppercase."
       }
     },
     "shadows": [],
@@ -268,22 +304,47 @@
       "description": "A state's square marker and word in its color, then the sentence in ink.",
       "html": "<p class=\"ds-state\" data-state=\"slow\"><b class=\"ds-state-w\">Slow Qloo</b> C-07 has waited over 8 s for Qloo. Still trying.</p><p class=\"ds-state\" data-state=\"failed\"><b class=\"ds-state-w\">Failed</b> C-09 failed after two retries.</p><p class=\"ds-state\" data-state=\"missed\"><b class=\"ds-state-w\">Missed</b> Qloo has no match for this show.</p>",
       "css": ".ds-state { --tone: var(--mid, #555); margin: 8px 0 0; font: 400 12px/1.4 var(--body, 'Libre Franklin', sans-serif); color: var(--ink, #111); } .ds-state[data-state='slow'] { --tone: var(--slow, #8a6100); } .ds-state[data-state='failed'] { --tone: var(--fault, #a34700); } .ds-state[data-state='missed'] { --tone: var(--missed, #2f5d8a); } .ds-state-w { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; color: var(--tone); } .ds-state-w::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 5px; background: var(--tone); }"
+    },
+    {
+      "name": "Menu Sheet",
+      "kind": "nav",
+      "refersTo": "menu-panel",
+      "description": "The app shell's network switcher and account menu: a flat white sheet hung from the black bar, ruled in ink, never shadowed.",
+      "html": "<div class=\"ds-bar\"><details class=\"ds-menu\" open><summary>Night Shift Audio</summary><ul class=\"ds-sheet\"><li><a href=\"#\" aria-current=\"true\">Night Shift Audio</a></li><li><a href=\"#\">Cold Open Media</a></li><li class=\"ds-new\"><a href=\"#\">New network</a></li></ul></details></div>",
+      "css": ".ds-bar { background: var(--ink, #111); height: 48px; padding: 0 16px; display: flex; align-items: stretch; } .ds-menu { position: relative; display: flex; } .ds-menu summary { display: flex; align-items: center; padding: 0 12px; font: 400 12px var(--body, 'Libre Franklin', sans-serif); color: #b5b5b5; cursor: pointer; list-style: none; transition: color var(--t-quick, 120ms) ease-out; } .ds-menu[open] summary, .ds-menu summary:hover { color: #fff; } .ds-menu summary:focus-visible { outline: 2px solid #fff; outline-offset: -6px; } .ds-sheet { position: absolute; top: 100%; left: 0; min-width: 264px; margin: 0; padding: 8px 0; list-style: none; background: #fff; border: 1px solid var(--ink, #111); border-top: 0; border-radius: 0 0 4px 4px; font: 400 13px var(--body, 'Libre Franklin', sans-serif); } .ds-sheet a { display: block; padding: 8px 16px; color: var(--ink, #111); text-decoration: none; transition: background-color var(--t-quick, 120ms) ease-out; } .ds-sheet a:hover, .ds-sheet a[aria-current] { background: var(--panel, #f2f2f2); } .ds-sheet a[aria-current] { font-weight: 600; } .ds-sheet a:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: -2px; } .ds-new { margin-top: 8px; border-top: 1px solid var(--line, #e6e6e6); } .ds-new a { font-size: 12px; font-weight: 500; text-decoration: underline; }"
+    },
+    {
+      "name": "Shown Once",
+      "kind": "custom",
+      "refersTo": "recovery-code",
+      "description": "Something to keep or copy, shown once on Panel Grey in the monospace stack: here the recovery code, as sign-up shows it.",
+      "html": "<div class=\"ds-once\"><p class=\"ds-code\">7KQ2-M4XD-9RTB-H3VN-P6WC</p><div class=\"ds-acts\"><button class=\"ds-sec\">Copy code</button><button class=\"ds-pri\">I've saved it</button></div></div>",
+      "css": ".ds-once { display: grid; gap: 12px; justify-items: start; } .ds-code { margin: 0; padding: 16px 24px; background: var(--panel, #f2f2f2); font: 600 20px/1.3 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); letter-spacing: 0.06em; user-select: all; } .ds-acts { display: flex; gap: 8px; } .ds-sec, .ds-pri { height: 32px; padding: 0 12px; border-radius: 4px; font: 600 13px var(--body, 'Libre Franklin', sans-serif); cursor: pointer; } .ds-sec { background: #fff; color: var(--ink, #111); border: 1px solid var(--edge, #d4d4d4); font-weight: 500; } .ds-sec:hover { border-color: var(--grey, #6b6b6b); } .ds-pri { background: var(--ink, #111); color: #fff; border: 1px solid var(--ink, #111); } .ds-pri:hover { background: #333; border-color: #333; } .ds-sec:focus-visible, .ds-pri:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; }"
+    },
+    {
+      "name": "Setup Checklist",
+      "kind": "custom",
+      "refersTo": "caption",
+      "description": "The dashboard's setup steps, read like the guide: each still to do in ink 600 with how under it, each done in Column Grey.",
+      "html": "<section class=\"ds-setup\"><div class=\"ds-mh\"><span class=\"ds-lbl\">Setup</span><span class=\"ds-chip\">2 of 5 done</span></div><ol><li class=\"ds-done\">Import the roster <span>Done</span></li><li class=\"ds-done\">Set the CPM <span>Done</span></li><li>Plan a launch<small>Name a launch, or up to three comps, under New launch.</small></li></ol></section>",
+      "css": ".ds-setup { font: 400 12px/1.4 var(--body, 'Libre Franklin', sans-serif); color: var(--ink, #111); max-width: 360px; } .ds-mh { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; } .ds-lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; } .ds-chip { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mid, #555); border: 1px solid var(--edge, #d4d4d4); border-radius: 3px; padding: 2px 6px; } .ds-setup ol { margin: 0; padding: 0; list-style: decimal inside; } .ds-setup li { padding: 6px 0; border-top: 1px solid var(--line, #e6e6e6); font-weight: 600; } .ds-setup li small { display: block; font-weight: 400; color: var(--mid, #555); } .ds-setup li.ds-done { color: var(--mid, #555); font-weight: 400; } .ds-setup li span { float: right; }"
     }
   ],
   "narrative": {
     "northStar": "The Weekly Chart",
-    "overview": "Crossfeed sets a network's roster as this week's chart. Fit rank is the new position, the rank a topic-only planner would give is last week's, and the moves Qloo caused are the news. A programmer reads the chart the way the music and podcast industries already read Billboard and the podcast rankers: position first, then movement, then why. The world lends four things only: type, palette, density, and one signature move. Layout, navigation, and controls stay standard web components, because this is a working screen and the programmer should know where everything is before they notice the world.\n\nThe screen is light, because its scene is a head of programming at a desk in a daylit office, planning one launch between meetings, so there is no dark theme: the screen is light only, and tells the browser so with `color-scheme: light`. It is dense but not cramped: tall chart rows give the position numerals room, while everything around them stays small, quiet, and set in tabular figures. Agent text and Qloo data never blend; each is labelled where it appears, and every claim cites the Qloo call behind it.\n\nThe signature move is **chart movement**: a show that climbs three or more places over its topic rank gets a red bullet beside its position, and the selected climber opens an inline \"why it moved\" line that cites its Qloo call. This is the demo's decisive moment drawn as chart notation, not as a tile or a chat message. In motion, the move lands like a mark made on the printed chart: when the topic column arrives, last week's figures and the moves fade in over 200ms, then each climber's bullet lands beside its position, shrinking from 2.4 times its size as it fades in, over 320ms and 60ms after the climber above it, with the stagger capped at six steps. The why line fades in over 200ms. Everything else moves only to acknowledge: 120ms color changes on hover and press, and 200ms for a row taking Panel Grey. Every curve eases out, the bullet's on `cubic-bezier(0.16, 1, 0.3, 1)`; nothing bounces or loops. With reduced motion, the bullets fade in with the figures, with no scale and no stagger.",
+    "overview": "Crossfeed sets a network's roster as this week's chart. Fit rank is the new position, the rank a topic-only planner would give is last week's, and the moves Qloo caused are the news. A programmer reads the chart the way the music and podcast industries already read Billboard and the podcast rankers: position first, then movement, then why. The world lends four things only: type, palette, density, and one signature move. Layout, navigation, and controls stay standard web components, because this is a working screen and the programmer should know where everything is before they notice the world.\n\nThe screen is light, because its scene is a head of programming at a desk in a daylit office, planning one launch between meetings, so there is no dark theme: the screen is light only, and tells the browser so with `color-scheme: light`. It is dense but not cramped: tall chart rows give the position numerals room, while everything around them stays small, quiet, and set in tabular figures. Agent text and Qloo data never blend; each is labelled where it appears, and every claim cites the Qloo call behind it.\n\nThe signature move is **chart movement**: a show that climbs three or more places over its topic rank gets a red bullet beside its position, and the selected climber opens an inline \"why it moved\" line that cites its Qloo call. This is the demo's decisive moment drawn as chart notation, not as a tile or a chat message. In motion, the move lands like a mark made on the printed chart: when the topic column arrives, last week's figures and the moves fade in over 200ms, then each climber's bullet lands beside its position, shrinking from 2.4 times its size as it fades in, over 320ms and 60ms after the climber above it, with the stagger capped at six steps. The why line fades in over 200ms. Everything else moves only to acknowledge: 120ms color changes on hover and press, and 200ms for a row taking Panel Grey. Every curve eases out, the bullet's on `cubic-bezier(0.16, 1, 0.3, 1)`; nothing bounces or loops. With reduced motion, the bullets fade in with the figures, with no scale and no stagger.\n\nOne world serves three kinds of page. The landing page persuades at a larger scale, with an illustrative chart as its hero and its climbers' bullets landing as it loads. The developer docs, the privacy page, and the beta terms are read, in one measured column. Every other page operates: the demo, sign-in, and a network's dashboard, roster, inbox, launches, settings, and account page all keep the launch workspace's grammar, tables under a black rule, hairline modules, Panel Grey for what's selected or waiting on a yes, and one black button for the page's decision.",
     "keyCharacteristics": [
       "Heavy condensed position numerals carry the hierarchy; everything else is one plain grotesque.",
       "White ground, near-black ink, a black top bar, and one red with one job.",
       "Rank and band before raw score; raw affinity lives only in the evidence record.",
       "Hairline row rules under a solid black header rule; no cards, tiles, or shadows.",
-      "Every agent line and every Qloo figure says which it is, and cites a call number such as `C-07`."
+      "Every agent line and every Qloo figure says which it is, and cites a call number such as `C-07`.",
+      "Something to keep or copy, a recovery code, a new key, a link, or code, sits on Panel Grey in the monospace stack where it's data."
     ],
     "rules": [
       {
         "name": "The One Bullet Rule",
-        "body": "Chart Red marks a climb of three or more places, and the legend that explains it, and nothing else: not errors, links, buttons, falls, or emphasis. If a screen has no climbers, it shows neither the bullet nor its legend.",
+        "body": "Chart Red marks a climb of three or more places, and the legend that explains it, and nothing else: not errors, links, buttons, falls, or emphasis. If a screen has no climbers, it shows neither the bullet nor its legend. The docs, settings, and account pages rank nothing, so they never show it.",
         "section": "colors"
       },
       {
@@ -293,34 +354,42 @@
       },
       {
         "name": "The Black Shell Rule",
-        "body": "Press Black fills only the top bar and primary action buttons, such as answering the agent and approving the order. No other region is filled black, so the bar reads as the shell and a black button reads as a decision.",
+        "body": "Press Black fills only the top bar and primary action buttons, such as answering the agent, approving the order, creating an account, or opening the sample network. No other region is filled black, so the bar reads as the shell and a black button reads as a decision.",
         "section": "colors"
       },
       {
         "name": "The Numerals Speak Rule",
-        "body": "Barlow Condensed sets rank numerals and the wordmark only. Headings, names, and buttons stay in Libre Franklin, so big type always means a position on the chart.",
+        "body": "Barlow Condensed sets rank numerals and the wordmark only. Headings, names, buttons, and step numbers stay in Libre Franklin, so big type always means a position on the chart, on the landing page as in the app.",
+        "section": "typography"
+      },
+      {
+        "name": "The Data Is Mono Rule",
+        "body": "The monospace stack sets what a person copies or a machine reads: call numbers, request strings, codes, keys, and paths. Prose never takes it for effect.",
         "section": "typography"
       },
       {
         "name": "The Flat Chart Rule",
-        "body": "Nothing floats. A thing that needs attention gets Panel Grey or the black primary button, never a shadow, glow, or raised card.",
+        "body": "Nothing floats. A thing that needs attention gets Panel Grey, an ink rule, or the black primary button, never a shadow, glow, or raised card.",
         "section": "elevation"
       }
     ],
     "dos": [
       "**Do** lead every ranking with its position and band, and keep raw affinity in the evidence record ([PRODUCT.md](PRODUCT.md#constraints)).",
       "**Do** mark agent text and Qloo data with a small Label-style tag where they appear, and set the cited Qloo call number beside any claim.",
-      "**Do** label sample figures in place, in Caption type beside the figure.",
+      "**Do** label sample figures in place, in Caption type beside the figure, and illustrations with the Illustration chip.",
       "**Do** set every number in tabular figures, right-aligned in money and download columns.",
-      "**Do** use standard controls: tabs, sortable table headers, radios, text inputs, and buttons, with visible keyboard focus."
+      "**Do** use standard controls: tabs, sortable table headers, radios, text inputs, buttons, and `<details>` menus, with visible keyboard focus.",
+      "**Do** put what must be kept or copied on Panel Grey, in the monospace stack where it's data, shown once.",
+      "**Do** let a wide table scroll in its own frame on a phone, never the page."
     ],
     "donts": [
       "**Don't** build a generic AI chat app: no transcript-and-sidebar layout. The agent speaks through the open-question module and short labelled lines.",
-      "**Don't** build a BI dashboard: no KPI tile row, donut charts, or chart cards.",
+      "**Don't** build a BI dashboard: no KPI tile row, donut charts, or chart cards, on the dashboard or anywhere else.",
       "**Don't** clone a spreadsheet: no gridlines on every cell and no cell-editing look.",
       "**Don't** use Chart Red for anything but the gainer bullet.",
       "**Don't** show a bare affinity decimal in the chart or rail.",
-      "**Don't** use purple gradients, frosted glass, emoji icons, cards inside cards, or pill buttons.",
+      "**Don't** put Qloo data, invented customers, quotes, figures, or prices on the marketing pages.",
+      "**Don't** use purple gradients, frosted glass, emoji icons, cards inside cards, pill buttons, or shadowed menus.",
       "**Don't** remove focus outlines."
     ]
   }
