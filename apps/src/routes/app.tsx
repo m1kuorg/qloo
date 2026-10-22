@@ -47,7 +47,7 @@ import { kickMember, launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER, ownGate
 import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
 import { isQlooHost } from '../qloo-hosts'
-import { appShell, networkLinks, type AppVariables } from '../shell'
+import { appShell, Island, networkLinks, type AppVariables } from '../shell'
 import { listOf, readName } from '../text'
 import { deleteAccount, deleteLaunch, deleteNetwork } from '../wipe'
 
@@ -84,7 +84,7 @@ appPages.get('/app', async (c) => {
 // Naming a new network. The demo's and the landing page's "Create your network" lead here.
 appPages.get('/app/new', async (c) => {
   c.set('networks', await memberNetworks(c.env.DB, c.var.member.id))
-  return c.render(<div id="root" data-page="new-network" data-cap={c.env.NETWORKS_PER_MEMBER} />)
+  return c.render(<Island page="new-network" data-cap={c.env.NETWORKS_PER_MEMBER} />)
 })
 
 // Creates the network, with the member as its owner, unless they've created NETWORKS_PER_MEMBER.
@@ -110,9 +110,8 @@ appPages.get('/app/account', async (c) => {
   const networks = await accountNetworks(c.env.DB, id)
   c.set('networks', networks)
   return c.render(
-    <div
-      id="root"
-      data-page="account"
+    <Island
+      page="account"
       data-member-name={name}
       data-passkeys={JSON.stringify(await memberPasskeys(c.env.DB, id))}
       data-sessions={await openSessions(c.env.DB, id)}
@@ -212,9 +211,8 @@ appPages.get('/app/:networkId', async (c) => {
   if (!network) return c.notFound()
   const { invited, apiKey } = await setupProgress(c.env.DB, network.id)
   return c.render(
-    <div
-      id="root"
-      data-page="dashboard"
+    <Island
+      page="dashboard"
       data-member-id={c.var.member.id}
       data-invited={String(invited)}
       data-api-key={String(apiKey)}
@@ -228,7 +226,7 @@ appPages.get('/app/:networkId', async (c) => {
 appPages.get('/app/:networkId/roster', async (c) => {
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
-  return c.render(<div id="root" data-page="network-roster" {...island(c, network)} />)
+  return c.render(<Island page="network-roster" {...island(c, network)} />)
 })
 
 // The network's booking inbox: pitches loaded, ranked against a roster show, and answered over the
@@ -237,7 +235,7 @@ appPages.get('/app/:networkId/inbox', async (c) => {
   if (c.env.GUEST_PITCHES !== 'on') return c.notFound()
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
-  return c.render(<div id="root" data-page="network-inbox" {...island(c, network)} />)
+  return c.render(<Island page="network-inbox" {...island(c, network)} />)
 })
 
 // A launch of the network, planned in its own workspace: its runs, their charts and questions, and the
@@ -248,9 +246,8 @@ appPages.get('/app/:networkId/launches/:launchId', async (c) => {
   const network = await networkPage(c, networkId)
   if (!network || !(await listsLaunch(c.env, network.id, launchId))) return c.notFound()
   return c.render(
-    <div
-      id="root"
-      data-page="launch"
+    <Island
+      page="launch"
       {...island(c, network)}
       data-agent-path={`/agents/launch/${network.id}/${launchId}`}
       data-orders-link={`${networkLinks(c.env, network.id).launches}/${launchId}/insertion-orders`}
@@ -298,9 +295,8 @@ appPages.get('/app/:networkId/settings', async (c) => {
   const set = await (await getAgentByName(c.env.NetworkAgent, network.id)).hasOwnKey()
   const qlooKey = JSON.stringify(owner && set ? await ownGateway(c.env, network.id).ownKey() : { set })
   return c.render(
-    <div
-      id="root"
-      data-page="settings"
+    <Island
+      page="settings"
       data-member-id={c.var.member.id}
       data-members={members}
       data-invites={invites}
