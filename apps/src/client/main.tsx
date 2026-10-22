@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Role } from '../directory'
 import { send } from './controls'
+import { StateLine } from './states'
 
 const root = document.getElementById('root')!
 const d = root.dataset
@@ -13,9 +14,9 @@ const network = () => ({
   links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink!, launches: d.launchesLink! }
 })
 // Each page's code is a chunk of its own, loaded before the island renders the page, so a page fetches
-// only what it shows; what pages share, such as React and the controls, is in shared chunks. Any other
-// page is one of the demo's, "roster" or "inbox". It isn't React.lazy: its Suspense holds back the
-// page's first render by about 300 ms.
+// only what it shows; what pages share, such as React and the controls, is in shared chunks. "inbox" is
+// the demo's inbox, and any other page the demo's roster, "roster". It isn't React.lazy: its Suspense
+// holds back the page's first render by about 300 ms.
 const pages: Record<string, () => Promise<ReactNode>> = {
   'sign-in': () => import('./Account').then(({ SignInPage }) => <SignInPage next={d.next!} />),
   invite: () => import('./Account').then(({ InvitePage }) => <InvitePage memberName={d.memberName ?? null} />),
@@ -61,13 +62,23 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         usage={JSON.parse(d.usage!)}
         qlooKey={JSON.parse(d.qlooKey!)}
       />
+    )),
+  inbox: () =>
+    import('./DemoInbox').then(({ DemoInboxPage }) => (
+      <DemoInboxPage agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />
     ))
 }
-const demo = () =>
-  import('./Demo').then(({ DemoPage }) => (
-    <DemoPage page={d.page} agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />
+const demo = () => import('./App').then(({ App }) => <App agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />)
+void (pages[d.page ?? ''] ?? demo)()
+  // A page whose code didn't load, as when the connection drops, says so instead of staying blank.
+  .catch((err: unknown) => (
+    <main className="lost">
+      <StateLine kind="error" role="alert">
+        This page didn&apos;t load ({err instanceof Error ? err.message : String(err)}). Reload to try again.
+      </StateLine>
+    </main>
   ))
-void (pages[d.page ?? ''] ?? demo)().then((page) => createRoot(root).render(page))
+  .then((page) => createRoot(root).render(page))
 
 // The app shell's menus, the network switcher and the account menu: one open at a time, closed by a
 // click outside or Escape, which returns focus to the menu's button.

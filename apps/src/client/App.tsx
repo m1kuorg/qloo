@@ -1,19 +1,5 @@
-import { useAgent } from 'agents/react'
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import type {
-  Comp,
-  CrossfeedAgent,
-  GuideMark,
-  Launch,
-  LaunchInput,
-  Run,
-  RunSnapshot,
-  RunSummary,
-  Show,
-  SlowCall,
-  State
-} from '../agent'
+import type { Comp, GuideMark, Launch, LaunchInput, Run, RunSnapshot, RunSummary, Show, SlowCall } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
 import type { Ranking } from '../fit'
 import { inProgress } from '../limits'
@@ -23,25 +9,28 @@ import { moveGlyph, moveWords } from '../text'
 import type { Sample } from '../sample'
 import type { Topic } from '../topic'
 import { Alert, bandMeter, listOf, percentile, useAction } from './controls'
+import { SampleShell, useSession } from './Demo'
 import { CallButton, EvidencePanel, useEvidence } from './Evidence'
 import { Guide } from './Guide'
 import { InsertionOrderPanel } from './InsertionOrder'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import type { NetworkPage } from './NetworkPage'
 import { CpmRecord, RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor } from './RosterModules'
-import { OpenQuestion, ORDER_CHANGED, RunLog, runLabel } from './Run'
+import { OpenQuestion, ORDER_CHANGED, runLabel, RunLog } from './Run'
 import { Source } from './Source'
 import { sentence, SlowCalls, StateLine } from './states'
 
-// The page's agent, at the path the server gives. The server picks the instance, as the demo's does
-// from the session cookie. `basePath` takes the path without its leading slash.
-export const useSession = (path: string) =>
-  useAgent<CrossfeedAgent, State>({ agent: 'CrossfeedAgent', basePath: path.replace(/^\//, '') })
+// The agent connection the workspace's modules take, as `useSession` (Demo.tsx) opens it.
 export type Session = ReturnType<typeof useSession>
 
 // Where the island's pages link, as the server gives them. `orders` is where a launch's approved
 // insertion orders export, as `<orders>/<id>.csv`; the demo's export has its own route.
 export type Links = { roster: string; orders?: string }
+
+// The demo's roster page, on the visitor's session, with the agent's path and the links the server gives.
+export function App({ agentPath, links }: { agentPath: string; links: Links }) {
+  return <Workspace agent={useSession(agentPath)} links={links} />
+}
 
 // The page for a connected session; tests render it from a session's synced state. With `network`,
 // it's a launch's page of that network (Launch.tsx): it ranks the network's roster, read-only here.
@@ -1001,19 +990,6 @@ function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample: boolea
       {sample && <small className="smp">Arbitrary sample figure, not the network's. Enter your own.</small>}
       <Alert error={error} />
     </section>
-  )
-}
-
-// The sample network's name and not-affiliated notice, in the top bar the server renders.
-export function SampleShell({ sample }: { sample: Sample }) {
-  const network = document.getElementById('shell-network')
-  const notice = document.getElementById('shell-notice')
-  return (
-    <>
-      {network && createPortal(<span className="net">{sample.network} · sample network</span>, network)}
-      {notice &&
-        createPortal(<span className="sample-tag">Sample data · not affiliated with {sample.network}</span>, notice)}
-    </>
   )
 }
 
