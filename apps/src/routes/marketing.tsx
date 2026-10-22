@@ -738,10 +738,10 @@ function Privacy({ accounts }: { accounts: boolean }) {
           sign-in challenges, and invite links. Deleting your account, on your account page, deletes your account with
           its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it,
           but not your name: the launches of the networks you&apos;re in say &ldquo;Former member&rdquo; on the runs you
-          started and the orders you approved. The API keys and invite links you made stay with their networks, made by
-          no one. A network that can&apos;t be reached at once forgets your name at the next day&apos;s cleanup.
-          It&apos;s refused while you&apos;re a network&apos;s only owner. &ldquo;Sign out everywhere&rdquo; deletes
-          every session of yours.
+          started and the orders you approved. The API keys and invite links you made are revoked at once too, as they
+          are when an owner leaves a network, is removed, or is made a member. A network that can&apos;t be reached at
+          once forgets your name at the next day&apos;s cleanup. It&apos;s refused while you&apos;re a network&apos;s
+          only owner. &ldquo;Sign out everywhere&rdquo; deletes every session of yours.
         </p>
       )}
 
