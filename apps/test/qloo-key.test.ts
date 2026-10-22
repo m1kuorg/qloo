@@ -8,12 +8,14 @@
 import {
   createExecutionContext,
   createScheduledController,
+  listDurableObjectIds,
   runInDurableObject,
   waitOnExecutionContext
 } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QlooGateway } from '../src/gateway'
+import { LaunchAgent } from '../src/launch-agent'
 import worker from '../src/index'
 import { fakeClaude, fakeInsights, fakeQloo, requests, text, toolUse, turn } from './fake'
 import { api, openMember, openSession, type Member, type Session } from './session'
@@ -97,6 +99,11 @@ const addKey = (member: Member, network: string, host: string, key: string) =>
 const sent = () => qloo().map((r) => [`${r.url.origin}${r.url.pathname}`, r.headers.get('X-Api-Key')])
 const searched = () => qloo().flatMap((r) => r.url.searchParams.get('query') ?? [])
 const qloo = () => requests.filter((r) => r.url.origin !== new URL(env.ANTHROPIC_BASE_URL).origin)
+
+// Whether gateway instance `name` has ever stored anything, as a storage test reads it. A wiped one stays
+// listed, as do earlier tests' instances, since the local runtime keeps each emptied database.
+const stored = async (name: string) =>
+  (await listDurableObjectIds(env.QlooGateway)).some((id) => id.equals(env.QlooGateway.idFromName(name)))
 
 describe("a network's own Qloo key", () => {
   it('is saved only once a search through it works, then shown to owners by its last four characters', async () => {
@@ -188,6 +195,8 @@ describe("a network's own Qloo key", () => {
     fakeInsights(fit)
     expect((await addKey(ada, own, PRODUCTION, OWN)).status).toBe(200)
     requests.length = 0
+    // The agents know the network has its key, so no call asks its gateway first (#197).
+    const asked = vi.spyOn(QlooGateway.prototype, 'ownKey')
 
     const network = await connect(ada, `/agents/network/${own}`)
     await network.importRoster('Corner Booth\nSlow Burn')
@@ -219,6 +228,71 @@ describe("a network's own Qloo key", () => {
       [`${PRODUCTION}/v2/insights`, OWN]
     ])
     expect(searched()).toEqual(['Night Shift Cinema'])
+    expect(asked).not.toHaveBeenCalled()
+  })
+
+  it("reaches a launch's run under way as it's removed, so the run's next call goes with Crossfeed's key", async () => {
+    const ada = await openMember()
+    const own = await created(ada)
+    fakeQloo({ search, keys: [OWN, env.QLOO_API_KEY] })
+    fakeInsights(fit)
+    expect((await addKey(ada, own, PRODUCTION, OWN)).status).toBe(200)
+    const network = await connect(ada, `/agents/network/${own}`)
+    await network.importRoster('Corner Booth\nSlow Burn')
+    fakeClaude([
+      turn(toolUse('resolve_entities', { names: ['Night Shift Cinema'], type: 'urn:entity:podcast' })),
+      turn(toolUse('ask_human', { question: 'Rank the roster now?', kind: 'choice', options: ['Yes', 'No'] })),
+      turn(
+        toolUse('rank_candidates', {
+          anchor_ids: ['e-0001'],
+          candidate_ids: ['e-0501', 'e-0502'],
+          type: 'urn:entity:podcast'
+        })
+      ),
+      turn(text('Corner Booth fits best.'))
+    ])
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const launch = await connect(ada, `/agents/launch/${own}/${id}`)
+    requests.length = 0
+    await launch.call('startLaunch', { name: 'Night Shift Cinema' })
+    const { run: waiting } = await launch.until((s) => s.run?.status === 'waiting')
+
+    expect((await post(ada, `/app/${own}/settings/qloo-key/remove`)).status).toBe(200)
+    await launch.call('answer', waiting!.question!.id, { choice: 'Yes' })
+    const { run: done } = await launch.until((s) => s.run?.status === 'completed' || s.run?.status === 'failed')
+    expect([done?.status, done?.error]).toEqual(['completed', null])
+    expect(sent()).toEqual([
+      [`${PRODUCTION}/search`, OWN],
+      [`${env.QLOO_BASE_URL}/v2/insights`, env.QLOO_API_KEY]
+    ])
+  })
+
+  it("reaches a launch's next run with its copy of the roster, when the notice of it failed", async () => {
+    const ada = await openMember()
+    const own = await created(ada)
+    fakeQloo({ search, keys: [OWN, env.QLOO_API_KEY] })
+    fakeInsights(fit)
+    const network = await connect(ada, `/agents/network/${own}`)
+    await network.importRoster('Corner Booth\nSlow Burn')
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const launch = await connect(ada, `/agents/launch/${own}/${id}`)
+    const failed = vi.spyOn(console, 'error')
+    vi.spyOn(LaunchAgent.prototype, 'noteOwnKey').mockRejectedValueOnce(new Error('The launch is overloaded.'))
+    expect((await addKey(ada, own, PRODUCTION, OWN)).status).toBe(200)
+    expect(failed).toHaveBeenCalledWith(
+      JSON.stringify({ event: 'own_key_notice', launch: id, error: 'Error: The launch is overloaded.' })
+    )
+
+    requests.length = 0
+    run()
+    await launch.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await launch.until((s) => s.run?.status !== 'running')).run?.status).toBe('completed')
+    // The roster's lookup was Crossfeed's, so the network's own cache has none of it yet.
+    expect(sent()).toEqual([
+      [`${PRODUCTION}/search`, OWN],
+      [`${PRODUCTION}/search`, OWN],
+      [`${PRODUCTION}/v2/insights`, OWN]
+    ])
   })
 
   it("counts the network's Qloo calls on its own instance, and its model runs in the global gateway", async () => {
@@ -261,6 +335,37 @@ describe("a network's own Qloo key", () => {
     ])
   })
 
+  it('leaves a network without one with no gateway instance, whatever its pages, agents, and API do', async () => {
+    const ada = await openMember()
+    const own = await created(ada)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(own) })
+    fakeQloo({ search })
+    fakeInsights(fit)
+    expect([(await settings(ada, own)).qlooKey, (await settings(grace, own)).qlooKey]).toEqual([
+      { set: false },
+      { set: false }
+    ])
+    const network = await connect(ada, `/agents/network/${own}`)
+    await network.importRoster('Corner Booth\nSlow Burn')
+    await network.searchComps('Corner Booth', 'Slow Burn')
+    run()
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const launch = await connect(ada, `/agents/launch/${own}/${id}`)
+    await launch.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await launch.until((s) => s.run?.status !== 'running')).run?.status).toBe('completed')
+    const { secret } = await (
+      await post(ada, `/app/${own}/settings/api-keys`, { name: 'Nightly sync' })
+    ).json<{
+      secret: string
+    }>()
+    const usage = await (await api(secret)(`/api/v1/networks/${own}/usage`)).json<{ qlooCalls: { used: number } }>()
+
+    // Every call went with Crossfeed's key and counted in the global gateway; the network has no other.
+    expect(new Set(sent().map(([, key]) => key))).toEqual(new Set([env.QLOO_API_KEY]))
+    expect(usage.qlooCalls.used).toBe(6)
+    expect([await stored('global'), await stored(`network:${own}`)]).toEqual([true, false])
+  })
+
   it('is removed by wiping its instance, and the network goes back to the shared key', async () => {
     const ada = await openMember()
     const own = await created(ada)
@@ -290,6 +395,50 @@ describe("a network's own Qloo key", () => {
     await network.searchComps('Corner Booth', 'Slow Burn')
     expect(sent().slice(1)).toEqual([[`${PRODUCTION}/search`, OWN]])
     expect((await settings(ada, own)).usage.qlooCalls.used).toBe(1)
+  })
+
+  it('stays, carrying the calls still, when wiping it fails, so the owner can remove it again', async () => {
+    const ada = await openMember()
+    const own = await created(ada)
+    fakeQloo({ search, keys: [OWN] })
+    expect((await addKey(ada, own, HACKATHON, OWN)).status).toBe(200)
+    vi.spyOn(QlooGateway.prototype, 'wipe').mockRejectedValueOnce(new Error('The gateway is overloaded.'))
+    expect((await post(ada, `/app/${own}/settings/qloo-key/remove`)).status).toBe(500)
+    expect((await settings(ada, own)).qlooKey).toEqual({ set: true, host: HACKATHON, last4: '7f3a' })
+    requests.length = 0
+    await (await connect(ada, `/agents/network/${own}`)).importRoster('Corner Booth')
+    expect(sent()).toEqual([[`${HACKATHON}/search`, OWN]])
+
+    expect((await post(ada, `/app/${own}/settings/qloo-key/remove`)).status).toBe(200)
+    expect((await settings(ada, own)).qlooKey).toEqual({ set: false })
+  })
+
+  it('fails a call its removal cuts off with why, rather than a storage error', async () => {
+    const ada = await openMember()
+    const own = await created(ada)
+    fakeQloo({ search, keys: [OWN] })
+    expect((await addKey(ada, own, PRODUCTION, OWN)).status).toBe(200)
+    const network = await connect(ada, `/agents/network/${own}`)
+    // The import's searches reach Qloo, which answers only once the key is removed.
+    const answers = Promise.withResolvers<void>()
+    fakeQloo({ search, keys: [OWN], held: answers.promise })
+    requests.length = 0
+    await network.call('importRoster', 'Corner Booth\nSlow Burn')
+    await vi.waitFor(() => expect(sent()).toHaveLength(2))
+
+    // The wiped instance resets a moment after its wipe. Holding that moment, so the answers land in it,
+    // means it never resets: the test's own reset clears it afterwards.
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    expect((await post(ada, `/app/${own}/settings/qloo-key/remove`)).status).toBe(200)
+    answers.resolve()
+    const { roster } = await network.until((s) => s.roster.every((show) => show.resolution !== 'pending'))
+    vi.useRealTimers()
+    const cutOff =
+      "The Qloo gateway failed: The network's own Qloo key was removed while this call was out, so it was cut off. Make it again: the network's calls go through Crossfeed's shared key from now on"
+    expect(roster.map((show) => [show.resolution, show.error])).toEqual([
+      ['failed', cutOff],
+      ['failed', cutOff]
+    ])
   })
 
   it('is kept sealed with QLOO_KEY_SECRET, so no other secret opens it, and no run spends a model run on it', async () => {

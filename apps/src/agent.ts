@@ -226,8 +226,9 @@ export type RunSnapshot = Omit<State, 'runs' | 'guide'>
 type SampleRun = { state: Omit<RunSnapshot, 'inbox' | 'booking'>; evidence: Evidence[] }
 
 // What a launch's run ranks, copied from its network's agent as the run starts (launch-agent.ts): the
-// roster and CPM, and the evidence records the roster cites.
-export type RosterCopy = { roster: Show[]; cpm: number | null; evidence: Evidence[] }
+// roster and CPM, and the evidence records the roster cites. And whether the network has a Qloo key of
+// its own, so the run's calls go through the right gateway.
+export type RosterCopy = { roster: Show[]; cpm: number | null; evidence: Evidence[]; ownKey: boolean }
 
 // A roster as one string, to tell whether two copies of it differ: each show as the roster page shows
 // it, but for its call numbers, which a launch's copy renumbers.
