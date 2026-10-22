@@ -17,6 +17,7 @@ import type {
   RunSummary,
   Show,
   ShowPatch,
+  Starter,
   State
 } from './agent'
 import type { DemographicCheck } from './demographics'
@@ -192,8 +193,10 @@ export async function startLaunchRun(
   return launchRunOf(launch, await stateOf(launch), runId)
 }
 
-// Who a run says started it: the member, by name, or the API key, by the name an owner gave it.
-const starter = (caller: Caller) => ('member' in caller ? caller.member.name : `API key “${caller.keyName}”`)
+// Who a run says started it: the member, by name, with their ID, or the API key, by the name an owner
+// gave it.
+const starter = (caller: Caller): Starter =>
+  'member' in caller ? { name: caller.member.name, id: caller.member.id } : { name: `API key “${caller.keyName}”` }
 
 export async function getLaunchRun(
   { env, network }: OperationContext,
@@ -366,9 +369,12 @@ async function launchRunOf(launch: LaunchStub, state: State, id: string): Promis
     },
     topic: topic && { status: topic.status, order: topic.order, error: topic.error },
     demographics,
-    insertionOrder
+    insertionOrder: insertionOrder && orderOf(insertionOrder)
   }
 }
+
+// An insertion order as a program reads it: who approved it by name, never by their member ID.
+const orderOf = ({ approvedById: _, ...order }: InsertionOrder): InsertionOrder => order
 
 // The network's inbox as a program reads it: `empty` until pitches are loaded, `reading` while the
 // agent reads each for its guest and public work and looks the work up in Qloo, then `done`; the

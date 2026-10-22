@@ -13,7 +13,7 @@ related_targets: ['apps/src/shell.tsx', 'apps/src/style.css']
 - **Proof and content:** an illustrative chart excerpt with made-up shows and ranks, labelled as an illustration; PRODUCT.md's capabilities, constraints, and principles. No Qloo data, customers, quotes, figures, or prices.
 - **Constraints:** server-rendered Hono JSX, no React island; DESIGN.md's tokens and rules (One Bullet, Black Shell, Numerals Speak, Flat Chart); one column at 375px with no sideways scroll.
 - **Chosen direction:** the chart, annotated. Memorable moment: a history show climbing past the network's true-crime shows on a true-crime launch's chart, its red bullet landing beside the position.
-- **Unresolved:** the developers band links nothing until the docs ticket (#173) adds `/docs`; the privacy page names no contact, because none is on record.
+- **Unresolved:** the privacy page names no contact, because none is on record. The developers band links the developer docs (#173), whose own brief is `apps-src-routes-docs-tsx.md`.
 
 ## Direction contract
 

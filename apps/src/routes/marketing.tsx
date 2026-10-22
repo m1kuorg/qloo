@@ -518,6 +518,34 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
             Crossfeed is one Cloudflare Worker. The page is server-rendered, and the workspace talks to its agent over a
             WebSocket: it reads the agent&apos;s synced state and calls its actions, and never writes state itself.
           </p>
+          <p>
+            Programs and assistants can plan a network&apos;s launches and triage its pitches too, with one of its API
+            keys. None of them can approve: that stays with the network&apos;s members, in the app.
+          </p>
+          <dl class="mk-sources mk-ways">
+            {[
+              ['/docs/api', 'REST API', 'Every resource of a network under /api/v1, described by an OpenAPI document.'],
+              ['/docs/sdk', 'TypeScript SDK', 'Typed methods for every route, for Node, Bun, Deno, and Workers.'],
+              ['/docs/mcp', 'MCP server', 'The same operations as tools, for assistants such as Claude Code.'],
+              [
+                '/docs/agents',
+                'Skills and plugin',
+                'Agent Skills that plan launch promos and triage pitches, in a Claude Code plugin.'
+              ]
+            ].map(([href, name, text]) => (
+              <div>
+                <dt>
+                  <a href={href}>{name}</a>
+                </dt>
+                <dd>{text}</dd>
+              </div>
+            ))}
+          </dl>
+          <p class="mk-acts">
+            <a class="btn mk-alt" href="/docs">
+              Read the developer docs
+            </a>
+          </p>
         </div>
         <dl class="rec kv mk-spec mk-rail">
           <div class="rec-row">
@@ -708,10 +736,12 @@ function Privacy({ accounts }: { accounts: boolean }) {
           invite links, and API keys at once, then wipes its own storage, each of its launches&apos;, and its Qloo
           storage. A wipe that fails is tried again by the next day&apos;s cleanup, which also deletes expired sessions,
           sign-in challenges, and invite links. Deleting your account, on your account page, deletes your account with
-          its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it:
-          its launches keep your name on the runs you started and the orders you approved, and its API keys and invite
-          links you made stay, made by no one. It&apos;s refused while you&apos;re a network&apos;s only owner.
-          &ldquo;Sign out everywhere&rdquo; deletes every session of yours.
+          its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it,
+          but not your name: the launches of the networks you&apos;re in say &ldquo;Former member&rdquo; on the runs you
+          started and the orders you approved. The API keys and invite links you made stay with their networks, made by
+          no one. A network that can&apos;t be reached at once forgets your name at the next day&apos;s cleanup.
+          It&apos;s refused while you&apos;re a network&apos;s only owner. &ldquo;Sign out everywhere&rdquo; deletes
+          every session of yours.
         </p>
       )}
 
@@ -728,7 +758,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
 }
 
 // A daily limit from wrangler.jsonc, formatted; a value that isn't a number shows as 0.
-const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
+export const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
 
 function Terms({ env }: { env: Env }) {
   return (

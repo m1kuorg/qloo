@@ -153,6 +153,14 @@ const ended = (s: State) => s.run !== null && !['running', 'waiting'].includes(s
 // Every call number the state cites, outside its list of runs.
 const cited = ({ runs: _, ...state }: State) => [...new Set(JSON.stringify(state).match(/\bC-\d+\b/g))]
 
+// Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
+async function runCron() {
+  const handler: ExportedHandler<Env> = worker
+  const ctx = createExecutionContext()
+  await handler.scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+  await waitOnExecutionContext(ctx)
+}
+
 // A member of `network` besides its owner, who signs up through the owner's invite link.
 const teammate = async (owner: Member, network: string, name = 'Grace Booker') =>
   openMember({ name, invite: await owner.invite(network) })
@@ -671,13 +679,6 @@ describe('deleting a launch', () => {
   // call meets a new, empty one.
   const wipedOut = (network: string, id: string) =>
     vi.waitFor(async () => expect(await held(network, id)).toEqual({ launch: null, runs: 0, evidence: 0 }))
-  // Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
-  async function runCron() {
-    const handler: ExportedHandler<Env> = worker
-    const ctx = createExecutionContext()
-    await handler.scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
-    await waitOnExecutionContext(ctx)
-  }
 
   it("takes it off every member's dashboard at once, closes its pages, wipes its agent, and its addresses answer 404", async () => {
     const ada = await openMember()
@@ -761,6 +762,100 @@ describe('deleting a launch', () => {
     await wipedOut(network, id)
     expect((await ada.fetch(`/app/${network}/launches/${other}`)).status).toBe(200)
     expect((await held(network, other)).launch).toEqual({ name: 'The Long Take', match: null, comps: [] })
+  })
+})
+
+describe('a member who deletes their account', () => {
+  const deleteAccount = (member: Member) => member.fetch('/app/account/delete', { method: 'POST' })
+  // Who started each of a launch's runs, as a member opening its page now reads them.
+  const startedBy = async (member: Member, network: string, id: string) =>
+    (await (await connect(member, `/agents/launch/${network}/${id}`)).until(() => true)).runs.map((r) => r.startedBy)
+
+  it("is forgotten by name in each of their networks' launches: the runs they started, in the app or through the API, and the orders they approved, earlier runs' too", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await teammate(ada, network)
+    // Another member of the same name keeps theirs.
+    const namesake = await teammate(ada, network)
+    const roster = await rosterOf(ada, network)
+    rankAsked()
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(draft),
+      turn(text('Drafted the insertion order.')),
+      turn(text('Ranked again.')),
+      turn(text('Ranked once more.')),
+      turn(text('No roster to rank yet.'))
+    ])
+    const { id, agent } = await launch(grace, network)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    const order = (await agent.until(ended)).insertionOrder!
+    await agent.call('approveInsertionOrder', order.id)
+    const first = agent.state()!.runs[0].id
+    const theirs = await connect(namesake, `/agents/launch/${network}/${id}`)
+    await theirs.call('startLaunch', { name: 'Night Shift Cinema' })
+    await agent.until((s) => s.runs.length === 2 && ended(s))
+    const started = await grace.fetch(`/api/v1/networks/${network}/launches/${id}/runs`, { method: 'POST' })
+    expect(started.status).toBe(202)
+    await agent.until((s) => s.runs.length === 3 && ended(s))
+    const runPath = `/api/v1/networks/${network}/launches/${id}/runs/${first}`
+    const approved = await (await ada.fetch(runPath)).json<{ insertionOrder: object }>()
+    expect(approved.insertionOrder).toMatchObject({ id: order.id, status: 'approved', approvedBy: 'Grace Booker' })
+    // The API names people, never their IDs.
+    expect(JSON.stringify(approved)).not.toContain(grace.id)
+    // A launch in another network of hers.
+    const day = await created(ada, 'Day Shift Audio')
+    const token = new URL(await ada.invite(day)).hash.slice(1)
+    const joined = await grace.fetch('/auth/join', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+    expect(joined.status).toBe(200)
+    const elsewhere = await launch(grace, day)
+    await elsewhere.agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    await elsewhere.agent.until(ended)
+
+    expect((await deleteAccount(grace)).status).toBe(200)
+    const forgotten = await (await connect(ada, `/agents/launch/${network}/${id}`)).until(() => true)
+    expect(forgotten.runs.map((r) => r.startedBy)).toEqual(['Former member', 'Grace Booker', 'Former member'])
+    expect(JSON.stringify(forgotten)).not.toContain(grace.id)
+    expect((await (await ada.fetch(runPath)).json<{ insertionOrder: object }>()).insertionOrder).toMatchObject({
+      id: order.id,
+      status: 'approved',
+      approvedBy: 'Former member'
+    })
+    expect(await startedBy(ada, day, elsewhere.id)).toEqual(['Former member'])
+    // The dashboard's row follows its launch.
+    await roster.until((s) => s.launches![0].startedBy === 'Former member')
+  })
+
+  it("forgets it at the next day's cleanup when a launch can't be reached at once", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await teammate(ada, network)
+    fakeClaude([turn(text('No roster to rank yet.'))])
+    const { id, agent } = await launch(grace, network)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    await agent.until(ended)
+    vi.spyOn(LaunchAgent.prototype, 'forgetMember').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    const failed = vi.spyOn(console, 'error')
+
+    expect((await deleteAccount(grace)).status).toBe(200)
+    expect(failed.mock.calls.flat().filter((line) => String(line).includes('"event":"wipe_failed"'))).toHaveLength(1)
+    expect(await startedBy(ada, network, id)).toEqual(['Grace Booker'])
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 2 * 60_000)
+    await runCron()
+    expect(await startedBy(ada, network, id)).toEqual(['Former member'])
   })
 })
 

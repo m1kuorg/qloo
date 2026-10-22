@@ -1,0 +1,12 @@
+{
+  "name": "crossfeed",
+  "owner": { "name": "m1kuorg", "url": "https://github.com/m1kuorg" },
+  "description": "Crossfeed's Claude Code plugin: its MCP server and the skills that plan launch promos and triage guest pitches.",
+  "plugins": [
+    {
+      "name": "crossfeed",
+      "source": "./plugins/crossfeed",
+      "description": "Plan a podcast network's launch promos and triage its guest pitches with Crossfeed's MCP server and two skills."
+    }
+  ]
+}

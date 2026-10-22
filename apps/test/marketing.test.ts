@@ -1,9 +1,11 @@
-// The marketing pages: the landing page at /, the privacy page, and the beta terms, all
-// server-rendered with no React island.
+// The marketing pages: the landing page at /, the privacy page, the beta terms, and the developer
+// docs, all server-rendered with no React island, and /llms.txt.
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it } from 'vitest'
 import inbox from '../src/sample-inbox.json'
 import network from '../src/sample-network.json'
+import { REFUSALS } from '../src/refusal'
+import { networkWithKey } from './session'
 
 const origin = 'https://crossfeed.test'
 const get = (path: string) => exports.default.fetch(`${origin}${path}`)
@@ -21,8 +23,12 @@ const hrefs = (html: string) => [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].ma
 const words = (html: string) =>
   html
     .replace(/<(script|style)[\s\S]*?<\/\1>/g, '')
+    .replace(/<wbr\s*\/?>/g, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
 
@@ -35,7 +41,7 @@ const vars = {
 }
 afterEach(() => Object.assign(env, vars))
 
-const pages = ['/', '/privacy', '/terms']
+const pages = ['/', '/privacy', '/terms', '/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
 // Every name the demo looks up in Qloo, and every work its sample inbox pitches: a marketing page
 // that showed one would be showing what Qloo returned for it.
 const looked = [
@@ -90,7 +96,7 @@ describe('the landing page', () => {
       expect(text).toContain(heading)
     expect(text).toContain("Sends a guest's name or a pitch to Qloo.")
     expect(text).toContain('Approves anything for you.')
-    expect(hrefs(await page('/'))).toContain('/#developers')
+    expect(hrefs(await page('/'))).toContain('/docs')
   })
 
   it('shows the booking inbox only while guest pitches are on', async () => {
@@ -147,7 +153,7 @@ describe('the privacy page and the beta terms', () => {
     const networkGone =
       "Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage, each of its launches', and its Qloo storage. A wipe that fails is tried again by the next day's cleanup, which also deletes expired sessions, sign-in challenges, and invite links."
     const accountGone =
-      "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it: its launches keep your name on the runs you started and the orders you approved, and its API keys and invite links you made stay, made by no one. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
+      "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you're in say “Former member” on the runs you started and the orders you approved. The API keys and invite links you made stay with their networks, made by no one. A network that can't be reached at once forgets your name at the next day's cleanup. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
     const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
     const ownKey =
       "A network's own Qloo key, if an owner adds one, is kept encrypted in the network's own Qloo storage, with the host it's for and its last four characters, the only part of it anyone is shown."
@@ -184,5 +190,151 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)
     expect(words(await page('/terms'))).not.toContain(perMinute)
+  })
+})
+
+describe('the developer docs', () => {
+  const docs = ['/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
+
+  it('open on what programs can and cannot do, API keys, limits, and every error code', async () => {
+    const html = await page('/docs')
+    expect(html).not.toContain('id="root"')
+    const text = words(main(html))
+    expect(text).toContain('Approving stays with the members, in the app.')
+    expect(text).toContain('No route or tool approves either (ADR 0002, approval stays in the app)')
+    expect(text).toContain('Authorization: Bearer cf_live_…')
+    expect(text).toContain('120 requests a minute')
+    expect(text).toContain(`${env.RUN_VISITOR_DAILY_CAP} a day per network`)
+    for (const [code, status] of Object.entries(REFUSALS)) expect(text).toMatch(new RegExp(`\\b${code} ${status}\\b`))
+    expect(text).toMatch(/\binternal 500\b/)
+    for (const path of docs) expect(hrefs(main(html)), path).toContain(path)
+  })
+
+  it('describe every route of the API from its OpenAPI document, and link the document', async () => {
+    const doc = await (
+      await get('/api/v1/openapi.json')
+    ).json<{
+      paths: Record<string, Record<string, { summary: string }>>
+    }>()
+    const html = await page('/docs/api')
+    const text = words(main(html))
+    const routes = Object.entries(doc.paths).flatMap(([path, item]) =>
+      Object.entries(item).map(([m, op]) => ({ path, method: m.toUpperCase(), op }))
+    )
+    expect(routes.length).toBeGreaterThan(20)
+    for (const { path, method, op } of routes) {
+      expect(text).toContain(`${method} ${path}`)
+      expect(text).toContain(op.summary)
+    }
+    expect(hrefs(main(html))).toContain('/api/v1/openapi.json')
+  })
+
+  it.each(['off', 'on'])(
+    'list every tool the MCP server lists with guest pitches %s, and how to connect it',
+    async (pitches) => {
+      env.GUEST_PITCHES = pitches
+      const { secret } = await networkWithKey()
+      const res = await exports.default.fetch(`${origin}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${secret}`
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+      })
+      const listed = JSON.parse((await res.text()).replace(/^[\s\S]*?data:/, '')).result.tools as { name: string }[]
+      expect(listed.length).toBe(pitches === 'on' ? 19 : 12)
+      const html = await page('/docs/mcp')
+      const tools = [...main(html).matchAll(/<th scope="row"><code>([a-z_]+)<\/code>/g)].map((m) => m[1])
+      expect(tools).toEqual(listed.map((t) => t.name))
+      const text = words(main(html))
+      expect(text).toContain(`The ${listed.length} tools the server lists today.`)
+      expect(text).toContain(
+        'claude mcp add --transport http crossfeed https://crossfeed.test/mcp \\ --header "Authorization: Bearer $CROSSFEED_API_KEY"'
+      )
+      expect(text).not.toMatch(/approve_/)
+    }
+  )
+
+  it('say how to install the SDK from the repo, make a client, wait for long work, and handle errors', async () => {
+    const text = words(main(await page('/docs/sdk')))
+    expect(text).toContain('git clone https://github.com/m1kuorg/qloo.git')
+    expect(text).toContain('bun add <path to qloo>/packages/sdk')
+    expect(text).toContain("baseUrl: 'https://crossfeed.test'")
+    for (const helper of [
+      'waitForRoster()',
+      'waitForInbox()',
+      'waitForRun({ launchId, runId })',
+      'waitForRun({ pitchRunId })'
+    ])
+      expect(text).toContain(helper)
+    for (const code of ['CrossfeedError', 'run_failed', 'run_stopped', 'timeout', 'unexpected_response'])
+      expect(text).toContain(code)
+  })
+
+  it("serve each skill's text at a stable URL, with only the Agent Skills spec's fields, and say how to install the plugin", async () => {
+    const html = await page('/docs/agents')
+    const text = words(main(html))
+    const skills = [...new Set(hrefs(main(html)).filter((href) => href.endsWith('/SKILL.md')))]
+    expect(skills).toEqual(['/docs/agents/plan-launch-promos/SKILL.md', '/docs/agents/triage-guest-pitches/SKILL.md'])
+    for (const url of skills) {
+      const res = await get(url)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toMatch(/^text\/markdown/)
+      const skill = await res.text()
+      const fields = Object.fromEntries(
+        [...skill.match(/^---\n([\s\S]*?)\n---\n/)![1].matchAll(/^(\S+): (.+)$/gm)].map((m) => [m[1], m[2]])
+      )
+      expect(['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools']).toEqual(
+        expect.arrayContaining(Object.keys(fields))
+      )
+      expect(fields.name).toBe(url.split('/')[3])
+      expect(fields.name).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+      expect(fields.name.length).toBeLessThanOrEqual(64)
+      expect(fields.description.length).toBeGreaterThan(0)
+      expect(fields.description.length).toBeLessThanOrEqual(1024)
+      expect(fields.compatibility.length).toBeLessThanOrEqual(500)
+      expect(text).toContain(fields.description)
+      // Each one relays the agent's questions as they are, and leaves approval to the app.
+      expect(skill).toContain('put the question to the human exactly as the tool gives it')
+      expect(skill).toContain('Never invent an answer')
+      expect(skill).toContain('you never approve one')
+    }
+    expect(text).toContain('claude plugin marketplace add ./qloo claude plugin install crossfeed@crossfeed')
+    expect(text).toContain('"Authorization": "Bearer ${CROSSFEED_API_KEY}"')
+    expect(text).toContain('"url": "${CROSSFEED_URL:-https://crossfeed.m1kuorg.workers.dev}/mcp"')
+    for (const name of ['approve-orders', 'toString', 'constructor'])
+      expect((await get(`/docs/agents/${name}/SKILL.md`)).status, name).toBe(404)
+  })
+
+  it('describe the API, the SDK, and the MCP server in /llms.txt, linking every docs page', async () => {
+    const res = await get('/llms.txt')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toMatch(/^text\/plain/)
+    const text = await res.text()
+    expect(text).toMatch(/^# Crossfeed\n\n> \S/)
+    for (const path of docs) expect(text).toContain(`](${origin}${path})`)
+    for (const surface of ['REST API', 'TypeScript SDK', 'MCP server']) expect(text).toContain(surface)
+    expect(text).toContain(`](${origin}/api/v1/openapi.json)`)
+    expect(text).toContain(`](${origin}/docs/agents/plan-launch-promos/SKILL.md)`)
+    env.ACCOUNTS = 'off'
+    const closed = await (await get('/llms.txt')).text()
+    expect(closed).not.toMatch(/\]\(https:\/\/crossfeed\.test\/(api|mcp|app|sign-in)\b/)
+    expect(closed).toContain(`](${origin}/docs/mcp)`)
+  })
+
+  it("are linked from the landing page's developers band and the top bar's Developers", async () => {
+    const html = await page('/')
+    const band = html.match(/<section id="developers"[\s\S]*?<\/section>/)?.[0] ?? ''
+    for (const path of docs) expect(hrefs(band), path).toContain(path)
+    for (const path of ['/', ...docs]) {
+      const top = (await page(path)).match(/<header[\s\S]*?<\/header>/)?.[0] ?? ''
+      expect(top).toMatch(
+        path.startsWith('/docs')
+          ? /<a [^>]*href="\/docs" aria-current="page">Developers<\/a>/
+          : /<a [^>]*href="\/docs">Developers<\/a>/
+      )
+    }
   })
 })

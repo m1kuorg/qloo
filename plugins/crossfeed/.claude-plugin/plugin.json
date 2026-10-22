@@ -1,0 +1,10 @@
+{
+  "name": "crossfeed",
+  "version": "0.1.0",
+  "description": "Plan a podcast network's launch promos and triage its guest pitches with Crossfeed: its MCP server, reached with one of the network's API keys, and two skills that relay the agent's questions to you and leave approval to the app.",
+  "author": { "name": "m1kuorg", "url": "https://github.com/m1kuorg" },
+  "homepage": "https://crossfeed.m1kuorg.workers.dev/docs/agents",
+  "repository": "https://github.com/m1kuorg/qloo",
+  "license": "MIT",
+  "keywords": ["podcast", "qloo", "mcp", "promos", "booking"]
+}

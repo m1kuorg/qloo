@@ -8,6 +8,7 @@ import { api } from './routes/api'
 import { appPages } from './routes/app'
 import { auth } from './routes/auth'
 import { demo } from './routes/demo'
+import { docs } from './routes/docs'
 import { marketing } from './routes/marketing'
 import { mcp } from './routes/mcp'
 import { retryWipes } from './wipe'
@@ -25,6 +26,7 @@ const secure = secureHeaders({ referrerPolicy: 'no-referrer' })
 app.use((c, next) => (c.req.path.startsWith('/agents/') ? next() : secure(c, next)))
 
 app.route('/', marketing)
+app.route('/', docs)
 app.route('/', demo)
 app.route('/', auth)
 app.route('/', appPages)

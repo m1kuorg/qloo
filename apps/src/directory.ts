@@ -314,16 +314,22 @@ const ONLY_OWNER =
   "(m.role = 'owner' AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.network_id = m.network_id AND o.role = 'owner' AND o.member_id != m.member_id))"
 
 // Deletes member `memberId`, with their passkeys, sessions, and memberships, unless they're any
-// network's only owner, in one statement, so no network is left without an owner. What they made in a
-// network stays with it, made by no one. False when it's refused.
-export async function deleteMember(db: D1Database, memberId: string) {
-  const { meta } = await db
-    .prepare(
-      `DELETE FROM members WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.member_id = ?1 AND ${ONLY_OWNER})`
-    )
-    .bind(memberId)
-    .run()
-  return meta.changes > 0
+// network's only owner, so no network is left without an owner, and notes `instances`, the networks
+// that must forget their name (wipe.ts), in the same batch, so none is left unnoted. What they made in
+// a network stays with it, made by no one. False when it's refused, and nothing was written.
+export async function deleteMember(db: D1Database, memberId: string, instances: Instance[]) {
+  const allowed = `EXISTS (SELECT 1 FROM members WHERE id = ?1) AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.member_id = ?1 AND ${ONLY_OWNER})`
+  const now = Date.now()
+  const results = await db.batch([
+    // Noted before the member goes, while their memberships are still there to check.
+    ...instances.map(({ binding, name }) =>
+      db
+        .prepare(`INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?2, ?3, ?4 WHERE ${allowed}`)
+        .bind(memberId, binding, name, now)
+    ),
+    db.prepare(`DELETE FROM members WHERE id = ?1 AND ${allowed}`).bind(memberId)
+  ])
+  return results.at(-1)!.meta.changes > 0
 }
 
 // Network `networkId` as member `memberId` sees it, marked as the one they opened last, in the
@@ -596,8 +602,9 @@ export async function dropNetwork(db: D1Database, networkId: string, by: string,
 }
 
 // The agent instances to wipe (`destroy`) once the directory or their network has let go of them, by
-// binding, such as LaunchAgent, and name. Each is noted before its wipe and crossed off once the wipe
-// succeeds, so the daily cron can retry any that failed (wipe.ts).
+// binding, such as LaunchAgent, and name, and the networks to forget a deleted member (wipe.ts). Each
+// is noted before its wipe and crossed off once the wipe succeeds, so the daily cron can retry any
+// that failed.
 export async function noteWipe(db: D1Database, binding: string, name: string) {
   await db
     .prepare('INSERT OR IGNORE INTO wipes (binding, name, created) VALUES (?, ?, ?)')
