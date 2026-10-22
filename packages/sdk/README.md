@@ -110,7 +110,7 @@ await crossfeed.replies.edit(id, 'pitch-01', "Thanks, we'd love to book Night Fe
 await crossfeed.replies.discard(id, 'pitch-02')
 ```
 
-`inbox.load({ pitches: [{ from, subject, body }] })` sends them one by one. A pitch run that waits on a question is answered with `pitchRuns.answer(id, { questionId, choice })`, as a launch's run is. A member approves the replies in the app.
+`inbox.load({ pitches: [{ from, subject, body }] })` sends them one by one. A pitch run that waits on a question is answered with `pitchRuns.answer(id, { questionId, choice })`, as a launch's run is. `pitchRuns.list()` lists the network's pitch runs newest first, so a script that didn't start the latest finds it, and its replies, without its ID. A member approves the replies in the app.
 
 ## Wait for long work
 

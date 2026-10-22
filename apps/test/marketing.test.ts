@@ -244,7 +244,7 @@ describe('the developer docs', () => {
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
       })
       const listed = JSON.parse((await res.text()).replace(/^[\s\S]*?data:/, '')).result.tools as { name: string }[]
-      expect(listed.length).toBe(pitches === 'on' ? 18 : 12)
+      expect(listed.length).toBe(pitches === 'on' ? 19 : 12)
       const html = await page('/docs/mcp')
       const tools = [...main(html).matchAll(/<th scope="row"><code>([a-z_]+)<\/code>/g)].map((m) => m[1])
       expect(tools).toEqual(listed.map((t) => t.name))

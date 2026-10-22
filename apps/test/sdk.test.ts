@@ -90,6 +90,7 @@ describe("the SDK's methods", () => {
       () => crossfeed.inbox.load({ pitches: [] }),
       () => crossfeed.inbox.confirmWork(pitch, 'f-0001'),
       () => crossfeed.pitchRuns.start({ show: 'Corner Booth' }),
+      () => crossfeed.pitchRuns.list(),
       () => crossfeed.pitchRuns.get(run),
       () => crossfeed.pitchRuns.answer(run, answer),
       () => crossfeed.replies.edit(run, pitch, 'Thanks.'),
@@ -364,6 +365,10 @@ describe('pitches, triaged through the SDK', () => {
     await crossfeed.pitchRuns.answer(started.id, { questionId: waiting.question!.id, choice: 'Yes' })
     const done = await crossfeed.waitForRun({ pitchRunId: started.id }, { interval: 10 })
     expect(done).toMatchObject({ status: 'completed', closing: 'Drafted 1 book and 1 later.' })
+    // The latest run, found without its ID.
+    expect((await crossfeed.pitchRuns.list()).pitchRuns).toEqual([
+      { id: started.id, status: 'completed', show: 'Night Shift Cinema', startedAt: started.startedAt }
+    ])
 
     expect(await crossfeed.replies.edit(started.id, 'pitch-01', 'Low Tide fits the spring season.')).toMatchObject({
       pitch: 'pitch-01',
