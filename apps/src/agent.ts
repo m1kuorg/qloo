@@ -20,6 +20,7 @@ import {
 } from './inbox'
 import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
 import {
+  angleOf,
   cpmProblem,
   dollars,
   lineProblem,
@@ -741,15 +742,14 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   @callable()
   editInsertionOrder(id: string, lines: LineInput[]) {
     const order = this.editableOrder(id)
-    const finalists = finalistsOf(this.state.ranking).map((r) => r.show)
-    const problem = lineProblem(lines, finalists)
+    // The programmer may type an angle for any line, but only a finalist without shared tags may have none.
+    const problem = lineProblem(lines, finalistsOf(this.state.ranking))
     if (problem) throw new Refusal('invalid', problem)
-    const edited = lines.map(({ show, slots, angle }) => ({ show, slots, angle: angle.trim() }))
+    const edited = lines.map((l) => ({ show: l.show, slots: l.slots, angle: angleOf(l) }))
     const priced = priceLines(edited, this.state.roster, this.state.cpm)
     // The lines as words and figures, priced: the model's may hold its fields in any order, and spaces
     // round an angle, and the same lines can price anew after a roster import.
-    const lineKey = (lines: OrderLine[]) =>
-      JSON.stringify(lines.map((l) => [l.show, l.slots, l.angle.trim(), l.slotValue]))
+    const lineKey = (lines: OrderLine[]) => JSON.stringify(lines.map((l) => [l.show, l.slots, angleOf(l), l.slotValue]))
     const changed = lineKey(priced.lines) !== lineKey(order.lines)
     this.saveOrder({ ...order, ...priced, status: 'draft', ...(changed && { edited: true }) })
     return this.state.insertionOrder!

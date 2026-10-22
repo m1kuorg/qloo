@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react'
 import type { Run, Show, SlowCall } from '../agent'
-import type { PitchList, SharedTags } from '../fit'
+import { NO_ANGLE, tagged, type PitchList, type SharedTags } from '../fit'
 import {
   workTypes,
   type Booking,
@@ -827,10 +827,12 @@ function ReplyItem({
     <li className="reply" data-pitch={reply.pitch} data-status={reply.status}>
       {head}
       {pitch?.from && <p className="tg">To {pitch.from}</p>}
-      {reply.angle && (
+      {reply.angle ? (
         <p className="angle">
           <span className="lbl">Episode angle</span> {reply.angle}
         </p>
+      ) : (
+        reply.sharedTags && !tagged(reply.sharedTags) && <p className="angle tg">{NO_ANGLE}</p>
       )}
       {reply.sharedTags && (
         <div className="angle-tags">

@@ -21,6 +21,7 @@ import { refusalCode } from '../src/refusal'
 import { networkLinks } from '../src/shell'
 import {
   fakeClaude,
+  fakeCompare,
   fakeInsights,
   fakeQloo,
   modelRequests,
@@ -67,18 +68,23 @@ const fit = [
   { entity_id: 'e-0601', name: 'Ghost Signal Radio', affinity: 0.866 },
   { entity_id: 'e-0505', name: 'Back Lot', affinity: 0.85 }
 ]
-// Qloo ranks only the candidates a request names, as it ranks a closed list.
-const rankAsked = () =>
+// Qloo ranks only the candidates a request names, as it ranks a closed list, and each finalist
+// shares a made-up tag with the launch.
+const rankAsked = () => {
   fakeInsights((body) => fit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id)))
+  fakeCompare(
+    Object.fromEntries(
+      finalists.map((id) => [id, [{ tag_id: 'urn:tag:keyword:media:film', name: 'Film', score: 0.6131 }]])
+    )
+  )
+}
 
 // A launch run the way the agent plans one: resolve the launch, rank the roster, and end.
 const resolve = (name: string) => toolUse('resolve_entities', { names: [name], type: 'urn:entity:podcast' })
+const finalists = ['e-0501', 'e-0502', 'e-0503', 'e-0102', 'e-0601']
 const rank = (anchor: string) =>
-  toolUse('rank_candidates', {
-    anchor_ids: [anchor],
-    candidate_ids: ['e-0501', 'e-0502', 'e-0503', 'e-0102', 'e-0601'],
-    type: 'urn:entity:podcast'
-  })
+  toolUse('rank_candidates', { anchor_ids: [anchor], candidate_ids: finalists, type: 'urn:entity:podcast' })
+const findTags = toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: finalists })
 
 const askBudget = toolUse('ask_human', { question: 'What is the slot budget?', kind: 'budget', options: [] })
 const askExclusions = toolUse('ask_human', { question: 'Leave any shows out?', kind: 'exclusions', options: [] })
@@ -526,6 +532,7 @@ describe("the network's list of launches", () => {
       turn(rank('e-0001')),
       turn(askBudget),
       turn(askExclusions),
+      turn(findTags),
       turn(draft),
       turn(text('Drafted the insertion order.'))
     ])
@@ -571,6 +578,7 @@ async function drafted(member: Member, network: string) {
     turn(rank('e-0001')),
     turn(askBudget),
     turn(askExclusions),
+    turn(findTags),
     turn(draft),
     turn(text('Drafted the insertion order.'))
   ])
@@ -804,6 +812,7 @@ describe('a member who deletes their account', () => {
       turn(rank('e-0001')),
       turn(askBudget),
       turn(askExclusions),
+      turn(findTags),
       turn(draft),
       turn(text('Drafted the insertion order.')),
       turn(text('Ranked again.')),

@@ -16,6 +16,7 @@ import { readPitchUpload, type Upload } from '../src/upload'
 import { mbox, nightFerry, paperMoons, staticBloom } from './emails'
 import {
   fakeClaude,
+  fakeCompare,
   fakeInsights,
   fakeQloo,
   fakeReader,
@@ -337,9 +338,12 @@ async function drafted(agent: Omit<Session, 'cookie'>) {
     }
   })
   fakeInsights([{ entity_id: 'b-0001', name: 'Night Ferry', affinity: 0.7127 }])
+  // Night Ferry shares no tags with the show, so its reply has no angle.
+  fakeCompare({})
   fakeClaude([
     turn(text(JSON.stringify({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } }))),
     turn(toolUse('rank_pitches', { show_id: 'e-0001', past_guest_work_ids: [], pitch_ids: ['pitch-01'] })),
+    turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: ['pitch-01'] })),
     turn(
       toolUse('draft_replies', {
         replies: [{ pitch: 'pitch-01', verdict: 'later', angle: null, draft: "Let's revisit Night Ferry in spring." }]

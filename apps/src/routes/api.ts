@@ -820,8 +820,13 @@ const Reply = z
   .object({
     pitch: z.string(),
     verdict: z.enum(['book', 'decline', 'later']),
-    angle: z.string().nullable().openapi({ description: "A top pitch's episode angle, built from its shared tags." }),
-    sharedTags: orNull(SharedTags),
+    angle: z.string().nullable().openapi({
+      description:
+        "A top pitch's episode angle, built only from its shared tags; null for a top pitch whose `sharedTags` holds none, and for every other pitch."
+    }),
+    sharedTags: orNull(SharedTags).openapi({
+      description: "A top pitch's compare with the show, which its angle is built from, or which found no shared tags."
+    }),
     draft: z.string().openapi({ description: "The reply to the pitch's sender." }),
     status: z.enum(['draft', 'approved', 'discarded']).openapi({
       description:
@@ -1190,7 +1195,10 @@ const Chart = z
 const OrderLine = z.object({
   show: z.string(),
   slots: z.number().int(),
-  angle: z.string().openapi({ description: 'The host-read angle.' }),
+  angle: z.string().nullable().openapi({
+    description:
+      "The host-read angle; null when Qloo returned no shared tags for the show (its chart row's `sharedTags`), as an angle is built only from them, unless a member typed one."
+  }),
   slotValue: z
     .number()
     .nullable()
@@ -1571,7 +1579,10 @@ export const OrderChange = z
           z.object({
             show: z.string().openapi({ description: "One of the run's finalists, named as on the roster." }),
             slots: z.number().openapi({ description: 'Whole promo slots, 1 or more.' }),
-            angle: capped(MAX_ANGLE)
+            angle: capped(MAX_ANGLE).nullable().openapi({
+              description:
+                'The host-read angle. Only a finalist Qloo returned no shared tags for may have none: null or empty.'
+            })
           })
         )
         .openapi({ description: 'Every line of the order as it should be, one per show.' })

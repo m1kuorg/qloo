@@ -222,7 +222,7 @@ describe('the tags each finalist shares with the launch', () => {
     const [result] = modelRequests()[3].messages.at(-1).content
     expect(result.is_error).toBe(true)
     expect(result.content).toContain(
-      "The compare C-11 for Back Row failed: Qloo returned 400: fake failure. Don't call shared_tags again in this run: draft that finalist's angle without shared tags and say they're missing, citing C-11."
+      "The compare C-11 for Back Row failed: Qloo returned 400: fake failure. Don't call shared_tags again in this run: give that finalist a null angle, as an angle is built only from shared tags."
     )
     expect(result.content).toContain('"tags":["Pop Culture","Engaging","Conversational"]')
   })

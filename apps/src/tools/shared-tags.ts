@@ -48,7 +48,7 @@ function report<T extends SharedTags>(key: string, out: T[], name: (item: T) => 
     content: [
       ...failed.map(
         (f) =>
-          `The compare ${f.call} for ${name(f)} failed: ${f.error}. Don't call shared_tags again in this run: draft that ${noun}'s angle without shared tags and say they're missing, citing ${f.call}.`
+          `The compare ${f.call} for ${name(f)} failed: ${f.error}. Don't call shared_tags again in this run: give that ${noun} a null angle, as an angle is built only from shared tags.`
       ),
       `The ${key}' shared tags: ${content}`
     ].join('\n')

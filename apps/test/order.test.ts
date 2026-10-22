@@ -50,7 +50,16 @@ const rank = toolUse('rank_candidates', {
 })
 const askBudget = toolUse('ask_human', { question: 'What is the slot budget?', kind: 'budget', options: [] })
 const askExclusions = toolUse('ask_human', { question: 'Leave any shows out?', kind: 'exclusions', options: [] })
-const draft = (...lines: [show: string, slots: number, angle: string][]) =>
+const findTags = toolUse('shared_tags', {
+  anchor_ids: ['e-0500'],
+  candidate_ids: fit.slice(0, 5).map((f) => f.entity_id)
+})
+// Made-up tags each show shares with the launch, with scores unlike any other figure here.
+const shares = (name: string, score: number) => [{ tag_id: `urn:tag:keyword:media:${score}`, name, score }]
+const allShare: Parameters<typeof fakeCompare>[0] = Object.fromEntries(
+  fit.map((f, i) => [f.entity_id, shares('Night Owls', 0.6131 + i / 1000)])
+)
+const draft = (...lines: [show: string, slots: number, angle: string | null][]) =>
   toolUse('draft_insertion_order', { lines: lines.map(([show, slots, angle]) => ({ show, slots, angle })) })
 
 // A valid draft for a 20-slot budget, spread over four of the five finalists.
@@ -70,9 +79,11 @@ const finished = (s: Session) =>
   s.until((state) => state.run !== null && state.run.status !== 'running' && state.run.status !== 'waiting')
 
 // Starts the launch the way the agent would run it: rank the roster, ask for the budget, answer it
-// with `budget`, ask for exclusions, answer none, then play `turns`, which draft the order, and end.
-async function start(budget: Reply, turns: Script, cpm: number | null = 25) {
-  const s = await begin([turn(rank), turn(askBudget), turn(askExclusions), ...turns], cpm)
+// with `budget`, ask for exclusions, answer none, find the finalists' shared tags, from `compare`,
+// then play `turns`, which draft the order, and end.
+async function start(budget: Reply, turns: Script, cpm: number | null = 25, compare = allShare) {
+  fakeCompare(compare)
+  const s = await begin([turn(rank), turn(askBudget), turn(askExclusions), turn(findTags), ...turns], cpm)
   await s.call('answer', 'toolu_2_1', budget)
   await s.until((state) => state.run?.question?.kind === 'exclusions')
   await s.call('answer', 'toolu_3_1', { exclude: [] })
@@ -94,8 +105,8 @@ async function begin(turns: Script, cpm: number | null) {
 }
 
 // The same, through to the end of the run.
-async function plan(budget: Reply, turns: Script, cpm: number | null = 25) {
-  const s = await start(budget, turns, cpm)
+async function plan(budget: Reply, turns: Script, cpm: number | null = 25, compare = allShare) {
+  const s = await start(budget, turns, cpm, compare)
   return { s, state: await finished(s) }
 }
 
@@ -144,7 +155,7 @@ describe('the insertion order', () => {
       'Late-night regulars, like "Night Shift" fans, stay up for the call-ins.'
     )
     expect(state.run?.notes.at(-1)).toEqual({ text: 'Drafting the insertion order: 4 shows, 20 slots', status: 'done' })
-    expect(JSON.parse(resultFor('toolu_4_1').content)).toMatchObject({
+    expect(JSON.parse(resultFor('toolu_5_1').content)).toMatchObject({
       order: 'IO-0001',
       slots: 20,
       total: 19076,
@@ -155,8 +166,8 @@ describe('the insertion order', () => {
 
   it("drops a show's line from the draft when a later exclusions answer leaves it out, and prices the rest again", async () => {
     const s = await start({ slots: 20 }, [turn(fourShows), turn(askExclusions)])
-    await s.until((state) => state.run?.question?.id === 'toolu_5_1')
-    await s.call('answer', 'toolu_5_1', { exclude: ['Slow Burn'] })
+    await s.until((state) => state.run?.question?.id === 'toolu_6_1')
+    await s.call('answer', 'toolu_6_1', { exclude: ['Slow Burn'] })
     const state = await finished(s)
 
     expect(state.insertionOrder).toMatchObject({
@@ -169,7 +180,7 @@ describe('the insertion order', () => {
       slots: 14,
       total: 13076
     })
-    expect(resultFor('toolu_5_1').content).toContain(
+    expect(resultFor('toolu_6_1').content).toContain(
       "Code dropped Slow Burn's line from the draft insertion order IO-0001, now 14 slots for $13,076."
     )
   })
@@ -202,9 +213,9 @@ describe('the insertion order', () => {
       )
     ])
 
-    expect(resultFor('toolu_4_1')).toEqual({
+    expect(resultFor('toolu_5_1')).toEqual({
       type: 'tool_result',
-      tool_use_id: 'toolu_4_1',
+      tool_use_id: 'toolu_5_1',
       is_error: true,
       content:
         'This draft uses 20 slots, over the budget of 18. Nothing was stored. Cut at least 2 slots and call draft_insertion_order again.'
@@ -217,7 +228,7 @@ describe('the insertion order', () => {
   it('rejects a draft over the dollar budget with each slot value, so the model can rebalance', async () => {
     const { state } = await plan({ dollars: 15000 }, [turn(fourShows)])
 
-    expect(resultFor('toolu_4_1')).toMatchObject({
+    expect(resultFor('toolu_5_1')).toMatchObject({
       is_error: true,
       content:
         'This draft costs $19,076, over the budget of $15,000. Nothing was stored. Slot values: Corner Booth $1,200, Slow Burn $1,000, Paper Route $650, Field Notes $438. Cut at least $4,076 and call draft_insertion_order again.'
@@ -231,7 +242,7 @@ describe('the insertion order', () => {
       turn(draft(['Corner Booth', 10, 'Regulars.'], ['Long Haul', 4, 'Drivers.']))
     ])
 
-    expect(resultFor('toolu_4_1')).toMatchObject({
+    expect(resultFor('toolu_5_1')).toMatchObject({
       is_error: true,
       content:
         '"Long Haul" isn\'t one of this run\'s finalists, which are Corner Booth, Slow Burn, Paper Route, Field Notes, Back Lot. Nothing was stored. Fix the lines and call draft_insertion_order again.'
@@ -248,20 +259,7 @@ describe('the insertion order', () => {
   })
 
   it('cites, beside each angle, the compare call its shared tags came from', async () => {
-    // Made-up tags, one per finalist, with scores unlike any other figure here.
-    const finalists = fit.slice(0, 5).map((f) => f.entity_id)
-    fakeCompare(
-      Object.fromEntries(
-        finalists.map((id, i) => [
-          id,
-          [{ tag_id: 'urn:tag:keyword:media:night_owls', name: 'Night Owls', score: 0.6131 + i / 1000 }]
-        ])
-      )
-    )
-    const { state } = await plan({ slots: 20 }, [
-      turn(toolUse('shared_tags', { anchor_ids: ['e-0500'], candidate_ids: finalists })),
-      turn(fourShows)
-    ])
+    const { state } = await plan({ slots: 20 }, [turn(fourShows)])
 
     // The rail as the browser renders it: each line's row cites the call behind its show's tags.
     const html = renderToStaticMarkup(
@@ -292,7 +290,7 @@ describe('the insertion order', () => {
       total: 14400,
       complete: false
     })
-    expect(JSON.parse(resultFor('toolu_4_1').content)).toMatchObject({
+    expect(JSON.parse(resultFor('toolu_5_1').content)).toMatchObject({
       complete: false,
       next: "Stored as a draft with an incomplete total, because Back Lot: No downloads per episode. They edit and approve the order in the UI. Now end the run in under 60 words and at most three short sentences: say the order is drafted at $14,400 so far and which figures the programmer must add, naming only the shows that lack one, and cite the ranking call. Name no other finalist, not even a flagged one, and don't mention demographic flags, tags, slots, or angles: the chart and the order show them. Never write a tool's name."
     })
@@ -551,5 +549,156 @@ describe('a closing line the order has changed since', () => {
 
     await s.call('editInsertionOrder', 'IO-0001', [{ show: 'Corner Booth', slots: 10, angle: 'Call-ins.' }])
     expect(runModule(s.state()!)).toMatch(new RegExp(`Drafted the insertion order\\.</p><p[^>]*>${note}</p>`))
+  })
+})
+
+// An angle is built only from the tags Qloo returned for its finalist: one with none gets no angle,
+// and says why (#216).
+describe('an angle only from shared tags', () => {
+  // Field Notes shares only the generic Podcasts with the launch, and Back Lot's compare fails.
+  const twoWithout = {
+    ...allShare,
+    'e-0504': [{ tag_id: 'urn:tag:genre:media:podcasts', name: 'Podcasts', score: 0.7319 }],
+    'e-0505': 400
+  }
+
+  it('refuses an angle for a finalist Qloo returned no shared tags for, and stores the draft without one', async () => {
+    const { state } = await plan(
+      { slots: 20 },
+      [
+        turn(
+          draft(
+            ['Corner Booth', 12, 'Late-night regulars.'],
+            ['Field Notes', 4, 'Shares the field-recording style.'],
+            ['Back Lot', 4, 'Studio-lot gossip.']
+          )
+        ),
+        turn(draft(['Corner Booth', 12, null], ['Field Notes', 4, null], ['Back Lot', 4, null])),
+        turn(draft(['Corner Booth', 12, ' Late-night regulars. '], ['Field Notes', 4, null], ['Back Lot', 4, ' ']))
+      ],
+      25,
+      twoWithout
+    )
+
+    expect(resultFor('toolu_5_1')).toMatchObject({
+      is_error: true,
+      content:
+        'Qloo returned no shared tags for Field Notes and Back Lot, so give them a null angle: an angle is built only from the tags shared_tags returned. Nothing was stored. Fix the lines and call draft_insertion_order again.'
+    })
+    expect(resultFor('toolu_6_1')).toMatchObject({
+      is_error: true,
+      content:
+        'Corner Booth needs a host-read angle. Nothing was stored. Fix the lines and call draft_insertion_order again.'
+    })
+    expect(resultFor('toolu_7_1').is_error).toBeUndefined()
+    expect(state.insertionOrder?.lines.map((l) => [l.show, l.angle])).toEqual([
+      ['Corner Booth', 'Late-night regulars.'],
+      ['Field Notes', null],
+      ['Back Lot', null]
+    ])
+  })
+
+  it('says on the order why a line has no angle, citing the compare that returned no tags', async () => {
+    const { s, state } = await plan(
+      { slots: 20 },
+      [turn(draft(['Corner Booth', 12, 'Late-night regulars.'], ['Field Notes', 4, null], ['Back Lot', 4, null]))],
+      25,
+      twoWithout
+    )
+
+    // The rail as the browser renders it: each line's show and angle, as words.
+    const html = renderToStaticMarkup(
+      createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })
+    )
+    const rows = html.match(/<section class="mod io-mod"[\s\S]*?<\/section>/)![0].split('<tr')
+    const angle = (show: string) =>
+      rows
+        .find((r) => r.includes(`<div class="nm">${show}</div>`))!
+        .match(/<div class="tg angle[^"]*">([\s\S]*?)<\/div>/)![1]
+        .replace(/<[^>]+>/g, '')
+        .trim()
+    const call = (show: string) => state.ranking!.rows.find((r) => r.show === show)!.sharedTags!.call
+    expect(['Corner Booth', 'Field Notes', 'Back Lot'].map(angle)).toEqual([
+      `Late-night regulars. ${call('Corner Booth')}`,
+      `No angle: Qloo returned no shared tags. ${call('Field Notes')}`,
+      `No angle: Qloo returned no shared tags. ${call('Back Lot')}`
+    ])
+
+    // The CSV for ad operations says it too.
+    await s.call('approveInsertionOrder', 'IO-0001')
+    expect(await body(await exportCsv('IO-0001', s.cookie))).toBe(
+      '\uFEFFShow,Slots,Angle,Slot value (USD),Line value (USD)\r\n' +
+        'Corner Booth,12,Late-night regulars.,1200,14400\r\n' +
+        'Field Notes,4,No angle: Qloo returned no shared tags.,438,1752\r\n' +
+        'Back Lot,4,No angle: Qloo returned no shared tags.,,\r\n' +
+        'Total,20,Incomplete: no value for Back Lot (No downloads per episode),,16152\r\n'
+    )
+  })
+
+  it('refuses a draft before the finalists are compared, storing nothing', async () => {
+    const s = await begin([turn(rank), turn(askBudget), turn(askExclusions), turn(fourShows)], 25)
+    await s.call('answer', 'toolu_2_1', { slots: 20 })
+    await s.until((state) => state.run?.question?.kind === 'exclusions')
+    await s.call('answer', 'toolu_3_1', { exclude: [] })
+    const state = await finished(s)
+
+    expect(resultFor('toolu_4_1')).toMatchObject({
+      is_error: true,
+      content:
+        "The finalists' shared tags haven't been found yet, and an angle is built only from them. Call shared_tags first, then draft the order."
+    })
+    expect(orders(s).every((order) => order === null)).toBe(true)
+    expect(state.insertionOrder).toBeNull()
+  })
+
+  it("lets the programmer type their own angle for a finalist without shared tags, or leave it empty, but not a tagged one's", async () => {
+    const { s } = await plan(
+      { slots: 20 },
+      [turn(draft(['Corner Booth', 12, 'Late-night regulars.'], ['Field Notes', 8, null]))],
+      25,
+      twoWithout
+    )
+
+    await s.call('editInsertionOrder', 'IO-0001', [
+      { show: 'Corner Booth', slots: 12, angle: 'Late-night regulars.' },
+      { show: 'Field Notes', slots: 8, angle: '  Field recordings for night owls.  ' }
+    ])
+    expect(s.state()?.insertionOrder).toMatchObject({
+      lines: [{ angle: 'Late-night regulars.' }, { show: 'Field Notes', angle: 'Field recordings for night owls.' }],
+      edited: true
+    })
+    await s.call('editInsertionOrder', 'IO-0001', [
+      { show: 'Corner Booth', slots: 12, angle: 'Late-night regulars.' },
+      { show: 'Field Notes', slots: 6, angle: ' ' },
+      { show: 'Back Lot', slots: 2, angle: null }
+    ])
+    expect(s.state()?.insertionOrder?.lines.map((l) => [l.show, l.slots, l.angle])).toEqual([
+      ['Corner Booth', 12, 'Late-night regulars.'],
+      ['Field Notes', 6, null],
+      ['Back Lot', 2, null]
+    ])
+    const before = s.state()!.insertionOrder
+    await expect(
+      s.call('editInsertionOrder', 'IO-0001', [{ show: 'Corner Booth', slots: 12, angle: null }])
+    ).rejects.toThrow('Corner Booth needs a host-read angle.')
+    expect(s.state()?.insertionOrder).toEqual(before)
+  })
+
+  it('asks for the programmer’s own angle for a finalist promoted after the compares', async () => {
+    // Leaving Slow Burn out after the draft makes Long Haul a finalist that was never compared.
+    const s = await start({ slots: 20 }, [turn(fourShows), turn(askExclusions)])
+    await s.until((state) => state.run?.question?.id === 'toolu_6_1')
+    await s.call('answer', 'toolu_6_1', { exclude: ['Slow Burn'] })
+    await finished(s)
+    const corner = { show: 'Corner Booth', slots: 8, angle: 'Late-night regulars.' }
+
+    await expect(
+      s.call('editInsertionOrder', 'IO-0001', [corner, { show: 'Long Haul', slots: 2, angle: null }])
+    ).rejects.toThrow('Long Haul needs a host-read angle.')
+    await s.call('editInsertionOrder', 'IO-0001', [corner, { show: 'Long Haul', slots: 2, angle: 'Drivers at night.' }])
+    expect(s.state()?.insertionOrder?.lines.map((l) => [l.show, l.angle])).toEqual([
+      ['Corner Booth', 'Late-night regulars.'],
+      ['Long Haul', 'Drivers at night.']
+    ])
   })
 })

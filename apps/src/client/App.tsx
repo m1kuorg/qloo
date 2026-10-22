@@ -178,8 +178,8 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
               cpm={shown.cpm}
               sampleCpm={shown.sample?.cpm ?? false}
               budget={run?.id === shown.insertionOrder.run ? run.budget : null}
-              cites={Object.fromEntries(
-                (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags.call]] : []))
+              sharedTags={Object.fromEntries(
+                (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags]] : []))
               )}
               openCall={openCall}
               opened={opened?.call ?? null}

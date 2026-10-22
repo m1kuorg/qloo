@@ -5,6 +5,7 @@ import { env, exports } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   fakeClaude,
+  fakeCompare,
   fakeInsights,
   fakeQloo,
   fakeReader,
@@ -278,11 +279,15 @@ const fit = [
   { entity_id: 'e-0601', name: 'Ghost Signal Radio', affinity: 0.866 }
 ]
 const finalists = fit.map((r) => r.entity_id)
+// Made-up tags each finalist shares with the launch, but Field Notes, which shares none.
+const night = { tag_id: 'urn:tag:keyword:media:night_owls', name: 'Night Owls', score: 0.6131 }
+const compare = { 'e-0501': [night], 'e-0502': [night], 'e-0601': [night] }
 
 describe('planning a launch through the MCP server', () => {
   it('sets up the roster, relays each question for the human to answer, and reads the draft order', async () => {
     fakeQloo({ search })
     fakeInsights((body) => fit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id)))
+    fakeCompare(compare)
     const { network, secret, call: rest } = await networkWithKey()
     const client = assistant(secret)
     const settled = () => client.until<{ status: string }>('get_roster', {}, (r) => r.status === 'settled')
@@ -317,12 +322,13 @@ describe('planning a launch through the MCP server', () => {
       ),
       turn(toolUse('ask_human', { question: 'What is the slot budget?', kind: 'budget', options: [] })),
       turn(toolUse('ask_human', { question: 'Leave any shows out?', kind: 'exclusions', options: [] })),
+      turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: finalists })),
       turn(
         toolUse('draft_insertion_order', {
           lines: [
             { show: 'Corner Booth', slots: 8, angle: 'Late-night regulars stay up for the call-ins.' },
             { show: 'Slow Burn', slots: 6, angle: 'Its long interviews share the slow pace.' },
-            { show: 'Field Notes', slots: 2, angle: 'Shares the field-recording style.' }
+            { show: 'Field Notes', slots: 2, angle: null }
           ]
         })
       ),
@@ -380,12 +386,13 @@ describe('planning a launch through the MCP server', () => {
         'Insertion order IO-0001, draft, as it stands: 16 slots, $16,476 at a $25 CPM.',
         '- Corner Booth: 8 slots at $1,200, $9,600. Late-night regulars stay up for the call-ins.',
         '- Slow Burn: 6 slots at $1,000, $6,000. Its long interviews share the slow pace.',
-        '- Field Notes: 2 slots at $438, $876. Shares the field-recording style.',
+        // Qloo returned no shared tags for Field Notes, so it has no angle, and says why (#216).
+        '- Field Notes: 2 slots at $438, $876. No angle: Qloo returned no shared tags.',
         `Change its lines with edit_order. Only a member of the network approves it, in the app: ${page}`
       ].join('\n')
     )
     // The answers reached the agent as the human's own words.
-    expect(JSON.stringify(modelRequests().at(-3)!.messages.at(-1))).toContain('Slot budget: 16 promo slots.')
+    expect(JSON.stringify(modelRequests().at(-4)!.messages.at(-1))).toContain('Slot budget: 16 promo slots.')
 
     const edited = await client.call('edit_order', {
       launchId,
@@ -475,6 +482,8 @@ describe('triaging pitches through the MCP server', () => {
   it("loads the pitches, confirms a work, and relays the run's question before reading its replies", async () => {
     fakeQloo({ search: works })
     fakeInsights((body) => scores[String(body['filter.type'])])
+    // No top pitch shares a tag with the show, so the replies have no angles.
+    fakeCompare({})
     fakeReader(3, (pitch) => Object.entries(readings).find(([title]) => pitch.includes(title))![1])
     const { network, secret, call } = await networkWithKey()
     const client = assistant(secret)
@@ -506,6 +515,8 @@ describe('triaging pitches through the MCP server', () => {
           options: ['Yes', 'No']
         })
       ),
+      // shared_tags compares every top pitch, even one left out of candidate_ids.
+      turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: [] })),
       turn(
         toolUse('draft_replies', {
           replies: [
@@ -571,7 +582,7 @@ describe('triaging pitches through the MCP server', () => {
       ].join('\n')
     )
     // The answer reached the agent as the human's own words, and no sender or guest reached Qloo.
-    expect(JSON.stringify(modelRequests().at(-2)!.messages.at(-1))).toContain('Yes')
+    expect(JSON.stringify(modelRequests().at(-3)!.messages.at(-1))).toContain('Yes')
     for (const detail of ['pat@example.com', 'rue@example.com', 'ben@example.com', 'ada quill', 'mo reyes'])
       expect(
         qlooRequests().filter((r) => r.includes(detail)),

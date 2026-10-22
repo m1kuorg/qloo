@@ -32,6 +32,14 @@ export type FitRow = {
 // order, generic ones dropped, never scores.
 export type SharedTags = { call: string; tags: string[]; error: string | null }
 
+// Whether Qloo returned shared tags to build an angle from. A finalist's host-read angle and a top
+// pitch's episode angle are drafted only from them, so one without any has no angle (#216).
+export const tagged = (shared: SharedTags | null | undefined) => (shared?.tags.length ?? 0) > 0
+
+// Why a finalist or top pitch has no angle, as every surface says it: its compare found no shared
+// tags, or failed.
+export const NO_ANGLE = 'No angle: Qloo returned no shared tags.'
+
 export type NotScored = { show: string; reason: string }
 
 export type Ranking = {

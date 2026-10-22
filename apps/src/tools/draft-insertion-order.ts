@@ -1,7 +1,8 @@
 import type { Tool } from '.'
-import { finalistsOf } from '../fit'
-import { dollars, lineProblem, priceLines, type InsertionOrder, type LineInput } from '../order'
+import { finalistsOf, tagged, type FitRow } from '../fit'
+import { angleOf, dollars, lineProblem, priceLines, type InsertionOrder, type LineInput } from '../order'
 import { CLOSING_WORDS } from '../prompt'
+import { listOf } from '../text'
 
 type Input = { lines: LineInput[] }
 
@@ -11,6 +12,17 @@ const endTheRun = `Now end the run in under ${CLOSING_WORDS} words and at most t
 const leftToThePage =
   "not even a flagged one, and don't mention demographic flags, tags, slots, or angles: the chart and the order show them. Never write a tool's name."
 
+// The lines that carry an angle for a finalist Qloo returned no shared tags for, which there's
+// nothing to build one from (#216).
+function ungrounded(lines: LineInput[], finalists: FitRow[]) {
+  const shows = lines
+    .filter((l) => angleOf(l) && !tagged(finalists.find((r) => r.show === l.show)!.sharedTags))
+    .map((l) => l.show)
+  if (shows.length === 0) return null
+  const one = shows.length === 1
+  return `Qloo returned no shared tags for ${listOf(shows)}, so give ${one ? 'it' : 'them'} a null angle: an angle is built only from the tags shared_tags returned.`
+}
+
 // Drafts the run's insertion order. Code prices it and checks it against the budget the programmer
 // gave, so the model proposes slots and angles but never a figure; a rejected draft stores nothing.
 // Only the programmer can edit, approve, or export the order, through the UI.
@@ -18,7 +30,7 @@ export const draftInsertionOrder: Tool<Input> = {
   definition: {
     name: 'draft_insertion_order',
     description:
-      "Drafts the launch's insertion order over the run's finalists: one line per show, with its promo slots and a host-read angle for its host. Code prices each slot from the show's downloads per episode and the network's CPM, totals the order, and checks it against the slot budget the programmer gave, as a slot count or a dollar amount. A line for a show that isn't a finalist, or a draft over the budget, is rejected with what to fix, and nothing is stored. A valid draft replaces any earlier one in this run and waits for the programmer, who edits and approves it; you can't. Returns each line's slot value and value, the total slots and dollars, and any show missing a figure.",
+      "Drafts the launch's insertion order over the run's finalists: one line per show, with its promo slots and a host-read angle for its host, or none for a finalist shared_tags returned no tags for. Code prices each slot from the show's downloads per episode and the network's CPM, totals the order, and checks it against the slot budget the programmer gave, as a slot count or a dollar amount. A line for a show that isn't a finalist, an angle for a finalist without shared tags, a draft before shared_tags has run, or a draft over the budget, is rejected with what to fix, and nothing is stored. A valid draft replaces any earlier one in this run and waits for the programmer, who edits and approves it; you can't. Returns each line's slot value and value, the total slots and dollars, and any show missing a figure.",
     strict: true,
     input_schema: {
       type: 'object',
@@ -32,9 +44,9 @@ export const draftInsertionOrder: Tool<Input> = {
               show: { type: 'string', description: "The finalist's name exactly as the ranking lists it." },
               slots: { type: 'integer', description: 'Promo slots on this show, 1 or more.' },
               angle: {
-                type: 'string',
+                type: ['string', 'null'],
                 description:
-                  "One or two sentences the show's host can build the read on: what in the launch its listeners would want, citing the tags it shares with the launch when a tool returned them. Not its rank or score."
+                  "One or two sentences the show's host can build the read on: what in the launch its listeners would want, built only from the tags shared_tags returned for it. Not its rank or score. Null for a finalist shared_tags returned no tags for."
               }
             },
             required: ['show', 'slots', 'angle'],
@@ -50,7 +62,7 @@ export const draftInsertionOrder: Tool<Input> = {
     `Drafting the insertion order: ${lines.length} shows, ${lines.reduce((n, l) => n + l.slots, 0)} slots`,
   async run({ lines }, { run, state, update }) {
     const now = state()
-    const finalists = finalistsOf(now.ranking).map((r) => r.show)
+    const finalists = finalistsOf(now.ranking)
     if (finalists.length === 0)
       return {
         isError: true,
@@ -72,13 +84,25 @@ export const draftInsertionOrder: Tool<Input> = {
         content:
           "The programmer hasn't said which shows to leave out of this run yet. Ask for them with ask_human (kind exclusions), then draft the order."
       }
-    const problem = lineProblem(lines, finalists)
+    // shared_tags compares every finalist at once, so one without a compare means it hasn't run since
+    // the finalists were set.
+    if (finalists.some((r) => !r.sharedTags))
+      return {
+        isError: true,
+        content:
+          "The finalists' shared tags haven't been found yet, and an angle is built only from them. Call shared_tags first, then draft the order."
+      }
+    const problem = lineProblem(lines, finalists) ?? ungrounded(lines, finalists)
     if (problem)
       return {
         isError: true,
         content: `${problem} Nothing was stored. Fix the lines and call draft_insertion_order again.`
       }
-    const priced = priceLines(lines, now.roster, now.cpm)
+    const priced = priceLines(
+      lines.map((l) => ({ show: l.show, slots: l.slots, angle: angleOf(l) })),
+      now.roster,
+      now.cpm
+    )
     if ('slots' in budget && priced.slots > budget.slots)
       return {
         isError: true,

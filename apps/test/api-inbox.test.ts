@@ -9,6 +9,7 @@ import type { Pitch, PitchReply } from '../src/inbox'
 import { mbox, nightFerry, paperMoons } from './emails'
 import {
   fakeClaude,
+  fakeCompare,
   fakeInsights,
   fakeQloo,
   fakeReader,
@@ -340,6 +341,8 @@ const scores: Record<string, { entity_id: string; name: string; affinity: number
 async function readyToRank(script: Parameters<typeof fakeClaude>[0], key?: Awaited<ReturnType<typeof networkWithKey>>) {
   fakeQloo({ search: { ...search, ...show, ...pastWork, 'Paper Trail': [] } })
   fakeInsights((body) => scores[String(body['filter.type'])])
+  // No top pitch shares a tag with the show, so the replies have no angles.
+  fakeCompare({})
   reader()
   const made = key ?? (await networkWithKey())
   const { network, call } = made
@@ -382,6 +385,8 @@ const rank = turn(
 const ask = turn(
   toolUse('ask_human', { question: 'Hold the film pitches for next season?', kind: 'choice', options: ['Yes', 'No'] })
 )
+// shared_tags compares every top pitch, even one left out of candidate_ids.
+const findTags = turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: [] }))
 const draft = turn(
   toolUse('draft_replies', {
     replies: [
@@ -400,6 +405,7 @@ describe('a pitch run', () => {
     const { network, call } = await readyToRank([
       () => held.then(() => rank),
       ask,
+      findTags,
       draft,
       turn(text('Drafted 1 book and 2 later.'))
     ])
@@ -438,7 +444,7 @@ describe('a pitch run', () => {
       ['pitch-03', 'later', 'draft', "We'll come back to Static Bloom next season."]
     ])
     // The answer reached the agent as the booker's own words.
-    expect(JSON.stringify(modelRequests().at(-2)!.messages.at(-1))).toContain('Yes')
+    expect(JSON.stringify(modelRequests().at(-3)!.messages.at(-1))).toContain('Yes')
     // Of the pitches and the past guest, only works' titles and types, then their Qloo IDs, reached
     // Qloo: no sender, and no guest.
     const senders = ['Pat Lindqvist', 'pat.lindqvist@example.com', 'rue@example.com', 'ben.ochoa@example.com']
@@ -587,7 +593,7 @@ describe('a pitch run', () => {
 
 describe("a pitch run's replies", () => {
   // A network whose pitch run has drafted its replies, through the API.
-  async function drafted(script = [rank, draft, turn(text('Drafted.'))]) {
+  async function drafted(script = [rank, findTags, draft, turn(text('Drafted.'))]) {
     const ready = await readyToRank(script)
     const { id } = await (await startRun(ready.call, ready.network, { show: 'Night Shift Cinema' })).json<PitchRun>()
     return { ...ready, run: await runRead(ready.call, ready.network, id) }
@@ -702,7 +708,7 @@ describe("a pitch run's replies", () => {
   })
 
   it('are refused while the run is still drafting, and once a later run or load replaced them', async () => {
-    const { network, call, run } = await drafted([rank, draft, ask])
+    const { network, call, run } = await drafted([rank, findTags, draft, ask])
     expect(run.status).toBe('waiting')
     const drafting = {
       code: 'conflict',

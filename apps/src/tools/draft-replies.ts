@@ -1,5 +1,5 @@
 import type { Tool } from '.'
-import type { SharedTags } from '../fit'
+import { tagged, type SharedTags } from '../fit'
 import type { PitchReply, Verdict } from '../inbox'
 import { CLOSING_WORDS } from '../prompt'
 
@@ -11,7 +11,7 @@ export const draftReplies: Tool<Input> = {
   definition: {
     name: 'draft_replies',
     description:
-      "Stores a draft reply to each pitch named, with your verdict: book, decline, or later, and, for a top pitch whose work shared_tags compared with the show, its episode angle. A call replaces the drafts for the pitches it names and keeps the others, so the replies can be drafted over several calls. An unknown pitch, a pitch named twice, an empty draft, or an angle for a pitch shared_tags didn't compare is rejected with what to fix, and nothing is stored. The booker approves, edits, or discards each reply in the UI and sends it themselves; you can't. Returns how many were stored and the pitches still without a reply.",
+      "Stores a draft reply to each pitch named, with your verdict: book, decline, or later, and, for a top pitch whose work shared_tags returned shared tags for, its episode angle. A call replaces the drafts for the pitches it names and keeps the others, so the replies can be drafted over several calls. An unknown pitch, a pitch named twice, an empty draft, or an angle for a pitch shared_tags returned no tags for is rejected with what to fix, and nothing is stored. The booker approves, edits, or discards each reply in the UI and sends it themselves; you can't. Returns how many were stored and the pitches still without a reply.",
     strict: true,
     input_schema: {
       type: 'object',
@@ -31,7 +31,7 @@ export const draftReplies: Tool<Input> = {
               angle: {
                 type: ['string', 'null'],
                 description:
-                  'For a top pitch, one or two sentences on the episode its work could make for the show, built only from the tags shared_tags returned for it. Null for any other pitch.'
+                  'For a top pitch, one or two sentences on the episode its work could make for the show, built only from the tags shared_tags returned for it. Null for a top pitch it returned no tags for, and for any other pitch.'
               },
               draft: {
                 type: 'string',
@@ -67,7 +67,14 @@ export const draftReplies: Tool<Input> = {
       }
     if (!booking.lists)
       return { isError: true, content: "The pitches aren't ranked yet. Call rank_pitches before drafting replies." }
-    // The compares an angle can be built from, by pitch.
+    // shared_tags compares every top pitch at once, so one without a compare means it hasn't run.
+    if (booking.lists.some((l) => l.rows.some((r) => r.band === 'top' && !r.sharedTags)))
+      return {
+        isError: true,
+        content:
+          "The top pitches' shared tags haven't been found yet, and an episode angle is built only from them. Call shared_tags first, then draft the replies."
+      }
+    // The top pitches' compares, by pitch: an angle is built only from one that returned tags (#216).
     const compared = new Map<string, SharedTags>(
       booking.lists.flatMap((l) => l.rows.flatMap((r) => (r.sharedTags ? [[r.pitch, r.sharedTags] as const] : [])))
     )
@@ -79,7 +86,7 @@ export const draftReplies: Tool<Input> = {
     if (twice.length > 0) problems.push(`${twice.join(', ')} has more than one reply; give each pitch one.`)
     const empty = replies.filter((r) => !r.draft.trim()).map((r) => r.pitch)
     if (empty.length > 0) problems.push(`The draft for ${empty.join(', ')} is empty.`)
-    const ungrounded = replies.filter((r) => r.angle?.trim() && !compared.has(r.pitch)).map((r) => r.pitch)
+    const ungrounded = replies.filter((r) => r.angle?.trim() && !tagged(compared.get(r.pitch))).map((r) => r.pitch)
     if (ungrounded.length > 0)
       problems.push(
         `${ungrounded.join(', ')} has no shared tags from shared_tags to build an angle from, so give it a null angle.`
@@ -99,7 +106,7 @@ export const draftReplies: Tool<Input> = {
             pitch: r.pitch,
             verdict: r.verdict,
             angle,
-            sharedTags: angle ? compared.get(r.pitch)! : null,
+            sharedTags: compared.get(r.pitch) ?? null,
             draft: r.draft.trim(),
             status: 'draft'
           }

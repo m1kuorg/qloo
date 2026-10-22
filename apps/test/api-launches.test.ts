@@ -8,6 +8,7 @@ import type { Evidence } from '../src/evidence'
 import type { InsertionOrder } from '../src/order'
 import {
   fakeClaude,
+  fakeCompare,
   fakeDemographics,
   fakeInsights,
   fakeQloo,
@@ -77,7 +78,7 @@ const listeners = (entity_id: string, a30: number): Demographic => ({
 const demographics = ['e-0001', 'e-0501', 'e-0503', 'e-0102', 'e-0601'].map((id) => listeners(id, 0.27))
 
 // A launch run the way the agent plans one: resolve the launch, rank the roster, check the
-// finalists' listeners, ask for the budget and exclusions, then draft the order.
+// finalists' listeners, ask for the budget and exclusions, find their shared tags, then draft the order.
 const finalists = ['e-0501', 'e-0502', 'e-0503', 'e-0102', 'e-0601']
 const resolve = toolUse('resolve_entities', { names: ['Night Shift Cinema'], type: 'urn:entity:podcast' })
 const rank = toolUse('rank_candidates', {
@@ -88,6 +89,16 @@ const rank = toolUse('rank_candidates', {
 const check = toolUse('check_demographics', { anchor_ids: ['e-0001'], candidate_ids: finalists })
 const askBudget = toolUse('ask_human', { question: 'What is the slot budget?', kind: 'budget', options: [] })
 const askExclusions = toolUse('ask_human', { question: 'Leave any shows out?', kind: 'exclusions', options: [] })
+const findTags = toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: finalists })
+// Made-up tags each finalist shares with the launch, but Ghost Signal, which shares none.
+const compare = Object.fromEntries(
+  finalists
+    .filter((id) => id !== 'e-0601')
+    .map((id, i) => [
+      id,
+      [{ tag_id: 'urn:tag:keyword:media:night_owls', name: 'Night Owls', score: 0.6131 + i / 1000 }]
+    ])
+)
 const draft = toolUse('draft_insertion_order', {
   lines: [
     { show: 'Corner Booth', slots: 8, angle: 'Late-night regulars stay up for the call-ins.' },
@@ -96,7 +107,15 @@ const draft = toolUse('draft_insertion_order', {
     { show: 'Field Notes', slots: 2, angle: 'Shares the field-recording style.' }
   ]
 })
-const planned = [turn(resolve), turn(rank), turn(check), turn(askBudget), turn(askExclusions), turn(draft)]
+const planned = [
+  turn(resolve),
+  turn(rank),
+  turn(check),
+  turn(askBudget),
+  turn(askExclusions),
+  turn(findTags),
+  turn(draft)
+]
 
 const patch = (call: Call, path: string, body: unknown) =>
   call(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -107,6 +126,7 @@ async function rosterReady() {
   fakeQloo({ search })
   fakeInsights((body) => fit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id)))
   fakeDemographics([...demographics, listeners('e-0502', -0.07)])
+  fakeCompare(compare)
   const { ada, network, call } = await networkWithKey()
   const roster = `/api/v1/networks/${network}/roster`
   const settled = () => poll<{ status: string }>(call, roster, (r) => r.status === 'settled')
@@ -308,7 +328,7 @@ describe("a launch's run", () => {
       plan: { name: 'Night Shift Cinema', entity: { id: 'e-0001', name: 'Night Shift Cinema' }, comps: [] }
     })
     // The answers reached the agent as the programmer's own words.
-    expect(JSON.stringify(modelRequests().at(-3)!.messages.at(-1))).toContain('Slot budget: 20 promo slots.')
+    expect(JSON.stringify(modelRequests().at(-4)!.messages.at(-1))).toContain('Slot budget: 20 promo slots.')
 
     // The chart in ranks, bands, and moves against the topic baseline, never scores.
     const chart = done.chart as { rows: Record<string, unknown>[]; notScored: unknown[] }
@@ -758,6 +778,25 @@ describe("a launch's insertion order", () => {
     })
   })
 
+  it('takes a line with no angle only for a finalist Qloo returned no shared tags for', async () => {
+    const { call, launch } = await drafted()
+    const order = `${launch}/insertion-orders/IO-0001`
+    const res = await patch(call, order, {
+      lines: [
+        { show: 'Corner Booth', slots: 8, angle: 'Call-ins.' },
+        { show: 'Ghost Signal', slots: 2, angle: null }
+      ]
+    })
+    expect(res.status).toBe(200)
+    expect((await res.json<InsertionOrder>()).lines.map((l) => [l.show, l.angle])).toEqual([
+      ['Corner Booth', 'Call-ins.'],
+      ['Ghost Signal', null]
+    ])
+    expect(
+      await refused(await patch(call, order, { lines: [{ show: 'Corner Booth', slots: 8, angle: null }] }))
+    ).toEqual([400, { code: 'invalid', message: 'Corner Booth needs a host-read angle.' }])
+  })
+
   it("is never approved through the API, which refuses lines the order can't take", async () => {
     const { call, launch } = await drafted()
     const order = `${launch}/insertion-orders/IO-0001`
@@ -835,9 +874,15 @@ describe("a launch's evidence", () => {
     const calls = evidence.map((e) => e.call)
     expect(new Set(calls).size).toBe(calls.length)
     const latest = (await (await call(launch)).json<Launch>()).latestRun!
-    // The run cites its ranking call and its demographics call.
+    // The run cites its ranking call, each finalist's compare, and its demographics call.
     const cited = [...new Set(JSON.stringify(latest).match(/\bC-\d+\b/g))]
-    expect(cited).toEqual([(run.chart as { call: string }).call, (run.demographics as { call: string }).call])
+    const chart = run.chart as { call: string; rows: { sharedTags: { call: string } | null }[] }
+    expect(cited).toEqual([
+      chart.call,
+      ...chart.rows.flatMap((r) => r.sharedTags?.call ?? []),
+      (run.demographics as { call: string }).call
+    ])
+    expect(cited).toHaveLength(7)
     for (const c of cited) expect(calls, c).toContain(c)
 
     // The roster's lookups were made by the network's agent, and copied in as the run started.

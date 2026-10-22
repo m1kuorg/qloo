@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
 import { Workspace, type Session as Agent } from '../src/client/App'
-import { fakeClaude, fakeInsights, fakeQloo, fakeTopic, text, toolUse, topicNames, turn } from './fake'
+import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, fakeTopic, text, toolUse, topicNames, turn } from './fake'
 import { links, openSession, type Session } from './session'
 
 // Made-up IDs and scores for seven of the sample's public show names; every other name misses.
@@ -42,7 +42,8 @@ const topicOrder = [
 ]
 
 // The sample launch as the agent runs it: rank the roster against The Watch, ask the budget and
-// the exclusions, draft the order, and end.
+// the exclusions, find the finalists' shared tags, draft the order, and end.
+const finalists = fit.slice(0, 5).map((f) => f.entity_id)
 const script = [
   turn(
     toolUse('rank_candidates', {
@@ -55,6 +56,7 @@ const script = [
   turn(
     toolUse('ask_human', { question: 'Which shows should this launch leave out?', kind: 'exclusions', options: [] })
   ),
+  turn(toolUse('shared_tags', { anchor_ids: [ids['The Watch']], candidate_ids: finalists })),
   turn(
     toolUse('draft_insertion_order', {
       lines: [
@@ -74,6 +76,10 @@ beforeEach(() => {
   env.SAMPLE_NETWORK = 'on'
   fakeQloo({ search })
   fakeInsights(fit)
+  // Made-up tags each finalist shares with The Watch.
+  fakeCompare(
+    Object.fromEntries(finalists.map((id) => [id, [{ tag_id: 'urn:tag:keyword:media:tv', name: 'TV', score: 0.6131 }]]))
+  )
   fakeTopic((request) => {
     const names = topicNames(request)
     return [...topicOrder.filter((n) => names.includes(n)), ...names.filter((n) => !topicOrder.includes(n))]
