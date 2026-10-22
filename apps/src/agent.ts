@@ -18,7 +18,7 @@ import {
   type Work,
   type WorkMatch
 } from './inbox'
-import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
+import { inProgress, MAX_ANSWER, MAX_COMPS, MAX_QLOO_CALLS, MAX_TITLE, MAX_TURNS } from './limits'
 import {
   cpmProblem,
   dollars,
@@ -425,6 +425,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     ready()
     const q = query.trim()
     if (!q) throw new Refusal('invalid', 'Type the name of a comparable show.')
+    if (q.length > MAX_TITLE) throw new Refusal('invalid', `Use a show name of at most ${MAX_TITLE} characters.`)
     const gateway = await this.reserveCalls(visitor, 1)
     ready() // again, since an import may have replaced the show meanwhile
     const seq = this.numberCall()
@@ -1715,6 +1716,8 @@ function settle(
   launch: Launch | null
 ): { answer: string; stored: Partial<Run>; launch?: Launch; record?: string } {
   const typed = typeof reply.text === 'string' ? reply.text.trim() : ''
+  if (typed.length > MAX_ANSWER)
+    throw new Refusal('invalid', `An answer is at most ${MAX_ANSWER.toLocaleString('en-US')} characters. Shorten it.`)
   const choice = reply.choice
   if (choice !== undefined && !question.options.includes(choice))
     throw new Refusal('invalid', "That isn't one of the options.")
@@ -1769,8 +1772,14 @@ function settleLaunch(
   if (choice !== undefined && name) throw new Refusal('invalid', 'Pick a candidate or type a name, not both.')
   if (choice === undefined && !name)
     throw new Refusal('invalid', 'Pick a candidate or type the name Qloo lists it under.')
-  if (name)
-    return { answer: `Look it up as "${name}".`, stored: {}, launch: { name, match: null, comps: launch?.comps ?? [] } }
+  if (name) {
+    const renamed = launchName(name)
+    return {
+      answer: `Look it up as "${renamed}".`,
+      stored: {},
+      launch: { name: renamed, match: null, comps: launch?.comps ?? [] }
+    }
+  }
   const match = launch?.match
   const candidates = match?.resolution === 'ambiguous' ? match.candidates : []
   const entity = candidates[candidateLabels(candidates).indexOf(choice!)]
@@ -1814,13 +1823,21 @@ export function readLaunch(
   }
   const name = 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
   if (!name) throw new Refusal('invalid', `Name the launch ${to}.`)
-  return { name, comps: null }
+  return { name: launchName(name), comps: null }
+}
+
+// A launch's name as the programmer typed it, once it's within the limit.
+function launchName(name: string) {
+  if (name.length > MAX_TITLE) throw new Refusal('invalid', `Use a launch name of at most ${MAX_TITLE} characters.`)
+  return name
 }
 
 // Comp names as the programmer gave them: trimmed, blanks dropped, and the same name once. Throws
 // past the limit.
 function readComps(names: unknown): string[] {
   const given = Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : []
+  if (given.some((n) => n.trim().length > MAX_TITLE))
+    throw new Refusal('invalid', `Use comp names of at most ${MAX_TITLE} characters.`)
   const comps: string[] = []
   for (const name of given.map((n) => n.trim()).filter(Boolean))
     if (!comps.some((c) => sameName(c, name))) comps.push(name)

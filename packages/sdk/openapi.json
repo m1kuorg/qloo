@@ -504,6 +504,7 @@
         "properties": {
           "query": {
             "type": "string",
+            "maxLength": 200,
             "example": "Paper Trail Weekly"
           }
         },
@@ -1231,13 +1232,15 @@
               "type": "object",
               "properties": {
                 "guest": {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 200
                 },
                 "work": {
                   "type": "object",
                   "properties": {
                     "title": {
-                      "type": "string"
+                      "type": "string",
+                      "maxLength": 200
                     },
                     "type": {
                       "type": "string",
@@ -1330,6 +1333,7 @@
           },
           "text": {
             "type": "string",
+            "maxLength": 2000,
             "description": "Your own words, for a `choice` question; for a `launch` or `comps` question, the name Qloo lists the launch under."
           },
           "slots": {
@@ -1350,7 +1354,8 @@
           "comps": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 200
             },
             "description": "For `comps`, up to three released shows."
           },
@@ -2329,12 +2334,14 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "description": "A released launch's name, as Qloo lists it."
           },
           "comps": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 200
             },
             "description": "Up to three released shows to stand in for an unreleased launch."
           }
@@ -2580,7 +2587,8 @@
                   "description": "Whole promo slots, 1 or more."
                 },
                 "angle": {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 500
                 }
               },
               "required": [

@@ -3,7 +3,7 @@
 // message, so an inbox never loads in part, but for an uploaded pitch too long to read, which is
 // skipped and named.
 import type { PitchList, SharedTags } from './fit'
-import { MAX_PAST_GUESTS } from './limits'
+import { MAX_PAST_GUESTS, MAX_TITLE } from './limits'
 import { personalIn, type Candidate } from './resolve'
 import { Refusal } from './refusal'
 import sampleInbox from './sample-inbox.json'
@@ -221,6 +221,10 @@ export function readPastGuests(given: unknown): Omit<PastGuest, 'match'>[] {
     const name = typeof guest === 'string' ? guest.trim() : ''
     const title = typeof work?.title === 'string' ? work.title.trim() : ''
     if (!name || !title) throw new Refusal('invalid', `Past guest ${i + 1} needs a name and a work title.`)
+    if (name.length > MAX_TITLE)
+      throw new Refusal('invalid', `Past guest ${i + 1}'s name is over ${MAX_TITLE} characters. Shorten it.`)
+    if (title.length > MAX_TITLE)
+      throw new Refusal('invalid', `Past guest ${i + 1}'s work title is over ${MAX_TITLE} characters. Shorten it.`)
     if (!workTypes.includes(work.type))
       throw new Refusal('invalid', `Past guest ${i + 1}'s work needs a type: book, film, TV show, or podcast.`)
     const year = work.year ?? null

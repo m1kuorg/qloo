@@ -295,6 +295,10 @@ describe("a roster's shows", () => {
       400,
       { code: 'invalid', message: 'Type the name of a comparable show.' }
     ])
+    expect(await error(await compSearch(call, network, 'Paper Trail', 'C'.repeat(201)))).toEqual([
+      400,
+      { code: 'invalid', message: 'query: Use at most 200 characters.' }
+    ])
     expect(await error(await compSearch(call, network, 'Deep Cuts', 'Deep Cuts Weekly'))).toEqual([
       404,
       { code: 'not_found', message: 'No show named "Deep Cuts" in the roster.' }

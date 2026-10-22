@@ -205,7 +205,9 @@ describe('creating a launch', () => {
         { comps: ['A', 'B', 'C', 'D'] },
         '4 comps is over the limit of 3. Name up to 3 released shows to stand in for the launch.'
       ],
-      [{ name: 7 }, expect.stringContaining('name')]
+      [{ name: 7 }, expect.stringContaining('name')],
+      [{ name: 'N'.repeat(201) }, 'name: Use at most 200 characters.'],
+      [{ comps: ['Corner Booth', 'C'.repeat(201)] }, 'comps.1: Use at most 200 characters.']
     ] as const)
       expect(await refused(await post(call, launches, body)), JSON.stringify(body)).toEqual([
         400,
@@ -585,7 +587,17 @@ describe("a launch's run, refused", () => {
         400,
         { code: 'invalid', message: 'This question is answered with its form, not typed text.' }
       ],
-      [{ slots: 20 }, 400, { code: 'invalid', message: expect.stringContaining('questionId') }]
+      [{ slots: 20 }, 400, { code: 'invalid', message: expect.stringContaining('questionId') }],
+      [
+        { questionId, text: 'x'.repeat(2_001) },
+        400,
+        { code: 'invalid', message: 'text: Use at most 2,000 characters.' }
+      ],
+      [
+        { questionId, comps: ['C'.repeat(201)] },
+        400,
+        { code: 'invalid', message: 'comps.0: Use at most 200 characters.' }
+      ]
     ] as const)
       expect(await refused(await answer(first.id, body)), JSON.stringify(body)).toEqual([status, error])
     expect(await refused(await answer('run-0', { questionId, slots: 20 }))).toEqual([
@@ -786,6 +798,12 @@ describe("a launch's insertion order", () => {
         { lines: [{ ...line, angle: ' ' }] },
         400,
         { code: 'invalid', message: 'Corner Booth needs a host-read angle.' }
+      ],
+      [
+        order,
+        { lines: [{ ...line, angle: 'x'.repeat(501) }] },
+        400,
+        { code: 'invalid', message: 'lines.0.angle: Use at most 500 characters.' }
       ],
       [order, {}, 400, { code: 'invalid', message: expect.stringContaining('lines') }],
       [

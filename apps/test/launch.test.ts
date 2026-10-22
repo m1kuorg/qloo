@@ -227,6 +227,9 @@ describe('starting a launch run', () => {
     ])
     const s = await session()
     await expect(s.call('startLaunch', { name: '  ' })).rejects.toThrow('Name the launch to start a run.')
+    await expect(s.call('startLaunch', { name: 'N'.repeat(201) })).rejects.toThrow(
+      'Use a launch name of at most 200 characters.'
+    )
     expect(s.state()?.run).toBeNull()
     expect(modelRequests()).toEqual([])
 

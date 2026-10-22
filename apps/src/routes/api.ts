@@ -9,7 +9,7 @@ import { HTTPException } from 'hono/http-exception'
 import { accountsOn, fromAppPage, keyFor, signedIn } from '../auth'
 import { memberRole } from '../directory'
 import { workTypes, type PitchInput } from '../inbox'
-import { MAX_PAST_GUESTS } from '../limits'
+import { MAX_ANGLE, MAX_ANSWER, MAX_PAST_GUESTS, MAX_TITLE } from '../limits'
 import {
   answerLaunchRun,
   answerPitchRun,
@@ -144,6 +144,9 @@ const context = (c: Context<ApiEnv>): OperationContext => ({
 // schema itself nullable in the document, and so every other use of it, such as a run a read
 // answers with, in the types generated from it.
 const orNull = <T extends z.ZodType>(schema: T) => z.union([schema, z.null()])
+
+// Text of at most `max` characters (limits.ts), refused past it before anything reads it.
+const capped = (max: number) => z.string().max(max, { error: `Use at most ${max.toLocaleString('en-US')} characters.` })
 
 // The documented answer to each refusal a route can give.
 const ErrorBody = z
@@ -477,7 +480,9 @@ api.openapi(
   }
 )
 
-export const CompQuery = z.object({ query: z.string().openapi({ example: 'Paper Trail Weekly' }) }).openapi('CompQuery')
+export const CompQuery = z
+  .object({ query: capped(MAX_TITLE).openapi({ example: 'Paper Trail Weekly' }) })
+  .openapi('CompQuery')
 
 api.openapi(
   createRoute({
@@ -876,14 +881,14 @@ export const Answer = z
       .string()
       .optional()
       .openapi({ description: "One of a `choice` question's options, or of a `launch` question's candidates." }),
-    text: z.string().optional().openapi({
+    text: capped(MAX_ANSWER).optional().openapi({
       description:
         'Your own words, for a `choice` question; for a `launch` or `comps` question, the name Qloo lists the launch under.'
     }),
     slots: z.number().optional().openapi({ description: 'A `budget` in promo slots.' }),
     dollars: z.number().optional().openapi({ description: 'A `budget` in dollars.' }),
     exclude: z.array(z.string()).optional().openapi({ description: 'The `exclusions`: shows to leave out.' }),
-    comps: z.array(z.string()).optional().openapi({ description: 'For `comps`, up to three released shows.' }),
+    comps: z.array(capped(MAX_TITLE)).optional().openapi({ description: 'For `comps`, up to three released shows.' }),
     picks: z.array(z.string().nullable()).optional().openapi({
       description:
         "For `confirm_comps`, each comp's entity ID in the question's order, from its `candidates` in the run's plan, or null for none of them."
@@ -902,9 +907,9 @@ export const PitchRunStart = z
     pastGuests: z
       .array(
         z.object({
-          guest: z.string(),
+          guest: capped(MAX_TITLE),
           work: z.object({
-            title: z.string(),
+            title: capped(MAX_TITLE),
             type: z.enum(workTypes),
             year: z.number().int().nullable().optional()
           })
@@ -1318,9 +1323,9 @@ const Launch = LaunchFields.extend({
 // What a launch is planned from, by name or comps.
 export const LaunchPlan = z
   .strictObject({
-    name: z.string().optional().openapi({ description: "A released launch's name, as Qloo lists it." }),
+    name: capped(MAX_TITLE).optional().openapi({ description: "A released launch's name, as Qloo lists it." }),
     comps: z
-      .array(z.string())
+      .array(capped(MAX_TITLE))
       .optional()
       .openapi({ description: 'Up to three released shows to stand in for an unreleased launch.' })
   })
@@ -1554,7 +1559,7 @@ export const OrderChange = z
           z.object({
             show: z.string().openapi({ description: "One of the run's finalists, named as on the roster." }),
             slots: z.number().openapi({ description: 'Whole promo slots, 1 or more.' }),
-            angle: z.string()
+            angle: capped(MAX_ANGLE)
           })
         )
         .openapi({ description: 'Every line of the order as it should be, one per show.' })

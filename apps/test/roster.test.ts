@@ -225,6 +225,18 @@ describe('importing a pasted roster', () => {
     ])
   })
 
+  it('refuses a comp search over 200 characters, and searches nothing', async () => {
+    fakeQloo({ search })
+    const s = await session()
+    await s.importRoster(roster)
+    const sent = requests.length
+
+    await expect(s.call('searchComps', 'Deep Cuts', 'C'.repeat(201))).rejects.toThrow(
+      'Use a show name of at most 200 characters.'
+    )
+    expect(requests).toHaveLength(sent)
+  })
+
   it('refuses state written by the client', async () => {
     fakeQloo({ search })
     const s = await session()
