@@ -10,6 +10,10 @@ export const SESSION_MS = 30 * 24 * 60 * 60_000
 const SEEN_EVERY_MS = 60_000
 // A passkey ceremony's challenge is good for five minutes.
 const CHALLENGE_MS = 5 * 60_000
+// A session proves its member is there for five minutes after a user-verified passkey, at sign-up,
+// sign-in, or step-up, or after the recovery code it signed in with, which adding a passkey, a new
+// recovery code, and deleting the account need.
+export const STEP_UP_MS = 5 * 60_000
 
 export type Member = { id: string; name: string }
 
@@ -176,9 +180,9 @@ export async function recover(db: D1Database, code: string): Promise<Secrets | n
       .bind(issued, await sha256(normalCode(code))),
     db
       .prepare(
-        'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?, id, ?, ?, ? FROM members WHERE recovery_code_hash = ?'
+        'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen, verified, recovered) SELECT ?1, id, ?2, ?3, ?2, ?2, 1 FROM members WHERE recovery_code_hash = ?4'
       )
-      .bind(await sha256(secrets.token), now, now + SESSION_MS, now, issued)
+      .bind(await sha256(secrets.token), now, now + SESSION_MS, issued)
   ])
   return replaced.results.length ? secrets : null
 }
@@ -212,6 +216,42 @@ export async function sessionMember(db: D1Database, token: string): Promise<(Mem
       .bind(now, now + SESSION_MS, hash)
       .run()
   return { id: row.id, name: row.name, extended }
+}
+
+// How the session with token `token` last proved its member was there: when, null for a session from
+// before step-up, and whether it signed in with a recovery code, which can prove it again.
+export async function sessionProof(db: D1Database, token: string) {
+  const row = await db
+    .prepare('SELECT verified, recovered FROM sessions WHERE token_hash = ?')
+    .bind(await sha256(token))
+    .first<{ verified: number | null; recovered: number }>()
+  return row && { verified: row.verified, recovered: row.recovered === 1 }
+}
+
+// Notes that the session with token `token` proved its member was there just now: with `passkey`, one
+// of theirs, whose new signature counter is kept too, as at sign-in, though it signed no one in, so
+// its last use stays as it was.
+export async function proveSession(db: D1Database, token: string, passkey?: { credentialId: string; counter: number }) {
+  await db.batch([
+    db.prepare('UPDATE sessions SET verified = ? WHERE token_hash = ?').bind(Date.now(), await sha256(token)),
+    ...(passkey
+      ? [
+          db
+            .prepare('UPDATE passkeys SET counter = MAX(counter, ?) WHERE credential_id = ?')
+            .bind(passkey.counter, passkey.credentialId)
+        ]
+      : [])
+  ])
+}
+
+// Whether `code`, as typed, is member `memberId`'s recovery code now. It's only checked, so it still
+// signs them in once.
+export async function isRecoveryCode(db: D1Database, memberId: string, code: string) {
+  const row = await db
+    .prepare('SELECT 1 FROM members WHERE id = ? AND recovery_code_hash = ?')
+    .bind(memberId, await sha256(normalCode(code)))
+    .first()
+  return row !== null
 }
 
 // Ends the session with token `token`, if there is one.
@@ -722,13 +762,14 @@ const insertPasskey = (
       memberId
     )
 
-// A new session for member `memberId`, started only if they exist, as a sign-up's member may not.
+// A new session for member `memberId`, started only if they exist, as a sign-up's member may not, by a
+// user-verified passkey, which proves them there.
 const insertSession = (db: D1Database, tokenHash: string, memberId: string, now: number) =>
   db
     .prepare(
-      'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?, id, ?, ?, ? FROM members WHERE id = ?'
+      'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen, verified) SELECT ?1, id, ?2, ?3, ?2, ?2 FROM members WHERE id = ?4'
     )
-    .bind(tokenHash, now, now + SESSION_MS, now, memberId)
+    .bind(tokenHash, now, now + SESSION_MS, memberId)
 
 // Uses the invite with token hash `hash` for member `memberId` and adds them to its network as a
 // member: the first statement marks it used while it's open, they exist, as a sign-up's member may

@@ -4,7 +4,17 @@
 // doesn't are the same 404.
 import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
-import { accountsOn, appOrigins, endSession, jsonBody, jsonLimit, sameOrigin, session, signedIn } from '../auth'
+import {
+  accountsOn,
+  appOrigins,
+  endSession,
+  jsonBody,
+  jsonLimit,
+  sameOrigin,
+  session,
+  signedIn,
+  stepUpRefused
+} from '../auth'
 import {
   accountNetworks,
   apiKeys,
@@ -135,10 +145,13 @@ appPages.post('/app/account/passkeys/:credentialId/remove', async (c) => {
   return c.json({ passkeys: await memberPasskeys(c.env.DB, id) })
 })
 
-// A new recovery code, shown this once, in place of the member's last one.
-appPages.post('/app/account/recovery-code', async (c) =>
-  c.json({ recoveryCode: await newRecoveryCode(c.env.DB, c.var.member.id) })
-)
+// A new recovery code, shown this once, in place of the member's last one, once they've proved it's them
+// in the last five minutes.
+appPages.post('/app/account/recovery-code', async (c) => {
+  const unproved = await stepUpRefused(c, c.var.member)
+  if (unproved) return unproved
+  return c.json({ recoveryCode: await newRecoveryCode(c.env.DB, c.var.member.id) })
+})
 
 // Signs the member out on every browser, as when a device is lost: every session ends, this one's
 // cookie goes, and their open pages close on every network and launch.
@@ -154,9 +167,12 @@ appPages.post('/app/account/sign-out-everywhere', async (c) => {
 })
 
 // Deletes the member's account: them, their passkeys, sessions, and memberships, unless they're any
-// network's only owner, which would leave it with no one to run it. What they made in each network
-// stays with it, but each launch forgets their name (wipe.ts). Their open pages close.
+// network's only owner, which would leave it with no one to run it, once they've proved it's them in
+// the last five minutes. What they made in each network stays with it, but each launch forgets their
+// name (wipe.ts). Their open pages close.
 appPages.post('/app/account/delete', async (c) => {
+  const unproved = await stepUpRefused(c, c.var.member)
+  if (unproved) return unproved
   const { id } = c.var.member
   const networks = await accountNetworks(c.env.DB, id)
   if (

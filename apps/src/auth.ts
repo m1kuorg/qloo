@@ -1,9 +1,20 @@
 // A member's session in the browser, and the guards every accounts route shares: the ACCOUNTS
-// switch, the same-origin check on writes, where `?next` may lead, and a program's API key.
+// switch, the same-origin check on writes, a recent proof that it's the member, where `?next` may
+// lead, and a program's API key.
+import { generateAuthenticationOptions } from '@simplewebauthn/server'
 import type { Context, MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
-import { SESSION_MS, apiKeyFor, sessionMember, type Member } from './directory'
+import {
+  SESSION_MS,
+  STEP_UP_MS,
+  apiKeyFor,
+  memberPasskeys,
+  saveChallenge,
+  sessionMember,
+  sessionProof,
+  type Member
+} from './directory'
 import { Refusal } from './refusal'
 
 // The session cookie, `__Host-crossfeed_member`: the session's token, sent only to this host over
@@ -34,6 +45,31 @@ export async function signedIn<E extends { Bindings: Env }>(c: Context<E>): Prom
 export async function session<E extends { Bindings: Env }>(c: Context<E>) {
   const token = getCookie(c, COOKIE, 'host')
   return token ? sessionMember(c.env.DB, token) : null
+}
+
+// The session's token, as the cookie holds it, for the directory to look it up; undefined without one.
+export const sessionToken = (c: Context) => getCookie(c, COOKIE, 'host')
+
+// Null when the signed-in `member`'s session proved it's them in the last five minutes (STEP_UP_MS), as
+// adding a passkey, a new recovery code, and deleting the account need. Otherwise the 403 that asks
+// them to, so the page asks at once: for a passkey of theirs, user-verified, with the ceremony's
+// challenge and options, or, in a browser signed in with the recovery code, for that code (`/auth/verify`).
+export async function stepUpRefused<E extends { Bindings: Env }>(c: Context<E>, member: Member) {
+  const token = sessionToken(c)
+  const proof = token ? await sessionProof(c.env.DB, token) : null
+  if (proof?.verified && Date.now() - proof.verified < STEP_UP_MS) return null
+  if (proof?.recovered)
+    return c.json(
+      { error: "Confirm it's you with your recovery code first: this browser signed in with it.", stepUp: 'code' },
+      403
+    )
+  const options = await generateAuthenticationOptions({
+    rpID: c.env.RP_ID,
+    userVerification: 'required',
+    allowCredentials: (await memberPasskeys(c.env.DB, member.id)).map(({ id }) => ({ id }))
+  })
+  const challenge = await saveChallenge(c.env.DB, 'step-up', options.challenge, { memberId: member.id })
+  return c.json({ error: "Confirm it's you with your passkey first.", stepUp: 'passkey', challenge, options }, 403)
 }
 
 // Clears the session cookie, and returns the token it held, for the directory to end its session.

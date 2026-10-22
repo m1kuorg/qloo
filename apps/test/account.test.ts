@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import type { AccountNetwork, AccountPasskey, ApiKey, NetworkMember } from '../src/directory'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
-import { addPasskey, openMember, type Member, type Session } from './session'
+import { addPasskey, confirmedFetch, openMember, type Member, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
 
@@ -129,7 +129,7 @@ describe('passkeys', () => {
     const phone = softwareAuthenticator()
 
     // The options name the member and the passkey they have, so a device that holds it adds no other.
-    const started = await ada.fetch('/auth/passkeys/options', { method: 'POST' })
+    const started = await confirmedFetch(ada, '/auth/passkeys/options', { method: 'POST' })
     const { options } = await started.json<{
       options: { user: { id: string; name: string }; excludeCredentials: { id: string }[] }
     }>()

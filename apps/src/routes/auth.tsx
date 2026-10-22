@@ -21,24 +21,30 @@ import {
   jsonLimit,
   nextPath,
   sameOrigin,
+  sessionToken,
   setSession,
-  signedIn
+  signedIn,
+  stepUpRefused
 } from '../auth'
 import {
   addPasskey,
   findInvite,
   findPasskey,
   invitedCapped,
+  isRecoveryCode,
   joinByInvite,
   memberPasskeys,
+  proveSession,
   recover,
   saveChallenge,
   signIn,
   signOut,
+  sessionProof,
   signUp,
   takeChallenge,
   type Challenge,
-  type Member
+  type Member,
+  type Passkey
 } from '../directory'
 import { appShell } from '../shell'
 import { readName } from '../text'
@@ -270,10 +276,14 @@ auth.post('/auth/sign-up', async (c) => {
 // Adding a passkey, for a signed-in member on their account page: from another device or password
 // manager, so losing one doesn't lock them out, or from a new device after signing in with their
 // recovery code. The options name the member's own user handle and the passkeys they have, so a
-// device that holds one of them adds no second.
+// device that holds one of them adds no second. It needs a proof that it's them from the last five
+// minutes, which signing in with the recovery code is, for the device's first passkey.
 auth.post('/auth/passkeys/options', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
+  // The ceremony's second step comes only with the challenge this step gives, so it's asked here.
+  const unproved = await stepUpRefused(c, member)
+  if (unproved) return unproved
   const has = await memberPasskeys(c.env.DB, member.id)
   const options = await registrationOptions(c.env, member, has)
   const challenge = await saveChallenge(c.env.DB, 'add-passkey', options.challenge, { memberId: member.id })
@@ -318,7 +328,22 @@ auth.post('/auth/sign-in', async (c) => {
   const handle = answer?.response?.userHandle
   if (!passkey || (handle && handle !== isoBase64URL.fromUTF8String(passkey.memberId)))
     return refuse(c, "Crossfeed doesn't know this passkey. Try another, or create an account.")
-  const authentication = await verified('sign-in', () =>
+  const authentication = await asserted(c, 'sign-in', started, answer, passkey)
+  if (!authentication) return refuse(c, UNVERIFIED)
+  setSession(c, await signIn(c.env.DB, passkey, authentication.authenticationInfo.newCounter))
+  return c.json({})
+})
+
+// A browser's signature with `passkey` for the ceremony started with `started`, user-verified, once it
+// verifies; null when it doesn't.
+const asserted = (
+  c: Context<{ Bindings: Env }>,
+  ceremony: string,
+  started: Challenge,
+  answer: AuthenticationResponseJSON,
+  passkey: Passkey
+) =>
+  verified(ceremony, () =>
     verifyAuthenticationResponse({
       response: answer,
       expectedChallenge: started.challenge,
@@ -333,8 +358,36 @@ auth.post('/auth/sign-in', async (c) => {
       requireUserVerification: true
     })
   )
+
+// Step-up, for a signed-in member whose change was refused until they confirm it's them: the browser's
+// answer to the refusal's passkey ceremony, with one of their own passkeys, or, in a browser signed in
+// with the recovery code, that code, which is only checked, so it still signs them in once. Either
+// proves the session for five minutes.
+auth.post('/auth/verify', async (c) => {
+  const member = await signedIn(c)
+  const token = sessionToken(c)
+  if (!member || !token) return refuse(c, 'Sign in first.', 401)
+  const { challenge, response, code } = await jsonBody(c)
+  if (code !== undefined) {
+    if (!(await sessionProof(c.env.DB, token))?.recovered)
+      return refuse(c, 'Confirm it’s you with your passkey: a recovery code confirms only a browser signed in with it.')
+    if (typeof code !== 'string' || !(await isRecoveryCode(c.env.DB, member.id, code)))
+      return refuse(c, "That isn't your recovery code. Check it, or the one Crossfeed showed you last, and try again.")
+    await proveSession(c.env.DB, token)
+    return c.json({})
+  }
+  const started = await takeStarted(c, 'step-up', challenge)
+  if (!started || started.memberId !== member.id) return refuse(c, STALE)
+  const answer = response as AuthenticationResponseJSON
+  const passkey = typeof answer?.id === 'string' ? await findPasskey(c.env.DB, answer.id) : null
+  if (!passkey || passkey.memberId !== member.id)
+    return refuse(c, "That passkey isn't one of yours. Confirm with a passkey of your account.")
+  const authentication = await asserted(c, 'step-up', started, answer, passkey)
   if (!authentication) return refuse(c, UNVERIFIED)
-  setSession(c, await signIn(c.env.DB, passkey, authentication.authenticationInfo.newCounter))
+  await proveSession(c.env.DB, token, {
+    credentialId: passkey.credentialId,
+    counter: authentication.authenticationInfo.newCounter
+  })
   return c.json({})
 })
 

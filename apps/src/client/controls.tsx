@@ -12,8 +12,21 @@ export async function send<T>(path: string, body: object = {}): Promise<T> {
     body: JSON.stringify(body)
   })
   const answer = (await res.json().catch(() => null)) as { error?: string } | null
-  if (!res.ok || !answer) throw new Error(answer?.error ?? `Crossfeed answered ${res.status}. Try again.`)
+  if (!res.ok || !answer)
+    throw new Refused(answer?.error ?? `Crossfeed answered ${res.status}. Try again.`, res.status, answer)
   return answer as T
+}
+
+// A refusal `send` throws: its words, and the status and the whole answer, for a caller that branches
+// on more than the words, such as a change held until the member confirms it's them.
+export class Refused extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly answer: Record<string, unknown> | null
+  ) {
+    super(message)
+  }
 }
 
 // Runs one action at a time for a form, keeping its error for the form to show.

@@ -3,7 +3,7 @@ import { Fragment, useState, type ReactNode } from 'react'
 import type { AccountNetwork, AccountPasskey } from '../directory'
 import { listOf, MAX_NAME } from '../text'
 import { Alert, day, ScrollTable, send, useAction } from './controls'
-import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
+import { prompted, RecoveryCode, sendConfirmed, useCodeAsk, type Ceremony } from './Passkeys'
 import { StateLine } from './states'
 
 // The member's account page, at /app/account: their name, their passkeys, a new recovery code, their
@@ -112,11 +112,12 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
   const [asking, setAsking] = useState<string | null>(null)
   const [added, setAdded] = useState<string | null>(null)
   const { busy, error, run } = useAction()
+  const code = useCodeAsk('acct-keys-code')
   const only = passkeys.length === 1
 
   const add = () =>
     run(async () => {
-      const { challenge, options } = await send<Ceremony>('/auth/passkeys/options')
+      const { challenge, options } = await sendConfirmed<Ceremony>('/auth/passkeys/options', {}, code.ask)
       const response = await prompted(
         () => startRegistration({ optionsJSON: options }),
         'The passkey prompt closed before a passkey was made. Try again when you’re ready.',
@@ -206,12 +207,14 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
         {only && <p className="help">Your only passkey can’t be removed: add another first.</p>}
         <div className="acts">
           <button className="btn pri" type="button" disabled={busy} onClick={() => void add()}>
-            {busy ? 'Waiting for your passkey…' : 'Add a passkey'}
+            {code.asking ? 'Confirming…' : busy ? 'Waiting for your passkey…' : 'Add a passkey'}
           </button>
         </div>
+        {code.form}
         <Alert error={error} />
         <p className="help">
-          Your browser asks where to keep it: on this device, a phone nearby, or your password manager.
+          Your browser asks where to keep it: on this device, a phone nearby, or your password manager. Unless you
+          confirmed it’s you in the last five minutes, it asks for a passkey you have first.
         </p>
       </div>
     </section>
@@ -228,8 +231,11 @@ function addedAt(p: AccountPasskey, all: AccountPasskey[]) {
 
 function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
   const { busy, error, run } = useAction()
+  const code = useCodeAsk('acct-code-code')
   const renew = () =>
-    run(async () => onCode((await send<{ recoveryCode: string }>('/app/account/recovery-code')).recoveryCode))
+    run(async () =>
+      onCode((await sendConfirmed<{ recoveryCode: string }>('/app/account/recovery-code', {}, code.ask)).recoveryCode)
+    )
   return (
     <section className="mod set-mod" aria-labelledby="acct-code-h">
       <About id="acct-code-h" title="Recovery code">
@@ -238,13 +244,14 @@ function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
       <div className="set-body">
         <div className="acts">
           <button className="btn" type="button" disabled={busy} onClick={() => void renew()}>
-            {busy ? 'Working…' : 'Get a new recovery code'}
+            {code.asking ? 'Confirming…' : busy ? 'Working…' : 'Get a new recovery code'}
           </button>
         </div>
+        {code.form}
         <Alert error={error} />
         <p className="help">
           For a code you’ve lost, or one someone else may have seen: your old code stops working, and the new one shows
-          once.
+          once. Unless you confirmed it’s you in the last five minutes, Crossfeed asks for your passkey first.
         </p>
       </div>
     </section>
@@ -396,10 +403,11 @@ function NetworksModule({ networks, onlyOwner }: { networks: AccountNetwork[]; o
 function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
   const [asking, setAsking] = useState(false)
   const { busy, error, run } = useAction()
+  const code = useCodeAsk('acct-delete-code')
   const blocked = onlyOwner.length > 0
   const remove = () =>
     run(async () => {
-      await send('/app/account/delete')
+      await sendConfirmed('/app/account/delete', {}, code.ask)
       window.location.assign('/')
     })
   return (
@@ -415,9 +423,9 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
             <p>Delete your account? You’re signed out everywhere, and it can’t be brought back.</p>
             <div className="acts">
               <button className="btn pri" type="button" disabled={busy} onClick={() => void remove()}>
-                {busy ? 'Deleting…' : 'Delete account'}
+                {code.asking ? 'Confirming…' : busy ? 'Deleting…' : 'Delete account'}
               </button>
-              <button className="lnk" type="button" onClick={() => setAsking(false)}>
+              <button className="lnk" type="button" disabled={busy} onClick={() => setAsking(false)}>
                 Keep it
               </button>
             </div>
@@ -429,6 +437,7 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
             </button>
           </div>
         )}
+        {code.form}
         <Alert error={error} />
         {blocked && (
           <p className="help">

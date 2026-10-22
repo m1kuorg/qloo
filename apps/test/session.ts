@@ -219,11 +219,35 @@ export type Member = {
   invite: (network: string) => Promise<string>
 }
 
+// Sends a change from the member's browser, as `member.fetch` does. When it's refused until they confirm
+// it's them (step-up), it confirms with their own passkey, as the account page asks for it, and sends
+// the change again; a refusal that asks for their recovery code is answered as it is.
+export async function confirmedFetch(member: Member, path: string, init: RequestInit = {}) {
+  const res = await member.fetch(path, init)
+  if (res.status !== 403) return res
+  const { stepUp, challenge, options } = await res
+    .clone()
+    .json<{ stepUp?: string; challenge: string; options: never }>()
+  if (stepUp !== 'passkey') return res
+  const proved = await member.fetch('/auth/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge, response: await member.authenticator.authenticate(options) })
+  })
+  if (proved.status !== 200)
+    throw new Error(`Confirming it's the member returned ${proved.status}: ${await proved.text()}`)
+  return member.fetch(path, init)
+}
+
 // Adds a passkey made by `device`, another device's authenticator, to the member's account through both
 // steps of the ceremony, as the account page does from a browser with user agent `ua`, which names the
-// passkey. The answer is the second step's, or the first's when it refuses.
+// passkey, confirming it's them first if it's asked. The answer is the second step's, or the first's
+// when it refuses.
 export async function addPasskey(member: Member, device: Authenticator, ua = '') {
-  const started = await member.fetch('/auth/passkeys/options', { method: 'POST', headers: { 'User-Agent': ua } })
+  const started = await confirmedFetch(member, '/auth/passkeys/options', {
+    method: 'POST',
+    headers: { 'User-Agent': ua }
+  })
   if (started.status !== 200) return started
   const { challenge, options } = await started.json<{ challenge: string; options: never }>()
   return member.fetch('/auth/passkeys', {
