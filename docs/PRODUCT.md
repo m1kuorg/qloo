@@ -76,7 +76,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - Show the evidence behind every claim: the Qloo call, its entities and tags, and the affinities it returned, kept apart from the model's interpretation.
 - Keep a network's roster, inbox, and launches for its members: passkey sign-in with a recovery code, networks with owners and members, invite links, a dashboard of launches with a setup checklist, each launch planned on its own with every run kept, and teammates' changes shown live.
 - Take the network's own files: a roster CSV or a text file of names, and pitch emails as `.eml`, `.mbox`, or text, re-importing a roster without undoing what was settled.
-- Let owners set the network's name and CPM, manage members, invite links, and API keys, bring the network's own Qloo key, see today's usage against the daily caps, and delete the network; let every member manage their own account.
+- Let owners set the network's name and CPM, manage members, invite links, and API keys, bring the network's own Qloo key, see today's usage against the daily caps, and delete the network; let every member manage their own account, and delete it so that Crossfeed forgets them in every network they were in, now or before.
 - Serve programs and assistants: a REST API with an OpenAPI document, a typed TypeScript SDK, an MCP server, two Agent Skills, a Claude Code plugin, and developer docs at `/docs` and `/llms.txt`.
 
 ### Constraints

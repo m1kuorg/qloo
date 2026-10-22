@@ -26,6 +26,6 @@ FORM: The chart index: position 4 on my ordered list, dealt as the lead. seed:43
 
 FIRST VIEWPORT: Black bar; the docs rail at the left with "Developer docs", the five pages, the page on view in Panel Grey with its sections beneath, then the record of the API's base, OpenAPI, MCP, auth, and llms.txt; the reading column with the page's h1, a one-paragraph lede, and its first section under a hairline (on `/docs`, the four ways in).
 
-READING: a 68ch measure at 15px/1.6; sections divided by hairlines with 48px above; h2 22/28 700, h3 16/22 600; code on Panel Grey under a Label naming its language or a mono file name.
+READING: a 34em measure at 15px/1.6 (about 70 characters a line in Libre Franklin; `68ch` would run about 100); sections divided by hairlines with 48px above; h2 22/28 700, h3 16/22 600; code on Panel Grey under a Label naming its language or a mono file name.
 
 FINISH: reviewed at 1440 and 375; DESIGN.md's docs section is the docs ticket's (#174).
