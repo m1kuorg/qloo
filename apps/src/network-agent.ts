@@ -8,6 +8,7 @@ import {
   type LaunchInput,
   type LaunchSummary,
   type RosterCopy,
+  type SessionProps,
   type State
 } from './agent'
 import { globalGateway } from './gateway'
@@ -45,8 +46,7 @@ export const ownGateway = (env: Env, name: string) => env.QlooGateway.getByName(
 // first and a network without a key never has an instance.
 const OWN_KEY = 'crossfeed_own_qloo_key'
 export const hasOwnKey = (storage: DurableObjectStorage) => storage.kv.get(OWN_KEY) === true
-export const keepOwnKey = (storage: DurableObjectStorage, set: boolean) =>
-  set ? storage.kv.put(OWN_KEY, true) : storage.kv.delete(OWN_KEY)
+export const keepOwnKey = (storage: DurableObjectStorage, set: boolean) => storage.kv.put(OWN_KEY, set)
 
 // The gateway a network's Qloo calls go through, and its launches': its own instance while it has a key
 // of its own, as the agent in `storage` knows, else the global one, as every other network's and the
@@ -87,6 +87,22 @@ export class NetworkAgent extends CrossfeedAgent {
   // makes them, and with no connection at all, as the Worker's own calls have (TRD agent limits).
   protected limitKey() {
     return networkLimitKey(this.name)
+  }
+
+  // An agent from before #197 was never told whether the network has a Qloo key of its own, which one
+  // saved then is kept in the network's gateway instance: it asks that instance once, as it next starts.
+  // A new network's agent knows it has none until its settings say otherwise, so it asks nothing. One
+  // that can't ask goes on without, and asks again as it next starts.
+  async onStart(props?: SessionProps) {
+    const { storage } = this.ctx
+    if (storage.kv.get(OWN_KEY) === undefined)
+      if (!this.startedBefore()) keepOwnKey(storage, false)
+      else
+        await ownGateway(this.env, this.name)
+          .ownKey()
+          .then(({ set }) => keepOwnKey(storage, set))
+          .catch((e) => console.error(JSON.stringify({ event: 'own_key_lookup', error: String(e) })))
+    return super.onStart(props)
   }
 
   // Its Qloo calls go through its own gateway instance while it has a Qloo key of its own (ADR 0004).

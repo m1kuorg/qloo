@@ -78,8 +78,8 @@ const OWNERS_ONLY = "Only an owner, or an API key an owner made, can change the 
 
 // What the network has used today against its own daily caps, and when they reset. Crossfeed's caps
 // across all networks and visitors apply too. Its Qloo calls count in the gateway they go through, its
-// own while it has a Qloo key of its own, as its agent knows, and its model runs in the global one (ADR
-// 0004).
+// own while it has a Qloo key of its own, as its agent knows, and its model runs in the global one
+// (ADR 0004).
 export async function getUsage({ env, network }: OperationContext): Promise<Usage> {
   const key = networkLimitKey(network)
   const [usage, ownKey] = await Promise.all([globalGateway(env).usage(key), (await agent(env, network)).hasOwnKey()])

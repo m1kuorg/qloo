@@ -8,6 +8,7 @@
 import {
   createExecutionContext,
   createScheduledController,
+  evictDurableObject,
   listDurableObjectIds,
   runInDurableObject,
   waitOnExecutionContext
@@ -397,6 +398,22 @@ describe("a network's own Qloo key", () => {
     expect((await settings(ada, own)).usage.qlooCalls.used).toBe(1)
   })
 
+  it("stays the network's when it was saved before its agent kept whether it has one (#197)", async () => {
+    const ada = await openMember()
+    const own = await created(ada)
+    fakeQloo({ search, keys: [OWN] })
+    expect((await addKey(ada, own, HACKATHON, OWN)).status).toBe(200)
+    // An agent from before #197 never kept it: drop what it keeps, then restart it, as a deploy does.
+    const agent = env.NetworkAgent.get(env.NetworkAgent.idFromName(own))
+    await runInDurableObject(agent, (_, state) => state.storage.kv.delete('crossfeed_own_qloo_key'))
+    await evictDurableObject(agent)
+
+    requests.length = 0
+    await (await connect(ada, `/agents/network/${own}`)).importRoster('Corner Booth')
+    expect(sent()).toEqual([[`${HACKATHON}/search`, OWN]])
+    expect((await settings(ada, own)).qlooKey).toEqual({ set: true, host: HACKATHON, last4: '7f3a' })
+  })
+
   it('stays, carrying the calls still, when wiping it fails, so the owner can remove it again', async () => {
     const ada = await openMember()
     const own = await created(ada)
@@ -411,6 +428,23 @@ describe("a network's own Qloo key", () => {
 
     expect((await post(ada, `/app/${own}/settings/qloo-key/remove`)).status).toBe(200)
     expect((await settings(ada, own)).qlooKey).toEqual({ set: false })
+  })
+
+  it('can be added again when a removal emptied its instance but its answer was lost', async () => {
+    const ada = await openMember()
+    const own = await created(ada)
+    fakeQloo({ search, keys: [OWN] })
+    expect((await addKey(ada, own, HACKATHON, OWN)).status).toBe(200)
+    const wipe = QlooGateway.prototype.wipe
+    vi.spyOn(QlooGateway.prototype, 'wipe').mockImplementationOnce(async function (this: QlooGateway) {
+      await wipe.call(this)
+      throw new Error('The answer was lost.')
+    })
+    expect((await post(ada, `/app/${own}/settings/qloo-key/remove`)).status).toBe(500)
+    await vi.waitFor(async () => expect((await settings(ada, own)).qlooKey).toEqual({ set: false }))
+
+    expect((await addKey(ada, own, HACKATHON, OWN)).status).toBe(200)
+    expect((await settings(ada, own)).qlooKey).toEqual({ set: true, host: HACKATHON, last4: '7f3a' })
   })
 
   it('fails a call its removal cuts off with why, rather than a storage error', async () => {
@@ -434,7 +468,7 @@ describe("a network's own Qloo key", () => {
     const { roster } = await network.until((s) => s.roster.every((show) => show.resolution !== 'pending'))
     vi.useRealTimers()
     const cutOff =
-      "The Qloo gateway failed: The network's own Qloo key was removed while this call was out, so it was cut off. Make it again: the network's calls go through Crossfeed's shared key from now on"
+      "The Qloo gateway failed: The network's own Qloo key was removed, or the network deleted, while this call was out, so it was cut off. Calls made from now on go through Crossfeed's shared key"
     expect(roster.map((show) => [show.resolution, show.error])).toEqual([
       ['failed', cutOff],
       ['failed', cutOff]

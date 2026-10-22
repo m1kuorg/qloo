@@ -432,10 +432,12 @@ appPages.post('/app/:networkId/settings/qloo-key', async (c) => {
   if (pasted.length > MAX_QLOO_KEY || /\s/.test(pasted))
     return c.json({ error: 'That isn’t a Qloo API key: paste the key alone, as Qloo sent it.' }, 400)
   const networkAgent = await getAgentByName(c.env.NetworkAgent, id)
-  // Another key would share the first one's cache and counts, so it takes the first one's removal.
-  if (await networkAgent.hasOwnKey())
-    return c.json({ error: 'The network has its own Qloo key already. Remove it, then add the new one.' }, 409)
   const gateway = ownGateway(c.env, id)
+  // Another key would share the first one's cache and counts, so it takes the first one's removal. The
+  // instance is asked only once the agent says it has a key, as after a wipe that failed once it had
+  // emptied it, which leaves nothing to remove.
+  if ((await networkAgent.hasOwnKey()) && (await gateway.ownKey()).set)
+    return c.json({ error: 'The network has its own Qloo key already. Remove it, then add the new one.' }, 409)
   const failed = await gateway.setKey(host, pasted)
   if (failed) return c.json({ error: failed }, 400)
   // From here on the network's and its launches' calls go through its instance.
@@ -445,8 +447,9 @@ appPages.post('/app/:networkId/settings/qloo-key', async (c) => {
 })
 
 // Removes the network's own key, wiping its gateway instance with its cache and counts: its Qloo calls
-// go through the global gateway again. Its agents hear it first, so no call they make after reaches the
-// wiped instance, and they hear it back if the wipe fails, so the key stays shown, to remove again.
+// go through the global gateway again. Its agents hear of it before the wipe, so none of their later
+// calls reaches the wiped instance. If the wipe fails, they hear the key is back, so it stays shown and
+// can be removed again.
 appPages.post('/app/:networkId/settings/qloo-key/remove', async (c) => {
   const id = c.req.param('networkId')
   const refused = await refuseNonOwner(c, id, QLOO_KEY_OWNERS_ONLY)
@@ -461,7 +464,11 @@ appPages.post('/app/:networkId/settings/qloo-key/remove', async (c) => {
   await ownGateway(c.env, id)
     .wipe()
     .catch(async (e) => {
-      await networkAgent.noteOwnKey(true)
+      await networkAgent
+        .noteOwnKey(true)
+        .catch((again) =>
+          console.error(JSON.stringify({ event: 'own_key_restore', network: id, error: String(again) }))
+        )
       throw e
     })
   const usage = await getUsage({ env: c.env, network: id, caller: { member: c.var.member, role: 'owner' } })
