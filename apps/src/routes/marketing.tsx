@@ -83,7 +83,7 @@ function Chart() {
               <tr class={open ? 'hot' : undefined}>
                 <td class="pos">
                   {r.rank}
-                  {climber && <i class="bul" aria-hidden="true" style={`--landing: ${landing++}`} />}
+                  {climber && <i class="bul" aria-hidden="true" data-landing={Math.min(landing++, 6)} />}
                 </td>
                 <td class="lw">{r.last}</td>
                 <td class={`mv${move < 0 ? ' dn' : move === 0 ? ' eq' : ''}`}>
