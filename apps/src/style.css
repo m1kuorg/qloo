@@ -85,6 +85,10 @@
   --body: 'Libre Franklin', sans-serif;
   --cond: 'Barlow Condensed', sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The reading measure: about 70 characters a line at any size, as Libre Franklin's prose runs about
+     0.47em a character with its spaces. Not in `ch`, since its zero is 0.69em wide: 68ch would run about
+     100. */
+  --measure: 34em;
   /* Motion: feedback, a state changing, and the gainer bullet landing, all easing out. */
   --t-quick: 120ms;
   --t-state: 200ms;
@@ -188,10 +192,16 @@ textarea {
   line-height: 16px;
 }
 
-/* The sample network's notice and clear button, where the roster's help line would be. */
+/* The sample network's notice and clear button, where the roster's help line would be. Its words keep
+   to the reading measure. */
 .sample-notice {
   max-width: 760px;
   margin: -4px 0 16px;
+}
+
+.sample-notice p,
+p.sample-notice {
+  max-width: var(--measure);
 }
 
 /* A network's roster page has no section heading above the notice, so it starts where the import
@@ -1121,7 +1131,7 @@ fieldset {
 }
 
 .sec-help {
-  max-width: 88ch;
+  max-width: var(--measure);
   margin: -4px 0 12px;
 }
 
@@ -1487,6 +1497,7 @@ fieldset {
 }
 
 .notice {
+  max-width: var(--measure);
   margin-top: 10px;
 }
 
@@ -1555,7 +1566,7 @@ fieldset {
 }
 
 .draft {
-  max-width: 68ch;
+  max-width: var(--measure);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1567,7 +1578,7 @@ fieldset {
 .reply-edit {
   display: grid;
   gap: 6px;
-  max-width: 68ch;
+  max-width: var(--measure);
 }
 
 .reply-edit textarea {
@@ -2565,6 +2576,7 @@ a.btn {
 
 .mk-doc p,
 .mk-doc li {
+  max-width: var(--measure);
   font-size: 15px;
   line-height: 1.6;
 }
@@ -2622,8 +2634,8 @@ a.btn {
    shows once: monospace on Panel Grey. Tables keep the chart's rules. */
 .dk {
   --dk-nav: 240px;
-  /* One measure for the reading column's prose, ledes, and records. */
-  --dk-measure: 680px;
+  /* The width of the reading column's records; its prose and ledes keep to the reading measure. */
+  --dk-records: 680px;
   display: grid;
   grid-template-columns: var(--dk-nav) minmax(0, 1fr);
   padding: 0 var(--gutter);
@@ -2719,13 +2731,13 @@ a.btn {
 }
 
 .dk .mk-lede {
-  max-width: var(--dk-measure);
+  max-width: var(--measure);
   margin-top: 12px;
 }
 
 .dk-closed {
   margin-top: 16px;
-  max-width: 42em;
+  max-width: var(--measure);
   font-size: 13px;
   color: var(--mid);
 }
@@ -2752,7 +2764,7 @@ a.btn {
 
 .dk-col p,
 .dk-col li {
-  max-width: var(--dk-measure);
+  max-width: var(--measure);
   font-size: 15px;
   line-height: 1.6;
   text-wrap: pretty;
@@ -2848,6 +2860,13 @@ a.btn {
   overflow-wrap: anywhere;
 }
 
+/* A cell's sentences keep to the reading measure inside it, as a cell can't take a max-width, so the
+   table keeps its width. */
+.dk-cell-text {
+  display: block;
+  max-width: var(--measure);
+}
+
 .dk-skills tbody th {
   width: 30%;
 }
@@ -2908,7 +2927,7 @@ a.btn {
 }
 
 .dk-io.rec {
-  max-width: var(--dk-measure);
+  max-width: var(--dk-records);
   margin-top: 12px;
   font-size: 13px;
 }

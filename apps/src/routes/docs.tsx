@@ -918,7 +918,9 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
                       </small>
                     </th>
                     <td>
-                      <Prose text={(tool.description ?? '').replace(RELAY, '').trim()} />
+                      <span class="dk-cell-text">
+                        <Prose text={(tool.description ?? '').replace(RELAY, '').trim()} />
+                      </span>
                       {args.length > 0 && (
                         <span class="dk-args">
                           Takes{' '}
@@ -1018,7 +1020,9 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
                 ).map(([who, what]) => (
                   <tr>
                     <th scope="row">{who}</th>
-                    <td>{what}</td>
+                    <td>
+                      <span class="dk-cell-text">{what}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
