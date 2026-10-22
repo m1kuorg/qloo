@@ -33,7 +33,7 @@ import {
   turn,
   type ModelRequest
 } from './fake'
-import { connect as connectVia, openMember, openSession, type Member, type Session } from './session'
+import { readAfterReset, connect as connectVia, openMember, openSession, type Member, type Session } from './session'
 
 // A made-up network: Field Notes is ambiguous until settled, Ghost Signal isn't in Qloo until mapped
 // to a comp, and Back Lot is left out. Night Shift Cinema, the launch, isn't on the roster.
@@ -705,8 +705,8 @@ describe('deleting a launch', () => {
   }
   // A wiped agent's instance is gone once the runtime has reset it, a moment after its wipe: the next
   // call meets a new, empty one.
-  const wipedOut = (network: string, id: string) =>
-    vi.waitFor(async () => expect(await held(network, id)).toEqual({ launch: null, runs: 0, evidence: 0 }))
+  const wipedOut = async (network: string, id: string) =>
+    expect(await readAfterReset(() => held(network, id))).toEqual({ launch: null, runs: 0, evidence: 0 })
 
   it("takes it off every member's dashboard at once, closes its pages, wipes its agent, and its addresses answer 404", async () => {
     const ada = await openMember()
