@@ -82,6 +82,9 @@ export type Booking = {
   pastGuests: PastGuest[]
   lists: PitchList[] | null
   replies: PitchReply[] | null // one per pitch, in inbox order, as draft_replies drafts them
+  // An edit or a discard changed a reply since the agent drafted them, so the run's closing line,
+  // Claude's words as the run completed, may give counts the replies no longer have (#213).
+  repliesEdited?: true
 }
 
 export type Verdict = 'book' | 'decline' | 'later'

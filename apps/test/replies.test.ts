@@ -547,3 +547,58 @@ describe('the booker clearing the inbox', () => {
     }
   })
 })
+
+// The closing line is Claude's words as the run completed, and it gives the replies' verdict counts;
+// replies changed since then say so, and the closing line stays as Claude wrote it (#213).
+describe('a closing line the replies have changed since', () => {
+  it("flags the replies once an edit changes a reply's words, but not for the same words or an approval", async () => {
+    const { s, state } = await pitchRun(drafted)
+    const run = state.run!.id
+    expect(state.run?.closing).toBe('Drafted.')
+    expect(state.booking?.repliesEdited).toBeFalsy()
+
+    // The same words, with spaces round them, and an approved reply saved again as it was.
+    await s.call('editReply', 'pitch-02', `  ${replies[1].draft} `)
+    await s.call('approveReply', 'pitch-04')
+    await s.call('editReply', 'pitch-04', replies[3].draft)
+    expect(statuses(s.state()!).slice(1, 4)).toEqual([
+      ['pitch-02', 'draft'],
+      ['pitch-03', 'draft'],
+      ['pitch-04', 'draft']
+    ])
+    expect(s.state()?.booking?.repliesEdited).toBeFalsy()
+
+    await s.call('editReply', 'pitch-01', 'Night Ferry is a yes for spring.')
+    await s.call('approveReply', 'pitch-01')
+    expect(s.state()?.booking?.replies?.[0].status).toBe('approved')
+    expect(s.state()?.booking?.repliesEdited).toBe(true)
+    expect(s.state()?.run?.closing).toBe('Drafted.')
+    // What the run ended with keeps both, to read it once a new inbox replaces its replies.
+    const ended = await s.call<State>('getRun', run)
+    expect(ended).toMatchObject({ run: { closing: 'Drafted.' }, booking: { repliesEdited: true } })
+    expect(ended.booking?.replies?.[0].draft).toBe('Night Ferry is a yes for spring.')
+  })
+
+  it('flags the replies once one is discarded', async () => {
+    const { s } = await pitchRun(drafted)
+
+    await s.call('discardReply', 'pitch-03')
+    expect(s.state()?.booking?.repliesEdited).toBe(true)
+    expect(s.state()?.run?.closing).toBe('Drafted.')
+  })
+
+  it("notes under the closing line, in code's words, that the replies have changed since Claude drafted them", async () => {
+    const { s, state } = await pitchRun(drafted)
+    // The inbox rail's Run module as the browser renders it.
+    const runModule = (state: State) =>
+      renderToStaticMarkup(
+        createElement(Workspace, { page: 'inbox', agent: { state, stub: {} } as unknown as Agent, links })
+      ).match(/<section class="mod" aria-labelledby="run-log">[\s\S]*?<\/section>/)![0]
+    const note = 'The replies have changed since Claude drafted them: each reply as listed is the current one.'
+    expect(runModule(state)).toContain('Drafted.')
+    expect(runModule(state)).not.toContain(note)
+
+    await s.call('discardReply', 'pitch-03')
+    expect(runModule(s.state()!)).toMatch(new RegExp(`Drafted\\.</p><p[^>]*>${note}</p>`))
+  })
+})
