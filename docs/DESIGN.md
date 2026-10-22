@@ -142,7 +142,8 @@ spacing:
   rail: 448px
   rail-min: 320px
   docs-nav: 240px
-  reading-measure: 680px
+  reading-measure: 34em
+  records-measure: 680px
   form-column: 944px
 components:
   top-bar:
@@ -411,8 +412,8 @@ Fit chart rows are at least 64px, roster, inbox, and launches rows 44px (taller 
 ### The marketing and docs grids
 
 - **Landing page:** the header band (56px above, the headline, the lede, the ways in, and a 12px note), then the app's own grid at persuasion scale: the illustrative chart in the wide column with its key down the rail. Each later section sits 72px below the last, over a hairline, with 48px above its heading; "How a run works" sets its steps as rows of a 48px number, the step's words, and the piece of the app it shows in the rail's width; the inbox section puts its ranked list in the wide column and its words in the rail.
-- **Privacy and terms:** one column of 720px with the page's gutters, 56px above and 72px below.
-- **Developer docs:** a 240px contents rail, sticky as the page scrolls, beside a reading column up to 840px with a hairline down its left and 40px inside it; prose, ledes, and records keep to a 680px measure, and each section sits 48px below the last, over a hairline.
+- **Privacy and terms:** one column of 720px with the page's gutters, 56px above and 72px below; prose keeps to the 34em reading measure, about 70 characters a line.
+- **Developer docs:** a 240px contents rail, sticky as the page scrolls, beside a reading column up to 840px with a hairline down its left and 40px inside it; prose and ledes keep to the 34em reading measure (`--measure`, about 70 characters a line), records and tables to 680px (`--dk-records`), and each section sits 48px below the last, over a hairline. Help lines, sample notices, and reply drafts in the app keep to the same 34em.
 
 ### Forms and records
 
