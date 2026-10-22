@@ -10,7 +10,7 @@ import { HTTPException } from 'hono/http-exception'
 import { accountsOn, fromAppPage, keyFor, signedIn } from '../auth'
 import { memberRole } from '../directory'
 import { workTypes, type PitchInput } from '../inbox'
-import { MAX_ANGLE, MAX_ANSWER, MAX_PAST_GUESTS, MAX_TITLE } from '../limits'
+import { MAX_PAST_GUESTS } from '../limits'
 import {
   answerLaunchRun,
   answerPitchRun,
@@ -43,6 +43,7 @@ import {
 } from '../operations'
 import { csvDownload } from '../order'
 import { REFUSALS, Refusal, refusalCode, type RefusalCode } from '../refusal'
+import { MAX_ANGLE, MAX_ANSWER, MAX_TITLE } from '../text'
 import { MAX_UPLOAD_BYTES, megabytes, readPitchUpload, readRosterUpload, tooBig, type Upload } from '../upload'
 
 type ApiEnv = { Bindings: Env; Variables: { caller: Caller } }
@@ -156,7 +157,7 @@ const context = (c: Context<ApiEnv>): OperationContext => ({
 // answers with, in the types generated from it.
 const orNull = <T extends z.ZodType>(schema: T) => z.union([schema, z.null()])
 
-// Text of at most `max` characters (limits.ts), refused past it before anything reads it.
+// Text of at most `max` characters (text.ts), refused past it before anything reads it.
 const capped = (max: number) => z.string().max(max, { error: `Use at most ${max.toLocaleString('en-US')} characters.` })
 
 // The documented answer to each refusal a route can give.

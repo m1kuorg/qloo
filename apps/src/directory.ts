@@ -509,16 +509,16 @@ export type Invite = { id: string; created: number; expires: number; by: string 
 export async function createInvite(db: D1Database, networkId: string, by: string, cap: number) {
   const invite = { id: crypto.randomUUID(), token: token() }
   const now = Date.now()
-  // The network's invites still open at time `at`, both SQL parameters.
-  const open = (network: string, at: string) =>
+  // How many of the network's invites are still open at time `at`, both SQL parameters.
+  const openCount = (network: string, at: string) =>
     `(SELECT count(*) FROM invites WHERE network_id = ${network} AND used IS NULL AND revoked IS NULL AND expires > ${at})`
   const [made, counted] = await db.batch([
     db
       .prepare(
-        `INSERT INTO invites (id, token_hash, network_id, created_by, created, expires) SELECT ?1, ?2, network_id, member_id, ?3, ?4 FROM memberships WHERE network_id = ?5 AND member_id = ?6 AND role = 'owner' AND ${open('?5', '?3')} < ?7`
+        `INSERT INTO invites (id, token_hash, network_id, created_by, created, expires) SELECT ?1, ?2, network_id, member_id, ?3, ?4 FROM memberships WHERE network_id = ?5 AND member_id = ?6 AND role = 'owner' AND ${openCount('?5', '?3')} < ?7`
       )
       .bind(invite.id, await sha256(invite.token), now, now + INVITE_MS, networkId, by, cap),
-    db.prepare(`SELECT ${open('?1', '?2')} AS n`).bind(networkId, now)
+    db.prepare(`SELECT ${openCount('?1', '?2')} AS n`).bind(networkId, now)
   ])
   if (made.meta.changes) return invite
   return ((counted.results[0] as { n: number } | undefined)?.n ?? 0) >= cap ? ('capped' as const) : null

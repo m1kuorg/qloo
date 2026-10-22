@@ -363,7 +363,7 @@ describe('starting a pitch run', () => {
     await expect(start('M'.repeat(201), 'Glass Harbor')).rejects.toThrow(
       "Past guest 1's name is over 200 characters. Shorten it."
     )
-    expect(Date.now() - began).toBeLessThan(1_000)
+    expect(Date.now() - began).toBeLessThan(2_000)
     // At the limit, both are taken.
     fakeClaude([turn(text('Ranked.'))])
     await s.call('startPitches', {

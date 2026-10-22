@@ -18,7 +18,7 @@ import {
   type Work,
   type WorkMatch
 } from './inbox'
-import { inProgress, MAX_ANSWER, MAX_COMPS, MAX_QLOO_CALLS, MAX_TITLE, MAX_TURNS } from './limits'
+import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
 import {
   cpmProblem,
   dollars,
@@ -34,7 +34,7 @@ import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidat
 import { parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
-import { listOf } from './text'
+import { listOf, MAX_ANSWER, MAX_TITLE } from './text'
 import { tools, type ToolContext, type ToolResult } from './tools'
 import { takesText } from './tools/ask-human'
 import { rankByTopic, topicRequest, withMoves, type Topic } from './topic'
@@ -1773,7 +1773,7 @@ function settleLaunch(
   if (choice === undefined && !name)
     throw new Refusal('invalid', 'Pick a candidate or type the name Qloo lists it under.')
   if (name) {
-    const renamed = launchName(name)
+    const renamed = readLaunchName(name)
     return {
       answer: `Look it up as "${renamed}".`,
       stored: {},
@@ -1823,11 +1823,11 @@ export function readLaunch(
   }
   const name = 'name' in given && typeof given.name === 'string' ? given.name.trim() : ''
   if (!name) throw new Refusal('invalid', `Name the launch ${to}.`)
-  return { name: launchName(name), comps: null }
+  return { name: readLaunchName(name), comps: null }
 }
 
 // A launch's name as the programmer typed it, once it's within the limit.
-function launchName(name: string) {
+function readLaunchName(name: string) {
   if (name.length > MAX_TITLE) throw new Refusal('invalid', `Use a launch name of at most ${MAX_TITLE} characters.`)
   return name
 }

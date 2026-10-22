@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import type { Show, ShowPatch, SlowCall } from '../agent'
 import { dollars } from '../order'
-import { MAX_TITLE } from '../limits'
+import { MAX_TITLE } from '../text'
 import type { RosterFormat } from '../roster'
 import type { SampleFigure } from '../sample'
 import { readRosterUpload } from '../upload'

@@ -32,12 +32,12 @@ export type Ceremony = { challenge: string; options: never }
 // whose ceremony comes with the refusal, or, in a browser signed in with the recovery code, that code.
 type StepUp = ({ stepUp: 'passkey' } & Ceremony) | { stepUp: 'code' }
 
-// Sends a change as `send` does. When the Worker holds it until the member confirms it's them, the
-// browser asks for their passkey there and then, or `askCode` asks for their recovery code; once it's
-// confirmed, the change goes again.
-export async function sendConfirmed<T>(path: string, body: object, askCode: () => Promise<string>): Promise<T> {
+// Sends a change, which takes no body, as `send` does. When the Worker holds it until the member
+// confirms it's them, the browser asks for their passkey there and then, or `askCode` asks for their
+// recovery code; once it's confirmed, the change goes again.
+export async function sendConfirmed<T>(path: string, askCode: () => Promise<string>): Promise<T> {
   try {
-    return await send<T>(path, body)
+    return await send<T>(path)
   } catch (err) {
     const held = err instanceof Refused && err.status === 403 ? (err.answer as Partial<StepUp> | null) : null
     if (!held?.stepUp) throw err
@@ -49,7 +49,7 @@ export async function sendConfirmed<T>(path: string, body: object, askCode: () =
       )
       await send('/auth/verify', { challenge: (held as Ceremony).challenge, response })
     }
-    return send<T>(path, body)
+    return send<T>(path)
   }
 }
 

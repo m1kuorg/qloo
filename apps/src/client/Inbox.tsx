@@ -13,7 +13,8 @@ import {
   type Verdict,
   type WorkType
 } from '../inbox'
-import { MAX_PAST_GUESTS, MAX_TITLE } from '../limits'
+import { MAX_PAST_GUESTS } from '../limits'
+import { MAX_TITLE } from '../text'
 import { sameName } from '../resolve'
 import { readPitchUpload } from '../upload'
 import type { Links, Session } from './App'

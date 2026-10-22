@@ -15,6 +15,13 @@ export const moveWords = (move: number) =>
 // The longest name a member or a network can have.
 export const MAX_NAME = 64
 
+// The longest text the agent takes from a person, an API key, or Claude, checked before anything reads
+// it, so no pattern runs long on it: a title or a name, such as a launch's, a comp's, a work's, or a
+// guest's; a typed answer to the agent's question; and an insertion order line's angle.
+export const MAX_TITLE = 200
+export const MAX_ANSWER = 2_000
+export const MAX_ANGLE = 500
+
 // A name as typed, trimmed, or why it can't be one; `missing` says what to do when there's none.
 export function readName(value: unknown, missing: string): { name: string } | { error: string } {
   const name = typeof value === 'string' ? value.trim() : ''

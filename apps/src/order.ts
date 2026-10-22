@@ -2,7 +2,7 @@
 // never the model, prices it: a slot is worth downloads per episode × CPM ÷ 1,000, rounded to whole
 // dollars, and a line is worth its slots times that. Shared by the agent and the UI's live totals.
 import type { Show } from './agent'
-import { MAX_ANGLE } from './limits'
+import { MAX_ANGLE } from './text'
 
 // What the model drafts and the programmer edits: a finalist, its promo slots, and the host-read angle.
 export type LineInput = { show: string; slots: number; angle: string }

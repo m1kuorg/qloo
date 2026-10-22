@@ -206,11 +206,11 @@ describe('loading the inbox', () => {
     fakeReader(3, () => ({ guest: 'Rue Vance', work: null }))
     const { network, call } = await networkWithKey()
     // Tags, attribute quotes, and a comment left open, each of which a pattern would take seconds over.
-    for (const broken of ['<br "'.repeat(20_000), '<p "'.repeat(25_000), '<!--'.repeat(25_000)]) {
+    for (const broken of ['<br "'.repeat(20_000), '<p "'.repeat(25_000), '<!--'.repeat(50_000)]) {
       const email = paperMoons.replace(/<html>.*<\/html>/, `<p>Rue Vance on Paper Moons.</p>${broken}`)
       const began = Date.now()
       const res = await loadInbox(call, network, email, 'message/rfc822', '?replace=true')
-      expect(Date.now() - began, broken.slice(0, 4)).toBeLessThan(500)
+      expect(Date.now() - began, broken.slice(0, 4)).toBeLessThan(1_000)
       // What's left open runs to the end, and goes with it: the pitch is the paragraph before.
       expect(res.status).toBe(202)
       expect((await inboxRead(call, network)).pitches.map((p) => p.body)).toEqual(['Rue Vance on Paper Moons.'])

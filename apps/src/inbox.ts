@@ -3,11 +3,11 @@
 // message, so an inbox never loads in part, but for an uploaded pitch too long to read, which is
 // skipped and named.
 import type { PitchList, SharedTags } from './fit'
-import { MAX_PAST_GUESTS, MAX_TITLE } from './limits'
+import { MAX_PAST_GUESTS } from './limits'
 import { personalIn, type Candidate } from './resolve'
 import { Refusal } from './refusal'
 import sampleInbox from './sample-inbox.json'
-import { listOf } from './text'
+import { listOf, MAX_TITLE } from './text'
 
 export type WorkType = 'book' | 'film' | 'tv_show' | 'podcast'
 export const workTypes: WorkType[] = ['book', 'film', 'tv_show', 'podcast']

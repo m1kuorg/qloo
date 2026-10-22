@@ -90,6 +90,20 @@ describe('a change to how a member signs in, or deleting their account', () => {
       expect((await make(ada)).status).toBe(200)
     })
 
+  it('needs the proof still within five minutes as the new passkey arrives, not only as its ceremony starts', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const ada = await openMember()
+    vi.setSystemTime(Date.now() + 4 * MINUTE)
+    const started = await changes['add a passkey'](ada)
+    const { challenge, options } = await started.json<{ challenge: string; options: never }>()
+    const response = await softwareAuthenticator().register(options)
+    vi.setSystemTime(Date.now() + 2 * MINUTE)
+
+    const late = await post(ada, '/auth/passkeys', { challenge, response })
+    expect(late.status).toBe(403)
+    expect(await late.json()).toMatchObject({ error: passkeyFirst, stepUp: 'passkey' })
+  })
+
   it('takes a sign-up or a sign-in with a passkey as the proof, for five minutes', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     const ada = await openMember()
@@ -141,7 +155,7 @@ describe('a change to how a member signs in, or deleting their account', () => {
     const code = await post(ada, '/auth/verify', { code: ada.recoveryCode })
     expect([code.status, await code.json()]).toEqual([
       400,
-      { error: 'Confirm it’s you with your passkey: a recovery code confirms only a browser signed in with it.' }
+      { error: "Confirm it's you with your passkey: a recovery code confirms only a browser signed in with it." }
     ])
 
     expect((await changes['delete the account'](ada)).status).toBe(403)

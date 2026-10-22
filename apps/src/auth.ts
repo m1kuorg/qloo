@@ -36,14 +36,14 @@ export function setSession(c: Context, token: string) {
 export async function signedIn<E extends { Bindings: Env }>(c: Context<E>): Promise<Member | null> {
   const member = await session(c)
   if (!member) return null
-  if (member.extended) setSession(c, getCookie(c, COOKIE, 'host')!)
+  if (member.extended) setSession(c, sessionToken(c)!)
   return { id: member.id, name: member.name }
 }
 
 // The signed-in member, or null, leaving the cookie as it is: for an answer that can't take a header,
 // such as an agent's WebSocket upgrade. The session is still extended; the next page extends the cookie.
 export async function session<E extends { Bindings: Env }>(c: Context<E>) {
-  const token = getCookie(c, COOKIE, 'host')
+  const token = sessionToken(c)
   return token ? sessionMember(c.env.DB, token) : null
 }
 

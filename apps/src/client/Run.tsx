@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Budget, Launch, Question, Reply, Run } from '../agent'
-import { MAX_ANSWER, MAX_COMPS, MAX_TITLE } from '../limits'
+import { MAX_COMPS } from '../limits'
+import { MAX_ANSWER, MAX_TITLE } from '../text'
 import { offeredBy } from '../resolve'
 import { takesText } from '../tools/ask-human'
 import type { Session } from './App'

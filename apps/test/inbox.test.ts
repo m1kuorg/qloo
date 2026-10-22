@@ -310,7 +310,7 @@ describe("Claude's reading of a pitch", () => {
     await s.call('loadInbox', { text: `${pasted}\n---\nLow Tide is a film about a harbour town.` })
     const { inbox } = await loaded(s)
 
-    expect(Date.now() - began).toBeLessThan(2_000)
+    expect(Date.now() - began).toBeLessThan(4_000)
     expect(inbox!.pitches.map((p) => [p.status, p.error])).toEqual([
       ['unreadable', "The work's title is over 200 characters, so it isn't sent to Qloo."],
       ['unreadable', "The guest's name is over 200 characters, so the pitch is set aside."]

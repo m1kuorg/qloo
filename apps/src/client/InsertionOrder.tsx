@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Budget, Show } from '../agent'
-import { MAX_ANGLE } from '../limits'
+import { MAX_ANGLE } from '../text'
 import { dollars, priceLines, type InsertionOrder, type LineInput, type OrderLine, type Priced } from '../order'
 import { Alert, day, useAction } from './controls'
 import { Source } from './Source'

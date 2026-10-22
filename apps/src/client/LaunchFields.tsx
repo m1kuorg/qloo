@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { LaunchInput } from '../agent'
-import { MAX_COMPS, MAX_TITLE } from '../limits'
+import { MAX_COMPS } from '../limits'
+import { MAX_TITLE } from '../text'
 
 // What a launch goes by: its name, or for an unreleased one, its comps. The dashboard lists it so too.
 export const launchTitle = (name: string | null, comps: string[]) => name ?? comps.join(' · ')

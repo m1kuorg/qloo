@@ -2,7 +2,7 @@
 // public work it's about. The pitch goes to Anthropic; nothing here talks to Qloo.
 import { declined, structured } from './claude'
 import { workTypes, type Pitch, type Work } from './inbox'
-import { MAX_TITLE } from './limits'
+import { MAX_TITLE } from './text'
 import { personalIn } from './resolve'
 
 const instructions = `You read guest pitches sent to a podcast's booker. From one pitch, extract the guest and the public work the pitch is about.

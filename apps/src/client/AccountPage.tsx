@@ -117,7 +117,7 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
 
   const add = () =>
     run(async () => {
-      const { challenge, options } = await sendConfirmed<Ceremony>('/auth/passkeys/options', {}, code.ask)
+      const { challenge, options } = await sendConfirmed<Ceremony>('/auth/passkeys/options', code.ask)
       const response = await prompted(
         () => startRegistration({ optionsJSON: options }),
         'The passkey prompt closed before a passkey was made. Try again when you’re ready.',
@@ -234,7 +234,7 @@ function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
   const code = useCodeAsk('acct-code-code')
   const renew = () =>
     run(async () =>
-      onCode((await sendConfirmed<{ recoveryCode: string }>('/app/account/recovery-code', {}, code.ask)).recoveryCode)
+      onCode((await sendConfirmed<{ recoveryCode: string }>('/app/account/recovery-code', code.ask)).recoveryCode)
     )
   return (
     <section className="mod set-mod" aria-labelledby="acct-code-h">
@@ -407,7 +407,7 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
   const blocked = onlyOwner.length > 0
   const remove = () =>
     run(async () => {
-      await sendConfirmed('/app/account/delete', {}, code.ask)
+      await sendConfirmed('/app/account/delete', code.ask)
       window.location.assign('/')
     })
   return (

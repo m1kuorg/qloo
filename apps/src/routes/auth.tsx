@@ -281,7 +281,7 @@ auth.post('/auth/sign-up', async (c) => {
 auth.post('/auth/passkeys/options', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
-  // The ceremony's second step comes only with the challenge this step gives, so it's asked here.
+  // Asked here, so the page asks at once, and again as the new passkey arrives.
   const unproved = await stepUpRefused(c, member)
   if (unproved) return unproved
   const has = await memberPasskeys(c.env.DB, member.id)
@@ -291,10 +291,13 @@ auth.post('/auth/passkeys/options', async (c) => {
 })
 
 // Adding a passkey, second step: the browser's new passkey, added once it verifies, for the member
-// whose request it answers. The answer is their passkeys.
+// whose request it answers, while their proof that it's them is still within five minutes. The answer
+// is their passkeys.
 auth.post('/auth/passkeys', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
+  const unproved = await stepUpRefused(c, member)
+  if (unproved) return unproved
   const { challenge, response } = await jsonBody(c)
   const started = await takeStarted(c, 'add-passkey', challenge)
   if (!started || started.memberId !== member.id) return refuse(c, STALE)
@@ -370,7 +373,7 @@ auth.post('/auth/verify', async (c) => {
   const { challenge, response, code } = await jsonBody(c)
   if (code !== undefined) {
     if (!(await sessionProof(c.env.DB, token))?.recovered)
-      return refuse(c, 'Confirm it’s you with your passkey: a recovery code confirms only a browser signed in with it.')
+      return refuse(c, "Confirm it's you with your passkey: a recovery code confirms only a browser signed in with it.")
     if (typeof code !== 'string' || !(await isRecoveryCode(c.env.DB, member.id, code)))
       return refuse(c, "That isn't your recovery code. Check it, or the one Crossfeed showed you last, and try again.")
     await proveSession(c.env.DB, token)
