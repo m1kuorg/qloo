@@ -832,7 +832,9 @@ const Reply = z
       description:
         'Only a member approves a reply, in the app; editing an approved reply returns it to `draft`, and so does editing a discarded one.'
     }),
-    approvedBy: z.string().optional().openapi({ description: 'The ID of the member who approved it.' })
+    approvedBy: z.string().optional().openapi({
+      description: 'The ID of the member who approved it, until their account is deleted.'
+    })
   })
   .openapi('Reply')
 

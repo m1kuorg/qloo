@@ -165,12 +165,14 @@ describe('the privacy page and the beta terms', () => {
     const keys = "A network's API keys are kept only as hashes"
     const signOff =
       'the name of the member or API key that started each run, and of the member who approved each insertion order, and when'
+    const left =
+      'Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it close. Crossfeed keeps only a note that you were in it, so deleting your account later forgets your name there too.'
     const launchGone =
       "Deleting a launch, which any of the network's members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records."
     const networkGone =
       "Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage, each of its launches', and its Qloo storage. A wipe that fails is tried again by the next day's cleanup, which also deletes expired sessions, sign-in challenges, and invite links."
     const accountGone =
-      "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you're in say “Former member” on the runs you started and the orders you approved. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or is made a member. A network that can't be reached at once forgets your name at the next day's cleanup. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
+      "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you're in, or were in before, say “Former member” on the runs you started and the orders you approved, and the replies you approved no longer say who did. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or is made a member. A network that can't be reached at once forgets your name at the next day's cleanup. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
     const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
     const ownKey =
       "A network's own Qloo key, if an owner adds one, is kept encrypted in the network's own Qloo storage, with the host it's for and its last four characters, the only part of it anyone is shown."
@@ -187,6 +189,7 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).toContain(counts)
     expect(words(await page('/privacy'))).toContain(keys)
     expect(words(await page('/privacy'))).toContain(signOff)
+    expect(words(await page('/privacy'))).toContain(left)
     expect(words(await page('/privacy'))).toContain(launchGone)
     expect(words(await page('/privacy'))).toContain(networkGone)
     expect(words(await page('/privacy'))).toContain(accountGone)
@@ -199,6 +202,7 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).not.toContain(kept)
     expect(words(await page('/privacy'))).not.toContain(keys)
     expect(words(await page('/privacy'))).not.toContain(approvals)
+    expect(words(await page('/privacy'))).not.toContain(left)
     expect(words(await page('/privacy'))).not.toContain(launchGone)
     expect(words(await page('/privacy'))).not.toContain(accountGone)
     for (const line of [ownKey, ownKeySent, keyGone]) expect(words(await page('/privacy'))).not.toContain(line)
