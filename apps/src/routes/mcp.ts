@@ -46,10 +46,11 @@ import {
   type LaunchRow,
   type LaunchRun,
   type OperationContext,
+  type OrderInfo,
   type PitchRun,
   type Roster
 } from '../operations'
-import { dollars, type InsertionOrder } from '../order'
+import { dollars } from '../order'
 import { Refusal, refusalCode } from '../refusal'
 import type { Candidate } from '../resolve'
 import { networkLinks } from '../shell'
@@ -446,7 +447,10 @@ const launchLine = (launch: LaunchRow) =>
 const ended = (run: Pick<LaunchRun, 'status' | 'error' | 'closing'>) =>
   `${run.status}.${run.error ? ` ${run.error}` : ''}${run.closing ? ` It ended saying: ${run.closing}` : ''}`
 
-const runLine = (run: LaunchRun) => `Run ${run.id}: ${ended(run)}`
+// A launch's run line. Its closing line stays as Claude wrote it; once the order has been edited since,
+// it may quote figures the order no longer has, so the line says so (#202).
+const runLine = (run: LaunchRun) =>
+  `Run ${run.id}: ${ended(run)}${run.closing && run.insertionOrder?.edited ? ' Its insertion order has been edited since, so take its figures from the order, not from this line.' : ''}`
 
 // A launch as the assistant reads it: where it stands, what its latest run waits on, and its results.
 function launchText(launch: LaunchInfo, page: string) {
@@ -512,7 +516,7 @@ function howToAnswer(question: Question, run?: LaunchRun) {
 }
 
 // An insertion order as the assistant reads it, and where a member approves it.
-const orderText = (order: InsertionOrder, page: string) =>
+const orderText = (order: OrderInfo, page: string) =>
   [
     `Insertion order ${order.id}, ${order.status}, as it stands: ${order.slots} slots, ${dollars(order.total)}${order.complete ? '' : ' over the lines that have a value'}${order.cpm === null ? '' : ` at a ${dollars(order.cpm)} CPM`}.`,
     ...order.lines.map(

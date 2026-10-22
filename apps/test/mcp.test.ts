@@ -392,7 +392,17 @@ describe('planning a launch through the MCP server', () => {
       orderId: 'IO-0001',
       lines: [{ show: 'Corner Booth', slots: 10, angle: 'Late-night regulars stay up for the call-ins.' }]
     })
-    expect(edited.structured).toMatchObject({ status: 'draft', slots: 10, total: 12_000 })
+    expect(drafted.structured.latestRun.insertionOrder.edited).toBe(false)
+    expect(edited.structured).toMatchObject({ status: 'draft', slots: 10, total: 12_000, edited: true })
+    // The closing line stays as Claude wrote it, and says the order has changed since (#202).
+    const after = await client.call('get_launch', { launchId })
+    expect(after.structured.latestRun).toMatchObject({
+      closing: 'Drafted the insertion order.',
+      insertionOrder: { total: 12_000, edited: true }
+    })
+    expect(after.text).toContain(
+      `Run ${runId}: completed. It ended saying: Drafted the insertion order. Its insertion order has been edited since, so take its figures from the order, not from this line.\n`
+    )
     // Nor can an edit approve it.
     const approving = await client.call('edit_order', {
       launchId,

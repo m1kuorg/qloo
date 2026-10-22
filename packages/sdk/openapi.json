@@ -1797,7 +1797,7 @@
               "string",
               "null"
             ],
-            "description": "The agent's closing line, once the run completes."
+            "description": "The agent's closing line, once the run completes, as it wrote it then. Once `insertionOrder.edited`, the order has changed since, so read its figures from the order."
           },
           "budget": {
             "anyOf": [
@@ -2293,6 +2293,10 @@
             "type": "boolean",
             "description": "Every line has a value, so `total` is the order's whole cost."
           },
+          "edited": {
+            "type": "boolean",
+            "description": "An edit has changed it since the agent drafted it, so its run's `closing` may quote figures it no longer has: its own lines and totals are the current ones."
+          },
           "approvedBy": {
             "type": "string",
             "description": "The member who approved it, by name."
@@ -2309,7 +2313,8 @@
           "cpm",
           "slots",
           "total",
-          "complete"
+          "complete",
+          "edited"
         ],
         "description": "The launch plan priced as the inventory it spends: a slot is worth downloads per episode × CPM ÷ 1,000."
       },

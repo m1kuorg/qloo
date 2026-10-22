@@ -1185,6 +1185,10 @@ const InsertionOrder = z
     slots: z.number().int(),
     total: z.number().openapi({ description: 'Dollars, over the lines that have a value.' }),
     complete: z.boolean().openapi({ description: "Every line has a value, so `total` is the order's whole cost." }),
+    edited: z.boolean().openapi({
+      description:
+        "An edit has changed it since the agent drafted it, so its run's `closing` may quote figures it no longer has: its own lines and totals are the current ones."
+    }),
     approvedBy: z.string().optional().openapi({ description: 'The member who approved it, by name.' }),
     approvedAt: z.string().optional()
   })
@@ -1240,7 +1244,10 @@ const LaunchRun = RunFields.extend({
   question: orNull(Question),
   notes: z.array(Note),
   error: z.string().nullable().openapi({ description: 'Why the run failed or stopped.' }),
-  closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
+  closing: z.string().nullable().openapi({
+    description:
+      "The agent's closing line, once the run completes, as it wrote it then. Once `insertionOrder.edited`, the order has changed since, so read its figures from the order."
+  }),
   budget: z
     .union([z.object({ slots: z.number().int() }), z.object({ dollars: z.number() })])
     .nullable()

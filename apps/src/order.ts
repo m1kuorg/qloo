@@ -25,6 +25,9 @@ export type InsertionOrder = Priced & {
   id: string // such as IO-0003, after the run that drafted it
   run: string
   status: 'draft' | 'approved'
+  // An edit, or a new figure it's priced from, changed it since the agent drafted it, so the run's
+  // closing line, Claude's words as the run completed, may quote figures it no longer has (#202).
+  edited?: true
   // The member who approved it, by name and ID, and when (ISO time), on a launch's agent; absent on
   // the demo's, and on any draft. The ID is kept so the name can be forgotten with their account
   // (forgetMember), and never leaves through the API.

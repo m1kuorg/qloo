@@ -476,3 +476,79 @@ describe('the insertion order', () => {
     expect(s.state()?.insertionOrder).toMatchObject({ status: 'draft', cpm: 30, total: 22080 })
   })
 })
+
+// The closing line is Claude's words as the run completed, and it quotes the order's total; an order
+// changed since then says so, and the closing line stays as Claude wrote it (#202).
+describe('a closing line the order has changed since', () => {
+  it('flags the order once an edit changes its lines, but not for the same lines or an approval', async () => {
+    // The model's lines as it may send them: fields in any order, an angle with a trailing space.
+    const { s, state } = await plan({ slots: 20 }, [
+      turn(
+        toolUse('draft_insertion_order', {
+          lines: [
+            { angle: 'Late-night regulars stay up for the call-ins. ', slots: 8, show: 'Corner Booth' },
+            { slots: 6, show: 'Slow Burn', angle: 'Its long interviews share the pace.' }
+          ]
+        })
+      )
+    ])
+    const run = state.run!.id
+    const lines = state.insertionOrder!.lines.map(({ show, slots, angle }) => ({ show, slots, angle }))
+    expect(state.run?.closing).toBe('Drafted the insertion order.')
+    expect(state.insertionOrder?.edited).toBeFalsy()
+
+    await s.call('editInsertionOrder', 'IO-0001', lines)
+    await s.call('approveInsertionOrder', 'IO-0001')
+    expect(s.state()?.insertionOrder).toMatchObject({ status: 'approved', total: 15600 })
+    expect(s.state()?.insertionOrder?.edited).toBeFalsy()
+
+    await s.call('editInsertionOrder', 'IO-0001', [{ ...lines[0], slots: 10 }, lines[1]])
+    await s.call('approveInsertionOrder', 'IO-0001')
+    expect(s.state()?.insertionOrder).toMatchObject({ status: 'approved', slots: 16, total: 18000, edited: true })
+    expect(s.state()?.run?.closing).toBe('Drafted the insertion order.')
+    // What the run ended with keeps both, to view it after a re-run.
+    expect(await s.call<State>('getRun', run)).toMatchObject({
+      run: { closing: 'Drafted the insertion order.' },
+      insertionOrder: { id: 'IO-0001', edited: true }
+    })
+  })
+
+  it('flags the order once a figure it is priced from changes its value, but not for figures it leaves unchanged', async () => {
+    const { s } = await plan({ slots: 20 }, [turn(fourShows)])
+
+    await s.call('setCpm', 25)
+    await s.call('updateShow', 'Tin Roof', { downloads: 15000 })
+    expect(s.state()?.insertionOrder?.edited).toBeFalsy()
+
+    await s.call('setCpm', 30)
+    expect(s.state()?.insertionOrder).toMatchObject({ cpm: 30, total: 22890, edited: true })
+    expect(s.state()?.run?.closing).toBe('Drafted the insertion order.')
+  })
+
+  it('flags the order when an edit of the same lines prices them anew', async () => {
+    const { s } = await plan({ slots: 20 }, [turn(fourShows)])
+    const lines = s.state()!.insertionOrder!.lines.map(({ show, slots, angle }) => ({ show, slots, angle }))
+    // A roster imported again, with Corner Booth's downloads up, leaves the order as it was priced.
+    await s.importRoster(csv.replace('Corner Booth,48000', 'Corner Booth,60000'), 'csv')
+    expect(s.state()?.insertionOrder).toMatchObject({ total: 19076 })
+    expect(s.state()?.insertionOrder?.edited).toBeFalsy()
+
+    await s.call('editInsertionOrder', 'IO-0001', lines)
+    expect(s.state()?.insertionOrder).toMatchObject({ total: 21476, edited: true })
+  })
+
+  it("notes under the closing line, in code's words, that the order has changed since Claude drafted it", async () => {
+    const { s, state } = await plan({ slots: 20 }, [turn(fourShows)])
+    // The rail's Run module as the browser renders it.
+    const runModule = (state: State) =>
+      renderToStaticMarkup(
+        createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent, links })
+      ).match(/<section class="mod" aria-labelledby="run-log">[\s\S]*?<\/section>/)![0]
+    const note = 'The insertion order has changed since Claude drafted it: its lines and total are the current figures.'
+    expect(runModule(state)).toContain('Drafted the insertion order.')
+    expect(runModule(state)).not.toContain(note)
+
+    await s.call('editInsertionOrder', 'IO-0001', [{ show: 'Corner Booth', slots: 10, angle: 'Call-ins.' }])
+    expect(runModule(s.state()!)).toMatch(new RegExp(`Drafted the insertion order\\.</p><p[^>]*>${note}</p>`))
+  })
+})

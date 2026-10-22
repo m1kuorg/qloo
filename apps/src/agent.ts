@@ -27,7 +27,8 @@ import {
   toCsv,
   type InsertionOrder,
   type LineInput,
-  type OrderExport
+  type OrderExport,
+  type OrderLine
 } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import { parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
@@ -727,9 +728,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // The programmer's edit of the current insertion order: slot counts, dropped shows, and reworded
-  // angles, priced again in code. Editing an approved order returns it to draft. The budget bounds
-  // the agent's draft, not this: the final plan is the programmer's, and the UI shows it over budget.
-  // Returns the order as saved.
+  // angles, priced again in code. Editing an approved order returns it to draft, and an edit that
+  // changes its lines or their prices marks it edited. The budget bounds the agent's draft, not this:
+  // the final plan is the programmer's, and the UI shows it over budget. Returns the order as saved.
   @callable()
   editInsertionOrder(id: string, lines: LineInput[]) {
     const order = this.editableOrder(id)
@@ -737,7 +738,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const problem = lineProblem(lines, finalists)
     if (problem) throw new Refusal('invalid', problem)
     const edited = lines.map(({ show, slots, angle }) => ({ show, slots, angle: angle.trim() }))
-    this.saveOrder({ ...order, ...priceLines(edited, this.state.roster, this.state.cpm), status: 'draft' })
+    const priced = priceLines(edited, this.state.roster, this.state.cpm)
+    // The lines as words and figures, priced: the model's may hold its fields in any order, and spaces
+    // round an angle, and the same lines can price anew after a roster import.
+    const lineKey = (lines: OrderLine[]) =>
+      JSON.stringify(lines.map((l) => [l.show, l.slots, l.angle.trim(), l.slotValue]))
+    const changed = lineKey(priced.lines) !== lineKey(order.lines)
+    this.saveOrder({ ...order, ...priced, status: 'draft', ...(changed && { edited: true }) })
     return this.state.insertionOrder!
   }
 
@@ -1169,13 +1176,14 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Prices the current order again after a figure it uses changed. An approved order whose price
-  // changes returns to draft, so nothing the programmer approved changes under them.
+  // changes returns to draft, so nothing the programmer approved changes under them, and is marked
+  // edited, as the agent never saw the new figures.
   private repriceOrder() {
     const order = this.state.insertionOrder
     if (!order) return
     const priced = priceLines(order.lines, this.state.roster, this.state.cpm)
     const same = priced.cpm === order.cpm && priced.lines.every((l, i) => l.slotValue === order.lines[i].slotValue)
-    if (!same) this.saveOrder({ ...order, ...priced, status: 'draft' })
+    if (!same) this.saveOrder({ ...order, ...priced, status: 'draft', edited: true })
   }
 
   // Reserves the next call number, before the call is made.
