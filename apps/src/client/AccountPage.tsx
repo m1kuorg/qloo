@@ -213,8 +213,8 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
         {code.form}
         <Alert error={error} />
         <p className="help">
-          Your browser asks where to keep it: on this device, a phone nearby, or your password manager. Unless you
-          confirmed it’s you in the last five minutes, it asks for a passkey you have first.
+          Your browser asks where to keep it: on this device, a phone nearby, or your password manager. If you haven’t
+          confirmed it’s you in the last five minutes, Crossfeed asks you to first.
         </p>
       </div>
     </section>
@@ -251,7 +251,7 @@ function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
         <Alert error={error} />
         <p className="help">
           For a code you’ve lost, or one someone else may have seen: your old code stops working, and the new one shows
-          once. Unless you confirmed it’s you in the last five minutes, Crossfeed asks for your passkey first.
+          once. If you haven’t confirmed it’s you in the last five minutes, Crossfeed asks you to first.
         </p>
       </div>
     </section>
