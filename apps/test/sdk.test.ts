@@ -312,7 +312,14 @@ describe('pitches, triaged through the SDK', () => {
     await crossfeed.roster.import('Night Shift Cinema\n', { type: 'text/plain' })
     await crossfeed.waitForRoster({ interval: 10 })
 
+    // The works' lookups answer once the test has seen the inbox still reading.
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({
+      search: { ...works, 'Night Shift Cinema': show('e-0001', 'Night Shift Cinema') },
+      held: lookups.promise
+    })
     expect((await crossfeed.inbox.load(pitches, { type: 'text/plain' })).status).toBe('reading')
+    lookups.resolve()
     const inbox = await crossfeed.waitForInbox({ interval: 10 })
     expect(inbox.pitches.map((p) => [p.id, p.from, p.guest, p.match?.resolution])).toEqual([
       ['pitch-01', 'Cy Lund <cy@example.com>', 'Cy Lund', 'ambiguous'],
@@ -415,7 +422,9 @@ describe("the SDK's wait helpers", () => {
   })
 
   it('reject with a timeout CrossfeedError once their time is up, and with the reason once aborted', async () => {
-    fakeQloo({ search, latencyMs: 500 })
+    // Qloo answers only once the test is done, so the roster stays pending for every wait.
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({ search, held: lookups.promise })
     const { crossfeed, secret, network } = await client()
     await crossfeed.roster.import('Corner Booth\n', { type: 'text/plain' })
     expect(await refusal(crossfeed.waitForRoster({ interval: 10, timeout: 50 }))).toEqual({
@@ -441,5 +450,6 @@ describe("the SDK's wait helpers", () => {
     })
     // An aborted signal stops a wait before it reads anything.
     await expect(crossfeed.waitForInbox({ signal: AbortSignal.abort() })).rejects.toMatchObject({ name: 'AbortError' })
+    lookups.resolve()
   })
 })
