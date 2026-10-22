@@ -7,8 +7,9 @@ import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
-import { InboxWorkspace, Workspace, type Session as Agent } from '../src/client/App'
+import type { Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
+import { InboxWorkspace } from '../src/client/Inbox'
 import type { Pitch } from '../src/inbox'
 import { networkLinks } from '../src/shell'
 import { readPitchUpload, type Upload } from '../src/upload'
@@ -157,7 +158,7 @@ describe('uploading pitch files', () => {
       ['pitch-03', 'Ben Ochoa <ben.ochoa@example.com>', 'Static Bloom']
     ])
     const page = words(
-      renderToStaticMarkup(<Workspace page="inbox" agent={{ state, stub: {} } as unknown as Agent} links={links} />)
+      renderToStaticMarkup(<InboxWorkspace agent={{ state, stub: {} } as unknown as Agent} links={links} />)
     )
     expect(page).toContain('Inbox · Uploaded pitches')
     expect(page).toContain('Read pitches Load sample inbox Upload files')

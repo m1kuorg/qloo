@@ -3,7 +3,6 @@
 // becomes roster text and its format; pitch files become pitches of sender, subject, and plain-text
 // body. Files are never kept, and anything that can't be read is refused with a message that says
 // why, before the agent sees it, and a code for the API (refusal.ts).
-import PostalMime from 'postal-mime'
 import { splitPitches, type PitchInput } from './inbox'
 import { Refusal } from './refusal'
 import type { RosterFormat } from './roster'
@@ -109,8 +108,10 @@ function binary(bytes: Uint8Array) {
 }
 
 // One email as a pitch: its sender and subject, and its plain text, or its HTML's text when it has
-// no plain part. Attachments are left out.
+// no plain part. Attachments are left out. postal-mime loads with the first email read, so the
+// island's pages that only upload a roster don't load it.
 async function email(raw: Uint8Array): Promise<PitchInput> {
+  const { default: PostalMime } = await import('postal-mime')
   const parsed = await PostalMime.parse(raw)
   const from = parsed.from
   const sender = !from ? null : from.address ? (from.name ? `${from.name} <${from.address}>` : from.address) : from.name

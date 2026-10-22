@@ -3,8 +3,8 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
-import { Workspace, type Session as Agent } from '../src/client/App'
-import { InboxPage } from '../src/client/Inbox'
+import type { Session as Agent } from '../src/client/App'
+import { InboxPage, InboxWorkspace } from '../src/client/Inbox'
 import type { Evidence } from '../src/evidence'
 import {
   fakeClaude,
@@ -478,7 +478,7 @@ describe('the booker clearing the inbox', () => {
     const state = await s.until((state) => state.run?.status === 'waiting')
     // The inbox page as the browser renders it from synced state.
     const html = renderToStaticMarkup(
-      createElement(Workspace, { page: 'inbox', agent: { state, stub: {} } as unknown as Agent, links })
+      createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
 
     // Before the lists, so a single column reaches it first.
@@ -592,7 +592,7 @@ describe('a closing line the replies have changed since', () => {
     // The inbox rail's Run module as the browser renders it.
     const runModule = (state: State) =>
       renderToStaticMarkup(
-        createElement(Workspace, { page: 'inbox', agent: { state, stub: {} } as unknown as Agent, links })
+        createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
       ).match(/<section class="mod" aria-labelledby="run-log">[\s\S]*?<\/section>/)![0]
     const note = 'The replies have changed since Claude drafted them: each reply as listed is the current one.'
     expect(runModule(state)).toContain('Drafted.')

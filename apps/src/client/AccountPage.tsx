@@ -2,9 +2,8 @@ import { startRegistration } from '@simplewebauthn/browser'
 import { Fragment, useState, type ReactNode } from 'react'
 import type { AccountNetwork, AccountPasskey } from '../directory'
 import { listOf, MAX_NAME } from '../text'
-import { prompted, RecoveryCode, type Ceremony } from './Account'
-import { Alert, ScrollTable, send, useAction } from './controls'
-import { day } from './Dashboard'
+import { Alert, day, ScrollTable, send, useAction } from './controls'
+import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
 import { StateLine } from './states'
 
 // The member's account page, at /app/account: their name, their passkeys, a new recovery code, their

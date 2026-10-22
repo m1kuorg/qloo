@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, send, useAction } from '../controls'
-import type { NetworkPage } from '../Dashboard'
+import type { NetworkPage } from '../NetworkPage'
 
 // The settings' danger zone: an owner deletes the network, for every member, once they've typed its
 // name, so it can't happen by a slip. Its pages, agents, and API answer 404 from then on, and its

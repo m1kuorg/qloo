@@ -63,7 +63,7 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 const page = (state: State) =>
-  renderToStaticMarkup(<Workspace page="roster" agent={{ state, stub: {} } as unknown as Agent} links={links} />)
+  renderToStaticMarkup(<Workspace agent={{ state, stub: {} } as unknown as Agent} links={links} />)
 // A fit chart row's slot value cell, as read: the value, the downloads it's priced from, any sample label.
 const slot = (state: State, show: string) => {
   const chart = page(state).match(/<table class="chart fit-chart"[\s\S]*?<\/table>/)![0]

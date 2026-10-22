@@ -1,5 +1,5 @@
 import type { Usage } from '../../gateway'
-import type { NetworkPage } from '../Dashboard'
+import type { NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
 
 // The settings' usage module: what the network has used today against the beta's daily caps, as the

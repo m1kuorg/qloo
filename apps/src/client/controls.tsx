@@ -48,6 +48,10 @@ export { listOf } from '../text'
 
 export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
 
+// A day as the app writes it, such as "Oct 19", from an ISO string or epoch ms.
+export const day = (when: string | number) =>
+  new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
 // A radio list of Qloo entities with their popularity, and for works their year and a line on what
 // each is, and a button that commits the pick. Options that Qloo gives nothing else to tell apart
 // show their Qloo IDs, and the list says so (#128).

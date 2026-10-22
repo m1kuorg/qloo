@@ -3,8 +3,9 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
-import { Workspace, type Session as Agent } from '../src/client/App'
+import type { Session as Agent } from '../src/client/App'
 import { PickOne } from '../src/client/controls'
+import { InboxWorkspace } from '../src/client/Inbox'
 import type { WorkCandidate, WorkMatch } from '../src/inbox'
 import sample from '../src/sample-inbox.json'
 import {
@@ -631,9 +632,7 @@ describe("the inbox page's links", () => {
     const state = await loaded(s)
 
     const agent = { state, stub: {} } as unknown as Agent
-    const html = renderToStaticMarkup(
-      createElement(Workspace, { page: 'inbox', agent, links: { roster: '/elsewhere/roster' } })
-    )
+    const html = renderToStaticMarkup(createElement(InboxWorkspace, { agent, links: { roster: '/elsewhere/roster' } }))
     expect(html).toContain('<a href="/elsewhere/roster">Import the roster</a>')
   })
 })

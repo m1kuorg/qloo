@@ -2,7 +2,7 @@ import { useAgent } from 'agents/react'
 import type { State } from '../agent'
 import type { LaunchAgent } from '../launch-agent'
 import { Workspace, type Session } from './App'
-import { LostAccess, type NetworkPage } from './Dashboard'
+import { LostAccess, type NetworkPage } from './NetworkPage'
 
 // A launch's agent, at the path the server gives, which checks the member's session and membership
 // and that the network lists the launch.
@@ -28,5 +28,5 @@ export function LaunchPage({
 // ranked against the network's roster, which this page shows read-only and links to. Tests render it
 // from a launch agent's synced state.
 export function LaunchWorkspace({ agent, network, orders }: { agent: Session; network: NetworkPage; orders: string }) {
-  return <Workspace page="launch" agent={agent} links={{ roster: network.links.roster, orders }} network={network} />
+  return <Workspace agent={agent} links={{ roster: network.links.roster, orders }} network={network} />
 }

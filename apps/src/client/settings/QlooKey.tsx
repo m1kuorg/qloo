@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { OwnKey, Usage } from '../../gateway'
 import { QLOO_HOSTS } from '../../qloo-hosts'
 import { Alert, send, useAction } from '../controls'
-import type { NetworkPage } from '../Dashboard'
+import type { NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
 
 const hostName = (host: string | undefined) => (host ? new URL(host).host : '')

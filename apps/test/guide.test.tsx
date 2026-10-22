@@ -103,7 +103,7 @@ afterEach(() => open.splice(0).forEach((s) => s.close()))
 
 // The page as the session's browser renders it from synced state.
 const page = (state: State) =>
-  renderToStaticMarkup(<Workspace page="roster" agent={{ state, stub: {} } as unknown as Agent} links={links} />)
+  renderToStaticMarkup(<Workspace agent={{ state, stub: {} } as unknown as Agent} links={links} />)
 const words = (html: string) =>
   html
     .replace(/<[^>]+>/g, ' ')

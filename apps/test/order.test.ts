@@ -265,7 +265,7 @@ describe('the insertion order', () => {
 
     // The rail as the browser renders it: each line's row cites the call behind its show's tags.
     const html = renderToStaticMarkup(
-      createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent, links })
+      createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
     const rows = html.match(/<section class="mod io-mod"[\s\S]*?<\/section>/)![0].split('<tr')
     const cited = state.insertionOrder!.lines.map((line) => {
@@ -541,9 +541,9 @@ describe('a closing line the order has changed since', () => {
     const { s, state } = await plan({ slots: 20 }, [turn(fourShows)])
     // The rail's Run module as the browser renders it.
     const runModule = (state: State) =>
-      renderToStaticMarkup(
-        createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent, links })
-      ).match(/<section class="mod" aria-labelledby="run-log">[\s\S]*?<\/section>/)![0]
+      renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })).match(
+        /<section class="mod" aria-labelledby="run-log">[\s\S]*?<\/section>/
+      )![0]
     const note = 'The insertion order has changed since Claude drafted it: its lines and total are the current figures.'
     expect(runModule(state)).toContain('Drafted the insertion order.')
     expect(runModule(state)).not.toContain(note)

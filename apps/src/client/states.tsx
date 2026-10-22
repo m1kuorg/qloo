@@ -1,4 +1,5 @@
 import type { SlowCall } from '../agent'
+import type { Pitch } from '../inbox'
 
 // The workspace's states, worded and marked the same way wherever they appear. A state leads with
 // its word, so it never relies on its color, and no state color is Chart Red (DESIGN.md colors).
@@ -55,3 +56,23 @@ export function SlowCalls({ calls }: { calls: SlowCall[] }) {
 
 // Ends an error message as a sentence, whether or not it came with its own full stop.
 export const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`)
+
+// A pitch's work's match, in a word.
+export const matchLabel = {
+  resolved: 'Matched',
+  ambiguous: 'Ambiguous',
+  missed: 'Not in Qloo',
+  failed: 'Lookup failed'
+}
+
+// A pitch's state in one word: still being read, its work's match, or why it was set aside. The
+// dashboard's inbox line counts pitches by it too.
+export const stateLabel = (p: Pitch) =>
+  ({
+    reading: 'Reading',
+    looking_up: 'Looking up',
+    no_work: 'Set aside',
+    unreadable: 'Unreadable',
+    failed: 'Failed',
+    read: p.match ? matchLabel[p.match.resolution] : 'Looking up'
+  })[p.status]
