@@ -24,6 +24,74 @@ const Head = ({ title, children }: { title: string; children?: Child }) => (
   </head>
 )
 
+// The client build's manifest, by source path, with each chunk's file and the chunks it imports.
+// vite-ssr-components writes it into the Worker's build in place of this string, as it does for its
+// Script: an object of manifest files, each its `default`, which this merges as its Script does. In
+// development the string stays, as the dev server serves each source module itself. Its plugin
+// matches the string in double quotes, so they stay.
+// prettier-ignore
+const inlinedManifest: unknown = "__VITE_MANIFEST_CONTENT__"
+type ManifestChunk = { file: string; imports?: string[] }
+const manifest: Record<string, ManifestChunk> =
+  typeof inlinedManifest === 'object' && inlinedManifest !== null
+    ? Object.assign({}, ...Object.values(inlinedManifest).map((file: { default?: object }) => file.default))
+    : {}
+
+// The module that renders each island page, by its root's data-page, as main.tsx's pages import it;
+// any other page, "roster", is the demo's roster. A new page goes in both.
+const pageModules = {
+  'sign-in': 'Account',
+  invite: 'Account',
+  account: 'AccountPage',
+  'new-network': 'NewNetwork',
+  dashboard: 'Dashboard',
+  launch: 'Launch',
+  'network-roster': 'Roster',
+  'network-inbox': 'NetworkInbox',
+  settings: 'Settings',
+  inbox: 'DemoInbox'
+}
+type Page = keyof typeof pageModules | 'roster'
+// The island's script, which IslandHead loads.
+const ENTRY = 'src/client/main.tsx'
+
+// The code a page's module needs: in the Worker's build, its chunk and the chunks it imports, and
+// theirs in turn, but main.js, which the island's script loads; in development, the module itself. A
+// module the build has no chunk for, as when pageModules names one main.tsx doesn't import, is logged
+// and preloads nothing: the page still loads it from main.js.
+function pageCode(page: Page) {
+  const module = `src/client/${page === 'roster' ? 'App' : pageModules[page]}.tsx`
+  if (import.meta.env.DEV) return [`/${module}`]
+  if (!manifest[module]) {
+    console.error(JSON.stringify({ event: 'preload_missing', page, module }))
+    return []
+  }
+  const files: string[] = []
+  const add = (key: string) => {
+    const chunk = manifest[key]
+    if (!chunk || key === ENTRY || files.includes(`/${chunk.file}`)) return
+    files.push(`/${chunk.file}`)
+    chunk.imports?.forEach(add)
+  }
+  add(module)
+  return files
+}
+
+// The React island's root, which main.tsx renders `page` into from its data attributes, and links
+// that preload the page's code, which Hono moves into the head after the island's script. main.js
+// would ask for that code only once it has run; preloaded, it downloads alongside main.js instead
+// (#218). At low priority, so the stylesheet and fonts the first paint waits on go first: at the
+// default high priority Lighthouse counted it as blocking that paint, and /sign-in's first
+// contentful paint came later.
+export const Island = ({ page, ...data }: { page: Page; [attribute: `data-${string}`]: unknown }) => (
+  <>
+    {pageCode(page).map((href) => (
+      <link rel="modulepreload" href={href} fetchpriority="low" />
+    ))}
+    <div id="root" data-page={page} {...data} />
+  </>
+)
+
 // The head of a page with the React island: the shared head, React's refresh preamble in
 // development, under the policy's nonce (index.tsx), and the island's script.
 const IslandHead = () => {
@@ -31,6 +99,7 @@ const IslandHead = () => {
   return (
     <Head title="Crossfeed">
       {import.meta.env.DEV && <script type="module" nonce={nonce} dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
+      {/* A literal: vite-ssr-components finds the client build's entries by reading these. */}
       <Script src="/src/client/main.tsx" />
     </Head>
   )

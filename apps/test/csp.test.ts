@@ -43,30 +43,37 @@ function refusedBy(policy: Record<string, string[]>, html: string) {
 // allows for Vite's own stylesheets, so no page may have one.
 const styleAttributes = (html: string) => [...html.matchAll(/<[a-z][^>]*\sstyle="[^"]*"/g)].map(([a]) => a.slice(0, 80))
 
+// Every page as a browser loads it, by path: the signed-out pages, the demo's, and a member's pages
+// of a network (`id`) with a launch (`launch`).
+async function everyPage() {
+  env.GUEST_PITCHES = 'on'
+  fakeQloo({ search: {} })
+  const ada = await openMember()
+  const { id } = await (
+    await ada.fetch('/app/new', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Night Shift Audio' })
+    })
+  ).json<{ id: string }>()
+  const network = await ada.connect(`/agents/network/${id}`)
+  const launch = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+  network.close()
+
+  const signedOut = ['/', '/privacy', '/terms', '/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
+  const pages = [...signedOut, '/sign-in', '/invite', '/demo', '/demo/inbox']
+  const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/roster`, `/app/${id}/inbox`]
+  app.push(`/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
+  const loaded = await Promise.all([
+    ...pages.map(async (p) => [p, await exports.default.fetch(`${origin}${p}`)] as const),
+    ...app.map(async (p) => [p, await ada.fetch(p)] as const)
+  ])
+  return { id, launch: launch.id, loaded }
+}
+
 describe('every page', () => {
   it("is served under a policy of the app's own origin, nothing framing it, which allows what it loads", async () => {
-    env.GUEST_PITCHES = 'on'
-    fakeQloo({ search: {} })
-    const ada = await openMember()
-    const { id } = await (
-      await ada.fetch('/app/new', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Night Shift Audio' })
-      })
-    ).json<{ id: string }>()
-    const network = await ada.connect(`/agents/network/${id}`)
-    const launch = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
-    network.close()
-
-    const signedOut = ['/', '/privacy', '/terms', '/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
-    const pages = [...signedOut, '/sign-in', '/invite', '/demo', '/demo/inbox']
-    const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/roster`, `/app/${id}/inbox`]
-    app.push(`/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
-    for (const [path, res] of [
-      ...(await Promise.all(pages.map(async (p) => [p, await exports.default.fetch(`${origin}${p}`)] as const))),
-      ...(await Promise.all(app.map(async (p) => [p, await ada.fetch(p)] as const)))
-    ]) {
+    for (const [path, res] of (await everyPage()).loaded) {
       expect(res.status, path).toBe(200)
       const policy = policyOf(res)
       expect(policy['default-src'], path).toEqual(["'self'"])
@@ -81,5 +88,31 @@ describe('every page', () => {
       expect(refusedBy(policy, html), path).toEqual([])
       expect(styleAttributes(html), path).toEqual([])
     }
+  })
+
+  // Tests run the development build, whose links are the page's source module, as its script is
+  // main.tsx's; the Worker's build links the module's chunk and each chunk it imports, read from the
+  // client build's manifest.
+  it('links the module that renders an island page for preloading, and a page without the island links none', async () => {
+    const { id, launch, loaded } = await everyPage()
+    const preloads = async (res: Response) =>
+      [...(await res.text()).matchAll(/<link\b[^>]*\brel="modulepreload"[^>]*>/g)].map(
+        ([tag]) => /\bhref="([^"]*)"/.exec(tag)?.[1]
+      )
+    const modules: Record<string, string> = {
+      '/sign-in': 'Account',
+      '/invite': 'Account',
+      '/demo': 'App',
+      '/demo/inbox': 'DemoInbox',
+      '/app/new': 'NewNetwork',
+      '/app/account': 'AccountPage',
+      [`/app/${id}`]: 'Dashboard',
+      [`/app/${id}/roster`]: 'Roster',
+      [`/app/${id}/inbox`]: 'NetworkInbox',
+      [`/app/${id}/settings`]: 'Settings',
+      [`/app/${id}/launches/${launch}`]: 'Launch'
+    }
+    for (const [path, res] of loaded)
+      expect(await preloads(res), path).toEqual(modules[path] ? [`/src/client/${modules[path]}.tsx`] : [])
   })
 })

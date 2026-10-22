@@ -46,7 +46,7 @@ import {
   type Member,
   type Passkey
 } from '../directory'
-import { appShell } from '../shell'
+import { appShell, Island } from '../shell'
 import { readName } from '../text'
 import { visitorTag } from '../visitor'
 
@@ -154,7 +154,7 @@ auth.get('/sign-in', async (c) => {
   const next = nextPath(c, c.req.query('next'))
   if (await signedIn(c)) return c.redirect(next, 302)
   c.header('Cache-Control', 'no-store')
-  return c.render(<div id="root" data-page="sign-in" data-next={next} />)
+  return c.render(<Island page="sign-in" data-next={next} />)
 })
 
 // The invite page, a page of the React island. The link's token is in its fragment, which the browser
@@ -163,7 +163,7 @@ auth.get('/sign-in', async (c) => {
 auth.get('/invite', async (c) => {
   const member = await signedIn(c)
   c.header('Cache-Control', 'no-store')
-  return c.render(<div id="root" data-page="invite" data-member-name={member?.name} />)
+  return c.render(<Island page="invite" data-member-name={member?.name} />)
 })
 
 // Why an invite link can't be used, in words for the invite page.

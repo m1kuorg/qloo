@@ -5,7 +5,7 @@ import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { csvDownload } from '../order'
-import { demoShell } from '../shell'
+import { demoShell, Island } from '../shell'
 import { visitorTag } from '../visitor'
 
 // The visitor session: a random ID in a cookie names the session's CrossfeedAgent.
@@ -39,7 +39,7 @@ const page = (c: Context<{ Bindings: Env }>, page: 'roster' | 'inbox') => {
       maxAge: 60 * 60 * 24 * SESSION_DAYS
     })
   }
-  return c.render(<div id="root" data-page={page} data-agent-path={AGENT_PATH} data-roster-link="/demo" />)
+  return c.render(<Island page={page} data-agent-path={AGENT_PATH} data-roster-link="/demo" />)
 }
 
 demo.get('/demo', (c) => page(c, 'roster'))
