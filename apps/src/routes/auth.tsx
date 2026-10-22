@@ -13,7 +13,17 @@ import {
 } from '@simplewebauthn/server'
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
-import { accountsOn, appOrigins, endSession, jsonBody, nextPath, sameOrigin, setSession, signedIn } from '../auth'
+import {
+  accountsOn,
+  appOrigins,
+  endSession,
+  jsonBody,
+  jsonLimit,
+  nextPath,
+  sameOrigin,
+  setSession,
+  signedIn
+} from '../auth'
 import {
   addPasskey,
   findInvite,
@@ -37,11 +47,17 @@ export const auth = new Hono<{ Bindings: Env }>()
 
 auth.use('/sign-in', accountsOn, appShell)
 auth.use('/invite', accountsOn, appShell)
-auth.use('/auth/*', accountsOn, sameOrigin, async (c, next) => {
-  await next()
-  // Answers carry a session cookie or a recovery code: no cache keeps them.
-  c.header('Cache-Control', 'no-store')
-})
+auth.use(
+  '/auth/*',
+  accountsOn,
+  sameOrigin,
+  async (c, next) => {
+    await next()
+    // Answers carry a session cookie or a recovery code: no cache keeps them.
+    c.header('Cache-Control', 'no-store')
+  },
+  jsonLimit
+)
 
 // A request that can't go on, in words for the sign-in or invite page.
 const refuse = (c: Context, error: string, status: 400 | 401 | 404 | 409 | 410 | 429 = 400) => c.json({ error }, status)

@@ -5,6 +5,7 @@
 // (refusal.ts). There's no approve route (ADR 0002).
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import type { Context, MiddlewareHandler } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { accountsOn, fromAppPage, keyFor, signedIn } from '../auth'
 import { memberRole } from '../directory'
@@ -42,7 +43,7 @@ import {
 } from '../operations'
 import { csvDownload } from '../order'
 import { REFUSALS, Refusal, refusalCode, type RefusalCode } from '../refusal'
-import { readPitchUpload, readRosterUpload, tooBig, type Upload } from '../upload'
+import { MAX_UPLOAD_BYTES, megabytes, readPitchUpload, readRosterUpload, tooBig, type Upload } from '../upload'
 
 type ApiEnv = { Bindings: Env; Variables: { caller: Caller } }
 
@@ -95,6 +96,15 @@ api.onError((err, c) => {
 
 const NOT_FOUND = "There's no such network, or this API key or member can't reach it."
 
+// A body to the API or the MCP server holds at most an upload, and room for a JSON envelope around
+// one: past it, as its Content-Length says or as it streams in with none, it's refused before it's
+// read further. An upload a little over the limit is refused by the upload module, naming its file.
+export const uploadLimit = bodyLimit({
+  maxSize: MAX_UPLOAD_BYTES + 64 * 1024,
+  onError: (c) =>
+    refuse(c, 'too_large', `This request is over the ${megabytes(MAX_UPLOAD_BYTES, 0)} limit for an upload.`)
+})
+
 // Who's asking, for every route under a network: one of its API keys, in `Authorization: Bearer`,
 // or else a member's session cookie, which must come from one of the app's pages to write. A key
 // reaches its own network alone; to it, as to anyone outside, every other network is the same 404.
@@ -132,6 +142,7 @@ const guestPitches: MiddlewareHandler<ApiEnv> = async (c, next) => {
 // Hono's `/*` matches the path itself too.
 for (const path of ['inbox', 'pitch-runs']) api.use(`/api/v1/networks/:networkId/${path}/*`, guestPitches)
 api.use('/api/v1/networks/:networkId/*', caller)
+api.use('/api/v1/*', uploadLimit)
 
 // What an operation runs with, from a route under a network.
 const context = (c: Context<ApiEnv>): OperationContext => ({

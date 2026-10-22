@@ -1,6 +1,7 @@
 // A member's session in the browser, and the guards every accounts route shares: the ACCOUNTS
 // switch, the same-origin check on writes, where `?next` may lead, and a program's API key.
 import type { Context, MiddlewareHandler } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { SESSION_MS, apiKeyFor, sessionMember, type Member } from './directory'
 import { Refusal } from './refusal'
@@ -58,6 +59,13 @@ export const sameOrigin: MiddlewareHandler<{ Bindings: Env }> = async (c, next) 
   if (!fromAppPage(c)) return c.text('This request must come from a Crossfeed page.', 403)
   await next()
 }
+
+// A JSON body to an accounts route holds at most a few names and a passkey's answer: one past 64 KB,
+// as its Content-Length says or as it streams in with none, is refused before it's read further.
+export const jsonLimit = bodyLimit({
+  maxSize: 64 * 1024,
+  onError: (c) => c.json({ error: 'This request is too large. Send at most 64 KB.' }, 413)
+})
 
 // A request's JSON body, or an empty object when it has none.
 export const jsonBody = async (c: Context) => ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>

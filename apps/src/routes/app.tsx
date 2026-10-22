@@ -4,7 +4,7 @@
 // doesn't are the same 404.
 import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
-import { accountsOn, appOrigins, endSession, jsonBody, sameOrigin, session, signedIn } from '../auth'
+import { accountsOn, appOrigins, endSession, jsonBody, jsonLimit, sameOrigin, session, signedIn } from '../auth'
 import {
   accountNetworks,
   apiKeys,
@@ -45,17 +45,24 @@ type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
 
 export const appPages = new Hono<AppEnv>()
 
-appPages.use('/app/*', accountsOn, sameOrigin, async (c, next) => {
-  const member = await signedIn(c)
-  if (!member) {
-    const { pathname, search } = new URL(c.req.url)
-    // `next` keeps its slashes, so the address reads as the page it leads back to.
-    return c.redirect(`/sign-in?next=${encodeURIComponent(pathname + search).replace(/%2F/g, '/')}`, 302)
-  }
-  c.set('member', member)
-  await next()
-  c.header('Cache-Control', 'no-store')
-})
+appPages.use(
+  '/app/*',
+  accountsOn,
+  sameOrigin,
+  async (c, next) => {
+    const member = await signedIn(c)
+    if (!member) {
+      const { pathname, search } = new URL(c.req.url)
+      // `next` keeps its slashes, so the address reads as the page it leads back to.
+      return c.redirect(`/sign-in?next=${encodeURIComponent(pathname + search).replace(/%2F/g, '/')}`, 302)
+    }
+    c.set('member', member)
+    await next()
+    c.header('Cache-Control', 'no-store')
+  },
+  // A signed-in member's body is read only up to the limit.
+  jsonLimit
+)
 appPages.use('/app/*', appShell)
 
 // /app opens the network the member opened last, or asks them to create their first.
