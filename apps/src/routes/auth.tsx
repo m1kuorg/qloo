@@ -28,6 +28,7 @@ import {
   addPasskey,
   findInvite,
   findPasskey,
+  invitedCapped,
   joinByInvite,
   memberPasskeys,
   recover,
@@ -193,6 +194,16 @@ auth.post('/auth/join', async (c) => {
   return (await openInvite(c, token)).refused!
 })
 
+// The new accounts one member's invite links can bring in a UTC day (INVITED_SIGNUP_DAILY_CAP), and
+// why an invite link refuses another past them.
+const invitedCap = (env: Env) => Number(env.INVITED_SIGNUP_DAILY_CAP) || 0
+const invitedRefused = (c: Context<{ Bindings: Env }>) =>
+  refuse(
+    c,
+    `The member who made this invite link has brought in ${invitedCap(c.env)} new accounts through their links today, the most one member can in a UTC day; it resets at 00:00 UTC. To join now, sign in with an account you have, then open the link again.`,
+    429
+  )
+
 // Why this visitor can't create another account today, or null when they can; `count` counts this
 // one. A request with no visitor address, as in local tests, isn't capped.
 async function signupRefused(c: Context<{ Bindings: Env }>, count: boolean) {
@@ -201,8 +212,9 @@ async function signupRefused(c: Context<{ Bindings: Env }>, count: boolean) {
 }
 
 // Sign-up, first step: the name the member gave, and a new passkey's options for their browser. On
-// the invite page it carries the link's token: an invite that can't be used is refused before any
-// passkey is made, and one that can skips the sign-up cap.
+// the invite page it carries the link's token: an invite that can't be used, or whose maker's links
+// have brought in their new accounts for the day, is refused before any passkey is made, and one that
+// can skips the sign-up cap.
 auth.post('/auth/sign-up/options', async (c) => {
   const { name, invite } = await jsonBody(c)
   const read = readName(name, 'Enter your name.')
@@ -211,6 +223,7 @@ auth.post('/auth/sign-up/options', async (c) => {
   if (invite !== undefined) {
     const { refused } = await openInvite(c, invite)
     if (refused) return refused
+    if (await invitedCapped(c.env.DB, invite as string, invitedCap(c.env))) return invitedRefused(c)
   } else {
     const capped = await signupRefused(c, false)
     if (capped) return refuse(c, capped, 429)
@@ -223,7 +236,8 @@ auth.post('/auth/sign-up/options', async (c) => {
 
 // Sign-up, second step: the browser's new passkey. The member is written only once it verifies. With
 // an invite's token, they join its network in the same step, uncounted by the sign-up cap, and no
-// account is made once the invite can't be used.
+// account is made once the invite can't be used, or its maker's links have brought in their new
+// accounts for the day.
 auth.post('/auth/sign-up', async (c) => {
   const { challenge, response, invite } = await jsonBody(c)
   if (invite !== undefined && (typeof invite !== 'string' || !invite)) return refuse(c, INVITE_REFUSED.unknown, 404)
@@ -239,10 +253,11 @@ auth.post('/auth/sign-up', async (c) => {
       { id: started.memberId!, name: started.name! },
       passkey,
       browserLabel(c.req.header('User-Agent') ?? ''),
-      invite as string | undefined
+      invite === undefined ? undefined : { token: invite as string, invitedCap: invitedCap(c.env) }
     )
-    // An invite that couldn't be used can never be used again, so it's refused here with why.
-    if (!signedUp) return (await openInvite(c, invite)).refused!
+    // An invite that couldn't be used can never be used again, so it's refused here with why; one
+    // still open was refused by its maker's cap for the day.
+    if (!signedUp) return (await openInvite(c, invite)).refused ?? invitedRefused(c)
     setSession(c, signedUp.token)
     const { recoveryCode, network } = signedUp
     return c.json(network ? { recoveryCode, network } : { recoveryCode })

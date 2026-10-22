@@ -29,6 +29,10 @@ async function created(member: Member, name = 'Night Shift Audio') {
   return (await res.json<{ id: string }>()).id
 }
 
+// Why an invite link can't bring in another new account today.
+const invitedCapped = (cap: number) =>
+  `The member who made this invite link has brought in ${cap} new accounts through their links today, the most one member can in a UTC day; it resets at 00:00 UTC. To join now, sign in with an account you have, then open the link again.`
+
 // The token an invite link carries in its fragment, as the invite page reads it.
 const tokenOf = (link: string) => new URL(link).hash.slice(1)
 
@@ -36,7 +40,10 @@ const tokenOf = (link: string) => new URL(link).hash.slice(1)
 const post = (member: Member, path: string, body: object = {}) =>
   member.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
-const saved = { SIGNUP_VISITOR_DAILY_CAP: env.SIGNUP_VISITOR_DAILY_CAP }
+const saved = {
+  SIGNUP_VISITOR_DAILY_CAP: env.SIGNUP_VISITOR_DAILY_CAP,
+  INVITED_SIGNUP_DAILY_CAP: env.INVITED_SIGNUP_DAILY_CAP
+}
 const open: Omit<Session, 'cookie'>[] = []
 afterEach(() => {
   vi.useRealTimers()
@@ -142,6 +149,75 @@ describe('invite links', () => {
     await expect(openMember({ name: 'Six', ip })).rejects.toThrow('Sign-up options returned 429')
     const late = await openMember({ name: 'Invited After', ip, invite: await ada.invite(network) })
     expect((await late.fetch(`/app/${network}`)).status).toBe(200)
+  })
+
+  it('stop at 20 open in a network, until one is revoked or used', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const make = () => post(ada, `/app/${network}/settings/members/invites`)
+    const made: { id: string; link: string }[] = []
+    for (let i = 0; i < 20; i++) made.push(await (await make()).json())
+
+    const capped = await make()
+    expect([capped.status, await capped.json()]).toEqual([
+      429,
+      {
+        error:
+          'Night Shift Audio has 20 open invite links, the most a network can keep at once. Revoke one, or wait for one to be used or to expire.'
+      }
+    ])
+    await post(ada, `/app/${network}/settings/members/invites/${made[0].id}/revoke`)
+    expect((await make()).status).toBe(200)
+    expect((await make()).status).toBe(429)
+    await openMember({ name: 'Grace Booker', invite: made[1].link })
+    expect((await make()).status).toBe(200)
+  })
+
+  it("bring in at most INVITED_SIGNUP_DAILY_CAP new accounts a UTC day from one member's links, refused before any passkey is made", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+    env.INVITED_SIGNUP_DAILY_CAP = '2'
+    const ada = await openMember()
+    const network = await created(ada)
+    const one = await openMember({ name: 'One', invite: await ada.invite(network) })
+    await openMember({ name: 'Two', invite: await ada.invite(network) })
+
+    const link = await ada.invite(network)
+    const capped = await exports.default.fetch(
+      `${origin}/auth/sign-up/options`,
+      write({ name: 'Three', invite: tokenOf(link) })
+    )
+    expect([capped.status, await capped.json()]).toEqual([429, { error: invitedCapped(2) }])
+    // Someone with an account still joins through it, and another owner's links still bring people in.
+    const lin = await openMember({ name: 'Lin Editor' })
+    expect(await (await post(lin, '/auth/join', { token: tokenOf(link) })).json()).toEqual({ id: network })
+    await setRole(ada, network, one, 'owner')
+    await openMember({ name: 'Kit Producer', invite: await one.invite(network) })
+    // The next UTC day, Ada's links bring people in again.
+    vi.setSystemTime(NOW + DAY)
+    await openMember({ name: 'Three', invite: await ada.invite(network) })
+  })
+
+  it("admit only the new accounts one member's links have left that day, however many finish at once", async () => {
+    env.INVITED_SIGNUP_DAILY_CAP = '1'
+    const ada = await openMember()
+    const network = await created(ada)
+    const links = [await ada.invite(network), await ada.invite(network)]
+    // Both have their passkeys made before either finishes signing up.
+    const signUps = await Promise.all(
+      links.map(async (link, i) => {
+        const res = await exports.default.fetch(
+          `${origin}/auth/sign-up/options`,
+          write({ name: `Person ${i + 1}`, invite: tokenOf(link) })
+        )
+        const { challenge, options } = await res.json<{ challenge: string; options: never }>()
+        return { challenge, response: await softwareAuthenticator().register(options), invite: tokenOf(link) }
+      })
+    )
+
+    const answers = await Promise.all(signUps.map((s) => exports.default.fetch(`${origin}/auth/sign-up`, write(s))))
+    expect(answers.map((a) => a.status).sort()).toEqual([200, 429])
+    expect(await answers.find((a) => a.status === 429)!.json()).toEqual({ error: invitedCapped(1) })
   })
 
   it('refuse a sign-up with one that was used before any passkey is made, or while it was being made, and make no account', async () => {

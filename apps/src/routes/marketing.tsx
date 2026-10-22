@@ -838,7 +838,9 @@ function Terms({ env }: { env: Env }) {
         {env.ACCOUNTS === 'on' && (
           <>
             A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks, and a network can keep at most{' '}
-            {cap(env.LAUNCHES_PER_NETWORK)} launches at once.{' '}
+            {cap(env.LAUNCHES_PER_NETWORK)} launches and {cap(env.INVITES_PER_NETWORK)} open invite links at once. One
+            member&apos;s invite links can bring in at most {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC
+            day.{' '}
           </>
         )}
         A run makes at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most{' '}

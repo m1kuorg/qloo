@@ -336,7 +336,15 @@ appPages.post('/app/:networkId/settings/members/invites', async (c) => {
   const id = c.req.param('networkId')
   const refused = await refuseNonOwner(c, id)
   if (refused) return refused
-  const invite = await createInvite(c.env.DB, id, c.var.member.id)
+  const cap = Number(c.env.INVITES_PER_NETWORK) || 0
+  const invite = await createInvite(c.env.DB, id, c.var.member.id, cap)
+  if (invite === 'capped')
+    return c.json(
+      {
+        error: `${await networkName(c.env.DB, id)} has ${cap} open invite links, the most a network can keep at once. Revoke one, or wait for one to be used or to expire.`
+      },
+      429
+    )
   if (!invite) return c.json({ error: OWNERS_ONLY }, 403)
   return c.json({
     id: invite.id,
