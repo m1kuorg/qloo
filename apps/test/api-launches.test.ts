@@ -725,6 +725,25 @@ describe("a launch's insertion order", () => {
     })
   })
 
+  it("says when an edit has changed it since the run's closing line, which stays as Claude wrote it", async () => {
+    const { call, launch, run } = await drafted()
+    const read = () => call(`${launch}/runs/${run.id}`).then((r) => r.json<LaunchRun>())
+    expect(run).toMatchObject({
+      status: 'completed',
+      closing: 'Drafted the insertion order.',
+      insertionOrder: { slots: 20, edited: false }
+    })
+
+    const edited = await patch(call, `${launch}/insertion-orders/IO-0001`, {
+      lines: run.insertionOrder!.lines.slice(0, 2)
+    })
+    expect(await edited.json()).toMatchObject({ slots: 14, edited: true })
+    expect(await read()).toMatchObject({
+      closing: 'Drafted the insertion order.',
+      insertionOrder: { slots: 14, total: 15_600, edited: true }
+    })
+  })
+
   it("is never approved through the API, which refuses lines the order can't take", async () => {
     const { call, launch } = await drafted()
     const order = `${launch}/insertion-orders/IO-0001`

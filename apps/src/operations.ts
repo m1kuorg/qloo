@@ -225,9 +225,9 @@ export async function answerLaunchRun(
 export async function editOrder(
   { env, network }: OperationContext,
   input: { launchId: string; orderId: string; lines: LineInput[] }
-): Promise<InsertionOrder> {
+): Promise<OrderInfo> {
   const launch = await launchAgent(env, network, input.launchId)
-  return (await launch.editInsertionOrder(input.orderId, input.lines)) as InsertionOrder
+  return orderOf((await launch.editInsertionOrder(input.orderId, input.lines)) as InsertionOrder)
 }
 
 // An insertion order of the launch, the current one or an earlier run's, as CSV for ad operations,
@@ -315,7 +315,7 @@ export type LaunchRun = LaunchRunSummary & {
   chart: Chart | null
   topic: Pick<Topic, 'status' | 'order' | 'error'> | null
   demographics: DemographicCheck | null
-  insertionOrder: InsertionOrder | null
+  insertionOrder: OrderInfo | null
 }
 
 // The fit chart: each row's fit rank, band, and finalist mark, with its topic rank and move once the
@@ -373,8 +373,14 @@ async function launchRunOf(launch: LaunchStub, state: State, id: string): Promis
   }
 }
 
-// An insertion order as a program reads it: who approved it by name, never by their member ID.
-const orderOf = ({ approvedById: _, ...order }: InsertionOrder): InsertionOrder => order
+// An insertion order as a program reads it: who approved it by name, never by their member ID, and
+// whether it has been edited since the agent drafted it, so its run's closing line may quote figures
+// it no longer has.
+export type OrderInfo = Omit<InsertionOrder, 'approvedById' | 'edited'> & { edited: boolean }
+const orderOf = ({ approvedById: _, edited, ...order }: InsertionOrder): OrderInfo => ({
+  ...order,
+  edited: edited ?? false
+})
 
 // The network's inbox as a program reads it: `empty` until pitches are loaded, `reading` while the
 // agent reads each for its guest and public work and looks the work up in Qloo, then `done`; the
