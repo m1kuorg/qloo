@@ -1,7 +1,16 @@
 import { useState } from 'react'
 import type { Budget, Show } from '../agent'
+import { NO_ANGLE, type SharedTags } from '../fit'
 import { MAX_ANGLE } from '../text'
-import { dollars, priceLines, type InsertionOrder, type LineInput, type OrderLine, type Priced } from '../order'
+import {
+  angleOptional,
+  dollars,
+  priceLines,
+  type InsertionOrder,
+  type LineInput,
+  type OrderLine,
+  type Priced
+} from '../order'
 import { Alert, day, useAction } from './controls'
 import { Source } from './Source'
 
@@ -16,7 +25,7 @@ export function InsertionOrderPanel({
   actions,
   readOnly,
   exportHref,
-  cites,
+  sharedTags,
   openCall,
   opened
 }: {
@@ -28,10 +37,13 @@ export function InsertionOrderPanel({
   actions: { edit: (lines: LineInput[]) => Promise<void>; approve: () => Promise<void> } | null
   readOnly: string | null // why there are no actions, such as an earlier run being viewed
   exportHref: string | null // where an approved order's CSV downloads, if it has an export here
-  cites: Record<string, string> // by show, the compare call behind the shared tags its angle draws on
+  sharedTags: Record<string, SharedTags> // by show, the compare its angle draws on, or that returned no tags
   openCall: (call: string) => void
   opened: string | null
 }) {
+  const cites: Record<string, string> = Object.fromEntries(
+    Object.entries(sharedTags).map(([show, shared]) => [show, shared.call])
+  )
   const [editing, setEditing] = useState(false)
   const { busy, error, run } = useAction()
   const approved = order.status === 'approved'
@@ -56,6 +68,7 @@ export function InsertionOrderPanel({
           cpm={cpm}
           budget={budget}
           sample={sample}
+          sharedTags={sharedTags}
           save={async (lines) => {
             if (await run(() => actions.edit(lines))) setEditing(false)
           }}
@@ -78,7 +91,7 @@ export function InsertionOrderPanel({
                   <td>
                     <div className="nm">{line.show}</div>
                     <div className="tg angle">
-                      {line.angle}
+                      {line.angle ?? NO_ANGLE}
                       {cites[line.show] && (
                         <>
                           {' '}
@@ -206,6 +219,7 @@ function EditLines({
   cpm,
   budget,
   sample,
+  sharedTags,
   save,
   cancel,
   busy
@@ -215,17 +229,21 @@ function EditLines({
   cpm: number | null
   budget: Budget | null
   sample: (line: OrderLine) => boolean
+  sharedTags: Record<string, SharedTags>
   save: (lines: LineInput[]) => Promise<void>
   cancel: () => void
   busy: boolean
 }) {
-  const [lines, setLines] = useState(order.lines.map((l) => ({ show: l.show, slots: String(l.slots), angle: l.angle })))
+  const [lines, setLines] = useState(
+    order.lines.map((l) => ({ show: l.show, slots: String(l.slots), angle: l.angle ?? '' }))
+  )
   const whole = (slots: string) => (/^\d+$/.test(slots.trim()) && Number(slots) >= 1 ? Number(slots) : null)
   const typed = lines.map((l) => ({ ...l, slots: whole(l.slots) ?? 0 }))
   const priced = priceLines(typed, roster, cpm)
   const change = (i: number, field: 'slots' | 'angle', value: string) =>
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [field]: value } : l)))
-  const invalid = lines.some((l) => whole(l.slots) === null || !l.angle.trim()) || lines.length === 0
+  const lacksAngle = (l: { show: string; angle: string }) => !l.angle.trim() && !angleOptional(sharedTags[l.show])
+  const invalid = lines.some((l) => whole(l.slots) === null || lacksAngle(l)) || lines.length === 0
   return (
     <form
       aria-label="Edit the insertion order's lines"
@@ -250,10 +268,16 @@ function EditLines({
                   <div className="nm">{line.show}</div>
                   <textarea
                     aria-label={`Angle for ${line.show}`}
+                    aria-invalid={lacksAngle(line) || undefined}
                     rows={3}
                     value={line.angle}
                     onChange={(e) => change(i, 'angle', e.target.value)}
                     maxLength={MAX_ANGLE}
+                    placeholder={
+                      angleOptional(sharedTags[line.show])
+                        ? 'Qloo returned no shared tags. Type your own angle, or leave it empty.'
+                        : undefined
+                    }
                   />
                 </td>
                 <td>
@@ -293,7 +317,7 @@ function EditLines({
             {lines.length === 0
               ? 'Keep at least one show.'
               : invalid
-                ? 'Each show needs whole slots, 1 or more, and an angle.'
+                ? 'Each show needs whole slots, 1 or more, and an angle, unless Qloo returned no shared tags for it.'
                 : 'Totals update as you type.'}
           </small>
         </div>

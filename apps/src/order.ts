@@ -2,10 +2,12 @@
 // never the model, prices it: a slot is worth downloads per episode × CPM ÷ 1,000, rounded to whole
 // dollars, and a line is worth its slots times that. Shared by the agent and the UI's live totals.
 import type { Show } from './agent'
+import { NO_ANGLE, tagged, type FitRow, type SharedTags } from './fit'
 import { MAX_ANGLE } from './text'
 
-// What the model drafts and the programmer edits: a finalist, its promo slots, and the host-read angle.
-export type LineInput = { show: string; slots: number; angle: string }
+// What the model drafts and the programmer edits: a finalist, its promo slots, and the host-read
+// angle, null for a finalist Qloo returned no shared tags for (#216), unless the programmer typed one.
+export type LineInput = { show: string; slots: number; angle: string | null }
 
 export type OrderLine = LineInput & {
   slotValue: number | null // dollars per slot; null when a figure it needs is missing
@@ -64,23 +66,33 @@ export function priceLines(lines: LineInput[], roster: Show[], cpm: number | nul
   }
 }
 
-// What's wrong with a set of lines, or null when each is a finalist with whole slots and an angle.
-// The lines may arrive as untrusted JSON.
-export function lineProblem(lines: unknown, finalists: string[]): string | null {
+// What's wrong with a set of lines, or null when each is a finalist with whole slots and an angle, or
+// no angle when Qloo returned it no shared tags. The lines may arrive as untrusted JSON.
+export function lineProblem(lines: unknown, finalists: FitRow[]): string | null {
   if (!Array.isArray(lines) || lines.length === 0) return 'The order has no lines.'
   const seen = new Set<string>()
   for (const line of lines as Partial<LineInput>[]) {
     const show = typeof line?.show === 'string' ? line.show : ''
-    if (!finalists.includes(show))
-      return `"${show}" isn't one of this run's finalists, which are ${finalists.join(', ')}.`
+    const row = finalists.find((r) => r.show === show)
+    if (!row)
+      return `"${show}" isn't one of this run's finalists, which are ${finalists.map((r) => r.show).join(', ')}.`
     if (seen.has(show)) return `${show} has more than one line; give each show one line.`
     seen.add(show)
     if (!Number.isSafeInteger(line.slots) || line.slots! < 1) return `${show} needs a whole number of slots, 1 or more.`
-    if (typeof line.angle !== 'string' || !line.angle.trim()) return `${show} needs a host-read angle.`
-    if (line.angle.trim().length > MAX_ANGLE) return `${show}'s angle is over ${MAX_ANGLE} characters. Shorten it.`
+    if (line.angle != null && typeof line.angle !== 'string') return `${show} needs a host-read angle.`
+    const angle = line.angle?.trim() ?? ''
+    if (!angle && !angleOptional(row.sharedTags)) return `${show} needs a host-read angle.`
+    if (angle.length > MAX_ANGLE) return `${show}'s angle is over ${MAX_ANGLE} characters. Shorten it.`
   }
   return null
 }
+
+// A line's angle as stored: trimmed, and null for none.
+export const angleOf = (line: LineInput) => line.angle?.trim() || null
+
+// Whether a finalist's line may go without an angle: only once its compare returned no shared tags,
+// as there's nothing to build one from. One never compared needs the programmer's own.
+export const angleOptional = (shared: SharedTags | null | undefined) => !!shared && !tagged(shared)
 
 // The order as a CSV for ad operations: a row per line, then the total. Money is whole dollars with
 // no symbol, so a spreadsheet reads numbers; a missing value is an empty cell, and the total's row
@@ -91,7 +103,7 @@ export function toCsv(order: InsertionOrder) {
   const gaps = order.lines.filter((l) => l.gap).map((l) => `${l.show} (${l.gap})`)
   const rows = [
     CSV_HEADER,
-    ...order.lines.map((l) => [l.show, l.slots, l.angle, l.slotValue, l.value]),
+    ...order.lines.map((l) => [l.show, l.slots, l.angle ?? NO_ANGLE, l.slotValue, l.value]),
     ['Total', order.slots, gaps.length ? `Incomplete: no value for ${gaps.join(', ')}` : null, null, order.total]
   ]
   return `\uFEFF${rows.map((row) => row.map(cell).join(',')).join('\r\n')}\r\n`

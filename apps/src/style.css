@@ -1803,7 +1803,12 @@ a.btn {
   background: #fff;
 }
 
-.io.editing input[aria-invalid] {
+.io.editing textarea::placeholder {
+  color: var(--grey);
+}
+
+.io.editing input[aria-invalid],
+.io.editing textarea[aria-invalid] {
   border-color: var(--ink);
   border-width: 2px;
 }

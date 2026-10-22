@@ -109,11 +109,14 @@ afterEach(() => {
 const finished = (s: Session) => s.until((state: State) => state.run !== null && state.run.status !== 'running')
 
 // A session with the show imported, the pitches loaded, and a pitch run against the show alone
-// started and scripted through `script`.
-async function startRun(script: Parameters<typeof fakeClaude>[0]) {
+// started and scripted through `script`, its compares answered from `compared`.
+async function startRun(
+  script: Parameters<typeof fakeClaude>[0],
+  compared: Parameters<typeof fakeCompare>[0] = compare
+) {
   fakeQloo({ search })
   fakeInsights((body) => scores[String(body['filter.type'])])
-  fakeCompare(compare)
+  fakeCompare(compared)
   fakeClaude(
     Array.from({ length: pitches.length + 1 }, () => (request: ModelRequest) => {
       const t = pitchText(request)
@@ -135,8 +138,11 @@ async function startRun(script: Parameters<typeof fakeClaude>[0]) {
 }
 
 // The same, once the run has ended.
-async function pitchRun(script: Parameters<typeof fakeClaude>[0]) {
-  const started = await startRun(script)
+async function pitchRun(
+  script: Parameters<typeof fakeClaude>[0],
+  compared: Parameters<typeof fakeCompare>[0] = compare
+) {
+  const started = await startRun(script, compared)
   return { ...started, state: await finished(started.s) }
 }
 
@@ -293,18 +299,21 @@ describe('drafting replies to pitches', () => {
     expect(state.booking?.replies).toHaveLength(7)
   })
 
-  it('refuses tags and replies before the ranking, tags for anything but the show and its top pitches, and ungrounded angles', async () => {
+  it('refuses tags and replies before the ranking, tags for anything but the show and its top pitches, replies before the tags, and ungrounded angles', async () => {
     const { state, agentRequests } = await pitchRun([
       turn(sharedTags(['e-0001'], ['pitch-02']), draftReplies(replies)),
       turn(rankPitches),
       turn(sharedTags(['e-0001', 'b-0001'], ['pitch-02']), sharedTags(['e-0001'], ['pitch-01'])),
+      turn(draftReplies(replies)),
+      turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
       turn(
         draftReplies([
           replies[1],
           { pitch: 'pitch-99', verdict: 'book', angle: null, draft: 'Hello.' },
           replies[0],
           replies[0],
-          { ...replies[2], draft: '  ' }
+          { ...replies[2], draft: '  ' },
+          { ...replies[4], angle: 'Low Tide and films made on a shoestring.' }
         ])
       ),
       turn(text('Stopped.'))
@@ -326,16 +335,72 @@ describe('drafting replies to pitches', () => {
           "pitch-01 isn't a top pitch. Call again with the IDs of the pitches in the top band of each rank_pitches list: pitch-02, pitch-04, pitch-06."
       }
     ])
-    // Paper Moons has an angle but was never compared.
+    // The refused calls reached no Qloo, so the top pitches have no compares to build an angle from.
     expect(results(4)).toMatchObject([
       {
         is_error: true,
         content:
-          "pitch-99 isn't a pitch in the inbox. pitch-01 has more than one reply; give each pitch one. The draft for pitch-03 is empty. pitch-02 has no shared tags from shared_tags to build an angle from, so give it a null angle. Nothing was stored. Fix the replies and call draft_replies again."
+          "The top pitches' shared tags haven't been found yet, and an episode angle is built only from them. Call shared_tags first, then draft the replies."
       }
     ])
-    expect(requests.filter((r) => r.url.pathname === '/v2/analysis/compare')).toEqual([])
+    // Low Tide, in the middle band, has an angle but was never compared.
+    expect(results(6)).toMatchObject([
+      {
+        is_error: true,
+        content:
+          "pitch-99 isn't a pitch in the inbox. pitch-01 has more than one reply; give each pitch one. The draft for pitch-03 is empty. pitch-05 has no shared tags from shared_tags to build an angle from, so give it a null angle. Nothing was stored. Fix the replies and call draft_replies again."
+      }
+    ])
+    expect(requests.filter((r) => r.url.pathname === '/v2/analysis/compare')).toHaveLength(3)
     expect(state.booking?.replies).toBeNull()
+  })
+
+  // An episode angle is built only from the tags Qloo returned for its work (#216).
+  it('drafts no angle for a top pitch Qloo returned no shared tags for, refusing one, and the reply says why', async () => {
+    // Static Bloom shares only the generic Podcasts with the show, and Dead Air's compare fails.
+    const noTags = [
+      { pitch: 'pitch-04', angle: null },
+      { pitch: 'pitch-06', angle: null }
+    ]
+    const { state, agentRequests } = await pitchRun(
+      [
+        turn(rankPitches),
+        turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
+        turn(draftReplies(replies)),
+        turn(draftReplies(replies.map((r) => ({ ...r, ...noTags.find((n) => n.pitch === r.pitch) })))),
+        turn(text('Drafted.'))
+      ],
+      { ...compare, 'f-0001': [tag('genre:media', 'Podcasts', 0.7319)], 't-0001': 400 }
+    )
+
+    expect(agentRequests()[3].messages.at(-1).content).toMatchObject([
+      {
+        is_error: true,
+        content:
+          'pitch-04, pitch-06 has no shared tags from shared_tags to build an angle from, so give it a null angle. Nothing was stored. Fix the replies and call draft_replies again.'
+      }
+    ])
+    const tagsOf = (pitch: string) =>
+      state.booking!.lists!.flatMap((l) => l.rows).find((r) => r.pitch === pitch)!.sharedTags!
+    expect(state.booking?.replies?.map((r) => [r.pitch, r.angle, r.sharedTags])).toEqual([
+      ['pitch-01', null, null],
+      ['pitch-02', replies[1].angle, tagsOf('pitch-02')],
+      ['pitch-03', null, null],
+      ['pitch-04', null, { call: tagsOf('pitch-04').call, tags: [], error: null }],
+      ['pitch-05', null, null],
+      ['pitch-06', null, { call: tagsOf('pitch-06').call, tags: [], error: 'Qloo returned 400: fake failure' }],
+      ['pitch-07', null, null]
+    ])
+
+    // Each top pitch's reply says why it has no angle, with the compare that found no tags.
+    const html = inboxPage(state)
+    const why = 'No angle: Qloo returned no shared tags.'
+    expect(replyOn(html, 'pitch-02')).not.toContain(why)
+    for (const pitch of ['pitch-04', 'pitch-06']) {
+      expect(replyOn(html, pitch)).toContain(why)
+      expect(replyOn(html, pitch)).toContain(`>${tagsOf(pitch).call}</button>`)
+    }
+    expect(replyOn(html, 'pitch-01')).not.toContain(why)
   })
 })
 
@@ -346,6 +411,33 @@ const drafted = [
   turn(text('Drafted.'))
 ]
 const statuses = (state: State) => state.booking!.replies!.map((r) => [r.pitch, r.status])
+
+// The inbox page as the browser renders it from synced state.
+const inboxPage = (state: State) => {
+  const noop = async () => {}
+  return renderToStaticMarkup(
+    createElement(InboxPage, {
+      inbox: state.inbox,
+      roster: state.roster,
+      booking: state.booking,
+      pitchRunStatus: null,
+      question: null,
+      runLog: null,
+      slowCalls: [],
+      loadInbox: noop,
+      confirmWork: noop,
+      startPitches: noop,
+      editReply: noop,
+      approveReply: noop,
+      discardReply: noop,
+      openCall: () => {},
+      opened: null,
+      links
+    })
+  )
+}
+// One reply's markup on the page.
+const replyOn = (html: string, pitch: string) => html.split(`data-pitch="${pitch}"`)[1]?.split('</li>')[0] ?? ''
 
 describe('the booker clearing the inbox', () => {
   it('approves one reply and leaves the rest as drafts', async () => {
@@ -365,35 +457,10 @@ describe('the booker clearing the inbox', () => {
 
   it('enables Copy on a reply only once it is approved, and drops it from a discarded one', async () => {
     const { s } = await pitchRun(drafted)
-    // The inbox page as the browser renders it from synced state.
-    const page = () => {
-      const state = s.state()!
-      const noop = async () => {}
-      return renderToStaticMarkup(
-        createElement(InboxPage, {
-          inbox: state.inbox,
-          roster: state.roster,
-          booking: state.booking,
-          pitchRunStatus: null,
-          question: null,
-          runLog: null,
-          slowCalls: [],
-          loadInbox: noop,
-          confirmWork: noop,
-          startPitches: noop,
-          editReply: noop,
-          approveReply: noop,
-          discardReply: noop,
-          openCall: () => {},
-          opened: null,
-          links
-        })
-      )
-    }
+    const page = () => inboxPage(s.state()!)
     // Each reply's Copy button: 'enabled', 'disabled', or null when it has none.
     const copy = (html: string, pitch: string) => {
-      const reply = html.split(`data-pitch="${pitch}"`)[1]?.split('</li>')[0] ?? ''
-      const button = reply.match(/<button[^>]*>Copy<\/button>/)?.[0]
+      const button = replyOn(html, pitch).match(/<button[^>]*>Copy<\/button>/)?.[0]
       return button ? (button.includes('disabled') ? 'disabled' : 'enabled') : null
     }
     const pitchIds = replies.map((r) => r.pitch)

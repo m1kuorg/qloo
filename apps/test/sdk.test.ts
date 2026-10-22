@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Crossfeed, CrossfeedError, type CrossfeedOptions } from '../../packages/sdk/src/index'
 import generated from '../../packages/sdk/src/openapi.ts?raw'
 import { sha256 } from '../src/text'
-import { fakeClaude, fakeInsights, fakeQloo, fakeReader, text, toolUse, turn } from './fake'
+import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, fakeReader, text, toolUse, turn } from './fake'
 import { networkWithKey } from './session'
 
 // A program's client, made the way the SDK's README makes one, its requests sent to the Worker in
@@ -161,8 +161,8 @@ const fit = [
   { entity_id: 'e-0102', name: 'Field Notes: Books', affinity: 0.871 },
   { entity_id: 'e-0601', name: 'Ghost Signal Radio', affinity: 0.866 }
 ]
-// The agent's turns: resolve the launch, rank the roster, ask for the budget and exclusions, then
-// draft the order.
+// The agent's turns: resolve the launch, rank the roster, ask for the budget and exclusions, find the
+// finalists' shared tags, then draft the order.
 const planned = [
   turn(toolUse('resolve_entities', { names: ['Night Shift Cinema'], type: 'urn:entity:podcast' })),
   turn(
@@ -174,6 +174,7 @@ const planned = [
   ),
   turn(toolUse('ask_human', { question: 'What is the slot budget?', kind: 'budget', options: [] })),
   turn(toolUse('ask_human', { question: 'Leave any shows out?', kind: 'exclusions', options: [] })),
+  turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: fit.map((r) => r.entity_id) })),
   turn(
     toolUse('draft_insertion_order', {
       lines: [
@@ -191,6 +192,12 @@ describe('a launch, planned through the SDK', () => {
   it('goes from a roster import to a draft order, which exports once a member approves it in the app', async () => {
     fakeQloo({ search })
     fakeInsights((body) => fit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id)))
+    // Made-up tags each finalist shares with the launch.
+    fakeCompare(
+      Object.fromEntries(
+        fit.map((r) => [r.entity_id, [{ tag_id: 'urn:tag:keyword:media:film', name: 'Film', score: 0.6131 }]])
+      )
+    )
     fakeClaude(planned)
     const { crossfeed, ada, network } = await client()
 
@@ -307,6 +314,8 @@ describe('pitches, triaged through the SDK', () => {
   it('loads, reads, and ranks them against a show, takes its answer, and drafts replies to edit or discard', async () => {
     fakeQloo({ search: { ...works, 'Night Shift Cinema': show('e-0001', 'Night Shift Cinema') } })
     fakeInsights((body) => scores[String(body['filter.type'])])
+    // Neither top pitch shares a tag with the show, so the replies have no angles.
+    fakeCompare({})
     fakeReader(2, (pitch) => Object.entries(readings).find(([title]) => pitch.includes(title))![1])
     const { crossfeed } = await client()
     await crossfeed.roster.import('Night Shift Cinema\n', { type: 'text/plain' })
@@ -344,6 +353,7 @@ describe('pitches, triaged through the SDK', () => {
           options: ['Yes', 'No']
         })
       ),
+      turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: ['pitch-01', 'pitch-02'] })),
       turn(
         toolUse('draft_replies', {
           replies: [

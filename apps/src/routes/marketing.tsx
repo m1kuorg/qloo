@@ -316,8 +316,9 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
             <h3>Approve the order</h3>
             <p>
               The agent drafts an insertion order across the finalists, with a host-read angle for each from the tags it
-              shares with the launch. Every slot is priced as the inventory it gives away, from your own figures:
-              downloads per episode × CPM ÷ 1,000. You edit it, approve it, and export it as CSV.
+              shares with the launch in Qloo, and none where it shares none. Every slot is priced as the inventory it
+              gives away, from your own figures: downloads per episode × CPM ÷ 1,000. You edit it, approve it, and
+              export it as CSV.
             </p>
             <Fig title="Insertion order draft">
               <table class="io mk-frag">

@@ -94,8 +94,8 @@ export type Verdict = 'book' | 'decline' | 'later'
 export type PitchReply = {
   pitch: string // the pitch's ID
   verdict: Verdict
-  angle: string | null // the episode angle, for a pitch whose work shared_tags compared with the show
-  sharedTags: SharedTags | null // that compare, which the angle is built from
+  angle: string | null // the episode angle, for a top pitch whose work shares tags with the show in Qloo
+  sharedTags: SharedTags | null // a top pitch's compare, which the angle is built from, or which found none
   draft: string
   status: 'draft' | 'approved' | 'discarded'
   approvedBy?: string // the member who approved it, on a network's agent; the demo's visitors aren't named

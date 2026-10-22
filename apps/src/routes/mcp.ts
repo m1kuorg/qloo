@@ -19,7 +19,7 @@ import { Hono } from 'hono'
 import type { Question, Show } from '../agent'
 import { accountsOn, appOrigins, keyFor } from '../auth'
 import type { Evidence } from '../evidence'
-import type { PitchList } from '../fit'
+import { NO_ANGLE, type PitchList } from '../fit'
 import type { Pitch, WorkCandidate } from '../inbox'
 import {
   answerLaunchRun,
@@ -522,7 +522,7 @@ const orderText = (order: OrderInfo, page: string) =>
     `Insertion order ${order.id}, ${order.status}, as it stands: ${order.slots} slots, ${dollars(order.total)}${order.complete ? '' : ' over the lines that have a value'}${order.cpm === null ? '' : ` at a ${dollars(order.cpm)} CPM`}.`,
     ...order.lines.map(
       (l) =>
-        `- ${l.show}: ${l.slots} slots${l.slotValue === null ? `, no value (${l.gap})` : ` at ${dollars(l.slotValue)}, ${dollars(l.value!)}`}. ${l.angle}`
+        `- ${l.show}: ${l.slots} slots${l.slotValue === null ? `, no value (${l.gap})` : ` at ${dollars(l.slotValue)}, ${dollars(l.value!)}`}. ${l.angle ?? NO_ANGLE}`
     ),
     order.status === 'approved'
       ? `Approved by ${order.approvedBy} in the app. Editing it returns it to draft: ${page}`

@@ -1180,7 +1180,7 @@
               "string",
               "null"
             ],
-            "description": "A top pitch's episode angle, built from its shared tags."
+            "description": "A top pitch's episode angle, built only from its shared tags; null for a top pitch whose `sharedTags` holds none, and for every other pitch."
           },
           "sharedTags": {
             "anyOf": [
@@ -1190,7 +1190,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "A top pitch's compare with the show, which its angle is built from, or which found no shared tags."
           },
           "draft": {
             "type": "string",
@@ -2251,8 +2252,11 @@
                   "type": "integer"
                 },
                 "angle": {
-                  "type": "string",
-                  "description": "The host-read angle."
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The host-read angle; null when Qloo returned no shared tags for the show (its chart row's `sharedTags`), as an angle is built only from them, unless a member typed one."
                 },
                 "slotValue": {
                   "type": [
@@ -2587,8 +2591,12 @@
                   "description": "Whole promo slots, 1 or more."
                 },
                 "angle": {
-                  "type": "string",
-                  "maxLength": 500
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500,
+                  "description": "The host-read angle. Only a finalist Qloo returned no shared tags for may have none: null or empty."
                 }
               },
               "required": [

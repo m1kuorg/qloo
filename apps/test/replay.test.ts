@@ -4,6 +4,7 @@ import type { Reply, State } from '../src/agent'
 import type { Evidence } from '../src/evidence'
 import {
   fakeClaude,
+  fakeCompare,
   fakeInsights,
   fakeQloo,
   fakeQlooDown,
@@ -84,8 +85,8 @@ const visitor = async () => {
 }
 
 // What a test changes about the sample run: what the visitor does before starting it, a question
-// the agent asks after the exclusions with the visitor's reply, and a block the agent's last tool
-// turn runs, such as a draft insertion order.
+// the agent asks after the exclusions with the visitor's reply, and a draft insertion order the
+// agent's last tool turn runs, after a turn that finds the finalists' shared tags.
 type Change = {
   before?: (s: Session) => Promise<unknown>
   ask?: { question: ScriptedBlock; reply: Reply }
@@ -97,10 +98,17 @@ async function completeSampleRun(slots = 20, { before, ask, draft }: Change = {}
   fakeQloo({ search })
   // Only the candidates asked about, as Qloo ranks a closed list.
   fakeInsights((body) => ranked.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id)))
+  // Made-up tags each finalist shares with The Watch.
+  fakeCompare(
+    Object.fromEntries(
+      ranked.map((r) => [r.entity_id, [{ tag_id: 'urn:tag:keyword:media:tv', name: 'TV', score: 0.6131 }]])
+    )
+  )
+  const findTags = toolUse('shared_tags', { anchor_ids: ['e-0601'], candidate_ids: ranked.map((r) => r.entity_id) })
   fakeClaude([
     ...sampleRun.slice(0, -1),
     ...(ask ? [turn(ask.question)] : []),
-    ...(draft ? [turn(draft)] : []),
+    ...(draft ? [turn(findTags), turn(draft)] : []),
     sampleRun.at(-1)!
   ])
   const s = await visitor()
