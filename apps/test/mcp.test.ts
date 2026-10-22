@@ -466,7 +466,7 @@ describe('triaging pitches through the MCP server', () => {
     fakeQloo({ search: works })
     fakeInsights((body) => scores[String(body['filter.type'])])
     fakeReader(3, (pitch) => Object.entries(readings).find(([title]) => pitch.includes(title))![1])
-    const { network, secret } = await networkWithKey()
+    const { network, secret, call } = await networkWithKey()
     const client = assistant(secret)
     await client.call('import_roster', { roster: 'Night Shift Cinema', format: 'lines' })
 
@@ -539,6 +539,16 @@ describe('triaging pitches through the MCP server', () => {
         `Only a member of the network approves a reply, in the app: ${origin}/app/${network}/inbox`
       ].join('\n')
     )
+    expect(done.structured.repliesEdited).toBe(false)
+    // A program discards a reply: the closing line stays as Claude wrote it, and says the replies have
+    // changed since (#213).
+    await call(`/api/v1/networks/${network}/pitch-runs/${runId}/replies/pitch-02/discard`, { method: 'POST' })
+    const after = await client.call('get_pitch_run', { runId })
+    expect(after.structured).toMatchObject({ closing: 'Drafted 1 book and 2 later.', repliesEdited: true })
+    expect(after.text).toContain(
+      `Pitch run ${runId} for Night Shift Cinema: completed. It ended saying: Drafted 1 book and 2 later. A reply has been edited or discarded since, so take the counts from the replies, not from this line.\n`
+    )
+    expect(after.text).toContain('- pitch-02, book, discarded: Paper Moons would suit the show. More soon.')
     // A new session finds the latest run, and the replies it drafted, without its ID.
     const listed = await client.call('list_pitch_runs', {})
     expect(listed.structured.pitchRuns).toEqual([

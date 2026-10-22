@@ -1237,14 +1237,19 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return reply
   }
 
-  // Only an approved reply keeps who approved it. The run that drafted it has ended, so its snapshot
-  // keeps the replies too, and an earlier run shows them as the booker left them, as with an order.
+  // Only an approved reply keeps who approved it. A change to its words, or to whether it's left out,
+  // marks the replies edited; an approval, or the same words saved again, doesn't. The run that drafted
+  // it has ended, so its snapshot keeps the booking too, and an earlier run shows its replies as the
+  // booker left them, as with an order.
   private saveReply({ approvedBy, ...change }: PitchReply) {
     const reply = change.status === 'approved' && approvedBy ? { ...change, approvedBy } : change
     const booking = this.state.booking!
-    const replies = booking.replies!.map((r) => (r.pitch === reply.pitch ? reply : r))
-    this.setState({ ...this.state, booking: { ...booking, replies } })
-    this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.booking.replies', json(${JSON.stringify(replies)}))
+    const was = booking.replies!.find((r) => r.pitch === reply.pitch)!
+    const changed = was.draft !== reply.draft || (was.status === 'discarded') !== (reply.status === 'discarded')
+    const replies = booking.replies!.map((r) => (r === was ? reply : r))
+    const saved = { ...booking, replies, ...(changed && { repliesEdited: true as const }) }
+    this.setState({ ...this.state, booking: saved })
+    this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.booking', json(${JSON.stringify(saved)}))
       WHERE id = ${booking.run} AND snapshot IS NOT NULL`
   }
 

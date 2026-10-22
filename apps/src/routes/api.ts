@@ -828,7 +828,10 @@ const PitchRun = PitchRunFields.extend({
   question: orNull(Question),
   notes: z.array(Note),
   error: z.string().nullable(),
-  closing: z.string().nullable().openapi({ description: "The agent's closing line, once the run completes." }),
+  closing: z.string().nullable().openapi({
+    description:
+      "The agent's closing line, once the run completes, as it wrote it then. Once `repliesEdited`, the replies have changed since, so read their counts from `replies`."
+  }),
   pastGuests: z.array(
     z.object({
       guest: z.string(),
@@ -837,7 +840,11 @@ const PitchRun = PitchRunFields.extend({
     })
   ),
   lists: z.array(PitchList).nullable().openapi({ description: 'One per work type, once the pitches are ranked.' }),
-  replies: z.array(Reply).nullable().openapi({ description: 'One per pitch, in inbox order, once drafted.' })
+  replies: z.array(Reply).nullable().openapi({ description: 'One per pitch, in inbox order, once drafted.' }),
+  repliesEdited: z.boolean().openapi({
+    description:
+      'An edit or a discard has changed a reply since the agent drafted them, so `closing` may give counts the replies no longer have: `replies` are the current ones.'
+  })
 }).openapi('PitchRun', {
   example: {
     id: '5f0c2a8e-1b7d-4c3e-9a64-0d2e8f1b3c57',
@@ -855,7 +862,8 @@ const PitchRun = PitchRunFields.extend({
     closing: null,
     pastGuests: [],
     lists: null,
-    replies: null
+    replies: null,
+    repliesEdited: false
   }
 })
 

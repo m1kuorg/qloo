@@ -557,7 +557,10 @@ function pitchLine(pitch: Pitch) {
   return `${who}: ${work}, ${found}`
 }
 
-const pitchRunLine = (run: PitchRun) => `Pitch run ${run.id} for ${run.show}: ${ended(run)}`
+// A pitch run's line. Its closing line stays as Claude wrote it; once a reply has been edited or
+// discarded since, it may give counts the replies no longer have, so the line says so (#213).
+const pitchRunLine = (run: PitchRun) =>
+  `Pitch run ${run.id} for ${run.show}: ${ended(run)}${run.closing && run.repliesEdited ? ' A reply has been edited or discarded since, so take the counts from the replies, not from this line.' : ''}`
 
 // A pitch run as the assistant reads it: what it waits on, its ranked lists, its drafted replies, and
 // where a member approves them.

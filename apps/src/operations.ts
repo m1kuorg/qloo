@@ -426,7 +426,9 @@ export async function confirmWork(
 
 // A guest pitch run as a program reads it: its status, the question it's waiting on, its progress
 // notes, and, as they arrive, its past guests' works, its ranked lists, one per work type, and the
-// reply it drafted to each pitch. A member approves a reply in the app; nothing here can.
+// reply it drafted to each pitch, and whether an edit or a discard has changed one since, so its
+// closing line may give counts they no longer have. A member approves a reply in the app; nothing
+// here can.
 export type PitchRun = {
   id: string
   status: Run['status']
@@ -439,6 +441,7 @@ export type PitchRun = {
   pastGuests: PastGuest[]
   lists: PitchList[] | null
   replies: PitchReply[] | null
+  repliesEdited: boolean
 }
 
 // Starts a pitch run against a roster show, with the show's best past guests and their public works
@@ -550,7 +553,8 @@ async function pitchRunOf(networkAgent: NetworkStub, state: State, id: string): 
     closing: run!.closing,
     pastGuests: booking!.pastGuests,
     lists: booking!.lists,
-    replies: booking!.replies
+    replies: booking!.replies,
+    repliesEdited: booking!.repliesEdited ?? false
   }
 }
 

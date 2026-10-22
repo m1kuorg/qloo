@@ -858,7 +858,7 @@
               "string",
               "null"
             ],
-            "description": "The agent's closing line, once the run completes."
+            "description": "The agent's closing line, once the run completes, as it wrote it then. Once `repliesEdited`, the replies have changed since, so read their counts from `replies`."
           },
           "pastGuests": {
             "type": "array",
@@ -909,6 +909,10 @@
               "$ref": "#/components/schemas/Reply"
             },
             "description": "One per pitch, in inbox order, once drafted."
+          },
+          "repliesEdited": {
+            "type": "boolean",
+            "description": "An edit or a discard has changed a reply since the agent drafted them, so `closing` may give counts the replies no longer have: `replies` are the current ones."
           }
         },
         "required": [
@@ -922,7 +926,8 @@
           "closing",
           "pastGuests",
           "lists",
-          "replies"
+          "replies",
+          "repliesEdited"
         ],
         "example": {
           "id": "5f0c2a8e-1b7d-4c3e-9a64-0d2e8f1b3c57",
@@ -948,7 +953,8 @@
           "closing": null,
           "pastGuests": [],
           "lists": null,
-          "replies": null
+          "replies": null,
+          "repliesEdited": false
         }
       },
       "Question": {

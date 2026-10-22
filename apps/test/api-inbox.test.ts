@@ -300,6 +300,7 @@ type PitchRun = {
   closing: string | null
   lists: PitchList[] | null
   replies: PitchReply[] | null
+  repliesEdited: boolean
 }
 
 // The show the pitches are for, on the roster, and made-up affinities in fit order for each list.
@@ -608,6 +609,21 @@ describe("a pitch run's replies", () => {
       ['pitch-02', 'draft', 'Paper Moons, yes.'],
       ['pitch-03', 'discarded', "We'll come back to Static Bloom next season."]
     ])
+  })
+
+  it("say when an edit or a discard has changed them since the run's closing line, which stays as Claude wrote it", async () => {
+    const { network, call, run } = await drafted()
+    expect(run).toMatchObject({ status: 'completed', closing: 'Drafted.', repliesEdited: false })
+
+    // The words the run drafted, saved again.
+    await change(call, network, run.id, 'pitch-01', { draft: "Let's revisit Night Ferry in spring." })
+    expect(await runRead(call, network, run.id)).toMatchObject({ closing: 'Drafted.', repliesEdited: false })
+    await discard(call, network, run.id, 'pitch-02')
+    expect(await runRead(call, network, run.id)).toMatchObject({
+      closing: 'Drafted.',
+      replies: [{ status: 'draft' }, { status: 'discarded' }, { status: 'draft' }],
+      repliesEdited: true
+    })
   })
 
   it("are never approved through the API, which refuses what a reply can't take", async () => {

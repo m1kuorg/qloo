@@ -254,7 +254,7 @@ export function Workspace({
           {run && (
             <RunLog
               run={run}
-              orderEdited={shown?.insertionOrder?.run === run.id && Boolean(shown.insertionOrder.edited)}
+              changedNote={shown?.insertionOrder?.run === run.id && shown.insertionOrder.edited ? ORDER_CHANGED : null}
               openCall={openCall}
               opened={opened?.call ?? null}
             />
@@ -311,7 +311,16 @@ export function InboxWorkspace({ agent, links }: { agent: Session; links: Links 
           <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
         )
       }
-      runLog={pitchRun && <RunLog run={pitchRun} openCall={openCall} opened={opened?.call ?? null} />}
+      runLog={
+        pitchRun && (
+          <RunLog
+            run={pitchRun}
+            changedNote={agent.state?.booking?.repliesEdited ? REPLIES_CHANGED : null}
+            openCall={openCall}
+            opened={opened?.call ?? null}
+          />
+        )
+      }
       slowCalls={agent.state?.slowCalls ?? []}
       loadInbox={(source) => agent.stub.loadInbox(source)}
       confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
@@ -703,17 +712,23 @@ function ClosingLine({
 
 const noteLabel: Record<Run['notes'][number]['status'], string> = { running: 'Running', done: 'Done', failed: 'Failed' }
 
+// Code's note under a closing line once what the line describes has changed since: a launch run's
+// insertion order (#202), or a pitch run's replies (#213).
+const ORDER_CHANGED =
+  'The insertion order has changed since Claude drafted it: its lines and total are the current figures.'
+const REPLIES_CHANGED = 'The replies have changed since Claude drafted them: each reply as listed is the current one.'
+
 // What the run has done so far: one note per tool call, then why it stopped if it failed. Its closing
-// line stays as Claude wrote it; once the run's insertion order has been edited since (`orderEdited`),
-// code says so under it, since the line may quote figures the order no longer has (#202).
+// line stays as Claude wrote it; once what it describes has changed since, code says so under it
+// (`changedNote`), since the line may quote figures or counts that no longer hold.
 function RunLog({
   run,
-  orderEdited = false,
+  changedNote = null,
   openCall,
   opened
 }: {
   run: Run
-  orderEdited?: boolean
+  changedNote?: string | null
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -745,11 +760,7 @@ function RunLog({
       {run.notes.length === 0 && run.status === 'running' && <p className="help">Waiting for Claude.</p>}
       {/* Runs from before closing lines have none. */}
       {run.closing && <ClosingLine text={run.closing} openCall={openCall} opened={opened} />}
-      {run.closing && orderEdited && (
-        <p className="help io-note">
-          The insertion order has changed since Claude drafted it: its lines and total are the current figures.
-        </p>
-      )}
+      {run.closing && changedNote && <p className="help io-note">{changedNote}</p>}
       {(run.budget || run.exclusions) && (
         <dl className="rec">
           {run.budget && (
