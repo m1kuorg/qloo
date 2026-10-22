@@ -28,6 +28,16 @@ const origin = 'https://crossfeed.test'
 // The links the demo gives its island pages, for tests that render a page from a session's state.
 export const links: Links = { roster: '/demo' }
 
+// The name of each region a screen reader lists on a rendered page: its label, or its heading's
+// words. The shell's top bar is the page's one banner, so a page renders no <header> of its own.
+export const regions = (html: string) =>
+  [...html.matchAll(/<section\b[^>]*>|<div\b[^>]*role="region"[^>]*>/g)].flatMap(([tag]) => {
+    const label = tag.match(/aria-label="([^"]+)"/)?.[1]
+    const by = tag.match(/aria-labelledby="([^"]+)"/)?.[1]
+    const heading = by && html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>`))?.[1]
+    return label ? [label] : heading ? [heading.replace(/<[^>]+>/g, '').trim()] : []
+  })
+
 export type Session = {
   cookie: string
   state: () => State | undefined

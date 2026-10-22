@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccountPage } from '../src/client/AccountPage'
 import { softwareAuthenticator } from './authenticator'
-import { addPasskey, openMember, type Member } from './session'
+import { addPasskey, openMember, regions, type Member } from './session'
 
 afterEach(() => vi.useRealTimers())
 
@@ -42,15 +42,6 @@ const words = (html: string) =>
     .replace(/&#x27;|&apos;/g, "'")
     .replace(/\s+/g, ' ')
     .trim()
-
-// The name of each region a screen reader lists on the page: its label, or its heading's words.
-const regions = (html: string) =>
-  [...html.matchAll(/<section\b[^>]*>|<div\b[^>]*role="region"[^>]*>/g)].flatMap(([tag]) => {
-    const label = tag.match(/aria-label="([^"]+)"/)?.[1]
-    const by = tag.match(/aria-labelledby="([^"]+)"/)?.[1]
-    const heading = by && html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>`))?.[1]
-    return label ? [label] : heading ? [words(heading)] : []
-  })
 
 describe('the account page', () => {
   it("shows the member's name, passkeys by browser and date, sessions, and networks", async () => {
