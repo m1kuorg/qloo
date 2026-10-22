@@ -70,17 +70,20 @@ type Answer = QlooEntity[] | number | RawResponse | 'hang'
 
 // Serves `/search` from `search`, keyed by the exact query string; a query with no fixture finds
 // nothing. `first` scripts the answers to a query's first requests, in order, before `search`
-// answers the rest. `latencyMs` delays every answer. With `keys`, only a request with one of them as its
-// `X-Api-Key` is answered; any other gets a 401, as Qloo answers a key it doesn't know.
+// answers the rest. `latencyMs` delays every answer, and `held` holds every answer until it settles, so
+// a test sees lookups still pending for as long as it needs. With `keys`, only a request with one of
+// them as its `X-Api-Key` is answered; any other gets a 401, as Qloo answers a key it doesn't know.
 export function fakeQloo({
   search,
   first = {},
   latencyMs = 0,
+  held,
   keys
 }: {
   search: Record<string, Answer>
   first?: Record<string, Answer[]>
   latencyMs?: number
+  held?: Promise<unknown>
   keys?: string[]
 }) {
   const asked = new Map<string, number>()
@@ -98,6 +101,7 @@ export function fakeQloo({
           asked.set(query, n + 1)
           const answer = first[query]?.[n] ?? search[query]
           if (latencyMs) await delay(latencyMs)
+          await held
           if (answer === 'hang') {
             await new Promise((resolve) => request.signal.addEventListener('abort', resolve, { once: true }))
             return HttpResponse.error()
