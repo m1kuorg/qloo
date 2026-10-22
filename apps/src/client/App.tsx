@@ -747,7 +747,7 @@ function RunLog({
       {run.closing && <ClosingLine text={run.closing} openCall={openCall} opened={opened} />}
       {run.closing && orderEdited && (
         <p className="help io-note">
-          The insertion order has changed since Claude wrote this: its lines and total are the current figures.
+          The insertion order has changed since Claude drafted it: its lines and total are the current figures.
         </p>
       )}
       {(run.budget || run.exclusions) && (

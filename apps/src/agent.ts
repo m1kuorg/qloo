@@ -728,9 +728,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // The programmer's edit of the current insertion order: slot counts, dropped shows, and reworded
-  // angles, priced again in code. Editing an approved order returns it to draft, and one that changes
-  // its lines marks it edited. The budget bounds the agent's draft, not this: the final plan is the
-  // programmer's, and the UI shows it over budget. Returns the order as saved.
+  // angles, priced again in code. Editing an approved order returns it to draft, and an edit that
+  // changes its lines or their prices marks it edited. The budget bounds the agent's draft, not this:
+  // the final plan is the programmer's, and the UI shows it over budget. Returns the order as saved.
   @callable()
   editInsertionOrder(id: string, lines: LineInput[]) {
     const order = this.editableOrder(id)
@@ -741,8 +741,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const priced = priceLines(edited, this.state.roster, this.state.cpm)
     // The lines as words and figures, priced: the model's may hold its fields in any order, and spaces
     // round an angle, and the same lines can price anew after a roster import.
-    const key = (ls: OrderLine[]) => JSON.stringify(ls.map((l) => [l.show, l.slots, l.angle.trim(), l.slotValue]))
-    const changed = key(priced.lines) !== key(order.lines)
+    const lineKey = (lines: OrderLine[]) =>
+      JSON.stringify(lines.map((l) => [l.show, l.slots, l.angle.trim(), l.slotValue]))
+    const changed = lineKey(priced.lines) !== lineKey(order.lines)
     this.saveOrder({ ...order, ...priced, status: 'draft', ...(changed && { edited: true }) })
     return this.state.insertionOrder!
   }

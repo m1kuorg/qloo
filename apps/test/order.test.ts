@@ -495,12 +495,12 @@ describe('a closing line the order has changed since', () => {
     const run = state.run!.id
     const lines = state.insertionOrder!.lines.map(({ show, slots, angle }) => ({ show, slots, angle }))
     expect(state.run?.closing).toBe('Drafted the insertion order.')
-    expect(state.insertionOrder).not.toHaveProperty('edited')
+    expect(state.insertionOrder?.edited).toBeFalsy()
 
     await s.call('editInsertionOrder', 'IO-0001', lines)
     await s.call('approveInsertionOrder', 'IO-0001')
     expect(s.state()?.insertionOrder).toMatchObject({ status: 'approved', total: 15600 })
-    expect(s.state()?.insertionOrder).not.toHaveProperty('edited')
+    expect(s.state()?.insertionOrder?.edited).toBeFalsy()
 
     await s.call('editInsertionOrder', 'IO-0001', [{ ...lines[0], slots: 10 }, lines[1]])
     await s.call('approveInsertionOrder', 'IO-0001')
@@ -518,7 +518,7 @@ describe('a closing line the order has changed since', () => {
 
     await s.call('setCpm', 25)
     await s.call('updateShow', 'Tin Roof', { downloads: 15000 })
-    expect(s.state()?.insertionOrder).not.toHaveProperty('edited')
+    expect(s.state()?.insertionOrder?.edited).toBeFalsy()
 
     await s.call('setCpm', 30)
     expect(s.state()?.insertionOrder).toMatchObject({ cpm: 30, total: 22890, edited: true })
@@ -531,20 +531,20 @@ describe('a closing line the order has changed since', () => {
     // A roster imported again, with Corner Booth's downloads up, leaves the order as it was priced.
     await s.importRoster(csv.replace('Corner Booth,48000', 'Corner Booth,60000'), 'csv')
     expect(s.state()?.insertionOrder).toMatchObject({ total: 19076 })
-    expect(s.state()?.insertionOrder).not.toHaveProperty('edited')
+    expect(s.state()?.insertionOrder?.edited).toBeFalsy()
 
     await s.call('editInsertionOrder', 'IO-0001', lines)
     expect(s.state()?.insertionOrder).toMatchObject({ total: 21476, edited: true })
   })
 
-  it("notes under the closing line, in code's words, that the order has changed since Claude wrote it", async () => {
+  it("notes under the closing line, in code's words, that the order has changed since Claude drafted it", async () => {
     const { s, state } = await plan({ slots: 20 }, [turn(fourShows)])
     // The rail's Run module as the browser renders it.
     const runModule = (state: State) =>
       renderToStaticMarkup(
         createElement(Workspace, { page: 'roster', agent: { state, stub: {} } as unknown as Agent, links })
       ).match(/<section class="mod" aria-labelledby="run-log">[\s\S]*?<\/section>/)![0]
-    const note = 'The insertion order has changed since Claude wrote this: its lines and total are the current figures.'
+    const note = 'The insertion order has changed since Claude drafted it: its lines and total are the current figures.'
     expect(runModule(state)).toContain('Drafted the insertion order.')
     expect(runModule(state)).not.toContain(note)
 
