@@ -4,9 +4,10 @@
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { applyD1Migrations, reset, type D1Migration } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
-import { afterEach, beforeEach } from 'vitest'
+import { afterEach, beforeEach, onTestFailed } from 'vitest'
 import type { State } from '../src/agent'
 import type { Links } from '../src/client/App'
+import { WIPED } from '../src/gateway'
 import type { RosterFormat } from '../src/roster'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
 
@@ -194,6 +195,34 @@ export async function poll<T>(
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
+
+// Reads a wiped instance once the runtime has reset it, and returns what `read` gets. A wipe (an agent's
+// `destroy`, a gateway's `wipe`) resets the instance a moment later, its next task, and until then each
+// call to it throws, for longer the more loaded the machine is: so `read`, which takes a new stub each
+// time, is tried again until it answers, as `poll` waits, bounded only by the test's timeout. Any other
+// error fails at once, and a reset that never comes fails the test at its timeout saying what the read
+// last met.
+export async function readAfterReset<T>(read: () => Promise<T>): Promise<T> {
+  let resetting: unknown = null
+  onTestFailed(() => {
+    if (resetting) console.error(`readAfterReset was still waiting for a reset: ${String(resetting)}`)
+  })
+  for (;;) {
+    try {
+      const answer = await read()
+      resetting = null
+      return answer
+    } catch (e) {
+      if (!RESETTING.includes((e as Error).message)) throw e
+      resetting = e
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+  }
+}
+
+// What a call to a wiped instance throws until it resets: an agent's, which `destroy` aborts with
+// "destroyed", and a gateway's, which fails every call from its wipe's start.
+const RESETTING = ['destroyed', WIPED]
 
 // Sends requests until one is refused, at most twice the limit and two more: a fixed minute's window
 // may roll over once while they go, which starts the count again.

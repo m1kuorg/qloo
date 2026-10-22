@@ -109,7 +109,7 @@ export const globalGateway = (env: Env) => env.QlooGateway.getByName(GLOBAL)
 const GLOBAL = 'global'
 
 // Why a network's instance fails a call once its wipe has begun, as when an owner removes its key.
-const WIPED =
+export const WIPED =
   "The network's own Qloo key was removed, or the network deleted, while this call was out, so it was cut off. Calls made from now on go through Crossfeed's shared key"
 
 // The only code that calls Qloo, reached over Durable Object RPC: the global instance, on Crossfeed's

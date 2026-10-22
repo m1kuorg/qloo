@@ -19,7 +19,7 @@ import { QlooGateway } from '../src/gateway'
 import { LaunchAgent } from '../src/launch-agent'
 import worker from '../src/index'
 import { fakeClaude, fakeInsights, fakeQloo, requests, text, toolUse, turn } from './fake'
-import { api, openMember, openSession, type Member, type Session } from './session'
+import { readAfterReset, api, openMember, openSession, type Member, type Session } from './session'
 
 const HACKATHON = 'https://hackathon.api.qloo.com'
 const PRODUCTION = 'https://api.qloo.com'
@@ -386,7 +386,8 @@ describe("a network's own Qloo key", () => {
     const removed = await res.json<{ key: object; usage: { qlooCalls: { used: number } } }>()
     expect([removed.key, removed.usage.qlooCalls.used]).toEqual([{ set: false }, 0])
     expect(sent()).toEqual([])
-    await vi.waitFor(async () => expect((await settings(ada, own)).qlooKey).toEqual({ set: false }))
+    // The removal told the agent before the wipe, so the settings no longer ask the instance.
+    expect((await settings(ada, own)).qlooKey).toEqual({ set: false })
     await network.importRoster('Corner Booth\nSlow Burn')
     expect(sent()).toEqual([[`${env.QLOO_BASE_URL}/search`, env.QLOO_API_KEY]])
 
@@ -441,7 +442,10 @@ describe("a network's own Qloo key", () => {
       throw new Error('The answer was lost.')
     })
     expect((await post(ada, `/app/${own}/settings/qloo-key/remove`)).status).toBe(500)
-    await vi.waitFor(async () => expect((await settings(ada, own)).qlooKey).toEqual({ set: false }))
+    // The wipe ran, so the instance holds no key, but its answer was lost, so the agent still says the
+    // network has one and the settings ask the instance: read it once it has reset, then the page.
+    expect(await readAfterReset(() => env.QlooGateway.getByName(`network:${own}`).ownKey())).toEqual({ set: false })
+    expect((await settings(ada, own)).qlooKey).toEqual({ set: false })
 
     expect((await addKey(ada, own, HACKATHON, OWN)).status).toBe(200)
     expect((await settings(ada, own)).qlooKey).toEqual({ set: true, host: HACKATHON, last4: '7f3a' })
@@ -528,7 +532,7 @@ describe("a network's own Qloo key", () => {
       expect(await held(id)).toEqual([{ set: true, host: HACKATHON, last4: '7f3a' }, 1])
       networks.push({ id, name })
     }
-    const wiped = (id: string) => vi.waitFor(async () => expect(await held(id)).toEqual([{ set: false }, 0]))
+    const wiped = async (id: string) => expect(await readAfterReset(() => held(id))).toEqual([{ set: false }, 0])
     const remove = ({ id, name }: (typeof networks)[number]) =>
       post(ada, `/app/${id}/settings/delete`, { name }).then((res) => res.status)
 

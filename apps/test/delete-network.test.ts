@@ -10,7 +10,7 @@ import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent } from '../src/network-agent'
 import { fakeQloo } from './fake'
-import { openMember, type Member, type Session } from './session'
+import { readAfterReset, openMember, type Member, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
 
@@ -66,8 +66,8 @@ async function held(id: string, launches: string[]) {
 }
 // A wiped agent's instance is reset a moment after its wipe: the next call meets a new, empty one.
 const EMPTY = { network: { shows: 0, cpm: null, launches: 0 }, evidence: 0 }
-const wipedOut = (id: string, launches: string[]) =>
-  vi.waitFor(async () => expect(await held(id, launches)).toEqual({ ...EMPTY, launches: launches.map(() => null) }))
+const wipedOut = async (id: string, launches: string[]) =>
+  expect(await readAfterReset(() => held(id, launches))).toEqual({ ...EMPTY, launches: launches.map(() => null) })
 
 // Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
 async function runCron() {
