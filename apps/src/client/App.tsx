@@ -254,7 +254,7 @@ export function Workspace({
           {run && (
             <RunLog
               run={run}
-              changed={shown?.insertionOrder?.run === run.id && shown.insertionOrder.edited ? ORDER_CHANGED : null}
+              changedNote={shown?.insertionOrder?.run === run.id && shown.insertionOrder.edited ? ORDER_CHANGED : null}
               openCall={openCall}
               opened={opened?.call ?? null}
             />
@@ -315,7 +315,7 @@ export function InboxWorkspace({ agent, links }: { agent: Session; links: Links 
         pitchRun && (
           <RunLog
             run={pitchRun}
-            changed={agent.state?.booking?.repliesEdited ? REPLIES_CHANGED : null}
+            changedNote={agent.state?.booking?.repliesEdited ? REPLIES_CHANGED : null}
             openCall={openCall}
             opened={opened?.call ?? null}
           />
@@ -720,15 +720,15 @@ const REPLIES_CHANGED = 'The replies have changed since Claude drafted them: eac
 
 // What the run has done so far: one note per tool call, then why it stopped if it failed. Its closing
 // line stays as Claude wrote it; once what it describes has changed since, code says so under it
-// (`changed`), since the line may quote figures or counts that no longer hold.
+// (`changedNote`), since the line may quote figures or counts that no longer hold.
 function RunLog({
   run,
-  changed = null,
+  changedNote = null,
   openCall,
   opened
 }: {
   run: Run
-  changed?: string | null
+  changedNote?: string | null
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -760,7 +760,7 @@ function RunLog({
       {run.notes.length === 0 && run.status === 'running' && <p className="help">Waiting for Claude.</p>}
       {/* Runs from before closing lines have none. */}
       {run.closing && <ClosingLine text={run.closing} openCall={openCall} opened={opened} />}
-      {run.closing && changed && <p className="help io-note">{changed}</p>}
+      {run.closing && changedNote && <p className="help io-note">{changedNote}</p>}
       {(run.budget || run.exclusions) && (
         <dl className="rec">
           {run.budget && (

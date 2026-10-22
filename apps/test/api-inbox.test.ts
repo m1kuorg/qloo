@@ -615,6 +615,7 @@ describe("a pitch run's replies", () => {
     const { network, call, run } = await drafted()
     expect(run).toMatchObject({ status: 'completed', closing: 'Drafted.', repliesEdited: false })
 
+    // The words the run drafted, saved again.
     await change(call, network, run.id, 'pitch-01', { draft: "Let's revisit Night Ferry in spring." })
     expect(await runRead(call, network, run.id)).toMatchObject({ closing: 'Drafted.', repliesEdited: false })
     await discard(call, network, run.id, 'pitch-02')
