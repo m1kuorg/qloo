@@ -17,7 +17,7 @@ The guide in the rail walks steps 2 to 5. [docs/SUBMISSION.md](docs/SUBMISSION.m
 
 ## The product
 
-Behind the `ACCOUNTS` switch, which is on at the preview deployment, <https://crossfeed-preview.m1kuorg.workers.dev>, and off in production until the product passes there:
+Open at <https://crossfeed.m1kuorg.workers.dev> as a free beta, behind the `ACCOUNTS` switch that can turn it all off at once:
 
 - **Sign-in:** sign up with your name and a passkey, keep the one-time recovery code, and sign in with the passkey alone. No password and no email.
 - **Networks:** create a network, invite teammates with a link that works once, and work on one roster, one inbox, and every launch together, seeing each other's changes live.
