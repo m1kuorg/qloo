@@ -730,6 +730,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
       {accounts && (
         <p>
           Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it close.
+          Crossfeed keeps only a note that you were in it, so deleting your account later forgets your name there too.
           What you added to the network stays with the network. Deleting a launch, which any of the network&apos;s
           members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records.
           Removing a network&apos;s own Qloo key, which only an owner can do, wipes its Qloo storage at once: the key,
@@ -738,11 +739,12 @@ function Privacy({ accounts }: { accounts: boolean }) {
           storage. A wipe that fails is tried again by the next day&apos;s cleanup, which also deletes expired sessions,
           sign-in challenges, and invite links. Deleting your account, on your account page, deletes your account with
           its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it,
-          but not your name: the launches of the networks you&apos;re in say &ldquo;Former member&rdquo; on the runs you
-          started and the orders you approved. The API keys and invite links you made are revoked at once too, as they
-          are when an owner leaves a network, is removed, or is made a member. A network that can&apos;t be reached at
-          once forgets your name at the next day&apos;s cleanup. It&apos;s refused while you&apos;re a network&apos;s
-          only owner. &ldquo;Sign out everywhere&rdquo; deletes every session of yours.
+          but not your name: the launches of the networks you&apos;re in, or were in before, say &ldquo;Former
+          member&rdquo; on the runs you started and the orders you approved, and the replies you approved no longer say
+          who did. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a
+          network, is removed, or is made a member. A network that can&apos;t be reached at once forgets your name at
+          the next day&apos;s cleanup. It&apos;s refused while you&apos;re a network&apos;s only owner. &ldquo;Sign out
+          everywhere&rdquo; deletes every session of yours.
         </p>
       )}
 

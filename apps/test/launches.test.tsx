@@ -866,6 +866,33 @@ describe('a member who deletes their account', () => {
     await roster.until((s) => s.launches![0].startedBy === 'Former member')
   })
 
+  it('is forgotten by name in the launches of the networks they left or were removed from before', async () => {
+    const ada = await openMember()
+    const [left, removed] = [await created(ada), await created(ada, 'Day Shift Audio')]
+    const grace = await teammate(ada, left)
+    const token = new URL(await ada.invite(removed)).hash.slice(1)
+    const join = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }
+    expect((await grace.fetch('/auth/join', join)).status).toBe(200)
+    fakeClaude([turn(text('No roster to rank yet.')), turn(text('No roster to rank yet.'))])
+    const launches = await Promise.all(
+      [left, removed].map(async (network) => {
+        const { id, agent } = await launch(grace, network)
+        await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+        await agent.until(ended)
+        return { network, id }
+      })
+    )
+    expect((await grace.fetch(`/app/${left}/settings/members/leave`, { method: 'POST' })).status).toBe(200)
+    const removal = await ada.fetch(`/app/${removed}/settings/members/${grace.id}/remove`, { method: 'POST' })
+    expect(removal.status).toBe(200)
+    for (const { network, id } of launches) expect(await startedBy(ada, network, id)).toEqual(['Grace Booker'])
+
+    expect((await deleteAccount(grace)).status).toBe(200)
+    for (const { network, id } of launches) expect(await startedBy(ada, network, id)).toEqual(['Former member'])
+    const dashboard = await connect(ada, `/agents/network/${left}`)
+    expect((await dashboard.until(() => true)).launches![0].startedBy).toBe('Former member')
+  })
+
   it("forgets it at the next day's cleanup when a launch can't be reached at once", async () => {
     const ada = await openMember()
     const network = await created(ada)

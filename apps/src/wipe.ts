@@ -3,7 +3,16 @@
 // deleted member's name from their networks' launches; and the daily cron's retry of a wipe that
 // failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
-import { deleteMember, dropNetwork, networkName, noteWipe, wipeDone, wipesDue, type Instance } from './directory'
+import {
+  deleteMember,
+  dropNetwork,
+  networkName,
+  noteWipe,
+  pastNetworks,
+  wipeDone,
+  wipesDue,
+  type Instance
+} from './directory'
 import { kickMember, launchAgentName, NETWORK_DELETED, ownGatewayName } from './network-agent'
 
 // The bindings a wipe is noted under, and how each wipes its instance (an agent's `destroy`, a gateway's
@@ -12,8 +21,9 @@ import { kickMember, launchAgentName, NETWORK_DELETED, ownGatewayName } from './
 const LAUNCH = 'LaunchAgent'
 const NETWORK = 'NetworkAgent'
 const GATEWAY = 'QlooGateway'
-// A deleted member's name in a network's launches, named `<networkId>:<memberId>`. A network that's
-// gone was wiped with its launches, so it has nothing left to forget, and isn't woken to say so.
+// A deleted member's name in a network's launches, and their ID on its own agent, named
+// `<networkId>:<memberId>`. A network that's gone was wiped with its launches, so it has nothing left
+// to forget, and isn't woken to say so.
 const FORGET = 'NetworkAgent.forgetMember'
 const WIPERS: Record<string, (env: Env, name: string, reason?: string) => Promise<void>> = {
   [LAUNCH]: async (env, name, reason) => (await getAgentByName(env.LaunchAgent, name)).destroy(reason),
@@ -70,14 +80,16 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
   return true
 }
 
-// Deletes member `memberId`'s account, unless they're any network's only owner, and has the launches
-// of each of `networks`, theirs, forget their name. The forgets are noted in the batch that deletes the
-// account; then their open pages close, so they start no run and approve no order after; then each
-// network forgets them. A run started or an order approved just before its page closed can land the
-// name after that, so each forget stays noted for the daily cron to make again and cross off; one that
-// fails now is logged. False when it's refused, and nothing changed.
+// Deletes member `memberId`'s account, unless they're any network's only owner, and has each of
+// `networks`, theirs, and each network they left or were removed from before, forget them. The forgets
+// are noted in the batch that deletes the account; then their open pages close, so they start no run
+// and approve no order after; then each network forgets them. A run started or an order approved just
+// before its page closed can land the name after that, so each forget stays noted for the daily cron
+// to make again and cross off; one that fails now is logged. False when it's refused, and nothing
+// changed.
 export async function deleteAccount(env: Env, memberId: string, networks: string[]) {
-  const forgets = networks.map((id) => ({ binding: FORGET, name: `${id}:${memberId}` }))
+  const past = (await pastNetworks(env.DB, memberId)).filter((id) => !networks.includes(id))
+  const forgets = [...networks, ...past].map((id) => ({ binding: FORGET, name: `${id}:${memberId}` }))
   if (!(await deleteMember(env.DB, memberId, forgets))) return false
   await Promise.all(networks.map((id) => kickMember(env, id, memberId, 'Your account was deleted.')))
   for (const forget of forgets) await WIPERS[FORGET](env, forget.name).catch((e) => wipeFailed(forget, e))

@@ -449,8 +449,9 @@ export async function setRole(db: D1Database, networkId: string, memberId: strin
 
 // Takes member `memberId` out of network `networkId`, when member `by` is one of its owners or is
 // `memberId` leaving, and the network keeps another owner if they're one, in one statement, so two
-// owners leaving at once can't leave it with none. Their API keys and invite links in the network are
-// revoked in the same batch. False when either check refuses it.
+// owners leaving at once can't leave it with none. The batch notes that they were in it, for their
+// account's deletion to forget them there too (pastNetworks), and revokes their API keys and invite
+// links in the network. False when either check refuses it.
 export async function removeMember(db: D1Database, networkId: string, memberId: string, by: string) {
   const [removed] = await db.batch([
     db
@@ -458,9 +459,24 @@ export async function removeMember(db: D1Database, networkId: string, memberId: 
         "DELETE FROM memberships WHERE network_id = ?1 AND member_id = ?2 AND (?2 = ?3 OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?3 AND role = 'owner')) AND (role = 'member' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))"
       )
       .bind(networkId, memberId, by),
+    // Once they're out, while the network and they still exist.
+    db
+      .prepare(
+        'INSERT OR IGNORE INTO past_memberships (network_id, member_id) SELECT ?1, ?2 WHERE NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND member_id = ?2) AND EXISTS (SELECT 1 FROM networks WHERE id = ?1) AND EXISTS (SELECT 1 FROM members WHERE id = ?2)'
+      )
+      .bind(networkId, memberId),
     ...revokeUnowned(db, networkId, memberId)
   ])
   return removed.meta.changes > 0
+}
+
+// The networks member `memberId` left or was removed from, and that still exist, by ID.
+export async function pastNetworks(db: D1Database, memberId: string) {
+  const { results } = await db
+    .prepare('SELECT network_id FROM past_memberships WHERE member_id = ?')
+    .bind(memberId)
+    .all<{ network_id: string }>()
+  return results.map((r) => r.network_id)
 }
 
 // Revoking what member ?1 made, at time ?2: their API keys still in use and their invite links still

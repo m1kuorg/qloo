@@ -378,6 +378,43 @@ describe('approving a reply', () => {
     expect(reply(adas.state()).status).toBe('draft')
   })
 
+  it('forgets who approved once they delete their account, in the inbox and in the record of every pitch run', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await teammate(ada, network)
+    const adas = await connect(ada, network)
+    const graces = await connect(grace, network)
+    await graces.call('dismissChecklist')
+    // A launch she ran, which the network's list names her on, as each pitch run's record keeps it.
+    fakeClaude([turn(text('No roster to rank yet.'))])
+    const { id } = await graces.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const launch = await grace.connect(`/agents/launch/${network}/${id}`)
+    open.push(launch)
+    await launch.call('startLaunch', { name: 'Night Shift Cinema' })
+    await adas.until((s) => s.launches![0].startedBy === 'Grace Booker' && s.launches![0].status === 'ranked')
+    const run = (await drafted(adas)).run!.id
+    await graces.call('approveReply', 'pitch-01')
+    await adas.until((s) => reply(s).status === 'approved')
+    const record = JSON.stringify(await adas.call('getRun', run))
+    expect(record).toContain(grace.id)
+    expect(record).toContain('Grace Booker')
+
+    expect((await grace.fetch('/app/account/delete', { method: 'POST' })).status).toBe(200)
+    const state = await adas.until((s) => !s.checklistDismissed!.includes(grace.id))
+    expect(reply(state)).toMatchObject({ status: 'approved' })
+    expect(reply(state)).not.toHaveProperty('approvedBy')
+    expect(JSON.stringify(state)).not.toContain(grace.id)
+    expect(JSON.stringify(state)).not.toContain('Grace Booker')
+    const forgotten = await adas.call<State>('getRun', run)
+    expect(reply(forgotten)).toMatchObject({ status: 'approved' })
+    expect(JSON.stringify(forgotten)).not.toContain(grace.id)
+    expect(JSON.stringify(forgotten)).not.toContain('Grace Booker')
+    const read = await ada.fetch(`/api/v1/networks/${network}/pitch-runs/${run}`)
+    expect((await read.json<{ replies: object[] }>()).replies[0]).toEqual(
+      expect.not.objectContaining({ approvedBy: expect.anything() })
+    )
+  })
+
   it("is refused over RPC, and on a network's connection that carries no member, and changes nothing", async () => {
     const ada = await openMember()
     const network = await created(ada)

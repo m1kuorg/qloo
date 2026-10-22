@@ -34,6 +34,7 @@ describe('the directory', () => {
       'memberships',
       'networks',
       'passkeys',
+      'past_memberships',
       'sessions',
       'wipes'
     ])

@@ -8,10 +8,12 @@ import {
   type LaunchInput,
   type LaunchSummary,
   type RosterCopy,
+  type RunSnapshot,
   type SessionProps,
   type State
 } from './agent'
 import { globalGateway } from './gateway'
+import type { Booking, PitchReply } from './inbox'
 import { Refusal } from './refusal'
 import { sample, sampleRoster } from './sample'
 
@@ -68,6 +70,13 @@ const LAUNCHES =
 const NO_GUIDE = "A network has no guide: it's the sample network's, at /demo."
 // Where a network's agent keeps the roster it last told its launches (rosterKey).
 const ANNOUNCED = 'crossfeed_roster_announced'
+
+// A pitch run's booking with no reply naming member `memberId` as its approver; each stays approved.
+const withoutApprover = (booking: Booking | null, memberId: string): Booking | null =>
+  booking?.replies
+    ? { ...booking, replies: booking.replies.map((r) => (r.approvedBy === memberId ? unnamed(r) : r)) }
+    : booking
+const unnamed = ({ approvedBy: _, ...reply }: PitchReply): PitchReply => reply
 
 // One instance per signed-in network, named by the network's ID (ADR 0001). Its own class keeps its
 // namespace apart from the demo's sessions, so no session cookie can name it. It opens empty, with no
@@ -179,10 +188,19 @@ export class NetworkAgent extends CrossfeedAgent {
     )
   }
 
-  // Has each of its launches forget member `memberId`'s name, as their account's deletion does
-  // (wipe.ts), and lists each launch's row as it then stands, so the dashboard follows at once. Over
-  // RPC only.
+  // Forgets member `memberId`, as their account's deletion does (wipe.ts): the replies they approved stay
+  // approved but no longer name them, and they leave the members who dismissed the setup checklist. Then
+  // each of its launches forgets their name, and the network lists each launch's row as it then stands,
+  // so the dashboard follows at once; then its runs' records forget them, last, so a pitch run that ended
+  // meanwhile, copying the rows as they stood, is caught. Over RPC only.
   async forgetMember(memberId: string) {
+    const { booking, checklistDismissed: dismissed = [] } = this.state
+    if (booking?.replies?.some((r) => r.approvedBy === memberId) || dismissed.includes(memberId))
+      this.setState({
+        ...this.state,
+        booking: withoutApprover(booking, memberId),
+        checklistDismissed: dismissed.filter((m) => m !== memberId)
+      })
     const rows = await Promise.all(
       (this.state.launches ?? []).map(async ({ id }) => ({
         id,
@@ -192,6 +210,22 @@ export class NetworkAgent extends CrossfeedAgent {
       }))
     )
     for (const { id, summary } of rows) this.reportLaunch(id, summary)
+    this.forgetInRuns(memberId)
+  }
+
+  // Forgets member `memberId` in each run's record, as their account's deletion does: the replies they
+  // approved no longer name them. A record is the whole state the run ended with (end() in agent.ts), so
+  // it also kept the network's launches and checklist, whose rows name who started each launch's last run
+  // with no ID to match; nothing reads them from a record, so they go. Parsed rather than rewritten in SQL
+  // as renameApprover does, since the approver sits in each reply of an array.
+  private forgetInRuns(memberId: string) {
+    for (const { id, snapshot } of this.sql<{ id: string; snapshot: string }>`SELECT id, snapshot FROM runs
+      WHERE json_type(snapshot, '$.launches') IS NOT NULL OR json_type(snapshot, '$.checklistDismissed') IS NOT NULL
+        OR instr(snapshot, ${memberId}) > 0`) {
+      const { launches: _, checklistDismissed: __, ...kept } = JSON.parse(snapshot) as RunSnapshot
+      const forgotten = { ...kept, booking: withoutApprover(kept.booking, memberId) }
+      this.sql`UPDATE runs SET snapshot = ${JSON.stringify(forgotten)} WHERE id = ${id}`
+    }
   }
 
   // Starts the network's roster from the sample network's shows, each figure labelled sample until a

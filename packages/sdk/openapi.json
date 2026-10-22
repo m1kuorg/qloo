@@ -1208,7 +1208,7 @@
           },
           "approvedBy": {
             "type": "string",
-            "description": "The ID of the member who approved it."
+            "description": "The ID of the member who approved it, until their account is deleted."
           }
         },
         "required": [
