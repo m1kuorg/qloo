@@ -6,8 +6,8 @@ import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
 import {
   accountsOn,
-  appOrigins,
   endSession,
+  fromAppOrigin,
   jsonBody,
   jsonLimit,
   sameOrigin,
@@ -566,7 +566,7 @@ async function upgradingMember(c: Context<AppEnv>, networkId: string) {
   if (
     !member ||
     c.req.header('Upgrade')?.toLowerCase() !== 'websocket' ||
-    !appOrigins(c.env).includes(c.req.header('Origin') ?? '') ||
+    !fromAppOrigin(c) ||
     !(await memberRole(c.env.DB, networkId, member.id))
   )
     return null

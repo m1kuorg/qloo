@@ -291,6 +291,28 @@ describe('a write from another site', () => {
     expect(await appFor(cookie)).toBe('Ada Programmer')
   })
 
+  it('is refused with no Origin even when APP_ORIGINS has an empty entry, as an upgrade to an agent is', async () => {
+    const saved = env.APP_ORIGINS
+    env.APP_ORIGINS = `${origin}, ,`
+    try {
+      const ada = await openMember()
+      const created = await ada.fetch('/app/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Night Shift Audio' })
+      })
+      const { id } = await created.json<{ id: string }>()
+      for (const path of ['/auth/sign-out', '/app/new', `/api/v1/networks/${id}`])
+        expect((await postFrom(path, { Cookie: ada.cookie })).status, path).toBe(403)
+      const upgrade = await get(`/agents/network/${id}`, { headers: { Upgrade: 'websocket', Cookie: ada.cookie } })
+      expect(upgrade.status).toBe(404)
+      // From the app's own page, each still goes through.
+      expect((await postFrom('/app/new', { Cookie: ada.cookie, Origin: origin })).status).toBe(400)
+    } finally {
+      env.APP_ORIGINS = saved
+    }
+  })
+
   it('is refused for signing up, in, or back in with a recovery code too', async () => {
     const { recoveryCode } = await openMember()
     for (const path of ['/auth/sign-up/options', '/auth/sign-in/options', '/auth/recover'])

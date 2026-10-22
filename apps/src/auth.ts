@@ -81,13 +81,23 @@ export const accountsOn: MiddlewareHandler<{ Bindings: Env }> = async (c, next) 
   await next()
 }
 
-// The origins a member's browser may send from (APP_ORIGINS, comma-separated).
-export const appOrigins = (env: Env) => env.APP_ORIGINS.split(',').map((o) => o.trim())
+// The origins a member's browser may send from (APP_ORIGINS, comma-separated), blank entries left out.
+export const appOrigins = (env: Env) =>
+  env.APP_ORIGINS.split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+
+// Whether a request says it comes from one of the app's own pages: one that names no Origin doesn't,
+// whatever APP_ORIGINS holds.
+export const fromAppOrigin = <E extends { Bindings: Env }>(c: Context<E>) => {
+  const origin = c.req.header('Origin')
+  return Boolean(origin) && appOrigins(c.env).includes(origin!)
+}
 
 // Whether a request may act for the member whose cookie it carries: a read, or a write from one of the
 // app's own pages.
 export const fromAppPage = <E extends { Bindings: Env }>(c: Context<E>) =>
-  ['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) || appOrigins(c.env).includes(c.req.header('Origin') ?? '')
+  ['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) || fromAppOrigin(c)
 
 // A write must come from one of the app's own pages: another site's form or script can't sign a
 // member in, out, or up, or act as them.
