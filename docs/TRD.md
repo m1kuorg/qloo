@@ -26,12 +26,12 @@ Contents:
     1.  [Members on agent connections](#members-on-agent-connections)
     1.  [Deleting launches, networks, and accounts](#deleting-launches-networks-and-accounts)
     1.  [A network's own Qloo key](#a-networks-own-qloo-key)
-1.  [Accounts and auth](#accounts-and-auth)
+1.  [Members and sign-in](#members-and-sign-in)
     1.  [Passkeys and sessions](#passkeys-and-sessions)
     1.  [Recovery codes and step-up](#recovery-codes-and-step-up)
     1.  [Invites and members](#invites-and-members)
     1.  [Request guards](#request-guards)
-    1.  [Limits on accounts and networks](#limits-on-accounts-and-networks)
+    1.  [Limits on sign-ups, networks, and launches](#limits-on-sign-ups-networks-and-launches)
 1.  [Uploads](#uploads)
 1.  [REST API](#rest-api)
 1.  [SDK](#sdk)
@@ -107,7 +107,7 @@ Each surface is its own route module, mounted on the one app. While `ACCOUNTS` i
 - **Marketing** (`routes/marketing.tsx`): `/` (the landing page), `/privacy`, and `/terms`. The privacy page and terms say what an account keeps, and give the account limits, only while `ACCOUNTS` is on; the terms read every limit from the Worker's variables and the modules that hold them.
 - **Docs** (`routes/docs.tsx`): `/docs`, `/docs/api`, `/docs/sdk`, `/docs/mcp`, `/docs/agents`, each skill's file at `/docs/agents/<skill>/SKILL.md`, and `/llms.txt` ([Skills, plugin, and developer docs](#skills-plugin-and-developer-docs)).
 - **Demo** (`routes/demo.tsx`): `/demo` (the sample network's roster and launch), `/demo/inbox` (its inbox, while `GUEST_PITCHES` is on), `/inbox` (a permanent redirect to `/demo/inbox`), the session's agent at `/agents/session`, and the approved order's export at `/api/insertion-orders/<id>.csv`. A page load sets the session cookie; the agent and the export answer 401 to a session cookie that isn't a UUID.
-- **Auth** (`routes/auth.tsx`): `/sign-in` and `/invite` (island pages), and the JSON routes under `/auth/`: `sign-up/options` and `sign-up`, `sign-in/options` and `sign-in`, `recover`, `verify` (step-up), `passkeys/options` and `passkeys` (adding one), `invite` and `join`, and `sign-out` ([Accounts and auth](#accounts-and-auth)).
+- **Auth** (`routes/auth.tsx`): `/sign-in` and `/invite` (island pages), and the JSON routes under `/auth/`: `sign-up/options` and `sign-up`, `sign-in/options` and `sign-in`, `recover`, `verify` (step-up), `passkeys/options` and `passkeys` (adding one), `invite` and `join`, and `sign-out` ([Members and sign-in](#members-and-sign-in)).
 - **App** (`routes/app.tsx`): `/app` (the network opened last, or `/app/new`), `/app/new`, `/app/account` and its routes, and a network's pages, `/app/<id>` (the dashboard), `/app/<id>/roster`, `/app/<id>/inbox` (while `GUEST_PITCHES` is on), `/app/<id>/launches/<launchId>`, and `/app/<id>/settings`, with each settings module's routes, a launch's order export and deletion, and the agent connections `/agents/network/<id>` and `/agents/launch/<id>/<launchId>`. Signed out, a page redirects to `/sign-in?next=<path>`; anything outside the member's networks, or a launch the network doesn't list, answers the same 404 as one that doesn't exist.
 - **REST API** (`routes/api.ts`): `/api/v1/networks/<id>/...` and the OpenAPI document at `/api/v1/openapi.json` ([REST API](#rest-api)).
 - **MCP** (`routes/mcp.ts`): `/mcp` ([MCP server](#mcp-server)).
@@ -294,7 +294,7 @@ D1 has no interactive transactions and an agent's storage can't join a D1 batch,
 - **Removing it:** the agents are told first, then the instance is wiped; if the wipe fails, they're told the key is back and the route answers 500, so it can be removed again. A wiped instance fails any call still out with `WIPED` ("The network's own Qloo key was removed, or the network deleted, while this call was out, so it was cut off. …"). Deleting the network wipes the instance too.
 - **What stays global:** model runs, free starts, and the sample run, which spend or protect Crossfeed's own keys.
 
-## Accounts and auth
+## Members and sign-in
 
 Members sign in with passkeys only, built in-house ([ADR 0003](/docs/adr/0003-passkeys-built-in-house.md)); `src/routes/auth.tsx` serves the ceremonies and `src/auth.ts` holds the cookie and the guards every accounts route shares. The relying party ID and the allowed origins are configuration per environment, `RP_ID` and `APP_ORIGINS`, never read from the request.
 
@@ -321,11 +321,11 @@ Members sign in with passkeys only, built in-house ([ADR 0003](/docs/adr/0003-pa
 
 - **The switch:** `accountsOn` answers 404 on every auth, app, API, and MCP route while `ACCOUNTS` is off, and no page links to them.
 - **Cross-site requests:** every state-changing request authenticated by the session cookie, and every agent WebSocket upgrade, must carry an `Origin` in `APP_ORIGINS`; a missing `Origin` is refused, and so is `null`. API-key requests carry no cookie and skip the check. Pages write with `fetch`, never an HTML form: under `Referrer-Policy: no-referrer`, Chrome sends a form POST's `Origin` as `null`.
-- **Headers:** every answer but an agent's connection gets Hono's secure headers with `Referrer-Policy: no-referrer` and a Content-Security-Policy of `default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`. In development only, `script-src` adds the request's nonce for Vite's React refresh preamble and `style-src` adds `'unsafe-inline'` for Vite's injected styles. No page has an inline script or a `style` attribute; the landing chart's bullets use data attributes.
-- **Body limits:** 64 KB of JSON under `/auth/*` and `/app/*` (`jsonLimit`), and 5 MB plus 64 KB under `/api/v1/*` and `/mcp` (`uploadLimit`), answering 413 `too_large` whether the body states its length or streams in without one.
-- **Rate limits:** the Workers rate limiting binding, in fixed one-minute windows: `API_LIMITER` allows 120 requests a minute per API key, on the API and the MCP server together, and `AUTH_LIMITER` 20 a minute per visitor on the routes that write before anyone signs in (`/auth/sign-up/options`, `/auth/sign-up`, `/auth/sign-in/options`, `/auth/recover`). Past either, a 429 says to wait, with `Retry-After: 60` on the API.
+- **Headers:** every answer but an agent's connection gets Hono's secure headers with `Referrer-Policy: no-referrer` and a Content-Security-Policy of `default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`. In development only, `script-src` adds the request's nonce for Vite's React refresh preamble and `style-src` adds `'unsafe-inline'` for Vite's injected styles. No server-rendered page has an inline script or a `style` attribute, so the landing chart's bullets use data attributes; the island sets the styles it computes through the DOM, which the policy doesn't govern.
+- **Body limits:** 64 KB of JSON under `/auth/*` and `/app/*` (`jsonLimit`, a 413 with its words), and 5 MB plus 64 KB under `/api/v1/*` and `/mcp` (`uploadLimit`, a 413 `too_large`), whether the body states its length or streams in without one.
+- **Rate limits:** the Workers rate limiting binding, in fixed one-minute windows: `API_LIMITER` allows 120 requests a minute per API key, on the API and the MCP server together, and `AUTH_LIMITER` 20 a minute per visitor on the routes that write before anyone signs in (`/auth/sign-up/options`, `/auth/sign-up`, `/auth/sign-in/options`, `/auth/recover`). Past either, a 429 says to wait, with `Retry-After: 60`.
 
-### Limits on accounts and networks
+### Limits on sign-ups, networks, and launches
 
 - **Sign-ups:** at most `SIGNUP_VISITOR_DAILY_CAP` (5) per visitor per UTC day, counted in the global gateway under the demo's salted visitor hash; joining through an invite doesn't count. In its place, one member's invite links bring in at most `INVITED_SIGNUP_DAILY_CAP` (20) new accounts a UTC day, refused at both sign-up steps.
 - **Networks:** a member creates at most `NETWORKS_PER_MEMBER` (3), counted by who created them, whoever owns them now.
@@ -425,8 +425,8 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 - **No personal data to Qloo:** gateway calls take entity IDs, show names, and work titles, never pitch text. A work title holding an email address, or the whole name of the guest or the pitch's sender, as Claude may read one into it, is never sent: the pitch is set aside as unreadable, and such a past guest's work is refused. A name is read with any honorific or suffix dropped ("Dr. Ada Quill, PhD"), "Quill, Ada" turned around, and a couple's shared surname given to each ("Jason and Travis Kelce"); a name of one word, such as a first name alone, isn't checked, so it never sets a title aside. Tests check every recorded Qloo request against the sample inbox's guest names and email addresses.
 - **Pitch text goes to Anthropic** for extraction and drafting, uploaded emails included; the files themselves are never kept, and a pitch's sender and subject stay inside Crossfeed. The sample inbox is synthetic; a network that loads its own pitches does so under the privacy page's terms.
 - **Safe-use wording:** fit describes listener overlap, never a probability about a person, and nothing infers politics, health, or eligibility ([kit safe use][kit-safe]).
-- **Spend:** the demo needs no account, so the daily model run limits and the Qloo cap bound what visitors can spend; a signed-in network counts as a visitor of its own, and the account limits stop the beta being used to multiply them ([limits on accounts and networks](#limits-on-accounts-and-networks)).
-- **Tenants:** every page, agent route, and API route checks the member's membership, or the API key's network, before it reads anything, and answers a network the caller can't reach with the same 404 as one that doesn't exist. Agents of different kinds are different classes, so a demo cookie can never name a network's or a launch's instance. Sessions, invites, recovery codes, and API keys are stored only as hashes ([accounts and auth](#accounts-and-auth)).
+- **Spend:** the demo needs no account, so the daily model run limits and the Qloo cap bound what visitors can spend; a signed-in network counts as a visitor of its own, and the limits on sign-ups, networks, and launches stop the beta being used to multiply them ([limits](#limits-on-sign-ups-networks-and-launches)).
+- **Networks kept apart:** every page, agent route, and API route checks the member's membership, or the API key's network, before it reads anything, and answers a network the caller can't reach with the same 404 as one that doesn't exist. Agents of different kinds are different classes, so a demo cookie can never name a network's or a launch's instance. Sessions, invites, recovery codes, and API keys are stored only as hashes ([members and sign-in](#members-and-sign-in)).
 - **Visitor addresses:** never stored by Crossfeed or written to its own logs. The daily limits key a visitor by a salted hash of their address, kept only for the connection and, hashed again with the day, until the day ends ([agent limits](#agent-limits)); the per-minute limit on sign-in requests counts under the salted hash for a minute. Cloudflare, which runs the Worker, records each request in its own logs, as the privacy page says.
 - **Trademarks:** the sample network uses public show names, with a notice that Crossfeed isn't affiliated with The Ringer.
 
@@ -443,7 +443,7 @@ One Worker, `crossfeed`, in the `qloo` Cloudflare account, serves production at 
 - **Model:** `ANTHROPIC_BASE_URL` (`https://api.anthropic.com`).
 - **Daily limits** ([agent limits](#agent-limits)): `RUN_VISITOR_DAILY_CAP` (10) and `RUN_DAILY_CAP` (200) model runs, `FREE_START_DAILY_CAP` (100) free starts, and `QLOO_VISITOR_DAILY_CALL_CAP` (2000) Qloo calls, per visitor or network.
 - **Switches:** `ACCOUNTS` (`off` in production until the product passes on the preview, `on` on the preview and in tests) turns accounts and every route behind them on; `GUEST_PITCHES` (`on` since #57's live check) serves the inbox pages and the API's inbox and pitch run routes, links them, allows the inbox actions, and lists the MCP server's pitch tools; `SAMPLE_NETWORK` (`on`; tests turn it off) opens a new demo session on the sample network.
-- **Accounts:** `RP_ID` (the passkey relying party, each environment's host) and `APP_ORIGINS` (the comma-separated origins a member's browser may send from), and the account limits `SIGNUP_VISITOR_DAILY_CAP` (5), `NETWORKS_PER_MEMBER` (3), `LAUNCHES_PER_NETWORK` (100), `INVITES_PER_NETWORK` (20), and `INVITED_SIGNUP_DAILY_CAP` (20) ([limits on accounts and networks](#limits-on-accounts-and-networks)).
+- **Sign-in and its limits:** `RP_ID` (the passkey relying party, each environment's host) and `APP_ORIGINS` (the comma-separated origins a member's browser may send from), and the limits `SIGNUP_VISITOR_DAILY_CAP` (5), `NETWORKS_PER_MEMBER` (3), `LAUNCHES_PER_NETWORK` (100), `INVITES_PER_NETWORK` (20), and `INVITED_SIGNUP_DAILY_CAP` (20) ([limits](#limits-on-sign-ups-networks-and-launches)).
 - **Secrets**, required in both environments (`secrets.required`, so a deploy fails without them): `QLOO_API_KEY`, `ANTHROPIC_API_KEY`, `VISITOR_SALT` (salts the visitor hash; changing it restarts every visitor's count), and `QLOO_KEY_SECRET` (seals each network's own Qloo key; changing it makes every saved key unreadable, so each owner adds theirs again).
 
 A limit that isn't a number refuses everything it limits.
@@ -453,7 +453,7 @@ A limit that isn't a number refuses everything it limits.
 - **Durable Objects:** `CrossfeedAgent`, `QlooGateway`, `NetworkAgent`, and `LaunchAgent`, from migrations `v1` (`CrossfeedAgent`, `QlooGateway`) and `v2` (`NetworkAgent`, `LaunchAgent`), all `new_sqlite_classes`. Removing a class would need a `deleted_classes` migration.
 - **D1:** `DB`, the database `crossfeed` (`crossfeed-preview` on the preview), with `migrations_dir` `migrations`.
 - **Rate limits:** `API_LIMITER` (120 a minute) and `AUTH_LIMITER` (20 a minute), each environment with its own namespace IDs.
-- **Cron:** `0 12 * * *`, the daily health check, the directory's purge, and the wipes' retry.
+- **Cron:** `0 12 * * *`, the daily health check, the directory's purge, and the wipes' retry ([cron triggers][cf-cron]).
 - **Build:** `vite.config.ts` runs the `agents/vite` plugin (which `@callable` needs, [configuration][cf-config]), React, the Cloudflare Vite plugin, and vite-ssr-components, which inlines the client build's manifest into the Worker for the shell's preloads. `"compatibility_flags": ["nodejs_compat"]` is set, which the Agents SDK requires.
 - **Dependencies:** `agents` (pinned, since it ships minor releases every few days), `@anthropic-ai/sdk`, `hono`, `@hono/zod-openapi` and `zod`, `@modelcontextprotocol/server` (pinned to match `agents`' peer), `@simplewebauthn/server` and `@simplewebauthn/browser`, `postal-mime`, `react`, and `react-dom`; for tests, `vitest`, `@cloudflare/vitest-plugin`, `msw`, and `@msw/cloudflare`.
 - **Plan:** the account stays on its current plan ([why this stack](#why-this-stack)).
@@ -463,10 +463,9 @@ A limit that isn't a number refuses everything it limits.
 Deploys are manual, one at a time, from an up-to-date `main` in a detached checkout, and never from a feature branch:
 
 - **Production:** `bun run deploy` in `apps/` builds, applies the directory's new migrations to `crossfeed` (`wrangler d1 migrations apply DB --remote`), then runs `wrangler deploy`.
-- **Preview:** `bun run deploy:preview` builds with `CLOUDFLARE_ENV=preview`, applies migrations to `crossfeed-preview`, then runs `wrangler deploy --env preview`. The Vite plugin picks the environment when it builds, so a plain `bun run build` followed by `wrangler deploy --env preview` would deploy production's config; only the script is safe. Wrangler can't set secrets on a Worker that doesn't exist yet, so a first preview deploy takes them from `--secrets-file`.
+- **Preview:** `bun run deploy:preview` builds with `CLOUDFLARE_ENV=preview`, applies migrations to `crossfeed-preview`, then runs `wrangler deploy --env preview`. The Vite plugin picks the environment when it builds, so a plain `bun run build` followed by `wrangler deploy --env preview` would deploy production's config; only the script is safe. Wrangler can't set secrets on a Worker that doesn't exist yet, so a first preview deploy takes them from a file, as the [apps README](/apps/README.md#deploy-the-preview) says.
 - **Migrations** are applied before the Worker that needs them deploys; an applied migration is never edited, and a new one is added instead.
 - **Order of release:** merged work is checked on the preview first, with `ACCOUNTS` on; production turns `ACCOUNTS` on only once the whole product passes there ([PRD release plan](PRD.md#release-plan)).
-- **Capping the live Worker** without a code change: deploy with `--var QLOO_DAILY_CALL_CAP:0` or a lower per-visitor limit, check, and deploy again to restore `wrangler.jsonc`'s values.
 
 [cf-cron]: https://developers.cloudflare.com/workers/configuration/cron-triggers/
 

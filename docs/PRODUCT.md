@@ -4,7 +4,7 @@
 
 Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want, by scoring the network's own lists in Qloo. It runs as an open demo on a sample network and as a signed-in product a network's members share. This is the durable product record that design and build work start from. The [PRD](PRD.md) says what ships, the [TRD](TRD.md) says how, and [GLOSSARY.md](/GLOSSARY.md) defines the terms.
 
-The choices it rests on were confirmed on 2026-10-17 for the hackathon entry and on 2026-10-19 for the product, and are listed under [Decisions](#decisions).
+The choices it rests on were confirmed on 2026-10-17 for the hackathon entry and taken as the spec's defaults on 2026-10-19 for the product, and are listed under [Decisions](#decisions).
 
 Contents:
 
@@ -40,7 +40,7 @@ The Hono and Vite app in [`apps/`](/apps/) on one Cloudflare Worker, the Cloudfl
   - **Head of programming or audience.** Before each launch, they decide which roster shows carry the launch's host-read promos and how many slots each gets. Today they plan it in a spreadsheet, by topic.
   - **Bookers.** Every day they triage an inbox of guest pitches, each written by a publicist to sound on-topic, and decide whom to book, decline, or hold for later.
 - **Owners:** the members who also manage who's in the network, its invite links, its API keys, its own Qloo key, and deleting it. The member who creates a network owns it, and owners can make others owners.
-- **Developers and assistants** acting for a network through an API key: scripts on the REST API or the SDK, and AI assistants such as Claude Code over the MCP server. They work on the roster, launches, and inbox as members do, short of approving, and can't manage the network's members, keys, or deletion.
+- **Developers and assistants** acting for a network through an API key: scripts on the REST API or the SDK, and AI assistants such as Claude Code over the MCP server. They work on the roster, launches, and inbox as members do, short of approving, and can't manage the network's members, invite links, API keys, or Qloo key, or delete a launch or the network.
 - **Visitors:** anyone opening the sample network at `/demo` without signing in, including hackathon judges, who may score from the written description alone or open the live demo ([BRIEF](BRIEF.md#submission-checklist)).
 - **Buyer:** the network. Independent shows doing feed swaps are a wider second tier, not a user yet. The beta is free and names no price.
 
@@ -59,9 +59,9 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - **Launch planning:** happens once per launch, and a network often plans several at once. Inputs are the roster, each show's downloads per episode, the network's CPM, the slot budget, and exclusions such as shows mid-sale. The output is an insertion order the programmer edits, a member approves, and ad operations receives as CSV.
 - **Unreleased launches:** have no listeners yet, so the programmer names up to three comparable released shows (comps) that stand in for the launch.
 - **Booking:** happens daily. Pitches arrive as email; each names a guest and the public work they're promoting, such as a book, show, film, or podcast. A booker loads them as the email client exports them, as `.eml` files, an `.mbox`, or text.
-- **A team:** a network's head of programming and its bookers share one roster, one inbox, and every launch, and see each other's changes as they're made. A person can belong to several networks.
+- **Members together:** a network's head of programming and its bookers share one roster, one inbox, and every launch, and see each other's changes as they're made. A person can belong to several networks.
 - **Automation:** a network's developers script imports and runs through the API or the SDK, and a programmer can plan a launch with an assistant over MCP, which relays the agent's questions and never approves.
-- **Demo:** judges open the landing page at `/`, whose first button opens a sample network at `/demo` with no login, built from The Ringer's public show names, that answers from a warm cache ([BRIEF](BRIEF.md#implications-for-our-entry)). Its downloads and CPM are labelled sample inputs, not The Ringer's figures.
+- **Demo:** judges open the landing page at `/`, whose first button opens a sample network at `/demo` with no sign-in, built from The Ringer's public show names, that answers from a warm cache ([BRIEF](BRIEF.md#implications-for-our-entry)). Its downloads and CPM are labelled sample inputs, not The Ringer's figures.
 
 ## Capabilities and Constraints
 
@@ -138,12 +138,12 @@ Confirmed on 2026-10-17 in [#20](https://github.com/m1kuorg/qloo/issues/20). Eac
 
 Taken on 2026-10-19 in the product spec, [#155](https://github.com/m1kuorg/qloo/issues/155), each the recommended answer of a grilling round that went unanswered, with four recorded as ADRs:
 
-1.  **Agents per network and launch, with a D1 directory** ([ADR 0001](/docs/adr/0001-agents-per-network-and-launch.md)): a `NetworkAgent` per network and a `LaunchAgent` per launch, beside the demo's per-session agent; D1 holds only members, sessions, networks, memberships, invites, and API keys.
+1.  **Agents per network and launch, with a D1 directory** ([ADR 0001](/docs/adr/0001-agents-per-network-and-launch.md)): a `NetworkAgent` per network and a `LaunchAgent` per launch, beside the demo's per-session agent; D1 holds only the directory: members, passkeys, sessions, sign-in challenges, networks, memberships, invites, API keys, and the agent wipes still due.
 1.  **Approval stays in the app** ([ADR 0002](/docs/adr/0002-approval-stays-in-the-app.md)): API keys reach everything but approval.
 1.  **Passkeys, built in-house** ([ADR 0003](/docs/adr/0003-passkeys-built-in-house.md)): no password, email, or OAuth; a recovery code instead of email recovery.
 1.  **A network can bring its own Qloo key** ([ADR 0004](/docs/adr/0004-qloo-key-per-network.md)): the beta runs on the hackathon key within per-network caps.
 1.  **Release:** the same Worker; `/` is the landing page, the sample network moves to `/demo` with no sign-in, and signed-in networks live under `/app`, behind the `ACCOUNTS` switch until the product passes on the preview, by 2026-10-29 or after judging ends on 2026-11-16 ([PRD](PRD.md#release-plan)).
-1.  **Tenancy:** a network has owners and members; a person can belong to several networks and joins through an invite link.
+1.  **Networks and members:** a network has owners and members; a person can belong to several networks and joins through an invite link.
 1.  **Launches:** the spec's "projects" are launches. The dashboard lists them; the roster and the inbox belong to the network.
 1.  **Billing:** none. No payments and no invented prices; settings show usage against the daily caps under a "Beta" label.
 1.  **Publishing:** the SDK, the MCP server, the skills, and the plugin are built in the repo and served by the live app; publishing to npm or a public marketplace waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63), like the repository itself.

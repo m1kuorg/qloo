@@ -133,7 +133,7 @@ The guest flow runs the same way ([live check]):
 
 ## Design
 
-A judge opens the URL on a one-screen landing page: an illustrative chart of made-up shows, labelled as an illustration, with what Crossfeed never does and the ways in. Its first button opens the sample network with no login, on a working screen, not a chat:
+A judge opens the URL on a one-screen landing page: an illustrative chart of made-up shows, labelled as an illustration, with what Crossfeed never does and the ways in. Its first button opens the sample network with no sign-in, on a working screen, not a chat:
 
 - **Sample data, labelled:** the network opens ready, with a notice that Crossfeed isn't affiliated with The Ringer. Every download, status, description, and CPM figure is labelled "sample" until the visitor edits it.
 - **A weekly chart:** the fit chart reads like a music chart:
@@ -176,16 +176,16 @@ A judge opens the URL on a one-screen landing page: an illustrative chart of mad
 
 ## Crossfeed as a company
 
-- **Customer:** podcast networks, sold per seat to programming and booking teams. Independent shows that trade feed swaps are a wider second tier.
+- **Customer:** podcast networks, for the programmers and bookers who plan launches and triage pitches. Independent shows that trade feed swaps are a wider second tier.
 - **Wedge and habit:** the launch plan is a high-stakes decision made with every launch. The booking inbox is daily work, which keeps the product open between launches.
 - **One engine:** both jobs are the same call, a closed list ranked against a show in Qloo. Each new list a network owns, such as candidate swap partners, is another product on that engine.
-- **The product a network signs in to, built:** the demo is one browser's session; the company is a network's team working in Crossfeed. That product is built in this repository, on the same Worker, behind one switch (`ACCOUNTS`) that production turns on only once the whole product passes on a preview deployment ([product spec]):
+- **The product a network signs in to, built:** the demo is one browser's session; the company is a network's members working in Crossfeed together. That product is built in this repository, on the same Worker, behind one switch (`ACCOUNTS`) that production turns on only once the whole product passes on a preview deployment ([product spec]):
   - members sign up with a passkey, with no password or email, and invite teammates with a link that works once;
   - a network's dashboard lists every launch with its status, finalists, slots, and slot value, and each launch keeps its own runs, so two programmers can plan two launches at once;
   - members upload the roster as the CSV they already keep, and pitches as the `.eml` or `.mbox` their email client exports;
   - owners manage members and API keys, see usage against the beta's daily caps, and can bring the network's own Qloo key;
   - a REST API, a TypeScript SDK, an MCP server, two Agent Skills, and a Claude Code plugin let a network's scripts and assistants import, run, and draft, but never approve: only a member, in the app, approves an insertion order or a reply.
-- **What a paid version needs:** the launch plan and the daily inbox are work a network's teams already do, and the API and MCP server put Crossfeed inside the tools they use. The beta is free and runs on our hackathon Qloo key, which Qloo's terms don't let us resell, so a paid Crossfeed needs a commercial Qloo agreement, or each network's own Qloo key, which an owner can already add.
+- **What a paid version needs:** the launch plan and the daily inbox are work a network's programmers and bookers already do, and the API and MCP server put Crossfeed inside the tools they use. The beta is free and runs on our hackathon Qloo key, which Qloo's terms don't let us resell, so a paid Crossfeed needs a commercial Qloo agreement, or each network's own Qloo key, which an owner can already add.
 - **Next, not built yet:**
   - downloads read from the network's hosting analytics;
   - the booking inbox read from email;
@@ -211,7 +211,7 @@ A judge opens the URL on a one-screen landing page: an illustrative chart of mad
 - **A podcast named after its guest is set aside.** A work title holding the guest's or sender's whole name never reaches Qloo, so a pitch for "Conan O'Brien Needs a Friend" is set aside as unreadable rather than ranked ([#117 check]).
 - **Guest pitches are live.** They were switched on in production after their live check ([#57]). Drafted replies name no guest, because the model never sees names; the booker adds them before sending.
 - **No integrations.** Nothing is emailed or pushed to an ad server. Downloads are typed in or uploaded as CSV, and pitches are pasted, uploaded as `.eml`, `.mbox`, or text files, or loaded from the sample.
-- **No accounts on the demo.** A session is one browser's cookie. A visitor, known only by a salted hash of their address, starts at most 10 model runs a day, and all visitors together 200. Past either, or if Qloo can't be called, only the sample launch replays; other runs stop and say why. A signed-in network counts as a visitor of its own, against the same limits.
+- **No sign-in on the demo.** A session is one browser's cookie. A visitor, known only by a salted hash of their address, starts at most 10 model runs a day, and all visitors together 200. Past either, or if Qloo can't be called, only the sample launch replays; other runs stop and say why. A signed-in network counts as a visitor of its own, against the same limits.
 - **The signed-in product is a beta.** It runs on our hackathon Qloo key within each network's daily caps, which Qloo's terms don't let us resell; selling it needs a commercial Qloo agreement or each network's own key, which an owner can already add. It has no payments, no email, and passkey sign-in only, and its SDK and plugin aren't published to npm or a public marketplace.
 
 [TRD demo data]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#demo-data

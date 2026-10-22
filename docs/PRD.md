@@ -36,7 +36,7 @@ Contents:
 
 I run programming at a podcast network. When we launch a show, I promote it on our own roster with host-read promos, and every promo slot is an ad I didn't sell. A 20-slot launch gives away 20 ads on our biggest shows, but I plan it in a spreadsheet by topic: the new true-crime show goes on our other true-crime shows. I have no way to see whether a show from another genre shares more of the launch's listeners, or whether the obvious pick has the wrong age or gender mix. My bookers have the same blind spot every day: each guest pitch is written to sound on-topic, and nothing tells them whether the guest's work draws the same listeners as our show.
 
-The demo shows me which of my shows share a launch's listeners, priced as the inventory each promo slot gives away. To use it for real, I need more than one browser's session: an account for my network, my teammates in it, every launch I'm planning kept on its own, my roster file and my inbox export loaded as they are, settings I control, and a way for our scripts and AI assistants to run it without ever approving something on my behalf.
+The demo shows me which of my shows share a launch's listeners, priced as the inventory each promo slot gives away. To use it for real, I need more than one browser's session: my network kept in Crossfeed, my teammates in it, every launch I'm planning kept on its own, my roster file and my inbox export loaded as they are, settings I control, and a way for our scripts and AI assistants to run it without ever approving something on my behalf.
 
 ## Solution
 
@@ -175,7 +175,7 @@ The spec, [#155](https://github.com/m1kuorg/qloo/issues/155), lists 98 stories f
 62. As a member, I want the dashboard to list the network's launches with each one's status, finalists, slots, slot value, and last run, live, beside the roster, the inbox, and a setup checklist that ticks itself off, so that I see the state of every plan at once.
 63. As two programmers, we want to plan two launches at once, each with its own runs, rankings, insertion orders, and evidence, so that one person's run never replaces the other's.
 64. As a programmer, I want a launch's run to rank the network's roster as it stands when the run starts, and the launch to say when the roster has changed since, so that I edit shows in one place and know when to run again.
-65. As a programmer, I want to see who started each run and who approved the order, a program's runs named by their API key, and a deleted member named "Former member", so that the team knows whose plan it is.
+65. As a programmer, I want to see who started each run and who approved the order, a program's runs named by their API key, and a deleted member named "Former member", so that everyone in the network knows whose plan it is.
 66. As a programmer, I want to delete a launch I no longer need after being asked, so that the list stays useful.
 67. As a programmer, I want to drop my roster's CSV on the roster page, and re-import next week's file without losing the matches I settled, so that I import my spreadsheet as it is.
 68. As a booker, I want to drop `.eml` files, an `.mbox` export, or a text file of pitches on the inbox, with each sender's details kept inside Crossfeed and an email too long to read skipped and named, so that I load pitches straight from my email client.
@@ -190,7 +190,7 @@ The spec, [#155](https://github.com/m1kuorg/qloo/issues/155), lists 98 stories f
 77. As a developer, I want `/docs` and `/llms.txt` to describe the API, the SDK, the MCP server, the skills, and the plugin from the live app, so that people and assistants learn the surface where it runs.
 78. As a programmer, I want no program, script, or assistant to approve an insertion order or a reply, so that nothing ships without a member.
 79. As the operator, I want each network counted against daily limits of its own, as a visitor is, with caps on networks per member, launches per network, open invite links, sign-ups per visitor, and invited sign-ups per inviter, so that the free beta can't be used to multiply limits.
-80. As the operator, I want one switch, `ACCOUNTS`, that turns accounts and everything behind them off, so that `main` stays deployable and sign-ups can stop at once.
+80. As the operator, I want one switch, `ACCOUNTS`, that turns sign-in and everything behind it off, so that `main` stays deployable and sign-ups can stop at once.
 
 ## Implementation Decisions
 

@@ -127,7 +127,7 @@ typography:
 rounded:
   control: 4px
   chip: 3px
-  full: 9999px
+  full: 50%
 spacing:
   xs: 4px
   sm: 8px
@@ -558,7 +558,7 @@ The network's front matter, not a SaaS home: no tiles, welcome cards, or sidebar
 
 - **Header:** the network's name in Headline type, with the "New launch" form inline (Released, or Unreleased from comps, the name or comps, and the black New launch).
 - **Launches table:** Launch, Status, Finalists, Slots, Slot value, Last run, and Actions, at least 760px wide and scrolling in its frame on a phone. A launch's name is its page's link, in 14px 600 underlined in Control Edge (ink on hover), and wraps; the status is a chip ("Order approved" flagged in ink, a failed one with its marker); Last run gives the day and who started it, wrapping to two lines; Delete asks first in a Panel Grey row naming an approved order. With no launches, the table's one row says so in a sentence.
-- **Network lines:** record rows for the roster (its matches, such as "19 shows: 16 matched, 1 to settle, 2 not in Qloo"), the inbox, and the CPM, each with Open, Set, or Change.
+- **Network lines:** record rows for the roster (its matches, such as "19 shows: 16 matched, 1 to settle, 2 not in Qloo"), the inbox, and the CPM, each with Open, Set, or Change (View, for a member, where only an owner changes it).
 - **Setup checklist:** reads like the guide: a "Setup" Label with its "n of 5 done" chip and Dismiss, then five numbered steps (import the roster, set the CPM, plan a launch, invite a teammate, create an API key), each still to do in ink 600 with how under it and a link, each done in Column Grey with "Done". It ticks itself off as the network changes.
 
 ### Roster and inbox uploads

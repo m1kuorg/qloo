@@ -1,8 +1,8 @@
 # Crossfeed
 
-Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want. It ranks the network's own lists, its roster and its booking inbox, by listener overlap in [Qloo](https://www.qloo.com/), asks the human at each fork, and ends in a plan a person approves. It's our entry to the [Qloo Agentic Hackathon](https://qloo.devpost.com/), and a signed-in product a network's team can run.
+Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want. It ranks the network's own lists, its roster and its booking inbox, by listener overlap in [Qloo](https://www.qloo.com/), asks the human at each fork, and ends in a plan a person approves. It's our entry to the [Qloo Agentic Hackathon](https://qloo.devpost.com/), and a signed-in product a network's members can run together.
 
-**Live: <https://crossfeed.m1kuorg.workers.dev>.** The landing page's first button, "Open the sample network", opens the demo at [`/demo`](https://crossfeed.m1kuorg.workers.dev/demo): no login, a sample network built from The Ringer's public show names, with labelled sample figures. Crossfeed isn't affiliated with The Ringer.
+**Live: <https://crossfeed.m1kuorg.workers.dev>.** The landing page's first button, "Open the sample network", opens the demo at [`/demo`](https://crossfeed.m1kuorg.workers.dev/demo): no sign-in, a sample network built from The Ringer's public show names, with labelled sample figures. Crossfeed isn't affiliated with The Ringer.
 
 ## Try the demo
 
@@ -19,7 +19,7 @@ The guide in the rail walks steps 2 to 5. [docs/SUBMISSION.md](docs/SUBMISSION.m
 
 Behind the `ACCOUNTS` switch, which is on at the preview deployment, <https://crossfeed-preview.m1kuorg.workers.dev>, and off in production until the product passes there:
 
-- **Accounts:** sign up with your name and a passkey, keep the one-time recovery code, and sign in with the passkey alone. No password and no email.
+- **Sign-in:** sign up with your name and a passkey, keep the one-time recovery code, and sign in with the passkey alone. No password and no email.
 - **Networks:** create a network, invite teammates with a link that works once, and work on one roster, one inbox, and every launch together, seeing each other's changes live.
 - **Launches:** the dashboard lists each launch with its status, finalists, slots, and slot value, beside a setup checklist. Each launch has its own page and keeps every run; a run ranks the network's roster as it stands when it starts.
 - **Your files:** drop a roster CSV on the roster page, or pitch emails (`.eml`, `.mbox`, or text) on the inbox.
