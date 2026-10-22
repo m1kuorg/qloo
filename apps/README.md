@@ -1,6 +1,6 @@
 # Crossfeed app
 
-The Crossfeed Worker: a Hono app with a React island, a `CrossfeedAgent` per visitor session, a global `QlooGateway` (and one per network that brings its own Qloo key), and the D1 directory of members and networks, on Cloudflare Workers. It's deployed at <https://crossfeed.m1kuorg.workers.dev>. This is the how-to every ticket follows; [TRD.md](/docs/TRD.md) holds the design.
+The Crossfeed Worker: a Hono app with a route module per surface (the landing page and docs, the demo, accounts, the app, the REST API, and the MCP server) and a React island, a `CrossfeedAgent` per visitor session, a `NetworkAgent` per network and a `LaunchAgent` per launch, a global `QlooGateway` (and one per network that brings its own Qloo key), and the D1 directory of members and networks, on Cloudflare Workers. It's deployed at <https://crossfeed.m1kuorg.workers.dev>, and its preview, with accounts on, at <https://crossfeed-preview.m1kuorg.workers.dev>. This is the how-to every ticket follows; [TRD.md](/docs/TRD.md) holds the design.
 
 Contents:
 
@@ -11,6 +11,7 @@ Contents:
     1.  [Driving a session](#driving-a-session)
     1.  [Driving a member](#driving-a-member)
     1.  [Driving the API](#driving-the-api)
+    1.  [Driving the MCP server](#driving-the-mcp-server)
     1.  [Driving the SDK](#driving-the-sdk)
 1.  [Check types](#check-types)
 1.  [CI](#ci)
@@ -54,7 +55,7 @@ Ticket `#n` uses port `5100 + n`, so parallel worktrees don't collide. The dev s
 bun run test
 ```
 
-Tests run in the Workers runtime through `@cloudflare/vitest-plugin`, configured in `vitest.config.ts`. The Worker and its Durable Objects run in the tests' isolate. Tests drive the public interface only: the Worker's HTTP routes and the agent's client protocol, asserting on synced state and responses.
+Tests run in the Workers runtime through `@cloudflare/vitest-plugin`, configured in `vitest.config.ts`. The Worker, its Durable Objects, and D1 run in the tests' isolate. Tests drive the public interface only: the Worker's HTTP routes, the agents' client protocol, the REST API, the SDK, and the MCP endpoint, asserting on synced state and responses. On a loaded machine, run them with `bunx vitest run --maxWorkers=2`, and a single file while iterating.
 
 ### The fake HTTP seam
 
@@ -201,7 +202,7 @@ Wrangler can't set secrets on a Worker that doesn't exist yet, so the first depl
 
 ## Live check
 
-Done means the behaviour works against the real APIs, first locally and then on <https://crossfeed.m1kuorg.workers.dev>, checked by hand or with `playwright-cli`:
+Done means the behaviour works against the real APIs, first locally, then on the preview (<https://crossfeed-preview.m1kuorg.workers.dev>) for anything behind `ACCOUNTS`, and on <https://crossfeed.m1kuorg.workers.dev> for the landing page and the demo, checked by hand or with `playwright-cli`:
 
 1.  Open `/` in a fresh browser session and select the landing page's first button, "Open the sample network", which opens `/demo`. It opens on the sample network from `src/sample-network.json`: the top bar says "The Ringer · sample network" and "Sample data · not affiliated with The Ringer", every downloads, status, description, and CPM figure has a sample label beside it, and the launch field holds "The Watch", labelled "Sample launch". Every row says "Looking it up in Qloo…", then fills in as its search returns, within a few seconds when the gateway's cache is warm.
 1.  Expect 16 resolved, Binge Mode ambiguous with its candidates, and The Zach Lowe Show and The Press Box missed. A "Lookup failed" row means Qloo still failed after the gateway's retries, or the daily cap was reached; its reason is in the row.
@@ -356,7 +357,7 @@ claude mcp list   # crossfeed-dev: http://localhost:<port>/mcp (HTTP) - ✔ Conn
 1.  `curl -X POST http://localhost:<port>/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'` answers 401 without the key; with it and `-H 'Origin: https://elsewhere.example'` the handler answers 403, while an `APP_ORIGINS` or localhost `Origin` is served. With `ACCOUNTS` off, `/mcp` answers 404.
 1.  Remove the server afterwards, from the same directory: `claude mcp remove crossfeed-dev --scope local`.
 
-Then the developer docs and the Claude Code plugin. Open `/docs`, `/docs/api`, `/docs/sdk`, `/docs/mcp`, and `/docs/agents` at 1440 and 375 wide: Developers is current in the top bar, the rail marks the page on view, nothing scrolls the page sideways, the API reference lists every route of `/api/v1/openapi.json`, and the MCP page lists the tools `tools/list` answers with (12 with `GUEST_PITCHES` off, 18 on). `/llms.txt` links every page, and `/docs/agents/<skill>/SKILL.md` answers each skill's file as it is. With `ACCOUNTS` off, the pages say the API and MCP server answer 404 there, and link neither. From the worktree's root, check the plugin, the marketplace, and the skills:
+Then the developer docs and the Claude Code plugin. Open `/docs`, `/docs/api`, `/docs/sdk`, `/docs/mcp`, and `/docs/agents` at 1440 and 375 wide: Developers is current in the top bar, the rail marks the page on view, nothing scrolls the page sideways, the API reference lists every route of `/api/v1/openapi.json`, and the MCP page lists the tools `tools/list` answers with (12 with `GUEST_PITCHES` off, 19 on). `/llms.txt` links every page, and `/docs/agents/<skill>/SKILL.md` answers each skill's file as it is. With `ACCOUNTS` off, the pages say the API and MCP server answer 404 there, and link neither. From the worktree's root, check the plugin, the marketplace, and the skills:
 
 ```sh
 claude plugin validate plugins/crossfeed
