@@ -47,6 +47,12 @@ export async function networkGateway(env: Env, name: string) {
   return (await own.ownKey()).set ? own : globalGateway(env)
 }
 
+// Closes member `memberId`'s open pages of network `networkId` and its launches, once the directory has
+// let them go, saying `reason` if it isn't that they left the network, as when they're removed, sign
+// out everywhere, or delete their account.
+export const kickMember = async (env: Env, networkId: string, memberId: string, reason?: string) =>
+  (await getAgentByName(env.NetworkAgent, networkId)).kick(memberId, reason)
+
 // What a deleted network's open pages, and its launches', say as they close.
 export const NETWORK_DELETED = 'This network was deleted.'
 
@@ -127,6 +133,21 @@ export class NetworkAgent extends CrossfeedAgent {
         (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).kick(memberId, reason)
       )
     )
+  }
+
+  // Has each of its launches forget member `memberId`'s name, as their account's deletion does
+  // (wipe.ts), and lists each launch's row as it then stands, so the dashboard follows at once. Over
+  // RPC only.
+  async forgetMember(memberId: string) {
+    const rows = await Promise.all(
+      (this.state.launches ?? []).map(async ({ id }) => ({
+        id,
+        summary: await (
+          await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))
+        ).forgetMember(memberId)
+      }))
+    )
+    for (const { id, summary } of rows) this.reportLaunch(id, summary)
   }
 
   // Starts the network's roster from the sample network's shows, each figure labelled sample until a

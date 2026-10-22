@@ -736,10 +736,12 @@ function Privacy({ accounts }: { accounts: boolean }) {
           invite links, and API keys at once, then wipes its own storage, each of its launches&apos;, and its Qloo
           storage. A wipe that fails is tried again by the next day&apos;s cleanup, which also deletes expired sessions,
           sign-in challenges, and invite links. Deleting your account, on your account page, deletes your account with
-          its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it:
-          its launches keep your name on the runs you started and the orders you approved, and its API keys and invite
-          links you made stay, made by no one. It&apos;s refused while you&apos;re a network&apos;s only owner.
-          &ldquo;Sign out everywhere&rdquo; deletes every session of yours.
+          its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it,
+          but not your name: the launches of the networks you&apos;re in say &ldquo;Former member&rdquo; on the runs you
+          started and the orders you approved. The API keys and invite links you made stay with their networks, made by
+          no one. A network that can&apos;t be reached at once forgets your name at the next day&apos;s cleanup.
+          It&apos;s refused while you&apos;re a network&apos;s only owner. &ldquo;Sign out everywhere&rdquo; deletes
+          every session of yours.
         </p>
       )}
 
