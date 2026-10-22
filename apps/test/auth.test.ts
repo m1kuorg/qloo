@@ -251,7 +251,9 @@ describe('the way in', () => {
       'https://crossfeed.example/app',
       '//crossfeed.example/app',
       '/\\crossfeed.example',
-      'javascript:alert(1)'
+      'javascript:alert(1)',
+      // Each reads as a path, but parses to one that starts with //, which a browser reads as a host.
+      ...AWAY_BY_DOTS
     ])
       expect(await nextOf(away)).toBe('/app')
   })
@@ -264,8 +266,14 @@ describe('the way in', () => {
       ).headers.get('location')
     expect(await go('/app/new')).toBe('/app/new')
     expect(await go('//crossfeed.example/app')).toBe('/app')
+    for (const away of AWAY_BY_DOTS) expect(await go(away)).toBe('/app')
+    // A dot segment that stays on the site still leads on.
+    expect(await go('/app/./new')).toBe('/app/new')
   })
 })
+
+// Paths that dot segments or an escaped dot turn into another host's address.
+const AWAY_BY_DOTS = ['/.//crossfeed.example/app', '/..//crossfeed.example/app', '/%2e//crossfeed.example/app']
 
 describe('a write from another site', () => {
   const postFrom = (path: string, headers: Record<string, string>) =>

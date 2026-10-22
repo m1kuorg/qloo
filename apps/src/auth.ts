@@ -62,12 +62,14 @@ export const sameOrigin: MiddlewareHandler<{ Bindings: Env }> = async (c, next) 
 // A request's JSON body, or an empty object when it has none.
 export const jsonBody = async (c: Context) => ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>
 
-// Where `?next` may lead: a path on this origin, or else /app.
+// Where `?next` may lead: a path on this origin, or else /app. The path is checked once parsed, since dot
+// segments and escapes, as in `/.//host`, can parse to one that starts with `//`, which a browser reads
+// as another host's address.
 export function nextPath(c: Context, next: string | undefined) {
-  if (!next?.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return '/app'
+  if (!next?.startsWith('/')) return '/app'
   const here = new URL(c.req.url).origin
   const url = new URL(next, here)
-  return url.origin === here ? `${url.pathname}${url.search}${url.hash}` : '/app'
+  return url.origin === here && !url.pathname.startsWith('//') ? `${url.pathname}${url.search}${url.hash}` : '/app'
 }
 
 // The API key an `Authorization: Bearer` header sends, while it's in use and under its requests a
