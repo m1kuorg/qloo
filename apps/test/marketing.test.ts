@@ -129,6 +129,18 @@ describe('the privacy page and the beta terms', () => {
     )
   })
 
+  it('says the Qloo cache is shared, and that a cache hit can show someone else looked up the same name', async () => {
+    const shared = (who: string, someone: string) =>
+      `Qloo's responses with the requests they answered, cached with no expiry in one cache that ${who} shares. A call someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show that ${someone} looked up the same name; nothing else of theirs is shown, and the cache is never published.`
+    expect(words(await page('/privacy'))).toContain(
+      shared('every visitor and every network without its own Qloo key', 'another visitor or network')
+    )
+    env.ACCOUNTS = 'off'
+    expect(words(await page('/privacy'))).toContain(shared('every visitor', 'another visitor'))
+    for (const path of ['/', '/privacy'])
+      expect(words(await page(path)), path).not.toMatch(/privately|private to Crossfeed/)
+  })
+
   it('says the beta is free, without warranty, and limited as the Worker is configured', async () => {
     env.RUN_VISITOR_DAILY_CAP = '7'
     const text = words(await page('/terms'))

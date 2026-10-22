@@ -497,10 +497,7 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
                 'Approves anything for you.',
                 'The agent proposes and you decide. An insertion order exports, and a reply can be copied, only after you approve it. Crossfeed sends no email.'
               ],
-              [
-                "Publishes Qloo's data.",
-                "Qloo's responses are cached privately on Crossfeed's server and shown only in the app."
-              ]
+              ["Publishes Qloo's data.", "Qloo's responses are cached on Crossfeed's server and shown only in the app."]
             ].map(([never, instead]) => (
               <tr>
                 <th scope="row">{never}</th>
@@ -699,10 +696,13 @@ function Privacy({ accounts }: { accounts: boolean }) {
           its attachments or other headers. The files themselves aren&apos;t kept.
         </li>
         <li>
-          <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached privately with
-          no expiry; the sample launch&apos;s stored run, which replays when Qloo can&apos;t be called; and each
-          visitor&apos;s{accounts && <> and each network&apos;s</>} counts for the day against the limits in the{' '}
-          <a href="/terms">beta terms</a>.
+          <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached with no expiry
+          in one cache that every visitor{accounts && <> and every network without its own Qloo key</>} shares. A call
+          someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show that
+          another visitor{accounts && <> or network</>} looked up the same name; nothing else of theirs is shown, and
+          the cache is never published. Also shared: the sample launch&apos;s stored run, which replays when Qloo
+          can&apos;t be called; and each visitor&apos;s{accounts && <> and each network&apos;s</>} counts for the day
+          against the limits in the <a href="/terms">beta terms</a>.
         </li>
         <li>
           <b>In the logs:</b> one line per Qloo call and per model call, with its timing and counts, and one per run.
@@ -724,7 +724,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
         Crossfeed can&apos;t delete a session yet, and doesn&apos;t delete old sessions on a schedule. When the cookie
         expires or you clear it, your next visit starts a new session, and no browser can reach the old one again, but
         its storage stays. So load nothing into the sample network that you&apos;d want deleted later. Earlier
-        days&apos; counts are deleted, and cached Qloo responses stay private to Crossfeed.
+        days&apos; counts are deleted; cached Qloo responses are kept, and never published.
       </p>
       {accounts && (
         <p>
