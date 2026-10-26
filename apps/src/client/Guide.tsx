@@ -25,7 +25,7 @@ export function Guide({
   const seen = (mark: GuideMark) => state.guide?.seen.includes(mark) ?? false
   const launch = 'name' in sample.launch ? sample.launch.name : 'The sample launch'
   // The highest-placed climber: the moves are in fit order.
-  const climber = topic?.status === 'ranked' ? topic.moves.find((m) => m.climber)?.show : undefined
+  const climber = topic?.status === 'ranked' ? topic.moves.find((m) => m.climber) : undefined
   const { budget, exclusions } = sample.answers
   const steps: { title: string; how: string; done: boolean }[] = [
     {
@@ -36,8 +36,8 @@ export function Guide({
     {
       title: 'Find the climber',
       how: climber
-        ? `Select ${climber}, marked with the red bullet, for why it moved.`
-        : 'When the fit chart and its Last week column fill in, select a show marked with the red bullet for why it moved.',
+        ? `Select ${climber.show}, marked ▲${climber.move} in the Move column, for why it moved.`
+        : 'When the fit chart and its Topic column fill in, select a climber, marked ▲ in the Move column, for why it moved.',
       done: seen('why')
     },
     {
