@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { callVariants } from '@/components/ui/variants'
 import type { Evidence } from '../evidence'
 import type { Session } from './App'
 import { Source } from './Source'
@@ -26,7 +27,7 @@ export function CallButton({
   return (
     <button
       type="button"
-      className="call"
+      className={callVariants()}
       aria-pressed={call === opened}
       aria-controls="evidence"
       aria-label={`${label}: call ${call}`}
