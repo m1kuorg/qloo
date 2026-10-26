@@ -1,7 +1,10 @@
 // Networks: creating one, opening the last one, switching between them, and each network's pages and
 // agent open to its members alone, through the Worker's routes and the agent's client protocol.
 import { env, exports } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { NewNetworkPage } from '../src/client/NewNetwork'
 import { MEMBER_HEADER } from '../src/network-agent'
 import { requests } from './fake'
 import { openMember, type Member, type Session } from './session'
@@ -81,6 +84,23 @@ describe('creating a network', () => {
     expect(dashboard).toContain('data-page="dashboard"')
     expect(dashboard).toContain(`data-agent-path="/agents/network/${id}"`)
     expect(dashboard).toContain('data-network-name="Night Shift Audio"')
+  })
+
+  it('asks for the name in one labelled field, focused, and says how many networks a member can own', async () => {
+    const ada = await openMember()
+    const cap = (await page(ada, '/app/new')).match(/<div id="root"[^>]*\sdata-cap="(\d+)"/)![1]
+    const html = renderToStaticMarkup(createElement(NewNetworkPage, { cap: Number(cap) }))
+    const read = html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    expect(read).toBe(
+      'Create a network A network holds your roster, its launches, and your booking inbox, for you and the teammates you invite. You own the networks you create, up to 3. Network name, as its members will see it Create network'
+    )
+    expect(html).toMatch(/<label\b[^>]*\sfor="network-name"/)
+    expect(html).toMatch(/<input\b(?=[^>]*\sid="network-name")(?=[^>]*\sautofocus="")(?=[^>]*\srequired="")/)
+    // The shell's top bar is the page's one banner.
+    expect(html).not.toContain('<header')
   })
 
   it('refuses a name that is empty, too long, or has control characters', async () => {
