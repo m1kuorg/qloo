@@ -420,9 +420,8 @@ const inboxPage = (state: State) => {
       inbox: state.inbox,
       roster: state.roster,
       booking: state.booking,
-      pitchRunStatus: null,
+      pitchRun: null,
       question: null,
-      runLog: null,
       slowCalls: [],
       loadInbox: noop,
       confirmWork: noop,
@@ -461,7 +460,7 @@ describe('the booker clearing the inbox', () => {
     // Each reply's Copy button: 'enabled', 'disabled', or null when it has none.
     const copy = (html: string, pitch: string) => {
       const button = replyOn(html, pitch).match(/<button[^>]*>Copy<\/button>/)?.[0]
-      return button ? (button.includes('disabled') ? 'disabled' : 'enabled') : null
+      return button ? (/\sdisabled[\s=>]/.test(button) ? 'disabled' : 'enabled') : null
     }
     const pitchIds = replies.map((r) => r.pitch)
 

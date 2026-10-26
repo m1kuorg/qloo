@@ -20,7 +20,7 @@ import {
   type QlooEntity,
   type ScriptedTurn
 } from './fake'
-import { hooked, openSession, type Session } from './session'
+import { hooked, links, openSession, type Session } from './session'
 
 type Extracted = { guest: string; work: { title: string; type: string; year: number | null } | null }
 
@@ -190,7 +190,8 @@ describe('loading the sample inbox', () => {
     const s = await session()
 
     await s.call('loadInbox', { sample: true })
-    const { inbox } = await loaded(s)
+    const state = await loaded(s)
+    const { inbox } = state
 
     expect(inbox).toMatchObject({ sample: true, notice: sample.notice, status: 'done' })
     expect(inbox!.pitches.map((p) => p.id)).toEqual(sample.pitches.map((p) => p.id))
@@ -222,6 +223,18 @@ describe('loading the sample inbox', () => {
           special[p.id] ?? { resolution: 'resolved', entity: { id: `w-${p.id}` }, error: null }
         )
     }
+    // The page labels it sample data in its title row and gives the sample's notice, and its table has
+    // a row per pitch saying how its work matched and, where one is needed, how to settle it.
+    const page = renderToStaticMarkup(
+      createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
+    )
+    expect(words(page)).toContain('Inbox Sample inbox Sample data Claude reads each pitch')
+    expect(words(page)).toContain(sample.notice)
+    const rows = hooked(page, 'data-status').map(words)
+    expect(rows).toHaveLength(sample.pitches.length)
+    const row = (id: string) => rows[sample.pitches.findIndex((p) => p.id === id)]
+    expect(row('pitch-30')).toContain('Ambiguous 2 with this title Confirm the match')
+    expect(row('pitch-01')).toMatch(/Not in Qloo No \w+ with this title.* in Qloo\./)
   })
 
   it('sets aside pitches with no public work, and searches only the works', async () => {
@@ -439,6 +452,16 @@ describe('confirming an ambiguous work', () => {
     })
   })
 })
+
+// A page's words, as a reader hears them.
+const words = (html: string) =>
+  html
+    .replace(/<!--.*?-->|<[^>]+>/g, ' ')
+    .replace(/&#x27;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 // The confirm picker as the browser renders it from synced candidates: each option's text, in order,
 // and the picker's whole text.

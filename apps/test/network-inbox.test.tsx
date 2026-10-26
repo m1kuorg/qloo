@@ -162,7 +162,8 @@ describe('uploading pitch files', () => {
     const page = words(
       renderToStaticMarkup(<InboxWorkspace agent={{ state, stub: {} } as unknown as Agent} links={links} />)
     )
-    expect(page).toContain('Inbox · Uploaded pitches')
+    // The title row: the page's name, then the inbox's.
+    expect(page).toContain('Inbox Uploaded pitches')
     expect(page).toContain('Read pitches Load sample inbox Upload files')
   })
 
@@ -554,12 +555,13 @@ describe("the inbox page's words", () => {
     const ada = await openMember()
     const network = await created(ada)
     const agent = await connect(ada, network)
-    expect(inboxPage(agent.state(), network)).toContain('Inbox · None yet')
+    expect(inboxPage(agent.state(), network)).toContain('Inbox None yet')
 
     await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
     const read = inboxPage(await loaded(agent), network)
-    expect(read).toContain('Inbox · Uploaded pitches')
-    expect(read).toContain('Read 1 pitch Rank against a show')
+    expect(read).toContain('Inbox Uploaded pitches')
+    // The readout says how much of the inbox is read, right before the show to rank against.
+    expect(read).toContain('Read · 1 pitch Rank against a show')
     expect(read).toContain('Read pitches Load sample inbox Upload files Replaces the current inbox, up to 50 pitches.')
     expect(read).toContain(
       'Drop email files anywhere on the page, or upload them: .eml files, an .mbox export, or a .txt with a line of three dashes between pitches.'
@@ -571,7 +573,7 @@ describe("the inbox page's words", () => {
           links={{ roster: `/app/${network}/roster` }}
         />
       )
-    ).toContain(`<a href="/app/${network}/roster">Import the roster</a>`)
+    ).toMatch(new RegExp(`<a\\b[^>]*\\shref="/app/${network}/roster"[^>]*>Import the roster</a>`))
   })
 
   it('names each skipped pitch and why, apart from the ones that loaded', async () => {

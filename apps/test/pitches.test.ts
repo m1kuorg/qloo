@@ -1,6 +1,10 @@
 import { env } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
+import type { Session as Agent } from '../src/client/App'
+import { InboxWorkspace } from '../src/client/Inbox'
 import sample from '../src/sample-inbox.json'
 import {
   fakeClaude,
@@ -15,7 +19,7 @@ import {
   type ModelRequest,
   type QlooEntity
 } from './fake'
-import { openSession, type Session } from './session'
+import { hooked, links, openSession, type Session } from './session'
 
 // The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
 const pitchText = (request: ModelRequest): string =>
@@ -60,6 +64,20 @@ afterEach(() => {
   env.GUEST_PITCHES = 'off'
   env.RUN_VISITOR_DAILY_CAP = savedCap
 })
+
+// One work type's ranked list on the inbox page, as the browser renders it from synced state, and its
+// words as a reader hears them.
+const list = (state: State, type: string) =>
+  hooked(
+    renderToStaticMarkup(createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+    `aria-labelledby="list-${type}"`
+  )[0] ?? ''
+const words = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;|&apos;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
 
 const finished = (s: Session) => s.until((state: State) => state.run !== null && state.run.status !== 'running')
 
@@ -233,6 +251,14 @@ describe('ranking pitched works against the show', () => {
     ])
     // Ranks and bands reach the browser; the raw affinities stay in the evidence.
     for (const a of affinities) expect(s.frames().filter((f) => f.includes(a))).toEqual([])
+    // The page lists each type on its own with its call and anchors: by rank, each work with the guest
+    // as Claude read them, and its band.
+    expect(words(list(state, 'book'))).toBe(
+      'Books · 2 ranked C-08 Ranked against Night Shift Cinema and Glass Harbor. Rank Public work · guest Agent Fit 1 Paper Moons Rue Vance Strong 2 Night Ferry Ada Quill Good'
+    )
+    expect(words(list(state, 'tv_show'))).toContain('TV shows · 1 ranked C-10')
+    // Each work opens its pitch.
+    expect(list(state, 'film')).toMatch(/<button\b[^>]*>Static Bloom<\/button>/)
   })
 
   it('never sends a set-aside pitch, a guest name, or a sender detail in a ranking', async () => {
@@ -281,6 +307,13 @@ describe('ranking pitched works against the show', () => {
       'e-0001,f-0101,b-0101',
       'b-0101'
     ])
+    // The page says which anchors each list used, and why a type isn't ranked, with its pitches.
+    expect(words(list(state, 'book'))).toContain(
+      "Books · 2 ranked C-09 C-12 Ranked against the past guests' books alone: Salt Roads. Qloo scored no book against the show and every past guest (C-09)."
+    )
+    const unranked = words(list(state, 'tv_show'))
+    expect(unranked).toMatch(/^TV shows · 0 ranked C-11 Failed Not ranked: .*no past guest's work is a TV show/)
+    expect(unranked).toMatch(/Not scored · 1 Pitch Reason Dead Air Not ranked/)
   })
 })
 
