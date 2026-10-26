@@ -9,7 +9,7 @@ import { appPages } from './routes/app'
 import { auth } from './routes/auth'
 import { demo } from './routes/demo'
 import { docs } from './routes/docs'
-import { marketing } from './routes/marketing'
+import { marketing, notFound } from './routes/marketing'
 import { mcp } from './routes/mcp'
 import { retryWipes } from './wipe'
 
@@ -48,6 +48,8 @@ app.route('/', auth)
 app.route('/', appPages)
 app.route('/', api)
 app.route('/', mcp)
+// A page that isn't there, for every route above and none.
+app.notFound(notFound)
 
 export default {
   fetch: app.fetch,
