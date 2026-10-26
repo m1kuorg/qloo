@@ -197,7 +197,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
       </div>
       {/* Every panel stays mounted, so the ids calls point at (aria-controls="evidence") are always
           there; Base UI hides and inerts the panels not shown, and nothing else. */}
-      <TabsContent value="run" keepMounted data-legacy>
+      <TabsContent value="run" keepMounted className="flex flex-col gap-8">
         {run && (
           <RunLog
             run={run}
@@ -216,10 +216,10 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
         )}
         {(!network || roster.length > 0) && <RosterCheck roster={roster} />}
         {!run && runs.length === 0 && network && roster.length === 0 && (
-          <p className="help">Not run yet. Each run&apos;s steps and its closing line show here.</p>
+          <p className="text-muted-foreground">Not run yet. Each run&apos;s steps and its closing line show here.</p>
         )}
       </TabsContent>
-      <TabsContent value="evidence" keepMounted data-legacy>
+      <TabsContent value="evidence" keepMounted>
         <EvidencePanel opened={opened} />
       </TabsContent>
       {editorOpen && (
@@ -293,7 +293,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
           )}
           {shown && order && (
             // "Review the plan" in the title row jumps here, clear of the sticky top bar.
-            <div id="plan" className="scroll-mt-16" data-legacy>
+            <div id="plan" className="scroll-mt-16">
               <InsertionOrderPanel
                 key={`${viewing?.id ?? 'latest'} ${order.id}`}
                 order={order}
@@ -775,7 +775,8 @@ function LaunchComps({
   )
 }
 
-// Every run this session started, newest first. An earlier run opens read-only, to compare its plan
+// Every run this session started, newest first: its number and launch, when and by whom it started,
+// how it ended, and the one shown, or View, which opens an earlier run read-only to compare its plan
 // with the latest.
 function RunList({
   runs,
@@ -791,50 +792,52 @@ function RunList({
   const { busy, error, run } = useAction()
   const latest = runs.at(-1)?.id
   return (
-    <section className="mod" aria-labelledby="runs-h">
-      <div className="mh">
-        <span className="lbl" id="runs-h">
-          Runs
-        </span>
-      </div>
-      <ol className="notes runs">
+    <section className="flex flex-col gap-3" aria-labelledby="runs-h">
+      <h2 className="font-semibold" id="runs-h">
+        Runs
+      </h2>
+      <ol className="-mx-2 flex flex-col gap-0.5">
         {runs
           .map((r, i) => ({ ...r, n: i + 1 }))
           .reverse()
           .map((r) => {
             const shown = viewing === null ? r.id === latest : r.id === viewing
             return (
-              <li key={r.id} aria-current={shown || undefined}>
-                <span>
-                  <b>Run {r.n}</b> · {r.pitchesFor ? `Pitches for ${r.pitchesFor}` : (r.launch ?? 'From comps')}{' '}
-                  <span className="tg">
-                    {new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    {r.startedBy && ` by ${r.startedBy}`}
-                  </span>
+              <li
+                key={r.id}
+                aria-current={shown || undefined}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg px-2 py-1.5 aria-[current]:bg-muted"
+              >
+                <span className="min-w-0">
+                  <b className="font-semibold">Run {r.n}</b> ·{' '}
+                  {r.pitchesFor ? `Pitches for ${r.pitchesFor}` : (r.launch ?? 'From comps')}
                 </span>
-                <span className="tg">
-                  {runLabel[r.status]}
+                <span className="type-caption text-muted-foreground">
+                  {new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {r.startedBy && ` by ${r.startedBy}`} · {runLabel[r.status]}
                   {r.replayed && ' · Replayed'}
-                  {' · '}
+                </span>
+                <span className="col-start-2 row-span-2 row-start-1 justify-self-end">
                   {shown ? (
-                    'Shown'
+                    <span className="type-caption text-muted-foreground">Shown</span>
                   ) : (
-                    <button
-                      type="button"
-                      className="lnk"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       disabled={busy}
                       aria-label={`View run ${r.n}`}
                       onClick={() => void run(() => view(r.id === latest ? null : r.id))}
+                      className="-mr-1 max-md:h-11"
                     >
                       View
-                    </button>
+                    </Button>
                   )}
                 </span>
               </li>
             )
           })}
       </ol>
-      <p className="help">
+      <p className="type-caption text-muted-foreground">
         Each run starts fresh; earlier ones stay here to compare.{' '}
         {counted === 'network'
           ? "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them. Runs that stop at once have a higher limit of their own."

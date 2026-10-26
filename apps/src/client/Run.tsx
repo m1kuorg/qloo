@@ -1,10 +1,12 @@
 import { cn } from 'cn'
+import { CheckIcon, SquareXIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem, RadioGroupSegment } from '@/components/ui/radio-group'
+import { Spinner } from '@/components/ui/spinner'
 import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
 import type { Budget, Launch, Question, Reply, Run } from '../agent'
 import { finalistsOf, markFinalists, type Ranking } from '../fit'
@@ -13,12 +15,13 @@ import { MAX_ANSWER, MAX_TITLE } from '../text'
 import { offeredBy } from '../resolve'
 import { takesText } from '../tools/ask-human'
 import type { Session } from './App'
-import { Alert, FitBand, listOf, percentile, useAction } from './controls'
+import { Alert, FitBand, KeyValue, KeyValues, listOf, percentile, useAction } from './controls'
 import { CallButton } from './Evidence'
 import { Source } from './Source'
+import { StateLine } from './states'
 
-// A run in the rail, as the workspace and the inbox both show it: its status, the Run module with its
-// progress notes and Claude's closing line, and the agent's open question.
+// A run as the workspace and the inbox both show it: its status words, its log with its progress notes
+// and Claude's closing line, and the agent's open question.
 
 export const runLabel: Record<Run['status'], string> = {
   running: 'Running',
@@ -28,8 +31,8 @@ export const runLabel: Record<Run['status'], string> = {
   failed: 'Failed'
 }
 
-// Claude's closing line on a completed run, labelled as agent text. Each call number it cites
-// opens that call's evidence.
+// Claude's closing line on a completed run, as an Agent block below the trace. Each call number it
+// cites opens that call's evidence.
 function ClosingLine({
   text,
   openCall,
@@ -40,22 +43,33 @@ function ClosingLine({
   opened: string | null
 }) {
   return (
-    <p className="closing" data-closing>
-      <Source of="agent" />{' '}
-      {text
-        .split(/\b(C-\d+)\b/)
-        .map((part, i) =>
-          i % 2 ? (
-            <CallButton key={i} call={part} label="Evidence Claude cites" opened={opened} openCall={openCall} />
-          ) : (
-            part
-          )
-        )}
-    </p>
+    <div className="flex flex-col items-start gap-1.5 rounded-lg bg-muted p-3" data-closing>
+      <Source of="agent" />
+      <p className="whitespace-pre-line">
+        {text
+          .split(/\b(C-\d+)\b/)
+          .map((part, i) =>
+            i % 2 ? (
+              <CallButton key={i} call={part} label="Evidence Claude cites" opened={opened} openCall={openCall} />
+            ) : (
+              part
+            )
+          )}
+      </p>
+    </div>
   )
 }
 
 const noteLabel: Record<Run['notes'][number]['status'], string> = { running: 'Running', done: 'Done', failed: 'Failed' }
+
+// A note's state as a glyph before its text, set in its line: the small spinner while it runs, a check
+// once done, the square ✕ of a failure. Its word says it too, so the glyph is hidden from screen readers.
+const glyph = 'mt-0.5 size-4 shrink-0'
+const noteGlyph: Record<Run['notes'][number]['status'], React.ReactNode> = {
+  running: <Spinner className={cn(glyph, 'text-muted-foreground')} />,
+  done: <CheckIcon aria-hidden="true" className={cn(glyph, 'text-muted-foreground')} />,
+  failed: <SquareXIcon aria-hidden="true" className={cn(glyph, 'text-destructive')} />
+}
 
 // Code's note under a closing line once what the line describes has changed since: a launch run's
 // insertion order (#202), or a pitch run's replies (#213).
@@ -64,9 +78,11 @@ export const ORDER_CHANGED =
 export const REPLIES_CHANGED =
   'The replies have changed since Claude drafted them: each reply as listed is the current one.'
 
-// What the run has done so far: one note per tool call, then why it stopped if it failed. Its closing
-// line stays as Claude wrote it; once what it describes has changed since, code says so under it
-// (`changedNote`), since the line may quote figures or counts that no longer hold.
+// The run's trace: one row per tool call, its note as code wrote it with its state, then why the run
+// stopped if it failed or hit a limit. Claude's closing line follows as Claude wrote it; once what it
+// describes has changed since, code says so under it (`changedNote`), since the line may quote figures
+// or counts that no longer hold. Last, what the programmer answered: the slot budget and the shows
+// left out.
 export function RunLog({
   run,
   changedNote = null,
@@ -78,54 +94,53 @@ export function RunLog({
   openCall: (call: string) => void
   opened: string | null
 }) {
+  const live = run.status === 'running' || run.status === 'waiting'
   return (
-    <section className="mod" aria-labelledby="run-log" data-run-log>
-      <div className="mh">
-        <span className="lbl" id="run-log">
-          Run
-        </span>
-        <span className="chips">
-          {run.replayed && <span className="chip">Replayed</span>}
-          <span className="chip">{runLabel[run.status]}</span>
+    <section className="flex flex-col gap-3" aria-labelledby="run-log" data-run-log>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold" id="run-log">
+          Run log
+        </h2>
+        <span className="flex flex-wrap items-center gap-1.5">
+          {run.replayed && <Badge variant="outline">Replayed</Badge>}
+          <Badge mark={live ? 'signal' : 'none'}>{runLabel[run.status]}</Badge>
         </span>
       </div>
-      <ol className="notes">
-        {run.notes.map((n, i) => (
-          <li key={i} data-status={n.status}>
-            <span>{n.text}</span>
-            <span className="tg">{noteLabel[n.status]}</span>
-          </li>
-        ))}
-        {(run.status === 'failed' || run.status === 'stopped') && (
-          <li data-status="failed">
-            <span>{run.error}</span>
-            <span className="tg">Stopped</span>
-          </li>
-        )}
-      </ol>
-      {run.notes.length === 0 && run.status === 'running' && <p className="help">Waiting for Claude.</p>}
+      {run.notes.length > 0 && (
+        <ol className="flex flex-col gap-2">
+          {run.notes.map((n, i) => (
+            <li key={i} className="flex items-start gap-2.5" data-status={n.status}>
+              {noteGlyph[n.status]}
+              <span className="min-w-0 flex-1">{n.text}</span>
+              <span className="shrink-0 type-caption leading-5 text-muted-foreground">{noteLabel[n.status]}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {run.notes.length === 0 && run.status === 'running' && (
+        <p className="text-muted-foreground">Waiting for Claude.</p>
+      )}
+      {(run.status === 'failed' || run.status === 'stopped') && run.error && (
+        <p data-run-error>
+          <StateLine kind="error" word={runLabel[run.status]}>
+            {run.error}
+          </StateLine>
+        </p>
+      )}
       {/* Runs from before closing lines have none. */}
       {run.closing && <ClosingLine text={run.closing} openCall={openCall} opened={opened} />}
       {run.closing && changedNote && (
-        <p className="help io-note" data-run-note>
+        <p className="type-caption text-muted-foreground" data-run-note>
           {changedNote}
         </p>
       )}
       {(run.budget || run.exclusions) && (
-        <dl className="rec">
-          {run.budget && (
-            <div className="rec-row">
-              <dt>Slot budget</dt>
-              <dd>{budgetText(run.budget)}</dd>
-            </div>
-          )}
+        <KeyValues>
+          {run.budget && <KeyValue label="Slot budget">{budgetText(run.budget)}</KeyValue>}
           {run.exclusions && (
-            <div className="rec-row">
-              <dt>Left out</dt>
-              <dd>{run.exclusions.length ? run.exclusions.join(', ') : 'None'}</dd>
-            </div>
+            <KeyValue label="Left out">{run.exclusions.length ? run.exclusions.join(', ') : 'None'}</KeyValue>
           )}
-        </dl>
+        </KeyValues>
       )}
     </section>
   )

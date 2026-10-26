@@ -37,6 +37,7 @@ import {
   readAfterReset,
   connect as connectVia,
   currentLinks,
+  hooked,
   openMember,
   openSession,
   type Member,
@@ -488,7 +489,7 @@ describe("a launch's run", () => {
         .replace(/&#x27;/g, "'")
         .replace(/\s+/g, ' ')
     ).toContain(
-      "Evidence · C-06 From the roster Qloo data Copied From the network's roster, its call C-08, as Qloo answered it then; the run made no new request"
+      "Evidence · C-06 Qloo data From the roster Copied From the network's roster, its call C-08 , as Qloo answered it then; the run made no new request"
     )
     expect(state.run?.replayed).toBeUndefined()
     expect(await roster.call<Evidence[]>('getEvidence')).toEqual(networkLog)
@@ -1204,7 +1205,13 @@ describe('the pages, as a member reads them', () => {
     const grace = await teammate(ada, network)
     const { id, agent } = await drafted(ada, network)
     const draftHtml = workspace(network, agent, id)
-    expect(words(draftHtml)).toMatch(/Run 1 · Night Shift Cinema \S+( [AP]M)? by Ada Programmer/)
+    expect(words(draftHtml)).toMatch(/Run 1 · Night Shift Cinema \S+( [AP]M)? by Ada Programmer · Completed Shown/)
+    // A draft is approved, or edited, and says what approving does; it has nothing to export yet.
+    const [draftPlan] = hooked(draftHtml, 'data-io')
+    expect(words(draftPlan)).toContain(
+      'Approve Edit lines Nothing is final until you approve it. Editing returns it to draft.'
+    )
+    expect(words(draftPlan)).toMatch(/^The plan Insertion order IO-0001 Draft /)
     expect(draftHtml).not.toContain('Export CSV')
 
     const graces = await connect(grace, `/agents/launch/${network}/${id}`)
@@ -1214,9 +1221,17 @@ describe('the pages, as a member reads them', () => {
     const at = new Date(agent.state()!.insertionOrder!.approvedAt!)
     const day = at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     const time = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    expect(words(html)).toContain(`Approved by Grace Booker on ${day} at ${time}.`)
-    expect(html).toContain(
-      `<a class="btn" href="/app/${network}/launches/${id}/insertion-orders/IO-0001.csv" download="">Export CSV</a>`
+    const [plan] = hooked(html, 'data-io')
+    expect(words(plan)).toMatch(/^The plan Insertion order IO-0001 Approved /)
+    expect(words(plan)).toContain(
+      `Approved by Grace Booker on ${day} at ${time}. Export CSV Edit lines Editing returns it to draft.`
+    )
+    expect(plan).not.toMatch(/>Approve<\/button>/)
+    // The export is a download link under the launch, not a button.
+    expect(plan).toMatch(
+      new RegExp(
+        `<a\\b(?=[^>]*\\shref="/app/${network}/launches/${id}/insertion-orders/IO-0001\\.csv")(?=[^>]*\\sdownload="")[^>]*>Export CSV</a>`
+      )
     )
   })
 

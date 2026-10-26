@@ -1,7 +1,10 @@
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { RunSnapshot } from '../src/agent'
+import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeQloo, modelRequests, refusal, requests, text, turn } from './fake'
-import { openSession, type Session } from './session'
+import { hooked, links, openSession, type Session } from './session'
 
 // A synthetic roster with one show in each state: resolved, mapped to a comp, ambiguous, missed,
 // failed, and left out.
@@ -95,6 +98,22 @@ describe("a run's closing line", () => {
     const refused = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
     expect((await ended(s, refused.runId)).run).toMatchObject({ status: 'failed', closing: null })
     const failed = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
-    expect((await ended(s, failed.runId)).run).toMatchObject({ status: 'failed', closing: null })
+    const state = await ended(s, failed.runId)
+    expect(state.run).toMatchObject({ status: 'failed', closing: null })
+
+    // The run log says why under its trace, in the run's own words, where a closing line would be.
+    const [log] = hooked(
+      renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+      'data-run-log'
+    )
+    const [why] = hooked(log, 'data-run-error')
+    const said = why
+      .replace(/<[^>]+>/g, '')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&amp;/g, '&')
+    expect(said).toBe(`Failed ${state.run!.error}`)
+    expect(log.indexOf('data-run-error')).toBeGreaterThan(log.lastIndexOf('data-status='))
+    expect(log).not.toContain('data-closing')
   })
 })

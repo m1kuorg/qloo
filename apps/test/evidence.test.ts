@@ -1,9 +1,12 @@
 import { env } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { EvidencePanel } from '../src/client/Evidence'
 import type { Evidence } from '../src/evidence'
 import { QlooGateway } from '../src/gateway'
-import { fakeQloo, requests, type QlooEntity } from './fake'
-import { openSession, type Session } from './session'
+import { fakeClaude, fakeInsights, fakeQloo, requests, text, toolUse, turn, type QlooEntity } from './fake'
+import { hooked, openSession, type Session } from './session'
 
 const open: Session[] = []
 const session = async (cookie?: string) => {
@@ -174,5 +177,51 @@ describe('the evidence behind each Qloo call', () => {
     const states = s.frames().filter((f) => JSON.parse(f).type === 'cf_agent_state')
     expect(states.length).toBeGreaterThan(0)
     for (const f of states) expect(f).not.toContain('latencyMs')
+  })
+
+  it("shows a call's parameters one to a line, and a list of entity IDs as its count and each ID", async () => {
+    const names = ['Night Shift Cinema', 'Deep Cuts', 'Signal Boost', 'Paper Trail', 'Field Notes', 'Slow Burn']
+    const id = (name: string) => `e-07${names.indexOf(name)}0`
+    fakeQloo({
+      search: Object.fromEntries(names.map((name) => [name, [{ entity_id: id(name), name, popularity: 0.5 }]]))
+    })
+    fakeInsights(names.slice(1).map((name, i) => ({ entity_id: id(name), name, affinity: 0.9 - i / 100 })))
+    fakeClaude([
+      turn(toolUse('resolve_entities', { names: [names[0]], type: 'urn:entity:podcast' })),
+      turn(
+        toolUse('rank_candidates', {
+          anchor_ids: [id(names[0])],
+          candidate_ids: names.slice(1).map(id),
+          type: 'urn:entity:podcast'
+        })
+      ),
+      turn(text('Ranked.'))
+    ])
+    const s = await session()
+    await s.importRoster(names.slice(1).join('\n'))
+    await s.call('startLaunch', { name: names[0] })
+    const state = await s.until((state) => state.run?.status === 'completed')
+    const record = (await s.call<Evidence[]>('getEvidence')).find((e) => e.call === state.ranking?.call)!
+
+    // The inspector's Evidence tab, as the browser renders it for the ranking's call.
+    const html = renderToStaticMarkup(
+      createElement(EvidencePanel, { opened: { call: record.call, status: 'loaded', record } })
+    )
+    const param = (key: string) => hooked(html, `data-param="${key}"`)[0]
+    const words = (part: string) =>
+      part
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    expect(words(param('filter.type'))).toBe('filter.type urn:entity:podcast')
+    expect(words(param('signal.interests.entities'))).toBe('signal.interests.entities 1 entity ID e-0700')
+    // A long list folds behind its count, each ID on its own line, whole in its tooltip.
+    expect(words(param('filter.results.entities'))).toBe(
+      'filter.results.entities 5 entity IDs e-0710 e-0720 e-0730 e-0740 e-0750'
+    )
+    expect(param('filter.results.entities')).toContain('<details')
+    expect([...param('filter.results.entities').matchAll(/<code\b[^>]*\stitle="(e-07\d0)"/g)].map((m) => m[1])).toEqual(
+      names.slice(1).map(id)
+    )
   })
 })

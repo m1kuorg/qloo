@@ -488,6 +488,8 @@ function ShowFields({
   )
 }
 
+// The roster's shows counted by how Qloo matched them, which says how many a ranking can score: a
+// compact key/value list, two pairs to a row.
 export function RosterCheck({ roster }: { roster: Show[] }) {
   const count = (r: Show['resolution']) => roster.filter((s) => s.resolution === r && !s.excluded).length
   const rows: [string, number][] = [
@@ -500,22 +502,22 @@ export function RosterCheck({ roster }: { roster: Show[] }) {
     ['Excluded', roster.filter((s) => s.excluded).length]
   ]
   return (
-    <section className="mod" aria-labelledby="roster-check">
-      <div className="mh">
-        <span className="lbl" id="roster-check">
+    <section className="flex flex-col gap-3" aria-labelledby="roster-check">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold" id="roster-check">
           Roster check
-        </span>
+        </h2>
         <Source of="qloo" />
       </div>
-      <p className="help">
+      <p className="type-caption text-muted-foreground">
         Resolved and mapped shows can be scored. Until an ambiguous, missed, or failed show is settled or left out,
         rankings list it as not scored.
       </p>
-      <dl className="rec">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-1">
         {rows.map(([label, n]) => (
-          <div key={label} className="rec-row">
-            <dt>{label}</dt>
-            <dd>{n}</dd>
+          <div key={label} className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="tabular-nums">{n}</dd>
           </div>
         ))}
       </dl>
