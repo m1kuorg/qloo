@@ -17,6 +17,8 @@ const Head = ({ title, children }: { title: string; children?: Child }) => (
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/* The page follows the system's light or dark setting (style.css), form controls included. */}
+    <meta name="color-scheme" content="light dark" />
     <title>{title}</title>
     <ViteClient />
     <Link href="/src/style.css" rel="stylesheet" />
