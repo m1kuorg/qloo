@@ -50,7 +50,7 @@ export function InsertionOrderPanel({
   const sample = (line: OrderLine) =>
     sampleCpm || !!roster.find((s) => s.name === line.show)?.sample?.includes('downloads')
   return (
-    <section className="mod io-mod" aria-labelledby="io-h">
+    <section className="mod io-mod" aria-labelledby="io-h" data-io>
       <div className="mh">
         <span className="lbl" id="io-h">
           {approved ? 'Insertion order' : 'Insertion order draft'} · {order.id}
@@ -87,10 +87,10 @@ export function InsertionOrderPanel({
             </thead>
             <tbody>
               {order.lines.map((line) => (
-                <tr key={line.show}>
+                <tr key={line.show} data-line={line.show}>
                   <td>
                     <div className="nm">{line.show}</div>
-                    <div className="tg angle">
+                    <div className="tg angle" data-angle>
                       {line.angle ?? NO_ANGLE}
                       {cites[line.show] && (
                         <>

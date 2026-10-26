@@ -59,7 +59,7 @@ export function Guide({
   const current = steps.findLastIndex((s) => s.done) + 1
   const finished = current === steps.length
   return (
-    <section className="mod guide" aria-labelledby="guide-h">
+    <section className="mod guide" aria-labelledby="guide-h" data-guide>
       <div className="mh">
         <span className="lbl" id="guide-h">
           Guide

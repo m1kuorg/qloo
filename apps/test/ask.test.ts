@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
 import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeInsights, fakeQloo, modelRequests, text, toolUse, turn } from './fake'
-import { links, openSession, type Session } from './session'
+import { hooked, links, openSession, type Session } from './session'
 
 // A synthetic launch with two same-name feeds, so the agent has a real fork to ask about.
 const search = {
@@ -34,11 +34,12 @@ const finished = (s: Session) =>
   s.until((state) => state.run !== null && (state.run.status === 'completed' || state.run.status === 'failed'))
 const question = (state: State) => state.run!.question!
 
-// The text boxes the open question's card offers the programmer, as the page renders it.
+// The text boxes the open question's card offers the programmer, as the page renders it: its
+// inputs with no type, or the text type.
 const textBoxes = (state: State) => {
   const html = renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links }))
-  const card = html.slice(html.indexOf('class="mod ask"'))
-  return card.slice(0, card.indexOf('</section>')).match(/<input(?![^>]*type=)[^>]*>/g) ?? []
+  const [card] = hooked(html, 'data-ask')
+  return card.match(/<input\b(?![^>]*\stype="(?!text")[^"]*")[^>]*>/g) ?? []
 }
 
 describe('asking the programmer', () => {

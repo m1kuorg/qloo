@@ -19,7 +19,7 @@ import {
   type ModelRequest,
   type QlooEntity
 } from './fake'
-import { links, openSession, type Session } from './session'
+import { hooked, links, openSession, type Session } from './session'
 
 // The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
 const pitchText = (request: ModelRequest): string =>
@@ -437,7 +437,7 @@ const inboxPage = (state: State) => {
   )
 }
 // One reply's markup on the page.
-const replyOn = (html: string, pitch: string) => html.split(`data-pitch="${pitch}"`)[1]?.split('</li>')[0] ?? ''
+const replyOn = (html: string, pitch: string) => hooked(html, `data-pitch="${pitch}"`)[0] ?? ''
 
 describe('the booker clearing the inbox', () => {
   it('approves one reply and leaves the rest as drafts', async () => {
@@ -479,7 +479,7 @@ describe('the booker clearing the inbox', () => {
       ['pitch-07', 'disabled']
     ])
     // The angle is shown with the tags it's built from and the compare that returned them.
-    const reply = html.split('data-pitch="pitch-02"')[1].split('</li>')[0]
+    const reply = replyOn(html, 'pitch-02')
     expect(reply).toContain(replies[1].angle)
     expect(reply).toContain('Film History')
     expect(reply).toContain(s.state()!.booking!.replies![1].sharedTags!.call)
@@ -552,10 +552,10 @@ describe('the booker clearing the inbox', () => {
     expect(html.indexOf('Hold the film pitches for next season?')).toBeGreaterThan(-1)
     expect(html.indexOf('Hold the film pitches for next season?')).toBeLessThan(html.indexOf('id="lists-h"'))
     // A reply's action buttons, by name, and whether they're disabled.
-    const actions = html.split('data-pitch="pitch-02"')[1].split('</li>')[0].split('class="acts"')[1]
-    const buttons = [...actions.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].map(([, attrs, name]) => [
-      name,
-      attrs.includes('disabled')
+    const [actions] = hooked(replyOn(html, 'pitch-02'), 'data-actions')
+    const buttons = [...actions.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map(([, attrs, name]) => [
+      name.replace(/<[^>]+>/g, '').trim(),
+      /\sdisabled[\s=>]/.test(attrs)
     ])
     expect(buttons).toEqual([
       ['Approve', true],
@@ -658,14 +658,21 @@ describe('a closing line the replies have changed since', () => {
     const { s, state } = await pitchRun(drafted)
     // The inbox rail's Run module as the browser renders it.
     const runModule = (state: State) =>
-      renderToStaticMarkup(
-        createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
-      ).match(/<section class="mod" aria-labelledby="run-log">[\s\S]*?<\/section>/)![0]
+      hooked(
+        renderToStaticMarkup(createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+        'data-run-log'
+      )[0]
     const note = 'The replies have changed since Claude drafted them: each reply as listed is the current one.'
     expect(runModule(state)).toContain('Drafted.')
     expect(runModule(state)).not.toContain(note)
 
     await s.call('discardReply', 'pitch-03')
-    expect(runModule(s.state()!)).toMatch(new RegExp(`Drafted\\.</p><p[^>]*>${note}</p>`))
+    const edited = runModule(s.state()!)
+    const [closing] = hooked(edited, 'data-closing')
+    const [changed] = hooked(edited, 'data-run-note')
+    expect(closing.replace(/<[^>]+>/g, '')).toMatch(/Drafted\.$/)
+    expect(changed.replace(/<[^>]+>/g, '')).toBe(note)
+    // Right under the closing line.
+    expect(edited).toContain(closing + changed)
   })
 })

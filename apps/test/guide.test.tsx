@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { State } from '../src/agent'
 import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, fakeTopic, text, toolUse, topicNames, turn } from './fake'
-import { links, openSession, type Session } from './session'
+import { hooked, links, openSession, type Session } from './session'
 
 // Made-up IDs and scores for seven of the sample's public show names; every other name misses.
 const ids: Record<string, string> = {
@@ -120,8 +120,8 @@ const words = (html: string) =>
     .trim()
 // The guide's text, or null when the page has no guide.
 const guide = (state: State) => {
-  const html = page(state).match(/<section class="mod guide"[\s\S]*?<\/section>/)
-  return html && words(html[0])
+  const [html] = hooked(page(state), 'data-guide')
+  return html === undefined ? null : words(html)
 }
 
 const settled = (s: State) => s.roster.length > 0 && s.roster.every((show) => show.resolution !== 'pending')
@@ -172,7 +172,7 @@ describe('the guide through the sample launch', () => {
     // Nothing is covered or disabled for it: no overlay, and the launch can be started.
     const html = page(state)
     expect(html).not.toMatch(/aria-modal|inert/)
-    expect(html).toMatch(/<button class="btn pri" type="submit">Start run<\/button>/)
+    expect(html).toMatch(/<button\b(?=[^>]*\stype="submit")(?![^>]*\sdisabled[\s=>])[^>]*>Start run<\/button>/)
   })
 
   it('advances with each step, from the climber and its evidence to the approved order', async () => {

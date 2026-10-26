@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { State } from '../src/agent'
 import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeInsights, fakeQloo, fakeTopic, text, toolUse, turn } from './fake'
-import { links, openSession, type Session } from './session'
+import { hooked, links, openSession, type Session } from './session'
 
 // Made-up IDs and scores for four of the sample's public show names; every other name misses.
 const ids: Record<string, string> = {
@@ -66,12 +66,12 @@ const page = (state: State) =>
   renderToStaticMarkup(<Workspace agent={{ state, stub: {} } as unknown as Agent} links={links} />)
 // A fit chart row's slot value cell, as read: the value, the downloads it's priced from, any sample label.
 const slot = (state: State, show: string) => {
-  const chart = page(state).match(/<table class="chart fit-chart"[\s\S]*?<\/table>/)![0]
-  const row = chart.split('<tr').find((r) => r.includes(`<span class="nm">${show}</span>`))
-  return words(row!.match(/<td class="r val">([\s\S]*?)<\/td>/)![1])
+  const [chart] = hooked(page(state), 'data-fit-chart')
+  const [row] = hooked(chart, `data-show="${show}"`)
+  return words(hooked(row, 'data-slot-value')[0])
 }
 // The line under the fit chart that says how slot values are priced.
-const footnote = (state: State) => words(page(state).match(/<p class="help chart-foot">([\s\S]*?)<\/p>/)![1])
+const footnote = (state: State) => words(hooked(page(state), 'data-chart-foot')[0])
 
 const charted = (s: State) => s.ranking !== null && s.run?.status === 'completed'
 const settled = (s: State) => s.roster.length > 0 && s.roster.every((show) => show.resolution !== 'pending')

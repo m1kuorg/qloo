@@ -666,7 +666,7 @@ function FitChart({
       {ranking.error ? (
         <StateLine kind="failed">Nothing is ranked: {sentence(ranking.error)}</StateLine>
       ) : (
-        <table className="chart fit-chart" aria-labelledby="fit-h">
+        <table className="chart fit-chart" aria-labelledby="fit-h" data-fit-chart>
           <colgroup>
             <col className="c-pos" />
             {moves && <col className="c-lw" />}
@@ -731,6 +731,7 @@ function FitChart({
               return (
                 <Fragment key={r.show}>
                   <tr
+                    data-show={r.show}
                     data-finalist={r.finalist || undefined}
                     data-left-out={leftOut.includes(r.show) || undefined}
                     className={open ? 'hot' : undefined}
@@ -805,7 +806,7 @@ function FitChart({
                         {word}
                       </span>
                     </td>
-                    <td className="r val">
+                    <td className="r val" data-slot-value>
                       <SlotValue show={show(r.show)} cpm={cpm} sampleCpm={sampleCpm} />
                     </td>
                   </tr>
@@ -838,7 +839,7 @@ function FitChart({
         </table>
       )}
       {!ranking.error && (
-        <p className="help chart-foot">
+        <p className="help chart-foot" data-chart-foot>
           {cpm === null
             ? 'Slot values need the network’s CPM: set it under Network CPM.'
             : `Slot value = downloads × ${dollars(cpm)}${sampleCpm ? ' sample' : ''} CPM ÷ 1,000${sampleCpm ? ' · sample figures' : ''}`}
