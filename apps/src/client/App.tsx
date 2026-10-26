@@ -1,11 +1,8 @@
-import { cn } from 'cn'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TabsContent } from '@/components/ui/tabs'
 import { buttonVariants } from '@/components/ui/variants'
 import type { Comp, GuideMark, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall } from '../agent'
 import { inProgress } from '../limits'
@@ -14,6 +11,18 @@ import { Alert, percentile, useAction } from './controls'
 import { SampleShell, useSession } from './Demo'
 import { CallButton, EvidencePanel, useEvidence } from './Evidence'
 import { FitChart } from './FitChart'
+import {
+  canvas,
+  Connecting,
+  connectionOf,
+  frame,
+  Inspector,
+  OnAir,
+  Readout,
+  RunState,
+  useInspector,
+  type Connection
+} from './Frame'
 import { Guide } from './Guide'
 import { InsertionOrderPanel } from './InsertionOrder'
 import { launchTitle, useLaunchFields } from './LaunchFields'
@@ -31,7 +40,7 @@ import {
 } from './RosterModules'
 import { OpenQuestion, ORDER_CHANGED, runLabel, RunLog } from './Run'
 import { Source } from './Source'
-import { sentence, SlowCalls, StateLine } from './states'
+import { sentence, StateLine } from './states'
 
 // The agent connection the workspace's modules take, as `useSession` (Demo.tsx) opens it.
 export type Session = ReturnType<typeof useSession>
@@ -44,19 +53,6 @@ export type Links = { roster: string; orders?: string }
 export function App({ agentPath, links }: { agentPath: string; links: Links }) {
   return <Workspace agent={useSession(agentPath)} links={links} />
 }
-
-// The inspector's tabs: the run's trace and history, a call's evidence, and on the demo the show
-// selected in the roster.
-type InspectorTab = 'run' | 'evidence' | 'show'
-
-// The frame, from 1360px: the canvas beside the inspector, a 360px column on the card, sticky under
-// the 48px top bar for the window's height. At 1440 that's 56 (rail) + 24 (gutter) + 976 (canvas) +
-// 24 (gap) + 360 (inspector) = 1440; at 1360, a 896px canvas. Under 1360 the inspector is a sheet
-// and the canvas takes the width, with 24px gutters from 1024px and 16px below. Blocks are 24px apart.
-const WIDE = '(min-width: 1360px)'
-const frame = 'min-[1360px]:grid min-[1360px]:grid-cols-[minmax(0,1fr)_360px] min-[1360px]:gap-6'
-const canvas = 'flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6 min-[1360px]:pr-0'
-const aside = 'sticky top-12 flex h-[calc(100svh-3rem)] flex-col gap-4 self-start overflow-y-auto bg-card p-4'
 
 // The page for a connected session; tests render it from a session's synced state. With `network`,
 // it's a launch's page of that network (Launch.tsx): it ranks the network's roster, read-only here.
@@ -77,15 +73,8 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
   const slowCalls = agent.state?.slowCalls ?? []
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
-  const { opened, openCall } = useEvidence(agent)
-  const wide = useMedia(WIDE)
-  const [tab, setTab] = useState<InspectorTab>('run')
-  // The inspector's sheet, under 1360px, which opens on the tab asked for.
-  const [sheet, setSheet] = useState(false)
-  const inspect = (next: InspectorTab) => {
-    setTab(next)
-    if (!wide) setSheet(true)
-  }
+  const evidence = useEvidence(agent)
+  const { opened } = evidence
   // Names typed into the roster's import box, kept here so they outlast its form.
   const importDraft = useRef('')
   // The guide's page steps, marked once each while it shows.
@@ -94,22 +83,18 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
   const markSeen = (mark: GuideMark) => {
     if (sample && !guide?.dismissed && !guide?.seen.includes(mark)) void guiding.run(() => agent.stub.markGuide(mark))
   }
-  // A dropped connection reconnects by itself; one that closed for good says so. The agent's first
-  // state arrives with its identity, so a state without one is a reconnect, never the first connect.
-  const lost = agent.connectionError ? 'This page lost its connection. Reload to try again.' : null
-  const reconnecting = !lost && agent.state !== undefined && agent.identified === false
+  // A dropped connection reconnects by itself; one that closed for good says so.
+  const connection = connectionOf(agent)
   // Who edits the roster: the visitor here, or for a launch, the network's members on its roster page.
   const editing = !viewing && !network
   const editorOpen = editing && show !== undefined
-  const current: InspectorTab = tab === 'show' && !editorOpen ? 'run' : tab
-  // A call number opens its evidence in the inspector, or closes it when it's already shown there.
-  const showCall = (call: string) => {
-    if (opened?.call === call && current === 'evidence' && (wide || sheet)) return void openCall(call)
-    inspect('evidence')
-    if (opened?.call !== call) void openCall(call)
-  }
+  // The inspector: the run's trace and history, a call's evidence, and on the demo the show selected
+  // in the roster. A call number anywhere opens its evidence there.
+  const inspector = useInspector(editorOpen ? ['run', 'evidence', 'show'] : ['run', 'evidence'], evidence)
+  const { inspect, showCall } = inspector
 
-  if (!agent.state) return <Connecting network={network} wide={wide} />
+  if (!agent.state)
+    return <Connecting label={network ? 'Connecting to the launch…' : 'Connecting to your demo session…'} />
 
   const shell = sample && <SampleShell sample={sample} />
   const order = shown?.insertionOrder ?? null
@@ -198,19 +183,8 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
           )}
     </section>
   )
-  const inspector = (
-    <Tabs value={current} onValueChange={(next) => setTab(next as InspectorTab)}>
-      {/* The tabs stay at the top of the inspector while what's in it scrolls under them. */}
-      {/* It sticks at the scroller's padding edge, so beside the canvas it's pulled up over the aside's 16px. */}
-      <div className={cn('sticky z-10 -mx-4 bg-card px-4 pb-1', wide ? '-top-4 -mt-4 pt-4' : 'top-0 pt-1')}>
-        <TabsList className="max-md:h-11">
-          {(['run', 'evidence', ...(editorOpen ? ['show'] : [])] as InspectorTab[]).map((t) => (
-            <TabsTrigger key={t} value={t} className="max-md:h-10">
-              {tabName[t]}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </div>
+  const panels = (
+    <>
       {/* Every panel stays mounted, so the ids calls point at (aria-controls="evidence") are always
           there; Base UI hides and inerts the panels not shown, and nothing else. */}
       <TabsContent value="run" keepMounted className="flex flex-col gap-8">
@@ -243,7 +217,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
           <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />
         </TabsContent>
       )}
-    </Tabs>
+    </>
   )
   return (
     <>
@@ -267,8 +241,8 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
             startLaunch={(input) => agent.stub.startLaunch(input)}
             openCall={showCall}
             opened={opened?.call ?? null}
-            connection={{ lost, reconnecting }}
-            runLog={wide ? null : () => inspect('run')}
+            connection={connection}
+            runLog={inspector.wide ? null : () => inspect('run')}
             guide={
               !viewing && (
                 <Guide
@@ -343,82 +317,14 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
           )}
           {rosterSection}
         </main>
-        {wide ? (
-          <aside className={aside} aria-label="Details">
-            {inspector}
-          </aside>
-        ) : (
-          // Non-modal and kept mounted while closed: the canvas stays usable beside it, its guide
-          // included, and the calls' aria-controls="evidence" always finds its panel.
-          <Sheet open={sheet} onOpenChange={setSheet} modal={false} disablePointerDismissal>
-            <SheetContent overlay={false} keepMounted className="gap-0">
-              <SheetHeader className="pr-14">
-                <SheetTitle>Details</SheetTitle>
-              </SheetHeader>
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">{inspector}</div>
-            </SheetContent>
-          </Sheet>
-        )}
+        <Inspector inspector={inspector}>{panels}</Inspector>
       </div>
     </>
   )
 }
 
-const tabName: Record<InspectorTab, string> = { run: 'Run', evidence: 'Evidence', show: 'Show' }
-
-// Until the agent's first state arrives: the frame in the shapes it will fill, and the readout saying
-// it's connecting.
-function Connecting({ network, wide }: { network?: NetworkPage; wide: boolean }) {
-  return (
-    <div className={frame}>
-      <main className={canvas} aria-busy="true">
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-7 w-72 max-w-full" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <div className={readout}>
-          <span role="status">
-            <StateLine kind="loading">
-              {network ? 'Connecting to the launch…' : 'Connecting to your demo session…'}
-            </StateLine>
-          </span>
-        </div>
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-5 w-56" />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-11 rounded-lg" />
-          ))}
-        </div>
-      </main>
-      {wide && (
-        <aside className={aside} aria-label="Details">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-24" />
-        </aside>
-      )}
-    </div>
-  )
-}
-
-// Whether the window matches a media query, following it as it changes. Rendered without a window, as
-// in tests, it's the wide layout.
-function useMedia(query: string) {
-  const [matches, setMatches] = useState(() => typeof window === 'undefined' || window.matchMedia(query).matches)
-  useEffect(() => {
-    const media = window.matchMedia(query)
-    const change = () => setMatches(media.matches)
-    change()
-    media.addEventListener('change', change)
-    return () => media.removeEventListener('change', change)
-  }, [query])
-  return matches
-}
-
 // Runs are numbered in the order this session started them.
 const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id === id) + 1
-
-// The on-air readout's strip: one line on the tone step, which wraps when it has more to say.
-const readout = 'flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2'
 
 // The head of the canvas: the title row, the on-air readout, the guide, and the launch form. The
 // title row names the launch, with its Qloo match and comps, and holds the run's actions: Start run
@@ -460,7 +366,7 @@ function LaunchHead({
   startLaunch: (input: LaunchInput) => Promise<unknown>
   openCall: (call: string) => void
   opened: string | null
-  connection: { lost: string | null; reconnecting: boolean }
+  connection: Connection
   runLog: (() => void) | null // opens the inspector's Run tab, where it's a sheet
   guide: React.ReactNode
 }) {
@@ -496,9 +402,6 @@ function LaunchHead({
           ? { name: launch.name }
           : null
       : null
-  // The current step is the latest note still running; between tool calls, Claude is choosing the next.
-  const step = run ? run.notes.findLastIndex((n) => n.status === 'running') : -1
-  const elapsed = useElapsed(running && !viewing && latest && latest.id === run?.id ? latest.startedAt : null)
   const title =
     launch?.name ?? (launchComps.length ? `From comps: ${launchComps.map((c) => c.name).join(' · ')}` : null)
   return (
@@ -576,79 +479,28 @@ function LaunchHead({
         </div>
       </div>
       {!formShown && <Alert error={action.error} />}
-      <div className={readout}>
-        <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-          {connection.lost && <StateLine kind="error">{connection.lost}</StateLine>}
-          {connection.reconnecting && (
-            <StateLine kind="loading" word="Reconnecting…">
-              {null}
-            </StateLine>
-          )}
-          {run ? (
-            <>
-              {run.status === 'failed' || run.status === 'stopped' ? (
-                <StateLine kind="error" word={runLabel[run.status]}>
-                  {run.error}
-                </StateLine>
-              ) : (
-                <span className="inline-flex items-center gap-2">
-                  <OnAir live={live} />
-                  <b className="font-semibold">{runLabel[run.status]}</b>
-                </span>
-              )}
-              {running && (
-                <span>{step >= 0 ? `${run.notes[step].text} · step ${step + 1}` : 'Waiting for Claude'}</span>
-              )}
-              {run.status === 'waiting' && <span>Answer the agent&apos;s question to go on.</span>}
-              {run.replayed && (
-                <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 type-caption">
-                  <Badge variant="outline">Replayed</Badge>
-                  <span>
-                    {run.replayed}, so this is the stored sample run, replayed with its answers. Nothing new was asked
-                    of Qloo or Claude.
-                  </span>
-                </span>
-              )}
-              {slowCalls.some((c) => c.run === run.id) && (
-                <span className="basis-full type-caption">
-                  <SlowCalls calls={slowCalls.filter((c) => c.run === run.id)} />
-                </span>
-              )}
-            </>
-          ) : latest ? (
-            // A guest pitch run came after the latest launch run, which the inbox shows instead.
-            <span className="inline-flex items-center gap-2">
-              <OnAir live={false} />
-              <b className="font-semibold">{runLabel[latest.status]}</b>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-2">
-              <OnAir live={false} idle />
-              {ownLaunch
-                ? 'Not run yet. A run looks it up in Qloo.'
-                : 'Not run yet. A run looks the launch up in Qloo and ranks the roster against it.'}
-            </span>
-          )}
-        </div>
-        {/* Outside the live region, so screen readers aren't told the time every second. */}
-        {/* Its digits are tabular, so it doesn't jitter as it ticks; its colons aren't, since this
-            face's tabular colon is a digit wide. */}
-        {elapsed && (
-          <span className="text-muted-foreground" aria-hidden="true">
-            {elapsed.split(':').map((part, i) => (
-              <Fragment key={i}>
-                {i > 0 && ':'}
-                <span className="tabular-nums">{part}</span>
-              </Fragment>
-            ))}
+      <Readout
+        connection={connection}
+        since={running && !viewing && latest && latest.id === run?.id ? latest.startedAt : null}
+        runLog={runLog}
+      >
+        {run ? (
+          <RunState run={run} slowCalls={slowCalls} />
+        ) : latest ? (
+          // A guest pitch run came after the latest launch run, which the inbox shows instead.
+          <span className="inline-flex items-center gap-2">
+            <OnAir live={false} />
+            <b className="font-semibold">{runLabel[latest.status]}</b>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-2">
+            <OnAir live={false} idle />
+            {ownLaunch
+              ? 'Not run yet. A run looks it up in Qloo.'
+              : 'Not run yet. A run looks the launch up in Qloo and ranks the roster against it.'}
           </span>
         )}
-        {runLog && (
-          <Button variant="ghost" size="sm" className="-my-1 -mr-1.5 max-md:h-11" onClick={runLog}>
-            Run log
-          </Button>
-        )}
-      </div>
+      </Readout>
       {guide}
       {formShown && (
         <form id="launch-form" className="flex flex-col gap-2" onSubmit={submit}>
@@ -661,36 +513,6 @@ function LaunchHead({
       )}
     </>
   )
-}
-
-// The on-air dot: signal orange, breathing, while a run is running or waiting on a person; ink once it
-// has ended; an empty ring before the first run. Failures show the square ✕ of their state line
-// instead, so the dot is never the only sign of a state.
-const OnAir = ({ live, idle = false }: { live: boolean; idle?: boolean }) => (
-  <span
-    aria-hidden="true"
-    className={cn(
-      'size-2 shrink-0 rounded-full',
-      idle ? 'border border-muted-foreground' : live ? 'bg-signal motion-safe:animate-live' : 'bg-foreground'
-    )}
-  />
-)
-
-// The time since `since` as a clock, such as 1:05, ticking each second; null without a time, and until
-// the page has run in a browser, so a server render never shows a stale one.
-function useElapsed(since: string | null) {
-  const [now, setNow] = useState<number | null>(null)
-  useEffect(() => {
-    if (!since) return
-    setNow(Date.now())
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [since])
-  if (!since || now === null) return null
-  const seconds = Math.max(0, Math.floor((now - Date.parse(since)) / 1000))
-  const [h, m, s] = [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60]
-  const two = (n: number) => String(n).padStart(2, '0')
-  return h ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`
 }
 
 const launchName = (launch: Launch | null | undefined) =>
