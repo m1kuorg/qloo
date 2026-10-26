@@ -1,3 +1,4 @@
+import { CSPProvider } from '@base-ui/react/csp-provider'
 import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Role } from '../directory'
@@ -78,7 +79,9 @@ void (pages[d.page ?? ''] ?? demo)()
       </StateLine>
     </main>
   ))
-  .then((page) => createRoot(root).render(page))
+  // Base UI's components inject no <style> elements, which the policy would block (style-src 'self');
+  // the one rule they'd add is in style.css.
+  .then((page) => createRoot(root).render(<CSPProvider disableStyleElements>{page}</CSPProvider>))
 
 // The app shell's menus, the network switcher and the account menu: one open at a time, closed by a
 // click outside or Escape, which returns focus to the menu's button.
