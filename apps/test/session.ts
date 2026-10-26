@@ -39,6 +39,22 @@ export const regions = (html: string) =>
     return label ? [label] : heading ? [heading.replace(/<[^>]+>/g, '').trim()] : []
   })
 
+// Each element on a rendered page that carries a `data-*` hook, such as `data-ask` or
+// `data-line="Corner Booth"`, from its start tag through its matching end tag. Tests find a block by
+// its hook, never by its classes, element type or attribute order, which a restyle changes.
+export const hooked = (html: string, hook: string) =>
+  [...html.matchAll(new RegExp(`<(\\w+)\\b[^>]*\\s${hook.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s=/>]`, 'g'))].map(
+    ({ index, 1: tag }) => {
+      const rest = html.slice(index)
+      let depth = 0
+      for (const t of rest.matchAll(new RegExp(`<(/?)${tag}\\b[^>]*>`, 'g'))) {
+        depth += t[1] ? -1 : 1
+        if (depth === 0) return rest.slice(0, t.index + t[0].length)
+      }
+      throw new Error(`No end tag for the <${tag}> with ${hook}`)
+    }
+  )
+
 export type Session = {
   cookie: string
   state: () => State | undefined

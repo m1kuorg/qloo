@@ -106,7 +106,7 @@ export function PickOne({
         <legend className="lbl">{legend}</legend>
         <div className="opts">
           {options.map((c) => (
-            <label key={c.id}>
+            <label key={c.id} data-candidate={c.id}>
               <input
                 type="radio"
                 name={legend}

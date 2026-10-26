@@ -800,7 +800,7 @@ function ReplyItem({
     return (
       <li className="reply" data-pitch={reply.pitch} data-status="discarded">
         {head}
-        <div className="acts">
+        <div className="acts" data-actions>
           <button
             type="button"
             className="lnk"
@@ -848,7 +848,7 @@ function ReplyItem({
       {editing === null ? (
         <>
           <p className="draft">{reply.draft}</p>
-          <div className="acts">
+          <div className="acts" data-actions>
             {!approved && (
               <button
                 type="button"

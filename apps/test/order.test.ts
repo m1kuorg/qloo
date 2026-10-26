@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Reply, State } from '../src/agent'
 import { Workspace, type Session as Agent } from '../src/client/App'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, text, toolUse, turn } from './fake'
-import { links, openSession, type Session } from './session'
+import { hooked, links, openSession, type Session } from './session'
 
 // A made-up network: Night Shift is the launch, from the roster, and the others are ranked against it.
 // Back Lot has no downloads figure.
@@ -265,10 +265,10 @@ describe('the insertion order', () => {
     const html = renderToStaticMarkup(
       createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
-    const rows = html.match(/<section class="mod io-mod"[\s\S]*?<\/section>/)![0].split('<tr')
+    const [order] = hooked(html, 'data-io')
     const cited = state.insertionOrder!.lines.map((line) => {
-      const row = rows.find((r) => r.includes(`<div class="nm">${line.show}</div>`))
-      return row?.match(/<button[^>]*class="call"[^>]*>(C-\d+)<\/button>/)?.[1]
+      const [row] = hooked(order, `data-line="${line.show}"`)
+      return row?.match(/<button\b[^>]*>(C-\d+)<\/button>/)?.[1]
     })
     expect(cited).toEqual(
       state.insertionOrder!.lines.map((line) => state.ranking!.rows.find((r) => r.show === line.show)!.sharedTags!.call)
@@ -540,15 +540,22 @@ describe('a closing line the order has changed since', () => {
     const { s, state } = await plan({ slots: 20 }, [turn(fourShows)])
     // The rail's Run module as the browser renders it.
     const runModule = (state: State) =>
-      renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })).match(
-        /<section class="mod" aria-labelledby="run-log">[\s\S]*?<\/section>/
-      )![0]
+      hooked(
+        renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+        'data-run-log'
+      )[0]
     const note = 'The insertion order has changed since Claude drafted it: its lines and total are the current figures.'
     expect(runModule(state)).toContain('Drafted the insertion order.')
     expect(runModule(state)).not.toContain(note)
 
     await s.call('editInsertionOrder', 'IO-0001', [{ show: 'Corner Booth', slots: 10, angle: 'Call-ins.' }])
-    expect(runModule(s.state()!)).toMatch(new RegExp(`Drafted the insertion order\\.</p><p[^>]*>${note}</p>`))
+    const edited = runModule(s.state()!)
+    const [closing] = hooked(edited, 'data-closing')
+    const [changed] = hooked(edited, 'data-run-note')
+    expect(closing.replace(/<[^>]+>/g, '')).toMatch(/Drafted the insertion order\.$/)
+    expect(changed.replace(/<[^>]+>/g, '')).toBe(note)
+    // Right under the closing line.
+    expect(edited).toContain(closing + changed)
   })
 })
 
@@ -610,11 +617,9 @@ describe('an angle only from shared tags', () => {
     const html = renderToStaticMarkup(
       createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
-    const rows = html.match(/<section class="mod io-mod"[\s\S]*?<\/section>/)![0].split('<tr')
+    const [order] = hooked(html, 'data-io')
     const angle = (show: string) =>
-      rows
-        .find((r) => r.includes(`<div class="nm">${show}</div>`))!
-        .match(/<div class="tg angle[^"]*">([\s\S]*?)<\/div>/)![1]
+      hooked(hooked(order, `data-line="${show}"`)[0], 'data-angle')[0]
         .replace(/<[^>]+>/g, '')
         .trim()
     const call = (show: string) => state.ranking!.rows.find((r) => r.show === show)!.sharedTags!.call

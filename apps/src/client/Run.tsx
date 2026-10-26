@@ -32,7 +32,7 @@ function ClosingLine({
   opened: string | null
 }) {
   return (
-    <p className="closing">
+    <p className="closing" data-closing>
       <Source of="agent" />{' '}
       {text
         .split(/\b(C-\d+)\b/)
@@ -71,7 +71,7 @@ export function RunLog({
   opened: string | null
 }) {
   return (
-    <section className="mod" aria-labelledby="run-log">
+    <section className="mod" aria-labelledby="run-log" data-run-log>
       <div className="mh">
         <span className="lbl" id="run-log">
           Run
@@ -98,7 +98,11 @@ export function RunLog({
       {run.notes.length === 0 && run.status === 'running' && <p className="help">Waiting for Claude.</p>}
       {/* Runs from before closing lines have none. */}
       {run.closing && <ClosingLine text={run.closing} openCall={openCall} opened={opened} />}
-      {run.closing && changedNote && <p className="help io-note">{changedNote}</p>}
+      {run.closing && changedNote && (
+        <p className="help io-note" data-run-note>
+          {changedNote}
+        </p>
+      )}
       {(run.budget || run.exclusions) && (
         <dl className="rec">
           {run.budget && (
@@ -174,7 +178,7 @@ export function OpenQuestion({
     setExclude((names) => (names.includes(name) ? names.filter((n) => n !== name) : [...names, name]))
   return (
     // The question itself is the module's heading, under the chips that say who asks and that the run waits.
-    <section className="mod ask" aria-label="Agent asks">
+    <section className="mod ask" aria-label="Agent asks" data-ask>
       <div className="mh">
         <span className="chips">
           <Source of="agent" />

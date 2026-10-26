@@ -20,7 +20,7 @@ import {
   type QlooEntity,
   type ScriptedTurn
 } from './fake'
-import { openSession, type Session } from './session'
+import { hooked, openSession, type Session } from './session'
 
 type Extracted = { guest: string; work: { title: string; type: string; year: number | null } | null }
 
@@ -459,7 +459,7 @@ function picker(options: WorkCandidate[]) {
       .replace(/<!--.*?-->|<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-  return { labels: [...html.matchAll(/<label>(.*?)<\/label>/gs)].map(([, label]) => plain(label)), text: plain(html) }
+  return { labels: hooked(html, 'data-candidate').map(plain), text: plain(html) }
 }
 
 // Loads one pasted pitch for the film "Lantern" (2026), whose search returns `results`.
@@ -659,6 +659,6 @@ describe("the inbox page's links", () => {
 
     const agent = { state, stub: {} } as unknown as Agent
     const html = renderToStaticMarkup(createElement(InboxWorkspace, { agent, links: { roster: '/elsewhere/roster' } }))
-    expect(html).toContain('<a href="/elsewhere/roster">Import the roster</a>')
+    expect(html).toMatch(/<a\b[^>]*\shref="\/elsewhere\/roster"[^>]*>Import the roster<\/a>/)
   })
 })
