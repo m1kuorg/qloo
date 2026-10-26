@@ -1,8 +1,8 @@
 // Forked from shadcn's base-nova dialog, trimmed to the parts the app uses and set on the tokens: 8px
-// corners and the one floating shadow, no ring and no backdrop blur, a footer without a rule or band,
-// secondary in place of the outline variant, the close button 44px on a phone. Base UI injects no
-// <style> under the island's CSPProvider, so it runs under the production policy. Don't re-add the
-// original with `shadcn add dialog --overwrite`.
+// corners and the one floating shadow (a light ring and a deeper shadow in the dark), over the scrim,
+// with no backdrop blur, a footer without a rule or band, secondary in place of the outline variant,
+// the close button 44px on a phone. Base UI injects no <style> under the island's CSPProvider, so it
+// runs under the production policy. Don't re-add the original with `shadcn add dialog --overwrite`.
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { cn } from 'cn'
 import { XIcon } from 'lucide-react'
@@ -32,7 +32,7 @@ function DialogContent({
     <DialogPrimitive.Portal data-slot="dialog-portal">
       <DialogPrimitive.Backdrop
         data-slot="dialog-overlay"
-        className="fixed inset-0 isolate z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"
+        className="fixed inset-0 isolate z-50 bg-scrim transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"
       />
       <DialogPrimitive.Popup
         data-slot="dialog-content"

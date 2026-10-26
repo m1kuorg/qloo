@@ -62,6 +62,10 @@
   --signal-foreground: #121318;
   --signal-ink: #a24a00;
   --signal-tint: #fdeee2;
+  /* What floats (menus, popovers, selects, dialogs, sheets): a faint ring and one shadow. */
+  --float-shadow: 0 0 0 1px rgb(18 19 24 / 0.06), 0 8px 24px -8px rgb(0 0 0 / 0.16);
+  /* Under a modal dialog, alert dialog or sheet: ink at 40%. */
+  --scrim: rgb(18 19 24 / 0.4);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -89,6 +93,9 @@
     --signal-foreground: #0e0f12;
     --signal-ink: #ffa266;
     --signal-tint: #2a1a0e;
+    /* A light ring and a deeper shadow, so what floats stands off the dark ground. */
+    --float-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 16px 40px -8px rgb(0 0 0 / 0.72);
+    --scrim: rgb(0 0 0 / 0.6);
   }
 }
 
@@ -120,6 +127,7 @@
   --color-signal-foreground: var(--signal-foreground);
   --color-signal-ink: var(--signal-ink);
   --color-signal-tint: var(--signal-tint);
+  --color-scrim: var(--scrim);
 
   /* 6px on controls (rounded-lg: buttons, inputs, chips, segmented controls), 8px on panels, menus,
      popovers, dialogs and sheets (rounded-xl; a floating component that ships with rounded-lg is
@@ -135,11 +143,12 @@
 }
 
 @theme {
-  /* Nothing at rest casts a shadow; menus, popovers, dialogs and sheets float on this one. */
+  /* Nothing at rest casts a shadow; menus, popovers, dialogs and sheets float on this one, which
+     follows the system's light or dark setting (--float-shadow). */
   --shadow-2xs: 0 0 #0000;
   --shadow-xs: 0 0 #0000;
   --shadow-sm: 0 0 #0000;
-  --shadow-float: 0 0 0 1px rgb(18 19 24 / 0.06), 0 8px 24px -8px rgb(0 0 0 / 0.16);
+  --shadow-float: var(--float-shadow);
   --shadow-md: var(--shadow-float);
   --shadow-lg: var(--shadow-float);
   --shadow-xl: var(--shadow-float);

@@ -1,8 +1,8 @@
 // Forked from shadcn's base-nova sheet: on the tokens (8px corners on its inner edge, the one floating
-// shadow, no rule along its edge, no backdrop blur), full width on a phone and 400px from 640px,
-// and with two props of its own: `overlay`, off for a non-modal sheet that leaves the page usable,
-// and `keepMounted`, which keeps the popup in the DOM while it's closed, so ids inside it stay
-// present. Don't re-add the original with `shadcn add sheet --overwrite`.
+// shadow, no rule along its edge, over the scrim while it's modal, no backdrop blur), full width on a
+// phone and 400px from 640px, and with two props of its own: `overlay`, off for a non-modal sheet that
+// leaves the page usable, and `keepMounted`, which keeps the popup in the DOM while it's closed, so ids
+// inside it stay present. Don't re-add the original with `shadcn add sheet --overwrite`.
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog'
 import { cn } from 'cn'
 import { XIcon } from 'lucide-react'
@@ -29,7 +29,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        'fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0',
+        'fixed inset-0 z-50 bg-scrim transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0',
         className
       )}
       {...props}
