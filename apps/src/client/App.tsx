@@ -621,9 +621,16 @@ function LaunchHead({
           )}
         </div>
         {/* Outside the live region, so screen readers aren't told the time every second. */}
+        {/* Its digits are tabular, so it doesn't jitter as it ticks; its colons aren't, since this
+            face's tabular colon is a digit wide. */}
         {elapsed && (
-          <span className="text-muted-foreground tabular-nums" aria-hidden="true">
-            {elapsed}
+          <span className="text-muted-foreground" aria-hidden="true">
+            {elapsed.split(':').map((part, i) => (
+              <Fragment key={i}>
+                {i > 0 && ':'}
+                <span className="tabular-nums">{part}</span>
+              </Fragment>
+            ))}
           </span>
         )}
         {runLog && (
