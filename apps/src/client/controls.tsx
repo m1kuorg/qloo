@@ -2,6 +2,7 @@ import { cn } from 'cn'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
+import { bandMeter, type Band } from '../fit'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
 
@@ -60,6 +61,29 @@ export const Alert = ({ error }: { error: string | null }) =>
 
 export { bandMeter } from '../fit'
 export { listOf } from '../text'
+
+// A show's fit band as a three-step meter, filled from the left, then its word: in signal for a
+// finalist, what the agent puts forward, in ink otherwise. The word says it, so the meter is hidden
+// from screen readers.
+export function FitBand({ band, finalist }: { band: Band; finalist: boolean }) {
+  const { bars, word } = bandMeter[band]
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 type-caption text-muted-foreground">
+      <span className="inline-flex items-end gap-0.5" aria-hidden="true">
+        {[1, 2, 3].map((step) => (
+          <span
+            key={step}
+            className={cn(
+              'h-3 w-1 rounded-[1px]',
+              step > bars ? 'bg-border' : finalist ? 'bg-signal' : 'bg-foreground'
+            )}
+          />
+        ))}
+      </span>
+      {word}
+    </span>
+  )
+}
 
 export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
 

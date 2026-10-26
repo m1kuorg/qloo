@@ -273,6 +273,8 @@ describe("a launch's page and agent", () => {
       // A launch belongs to the dashboard, which lists it: the shell's one nav marks Launches.
       expect(html.match(/<nav\b/g)).toHaveLength(1)
       expect(currentLinks(html)).toEqual([['Launches', `/app/${network}`, 'true']])
+      // The top bar keeps an empty slot after Launches, which the island fills with the launch's name.
+      expect(html).toMatch(/<li\b[^>]*\sid="shell-launch"[^>]*><\/li>/)
 
       const launch = await connect(member, `/agents/launch/${network}/${id}`)
       expect(launch.state()!.launch).toEqual({ name: 'The Night Watch', match: null, comps: [] })
@@ -1189,9 +1191,11 @@ describe('the pages, as a member reads them', () => {
     const network = await created(ada)
     const { agent } = await launch(ada, network, { comps: ['Blank Check', 'Filmspotting'] })
     const html = workspace(network, agent)
-    expect(words(html)).toContain('Launch · Blank Check · Filmspotting Qloo data Comps: Blank Check not looked up')
-    expect(html).toMatch(/<input class="comp-name" aria-label="Comp 1"[^>]*value="Blank Check"/)
-    expect(html).toMatch(/<input class="comp-name" aria-label="Comp 2"[^>]*value="Filmspotting"/)
+    expect(words(html)).toContain(
+      'From comps: Blank Check · Filmspotting Qloo data Comps: Blank Check not looked up · Filmspotting not looked up'
+    )
+    expect(html).toMatch(/<input\b(?=[^>]*\saria-label="Comp 1")(?=[^>]*\svalue="Blank Check")/)
+    expect(html).toMatch(/<input\b(?=[^>]*\saria-label="Comp 2")(?=[^>]*\svalue="Filmspotting")/)
   })
 
   it('names who started each run and who approved the order, and when, and exports it under the launch', async () => {
@@ -1265,7 +1269,8 @@ describe('the pages, as a member reads them', () => {
 
     // Before its first run: the launch it plans is ready to start, and the roster is the network's.
     const before = workspace(network, agent)
-    expect(before).toMatch(/<input aria-label="Released launch"[^>]*value="The Night Watch"/)
+    expect(words(before)).toMatch(/^The Night Watch Start run Not run yet\. A run looks it up in Qloo\. /)
+    expect(before).toMatch(/<input\b(?=[^>]*\saria-label="Released launch")(?=[^>]*\svalue="The Night Watch")/)
     expect(words(before)).toContain(
       "Roster Each run ranks Night Shift Audio's roster as it stands when the run starts. Edit its shows on the roster page ."
     )
@@ -1280,8 +1285,10 @@ describe('the pages, as a member reads them', () => {
     await agent.call('startLaunch', { name: 'The Night Watch' })
     await agent.until(ended)
     const after = workspace(network, agent)
-    // The form still plans this launch, to run again as it is or with other comps.
-    expect(after).toMatch(/<input aria-label="Released launch"[^>]*value="The Night Watch"/)
+    // The title row runs this launch again as it is, or opens the form, still planning it, to change it.
+    expect(words(after)).toMatch(
+      /^The Night Watch Qloo data The Night Watch popularity \S+ C-\d+ Change launch Run again Completed /
+    )
     const read = words(after)
     expect(read).toContain(
       "Roster The latest run ranks Night Shift Audio's roster as it stood when that run started. Edit its shows on the roster page ."

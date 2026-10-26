@@ -51,9 +51,14 @@ afterEach(() => {
   saved.clear()
 })
 
-// The workspace's text as a visitor reads it, from the session's synced state.
-const page = (state: State | undefined, name = 'roster') => {
-  const agent = { state, stub: {} } as unknown as Agent
+// The workspace's text as a visitor reads it, from the session's synced state. `connection` is what
+// the page knows of its socket besides the state: whether it's identified, and why it closed for good.
+const page = (
+  state: State | undefined,
+  name = 'roster',
+  connection: { identified?: boolean; connectionError?: { code: number; reason: string } } = {}
+) => {
+  const agent = { state, stub: {}, ...connection } as unknown as Agent
   const html = renderToStaticMarkup(
     name === 'inbox' ? <InboxWorkspace agent={agent} links={links} /> : <Workspace agent={agent} links={links} />
   )
@@ -66,12 +71,13 @@ const page = (state: State | undefined, name = 'roster') => {
 }
 
 describe('an empty workspace', () => {
-  it('says there is no roster and no launch yet, each with its next action', async () => {
+  it('says there is no roster, no launch and no run yet, each with its next action', async () => {
     const s = await session()
 
     const text = page(s.state())
     expect(text).toContain('No roster yet. Paste show names above to import one.')
-    expect(text).toContain('No launch yet. Import a roster first, then name a released launch to rank it.')
+    expect(text).toContain('No launch yet Import a roster first, then name a released launch to rank it.')
+    expect(text).toContain('Not run yet. A run looks the launch up in Qloo and ranks the roster against it.')
   })
 
   it('asks for the launch once a roster is in', async () => {
@@ -79,7 +85,33 @@ describe('an empty workspace', () => {
     const s = await session()
     await s.importRoster('Night Shift Cinema')
 
-    expect(page(s.state())).toContain('No launch yet. Name a released launch below and start a run to rank the roster.')
+    expect(page(s.state())).toContain('No launch yet Name a released launch below and start a run to rank the roster.')
+  })
+})
+
+describe("the workspace's connection", () => {
+  it('says it is connecting until the first state arrives, and shows nothing it would have to take back', () => {
+    const text = page(undefined)
+    expect(text).toContain('Working Connecting to your demo session…')
+    expect(text).not.toContain('No roster yet')
+    expect(text).not.toContain('No launch yet')
+  })
+
+  it('says it is reconnecting while the socket is down, keeping what it showed', async () => {
+    const s = await session()
+    const state = s.state()
+    expect(page(state)).not.toContain('Reconnecting…')
+
+    const text = page(state, 'roster', { identified: false })
+    expect(text).toContain('Reconnecting…')
+    expect(text).toContain('No roster yet. Paste show names above to import one.')
+  })
+
+  it('says it lost its connection when the socket closed for good', async () => {
+    const s = await session()
+    const text = page(s.state(), 'roster', { connectionError: { code: 1008, reason: '' } })
+    expect(text).toContain('Error This page lost its connection. Reload to try again.')
+    expect(text).not.toContain('Reconnecting…')
   })
 })
 
@@ -291,7 +323,7 @@ describe('a missed match', () => {
 
     await s.call('startLaunch', { name: 'Ghost Signal' })
     const done = await s.until((st) => st.run?.status === 'completed')
-    expect(page(done)).toContain('Launch · Ghost Signal Qloo data Missed No show by this name in Qloo. C-01')
+    expect(page(done)).toContain('Ghost Signal Qloo data Missed No show by this name in Qloo. C-01')
   })
 })
 

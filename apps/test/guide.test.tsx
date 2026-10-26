@@ -171,8 +171,18 @@ describe('the guide through the sample launch', () => {
     expect(guide(state)).toContain('The Watch is in the launch field. Select Start run.')
     // Nothing is covered or disabled for it: no overlay, and the launch can be started.
     const html = page(state)
-    expect(html).not.toMatch(/aria-modal|inert/)
+    expect(html).not.toContain('aria-modal')
     expect(html).toMatch(/<button\b(?=[^>]*\stype="submit")(?![^>]*\sdisabled[\s=>])[^>]*>Start run<\/button>/)
+    // The canvas, the guide in it, and the inspector's shown tab are never inert: only the tabs it
+    // hides are, as Base UI marks them, and they stay mounted so every call's evidence panel is there.
+    const [canvas] = hooked(html, 'data-canvas')
+    expect(canvas).toContain('data-guide')
+    expect(canvas).not.toMatch(/\sinert[\s=>]/)
+    const panels = [...html.matchAll(/<[^>]*\srole="tabpanel"[^>]*>/g)].map(([tag]) => tag)
+    expect(panels.filter((tag) => !/\shidden[\s=>]/.test(tag))).toHaveLength(1)
+    for (const [tag] of html.matchAll(/<[^>]*\sinert[\s=>][^>]*>/g)) expect(panels).toContain(tag)
+    for (const tag of panels) expect(/\sinert[\s=>]/.test(tag)).toBe(/\shidden[\s=>]/.test(tag))
+    expect(html).toContain('id="evidence"')
   })
 
   it('advances with each step, from the climber and its evidence to the approved order', async () => {
@@ -202,7 +212,9 @@ describe('the guide through the sample launch', () => {
     expect(guide(state)).toContain('select Approve on the insertion order draft')
 
     await s.call('approveInsertionOrder', state.insertionOrder!.id)
-    expect(guide(s.state()!)).toMatch(/^Guide Done Dismiss 1\. Start the sample launch Done .* 5\. .* Done/)
+    expect(guide(s.state()!)).toMatch(
+      /^Try the sample launch · Done Dismiss .* Start the sample launch Done .* Approve the insertion order Done$/
+    )
     expect(guide(s.state()!)).not.toContain('Skipped')
   })
 
@@ -216,7 +228,7 @@ describe('the guide through the sample launch', () => {
     const state = await s.until(completed)
 
     expect(guide(state)).toContain('Step 5 of 5')
-    expect(guide(state)).toMatch(/2\. [^0-9]* Skipped 3\. [^0-9]* Skipped 4\./)
+    expect(guide(state)).toContain('Find the climber Skipped Open its evidence Skipped Answer the agent Done')
   })
 
   it('stays hidden for the rest of the session once dismissed', async () => {
@@ -241,11 +253,13 @@ describe('the guide through the sample launch', () => {
   it('stays done after a guest pitch run replaces the guided launch as the latest run', async () => {
     const { s } = await visit()
     const launched = await guidedLaunch(s)
-    expect(guide(launched)).toMatch(/^Guide Done /)
+    expect(guide(launched)).toMatch(/^Try the sample launch · Done /)
 
     const pitched = await pitchRun(s)
     expect(pitched.runs.map((r) => r.pitchesFor ?? r.launch)).toEqual(['The Watch', 'The Big Picture'])
-    expect(guide(pitched)).toMatch(/^Guide Done Dismiss 1\. Start the sample launch Done .* 5\. .* Done/)
+    expect(guide(pitched)).toMatch(
+      /^Try the sample launch · Done Dismiss .* Start the sample launch Done .* Approve the insertion order Done$/
+    )
     expect(guide(pitched)).not.toContain('Skipped')
   })
 
@@ -267,9 +281,8 @@ describe('the guide through the sample launch', () => {
   })
 })
 
-// DESIGN.md's layout guardrail: at every width the agent's open question is reachable without
-// scrolling past the chart. A narrow screen stacks the page in reading order, so the question
-// must come before the fit chart there.
+// The layout's guardrail: at every width the agent's open question is reachable without scrolling
+// past the chart, so the question comes before the fit chart in reading order.
 describe('the open question', () => {
   it('comes before the fit chart, so a single column reaches it first', async () => {
     const { s } = await visit()
@@ -281,5 +294,28 @@ describe('the open question', () => {
     expect(ask).toBeGreaterThan(-1)
     expect(chart).toBeGreaterThan(-1)
     expect(ask).toBeLessThan(chart)
+  })
+
+  it('says which show leaving a finalist out brings into the finalists, and nothing for the others', async () => {
+    const { s } = await visit()
+    await s.call('startLaunch', { name: 'The Watch' })
+    await s.until(waitingOn('budget'))
+    await s.call('answer', 'toolu_2_1', { slots: 20 })
+    const [ask] = hooked(page(await s.until(waitingOn('exclusions'))), 'data-ask')
+    const row = (show: string) => words(hooked(ask, `data-exclusion="${show}"`)[0])
+
+    // In fit order, with each show's band: the top five are finalists, and with any of them left out
+    // the sixth, Every Single Album, comes in.
+    expect(words(ask)).toMatch(
+      /The Rewatchables .* The Bill Simmons Podcast .* The Big Picture .* The Town with Matthew Belloni .* The Ryen Russillo Podcast .* Every Single Album/
+    )
+    expect(row('The Bill Simmons Podcast')).toBe(
+      'The Bill Simmons Podcast Finalist Leaving it out brings Every Single Album into the finalists. Strong'
+    )
+    expect(row('The Ryen Russillo Podcast')).toBe(
+      'The Ryen Russillo Podcast Finalist Leaving it out brings Every Single Album into the finalists. Fair'
+    )
+    expect(row('Every Single Album')).toBe('Every Single Album Fair')
+    expect(words(ask)).toContain('Leave all unticked for no exclusions.')
   })
 })

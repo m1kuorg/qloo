@@ -560,6 +560,12 @@ export const appShell = jsxRenderer(({ children }, c) => {
                   </li>
                 </>
               )}
+              {/* On a launch's page, the launch's name, which only its agent knows: the island fills
+                  this (Launch.tsx). It's last on the bar's line, so the late fill moves nothing, and
+                  hidden while it's empty. */}
+              {here?.current === 'true' && (
+                <li id="shell-launch" class="flex min-w-0 items-center gap-2 empty:hidden max-md:hidden" />
+              )}
             </ol>
           )}
           {member && (
