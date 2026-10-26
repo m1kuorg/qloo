@@ -39,6 +39,17 @@ export const regions = (html: string) =>
     return label ? [label] : heading ? [heading.replace(/<[^>]+>/g, '').trim()] : []
   })
 
+// The links a server-rendered page's navigation marks current, as [name, href, aria-current]: its
+// <nav> elements' links with aria-current, each named by its words, as a screen reader names it.
+export const currentLinks = (html: string) =>
+  [...(html.match(/<nav\b[\s\S]*?<\/nav>/g) ?? []).join('').matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)]
+    .map(([, attributes, inner]) => [
+      inner.replace(/<[^>]+>/g, '').trim(),
+      attributes.match(/\shref="([^"]*)"/)?.[1],
+      attributes.match(/\saria-current="([^"]*)"/)?.[1]
+    ])
+    .filter(([, , current]) => current)
+
 // Each element on a rendered page that carries a `data-*` hook, such as `data-ask` or
 // `data-line="Corner Booth"`, from its start tag through its matching end tag. Tests find a block by
 // its hook, never by its classes, element type or attribute order, which a restyle changes.

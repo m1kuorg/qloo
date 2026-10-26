@@ -29,10 +29,20 @@ describe('the demo', () => {
     )
   })
 
-  it('offers to create a network only while accounts are on', async () => {
-    expect(await (await get('/demo')).text()).toMatch(/<a [^>]*href="\/app\/new"[^>]*>Create your network<\/a>/)
+  it('offers to sign in and to create a network only while accounts are on', async () => {
+    const html = await (await get('/demo')).text()
+    expect(html).toMatch(/<a [^>]*href="\/app\/new"[^>]*>Create your network<\/a>/)
+    expect(html).toMatch(/<a [^>]*href="\/sign-in"[^>]*>Sign in<\/a>/)
     env.ACCOUNTS = 'off'
-    expect(await (await get('/demo')).text()).not.toContain('Create your network')
+    const closed = await (await get('/demo')).text()
+    expect(closed).not.toContain('Create your network')
+    expect(closed).not.toContain('/sign-in')
+  })
+
+  it("keeps the island's slots for the sample network's name and notice, empty, in the top bar", async () => {
+    const bar = (await (await get('/demo')).text()).match(/<header[\s\S]*?<\/header>/)?.[0] ?? ''
+    expect(bar).toMatch(/<span\b[^>]*\sid="shell-network"[^>]*><\/span>/)
+    expect(bar).toMatch(/<span\b[^>]*\sid="shell-notice"[^>]*><\/span>/)
   })
 
   it('takes an old /inbox link to the sample inbox for good', async () => {

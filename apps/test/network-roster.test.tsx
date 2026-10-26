@@ -15,7 +15,7 @@ import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
 import { fakeClaude, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
-import { openMember, openSession, regions, type Member, type Session } from './session'
+import { currentLinks, openMember, openSession, regions, type Member, type Session } from './session'
 
 // Synthetic shows: two exact matches, one name shared by two feeds, and one Qloo doesn't have.
 const search = {
@@ -435,7 +435,8 @@ describe("the roster's page", () => {
         `data-settings-link="/app/${network}/settings"`
       ])
         expect(root).toContain(attribute)
-      expect(html).toContain(`<a class="on" href="/app/${network}/roster" aria-current="page">Roster</a>`)
+      expect(html.match(/<nav\b/g)).toHaveLength(1)
+      expect(currentLinks(html)).toEqual([['Roster', `/app/${network}/roster`, 'page']])
     }
   })
 

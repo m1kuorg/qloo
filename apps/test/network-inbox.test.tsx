@@ -29,6 +29,7 @@ import {
 } from './fake'
 import {
   connect as connectVia,
+  currentLinks,
   links,
   networkWithKey,
   openMember,
@@ -476,7 +477,8 @@ describe("the inbox's page", () => {
         `data-inbox-link="/app/${network}/inbox"`
       ])
         expect(root).toContain(attribute)
-      expect(html).toContain(`<a class="on" href="/app/${network}/inbox" aria-current="page">Inbox</a>`)
+      expect(html.match(/<nav\b/g)).toHaveLength(1)
+      expect(currentLinks(html)).toEqual([['Inbox', `/app/${network}/inbox`, 'page']])
     }
   })
 

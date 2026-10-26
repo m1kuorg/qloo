@@ -29,13 +29,18 @@ const where = async (member: Member, path: string) => {
 }
 const page = async (member: Member, path: string) => (await member.fetch(path)).text()
 
-// The networks the top bar's switcher lists on a page, as [name, path, current] in its order.
+// The networks the top bar's switcher lists on a page, as [name, path, current] in its order: its
+// list named "Your networks", each link's words, address, and whether it's marked current.
 const switcher = (html: string) =>
   [
-    ...(html.match(/<ul aria-label="Your networks">(.*?)<\/ul>/)?.[1] ?? '').matchAll(
-      /<a href="([^"]+)"([^>]*)>([^<]*)<\/a>/g
+    ...(html.match(/<ul\b[^>]*\saria-label="Your networks"[^>]*>(.*?)<\/ul>/)?.[1] ?? '').matchAll(
+      /<a\b([^>]*)>(.*?)<\/a>/g
     )
-  ].map(([, href, attributes, name]) => [name, href, attributes.includes('aria-current="true"')])
+  ].map(([, attributes, inner]) => [
+    inner.replace(/<[^>]+>/g, '').trim(),
+    attributes.match(/\shref="([^"]+)"/)?.[1],
+    attributes.includes('aria-current="true"')
+  ])
 
 // Saves the settings' Network module as its page does.
 const saveNetwork = (member: Member, network: string, body: object) =>

@@ -46,14 +46,14 @@ import {
   type Member,
   type Passkey
 } from '../directory'
-import { appShell, Island } from '../shell'
+import { authShell, Island, type AppVariables } from '../shell'
 import { readName } from '../text'
 import { visitorTag } from '../visitor'
 
 export const auth = new Hono<{ Bindings: Env }>()
 
-auth.use('/sign-in', accountsOn, appShell)
-auth.use('/invite', accountsOn, appShell)
+auth.use('/sign-in', accountsOn, authShell)
+auth.use('/invite', accountsOn, authShell)
 auth.use(
   '/auth/*',
   accountsOn,
@@ -160,8 +160,10 @@ auth.get('/sign-in', async (c) => {
 // The invite page, a page of the React island. The link's token is in its fragment, which the browser
 // never sends: the page reads it and posts it, so it stays out of every path, query, log, and referrer.
 // A signed-in member is named, to join as themselves.
-auth.get('/invite', async (c) => {
+auth.get('/invite', async (c: Context<{ Bindings: Env; Variables: AppVariables }>) => {
   const member = await signedIn(c)
+  // The shell shows them their account menu.
+  if (member) c.set('member', member)
   c.header('Cache-Control', 'no-store')
   return c.render(<Island page="invite" data-member-name={member?.name} />)
 })
