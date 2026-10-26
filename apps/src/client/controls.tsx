@@ -128,7 +128,9 @@ export const day = (when: string | number) =>
 
 // A radio list of Qloo entities with their popularity, and for works their year and a line on what
 // each is, and a button that commits the pick. Options that Qloo gives nothing else to tell apart
-// show their Qloo IDs, and the list says so (#128).
+// show their Qloo IDs, and the list says so (#128). The button disables itself while the pick is sent
+// and once it's the match, which leaves focus on nothing, so focus goes back to the picked option:
+// the match as it now stands, from where Tab reaches what follows.
 export function PickOne({
   legend,
   options,
@@ -147,6 +149,7 @@ export function PickOne({
   pick: (id: string) => Promise<unknown>
 }) {
   const [choice, setChoice] = useState(current ?? '')
+  const form = useRef<HTMLFormElement>(null)
   // A missing description (on candidates synced before there were any) reads like none.
   const described = options.some((c) => c.description)
   const shown = (c: (typeof options)[number]) =>
@@ -157,10 +160,15 @@ export function PickOne({
   while (size < 36 && new Set(twins.map((c) => c.id.slice(0, size))).size < twins.length) size += 4
   return (
     <form
+      ref={form}
       className="flex flex-col gap-3"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault()
-        void pick(choice)
+        await pick(choice)
+        // Unless the person has gone elsewhere meanwhile.
+        const at = document.activeElement
+        if (at && at !== document.body && !form.current?.contains(at)) return
+        form.current?.querySelector<HTMLInputElement>('input[type=radio]:checked')?.focus()
       }}
     >
       <fieldset className="flex min-w-0 flex-col gap-1">
