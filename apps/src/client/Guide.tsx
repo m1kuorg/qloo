@@ -53,7 +53,7 @@ export function Guide({
     },
     {
       title: 'Approve the insertion order',
-      how: 'When the run completes, select Approve on the insertion order draft.',
+      how: 'When the run completes, select Approve in the plan.',
       done: order?.status === 'approved'
     }
   ]

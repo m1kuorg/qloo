@@ -209,7 +209,7 @@ describe('the guide through the sample launch', () => {
     await s.call('answer', 'toolu_3_1', { exclude: [] })
     state = await s.until(completed)
     expect(guide(state)).toContain('Step 5 of 5')
-    expect(guide(state)).toContain('select Approve on the insertion order draft')
+    expect(guide(state)).toContain('When the run completes, select Approve in the plan.')
 
     await s.call('approveInsertionOrder', state.insertionOrder!.id)
     expect(guide(s.state()!)).toMatch(
