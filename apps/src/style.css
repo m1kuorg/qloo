@@ -271,6 +271,14 @@
   outline-offset: 2px;
   --tw-ring-shadow: 0 0 #0000;
 }
+/* An input group (the CPM's "$" beside its field) takes the ring around both, not its input alone. */
+[data-slot='input-group-control']:focus-visible {
+  outline: none;
+}
+[data-slot='input-group']:has([data-slot='input-group-control']:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
 
 /* Base UI injects this rule as a <style> element, which the policy blocks; the island's CSPProvider
    turns those elements off, so it lives here instead. */
