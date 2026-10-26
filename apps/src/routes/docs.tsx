@@ -20,7 +20,7 @@ import { REFUSALS, type RefusalCode } from '../refusal'
 import { marketingFrame, marketingShell } from '../shell'
 import { MAX_UPLOAD_BYTES, megabytes } from '../upload'
 import { apiDocument } from './api'
-import { cap, TableScroll } from './marketing'
+import { cap, Code, TableScroll } from './marketing'
 import { RELAY, listedTools } from './mcp'
 
 export const docs = new Hono<{ Bindings: Env }>()
@@ -80,19 +80,6 @@ for (const [code, status] of Object.entries(STATUSES)) (CODES[status] ??= []).pu
 // Text with Markdown's code spans, as the OpenAPI document and the tools write them, set as code.
 const Prose = ({ text }: { text: string }) => (
   <>{text.split('`').map((part, i) => (i % 2 ? <code>{part}</code> : part))}</>
-)
-
-// A code sample, captioned above by its language or the file it is, on a tone-step panel: 14px
-// monospace that scrolls sideways inside the panel, and the keyboard can reach to scroll.
-const Code = ({ label, file, children }: { label?: string; file?: string; children: string }) => (
-  <figure class="overflow-hidden rounded-xl bg-muted">
-    <figcaption class="px-4 pt-3 type-caption text-muted-foreground">
-      {file ? <code class="bg-transparent p-0 text-xs">{file}</code> : label}
-    </figcaption>
-    <pre tabindex={0} class="overflow-x-auto px-4 pt-2 pb-4 type-ui leading-[1.6] focus-visible:-outline-offset-2">
-      <code>{children.trim()}</code>
-    </pre>
-  </figure>
 )
 
 // A URL path, which may break after any of its slashes on a narrow screen.

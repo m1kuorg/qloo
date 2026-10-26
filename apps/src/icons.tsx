@@ -68,3 +68,15 @@ export const Check = (p: IconProps) => (
     <path d="M20 6 9 17l-5-5" />
   </Icon>
 )
+// Lucide's "loader-circle", the island's Spinner, which turns while a step runs.
+export const LoaderCircle = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+  </Icon>
+)
+export const Copy = (p: IconProps) => (
+  <Icon {...p}>
+    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </Icon>
+)

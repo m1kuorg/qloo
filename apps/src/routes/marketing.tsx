@@ -1,16 +1,23 @@
 /** @jsxImportSource hono/jsx */
 // The marketing pages: the landing page at /, the privacy page, the beta terms, and the 404 page.
-// Server-rendered with no island. Nothing here is a Qloo response: the chart and every other illustration use
-// made-up shows, and each says so where it appears.
+// Server-rendered with no island. Nothing here is a Qloo response: the re-rank and every piece of the app
+// the landing page shows use one made-up network, launch, and shows, and the re-rank says so.
 import { cn } from 'cn'
 import { Hono, type NotFoundHandler } from 'hono'
 import { html } from 'hono/html'
 import type { Child } from 'hono/jsx'
-import { buttonVariants } from '../components/ui/variants'
+import {
+  badgeVariants,
+  buttonVariants,
+  callVariants,
+  segmentedItemVariants,
+  segmentedTrackVariants
+} from '../components/ui/variants'
 import { bandMeter, FINALISTS, type Band as Third } from '../fit'
+import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
-import { CSV_HEADER } from '../order'
+import { CSV_HEADER, dollars, slotPrice } from '../order'
 import { marketingFrame, MarketingPage, marketingShell } from '../shell'
 import { moveGlyph, moveWords } from '../text'
 import { CLIMB } from '../topic'
@@ -18,578 +25,1005 @@ import { SESSION_DAYS } from './demo'
 
 export const marketing = new Hono<{ Bindings: Env }>()
 
-// The hero's illustration: a made-up network's roster ranked against a made-up true-crime launch.
-// `last` is the rank a topic-only plan gives the show; bands are thirds of a 12-show roster.
-const LAUNCH = 'Lantern Hollow'
-const chart: { rank: number; last: number; show: string; genre: string; band: Third }[] = [
-  { rank: 1, last: 1, show: 'Dead Air Archive', genre: 'True crime', band: 'top' },
-  { rank: 2, last: 7, show: 'The Long Table', genre: 'History', band: 'top' },
-  { rank: 3, last: 2, show: 'Motive & Means', genre: 'True crime', band: 'top' },
-  { rank: 4, last: 5, show: 'Ledger Lines', genre: 'Business', band: 'top' },
-  { rank: 5, last: 9, show: 'Back Roads Radio', genre: 'Travel', band: 'middle' },
-  { rank: 6, last: 3, show: 'Courtroom Sketch', genre: 'Legal news', band: 'middle' }
+// The landing page's illustration, which every picture on the page shares: Kiln Street Audio, a
+// made-up network of eight shows, planning promos for Low Tide, a made-up true-crime launch. Nothing
+// here is Qloo data, and no name is one of the sample network's (marketing.test.ts).
+const NETWORK = 'Kiln Street Audio'
+const LAUNCH = 'Low Tide'
+// The roster in listener order, as Qloo's ranking would put it: each show's place is its fit rank.
+// `topic` is the rank a topic-only plan gives it. Bands are thirds of the ranking, as fit.ts sets
+// them; `tags` are the tags its listeners share with the launch's.
+const roster: { show: string; topic: number; band: Third; tags: string[] }[] = [
+  { show: 'Case Notes', topic: 1, band: 'top', tags: ['Cold case', 'Small-town'] },
+  { show: 'The Harbour', topic: 6, band: 'top', tags: ['Coastal', 'Oral history'] },
+  { show: 'Plain Sight', topic: 2, band: 'top', tags: ['Investigative', 'Courtroom'] },
+  { show: 'Tide Tables', topic: 8, band: 'middle', tags: ['Coastal', 'Working life'] },
+  { show: 'Static', topic: 7, band: 'middle', tags: ['Slow-burn', 'Late night'] },
+  { show: 'Small Claims', topic: 3, band: 'middle', tags: ['Courtroom'] },
+  { show: 'Night Desk', topic: 4, band: 'bottom', tags: ['Local news'] },
+  { show: 'Dry Ink', topic: 5, band: 'bottom', tags: ['Mystery'] }
 ]
-// The climber whose why line is open, as a selected climber's is in the app.
-const SELECTED = 'The Long Table'
+const ranked = roster.map((r, i) => ({ ...r, rank: i + 1, move: r.topic - (i + 1), finalist: i < FINALISTS }))
+const finalists = ranked.filter((r) => r.finalist)
+// The fit chart's finding, worded as the app's (FitChart.tsx): the finalists, then the highest-placed
+// climber and how many more climb.
+const [climber, ...climbers] = ranked.filter((r) => r.move >= CLIMB)
+const finding = `${finalists.length} finalists. ${climber.show} climbs ${climber.move} places over a topic-only plan, and ${climbers.length} more ${climbers.length === 1 ? 'show climbs' : 'shows climb'} ${CLIMB} or more.`
+// The finalists a topic-only plan's top five would leave out.
+const missed = finalists.filter((r) => r.topic > FINALISTS).length
+const count = ['no', 'one', 'two', 'three', 'four', 'five'] as const
 
-// The fit band's meter and word, as the app's charts set it.
-const Band = ({ band }: { band: Third }) => {
+// The network's own figures, which price the plan as the app does (order.ts): its CPM, each
+// finalist's downloads per episode, and the slots and angle the agent drafted. 20 slots, the budget.
+const CPM = 20
+const BUDGET = 20
+const plan = [
+  { show: 'Case Notes', downloads: 18_000, slots: 6, call: 'C-16', angle: 'Low Tide reopens a small-town cold case.' },
+  {
+    show: 'The Harbour',
+    downloads: 9_000,
+    slots: 5,
+    call: 'C-17',
+    angle: 'The town tells its own story, as your guests do.'
+  },
+  { show: 'Plain Sight', downloads: 12_000, slots: 4, call: 'C-18', angle: 'An investigation that ends in court.' },
+  { show: 'Tide Tables', downloads: 4_500, slots: 3, call: 'C-19', angle: 'Set among the boats and tides you follow.' },
+  { show: 'Static', downloads: 6_000, slots: 2, call: 'C-20', angle: 'A slow-burn case, best heard late.' }
+].map((line) => {
+  const { slotValue } = slotPrice(line.downloads, CPM)
+  return { ...line, slotValue: slotValue ?? 0, value: (slotValue ?? 0) * line.slots }
+})
+const planSlots = plan.reduce((n, l) => n + l.slots, 0)
+const planTotal = plan.reduce((n, l) => n + l.value, 0)
+
+// A rank as words: "2nd".
+const nth = (n: number) =>
+  `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`
+
+// The page's rhythm: sections 96px apart on phones, 160px from 768px, 192px from 1024px.
+const section = cn(marketingFrame, 'mt-24 md:mt-40 lg:mt-48')
+// The rules inside the re-rank and the interface fragments (data-ui), as the app draws its tables'.
+const ruleTop = 'border-t' // taste-skill-ignore
+const ruleBottom = 'border-b' // taste-skill-ignore
+// The app's text field (components/ui/input.tsx), outlined at the controls' 3:1.
+const field = 'h-8 rounded-lg border border-input bg-card px-2.5 py-1 text-foreground' // taste-skill-ignore
+
+// The fit band's meter, three bars filled from the left, signal for a finalist, then its word, as the
+// app's FitBand sets it, at the re-rank's scale.
+const Meter = ({ band, finalist }: { band: Third; finalist: boolean }) => {
   const { bars, word } = bandMeter[band]
   return (
-    <span class={`band b${bars}`}>
-      <i aria-hidden="true" />
-      <i aria-hidden="true" />
-      <i aria-hidden="true" />
+    <span class="inline-flex items-center gap-2 text-muted-foreground">
+      <span class="inline-flex items-end gap-1" aria-hidden="true">
+        {[1, 2, 3].map((step) => (
+          <span
+            class={cn('h-4 w-1.5 rounded-[1px]', step > bars ? 'bg-border' : finalist ? 'bg-signal' : 'bg-foreground')}
+          />
+        ))}
+      </span>
       {word}
     </span>
   )
 }
 
-// The Weekly Chart, as the app sets it, at the hero's scale.
-function Chart() {
-  let landing = 0
+// The re-rank, the page's live thing: the roster in listener order, which two radios re-order by topic
+// alone. CSS only (style.css, "The landing page's re-rank"): the checked radio sets each row's offset
+// from its two ranks, so each row travels to its topic place and its rank figure rolls to match. Rows
+// share one height, so a row moves by whole rows. Both ranks are in each row's text, so a screen
+// reader hears them whichever order is on screen.
+const reRankRow =
+  "grid items-baseline gap-x-3 grid-cols-[2rem_minmax(0,1fr)_auto] [grid-template-areas:'rank_show_move'_'rank_show_fit'] md:gap-x-6 md:grid-cols-[3rem_4rem_minmax(0,1fr)_7rem] md:[grid-template-areas:'rank_move_show_fit']"
+function ReRank() {
   return (
-    <table class="chart fit-chart mk-chart">
-      <caption>Illustration: a made-up network, launch, shows, ranks, and tags. Not Qloo data.</caption>
-      <colgroup>
-        <col class="c-pos" />
-        <col class="c-lw" />
-        <col class="c-mv" />
-        <col />
-        <col class="c-band" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th scope="col">
-            This week<small>fit rank</small>
-          </th>
-          <th scope="col">
-            Last week<small>topic rank</small>
-          </th>
-          <th scope="col">
-            Move<small>vs topic</small>
-          </th>
-          <th scope="col">
-            Show<small>its topic</small>
-          </th>
-          <th scope="col">
-            Fit band<small>listener overlap</small>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {chart.map((r) => {
-          const move = r.last - r.rank
-          const climber = move >= CLIMB
-          const open = r.show === SELECTED
-          return (
-            <>
-              <tr class={open ? 'hot' : undefined}>
-                <td class="pos">
-                  {r.rank}
-                  {climber && <i class="bul" aria-hidden="true" data-landing={Math.min(landing++, 6)} />}
-                </td>
-                <td class="lw">{r.last}</td>
-                <td class={`mv${move < 0 ? ' dn' : move === 0 ? ' eq' : ''}`}>
-                  <span aria-hidden="true">{moveGlyph(move)}</span>
-                  <span class="vh">{moveWords(move)}</span>
-                </td>
-                <td>
-                  <div class="nm-row">
-                    <span class="nm">{r.show}</span>
-                    {r.rank <= FINALISTS && <span class="chip">Finalist</span>}
-                  </div>
-                  <div class="tg">{r.genre}</div>
-                </td>
-                <td>
-                  <Band band={r.band} />
-                </td>
-              </tr>
-              {open && (
-                <tr class="why">
-                  {/* One cell across the row, its line set under the show column, so a phone can give it
-                      the whole width. */}
-                  <td colspan={5}>
-                    <p class="mk-why">
-                      <span class="lbl">Why it moved</span>
-                      Topic alone ranks it 7th: it&apos;s a history show. Listener overlap with {LAUNCH} ranks it 2nd{' '}
-                      <span class="call">C-14</span>, and the tags they share are{' '}
-                      {['Investigative', 'Small-town', 'Slow-burn'].map((t, i) => (
-                        <>
-                          {i > 0 && '\u00a0· '}
-                          <span class="nw">{t}</span>
-                        </>
-                      ))}{' '}
-                      <span class="call">C-17</span>
-                    </p>
-                  </td>
-                </tr>
+    <section aria-labelledby="rerank-h" data-rerank class={section}>
+      <div class="grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-x-6">
+        <h2 id="rerank-h" class="type-display text-balance lg:col-span-6">
+          What a topic plan misses
+        </h2>
+        <p class="max-w-[60ch] text-pretty lg:col-span-5 lg:col-start-8">
+          A plan by topic puts {LAUNCH}, a true-crime launch, on the network&apos;s crime and courtroom shows. Ranked by
+          who listens, {count[missed]} of its {count[finalists.length]} finalists come from outside that top five.
+        </p>
+      </div>
+      <div class="mt-12 flex flex-col gap-6 md:mt-16 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p class="type-title">Launch: {LAUNCH}</p>
+          <p class="mt-1 text-muted-foreground">
+            A true-crime show set in a fishing town, from {NETWORK}, a network of {roster.length} shows.
+          </p>
+        </div>
+        <fieldset class="min-w-0">
+          <legend class="mb-2 type-ui text-muted-foreground">Rank the roster</legend>
+          <div class={segmentedTrackVariants({ className: 'h-11 max-md:flex max-md:w-full' })}>
+            {(
+              [
+                ['listeners', 'By who listens'],
+                ['topic', 'By topic']
+              ] as const
+            ).map(([value, label]) => (
+              <label
+                class={segmentedItemVariants({
+                  className:
+                    'h-10 px-4 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring max-md:flex-1 motion-safe:active:scale-[0.98]'
+                })}
+              >
+                <input
+                  type="radio"
+                  name="lens"
+                  id={`lens-${value}`}
+                  value={value}
+                  checked={value === 'listeners'}
+                  class="vh"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+      {/* Where the order on screen comes from, as the app says under its lens. */}
+      <p class="mt-6 type-ui text-muted-foreground">
+        <span data-lens-note="listeners">Ranked by listener overlap with {LAUNCH}, as Qloo scores it.</span>
+        <span data-lens-note="topic">Ranked by topic alone, as Claude ranks it from show names and descriptions.</span>
+      </p>
+      <div role="table" aria-labelledby="rerank-h" aria-describedby="rerank-caption" data-ui class="mt-4">
+        <div role="rowgroup">
+          <div role="row" class={cn(reRankRow, 'pb-3 type-ui text-muted-foreground max-md:sr-only')}>
+            <span role="columnheader" class="text-right [grid-area:rank]">
+              Rank
+            </span>
+            <span role="columnheader" class="[grid-area:move]">
+              Move
+            </span>
+            <span role="columnheader" class="[grid-area:show]">
+              Show
+            </span>
+            <span role="columnheader" class="text-right [grid-area:fit]">
+              Fit
+            </span>
+          </div>
+        </div>
+        <div role="rowgroup" class={cn('grid auto-rows-fr', ruleBottom)}>
+          {ranked.map((r) => (
+            <div
+              role="row"
+              data-row
+              data-l={r.rank}
+              data-t={r.topic}
+              class={cn(
+                reRankRow,
+                ruleTop,
+                '-mx-3 px-3 py-4 md:-mx-4 md:px-4 md:py-5',
+                r.finalist ? 'bg-signal-tint' : 'bg-background'
               )}
-            </>
-          )
-        })}
-      </tbody>
-    </table>
+            >
+              <span role="cell" class="text-right [grid-area:rank]">
+                <span class="vh">
+                  {nth(r.rank)} by who listens, {nth(r.topic)} by topic
+                </span>
+                <span
+                  aria-hidden="true"
+                  data-rank
+                  class="inline-flex h-[1lh] flex-col overflow-clip type-title tabular-nums"
+                >
+                  <span>{r.rank}</span>
+                  <span>{r.topic}</span>
+                </span>
+              </span>
+              <span
+                role="cell"
+                class={cn(
+                  'type-title tabular-nums [grid-area:move] max-md:text-right',
+                  r.move >= CLIMB ? 'text-signal-ink' : 'text-muted-foreground'
+                )}
+              >
+                <span aria-hidden="true">{moveGlyph(r.move)}</span>
+                <span class="vh">{moveWords(r.move)}</span>
+              </span>
+              <div role="cell" class="min-w-0 [grid-area:show]">
+                <p class="type-index whitespace-nowrap">{r.show}</p>
+                <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 type-ui text-muted-foreground md:mt-3">
+                  {r.finalist && <span class={badgeVariants({ mark: 'signal' })}>Finalist</span>}
+                  <span>{r.tags.join(' · ')}</span>
+                </p>
+              </div>
+              <span role="cell" class="justify-self-end type-ui [grid-area:fit]">
+                <Meter band={r.band} finalist={r.finalist} />
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div class="mt-6 flex flex-col gap-2 md:flex-row md:justify-between md:gap-10">
+        <p class="max-w-[60ch]">{finding}</p>
+        <p id="rerank-caption" class="max-w-[46ch] type-ui text-muted-foreground md:text-right">
+          Illustration: a made-up network, launch, shows, ranks, and tags. Not Qloo data.
+        </p>
+      </div>
+    </section>
   )
 }
 
-// The chart's key: each piece of the notation, led by itself as the chart sets it.
-const key = [
+// A run, stage by stage, as one bar: each stage as wide as it usually takes, the person's in ink and the
+// agent's on the tone step. The agent's stages are measured (the ranking showed 5 to 7 seconds after
+// the click, docs/SUBMISSION.md); the person's take as long as they take.
+const stages = [
   {
-    glyph: <span class="pos">1</span>,
-    term: 'This week',
-    text: "Fit rank: how much the show's listeners overlap the launch's, scored in Qloo."
+    who: 'You',
+    took: 'Seconds',
+    text: "First, you name the launch, or up to three comps for one that isn't out yet."
   },
   {
-    glyph: <span class="lw">7</span>,
-    term: 'Last week',
-    text: 'Topic rank: where a plan by topic alone puts the show. Claude ranks it from show names and descriptions, with no Qloo data.'
-  },
-  { glyph: <span class="mv">▲5</span>, term: 'Move', text: 'The places shared listeners moved it.' },
-  {
-    glyph: <i class="bul" aria-hidden="true" />,
-    term: 'Climber',
-    text: 'Up three places or more: the show a topic plan would have missed.'
+    who: 'Agent',
+    took: 'About ten seconds',
+    text: 'Then the agent ranks the roster by listener overlap with the launch, in Qloo.'
   },
   {
-    glyph: <Band band="top" />,
-    term: 'Fit band',
-    text: 'Strong, Good, or Fair: thirds of the ranking. The raw scores stay in the evidence.'
+    who: 'You',
+    took: 'Up to you',
+    text: 'Then it stops to ask for the slot budget and the shows to leave out, and waits for your answers.'
   },
   {
-    glyph: <span class="chip">Finalist</span>,
-    term: 'Finalist',
-    text: 'The top five, after any show you leave out. The insertion order is drafted from them.'
+    who: 'Agent',
+    took: 'Under a minute',
+    text: "Then it checks the finalists' listeners, finds the tags each shares with the launch, and drafts the plan."
   },
   {
-    glyph: <span class="call">C-14</span>,
-    term: 'Call number',
-    text: "The Qloo call behind a claim. In the app, open it for the request's parameters and the names, tags, and scores Qloo returned."
+    who: 'You',
+    took: 'Up to you',
+    text: 'Last, you edit the insertion order, approve it, and export it as CSV. Nothing is final until you do.'
   }
 ]
+const Stages = () => (
+  <section aria-labelledby="run-h" class={section}>
+    <h2 id="run-h" class="type-display" data-rise>
+      How a run works
+    </h2>
+    <ol class="mt-12 grid gap-1.5 md:mt-16 lg:grid-cols-[12fr_12fr_26fr_18fr_32fr]" data-rise="2">
+      {stages.map(({ who, took, text }) => {
+        const person = who === 'You'
+        return (
+          <li
+            class={cn(
+              'flex flex-col gap-4 max-lg:rounded-lg max-lg:p-5',
+              person ? 'max-lg:bg-primary max-lg:text-primary-foreground' : 'max-lg:bg-secondary'
+            )}
+          >
+            <div
+              class={cn(
+                'flex flex-col justify-between gap-6 lg:h-[22svh] lg:min-h-40 lg:rounded-lg lg:p-5',
+                person ? 'lg:bg-primary lg:text-primary-foreground' : 'lg:bg-secondary'
+              )}
+            >
+              <p class="type-title text-balance">{took}</p>
+              <p class="type-ui max-lg:hidden">{person ? 'You' : 'The agent'}</p>
+            </div>
+            <p class="max-w-[26ch] text-pretty lg:pr-2">{text}</p>
+          </li>
+        )
+      })}
+    </ol>
+  </section>
+)
 
-// An illustration below the hero, headed like a module of the app, with the hero's Illustration chip:
-// every illustration on the page says it's one where it appears.
-const Fig = ({ title, class: className, children }: { title: string; class?: string; children: unknown }) => (
-  <figure class={className ? `mk-fig ${className}` : 'mk-fig'}>
-    <figcaption class="mh">
-      <span class="lbl">{title}</span>
-      <span class="chip">Illustration</span>
-    </figcaption>
-    {children}
+// A chip as the app's Badge draws it; `mark` sets its glyph.
+const Chip = ({
+  variant,
+  mark,
+  children
+}: {
+  variant?: 'default' | 'outline'
+  mark?: 'none' | 'square' | 'circle' | 'signal'
+  children: Child
+}) => <span class={badgeVariants({ variant, mark })}>{children}</span>
+// Where a line came from, as the app's Source labels it: Qloo's data, outlined with a square; the
+// agent's words, on the tone step with a circle.
+const Source = ({ of }: { of: 'qloo' | 'agent' }) =>
+  of === 'qloo' ? (
+    <Chip variant="outline" mark="square">
+      Qloo data
+    </Chip>
+  ) : (
+    <Chip mark="circle">Agent</Chip>
+  )
+// A call number as the app's CallButton sets it, here part of a picture.
+const Call = ({ call }: { call: string }) => (
+  <button type="button" class={callVariants()}>
+    {call}
+  </button>
+)
+// A record's key/value grid, as the app's KeyValues.
+const KeyValue = ({ label, children }: { label: string; children: Child }) => (
+  <div class="col-span-full grid grid-cols-subgrid">
+    <dt class="text-muted-foreground">{label}</dt>
+    <dd class="min-w-0">{children}</dd>
+  </div>
+)
+
+// A true-size piece of the app, as a picture: the island's classes, the illustration's figures, and
+// `inert`, so nothing in it can be focused or pressed. Its caption says what it shows.
+const Picture = ({ caption, children }: { caption: string; children: Child }) => (
+  <figure class="mt-8" data-rise="2">
+    <div data-ui inert class="type-ui">
+      {children}
+    </div>
+    <figcaption class="mt-4 type-ui text-muted-foreground">{caption}</figcaption>
   </figure>
 )
 
-// What the landing page offers as the ways in: the sample network first, then, while accounts are
-// on, a network of one's own.
-const WaysIn = ({ accounts }: { accounts: boolean }) => (
-  <p class="mk-acts">
-    <a class="btn pri mk-go" href="/demo">
-      Open the sample network
-    </a>
-    {accounts && (
-      <a class="btn mk-alt" href="/app/new">
-        Create your network
-      </a>
-    )}
-  </p>
+// The run's notes as the agent's tools write them, while it finds the finalists' shared tags.
+const notes = [
+  { text: `Resolving ${LAUNCH}`, running: false },
+  { text: `Scoring ${roster.length} shows against ${LAUNCH}`, running: false },
+  { text: 'Asking for the slot budget', running: false },
+  { text: 'Asking for exclusions', running: false },
+  { text: `Checking demographics of ${finalists.length} finalists against ${LAUNCH}`, running: false },
+  { text: `Finding the tags ${finalists.length} finalists share with ${LAUNCH}`, running: true }
+]
+const step = notes.findIndex((n) => n.running)
+
+// The on-air readout over the run log, as the launch page shows them while a run works (Frame.tsx,
+// Run.tsx).
+const RunFragment = () => (
+  <div class="flex flex-col gap-4">
+    <div class="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2">
+      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+        <span class="inline-flex items-center gap-2">
+          <span class="size-2 shrink-0 rounded-full bg-signal motion-safe:animate-live" />
+          <b class="font-semibold">Running</b>
+        </span>
+        <span>
+          {notes[step].text} · step {step + 1}
+        </span>
+      </div>
+      <span class="text-muted-foreground">
+        1:<span class="tabular-nums">48</span>
+      </span>
+    </div>
+    <section class="flex flex-col gap-3 rounded-xl bg-card p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="font-semibold">Run log</p>
+        <Chip mark="signal">Running</Chip>
+      </div>
+      <ol class="flex flex-col gap-2">
+        {notes.map((n) => (
+          <li class="flex items-start gap-2.5">
+            {n.running ? (
+              <LoaderCircle class="mt-0.5 size-4 shrink-0 text-muted-foreground motion-safe:animate-spin" />
+            ) : (
+              <Check class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            )}
+            <span class="min-w-0 flex-1">{n.text}</span>
+            <span class="shrink-0 type-caption leading-5 text-muted-foreground">{n.running ? 'Running' : 'Done'}</span>
+          </li>
+        ))}
+      </ol>
+      <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+        <KeyValue label="Slot budget">{BUDGET} promo slots</KeyValue>
+        <KeyValue label="Left out">None</KeyValue>
+      </dl>
+    </section>
+  </div>
+)
+
+// The agent's question, waiting on the slot budget, with an answer typed in (Run.tsx's OpenQuestion).
+const QUESTION = `What's the slot budget for ${LAUNCH}, in promo slots or dollars?`
+const QuestionFragment = () => (
+  <section class="flex max-w-2xl flex-col gap-4 rounded-xl bg-card p-4 lg:p-5">
+    <div class="flex flex-wrap items-center gap-1.5">
+      <Source of="agent" />
+      <Chip variant="outline" mark="signal">
+        Waiting on you
+      </Chip>
+    </div>
+    <div class="flex flex-col gap-4">
+      <p class="max-w-[60ch] type-title text-pretty">{QUESTION}</p>
+      <p class="text-muted-foreground">The insertion order is checked against it.</p>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class={segmentedTrackVariants({ className: 'flex' })}>
+          <span class={segmentedItemVariants()} data-checked>
+            Promo slots
+          </span>
+          <span class={segmentedItemVariants()}>A dollar budget</span>
+        </span>
+        <span class={cn(field, 'flex w-48 items-center')}>{BUDGET}</span>
+      </div>
+      <p>
+        <span class={buttonVariants()}>Answer</span>
+      </p>
+    </div>
+  </section>
+)
+
+// The plan, insertion order IO-0001 in draft, priced from the network's own figures
+// (InsertionOrder.tsx).
+const PlanFragment = () => (
+  <section class="flex flex-col gap-3">
+    <p class="font-semibold">The plan</p>
+    <div class="flex flex-col gap-4 rounded-xl bg-card p-4 lg:p-5">
+      <div class="flex flex-col gap-1">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p class="font-semibold">
+            Insertion order <code class="font-medium">IO-0001</code>
+          </p>
+          <Chip>Draft</Chip>
+        </div>
+        <p class="type-caption text-muted-foreground">
+          <Source of="agent" /> drafted the slots and angles. Code prices each slot at downloads per episode × CPM ÷
+          1,000.
+        </p>
+      </div>
+      <table class="w-full">
+        <thead class="type-caption text-muted-foreground">
+          <tr class={ruleBottom}>
+            <th scope="col" class="pb-2 text-left font-normal">
+              Show · angle
+            </th>
+            <th scope="col" class="w-14 pb-2 pl-3 text-right font-normal md:w-20">
+              Slots
+            </th>
+            <th scope="col" class="w-24 pb-2 pl-3 text-right font-normal md:w-32">
+              Value
+            </th>
+          </tr>
+        </thead>
+        {plan.map((line) => (
+          <tbody class={ruleBottom}>
+            <tr class="align-baseline">
+              <th scope="row" class="pt-3 text-left font-normal">
+                <span class="inline-flex items-center gap-2 text-[15px] leading-snug font-semibold">
+                  <span class="size-2 shrink-0 rounded-full bg-signal" />
+                  {line.show}
+                </span>
+              </th>
+              <td class="pt-3 pl-3 text-right tabular-nums">{line.slots}</td>
+              <td class="pt-3 pl-3 text-right font-medium">{dollars(line.value)}</td>
+            </tr>
+            <tr class="align-top">
+              <td colspan={2} class="pt-1 pb-3 pl-4">
+                {line.angle} <Call call={line.call} />
+              </td>
+              <td class="pt-0.5 pb-3 pl-3 text-right type-caption text-muted-foreground">
+                {dollars(line.slotValue)} a slot
+              </td>
+            </tr>
+          </tbody>
+        ))}
+        <tfoot>
+          <tr class="align-baseline">
+            <th scope="row" class="pt-3 text-left font-semibold">
+              Total
+            </th>
+            <td class="pt-3 pl-3 text-right font-semibold tabular-nums">{planSlots}</td>
+            <td class="pt-3 pl-3 text-right font-semibold">{dollars(planTotal)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p class="text-muted-foreground">
+        Budget: {BUDGET - planSlots} of {BUDGET} slots left.
+      </p>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span class={buttonVariants()}>Approve</span>
+        <span class={buttonVariants({ variant: 'ghost' })}>Edit lines</span>
+        <p class="type-caption text-muted-foreground">
+          Nothing is final until you approve it. Editing returns it to draft.
+        </p>
+      </div>
+    </div>
+  </section>
+)
+
+// The inspector open on call C-14's evidence, the ranking's request as a record (Evidence.tsx). The
+// raw scores Qloo returned follow it in the app, below this crop.
+const RANKING_CALL = 'C-14'
+const EvidenceFragment = () => (
+  <div class="flex w-full max-w-[360px] flex-col gap-4 rounded-xl bg-card p-4">
+    <span class={segmentedTrackVariants()}>
+      <span class={segmentedItemVariants()}>Run</span>
+      <span class={segmentedItemVariants()} data-active>
+        Evidence
+      </span>
+    </span>
+    <div class="flex flex-col gap-1.5">
+      <p class="font-semibold">
+        Evidence · <code class="font-medium">{RANKING_CALL}</code>
+      </p>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <Source of="qloo" />
+      </div>
+    </div>
+    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+      <KeyValue label="Request">
+        <code class="text-xs break-all">POST /v2/insights</code>
+      </KeyValue>
+      <KeyValue label="Parameters">
+        <ul class="flex flex-col gap-2">
+          <li class="flex min-w-0 flex-col">
+            <code class="text-xs break-all text-muted-foreground">filter.type</code>
+            <span>urn:entity:podcast</span>
+          </li>
+          <li class="flex min-w-0 flex-col">
+            <code class="text-xs break-all text-muted-foreground">signal.interests.entities</code>
+            <span>1 entity ID</span>
+            <code class="block truncate text-xs">3b9f6c1e-7d2a-4e85-b1c4-9a0e5f27d6b3</code>
+          </li>
+          <li class="flex min-w-0 flex-col">
+            <code class="text-xs break-all text-muted-foreground">filter.results.entities</code>
+            <span class="flex items-center gap-1 underline decoration-muted-foreground decoration-1 underline-offset-4">
+              {roster.length} entity IDs
+              <ChevronDown class="size-4 text-muted-foreground" />
+            </span>
+          </li>
+          <li class="flex min-w-0 flex-col">
+            <code class="text-xs break-all text-muted-foreground">feature.explainability</code>
+            <span>true</span>
+          </li>
+          <li class="flex min-w-0 flex-col">
+            <code class="text-xs break-all text-muted-foreground">take</code>
+            <span>50</span>
+          </li>
+        </ul>
+      </KeyValue>
+      <KeyValue label="Status">200</KeyValue>
+      <KeyValue label="Latency">1,240 ms</KeyValue>
+      <KeyValue label="Retries">0</KeyValue>
+      <KeyValue label="Cache">Miss, called Qloo</KeyValue>
+      <KeyValue label="Called at">14:01:58</KeyValue>
+      <KeyValue label="Run">
+        <code class="block truncate text-xs">6f0d9c4e-2b7a-4c1e-9f53-8a1d2e7b4c90</code>
+      </KeyValue>
+    </dl>
+  </div>
+)
+
+// Two of the replies the agent drafted to guests pitched to The Harbour, one approved and one still a
+// draft (Inbox.tsx's Replies). Cropped on phones to the draft, with Approve before Copy.
+const replies = [
+  {
+    work: 'Salt Ledger',
+    guest: 'Mara Quist',
+    to: 'Ines Tolland at Brightwater Books',
+    approved: true,
+    angle: "The cannery strike of 1931, told from the harbourmaster's ledgers.",
+    tags: ['Coastal', 'Oral history', 'Working life'],
+    call: 'C-31',
+    draft:
+      "Hi Ines, thanks for sending Salt Ledger. Mara's book is a close fit for The Harbour's listeners, and we'd like her on for an episode about the cannery strike. Could she record in the first week of March?"
+  },
+  {
+    work: 'The Breakwater',
+    guest: 'Tom Ruel',
+    to: 'Sam Odum at Northlight Films',
+    approved: false,
+    angle: "Filming the storm of 1953 with the town's own boats.",
+    tags: ['Coastal', 'Weather', 'Documentary'],
+    call: 'C-32',
+    draft:
+      "Hi Sam, The Breakwater looks like one for The Harbour: its audience is close to ours. We'd like Tom on to talk about filming the 1953 storm with the town's boats. Is he free to record this spring?"
+  }
+]
+const RepliesFragment = () => (
+  <section class="flex max-w-3xl min-w-0 flex-col gap-4">
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <p class="font-semibold">
+        Replies · {replies.filter((r) => r.approved).length} of {replies.length} approved
+      </p>
+      <Source of="agent" />
+    </div>
+    <div class="flex flex-col gap-2">
+      <p class="font-semibold">Book · {replies.length}</p>
+      <ul class="flex flex-col gap-2">
+        {replies.map((r) => (
+          <li class={cn('flex flex-col gap-3 rounded-xl bg-card p-4', r.approved && 'max-md:hidden')}>
+            <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5">
+              <p class="min-w-0 text-[15px] leading-snug">
+                <span class="font-semibold">{r.work}</span>
+                <span class="text-muted-foreground"> · {r.guest}</span>
+              </p>
+              {r.approved ? (
+                <Chip variant="outline">
+                  <Check class="size-3" />
+                  Approved
+                </Chip>
+              ) : (
+                <Chip>Draft</Chip>
+              )}
+              <p class="col-span-full truncate type-caption text-muted-foreground">To {r.to}</p>
+            </div>
+            <div class="flex max-w-[72ch] flex-col gap-1">
+              <p class="text-muted-foreground">
+                <span class="font-medium text-foreground">Episode angle</span> {r.angle}
+              </p>
+              <p class="type-caption leading-5 text-muted-foreground">
+                Shares with The Harbour: <Source of="qloo" /> {r.tags.join(' · ')} <Call call={r.call} />
+              </p>
+            </div>
+            <p class="max-w-[72ch] text-pretty">{r.draft}</p>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              {!r.approved && <span class={buttonVariants({ size: 'sm' })}>Approve</span>}
+              <span class={buttonVariants({ size: 'sm', variant: r.approved ? 'default' : 'secondary' })}>
+                <Copy class="size-3.5" />
+                Copy
+              </span>
+              <span class={buttonVariants({ size: 'sm', variant: 'ghost' })}>Edit</span>
+              <span class={buttonVariants({ size: 'sm', variant: 'ghost' })}>Discard</span>
+              <small class="type-caption text-muted-foreground">
+                {r.approved ? 'Copy it into your own email to send.' : 'Copy unlocks once you approve.'}
+              </small>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+)
+
+// What Crossfeed does, one capability to a block, each with its piece of the app. From 1280px the
+// heading and the capabilities' names hold at the left while the blocks pass at the right, the name of
+// the block in view in ink (style.css, "What it does").
+type Capability = { id: string; name: string; text: Child; picture?: Child }
+function Capabilities({ inbox }: { inbox: boolean }) {
+  const capabilities: Capability[] = [
+    {
+      id: 'rank',
+      name: 'Ranks the roster',
+      text: `It looks every show up in Qloo and scores the whole roster against the launch in one call. The on-air readout and the run log say what it's doing while it works.`,
+      picture: (
+        <Picture caption={`A run's readout and log while it finds the tags the finalists share with ${LAUNCH}.`}>
+          <RunFragment />
+        </Picture>
+      )
+    },
+    {
+      id: 'ask',
+      name: 'Asks at each fork',
+      text: 'Where a plan needs a person, it stops and asks rather than guess: the slot budget, the shows to leave out, which match is right when a name is ambiguous. The run waits for the answer.',
+      picture: (
+        <Picture caption={`The agent waiting on the slot budget for ${LAUNCH}.`}>
+          <QuestionFragment />
+        </Picture>
+      )
+    },
+    {
+      id: 'plan',
+      name: 'Drafts the plan',
+      text: 'It drafts an insertion order across the finalists, with a host-read angle for each from the tags it shares with the launch. Code prices every slot from your own downloads and CPM, and nothing is final until you approve it.',
+      picture: (
+        <Picture
+          caption={`Insertion order IO-0001: ${planSlots} slots across the ${finalists.length} finalists at a $${CPM} CPM.`}
+        >
+          <PlanFragment />
+        </Picture>
+      )
+    },
+    {
+      id: 'cite',
+      name: 'Cites every figure',
+      text: 'Every match, rank, and tag carries the number of the Qloo call behind it. Open one for the request, its parameters, and what Qloo returned. Claude explains and drafts from those records, and never makes up a score.',
+      picture: (
+        <Picture caption={`Call ${RANKING_CALL}, the ranking of ${NETWORK}'s roster against ${LAUNCH}.`}>
+          <EvidenceFragment />
+        </Picture>
+      )
+    },
+    ...(inbox
+      ? [
+          {
+            id: 'pitches',
+            name: 'Triages pitches',
+            text: `Paste a day's pitches. Claude reads each one for the guest's public work, Qloo ranks those works against your show by who listens, and the agent drafts a Book, Later, or Decline reply. A reply can be copied only once you approve it.`,
+            picture: (
+              <Picture caption="Replies drafted to guests pitched to The Harbour.">
+                <RepliesFragment />
+              </Picture>
+            )
+          }
+        ]
+      : []),
+    {
+      id: 'code',
+      name: 'Works from code',
+      text: (
+        <>
+          Programs and assistants start runs, relay the agent&apos;s questions, and edit drafts through the REST API,
+          the TypeScript SDK, the MCP server, and Agent Skills. None of them can approve.{' '}
+          <a class="underline decoration-1 underline-offset-4 hover:decoration-2" href="#developers">
+            For developers
+          </a>
+        </>
+      )
+    }
+  ]
+  return (
+    <section aria-labelledby="does-h" data-does class={cn(section, 'xl:grid xl:grid-cols-12 xl:gap-x-6')}>
+      <div class="xl:sticky xl:top-8 xl:col-span-5 xl:self-start">
+        <h2 id="does-h" class="type-display xl:text-muted-foreground">
+          What it does
+        </h2>
+        <ul class="mt-2 max-xl:hidden">
+          {capabilities.map((c) => (
+            <li>
+              <a
+                href={`#does-${c.id}`}
+                data-does-link={c.id}
+                class="type-display transition-colors hover:text-foreground"
+              >
+                {c.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div class="mt-12 flex flex-col gap-24 md:mt-16 xl:col-span-7 xl:col-start-6 xl:mt-0">
+        {capabilities.map((c) => (
+          <article id={`does-${c.id}`} data-does-block={c.id} aria-labelledby={`does-${c.id}-h`} class="scroll-mt-8">
+            <h3 id={`does-${c.id}-h`} class="type-title xl:sr-only" data-rise>
+              {c.name}
+            </h3>
+            <p class="mt-3 max-w-[60ch] text-pretty xl:mt-0" data-rise>
+              {c.text}
+            </p>
+            {c.picture}
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// What Crossfeed never does, with what it does instead: a table with no lines, every other row on the
+// tone step, which folds to one block a row on phones.
+const nevers = [
+  [
+    "Sends a guest's name or a pitch to Qloo.",
+    "Only public shows and works are looked up. A guest with no public work is set aside, and a title holding an email address or the guest's own name isn't sent."
+  ],
+  [
+    'Reads a result as a fact about a person.',
+    "Fit describes overlapping audiences, never a probability about an individual, and nothing infers anyone's politics, health, or eligibility for anything."
+  ],
+  [
+    'Makes up a score.',
+    'Every fit ranking is a Qloo call you can open. The model narrates the evidence and drafts from it.'
+  ],
+  [
+    "Prices a plan with numbers you didn't give it.",
+    "Slot value comes from the downloads and CPM your network enters. There's no default CPM; the sample network's is labelled sample."
+  ],
+  [
+    'Approves anything for you.',
+    'The agent proposes and you decide. An insertion order exports, and a reply can be copied, only after you approve it. Crossfeed sends no email.'
+  ],
+  ["Publishes Qloo's data.", "Qloo's responses are cached on Crossfeed's server and shown only in the app."]
+]
+const Nevers = () => (
+  <section aria-labelledby="never-h" class={section}>
+    <h2 id="never-h" class="type-display" data-rise>
+      <span class="block">What Crossfeed</span> <span class="block lg:pl-[16.666%]">never does</span>
+    </h2>
+    {/* Explicit roles, so the table stays one to assistive technology when phones set its rows as blocks. */}
+    <table
+      role="table"
+      class="mt-12 -mx-3 w-[calc(100%_+_1.5rem)] table-fixed text-left max-md:block md:mt-16 md:-mx-4 md:w-[calc(100%_+_2rem)]"
+      data-rise="2"
+    >
+      <colgroup>
+        <col class="md:w-5/12" />
+        <col />
+      </colgroup>
+      <thead role="rowgroup" class="max-md:sr-only">
+        <tr role="row" class="type-ui text-muted-foreground">
+          <th role="columnheader" scope="col" class="px-3 pb-3 font-normal md:px-4">
+            Crossfeed never
+          </th>
+          <th role="columnheader" scope="col" class="px-3 pb-3 font-normal md:px-4">
+            Instead
+          </th>
+        </tr>
+      </thead>
+      <tbody role="rowgroup" class="max-md:block">
+        {nevers.map(([never, instead]) => (
+          <tr role="row" class="align-baseline odd:bg-muted max-md:flex max-md:flex-col max-md:gap-1 max-md:py-4">
+            <th role="rowheader" scope="row" class="px-3 font-semibold md:px-4 md:py-3.5">
+              {never}
+            </th>
+            <td role="cell" class="px-3 md:px-4 md:py-3.5">
+              {instead}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+)
+
+// For developers: the four ways in, each linking its docs page; one real call and what it answers,
+// with this page's made-up IDs; and the spec list.
+const ways = [
+  ['/docs/api', 'REST API', 'Every resource of a network under /api/v1, described by an OpenAPI document.'],
+  ['/docs/sdk', 'TypeScript SDK', 'Typed methods for every route, for Node, Bun, Deno, and Workers.'],
+  ['/docs/mcp', 'MCP server', 'The same operations as tools, for assistants such as Claude Code.'],
+  [
+    '/docs/agents',
+    'Skills and plugin',
+    'Agent Skills that plan launch promos and triage pitches, in a Claude Code plugin.'
+  ]
+]
+const READ_RUN = `curl -H "Authorization: Bearer $CROSSFEED_API_KEY" \\
+  "$CROSSFEED/api/v1/networks/$NETWORK_ID/launches/$LAUNCH_ID/runs/$RUN_ID"`
+const RUN_WAITING = `{
+  "id": "6f0d9c4e-2b7a-4c1e-9f53-8a1d2e7b4c90",
+  "status": "waiting",
+  "startedBy": "API key “Planner”",
+  "question": {
+    "id": "toolu_01Kx3dV8mJ2pQ7wRb5nTfY9c",
+    "kind": "budget",
+    "question": "${QUESTION}",
+    "options": []
+  }
+}`
+const Developers = ({ inbox }: { inbox: boolean }) => (
+  <section id="developers" aria-labelledby="dev-h" class={cn(section, 'lg:grid lg:grid-cols-12 lg:gap-x-6')}>
+    <div class="lg:col-span-5">
+      <h2 id="dev-h" class="type-display" data-rise>
+        For developers
+      </h2>
+      <div class="mt-6 flex max-w-[56ch] flex-col gap-4" data-rise>
+        <p>
+          Crossfeed is one Cloudflare Worker. The page is server-rendered, and the workspace talks to its agent over a
+          WebSocket: it reads the agent&apos;s synced state and calls its actions, and never writes state itself.
+        </p>
+        <p>
+          Programs and assistants can plan a network&apos;s launches{inbox && <> and triage its pitches</>} too, with
+          one of its API keys. None of them can approve: that stays with the network&apos;s members, in the app.
+        </p>
+      </div>
+      <ul class="mt-10 flex flex-col gap-6" data-rise="2">
+        {ways.map(([href, name, text]) => (
+          <li>
+            <a href={href} class="type-title underline decoration-1 underline-offset-[6px] hover:decoration-2">
+              {name}
+            </a>
+            <p class="mt-1 max-w-[52ch]">{text}</p>
+          </li>
+        ))}
+      </ul>
+      <p class="mt-10" data-rise="2">
+        <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/docs">
+          Read the developer docs
+        </a>
+      </p>
+    </div>
+    <div class="mt-12 flex min-w-0 flex-col gap-6 lg:col-span-7 lg:col-start-6 lg:mt-0">
+      <p class="max-w-[60ch]" data-rise>
+        Reading a run with a key from the network&apos;s settings answers 200, here with the run waiting on its question
+        (trimmed):
+      </p>
+      <div data-rise="2">
+        <Code label="Shell">{READ_RUN}</Code>
+      </div>
+      <div data-rise="2">
+        <Code label="JSON">{RUN_WAITING}</Code>
+      </div>
+      <dl class="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-3" data-rise="2">
+        {(
+          [
+            ['Runtime', 'Cloudflare Workers, with a Hono app'],
+            ['Agent', 'A Durable Object per session, on the Cloudflare Agents SDK'],
+            ['Model', 'Claude Haiku 5.5, through the Anthropic API'],
+            ['Scores', "Qloo's REST API, behind one gateway that caches, paces, retries, and caps every call"],
+            [
+              'Evidence',
+              'A record of every Qloo call: its parameters and the names, tags, and scores it returned, numbered per session'
+            ],
+            [
+              'Export',
+              <>
+                An approved insertion order as CSV, headed <code class="text-[0.875em]">{CSV_HEADER.join(',')}</code>
+              </>
+            ]
+          ] as [string, Child][]
+        ).map(([term, text]) => (
+          <div class="col-span-full grid grid-cols-subgrid">
+            <dt class="font-semibold">{term}</dt>
+            <dd class="min-w-0">{text}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  </section>
+)
+
+// The close, the page's one colour field: the question across two lines with the ways in between
+// them, the sample first and, while accounts are on, a network of one's own. It meets the footer,
+// taking back the margin the shell sets above it.
+const Close = ({ accounts }: { accounts: boolean }) => (
+  <section
+    aria-labelledby="close-h"
+    data-band="signal"
+    class="mt-24 -mb-24 bg-signal text-signal-foreground md:mt-40 md:-mb-40 lg:mt-48"
+  >
+    <div class={cn(marketingFrame, 'grid justify-items-center py-20 text-center md:py-28')}>
+      <h2
+        id="close-h"
+        class="col-start-1 row-span-3 row-start-1 grid grid-rows-subgrid type-display text-balance"
+        data-rise
+      >
+        <span class="row-start-1">Try the sample,</span> <span class="row-start-3">or your roster?</span>
+      </h2>
+      <div class="col-start-1 row-start-2 my-14 flex w-full flex-col items-center gap-5 md:my-20">
+        <div class="flex w-full flex-col items-center gap-3 md:w-auto md:flex-row md:gap-8">
+          <a class={buttonVariants({ size: 'lg', className: 'max-md:w-[72%]' })} href="/demo">
+            Open the sample network
+          </a>
+          {accounts && (
+            <>
+              <span>or</span>
+              <a
+                class={buttonVariants({ variant: 'secondary', size: 'lg', className: 'max-md:w-[72%]' })}
+                href="/app/new"
+              >
+                Create your network
+              </a>
+            </>
+          )}
+        </div>
+        <p class="max-w-[52ch] text-pretty">
+          {accounts
+            ? 'The sample needs no sign-in. A network of your own keeps its roster, launches, and members, and its members sign in with passkeys.'
+            : 'No sign-in. Clear the sample and paste your own show names to rank them instead.'}
+        </p>
+      </div>
+    </div>
+  </section>
 )
 
 function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
+  // The poster's lines, each in its own mask, so it rises from behind its baseline on load; the
+  // mask's foot is deep enough for the descender of "y" at the poster's 0.86 leading.
+  const line = 'line-mask pb-[0.16em] -mb-[0.16em]'
   return (
-    <main class="mk">
-      <section class="mk-hd" aria-labelledby="mk-h1">
-        <h1 id="mk-h1">Rank your roster by who listens, not by topic.</h1>
-        <p class="mk-lede">
-          Crossfeed scores a podcast network&apos;s own shows in Qloo by how much their listeners overlap a
-          launch&apos;s, then drafts the promo plan as an insertion order you approve.
-        </p>
-        <WaysIn accounts={accounts} />
-        <p class="mk-note">
-          No sign-in. It opens on 19 public show names from The Ringer with sample figures; Crossfeed isn&apos;t
-          affiliated with The Ringer.
-        </p>
-      </section>
-
-      <section class="mk-grid mk-board" aria-labelledby="mk-launch">
-        <div class="mk-chart-col">
-          <div class="mk-launch">
-            <h2 id="mk-launch">
-              <span>Launch ·</span> {LAUNCH}
-            </h2>
-            <span class="chip">Illustration</span>
-          </div>
-          <p class="sub-line">
-            A true-crime launch. By topic it goes on the network&apos;s true-crime shows; by shared listeners, a history
-            show comes second.
+    <main>
+      <section
+        aria-labelledby="hero-h"
+        class={cn(
+          marketingFrame,
+          'flex flex-col pt-[7svh] md:pt-[6svh] lg:min-h-[min(calc(100svh_-_5rem),60rem)] lg:pb-7'
+        )}
+      >
+        <h1 id="hero-h" class="type-poster">
+          <span class={line}>
+            <span class="block motion-safe:animate-line-up">Rank by</span>
+          </span>{' '}
+          <span class={cn(line, 'md:text-right')}>
+            <span class="block motion-safe:animate-line-up motion-safe:[animation-delay:260ms]">who listens</span>
+          </span>
+        </h1>
+        {/* The sentence and the action on one baseline, the action's fine print hung under it; stacked
+            under 1024px. */}
+        <div class="mt-[18svh] flex flex-col gap-6 motion-safe:animate-rise-in lg:mt-auto lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-baseline-last lg:gap-x-10 lg:gap-y-3 lg:pt-[12svh]">
+          <p class="max-w-[34em] type-title font-normal text-pretty max-md:text-lg/[1.45]">
+            An agent that ranks your network&apos;s shows by listener overlap in Qloo, asks you at each fork, and ends
+            in an insertion order you approve.
           </p>
-          <p class="legend">
-            <i class="bul" aria-hidden="true" />
-            Bullet: up 3+ places on topic rank.
-          </p>
-          <div class="mk-frame">
-            <Chart />
-          </div>
-        </div>
-        <aside class="mk-key mk-rail" aria-labelledby="mk-key-h">
-          <h2 id="mk-key-h" class="lbl">
-            How to read the chart
-          </h2>
-          <dl>
-            {key.map((k) => (
-              <div class="mk-k">
-                <dt>
-                  <span class="mk-g" aria-hidden="true">
-                    {k.glyph}
-                  </span>
-                  {k.term}
-                </dt>
-                <dd>{k.text}</dd>
-              </div>
-            ))}
-          </dl>
-        </aside>
-      </section>
-
-      <section class="mk-sec" aria-labelledby="mk-run">
-        <h2 id="mk-run">How a run works</h2>
-        <ol class="mk-steps">
-          <li>
-            <h3>Name the launch</h3>
-            <p>
-              A released show, or up to three released comps standing in for one that isn&apos;t out yet. Crossfeed
-              looks up every roster show in Qloo by name, asks which match is right when a name is ambiguous, and lets
-              you map a miss to a comp.
-            </p>
-            <Fig title="Roster">
-              <table class="chart mk-frag">
-                <thead>
-                  <tr>
-                    <th scope="col">Show</th>
-                    <th scope="col">Qloo match</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Dead Air Archive</td>
-                    <td>Matched</td>
-                  </tr>
-                  <tr>
-                    <td>Back Roads Radio</td>
-                    <td>
-                      <span class="chip">Ambiguous</span> pick one of 2
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Courtroom Sketch</td>
-                    <td>
-                      <span class="chip" data-state="missed">
-                        Not in Qloo
-                      </span>{' '}
-                      map a comp
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </Fig>
-          </li>
-          <li>
-            <h3>Answer at each fork</h3>
-            <p>
-              Qloo ranks the roster by listener overlap with the launch. Crossfeed checks the finalists&apos;
-              demographics against the launch&apos;s and finds the tags each one shares with it. The agent stops to ask
-              for the slot budget and the shows to leave out, rather than guess.
-            </p>
-            <Fig title="The agent's question">
-              <div class="mk-ask">
-                <p class="q">What is the slot budget for {LAUNCH}&apos;s promos, as a slot count or a dollar amount?</p>
-                {/* Native radios, inert: the illustration shows them and nothing can pick one. */}
-                <ul class="mk-radios">
-                  <li>
-                    <input type="radio" name="mk-budget" checked inert />
-                    <span class="vh">Picked: </span>Promo slots
-                  </li>
-                  <li>
-                    <input type="radio" name="mk-budget" inert />A dollar budget
-                  </li>
-                </ul>
-              </div>
-            </Fig>
-          </li>
-          <li>
-            <h3>Approve the order</h3>
-            <p>
-              The agent drafts an insertion order across the finalists, with a host-read angle for each from the tags it
-              shares with the launch in Qloo, and none where it shares none. Every slot is priced as the inventory it
-              gives away, from your own figures: downloads per episode × CPM ÷ 1,000. You edit it, approve it, and
-              export it as CSV.
-            </p>
-            <Fig title="Insertion order draft">
-              <table class="io mk-frag">
-                <thead>
-                  <tr>
-                    <th scope="col">Show</th>
-                    <th scope="col">Slots</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Dead Air Archive</td>
-                    <td>8</td>
-                  </tr>
-                  <tr>
-                    <td>The Long Table</td>
-                    <td>6</td>
-                  </tr>
-                  <tr>
-                    <td>Back Roads Radio</td>
-                    <td>4</td>
-                  </tr>
-                  <tr class="tot">
-                    <th scope="row">Total</th>
-                    <td>18</td>
-                  </tr>
-                </tbody>
-              </table>
-            </Fig>
-          </li>
-        </ol>
-      </section>
-
-      {inbox && (
-        <section class="mk-sec mk-grid mk-flip" aria-labelledby="mk-inbox">
-          <div class="mk-copy mk-rail">
-            <h2 id="mk-inbox">The booking inbox</h2>
-            <p>
-              Every pitch is written by a publicist to sound on-topic. Paste a day&apos;s pitches, and Claude reads each
-              one for the guest and the public work they&apos;re promoting: a book, film, TV show, or podcast. Qloo
-              ranks those works against your show and its best past guests, by who listens rather than by how the pitch
-              is worded.
-            </p>
-            <p>
-              The agent drafts a Book, Later, or Decline reply for each pitch, and you approve each one before you can
-              copy it. A pitch with no public work is set aside, and nothing about it goes to Qloo.
-            </p>
-          </div>
-          <Fig title="Films pitched to The Long Table, a history show" class="mk-frame">
-            <table class="chart fit-chart mk-pitches">
-              <colgroup>
-                <col class="c-pos" />
-                <col />
-                <col class="c-band" />
-                <col class="c-reply" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">
-                    Rank<small>films</small>
-                  </th>
-                  <th scope="col">
-                    Pitched work<small>as the pitch frames it</small>
-                  </th>
-                  <th scope="col">
-                    Fit band<small>listener overlap</small>
-                  </th>
-                  <th scope="col">
-                    Reply<small>drafted</small>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {(
-                  [
-                    ['Harbor Lights', 'a ghost story', 'top', 'Book'],
-                    ['Salt and Iron', 'a film about cooking', 'top', 'Book'],
-                    ['The Canal Years', 'a history film, right on your topic', 'middle', 'Later'],
-                    ['Founders, Again', 'history for everyone', 'bottom', 'Decline']
-                  ] as const
-                ).map(([work, framed, band, reply], i) => (
-                  <tr>
-                    <td class="pos">{i + 1}</td>
-                    <td>
-                      <span class="nm">{work}</span>
-                      <div class="tg">Pitched as {framed}</div>
-                    </td>
-                    <td>
-                      <Band band={band} />
-                    </td>
-                    <td>
-                      <span class="chip">{reply}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Fig>
-        </section>
-      )}
-
-      <section class="mk-sec mk-grid" aria-labelledby="mk-evidence">
-        <div class="mk-copy">
-          <h2 id="mk-evidence">Evidence on every line</h2>
-          <p>
-            Every match, rank, and tag in the app cites the Qloo call that produced it. Open the call number to see the
-            request&apos;s parameters and what Qloo returned for it: names, tags, and the raw scores the chart leaves
-            out. Claude explains and drafts from those records, and never makes up a score.
-          </p>
-          <dl class="mk-sources">
-            <div>
-              <dt>
-                <span class="chip">Qloo data</span>
-              </dt>
-              <dd>What Qloo returned: matches, rankings, shared tags, and demographics.</dd>
-            </div>
-            <div>
-              <dt>
-                <span class="chip src-agent">Agent</span>
-              </dt>
-              <dd>What Claude wrote: its questions, the topic ranking, angles, replies, and its closing line.</dd>
-            </div>
-          </dl>
-        </div>
-        <Fig title="Evidence · C-14" class="mk-record mk-rail">
-          <dl class="rec kv">
-            <div class="rec-row">
-              <dt>Request</dt>
-              <dd>
-                <code>POST /v2/insights</code>
-              </dd>
-            </div>
-            <div class="rec-row">
-              <dt>Parameters</dt>
-              <dd>
-                <code class="param">filter.type=urn:entity:podcast</code>
-                <code class="param">signal.interests.entities=‹{LAUNCH}›</code>
-                <code class="param">filter.results.entities=‹the roster&apos;s other 11 shows›</code>
-              </dd>
-            </div>
-            <div class="rec-row">
-              <dt>Returned</dt>
-              <dd>Each show&apos;s affinity, which the chart turns into its rank and band.</dd>
-            </div>
-          </dl>
-        </Fig>
-      </section>
-
-      <section class="mk-sec" aria-labelledby="mk-never">
-        <h2 id="mk-never">What Crossfeed never does</h2>
-        <table class="mk-table mk-never">
-          <thead>
-            <tr>
-              <th scope="col">Crossfeed never</th>
-              <th scope="col">Instead</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              [
-                "Sends a guest's name or a pitch to Qloo.",
-                "Only public shows and works are looked up. A guest with no public work is set aside, and a title holding an email address or the guest's own name isn't sent."
-              ],
-              [
-                'Reads a result as a fact about a person.',
-                "Fit describes overlapping audiences, never a probability about an individual, and nothing infers anyone's politics, health, or eligibility for anything."
-              ],
-              [
-                'Makes up a score.',
-                'Every fit ranking is a Qloo call you can open. The model narrates the evidence and drafts from it.'
-              ],
-              [
-                "Prices a plan with numbers you didn't give it.",
-                "Slot value comes from the downloads and CPM your network enters. There's no default CPM; the sample network's is labelled sample."
-              ],
-              [
-                'Approves anything for you.',
-                'The agent proposes and you decide. An insertion order exports, and a reply can be copied, only after you approve it. Crossfeed sends no email.'
-              ],
-              ["Publishes Qloo's data.", "Qloo's responses are cached on Crossfeed's server and shown only in the app."]
-            ].map(([never, instead]) => (
-              <tr>
-                <th scope="row">{never}</th>
-                <td>{instead}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section id="developers" class="mk-sec mk-grid" aria-labelledby="mk-dev">
-        <div class="mk-copy">
-          <h2 id="mk-dev">For developers</h2>
-          <p>
-            Crossfeed is one Cloudflare Worker. The page is server-rendered, and the workspace talks to its agent over a
-            WebSocket: it reads the agent&apos;s synced state and calls its actions, and never writes state itself.
-          </p>
-          <p>
-            Programs and assistants can plan a network&apos;s launches and triage its pitches too, with one of its API
-            keys. None of them can approve: that stays with the network&apos;s members, in the app.
-          </p>
-          <dl class="mk-sources mk-ways">
-            {[
-              ['/docs/api', 'REST API', 'Every resource of a network under /api/v1, described by an OpenAPI document.'],
-              ['/docs/sdk', 'TypeScript SDK', 'Typed methods for every route, for Node, Bun, Deno, and Workers.'],
-              ['/docs/mcp', 'MCP server', 'The same operations as tools, for assistants such as Claude Code.'],
-              [
-                '/docs/agents',
-                'Skills and plugin',
-                'Agent Skills that plan launch promos and triage pitches, in a Claude Code plugin.'
-              ]
-            ].map(([href, name, text]) => (
-              <div>
-                <dt>
-                  <a href={href}>{name}</a>
-                </dt>
-                <dd>{text}</dd>
-              </div>
-            ))}
-          </dl>
-          <p class="mk-acts">
-            <a class="btn mk-alt" href="/docs">
-              Read the developer docs
-            </a>
+          <a
+            class={buttonVariants({ size: 'lg', className: 'max-lg:self-start max-md:w-full lg:justify-self-end' })}
+            href="/demo"
+          >
+            Open the sample network
+          </a>
+          <p class="-mt-3 max-w-[44ch] type-ui text-muted-foreground lg:col-start-2 lg:mt-0 lg:text-right">
+            No sign-in. It opens on 19 public show names from The Ringer, with sample figures. Crossfeed isn&apos;t
+            affiliated with The Ringer.
           </p>
         </div>
-        <dl class="rec kv mk-spec mk-rail">
-          <div class="rec-row">
-            <dt>Runtime</dt>
-            <dd>Cloudflare Workers, with a Hono app</dd>
-          </div>
-          <div class="rec-row">
-            <dt>Agent</dt>
-            <dd>A Durable Object per session, on the Cloudflare Agents SDK</dd>
-          </div>
-          <div class="rec-row">
-            <dt>Model</dt>
-            <dd>Claude Haiku 5.5, through the Anthropic API</dd>
-          </div>
-          <div class="rec-row">
-            <dt>Scores</dt>
-            <dd>Qloo&apos;s REST API, behind one gateway that caches, paces, retries, and caps every call</dd>
-          </div>
-          <div class="rec-row">
-            <dt>Evidence</dt>
-            <dd>
-              A record of every Qloo call: its parameters and the names, tags, and scores it returned, numbered per
-              session
-            </dd>
-          </div>
-          <div class="rec-row">
-            <dt>Export</dt>
-            <dd>
-              An approved insertion order as CSV, headed <code>{CSV_HEADER.join(',')}</code>
-            </dd>
-          </div>
-        </dl>
       </section>
-
-      <section class="mk-sec mk-close" aria-labelledby="mk-try">
-        <h2 id="mk-try">Try it on a real roster.</h2>
-        <p>
-          The sample network opens on 19 public show names from The Ringer, with sample figures and a sample launch to
-          run. Clear it and paste your own show names to rank them instead.
-        </p>
-        <WaysIn accounts={accounts} />
-      </section>
+      <ReRank />
+      <Stages />
+      <Capabilities inbox={inbox} />
+      <Nevers />
+      <Developers inbox={inbox} />
+      <Close accounts={accounts} />
     </main>
   )
 }
@@ -598,7 +1032,8 @@ marketing.get(
   '/',
   marketingShell(
     null,
-    'Crossfeed ranks a podcast network’s own shows by how much their listeners overlap a launch’s, in Qloo, and drafts the promo plan as an insertion order you approve.'
+    'Crossfeed ranks a podcast network’s own shows by how much their listeners overlap a launch’s, in Qloo, and drafts the promo plan as an insertion order you approve.',
+    { reveal: true }
   ),
   (c) => c.render(<Landing accounts={c.env.ACCOUNTS === 'on'} inbox={c.env.GUEST_PITCHES === 'on'} />)
 )
@@ -615,6 +1050,20 @@ export const TableScroll = ({ label, children }: { label: string; children: Chil
   <div class="max-w-full overflow-x-auto" role="region" aria-label={label} tabindex={0}>
     {children}
   </div>
+)
+
+// A code sample, captioned above by its language or the file it is, on a tone-step panel: 14px
+// monospace that scrolls sideways inside the panel, and the keyboard can reach to scroll. The
+// developer docs and the landing page's developers section set theirs in it.
+export const Code = ({ label, file, children }: { label?: string; file?: string; children: string }) => (
+  <figure class="overflow-hidden rounded-xl bg-muted">
+    <figcaption class="px-4 pt-3 type-caption text-muted-foreground">
+      {file ? <code class="bg-transparent p-0 text-xs">{file}</code> : label}
+    </figcaption>
+    <pre tabindex={0} class="overflow-x-auto px-4 pt-2 pb-4 type-ui leading-[1.6] focus-visible:-outline-offset-2">
+      <code>{children.trim()}</code>
+    </pre>
+  </figure>
 )
 
 // The privacy page and the beta terms: the title at display size, its lede and the day it last

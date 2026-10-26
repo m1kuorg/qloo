@@ -364,6 +364,174 @@
   }
 }
 
+/* The landing page's re-rank (routes/marketing.tsx): the roster in listener order, which the "By topic"
+   radio re-orders with no script. Each row carries its listener rank (data-l) and topic rank (data-t);
+   with "By topic" checked it moves by their difference in whole rows, which share one height, and its
+   rank figure rolls to the topic rank. Both travel 450ms, staggered 20ms by the row's new place. With
+   reduced motion they change places at once. */
+@layer components {
+  [data-row][data-l='1'] {
+    --l: 1;
+  }
+  [data-row][data-l='2'] {
+    --l: 2;
+  }
+  [data-row][data-l='3'] {
+    --l: 3;
+  }
+  [data-row][data-l='4'] {
+    --l: 4;
+  }
+  [data-row][data-l='5'] {
+    --l: 5;
+  }
+  [data-row][data-l='6'] {
+    --l: 6;
+  }
+  [data-row][data-l='7'] {
+    --l: 7;
+  }
+  [data-row][data-l='8'] {
+    --l: 8;
+  }
+  [data-row][data-t='1'] {
+    --t: 1;
+  }
+  [data-row][data-t='2'] {
+    --t: 2;
+  }
+  [data-row][data-t='3'] {
+    --t: 3;
+  }
+  [data-row][data-t='4'] {
+    --t: 4;
+  }
+  [data-row][data-t='5'] {
+    --t: 5;
+  }
+  [data-row][data-t='6'] {
+    --t: 6;
+  }
+  [data-row][data-t='7'] {
+    --t: 7;
+  }
+  [data-row][data-t='8'] {
+    --t: 8;
+  }
+  [data-rerank] [data-row] {
+    --to: var(--l);
+    translate: 0 calc((var(--t) - var(--l)) * 100% * var(--topic, 0));
+  }
+  [data-rerank]:has(#lens-topic:checked) [data-row] {
+    --topic: 1;
+    --to: var(--t);
+  }
+  [data-rerank] [data-rank] > * {
+    translate: 0 calc(-100% * var(--topic, 0));
+  }
+  /* The line saying where the order on screen comes from: the checked lens's. */
+  [data-rerank]:has(#lens-topic:checked) [data-lens-note='listeners'],
+  [data-rerank]:not(:has(#lens-topic:checked)) [data-lens-note='topic'] {
+    display: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    [data-rerank] :is([data-row], [data-rank] > *) {
+      transition: translate 450ms var(--ease-plate) calc(var(--to) * 20ms);
+    }
+  }
+}
+
+/* The landing page's closing band, its one colour field: signal orange with dark text in both schemes,
+   so its buttons and focus ring keep the light scheme's ink and tone in both. */
+[data-band='signal'] {
+  --primary: #121318;
+  --primary-foreground: #ffffff;
+  --secondary: #e8e9ee;
+  --secondary-foreground: #121318;
+  --ring: #121318;
+}
+
+/* Section entrances on the landing page: a part that client/reveal.ts has waiting below the window is
+   out of sight 32px down, at once; let go as it comes into view, it rises into place, a second part
+   (data-rise="2") 80ms behind the first. Only while the script holds it, and only with motion allowed,
+   so without the script every part is simply in place. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-rise] {
+    transition:
+      opacity 700ms var(--ease-lift),
+      translate 900ms var(--ease-lift);
+  }
+  [data-rise='2'] {
+    transition-delay: 80ms;
+  }
+  [data-rise][data-rise-wait] {
+    opacity: 0;
+    translate: 0 32px;
+    transition: none;
+  }
+}
+
+/* What it does: from 1280px the capabilities' names hold at the left while their blocks pass at the
+   right, and the name of the block crossing the middle of the window is in ink, the others in the
+   soft ink. Where named scroll timelines aren't supported, every name stays in ink. */
+@supports (timeline-scope: --a) {
+  @media (width >= 80rem) {
+    [data-does] {
+      timeline-scope: --does-rank, --does-ask, --does-plan, --does-cite, --does-pitches, --does-code;
+    }
+    [data-does-block='rank'] {
+      view-timeline-name: --does-rank;
+    }
+    [data-does-block='ask'] {
+      view-timeline-name: --does-ask;
+    }
+    [data-does-block='plan'] {
+      view-timeline-name: --does-plan;
+    }
+    [data-does-block='cite'] {
+      view-timeline-name: --does-cite;
+    }
+    [data-does-block='pitches'] {
+      view-timeline-name: --does-pitches;
+    }
+    [data-does-block='code'] {
+      view-timeline-name: --does-code;
+    }
+    [data-does-link] {
+      animation: name-in-view linear both;
+      animation-range: cover 30% cover 70%;
+    }
+    [data-does-link='rank'] {
+      animation-timeline: --does-rank;
+    }
+    [data-does-link='ask'] {
+      animation-timeline: --does-ask;
+    }
+    [data-does-link='plan'] {
+      animation-timeline: --does-plan;
+    }
+    [data-does-link='cite'] {
+      animation-timeline: --does-cite;
+    }
+    [data-does-link='pitches'] {
+      animation-timeline: --does-pitches;
+    }
+    [data-does-link='code'] {
+      animation-timeline: --does-code;
+    }
+  }
+}
+@keyframes name-in-view {
+  0%,
+  100% {
+    color: var(--muted-foreground);
+  }
+  1%,
+  99% {
+    color: var(--foreground);
+  }
+}
+
 /* Base UI injects this rule as a <style> element, which the policy blocks; the island's CSPProvider
    turns those elements off, so it lives here instead. */
 .base-ui-disable-scrollbar {
