@@ -1,47 +1,38 @@
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Spinner } from '@/components/ui/spinner'
 import { cpmProblem, dollars } from '../../order'
 import { MAX_NAME } from '../../text'
-import { Alert, send, useAction } from '../controls'
+import { Alert, KeyValue, KeyValues, send, useAction } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
-import { StateLine } from '../states'
+import { Done, Module } from './Module'
 
 // The settings' network module: the network's name and its CPM. An owner changes them here; a member
 // reads them. `cpm` is the agent's, live, and undefined until it's connected.
 export function NetworkModule({ network, cpm }: { network: NetworkPage; cpm: number | null | undefined }) {
   return (
-    <section className="mod set-mod" aria-labelledby="set-network-h">
-      <div className="set-about">
-        <h2 className="lbl" id="set-network-h">
-          Network
-        </h2>
-        <p className="help">
-          The name your members see, and the CPM that prices every promo slot: downloads per episode × CPM ÷ 1,000.
-        </p>
-      </div>
+    <Module
+      id="set-network-h"
+      title="Network"
+      help="The name your members see, and the CPM that prices every promo slot: downloads per episode × CPM ÷ 1,000."
+    >
       {network.role === 'owner' ? (
         <NetworkForm network={network} cpm={cpm} />
       ) : (
-        <NetworkRead network={network} cpm={cpm} />
+        <>
+          <KeyValues>
+            <KeyValue label="Name">{network.name}</KeyValue>
+            <KeyValue label="CPM">
+              {cpm === undefined ? 'Connecting…' : cpm === null ? 'Not set' : dollars(cpm)}
+            </KeyValue>
+          </KeyValues>
+          <p className="text-muted-foreground">Only an owner can change these.</p>
+        </>
       )}
-    </section>
-  )
-}
-
-function NetworkRead({ network, cpm }: { network: NetworkPage; cpm: number | null | undefined }) {
-  return (
-    <div className="set-body">
-      <dl className="rec kv">
-        <div className="rec-row">
-          <dt>Name</dt>
-          <dd>{network.name}</dd>
-        </div>
-        <div className="rec-row">
-          <dt>CPM</dt>
-          <dd>{cpm === undefined ? 'Connecting…' : cpm === null ? 'Not set' : dollars(cpm)}</dd>
-        </div>
-      </dl>
-      <p className="help">Only an owner can change these.</p>
-    </div>
+    </Module>
   )
 }
 
@@ -74,45 +65,53 @@ function NetworkForm({ network, cpm }: { network: NetworkPage; cpm: number | nul
     })
   return (
     <form
-      className="set-body set-form"
+      className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault()
         setDone(false)
         void save()
       }}
     >
-      <label htmlFor="set-name">Name</label>
-      <input
-        id="set-name"
-        className="acct-in"
-        value={name}
-        onChange={(e) => {
-          setName(e.target.value)
-          setDone(false)
-        }}
-        maxLength={MAX_NAME}
-        required
-      />
-      <label htmlFor="set-cpm">CPM</label>
-      <span className="in set-cpm">
-        <span className="pre">$</span>
-        <input
-          id="set-cpm"
-          inputMode="decimal"
-          value={shownCpm}
-          disabled={cpm === undefined}
-          onChange={(e) => {
-            setTypedCpm(e.target.value)
-            setDone(false)
-          }}
-          placeholder={cpm === undefined ? 'Connecting…' : 'Not set'}
-        />
-      </span>
-      <div className="acts">
-        <button className="btn pri" type="submit" disabled={busy || !name.trim() || !changed}>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="set-name">Name</FieldLabel>
+          <Input
+            id="set-name"
+            className="max-w-sm max-md:h-11"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              setDone(false)
+            }}
+            maxLength={MAX_NAME}
+            required
+          />
+        </Field>
+        <Field data-disabled={cpm === undefined || undefined}>
+          <FieldLabel htmlFor="set-cpm">CPM</FieldLabel>
+          <InputGroup className="max-w-40 max-md:h-11">
+            <InputGroupAddon>$</InputGroupAddon>
+            <InputGroupInput
+              id="set-cpm"
+              inputMode="decimal"
+              value={shownCpm}
+              disabled={cpm === undefined}
+              onChange={(e) => {
+                setTypedCpm(e.target.value)
+                setDone(false)
+              }}
+              placeholder={cpm === undefined ? 'Connecting…' : 'Not set'}
+            />
+          </InputGroup>
+          <FieldDescription>Dollars per 1,000 downloads.</FieldDescription>
+        </Field>
+      </FieldGroup>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={busy || !name.trim() || !changed} className="max-md:h-11">
+          {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Saving…' : 'Save'}
-        </button>
-        {done && !changed && <StateLine kind="empty">Saved.</StateLine>}
+        </Button>
+        <Done shown={done && !changed}>Saved.</Done>
       </div>
       <Alert error={error} />
     </form>

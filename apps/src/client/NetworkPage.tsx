@@ -4,7 +4,7 @@ import { buttonVariants } from '@/components/ui/variants'
 import type { State } from '../agent'
 import type { Role } from '../directory'
 import type { NetworkAgent } from '../network-agent'
-import { ConnectionState, connectionOf, StateLine } from './states'
+import { StateLine } from './states'
 
 // A network's page, as the server describes it: the network, the member's role in it, and where its
 // other pages are. `inbox` is null while GUEST_PITCHES is off; a launch's page is under `launches`.
@@ -26,38 +26,20 @@ const FORCED = [4403, 4410]
 
 // A network's page (the dashboard, the roster, the inbox, settings, a launch) on its agent's socket.
 // Shut out for good by a forced close, the page gives way to LostAccess. Any other drop is the
-// connection's own, which reconnects by itself while the page keeps what it showed: a page with an
-// on-air readout or a title row that takes the connection says so there, and one without (`notice`)
-// says so in a line above it.
+// connection's own, which reconnects by itself while the page keeps what it showed, and says so in its
+// on-air readout or its title row.
 export function NetworkGate({
   agent,
   network,
-  notice = false,
   children
 }: {
   agent: { state: unknown; identified: boolean; connectionError: { code: number; reason: string } | null }
   network: NetworkPage
-  notice?: boolean
   children: ReactNode
 }) {
   const closed = agent.connectionError
   if (closed && FORCED.includes(closed.code)) return <LostAccess network={network} reason={closed.reason} />
-  const connection = connectionOf(agent)
-  return (
-    <>
-      {/* Always there, so a screen reader hears the line as it appears. */}
-      {notice && (
-        <div role="status" className="px-4 lg:px-6 [&:not(:empty)]:pt-6">
-          {(connection.lost || connection.reconnecting) && (
-            <p className="flex min-h-10 items-center rounded-lg bg-muted px-3 py-2">
-              <ConnectionState connection={connection} />
-            </p>
-          )}
-        </div>
-      )}
-      {children}
-    </>
-  )
+  return children
 }
 
 // A network's page once its agent has closed the connection for good, as when the member is removed

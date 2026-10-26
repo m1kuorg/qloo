@@ -1,13 +1,19 @@
-import { Fragment, useState } from 'react'
+import { useRef, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import type { Invite, NetworkMember } from '../../directory'
+import { useConfirm } from '../Confirm'
 import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
+import { cell, head, Module } from './Module'
 
 // The settings' members module: who's in the network, with their role and when they joined, and, for
 // an owner, its invite links. An owner changes roles, removes members, and makes and revokes links;
 // any member can leave. No change may leave the network without an owner: the Worker refuses one, and
-// the module doesn't offer it. `invites` is null for a member, who doesn't see them.
+// the module doesn't offer it. `invites` is null for a member, who doesn't see them. Removing, leaving
+// and revoking each confirm first.
 export function MembersModule({
   network,
   memberId,
@@ -20,9 +26,9 @@ export function MembersModule({
   invites: Invite[] | null
 }) {
   const [members, setMembers] = useState(listed)
-  // The member whose removal, or the member's own leaving, waits on a yes.
-  const [asking, setAsking] = useState<string | null>(null)
   const { busy, error, run } = useAction()
+  const heading = useRef<HTMLHeadingElement>(null)
+  const { confirm, dialog } = useConfirm(heading)
   const owner = network.role === 'owner'
   const ownerCount = members.filter((m) => m.role === 'owner').length
   const me = members.find((m) => m.id === memberId)
@@ -38,128 +44,120 @@ export function MembersModule({
       if (m.id === memberId) return window.location.reload()
       setMembers(answer.members)
     })
-  const remove = (m: NetworkMember) =>
-    run(async () => {
-      if (m.id === memberId) {
-        await send(`${path}/leave`)
-        return window.location.assign('/app')
-      }
-      setMembers((await send<{ members: NetworkMember[] }>(`${path}/${m.id}/remove`)).members)
-      setAsking(null)
-    })
+  const askOut = (m: NetworkMember) => {
+    const self = m.id === memberId
+    const made = m.role === 'owner'
+    confirm(
+      self
+        ? {
+            title: `Leave ${network.name}?`,
+            consequence: `Your open pages close${made ? ', the API keys and invite links you made are revoked' : ''}, and you’ll need a new invite to come back.`,
+            verb: 'Leave',
+            busy: 'Leaving…',
+            keep: 'Stay',
+            action: async () => {
+              await send(`${path}/leave`)
+              window.location.assign('/app')
+            }
+          }
+        : {
+            title: `Remove ${m.name} from ${network.name}?`,
+            consequence: `Their open pages close at once${made ? ', the API keys and invite links they made are revoked' : ''}, and they’ll need a new invite to come back.`,
+            verb: 'Remove',
+            busy: 'Removing…',
+            keep: 'Keep',
+            action: async () => setMembers((await send<{ members: NetworkMember[] }>(`${path}/${m.id}/remove`)).members)
+          }
+    )
+  }
 
   return (
-    <section className="mod set-mod" aria-labelledby="set-members-h">
-      <div className="set-about">
-        <h2 className="lbl" id="set-members-h">
-          Members
-        </h2>
-        <p className="help">
-          Everyone who can open {network.name}. Owners invite people, change roles, and remove members; members work on
-          the roster, launches, and inbox. An owner who leaves, is removed, or is made a member loses the API keys and
-          invite links they made: each is revoked at once.
-        </p>
-      </div>
-      <div className="set-body wide">
-        <ScrollTable label="Members table">
-          <table className="chart members">
-            <thead>
-              <tr>
-                <th scope="col">Member</th>
-                <th scope="col">Role</th>
-                <th scope="col">Joined</th>
-                <th scope="col">
-                  <span className="vh">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => {
-                const self = m.id === memberId
-                const out = outWords(self, m.name, network.name, m.role === 'owner')
-                // A network keeps at least one owner, so its last one has no "Make member".
-                const canSetRole = owner && !(m.role === 'owner' && ownerCount === 1)
-                return (
-                  <Fragment key={m.id}>
-                    <tr className={asking === m.id ? 'on' : undefined}>
-                      <td className="nm">
-                        {m.name}
-                        {self && <span className="chip">You</span>}
-                      </td>
-                      <td>{m.role === 'owner' ? 'Owner' : 'Member'}</td>
-                      <td className="tg">{day(m.joined)}</td>
-                      <td className="r">
-                        <span className="row-acts">
-                          {canSetRole && (
-                            <button className="lnk" type="button" disabled={busy} onClick={() => void setRole(m)}>
-                              {m.role === 'owner' ? 'Make member' : 'Make owner'}
-                            </button>
-                          )}
-                          {(self || owner) && (
-                            <button
-                              className="lnk"
-                              type="button"
-                              disabled={busy || (self && lastOwner)}
-                              aria-expanded={asking === m.id}
-                              onClick={() => setAsking(asking === m.id ? null : m.id)}
-                            >
-                              {out.act}
-                            </button>
-                          )}
-                        </span>
-                      </td>
-                    </tr>
-                    {asking === m.id && (
-                      <tr className="on ask">
-                        <td colSpan={4}>
-                          <p>{out.ask}</p>
-                          <div className="acts">
-                            <button className="btn pri" type="button" disabled={busy} onClick={() => void remove(m)}>
-                              {busy ? out.busy : out.act}
-                            </button>
-                            <button className="lnk" type="button" onClick={() => setAsking(null)}>
-                              {out.back}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-        </ScrollTable>
-        <Alert error={error} />
-        {lastOwner && members.length > 1 && (
-          <p className="help">You’re the only owner. Make someone else an owner before you leave.</p>
-        )}
-        {lastOwner && members.length === 1 && (
-          <p className="help">A network needs an owner, so its only one can’t leave.</p>
-        )}
-        {!owner && <p className="help">Only an owner can invite people, change roles, or remove members.</p>}
-        {invites && <InviteLinks path={path} invites={invites} />}
-      </div>
-    </section>
+    <Module
+      id="set-members-h"
+      title="Members"
+      heading={heading}
+      help={`Everyone who can open ${network.name}. Owners invite people, change roles, and remove members; members work on the roster, launches, and inbox. An owner who leaves, is removed, or is made a member loses the API keys and invite links they made: each is revoked at once.`}
+    >
+      <ScrollTable label="Members table">
+        <table className="relative w-full min-w-[20rem] border-separate border-spacing-0">
+          <thead className="type-caption text-muted-foreground">
+            <tr>
+              <th scope="col" className={head}>
+                Member
+              </th>
+              <th scope="col" className={head}>
+                Role
+              </th>
+              <th scope="col" className={head}>
+                Joined
+              </th>
+              <th scope="col" className={head}>
+                <span className="vh">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((m) => {
+              const self = m.id === memberId
+              // A network keeps at least one owner, so its last one has no "Make member".
+              const canSetRole = owner && !(m.role === 'owner' && ownerCount === 1)
+              return (
+                <tr key={m.id}>
+                  <th scope="row" className={`${cell} text-left font-medium`}>
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      {m.name}
+                      {self && <Badge variant="outline">You</Badge>}
+                    </span>
+                  </th>
+                  <td className={`${cell} whitespace-nowrap`}>{m.role === 'owner' ? 'Owner' : 'Member'}</td>
+                  <td className={`${cell} whitespace-nowrap text-muted-foreground`}>{day(m.joined)}</td>
+                  <td className={`${cell} pr-0 text-right`}>
+                    <span className="inline-flex flex-wrap justify-end gap-1">
+                      {canSetRole && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="max-md:h-11"
+                          disabled={busy}
+                          onClick={() => void setRole(m)}
+                        >
+                          {m.role === 'owner' ? 'Make member' : 'Make owner'}
+                        </Button>
+                      )}
+                      {(self || owner) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="max-md:h-11"
+                          disabled={busy || (self && lastOwner)}
+                          onClick={() => askOut(m)}
+                        >
+                          {self ? 'Leave' : 'Remove'}
+                        </Button>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </ScrollTable>
+      <Alert error={error} />
+      {lastOwner && members.length > 1 && (
+        <p className="text-muted-foreground">You’re the only owner. Make someone else an owner before you leave.</p>
+      )}
+      {lastOwner && members.length === 1 && (
+        <p className="text-muted-foreground">A network needs an owner, so its only one can’t leave.</p>
+      )}
+      {!owner && (
+        <p className="text-muted-foreground">Only an owner can invite people, change roles, or remove members.</p>
+      )}
+      {invites && <InviteLinks path={path} invites={invites} />}
+      {dialog}
+    </Module>
   )
 }
-
-// Taking a member out, in words: the member leaving, or an owner removing someone else. An owner's API
-// keys and invite links go with them.
-const outWords = (self: boolean, member: string, network: string, owner: boolean) =>
-  self
-    ? {
-        act: 'Leave',
-        busy: 'Leaving…',
-        back: 'Stay',
-        ask: `Leave ${network}? Your open pages close${owner ? ', the API keys and invite links you made are revoked' : ''}, and you’ll need a new invite to come back.`
-      }
-    : {
-        act: 'Remove',
-        busy: 'Removing…',
-        back: 'Keep',
-        ask: `Remove ${member} from ${network}? Their open pages close at once${owner ? ', the API keys and invite links they made are revoked' : ''}, and they’ll need a new invite to come back.`
-      }
 
 // An owner's invite links: making one shows it once, to copy; the list shows each one still open by
 // its dates, to revoke.
@@ -167,28 +165,42 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
   const [invites, setInvites] = useState(listed)
   const [made, setMade] = useState<{ id: string; link: string } | null>(null)
   const { busy, error, run } = useAction()
+  const heading = useRef<HTMLHeadingElement>(null)
+  const { confirm, dialog } = useConfirm(heading)
   const create = () =>
     run(async () => {
       const answer = await send<{ id: string; link: string; invites: Invite[] }>(`${path}/invites`)
       setMade({ id: answer.id, link: answer.link })
       setInvites(answer.invites)
     })
-  const revoke = (id: string) =>
-    run(async () => {
-      setInvites((await send<{ invites: Invite[] }>(`${path}/invites/${id}/revoke`)).invites)
-      if (made?.id === id) setMade(null)
+  const askRevoke = (i: Invite) =>
+    confirm({
+      title: `Revoke the invite link made ${day(i.created)}${i.by ? ` by ${i.by}` : ''}?`,
+      consequence: 'It stops working at once: whoever opens it is told it was revoked, and needs a new one to join.',
+      verb: 'Revoke',
+      busy: 'Revoking…',
+      keep: 'Keep',
+      action: async () => {
+        setInvites((await send<{ invites: Invite[] }>(`${path}/invites/${i.id}/revoke`)).invites)
+        if (made?.id === i.id) setMade(null)
+      }
     })
   return (
-    <div className="invites">
-      <h3 className="lbl">Invite links</h3>
-      <p className="help">
-        Each link lets one person join as a member, with a new account or the one they have. It works once, for seven
-        days.
-      </p>
-      <div className="acts">
-        <button className="btn pri" type="button" disabled={busy} onClick={() => void create()}>
+    <div className="mt-2 flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h3 className="font-medium" ref={heading} tabIndex={-1}>
+          Invite links
+        </h3>
+        <p className="text-muted-foreground">
+          Each link lets one person join as a member, with a new account or the one they have. It works once, for seven
+          days.
+        </p>
+      </div>
+      <div>
+        <Button variant="secondary" className="max-md:h-11" disabled={busy} onClick={() => void create()}>
+          {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Working…' : 'Create invite link'}
-        </button>
+        </Button>
       </div>
       {made && (
         <ShownOnce key={made.id} id="invite-link" label="New invite link" noun="link" value={made.link}>
@@ -197,24 +209,29 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
       )}
       <Alert error={error} />
       {invites.length === 0 ? (
-        <StateLine kind="empty">No open invite links.</StateLine>
+        <p>
+          <StateLine kind="empty">No open invite links.</StateLine>
+        </p>
       ) : (
-        <ul className="invite-list" aria-label="Open invite links">
+        <ul className="flex flex-col gap-1" aria-label="Open invite links">
           {invites.map((i) => (
-            <li key={i.id}>
-              <span>
-                Made {day(i.created)}
-                {i.by && ` by ${i.by}`}
-                {made?.id === i.id && <span className="chip">New</span>}
-                <span className="tg">Expires {day(i.expires)}</span>
+            <li key={i.id} className="flex items-center justify-between gap-3 rounded-lg bg-card py-1 pr-1 pl-3">
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span>
+                  Made {day(i.created)}
+                  {i.by && ` by ${i.by}`}
+                </span>
+                {made?.id === i.id && <Badge variant="outline">New</Badge>}
+                <span className="type-caption text-muted-foreground">Expires {day(i.expires)}</span>
               </span>
-              <button className="lnk" type="button" disabled={busy} onClick={() => void revoke(i.id)}>
+              <Button variant="ghost" size="sm" className="max-md:h-11" onClick={() => askRevoke(i)}>
                 Revoke
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       )}
+      {dialog}
     </div>
   )
 }

@@ -233,9 +233,22 @@ describe('settings', () => {
     const { id, agent } = await network(ada)
     const html = await settings(ada, id, agent.state())
     expect(words(html)).toContain('Network The name your members see, and the CPM that prices every promo slot')
-    expect(html).toMatch(/<input id="set-name"[^>]*value="Night Shift Audio"/)
-    expect(html).toMatch(/<input id="set-cpm"[^>]*placeholder="Not set"/)
+    expect(html).toMatch(/<input\b(?=[^>]*\sid="set-name")(?=[^>]*\svalue="Night Shift Audio")/)
+    expect(html).toMatch(/<input\b(?=[^>]*\sid="set-cpm")(?=[^>]*\splaceholder="Not set")/)
     expect(words(html)).toContain('Save')
+  })
+
+  it("say in the title row whether the network's agent is connecting or reconnecting", async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const page = await island(ada, `/app/${id}/settings`)
+    const read = (state: State | undefined, reconnecting = false) =>
+      words(renderToStaticMarkup(<Settings {...page} state={state} connection={{ lost: null, reconnecting }} />))
+    expect(read(undefined)).toMatch(
+      /^Settings You’re an owner of this network\. Working Connecting to the network… Network /
+    )
+    expect(read(agent.state(), true)).toMatch(/^Settings You’re an owner of this network\. Reconnecting… Network /)
+    expect(read(agent.state())).toMatch(/^Settings You’re an owner of this network\. Network /)
   })
 
   it('show a member the same settings read-only', async () => {
@@ -381,7 +394,7 @@ describe('settings', () => {
     expect(read).toContain(
       'Host Qloo’s production API api.qloo.com Qloo’s hackathon API hackathon.api.qloo.com, where hackathon keys work Key Test and save key'
     )
-    expect(html).toMatch(/<input[^>]*type="password"[^>]*id="qloo-key"/)
+    expect(html).toMatch(/<input\b(?=[^>]*\stype="password")(?=[^>]*\sid="qloo-key")/)
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Test and save key<\/button>/)
 
     fakeQloo({ search: { 'Corner Booth': [{ entity_id: 'e-0501', name: 'Corner Booth', popularity: 0.6 }] } })
