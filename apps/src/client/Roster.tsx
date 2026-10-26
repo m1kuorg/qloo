@@ -2,15 +2,18 @@ import { useRef, useState } from 'react'
 import { sample as sampleNetwork, sampleRoster, type Sample } from '../sample'
 import { Alert, useAction } from './controls'
 import { EvidencePanel, useEvidence } from './Evidence'
-import { LostAccess, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
+import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
 import { CpmRecord, RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor } from './RosterModules'
 import { StateLine } from './states'
 
 // The network's roster page, connected to the network's agent.
 export function RosterPage({ agentPath, network }: { agentPath: string; network: NetworkPage }) {
   const agent = useNetwork(agentPath)
-  if (agent.connectionError) return <LostAccess network={network} reason={agent.connectionError.reason} />
-  return <NetworkRoster agent={agent} network={network} />
+  return (
+    <NetworkGate agent={agent} network={network} notice>
+      <NetworkRoster agent={agent} network={network} />
+    </NetworkGate>
+  )
 }
 
 // The roster every launch on the network ranks, kept by its agent: the demo's roster table and show

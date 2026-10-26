@@ -4,17 +4,12 @@ import type { Launch, State } from '../agent'
 import type { LaunchAgent } from '../launch-agent'
 import { Workspace, type Session } from './App'
 import { launchTitle } from './LaunchFields'
-import { LostAccess, type NetworkPage } from './NetworkPage'
+import { NetworkGate, type NetworkPage } from './NetworkPage'
 
 // A launch's agent, at the path the server gives, which checks the member's session and membership
 // and that the network lists the launch.
 const useLaunch = (path: string) =>
   useAgent<LaunchAgent, State>({ agent: 'LaunchAgent', basePath: path.replace(/^\//, '') })
-
-// The close codes the agents shut a page out with for good: 4403 when the member is removed, leaves,
-// or signs out everywhere; 4410 when the launch or its network is deleted. Any other drop is the
-// connection's own, which reconnects by itself while the workspace says so.
-const FORCED = [4403, 4410]
 
 // A launch's page, connected to its own agent. `orders` is where its approved orders export.
 export function LaunchPage({
@@ -27,9 +22,12 @@ export function LaunchPage({
   orders: string
 }) {
   const agent = useLaunch(agentPath)
-  if (agent.connectionError && FORCED.includes(agent.connectionError.code))
-    return <LostAccess network={network} reason={agent.connectionError.reason} />
-  return <LaunchWorkspace agent={agent} network={network} orders={orders} />
+  // Its readout says when the connection drops.
+  return (
+    <NetworkGate agent={agent} network={network}>
+      <LaunchWorkspace agent={agent} network={network} orders={orders} />
+    </NetworkGate>
+  )
 }
 
 // The demo's launch workspace for one of the network's launches: its runs, chart, questions, and order,

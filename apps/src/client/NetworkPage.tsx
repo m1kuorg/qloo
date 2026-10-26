@@ -1,8 +1,10 @@
 import { useAgent } from 'agents/react'
+import type { ReactNode } from 'react'
+import { buttonVariants } from '@/components/ui/variants'
 import type { State } from '../agent'
 import type { Role } from '../directory'
 import type { NetworkAgent } from '../network-agent'
-import { StateLine } from './states'
+import { ConnectionState, connectionOf, StateLine } from './states'
 
 // A network's page, as the server describes it: the network, the member's role in it, and where its
 // other pages are. `inbox` is null while GUEST_PITCHES is off; a launch's page is under `launches`.
@@ -18,24 +20,63 @@ export const useNetwork = (path: string) =>
   useAgent<NetworkAgent, State>({ agent: 'NetworkAgent', basePath: path.replace(/^\//, '') })
 export type NetworkConnection = ReturnType<typeof useNetwork>
 
+// The close codes the agents shut a page out with for good: 4403 when the member is removed, leaves,
+// or signs out everywhere; 4410 when the launch or its network is deleted.
+const FORCED = [4403, 4410]
+
+// A network's page (the dashboard, the roster, the inbox, settings, a launch) on its agent's socket.
+// Shut out for good by a forced close, the page gives way to LostAccess. Any other drop is the
+// connection's own, which reconnects by itself while the page keeps what it showed: a page with an
+// on-air readout says so there, and one without (`notice`) says so in a line above it.
+export function NetworkGate({
+  agent,
+  network,
+  notice = false,
+  children
+}: {
+  agent: { state: unknown; identified: boolean; connectionError: { code: number; reason: string } | null }
+  network: NetworkPage
+  notice?: boolean
+  children: ReactNode
+}) {
+  const closed = agent.connectionError
+  if (closed && FORCED.includes(closed.code)) return <LostAccess network={network} reason={closed.reason} />
+  const connection = connectionOf(agent)
+  return (
+    <>
+      {/* Always there, so a screen reader hears the line as it appears. */}
+      {notice && (
+        <div role="status" className="px-4 lg:px-6 [&:not(:empty)]:pt-6">
+          {(connection.lost || connection.reconnecting) && (
+            <p className="flex min-h-10 items-center rounded-lg bg-muted px-3 py-2">
+              <ConnectionState connection={connection} />
+            </p>
+          )}
+        </div>
+      )}
+      {children}
+    </>
+  )
+}
+
 // A network's page once its agent has closed the connection for good, as when the member is removed
 // or leaves: what it showed goes, and the page says why. A reload answers 404.
 export function LostAccess({ network, reason }: { network: NetworkPage; reason: string }) {
   return (
-    <>
-      <section className="hd" aria-label="Network">
-        <h1>{network.name}</h1>
+    <div className="flex flex-col gap-4 px-4 pt-6 pb-10 lg:px-6">
+      <section aria-label="Network">
+        <h1 className="type-title text-balance">{network.name}</h1>
       </section>
-      <main className="lost">
-        <StateLine kind="error" role="alert">
-          {reason || 'This page lost its connection to the network. Reload to try again.'}
-        </StateLine>
+      <main className="flex max-w-[72ch] flex-col items-start gap-3">
         <p>
-          <a className="lnk" href="/app">
-            Open your networks
-          </a>
+          <StateLine kind="error" role="alert">
+            {reason || 'This page lost its connection to the network. Reload to try again.'}
+          </StateLine>
         </p>
+        <a className={buttonVariants({ variant: 'link' })} href="/app">
+          Open your networks
+        </a>
       </main>
-    </>
+    </div>
   )
 }

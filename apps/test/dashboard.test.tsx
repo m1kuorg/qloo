@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
-import { LostAccess } from '../src/client/NetworkPage'
+import { LostAccess, NetworkGate } from '../src/client/NetworkPage'
 import { Settings } from '../src/client/Settings'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
 import { api, openMember, regions, type Member, type Session } from './session'
@@ -417,5 +417,52 @@ describe('settings', () => {
     expect(theirs).toContain('Danger zone')
     expect(theirs).toContain('Only an owner can delete the network.')
     expect(theirs).not.toContain('Delete network')
+  })
+})
+
+// What a network's page shows of its agent's socket, the same on every network page: the dashboard
+// here, as DashboardPage wraps it.
+describe("a network page's connection", () => {
+  const gated = async (connection: { identified?: boolean; connectionError?: { code: number; reason: string } }) => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const page = await island(ada, `/app/${id}`)
+    const html = await dashboard(ada, id, agent.state())
+    const gate = { state: agent.state(), identified: true, connectionError: null, ...connection }
+    return words(
+      renderToStaticMarkup(
+        <NetworkGate agent={gate} network={page.network} notice>
+          <div dangerouslySetInnerHTML={{ __html: html }} />
+        </NetworkGate>
+      )
+    )
+  }
+
+  it('says nothing of a connection that is up', async () => {
+    const read = await gated({})
+    expect(read).not.toContain('Reconnecting…')
+    expect(read).toContain('Launches')
+  })
+
+  it('says it is reconnecting while the socket is down, keeping what the page showed', async () => {
+    const read = await gated({ identified: false })
+    expect(read).toMatch(/^Reconnecting… Night Shift Audio/)
+    expect(read).toContain('Launches')
+  })
+
+  it('says a connection closed for good without a reason of its own is lost, keeping the page', async () => {
+    const read = await gated({ connectionError: { code: 1008, reason: '' } })
+    expect(read).toMatch(/^Error This page lost its connection\. Reload to try again\. Night Shift Audio/)
+    expect(read).toContain('Launches')
+  })
+
+  it("drops the page for the agent's reason when it shuts the member out, 4403, or the network is gone, 4410", async () => {
+    for (const [code, reason] of [
+      [4403, "You're no longer a member of this network."],
+      [4410, 'This network was deleted.']
+    ] as const) {
+      const read = await gated({ connectionError: { code, reason } })
+      expect(read).toBe(`Night Shift Audio Error ${reason} Open your networks`)
+    }
   })
 })

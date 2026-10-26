@@ -4,7 +4,7 @@ import type { Inbox } from '../inbox'
 import { dollars } from '../order'
 import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { launchTitle, useLaunchFields } from './LaunchFields'
-import { LostAccess, useNetwork, type NetworkPage } from './NetworkPage'
+import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { stateLabel, StateLine } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
@@ -13,14 +13,15 @@ export type Setup = { invited: boolean; apiKey: boolean }
 
 export function DashboardPage(props: { agentPath: string; network: NetworkPage; memberId: string; setup: Setup }) {
   const agent = useNetwork(props.agentPath)
-  if (agent.connectionError) return <LostAccess network={props.network} reason={agent.connectionError.reason} />
   return (
-    <Dashboard
-      {...props}
-      state={agent.state}
-      dismiss={() => agent.stub.dismissChecklist()}
-      createLaunch={(input) => agent.stub.createLaunch(input)}
-    />
+    <NetworkGate agent={agent} network={props.network} notice>
+      <Dashboard
+        {...props}
+        state={agent.state}
+        dismiss={() => agent.stub.dismissChecklist()}
+        createLaunch={(input) => agent.stub.createLaunch(input)}
+      />
+    </NetworkGate>
   )
 }
 

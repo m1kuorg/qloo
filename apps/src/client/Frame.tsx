@@ -6,10 +6,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Run, SlowCall } from '../agent'
-import type { Session } from './App'
 import type { Opened } from './Evidence'
 import { runLabel } from './Run'
-import { SlowCalls, StateLine } from './states'
+import { ConnectionState, SlowCalls, StateLine, type Connection } from './states'
 
 // The frame the run pages share, the launch workspace (App.tsx) and the inbox (Inbox.tsx): a canvas
 // beside an inspector, the on-air readout at the head of the canvas, and the connecting state.
@@ -148,15 +147,6 @@ function useMedia(query: string) {
   return matches
 }
 
-// What the page knows of its socket besides the state: a connection that closed for good, or one
-// that dropped and reconnects by itself. The agent's first state arrives with its identity, so a state
-// without one is a reconnect, never the first connect.
-export type Connection = { lost: string | null; reconnecting: boolean }
-export function connectionOf(agent: Session): Connection {
-  const lost = agent.connectionError ? 'This page lost its connection. Reload to try again.' : null
-  return { lost, reconnecting: !lost && agent.state !== undefined && agent.identified === false }
-}
-
 // The on-air readout's strip: one line on the tone step, which wraps when it has more to say.
 const readout = 'flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2'
 
@@ -178,12 +168,7 @@ export function Readout({
   return (
     <div className={readout}>
       <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-        {connection.lost && <StateLine kind="error">{connection.lost}</StateLine>}
-        {connection.reconnecting && (
-          <StateLine kind="loading" word="Reconnecting…">
-            {null}
-          </StateLine>
-        )}
+        <ConnectionState connection={connection} />
         {children}
       </div>
       {/* Outside the live region, so screen readers aren't told the time every second. */}

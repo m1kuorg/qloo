@@ -94,3 +94,24 @@ export const stateLabel = (p: Pitch) =>
     failed: 'Failed',
     read: p.match ? matchLabel[p.match.resolution] : 'Looking up'
   })[p.status]
+
+// What a page knows of its agent's socket besides the state: a connection that closed for good, or
+// one that dropped and reconnects by itself. The agent's first state arrives with its identity, so a
+// state without one is a reconnect, never the first connect.
+export type Connection = { lost: string | null; reconnecting: boolean }
+export function connectionOf(agent: { state: unknown; identified: boolean; connectionError: unknown }): Connection {
+  const lost = agent.connectionError ? 'This page lost its connection. Reload to try again.' : null
+  return { lost, reconnecting: !lost && agent.state !== undefined && agent.identified === false }
+}
+
+// The connection's own state as a line: lost, or reconnecting; nothing while it's connected.
+export function ConnectionState({ connection }: { connection: Connection }) {
+  if (connection.lost) return <StateLine kind="error">{connection.lost}</StateLine>
+  if (connection.reconnecting)
+    return (
+      <StateLine kind="loading" word="Reconnecting…">
+        {null}
+      </StateLine>
+    )
+  return null
+}
