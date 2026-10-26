@@ -1,5 +1,17 @@
 import { startAuthentication } from '@simplewebauthn/browser'
+import { CheckIcon, CopyIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { Refused, send } from './controls'
 import { StateLine } from './states'
 
@@ -53,9 +65,10 @@ export async function sendConfirmed<T>(path: string, askCode: () => Promise<stri
   }
 }
 
-// Asks for the recovery code in place, for a change in a browser signed in with it: `ask` resolves with
-// the code the member types, or rejects once they cancel; `form`, on Panel Grey, is what shows meanwhile,
-// and `asking` says it's showing. `id` names its field.
+// Asks for the recovery code, for a change in a browser signed in with it: `ask` resolves with the
+// code the member types, or rejects once they cancel or close it; `form`, rendered anywhere in the
+// module, is the Dialog it asks in, and `asking` says it's open. `id` names its field. It's only ever
+// asked once a confirm has closed, so it never stacks on one.
 export function useCodeAsk(id: string) {
   const [asking, setAsking] = useState<{ resolve: (code: string) => void; reject: (err: Error) => void } | null>(null)
   const [typed, setTyped] = useState('')
@@ -64,54 +77,62 @@ export function useCodeAsk(id: string) {
       setTyped('')
       setAsking({ resolve, reject })
     })
-  const form = asking && (
-    <form
-      className="set-ask"
-      onSubmit={(e) => {
-        e.preventDefault()
-        asking.resolve(typed)
-        setAsking(null)
-      }}
-    >
-      <label htmlFor={id}>Confirm it’s you with your recovery code</label>
-      <p className="help">
-        This browser signed in with it, so it has no passkey of yours to ask for. Use the code Crossfeed showed you
-        last.
-      </p>
-      <input
-        id={id}
-        className="acct-in code-in"
-        value={typed}
-        onChange={(e) => setTyped(e.target.value)}
-        placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
-        autoComplete="off"
-        autoCapitalize="characters"
-        spellCheck={false}
-        autoFocus
-        required
-      />
-      <div className="acts">
-        <button className="btn pri" type="submit" disabled={!typed.trim()}>
-          Confirm
-        </button>
-        <button
-          className="lnk"
-          type="button"
-          onClick={() => {
-            asking.reject(new Error('Not confirmed, so nothing changed.'))
+  const cancel = () => {
+    asking?.reject(new Error('Not confirmed, so nothing changed.'))
+    setAsking(null)
+  }
+  const form = (
+    <Dialog open={asking !== null} onOpenChange={(open) => !open && cancel()}>
+      <DialogContent>
+        <form
+          className="grid gap-5"
+          onSubmit={(e) => {
+            e.preventDefault()
+            asking?.resolve(typed)
             setAsking(null)
           }}
         >
-          Cancel
-        </button>
-      </div>
-    </form>
+          <DialogHeader>
+            <DialogTitle>Confirm it’s you with your recovery code</DialogTitle>
+            <DialogDescription>
+              This browser signed in with it, so it has no passkey of yours to ask for. Use the code Crossfeed showed
+              you last.
+            </DialogDescription>
+          </DialogHeader>
+          <Field>
+            <FieldLabel htmlFor={id}>Your recovery code</FieldLabel>
+            <Input
+              id={id}
+              className="font-mono max-md:h-11"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              required
+            />
+          </Field>
+          <DialogFooter>
+            <Button variant="secondary" onClick={cancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!typed.trim()}>
+              Confirm
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
   return { ask, form, asking: asking !== null }
 }
 
-// The recovery code, shown once: the member copies or writes it down, then goes on.
-export function RecoveryCode({ code, next }: { code: string; next: string }) {
+// The recovery code, shown once: the member copies or writes it down, then goes on. Its heading takes
+// focus as it shows. The code is set in mono at title size, its five groups of four apart, and read to
+// screen readers letter by letter, a group at a time. In `frame`, the page's two columns from 1024px:
+// what it is, at display size, beside the code on the card.
+export function RecoveryCode({ code, next, frame }: { code: string; next: string; frame: string }) {
   const heading = useRef<HTMLHeadingElement>(null)
   const [copied, setCopied] = useState<boolean | null>(null)
   useEffect(() => heading.current?.focus(), [])
@@ -123,35 +144,47 @@ export function RecoveryCode({ code, next }: { code: string; next: string }) {
       setCopied(false)
     }
   }
+  const groups = code.split('-')
   return (
-    <main className="acct">
-      <header className="acct-hd">
-        <h1 ref={heading} tabIndex={-1}>
+    <main className={frame}>
+      <div className="flex flex-col gap-4">
+        <h1 ref={heading} tabIndex={-1} className="type-display text-balance">
           Save your recovery code
         </h1>
-        <p className="help">
+        <p className="max-w-[48ch] type-body text-muted-foreground">
           If you lose every passkey, this code signs you in once. Crossfeed shows it only now, and keeps no copy it can
           read.
         </p>
-      </header>
-      <div className="saved">
-        <p className="code" aria-label={`Recovery code ${code.split('').join(' ')}`}>
-          {code}
+      </div>
+      <div className="flex w-full max-w-[32rem] flex-col gap-4 rounded-xl bg-card p-4 sm:p-6 lg:justify-self-end">
+        <p className="font-mono type-title">
+          <span className="sr-only">Recovery code: {groups.map((g) => g.split('').join(' ')).join(', ')}</span>
+          <span aria-hidden="true">
+            {groups.map((g, i) => (
+              <span key={i}>
+                {i > 0 && <span className="mx-1 text-muted-foreground">-</span>}
+                {g}
+              </span>
+            ))}
+          </span>
         </p>
-        <div className="acts">
-          <button className="btn" type="button" onClick={() => void copy()}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" className="max-md:h-11" onClick={() => void copy()}>
+            {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
             {copied ? 'Copied' : 'Copy code'}
-          </button>
-          <button className="btn pri" type="button" onClick={() => window.location.assign(next)}>
+          </Button>
+          <Button className="max-md:h-11" onClick={() => window.location.assign(next)}>
             I’ve saved it
-          </button>
+          </Button>
         </div>
         {copied === false && (
           <StateLine kind="error" role="alert">
             This browser didn’t let Crossfeed copy it. Select the code and copy it yourself.
           </StateLine>
         )}
-        <p className="help">Keep it somewhere other than this device, such as your password manager or on paper.</p>
+        <p className="text-muted-foreground">
+          Keep it somewhere other than this device, such as your password manager or on paper.
+        </p>
       </div>
     </main>
   )
