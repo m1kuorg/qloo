@@ -224,4 +224,42 @@ describe('the evidence behind each Qloo call', () => {
       names.slice(1).map(id)
     )
   })
+
+  it('shows raw figures as Qloo returned them, without the noise of binary floats', () => {
+    // A demographics call, whose buckets are signed decimals: one carries float noise, one is a sum.
+    const record: Evidence = {
+      call: 'C-07',
+      run: null,
+      at: '2026-10-19T12:00:00.000Z',
+      method: 'POST',
+      endpoint: '/v2/insights',
+      params: { 'filter.type': 'urn:demographics', 'signal.interests.entities': 'e-0001' },
+      status: 200,
+      latencyMs: 12,
+      retries: 0,
+      cacheHit: false,
+      error: null,
+      entities: [],
+      tags: [],
+      affinities: [
+        {
+          id: 'e-0001',
+          name: 'Night Shift Cinema',
+          affinity: null,
+          explainability: [
+            { id: 'age.25_to_29', score: -0.03799999999999999 },
+            { id: 'age.30_to_34', score: 0.1 + 0.2 },
+            { id: 'gender.male', score: 0.417 }
+          ]
+        }
+      ]
+    }
+    const html = renderToStaticMarkup(
+      createElement(EvidencePanel, { opened: { call: 'C-07', status: 'loaded', record } })
+    )
+    const read = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+    expect(read).toContain('Affinities · 1 Name Affinity, raw Night Shift Cinema e-0001')
+    expect(read).toContain('age.25_to_29 -0.038 age.30_to_34 0.3 gender.male 0.417 –')
+    expect(read).not.toMatch(/9999|0000/)
+  })
 })

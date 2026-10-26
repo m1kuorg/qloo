@@ -113,6 +113,11 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour12: false })
 
+// A raw figure as Qloo returned it, less the binary-float noise its decimals can carry
+// (-0.03799999999999999 is -0.038). The noise sits in the 16th and 17th significant digits, so 12
+// drop it and keep the figure.
+const raw = (n: number | null) => (n === null ? '–' : String(Number(n.toPrecision(12))))
+
 // A code, such as an entity's Qloo ID, on one line: cut short with an ellipsis where it doesn't fit,
 // whole in its tooltip and to screen readers.
 const Code = ({ children }: { children: string }) => (
@@ -189,7 +194,7 @@ function EvidenceRecord({ record }: { record: Evidence }) {
                 <span className="min-w-0">
                   <Code>{x.id}</Code>
                 </span>
-                <span className="shrink-0 type-caption">{x.score}</span>
+                <span className="shrink-0 type-caption">{raw(x.score)}</span>
               </span>
             )),
             value: a.affinity
@@ -281,7 +286,7 @@ function ValueTable({ title, value, rows }: { title: string; value: string; rows
                 {r.notes}
               </span>
             </td>
-            <td className="py-1.5 pl-3 text-right type-caption break-all">{r.value ?? '–'}</td>
+            <td className="py-1.5 pl-3 text-right type-caption break-all">{raw(r.value)}</td>
           </tr>
         ))}
       </tbody>
