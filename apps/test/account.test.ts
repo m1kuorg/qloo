@@ -109,7 +109,7 @@ describe('the account page', () => {
     expect((await accountPage(ada)).name).toBe('Ada Lovelace')
     // The account menu, and the network's members, say so.
     const settings = await (await ada.fetch(`/app/${network}/settings`)).text()
-    expect(settings).toMatch(/<span class="acct-name"[^>]*>Ada Lovelace<\/span>/)
+    expect(settings).toMatch(/Account: <\/span><span\b[^>]*\sdata-signed-in\b[^>]*>Ada Lovelace<\/span>/)
     expect(settings).toContain('&quot;name&quot;:&quot;Ada Lovelace&quot;')
 
     for (const name of ['', 'x'.repeat(200), 'Ada\u0007']) {

@@ -351,11 +351,10 @@ describe('the developer docs', () => {
     for (const path of docs) expect(hrefs(band), path).toContain(path)
     for (const path of ['/', ...docs]) {
       const top = (await page(path)).match(/<header[\s\S]*?<\/header>/)?.[0] ?? ''
-      expect(top).toMatch(
-        path.startsWith('/docs')
-          ? /<a [^>]*href="\/docs" aria-current="page">Developers<\/a>/
-          : /<a [^>]*href="\/docs">Developers<\/a>/
-      )
+      const developers = top.match(/<a\b[^>]*\shref="\/docs"[^>]*>Developers<\/a>/)?.[0]
+      expect(developers, path).toBeDefined()
+      if (path.startsWith('/docs')) expect(developers, path).toContain('aria-current="page"')
+      else expect(developers, path).not.toContain('aria-current')
     }
   })
 })

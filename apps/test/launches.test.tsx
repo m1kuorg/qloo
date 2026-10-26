@@ -33,7 +33,15 @@ import {
   turn,
   type ModelRequest
 } from './fake'
-import { readAfterReset, connect as connectVia, openMember, openSession, type Member, type Session } from './session'
+import {
+  readAfterReset,
+  connect as connectVia,
+  currentLinks,
+  openMember,
+  openSession,
+  type Member,
+  type Session
+} from './session'
 
 // A made-up network: Field Notes is ambiguous until settled, Ghost Signal isn't in Qloo until mapped
 // to a comp, and Back Lot is left out. Night Shift Cinema, the launch, isn't on the roster.
@@ -262,8 +270,9 @@ describe("a launch's page and agent", () => {
         `data-orders-link="/app/${network}/launches/${id}/insertion-orders"`
       ])
         expect(root).toContain(attribute)
-      // A launch belongs to the dashboard, which lists it.
-      expect(html).toContain(`<a class="on" href="/app/${network}" aria-current="true">Dashboard</a>`)
+      // A launch belongs to the dashboard, which lists it: the shell's one nav marks Launches.
+      expect(html.match(/<nav\b/g)).toHaveLength(1)
+      expect(currentLinks(html)).toEqual([['Launches', `/app/${network}`, 'true']])
 
       const launch = await connect(member, `/agents/launch/${network}/${id}`)
       expect(launch.state()!.launch).toEqual({ name: 'The Night Watch', match: null, comps: [] })

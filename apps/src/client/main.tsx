@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Role } from '../directory'
 import { send } from './controls'
+// The shell's menus: the network switcher and the account menu.
+import './menus'
 import { StateLine } from './states'
 
 const root = document.getElementById('root')!
@@ -83,22 +85,6 @@ void (pages[d.page ?? ''] ?? demo)()
   // the one rule they'd add is in style.css.
   .then((page) => createRoot(root).render(<CSPProvider disableStyleElements>{page}</CSPProvider>))
 
-// The app shell's menus, the network switcher and the account menu: one open at a time, closed by a
-// click outside or Escape, which returns focus to the menu's button.
-const menus = [...document.querySelectorAll<HTMLDetailsElement>('details.menu')]
-for (const menu of menus)
-  menu.addEventListener('toggle', () => {
-    if (menu.open) for (const other of menus) if (other !== menu) other.open = false
-  })
-document.addEventListener('click', (e) => {
-  for (const menu of menus) if (menu.open && !menu.contains(e.target as Node)) menu.open = false
-})
-document.addEventListener('keydown', (e) => {
-  const open = menus.find((m) => m.open)
-  if (e.key !== 'Escape' || !open) return
-  open.open = false
-  open.querySelector('summary')?.focus()
-})
 const signOut = document.querySelector<HTMLButtonElement>('[data-sign-out]')
 if (signOut) wireSignOut(signOut)
 

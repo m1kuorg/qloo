@@ -28,11 +28,12 @@ async function signIn(authenticator: Authenticator) {
   return post('/auth/sign-in', { challenge, response: await authenticator.authenticate(options) })
 }
 
-// Who the app's account menu says is signed in with `cookie`, on /app/new, or where it sends them instead.
+// Who the app's account menu says is signed in with `cookie`, on /app/new, or where it sends them instead:
+// the name right after its button's visually hidden "Account: ".
 const appFor = async (cookie: string) => {
   const page = await get('/app/new', { headers: { Cookie: cookie }, redirect: 'manual' })
   return page.status === 200
-    ? (await page.text()).match(/Account: <\/span><span class="acct-name"[^>]*>([^<]*)</)?.[1]
+    ? (await page.text()).match(/Account: <\/span><span\b[^>]*\sdata-signed-in\b[^>]*>([^<]*)</)?.[1]
     : `${page.status} ${page.headers.get('location')}`
 }
 

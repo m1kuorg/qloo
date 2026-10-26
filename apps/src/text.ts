@@ -15,6 +15,16 @@ export const moveWords = (move: number) =>
 // The longest name a member or a network can have.
 export const MAX_NAME = 64
 
+// A member's initials, as their avatar in the app's account menu shows them: the first letters of
+// their name's first and last words, "AL" for Ada Lovelace, or one for a one-word name.
+export const initials = (name: string) => {
+  const words = name.trim().split(/\s+/)
+  return [words[0], ...(words.length > 1 ? words.slice(-1) : [])]
+    .map((word) => Array.from(word)[0] ?? '')
+    .join('')
+    .toLocaleUpperCase()
+}
+
 // The longest text the agent takes from a person, an API key, or Claude, checked before anything reads
 // it, so no pattern runs long on it: a title or a name, such as a launch's, a comp's, a work's, or a
 // guest's; a typed answer to the agent's question; and an insertion order line's angle.

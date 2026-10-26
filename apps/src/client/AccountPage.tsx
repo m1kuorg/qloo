@@ -1,7 +1,7 @@
 import { startRegistration } from '@simplewebauthn/browser'
 import { Fragment, useState, type ReactNode } from 'react'
 import type { AccountNetwork, AccountPasskey } from '../directory'
-import { listOf, MAX_NAME } from '../text'
+import { initials, listOf, MAX_NAME } from '../text'
 import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { prompted, RecoveryCode, sendConfirmed, useCodeAsk, type Ceremony } from './Passkeys'
 import { StateLine } from './states'
@@ -65,8 +65,10 @@ function NameModule({ name: saved }: { name: string }) {
       setKept(answer.name)
       setName(answer.name)
       setDone(true)
-      // The account menu is the server's: it shows the new name without a reload.
+      // The account menu is the server's: it shows the new name, and its avatar the new initials,
+      // without a reload.
       document.querySelectorAll('[data-signed-in]').forEach((el) => (el.textContent = answer.name))
+      document.querySelectorAll('[data-initials]').forEach((el) => (el.textContent = initials(answer.name)))
     })
   return (
     <section className="mod set-mod" aria-labelledby="acct-name-h">

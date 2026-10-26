@@ -79,7 +79,10 @@ describe('invite links', () => {
     const page = await exports.default.fetch(`${origin}/invite`)
     expect(page.status).toBe(200)
     expect(page.headers.get('Cache-Control')).toBe('no-store')
-    expect(await page.text()).toContain('data-page="invite"')
+    const html = await page.text()
+    expect(html).toContain('data-page="invite"')
+    // No one is signed in, so the shell has no account menu.
+    expect(html).not.toContain('data-signed-in')
     const look = await exports.default.fetch(`${origin}/auth/invite`, write({ token }))
     expect(look.status).toBe(200)
     expect(await look.json()).toEqual({ network: 'Night Shift Audio' })
@@ -98,6 +101,10 @@ describe('invite links', () => {
     const token = tokenOf(await ada.invite(network))
     const grace = await openMember({ name: 'Grace Booker' })
     expect((await grace.fetch(`/app/${network}`)).status).toBe(404)
+    // The page names her, to join as herself, and its shell has her account menu.
+    const invite = await (await grace.fetch('/invite')).text()
+    expect(invite).toContain('data-member-name="Grace Booker"')
+    expect(invite).toMatch(/Account: <\/span><span\b[^>]*\sdata-signed-in\b[^>]*>Grace Booker<\/span>/)
 
     const joined = await post(grace, '/auth/join', { token })
     expect(joined.status).toBe(200)
@@ -136,7 +143,7 @@ describe('invite links', () => {
     expect(grace.network).toBe(network)
     const settings = await (await grace.fetch(`/app/${network}/settings`)).text()
     expect(settings).toContain('data-role="member"')
-    expect(settings).toMatch(/<span class="acct-name"[^>]*>Grace Booker<\/span>/)
+    expect(settings).toMatch(/Account: <\/span><span\b[^>]*\sdata-signed-in\b[^>]*>Grace Booker<\/span>/)
   })
 
   it("don't count a sign-up through one against the visitor's sign-up cap, and let one through past it", async () => {
