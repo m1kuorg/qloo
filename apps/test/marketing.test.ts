@@ -358,3 +358,53 @@ describe('the developer docs', () => {
     }
   })
 })
+
+describe('a page that is not there', () => {
+  // How a browser asks for a page.
+  const browser = { headers: { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' } }
+  const answer = async (path: string, init?: RequestInit) => {
+    const res = await exports.default.fetch(`${origin}${path}`, init)
+    return { status: res.status, type: res.headers.get('content-type'), body: await res.text() }
+  }
+
+  it('shows a browser the 404 page in the marketing shell, with ways back', async () => {
+    env.GUEST_PITCHES = 'off'
+    // A path nothing serves, and pages that refuse: the demo's inbox while guest pitches are off.
+    for (const path of ['/no-such-page', '/docs/nothing-here', '/demo/inbox']) {
+      const res = await answer(path, browser)
+      expect([res.status, res.type], path).toEqual([404, expect.stringMatching(/^text\/html/)])
+      expect(res.body, path).toContain('<title>Not found · Crossfeed</title>')
+      expect(words(main(res.body)), path).toContain('Not on the roster.')
+      expect(hrefs(main(res.body)), path).toEqual(['/', '/demo', '/app'])
+      // The marketing shell's links, and no island.
+      expect(res.body.match(/<header[\s\S]*?<\/header>/)?.[0], path).toMatch(
+        /<a [^>]*href="\/docs"[^>]*>Developers<\/a>/
+      )
+      expect(hrefs(res.body.match(/<footer[\s\S]*<\/footer>/)?.[0] ?? ''), path).toContain('/privacy')
+      expect(res.body, path).not.toContain('id="root"')
+    }
+  })
+
+  it('links nowhere behind accounts while they are off, as their pages are 404 then too', async () => {
+    env.ACCOUNTS = 'off'
+    for (const path of ['/no-such-page', '/app/new', '/sign-in']) {
+      const res = await answer(path, browser)
+      expect(res.status, path).toBe(404)
+      expect(words(main(res.body)), path).toContain('Not on the roster.')
+      expect(hrefs(main(res.body)), path).toEqual(['/', '/demo'])
+      for (const href of hrefs(res.body)) expect(href, path).not.toMatch(/^\/(app|sign-in|invite|api|mcp)\b/)
+    }
+  })
+
+  it("answers today's plain 404 to everything that isn't a browser asking for a page", async () => {
+    const plain = { status: 404, type: expect.stringMatching(/^text\/plain/), body: '404 Not Found' }
+    // A browser's request where a program reads the answer: the API, an agent's address, MCP, the
+    // auth routes, and a CSV download.
+    for (const path of ['/api/nothing', '/agents/nothing', '/mcp/nothing', '/auth/nothing', '/orders/IO-0001.csv'])
+      expect(await answer(path, browser), path).toEqual(plain)
+    // A request that doesn't ask for HTML, or isn't a GET.
+    expect(await answer('/no-such-page')).toEqual(plain)
+    expect(await answer('/no-such-page', { headers: { Accept: 'application/json' } })).toEqual(plain)
+    expect(await answer('/no-such-page', { method: 'POST', ...browser })).toEqual(plain)
+  })
+})

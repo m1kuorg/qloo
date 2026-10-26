@@ -1,13 +1,16 @@
 /** @jsxImportSource hono/jsx */
-// The marketing pages: the landing page at /, the privacy page, and the beta terms. Server-rendered
-// with no island. Nothing here is a Qloo response: the chart and every other illustration use
+// The marketing pages: the landing page at /, the privacy page, the beta terms, and the 404 page.
+// Server-rendered with no island. Nothing here is a Qloo response: the chart and every other illustration use
 // made-up shows, and each says so where it appears.
-import { Hono } from 'hono'
+import { cn } from 'cn'
+import { Hono, type NotFoundHandler } from 'hono'
+import { html } from 'hono/html'
+import { buttonVariants } from '../components/ui/variants'
 import { bandMeter, FINALISTS, type Band as Third } from '../fit'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER } from '../order'
-import { marketingShell } from '../shell'
+import { marketingFrame, MarketingPage, marketingShell } from '../shell'
 import { moveGlyph, moveWords } from '../text'
 import { CLIMB } from '../topic'
 import { SESSION_DAYS } from './demo'
@@ -881,3 +884,62 @@ function Terms({ env }: { env: Env }) {
 
 marketing.get('/privacy', marketingShell('Privacy'), (c) => c.render(<Privacy accounts={c.env.ACCOUNTS === 'on'} />))
 marketing.get('/terms', marketingShell('Beta terms'), (c) => c.render(<Terms env={c.env} />))
+
+// The 404 page's body: ways back home, to the sample network, and while ACCOUNTS is on, to the
+// visitor's networks.
+const NotFound = ({ accounts }: { accounts: boolean }) => (
+  <main class={cn(marketingFrame, 'grid gap-x-10 gap-y-6 pt-16 md:pt-32 lg:grid-cols-2 lg:items-baseline')}>
+    <h1 class="type-display">
+      <span class="line-mask">
+        <span class="block motion-safe:animate-line-up">Not on the roster.</span>
+      </span>
+    </h1>
+    <div class="motion-safe:animate-rise-in">
+      <p class="max-w-[46ch]">
+        Crossfeed has no page at this address. The link may be mistyped, or what it led to was deleted.
+      </p>
+      <ul class="mt-8 flex flex-wrap gap-3">
+        <li>
+          <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/">
+            Home
+          </a>
+        </li>
+        <li>
+          <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/demo">
+            Sample network
+          </a>
+        </li>
+        {accounts && (
+          <li>
+            <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/app">
+              Your networks
+            </a>
+          </li>
+        )}
+      </ul>
+    </div>
+  </main>
+)
+
+// What the Worker answers when nothing serves a request, or a route refuses one as not found: the 404
+// page, in the marketing shell, to a browser asking for a page (a GET that accepts HTML); otherwise,
+// and always under /api, /agents, /mcp, and /auth and for a CSV download, Hono's plain 404, which
+// programs and WebSocket upgrades read.
+export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
+  const path = c.req.path
+  const page =
+    c.req.method === 'GET' &&
+    (c.req.header('Accept') ?? '').includes('text/html') &&
+    !/^\/(api|agents|mcp|auth)(\/|$)/.test(path) &&
+    !path.endsWith('.csv')
+  if (!page) return c.text('404 Not Found', 404)
+  const accounts = c.env.ACCOUNTS === 'on'
+  return c.html(
+    html`<!DOCTYPE html>${(
+        <MarketingPage title="Not found" path={path} accounts={accounts}>
+          <NotFound accounts={accounts} />
+        </MarketingPage>
+      )}`,
+    404
+  )
+}

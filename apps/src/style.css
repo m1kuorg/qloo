@@ -202,6 +202,31 @@
   font-weight: 500;
 }
 
+/* The page sheet's masked headline: a line rises from behind its own baseline, in a mask that keeps
+   its descenders (line-mask). What follows it rises into place after (rise-in). Only with motion
+   allowed (motion-safe:), so with reduced motion everything is in place from the start. */
+@theme {
+  --animate-line-up: line-up 900ms var(--ease-lift) 150ms both;
+  --animate-rise-in: rise-in 500ms var(--ease-lift) 480ms both;
+  @keyframes line-up {
+    from {
+      transform: translateY(105%);
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+}
+@utility line-mask {
+  display: block;
+  overflow: clip;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+
 /* Visually hidden, still read: the "Network: " and "Account: " prefixes, moves' words, "Actions". */
 @utility vh {
   @apply sr-only;

@@ -7,6 +7,9 @@ import { fakeQloo } from './fake'
 import { openMember } from './session'
 
 const origin = 'https://crossfeed.test'
+// An address with no page, which a browser is shown the 404 page for; and how a browser asks.
+const missing = '/no-such-page'
+const browser = { headers: { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' } }
 
 afterEach(() => {
   env.GUEST_PITCHES = 'off'
@@ -43,8 +46,8 @@ function refusedBy(policy: Record<string, string[]>, html: string) {
 // allows for Vite's own stylesheets, so no page may have one.
 const styleAttributes = (html: string) => [...html.matchAll(/<[a-z][^>]*\sstyle="[^"]*"/g)].map(([a]) => a.slice(0, 80))
 
-// Every page as a browser loads it, by path: the signed-out pages, the demo's, and a member's pages
-// of a network (`id`) with a launch (`launch`).
+// Every page as a browser loads it, by path: the signed-out pages, the 404 page for an address that
+// has none (`missing`), the demo's, and a member's pages of a network (`id`) with a launch (`launch`).
 async function everyPage() {
   env.GUEST_PITCHES = 'on'
   fakeQloo({ search: {} })
@@ -61,11 +64,11 @@ async function everyPage() {
   network.close()
 
   const signedOut = ['/', '/privacy', '/terms', '/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
-  const pages = [...signedOut, '/sign-in', '/invite', '/demo', '/demo/inbox']
+  const pages = [...signedOut, missing, '/sign-in', '/invite', '/demo', '/demo/inbox']
   const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/roster`, `/app/${id}/inbox`]
   app.push(`/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
   const loaded = await Promise.all([
-    ...pages.map(async (p) => [p, await exports.default.fetch(`${origin}${p}`)] as const),
+    ...pages.map(async (p) => [p, await exports.default.fetch(`${origin}${p}`, browser)] as const),
     ...app.map(async (p) => [p, await ada.fetch(p)] as const)
   ])
   return { id, launch: launch.id, loaded }
@@ -74,7 +77,7 @@ async function everyPage() {
 describe('every page', () => {
   it("is served under a policy of the app's own origin, nothing framing it, which allows what it loads", async () => {
     for (const [path, res] of (await everyPage()).loaded) {
-      expect(res.status, path).toBe(200)
+      expect(res.status, path).toBe(path === missing ? 404 : 200)
       const policy = policyOf(res)
       expect(policy['default-src'], path).toEqual(["'self'"])
       expect(policy['script-src'], path).not.toContain("'unsafe-inline'")
