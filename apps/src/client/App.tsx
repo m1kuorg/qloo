@@ -27,7 +27,7 @@ import {
   ShowEditor,
   textLink
 } from './RosterModules'
-import { OpenQuestion, ORDER_CHANGED, runLabel, RunLog } from './Run'
+import { OpenQuestion, ORDER_CHANGED, runLabel, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
 import { connectionOf, sentence, StateLine, type Connection } from './states'
 
@@ -311,9 +311,6 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
     </>
   )
 }
-
-// Runs are numbered in the order this session started them.
-const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id === id) + 1
 
 // The head of the canvas: the title row, the on-air readout, the guide, and the launch form. The
 // title row names the launch, with its Qloo match and comps, and holds the run's actions: Start run
@@ -599,79 +596,6 @@ function LaunchComps({
         </span>
       ))}
     </p>
-  )
-}
-
-// Every run this session started, newest first: its number and launch, when and by whom it started,
-// how it ended, and the one shown, or View, which opens an earlier run read-only to compare its plan
-// with the latest.
-function RunList({
-  runs,
-  viewing,
-  view,
-  counted
-}: {
-  runs: RunSummary[]
-  viewing: string | null
-  view: (id: string | null) => Promise<void>
-  counted: 'visitor' | 'network' // whom the daily limits on model runs count
-}) {
-  const { busy, error, run } = useAction()
-  const latest = runs.at(-1)?.id
-  return (
-    <section className="flex flex-col gap-3" aria-labelledby="runs-h">
-      <h2 className="font-semibold" id="runs-h">
-        Runs
-      </h2>
-      <ol className="-mx-2 flex flex-col gap-0.5">
-        {runs
-          .map((r, i) => ({ ...r, n: i + 1 }))
-          .reverse()
-          .map((r) => {
-            const shown = viewing === null ? r.id === latest : r.id === viewing
-            return (
-              <li
-                key={r.id}
-                aria-current={shown || undefined}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg px-2 py-1.5 aria-[current]:bg-muted"
-              >
-                <span className="min-w-0">
-                  <b className="font-semibold">Run {r.n}</b> ·{' '}
-                  {r.pitchesFor ? `Pitches for ${r.pitchesFor}` : (r.launch ?? 'From comps')}
-                </span>
-                <span className="type-caption text-muted-foreground">
-                  {new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  {r.startedBy && ` by ${r.startedBy}`} · {runLabel[r.status]}
-                  {r.replayed && ' · Replayed'}
-                </span>
-                <span className="col-start-2 row-span-2 row-start-1 justify-self-end">
-                  {shown ? (
-                    <span className="type-caption text-muted-foreground">Shown</span>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={busy}
-                      aria-label={`View run ${r.n}`}
-                      onClick={() => void run(() => view(r.id === latest ? null : r.id))}
-                      className="-mr-1 max-md:h-11"
-                    >
-                      View
-                    </Button>
-                  )}
-                </span>
-              </li>
-            )
-          })}
-      </ol>
-      <p className="type-caption text-muted-foreground">
-        Each run starts fresh; earlier ones stay here to compare.{' '}
-        {counted === 'network'
-          ? "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them. Runs that stop at once have a higher limit of their own."
-          : 'Model runs are limited per visitor and per UTC day, across browsers. Runs that replay or stop at once have a higher limit of their own.'}
-      </p>
-      <Alert error={error} />
-    </section>
   )
 }
 
