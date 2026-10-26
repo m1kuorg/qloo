@@ -84,6 +84,17 @@ function pageCode(page: Page) {
   return files
 }
 
+// The face's Latin woff2, which style.css's @import of @fontsource-variable/schibsted-grotesk serves:
+// in the Worker's build its hashed file, from the manifest; in development its source path, which the
+// dev server serves. Missing from the manifest, it's logged once and nothing is preloaded.
+const LATIN_FONT = 'node_modules/@fontsource-variable/schibsted-grotesk/files/schibsted-grotesk-latin-wght-normal.woff2'
+const latinFont = (() => {
+  if (import.meta.env.DEV) return `/${LATIN_FONT}`
+  const file = manifest[LATIN_FONT]?.file
+  if (!file) console.error(JSON.stringify({ event: 'preload_missing', font: LATIN_FONT }))
+  return file ? `/${file}` : null
+})()
+
 // The React island's root, which main.tsx renders `page` into from its data attributes, and links
 // that preload the page's code, which Hono moves into the head after the island's script. main.js
 // would ask for that code only once it has run; preloaded, it downloads alongside main.js instead
@@ -416,25 +427,32 @@ const Footer = () => (
 
 // A marketing page: server-rendered with no island, at 16px, under the marketing header and over the
 // footer, which a short page keeps at the window's foot. `title` names the page before the product; the 404 handler renders it too (routes/marketing).
-// menus.ts closes the phone's Menu on a click outside and on Escape.
+// menus.ts closes the phone's Menu on a click outside and on Escape; `reveal` adds reveal.ts, the
+// landing page's section entrances. The face's Latin file is preloaded, so the landing page's poster
+// type is set in it from the first paint rather than re-wrapping when it swaps in for the size-adjusted
+// fallback (style.css).
 export const MarketingPage = ({
   title,
   description,
   path,
   accounts,
+  reveal = false,
   children
 }: {
   title: string | null
   description?: string
   path: string
   accounts: boolean
+  reveal?: boolean
   children: Child
 }) => (
   <html lang="en">
     <Head title={title ? `${title} · Crossfeed` : 'Crossfeed'}>
+      {latinFont && <link rel="preload" href={latinFont} as="font" type="font/woff2" crossorigin="" />}
       {description && <meta name="description" content={description} />}
       {/* A literal: vite-ssr-components finds the client build's entries by reading these. */}
       <Script src="/src/client/menus.ts" />
+      {reveal && <Script src="/src/client/reveal.ts" />}
     </Head>
     <body class="flex min-h-svh flex-col type-body">
       <SkipLink />
@@ -448,9 +466,15 @@ export const MarketingPage = ({
 )
 
 // The marketing shell, for a route group's pages: MarketingPage, with the request's path and flags.
-export const marketingShell = (title: string | null, description?: string) =>
+export const marketingShell = (title: string | null, description?: string, { reveal = false } = {}) =>
   jsxRenderer(({ children }, c) => (
-    <MarketingPage title={title} description={description} path={c.req.path} accounts={c.env.ACCOUNTS === 'on'}>
+    <MarketingPage
+      title={title}
+      description={description}
+      path={c.req.path}
+      accounts={c.env.ACCOUNTS === 'on'}
+      reveal={reveal}
+    >
       {children}
     </MarketingPage>
   ))

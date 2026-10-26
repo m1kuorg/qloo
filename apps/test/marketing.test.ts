@@ -62,10 +62,10 @@ describe('the landing page', () => {
     expect(main(html)).toMatch(/<a [^>]*href="\/demo"[^>]*>Open the sample network<\/a>/)
   })
 
-  it('labels its chart an illustration of made-up shows, and no marketing page shows Qloo data', async () => {
+  it('labels its re-rank an illustration of made-up shows, and no marketing page shows Qloo data', async () => {
     const html = await page('/')
     expect(words(html)).toMatch(/Illustration: a made-up network, launch, shows, ranks, and tags\. Not Qloo data\./)
-    expect(words(html)).toContain('Dead Air Archive')
+    expect(words(html)).toContain('Launch: Low Tide')
     for (const path of pages) {
       const text = words(await page(path))
       for (const name of looked) expect(text, `${path} names ${name}`).not.toContain(name)
@@ -92,9 +92,43 @@ describe('the landing page', () => {
     expect(hrefs(main(html))[0]).toBe('/demo')
   })
 
-  it('says how a run works, what Crossfeed never does, and where developers start', async () => {
+  it('re-ranks a made-up roster by topic with two radios and no script, each row in listener order with both its ranks', async () => {
+    const html = main(await page('/'))
+    const reRank = html.match(/<section\b[^>]*\bdata-rerank\b[\s\S]*?<\/section>/)?.[0] ?? ''
+    expect(reRank).toMatch(/<fieldset\b[^>]*>\s*<legend\b[^>]*>Rank the roster<\/legend>/)
+    const radios = [...reRank.matchAll(/<label\b[^>]*>\s*(<input\b[^>]*>)([^<]*)<\/label>/g)]
+    expect(radios.map(([, , label]) => label.trim())).toEqual(['By who listens', 'By topic'])
+    expect(radios.map(([, input]) => [/\btype="radio"/.test(input), /\bchecked\b/.test(input)])).toEqual([
+      [true, true],
+      [true, false]
+    ])
+    // Each row's ranks, by who listens and by topic, as its data and as its words.
+    const nth = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n] ?? 'th'}`
+    const rows = reRank.split(/(?=<div\b[^>]*\bdata-row\b)/).slice(1)
+    expect(rows.length).toBe(8)
+    const ranks = rows.map((row) => {
+      const tag = row.match(/^<div\b[^>]*>/)![0]
+      const [listeners, topic] = ['l', 't'].map((d) => Number(tag.match(new RegExp(`\\bdata-${d}="(\\d+)"`))?.[1]))
+      expect(words(row)).toContain(`${nth(listeners)} by who listens, ${nth(topic)} by topic`)
+      return [listeners, topic]
+    })
+    expect(ranks.map(([listeners]) => listeners)).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+    expect(ranks.map(([, topic]) => topic).sort()).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+    // The page's pictures are pieces of the app that the keyboard never lands in.
+    const pictures = [...html.matchAll(/<div\b[^>]*\bdata-ui\b[^>]*>/g)].filter(([tag]) => /\binert\b/.test(tag))
+    expect(pictures.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('says what a topic plan misses, how a run works, what it does, what Crossfeed never does, and where developers start', async () => {
     const text = words(await page('/'))
-    for (const heading of ['How a run works', 'Evidence on every line', 'What Crossfeed never does', 'For developers'])
+    for (const heading of [
+      'What a topic plan misses',
+      'How a run works',
+      'What it does',
+      'Cites every figure',
+      'What Crossfeed never does',
+      'For developers'
+    ])
       expect(text).toContain(heading)
     expect(text).toContain("Sends a guest's name or a pitch to Qloo.")
     expect(text).toContain('Approves anything for you.')
@@ -103,9 +137,11 @@ describe('the landing page', () => {
 
   it('shows the booking inbox only while guest pitches are on', async () => {
     env.GUEST_PITCHES = 'off'
-    expect(words(await page('/'))).not.toContain('The booking inbox')
+    for (const line of ['Triages pitches', 'Replies drafted to guests pitched to The Harbour.'])
+      expect(words(await page('/'))).not.toContain(line)
     env.GUEST_PITCHES = 'on'
-    expect(words(await page('/'))).toContain('The booking inbox')
+    for (const line of ['Triages pitches', 'Replies drafted to guests pitched to The Harbour.'])
+      expect(words(await page('/'))).toContain(line)
   })
 })
 
