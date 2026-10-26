@@ -115,6 +115,34 @@ describe("the workspace's connection", () => {
   })
 })
 
+describe('a roster being looked up', () => {
+  it('marks each pending show busy, with its call not yet openable, and the import counting', async () => {
+    fakeQloo({ search })
+    const nightShift = hold('Night Shift Cinema')
+    const deepCuts = hold('Deep Cuts')
+    const s = await session()
+
+    await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
+    const pending = s.state()!
+    const html = renderToStaticMarkup(
+      <Workspace agent={{ state: pending, stub: {} } as unknown as Agent} links={links} />
+    )
+    const text = page(pending)
+    expect(text).toContain('Night Shift Cinema Looking up Looking it up in Qloo… – – C-01')
+    expect(text).toContain('Deep Cuts Looking up Looking it up in Qloo… – – C-02')
+    expect(text).toContain('Looked up 0 of 2…')
+    expect(html.match(/<tr\b[^>]*\saria-busy="true"/g)).toHaveLength(2)
+    // A pending call has no record to open yet.
+    expect(html).not.toContain('call C-01"')
+
+    nightShift.resolve()
+    deepCuts.resolve()
+    const settled = await s.until((st) => st.roster.every((show) => show.resolution === 'resolved'))
+    expect(page(settled)).toContain('Roster 2 shows: 2 resolved')
+    expect(page(settled)).toContain('Import roster')
+  })
+})
+
 describe('a run in progress', () => {
   it("shows the run's current step from its progress notes", async () => {
     fakeQloo({ search })

@@ -199,9 +199,18 @@ export const KeyValue = ({ label, children }: { label: string; children: ReactNo
   </div>
 )
 
-// A wide table on a narrow screen scrolls sideways inside this, never the page.
-export const ScrollTable = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="max-w-full overflow-x-auto" role="region" aria-label={label} tabIndex={0}>
+// A wide table on a narrow screen scrolls sideways inside this, never the page. `className` places it,
+// such as a table whose rules bleed past the text.
+export const ScrollTable = ({
+  label,
+  className,
+  children
+}: {
+  label: string
+  className?: string
+  children: ReactNode
+}) => (
+  <div className={cn('max-w-full overflow-x-auto', className)} role="region" aria-label={label} tabIndex={0}>
     {children}
   </div>
 )

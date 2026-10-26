@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buttonVariants } from '@/components/ui/variants'
 import type { Comp, GuideMark, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall } from '../agent'
@@ -17,7 +18,17 @@ import { Guide } from './Guide'
 import { InsertionOrderPanel } from './InsertionOrder'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import type { NetworkPage } from './NetworkPage'
-import { CpmRecord, RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor } from './RosterModules'
+import {
+  CpmRecord,
+  NetworkCpm,
+  RosterCheck,
+  RosterCounts,
+  RosterFailures,
+  RosterImport,
+  RosterTable,
+  ShowEditor,
+  textLink
+} from './RosterModules'
 import { OpenQuestion, ORDER_CHANGED, runLabel, RunLog } from './Run'
 import { Source } from './Source'
 import { sentence, SlowCalls, StateLine } from './states'
@@ -102,40 +113,45 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
 
   const shell = sample && <SampleShell sample={sample} />
   const order = shown?.insertionOrder ?? null
+  // The roster the run ranks: on the demo, its counts, the sample's notice, the import and the table,
+  // whose shows open in the inspector's Show tab; on a launch's page, the copy its latest run took,
+  // read-only, and where the network's members edit it. The CPM that prices its slots follows it.
   const rosterSection = (
-    <section className="sec" aria-labelledby="roster-h">
-      <div className="mh">
-        <h2 className="lbl" id="roster-h">
+    <section className="flex min-w-0 flex-col gap-6" aria-labelledby="roster-h" data-roster>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-base font-semibold" id="roster-h">
           Roster
         </h2>
+        {!network && <RosterCounts roster={roster} />}
+        {(viewing || network || !sample) && (
+          <p className="max-w-[72ch] text-muted-foreground">
+            {viewing ? (
+              `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
+            ) : network ? (
+              <>
+                {runs.length > 0
+                  ? `The latest run ranks ${network.name}'s roster as it stood when that run started.`
+                  : `Each run ranks ${network.name}'s roster as it stands when the run starts.`}{' '}
+                {runs.length > 0 && agent.state?.rosterChanged && (
+                  <>
+                    <b className="font-semibold text-foreground">
+                      It has changed since then, so run again to rank it as it is now.
+                    </b>{' '}
+                  </>
+                )}
+                Edit its shows on{' '}
+                <a className={textLink} href={links.roster}>
+                  the roster page
+                </a>
+                .
+              </>
+            ) : (
+              "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."
+            )}
+          </p>
+        )}
       </div>
-      {sample && !viewing ? (
-        <SampleNotice sample={sample} clear={() => agent.stub.clearSample()} />
-      ) : (
-        <p className="help sec-help">
-          {viewing ? (
-            `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
-          ) : network ? (
-            <>
-              {runs.length > 0
-                ? `The latest run ranks ${network.name}'s roster as it stood when that run started.`
-                : `Each run ranks ${network.name}'s roster as it stands when the run starts.`}{' '}
-              {runs.length > 0 && agent.state?.rosterChanged && (
-                <>
-                  <b>It has changed since then, so run again to rank it as it is now.</b>{' '}
-                </>
-              )}
-              Edit its shows on{' '}
-              <a className="lnk" href={links.roster}>
-                the roster page
-              </a>
-              .
-            </>
-          ) : (
-            "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."
-          )}
-        </p>
-      )}
+      {sample && !viewing && <SampleNotice sample={sample} clear={() => agent.stub.clearSample()} />}
       {editing && <RosterFailures roster={roster} />}
       {editing && (
         <RosterImport
@@ -223,7 +239,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
         <EvidencePanel opened={opened} />
       </TabsContent>
       {editorOpen && (
-        <TabsContent value="show" keepMounted data-legacy>
+        <TabsContent value="show" keepMounted>
           <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />
         </TabsContent>
       )}
@@ -325,7 +341,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
               />
             </div>
           )}
-          <div data-legacy>{rosterSection}</div>
+          {rosterSection}
         </main>
         {wide ? (
           <aside className={aside} aria-label="Details">
@@ -848,58 +864,25 @@ function RunList({
   )
 }
 
-function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample: boolean; agent: Session }) {
-  const [value, setValue] = useState(cpm == null ? '' : String(cpm))
-  const { busy, error, run } = useAction()
-  const save = (e: React.FormEvent) => {
-    e.preventDefault()
-    void run(() => agent.stub.setCpm(Number(value)))
-  }
-  return (
-    <section className="mod" aria-labelledby="cpm-h">
-      <div className="mh">
-        <span className="lbl" id="cpm-h">
-          Network CPM
-        </span>
-        {cpm == null && <span className="chip">Not set</span>}
-      </div>
-      <p className="help">Prices each promo slot: downloads per episode × CPM ÷ 1,000.</p>
-      <form className="bar" onSubmit={save}>
-        <span className="in">
-          <span className="pre">$</span>
-          <input
-            aria-labelledby="cpm-h"
-            inputMode="decimal"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="CPM in dollars, e.g. 20"
-          />
-        </span>
-        <button className="btn" type="submit" disabled={busy || !value.trim() || Number(value) === cpm}>
-          Save
-        </button>
-      </form>
-      {sample && <small className="smp">Arbitrary sample figure, not the network's. Enter your own.</small>}
-      <Alert error={error} />
-    </section>
-  )
-}
-
-// The roster's notice while it is the sample network, and a way back to an empty roster.
+// The roster's notice while it is the sample network, and a way back to an empty roster: a block on
+// the card, as notices about the page's data are, with its one action.
 function SampleNotice({ sample, clear }: { sample: Sample; clear: () => Promise<void> }) {
   const { busy, error, run } = useAction()
   return (
-    <div className="sample-notice">
-      <p className="help">
-        <b>{sample.network}.</b> {sample.notice}
+    <div className="flex flex-col gap-3 rounded-xl bg-card p-4 md:flex-row md:items-start md:gap-8" data-sample-notice>
+      <p className="max-w-[72ch] flex-1">
+        <b className="font-semibold">{sample.network}.</b> {sample.notice}
       </p>
-      <div className="acts">
-        <button type="button" className="btn" disabled={busy} onClick={() => void run(clear)}>
+      <div className="flex flex-col items-start gap-1.5 md:w-60 md:shrink-0">
+        <Button variant="secondary" disabled={busy} onClick={() => void run(clear)} className="max-md:h-11">
+          {busy && <Spinner data-icon="inline-start" />}
           Clear sample network
-        </button>
-        <small>Empties the roster so you can import your own. Or edit any figure.</small>
+        </Button>
+        <small className="type-caption text-muted-foreground">
+          Empties the roster so you can import your own. Or edit any figure.
+        </small>
+        <Alert error={error} />
       </div>
-      <Alert error={error} />
     </div>
   )
 }
