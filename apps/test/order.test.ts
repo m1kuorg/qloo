@@ -75,6 +75,15 @@ type Script = Parameters<typeof fakeClaude>[0]
 const open: Session[] = []
 afterEach(() => open.splice(0).forEach((s) => s.close()))
 
+// What a rendered block says, in reading order.
+const words = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+
 const finished = (s: Session) =>
   s.until((state) => state.run !== null && state.run.status !== 'running' && state.run.status !== 'waiting')
 
@@ -274,6 +283,39 @@ describe('the insertion order', () => {
       state.insertionOrder!.lines.map((line) => state.ranking!.rows.find((r) => r.show === line.show)!.sharedTags!.call)
     )
     expect(new Set(cited).size).toBe(4)
+  })
+
+  it('locks the plan while the run goes on, then offers Approve and Edit lines, saying what approving does', async () => {
+    // Claude's closing turn waits until the test lets it go, so the order is drafted and the run still running.
+    let release = () => {}
+    const closing = new Promise<void>((resolve) => (release = resolve))
+    const s = await start({ slots: 20 }, [
+      turn(fourShows),
+      async () => {
+        await closing
+        return turn(text('Drafted the insertion order.'))
+      }
+    ])
+    const plan = (state: State) =>
+      hooked(
+        renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+        'data-io'
+      )[0]
+
+    const drafting = await s.until((state) => state.insertionOrder !== null)
+    expect(drafting.run?.status).toBe('running')
+    expect(words(plan(drafting))).toContain(
+      'Total 20 $19,076 Budget: 0 of 20 slots left. Edit and approve it once the run ends.'
+    )
+    expect(plan(drafting)).not.toMatch(/<button\b[^>]*>(Approve|Edit lines)<\/button>/)
+
+    release()
+    const ended = words(plan(await finished(s)))
+    expect(ended).toMatch(/^The plan Insertion order IO-0001 Draft Agent drafted the slots and angles\. /)
+    expect(ended).toContain(
+      'Total 20 $19,076 Budget: 0 of 20 slots left. Approve Edit lines Nothing is final until you approve it. Editing returns it to draft.'
+    )
+    expect(ended).not.toContain('once the run ends')
   })
 
   it('shows the gap for a show without downloads, and an incomplete total, never a made-up figure', async () => {

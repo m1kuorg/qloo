@@ -272,9 +272,8 @@
   display: none;
 }
 
-/* A bridge, not the design: the workspace's plan, trace, runs, evidence, roster and show editor
-   still carry their old class names until #241 (plan, trace, evidence) and #242 (roster, show
-   editor) rebuild them. Inside [data-legacy] these rules only make them legible.
+/* A bridge, not the design: the workspace's roster, its CPM and the show editor still carry their
+   old class names until #242 rebuilds them. Inside [data-legacy] these rules only make them legible.
    Delete each rule with the ticket that removes its class, and the block with the last of them. */
 @layer components {
   [data-legacy] {
@@ -359,15 +358,6 @@
     & .nm {
       @apply font-semibold;
     }
-    & .notes {
-      @apply flex flex-col gap-1;
-    }
-    & .notes li {
-      @apply flex items-baseline justify-between gap-3;
-    }
-    & .notes li .tg {
-      @apply shrink-0;
-    }
     & .rec {
       @apply flex flex-col gap-1;
     }
@@ -377,12 +367,8 @@
     & dt {
       @apply text-muted-foreground;
     }
-    & code,
-    & .param {
+    & code {
       @apply font-mono text-xs break-all;
-    }
-    & .param {
-      @apply mr-1.5;
     }
   }
 }
