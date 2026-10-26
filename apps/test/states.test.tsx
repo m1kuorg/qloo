@@ -125,7 +125,7 @@ describe('a run in progress', () => {
     await s.call('startLaunch', { name: 'Night Shift Cinema' })
     const running = await s.until((st) => st.run?.notes[0]?.status === 'running')
     expect(page(running)).toContain('Running Resolving Night Shift Cinema · step 1')
-    expect(page(running)).toContain('Working The fit chart appears here once the agent ranks the roster.')
+    expect(page(running)).toContain('Working The fit chart appears once the agent ranks the roster.')
 
     held.resolve()
     await s.until((st) => st.run?.status === 'completed')

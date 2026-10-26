@@ -64,8 +64,9 @@ export { listOf } from '../text'
 
 // A show's fit band as a three-step meter, filled from the left, then its word: in signal for a
 // finalist, what the agent puts forward, in ink otherwise. The word says it, so the meter is hidden
-// from screen readers.
-export function FitBand({ band, finalist }: { band: Band; finalist: boolean }) {
+// from screen readers. `quiet` keeps the word's place but shows it only while its row (a `group/row`)
+// is hovered or holds focus, and on touch screens, which can't hover; screen readers always hear it.
+export function FitBand({ band, finalist, quiet = false }: { band: Band; finalist: boolean; quiet?: boolean }) {
   const { bars, word } = bandMeter[band]
   return (
     <span className="inline-flex shrink-0 items-center gap-1.5 type-caption text-muted-foreground">
@@ -80,7 +81,15 @@ export function FitBand({ band, finalist }: { band: Band; finalist: boolean }) {
           />
         ))}
       </span>
-      {word}
+      <span
+        className={
+          quiet
+            ? 'opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100'
+            : undefined
+        }
+      >
+        {word}
+      </span>
     </span>
   )
 }

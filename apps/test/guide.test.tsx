@@ -190,7 +190,7 @@ describe('the guide through the sample launch', () => {
     await s.call('startLaunch', { name: 'The Watch' })
     let state = await s.until(charted)
     expect(guide(state)).toContain('Step 2 of 5')
-    expect(guide(state)).toContain('Select The Bill Simmons Podcast, marked with the red bullet, for why it moved.')
+    expect(guide(state)).toContain('Select The Bill Simmons Podcast, marked ▲3 in the Move column, for why it moved.')
 
     // Opening the why-it-moved line and a call it cites happen in the page, which marks them.
     await s.call('markGuide', 'why')
