@@ -231,6 +231,24 @@ describe('the developer docs', () => {
     for (const path of docs) expect(hrefs(main(html)), path).toContain(path)
   })
 
+  it('mark the page on view in their nav, and list its sections, each a link to its heading', async () => {
+    for (const path of docs) {
+      const html = main(await page(path))
+      const nav = html.match(/<nav\b[^>]*aria-label="Developer docs"[^>]*>[\s\S]*?<\/nav>/)?.[0] ?? ''
+      const current = [...nav.matchAll(/<a\b[^>]*>/g)].map(([a]) => a).filter((a) => a.includes('aria-current="page"'))
+      expect(
+        current.map((a) => a.match(/href="([^"]*)"/)?.[1]),
+        path
+      ).toEqual([path])
+      for (const other of docs) expect(hrefs(nav), path).toContain(other)
+      const toc = html.match(/<nav\b[^>]*aria-label="On this page"[^>]*>[\s\S]*?<\/nav>/)?.[0] ?? ''
+      const sections = hrefs(toc)
+      expect(sections.length, path).toBeGreaterThan(3)
+      for (const href of sections)
+        expect(html, `${path} ${href}`).toMatch(new RegExp(`<h2\\b[^>]*\\bid="${href.slice(1)}"`))
+    }
+  })
+
   it('describe every route of the API from its OpenAPI document, and link the document', async () => {
     const doc = await (
       await get('/api/v1/openapi.json')
@@ -267,7 +285,8 @@ describe('the developer docs', () => {
       const listed = JSON.parse((await res.text()).replace(/^[\s\S]*?data:/, '')).result.tools as { name: string }[]
       expect(listed.length).toBe(pitches === 'on' ? 19 : 12)
       const html = await page('/docs/mcp')
-      const tools = [...main(html).matchAll(/<th scope="row"><code>([a-z_]+)<\/code>/g)].map((m) => m[1])
+      // The tools table's rows, each naming its tool.
+      const tools = [...main(html).matchAll(/\bdata-tool="([a-z_]+)"/g)].map((m) => m[1])
       expect(tools).toEqual(listed.map((t) => t.name))
       const text = words(main(html))
       expect(text).toContain(`The ${listed.length} tools the server lists today.`)

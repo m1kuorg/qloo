@@ -5,19 +5,22 @@
 // modules that hold them, and the skills and the plugin's MCP config from plugins/crossfeed, whose
 // SKILL.md files the app serves as they are. Every example uses made-up shows and IDs. While ACCOUNTS
 // is off the pages still describe the API and the MCP server, and link neither.
+import { cn } from 'cn'
 import { Hono, type Context } from 'hono'
 import type { Child } from 'hono/jsx'
 import mcpConfig from '../../../plugins/crossfeed/.mcp.json?raw'
 import planLaunchPromos from '../../../plugins/crossfeed/skills/plan-launch-promos/SKILL.md?raw'
 import triageGuestPitches from '../../../plugins/crossfeed/skills/triage-guest-pitches/SKILL.md?raw'
 import { MAX_SHOWS } from '../agent'
+import { badgeVariants } from '../components/ui/variants'
+import { ChevronDown } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { REFUSALS, type RefusalCode } from '../refusal'
-import { marketingShell } from '../shell'
+import { marketingFrame, marketingShell } from '../shell'
 import { MAX_UPLOAD_BYTES, megabytes } from '../upload'
 import { apiDocument } from './api'
-import { cap } from './marketing'
+import { cap, TableScroll } from './marketing'
 import { RELAY, listedTools } from './mcp'
 
 export const docs = new Hono<{ Bindings: Env }>()
@@ -79,12 +82,14 @@ const Prose = ({ text }: { text: string }) => (
   <>{text.split('`').map((part, i) => (i % 2 ? <code>{part}</code> : part))}</>
 )
 
-// A code sample, labelled by its language or the file it is, set as the app sets data to copy: Panel
-// Grey, monospace.
+// A code sample, captioned above by its language or the file it is, on a tone-step panel: 14px
+// monospace that scrolls sideways inside the panel, and the keyboard can reach to scroll.
 const Code = ({ label, file, children }: { label?: string; file?: string; children: string }) => (
-  <figure class="dk-code">
-    <figcaption>{file ? <code>{file}</code> : <span class="lbl">{label}</span>}</figcaption>
-    <pre>
+  <figure class="overflow-hidden rounded-xl bg-muted">
+    <figcaption class="px-4 pt-3 type-caption text-muted-foreground">
+      {file ? <code class="bg-transparent p-0 text-xs">{file}</code> : label}
+    </figcaption>
+    <pre tabindex={0} class="overflow-x-auto px-4 pt-2 pb-4 type-ui leading-[1.6] focus-visible:-outline-offset-2">
       <code>{children.trim()}</code>
     </pre>
   </figure>
@@ -106,10 +111,13 @@ const UrlPath = ({ path }: { path: string }) => (
   </>
 )
 
+// A link outside the article's text, underlined as the article's are.
+const link = 'underline decoration-1 underline-offset-4 hover:decoration-2'
+
 // The OpenAPI document's URL: a link while accounts are on, as the API serves it then.
 const OpenApi = ({ accounts }: { accounts: boolean }) =>
   accounts ? (
-    <a href="/api/v1/openapi.json">
+    <a href="/api/v1/openapi.json" class={link}>
       <code>
         <UrlPath path="/api/v1/openapi.json" />
       </code>
@@ -120,19 +128,22 @@ const OpenApi = ({ accounts }: { accounts: boolean }) =>
     </code>
   )
 
+// What `claude mcp list` prints for a server it reached, its own check mark included.
+const CONNECTED = '✔ Connected' // taste-skill-ignore: the CLI's output, quoted in a code sample, not an icon
+
 // The command that connects Claude Code to the MCP server of the deployment at `origin`.
 const McpAdd = ({ origin }: { origin: string }) => (
   <Code label="Shell">{`
 claude mcp add --transport http crossfeed ${origin}/mcp \\
   --header "Authorization: Bearer $CROSSFEED_API_KEY"
 
-claude mcp list   # crossfeed: ${origin}/mcp (HTTP) - ✔ Connected
+claude mcp list   # crossfeed: ${origin}/mcp (HTTP) - ${CONNECTED}
 `}</Code>
 )
 
 // The note every page carries while accounts are off, as in production until the product opens.
 const Closed = () => (
-  <p class="dk-closed">
+  <p class="rounded-xl bg-muted px-4 py-3">
     Accounts aren&apos;t open on this deployment yet, so its API and MCP server answer 404 here. These pages describe
     them as they work once accounts are open.
   </p>
@@ -141,89 +152,121 @@ const Closed = () => (
 type Section = { id: string; title: string; body: Child }
 type Page = { path: Path; lede: Child; sections: Section[] }
 
-// A docs page: the docs' contents in the rail, with the page's sections under it, then the page, then
-// the way on to the next one.
+// The docs' nav: a link to each page, the one on view current, then the spec list, where each way in
+// is. Under 1024px it's a disclosure at the top of the page, which opens in the page's flow; from 1024px
+// it's open beside the article whatever its state (style.css, data-docs-nav), and stays in view.
+const DocsNav = ({ path, accounts }: { path: Path; accounts: boolean }) => {
+  const spec: [string, Child][] = [
+    ['API', <code>/api/v1</code>],
+    ['OpenAPI', <OpenApi accounts={accounts} />],
+    ['MCP', <code>/mcp</code>],
+    ['Auth', <code>Bearer cf_live_…</code>],
+    [
+      'For agents',
+      <a href="/llms.txt" class={link}>
+        <code>/llms.txt</code>
+      </a>
+    ]
+  ]
+  return (
+    <nav aria-label="Developer docs" class="lg:sticky lg:top-8 lg:self-start">
+      <details data-docs-nav class="group/docs">
+        <summary class="flex h-11 list-none items-center gap-2 rounded-xl bg-muted px-4 select-none [&::-webkit-details-marker]:hidden">
+          <span class="font-medium">
+            Developer docs<span class="vh">: </span>
+          </span>
+          <span class="min-w-0 truncate text-muted-foreground">{PAGES.find((p) => p.path === path)?.title}</span>
+          <ChevronDown class="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open/docs:rotate-180" />
+        </summary>
+        <div class="max-lg:pt-3 max-lg:pb-4 lg:type-ui">
+          <ol class="-mx-3 flex flex-col gap-0.5">
+            {PAGES.map((p) => (
+              <li>
+                <a
+                  href={p.path}
+                  aria-current={p.path === path ? 'page' : undefined}
+                  class="flex min-h-11 items-center rounded-lg px-3 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground aria-[current]:bg-muted aria-[current]:font-medium aria-[current]:text-foreground lg:min-h-9"
+                >
+                  {p.title}
+                </a>
+              </li>
+            ))}
+          </ol>
+          <dl class="mt-8 flex flex-col gap-3">
+            {spec.map(([term, value]) => (
+              <div>
+                <dt class="type-caption text-muted-foreground">{term}</dt>
+                <dd class="type-ui">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </details>
+    </nav>
+  )
+}
+
+// The page's sections, from 1440px, beside the article and in view while it scrolls.
+const OnThisPage = ({ sections }: { sections: Section[] }) => (
+  <nav
+    aria-label="On this page"
+    class="hidden type-ui min-[90rem]:sticky min-[90rem]:top-8 min-[90rem]:block min-[90rem]:self-start"
+  >
+    <p class="font-medium">On this page</p>
+    <ol class="mt-3 flex flex-col gap-2">
+      {sections.map((s) => (
+        <li>
+          <a href={`#${s.id}`} class="text-muted-foreground transition-colors hover:text-foreground">
+            {s.title}
+          </a>
+        </li>
+      ))}
+    </ol>
+  </nav>
+)
+
+// A docs page: the nav, then the article (its title, lede and sections at a reading measure, and the
+// way on to the next page), and from 1440px the page's sections.
 function Docs({ page, accounts }: { page: Page; accounts: boolean }) {
   const at = PAGES.findIndex((p) => p.path === page.path)
   const next = PAGES[at + 1]
   return (
-    <main class="mk dk">
-      <nav class="dk-rail" aria-label="Developer docs">
-        <h2 class="lbl">Developer docs</h2>
-        <ol class="dk-pages">
-          {PAGES.map((p) =>
-            p.path === page.path ? (
-              <li class="on">
-                <a href={p.path} aria-current="page">
-                  {p.title}
-                </a>
-                <ol class="dk-toc" aria-label="On this page">
-                  {page.sections.map((s) => (
-                    <li>
-                      <a href={`#${s.id}`}>{s.title}</a>
-                    </li>
-                  ))}
-                </ol>
-              </li>
-            ) : (
-              <li>
-                <a href={p.path}>{p.title}</a>
-              </li>
-            )
-          )}
-        </ol>
-        <dl class="rec kv dk-spec">
-          <div class="rec-row">
-            <dt>API</dt>
-            <dd>
-              <code>/api/v1</code>
-            </dd>
-          </div>
-          <div class="rec-row">
-            <dt>OpenAPI</dt>
-            <dd>
-              <OpenApi accounts={accounts} />
-            </dd>
-          </div>
-          <div class="rec-row">
-            <dt>MCP</dt>
-            <dd>
-              <code>/mcp</code>
-            </dd>
-          </div>
-          <div class="rec-row">
-            <dt>Auth</dt>
-            <dd>
-              <code>Bearer cf_live_…</code>
-            </dd>
-          </div>
-          <div class="rec-row">
-            <dt>For agents</dt>
-            <dd>
-              <a href="/llms.txt">
-                <code>/llms.txt</code>
-              </a>
-            </dd>
-          </div>
-        </dl>
-      </nav>
-      <article class="dk-col" aria-labelledby="dk-h1">
-        <h1 id="dk-h1">{at === 0 ? 'Developer docs' : PAGES[at].title}</h1>
-        <p class="mk-lede">{page.lede}</p>
-        {!accounts && <Closed />}
+    <main
+      class={cn(
+        marketingFrame,
+        'pt-2 md:pt-6 lg:grid lg:grid-cols-[220px_minmax(0,72ch)] lg:gap-x-16 lg:pt-12 min-[90rem]:grid-cols-[220px_minmax(0,72ch)_200px] min-[90rem]:justify-between'
+      )}
+    >
+      <DocsNav path={page.path} accounts={accounts} />
+      <article aria-labelledby="dk-h1" class="prose-doc max-w-[72ch] min-w-0 max-lg:mt-10">
+        <h1 id="dk-h1" class="type-display text-balance">
+          {at === 0 ? 'Developer docs' : PAGES[at].title}
+        </h1>
+        <div class="mt-6 space-y-4">
+          <p>{page.lede}</p>
+          {!accounts && <Closed />}
+        </div>
         {page.sections.map((s) => (
-          <section aria-labelledby={s.id}>
-            <h2 id={s.id}>{s.title}</h2>
+          <section aria-labelledby={s.id} class="mt-16 space-y-4">
+            <h2 id={s.id} class="scroll-mt-8 type-title text-balance">
+              {s.title}
+            </h2>
             {s.body}
           </section>
         ))}
         {next && (
-          <p class="dk-next">
-            <span class="lbl">Next</span>
-            <a href={next.path}>{next.title}</a>
-          </p>
+          <a
+            href={next.path}
+            class="mt-20 flex items-baseline gap-3 rounded-xl bg-muted px-5 py-4 no-underline transition-colors hover:bg-secondary"
+          >
+            <span class="text-muted-foreground">
+              Next<span class="vh">:</span>
+            </span>
+            <span class="type-title">{next.title}</span>
+          </a>
         )}
       </article>
+      <OnThisPage sections={page.sections} />
     </main>
   )
 }
@@ -242,63 +285,59 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
       id: 'ways-in',
       title: 'Four ways in',
       body: (
-        <table class="mk-table dk-ways">
-          <thead>
-            <tr>
-              <th scope="col">Way in</th>
-              <th scope="col">What it is</th>
-              <th scope="col">Reached with</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">
-                <a href="/docs/api">REST API</a>
-              </th>
-              <td>
-                Every resource of a network under <code>/api/v1</code>, for scripts in any language, described by an
-                OpenAPI 3.1 document.
-              </td>
-              <td>
-                <span class="dk-k">Reached with </span>An API key
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <a href="/docs/sdk">TypeScript SDK</a>
-              </th>
-              <td>
-                A typed method for every route, and helpers that wait for long work, in Node, Bun, Deno, and Workers.
-              </td>
-              <td>
-                <span class="dk-k">Reached with </span>An API key and the network&apos;s ID
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <a href="/docs/mcp">MCP server</a>
-              </th>
-              <td>
-                {tools} tools for assistants such as Claude Code, over Streamable HTTP at <code>/mcp</code>.
-              </td>
-              <td>
-                <span class="dk-k">Reached with </span>An API key
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <a href="/docs/agents">Skills and plugin</a>
-              </th>
-              <td>
-                Two Agent Skills that plan launch promos and triage guest pitches, and a Claude Code plugin that
-                installs them with the MCP server.
-              </td>
-              <td>
-                <span class="dk-k">Reached with </span>An API key in <code>CROSSFEED_API_KEY</code>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <TableScroll label="Four ways in">
+          <table class="table-doc min-w-[36rem]">
+            <thead>
+              <tr>
+                <th scope="col">Way in</th>
+                <th scope="col">What it is</th>
+                <th scope="col">Reached with</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">
+                  <a href="/docs/api">REST API</a>
+                </th>
+                <td>
+                  Every resource of a network under <code>/api/v1</code>, for scripts in any language, described by an
+                  OpenAPI 3.1 document.
+                </td>
+                <td>An API key</td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  <a href="/docs/sdk">TypeScript SDK</a>
+                </th>
+                <td>
+                  A typed method for every route, and helpers that wait for long work, in Node, Bun, Deno, and Workers.
+                </td>
+                <td>An API key and the network&apos;s ID</td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  <a href="/docs/mcp">MCP server</a>
+                </th>
+                <td>
+                  {tools} tools for assistants such as Claude Code, over Streamable HTTP at <code>/mcp</code>.
+                </td>
+                <td>An API key</td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  <a href="/docs/agents">Skills and plugin</a>
+                </th>
+                <td>
+                  Two Agent Skills that plan launch promos and triage guest pitches, and a Claude Code plugin that
+                  installs them with the MCP server.
+                </td>
+                <td>
+                  An API key in <code>CROSSFEED_API_KEY</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </TableScroll>
       )
     },
     {
@@ -376,62 +415,67 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
       title: 'Limits',
       body: (
         <>
-          <table class="mk-table dk-limits">
-            <thead>
-              <tr>
-                <th scope="col">Limit</th>
-                <th scope="col">How much</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Requests</th>
-                <td>
-                  {REQUESTS_A_MINUTE} requests a minute per API key, the MCP server&apos;s included; past it, 429{' '}
-                  <code>rate_limited</code>
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">
-                  Model runs<small>a launch run, an inbox load, or a pitch run</small>
-                </th>
-                <td>
-                  {cap(env.RUN_VISITOR_DAILY_CAP)} a day per network; past it, 429 <code>limit</code>
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">Qloo calls</th>
-                <td>
-                  {cap(env.QLOO_VISITOR_DAILY_CALL_CAP)} a day per network, counted on the network&apos;s own Qloo key
-                  apart from everyone else&apos;s once an owner adds one
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">A run</th>
-                <td>
-                  At most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">Launches</th>
-                <td>At most {cap(env.LAUNCHES_PER_NETWORK)} a network keeps at once</td>
-              </tr>
-              <tr>
-                <th scope="row">Roster</th>
-                <td>At most {MAX_SHOWS} shows</td>
-              </tr>
-              <tr>
-                <th scope="row">Inbox</th>
-                <td>
-                  At most {MAX_PITCHES} pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">Uploads</th>
-                <td>{MAX_UPLOAD_BYTES / 1024 / 1024} MB a body</td>
-              </tr>
-            </tbody>
-          </table>
+          <TableScroll label="Limits">
+            <table class="table-doc min-w-[30rem]">
+              <thead>
+                <tr>
+                  <th scope="col">Limit</th>
+                  <th scope="col">How much</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Requests</th>
+                  <td>
+                    {REQUESTS_A_MINUTE} requests a minute per API key, the MCP server&apos;s included; past it, 429{' '}
+                    <code>rate_limited</code>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    Model runs
+                    <span class="block font-normal text-muted-foreground">
+                      a launch run, an inbox load, or a pitch run
+                    </span>
+                  </th>
+                  <td>
+                    {cap(env.RUN_VISITOR_DAILY_CAP)} a day per network; past it, 429 <code>limit</code>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Qloo calls</th>
+                  <td>
+                    {cap(env.QLOO_VISITOR_DAILY_CALL_CAP)} a day per network, counted on the network&apos;s own Qloo key
+                    apart from everyone else&apos;s once an owner adds one
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">A run</th>
+                  <td>
+                    At most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Launches</th>
+                  <td>At most {cap(env.LAUNCHES_PER_NETWORK)} a network keeps at once</td>
+                </tr>
+                <tr>
+                  <th scope="row">Roster</th>
+                  <td>At most {MAX_SHOWS} shows</td>
+                </tr>
+                <tr>
+                  <th scope="row">Inbox</th>
+                  <td>
+                    At most {MAX_PITCHES} pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Uploads</th>
+                  <td>{MAX_UPLOAD_BYTES / 1024 / 1024} MB a body</td>
+                </tr>
+              </tbody>
+            </table>
+          </TableScroll>
           <p>
             A day is a UTC day, and counts reset at 00:00 UTC. A network counts as one visitor of its own, so its
             members&apos; pages and its keys share its daily counts, beside the limits for everyone in the{' '}
@@ -460,30 +504,32 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
               2
             )}
           </Code>
-          <table class="mk-table dk-errors">
-            <thead>
-              <tr>
-                <th scope="col">Code</th>
-                <th scope="col" class="r">
-                  Status
-                </th>
-                <th scope="col">When</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(Object.keys(MEANS) as (keyof typeof MEANS)[]).map((code) => (
+          <TableScroll label="Error codes">
+            <table class="table-doc min-w-[32rem]">
+              <thead>
                 <tr>
-                  <th scope="row">
-                    <code>{code}</code>
+                  <th scope="col">Code</th>
+                  <th scope="col" class="text-right">
+                    Status
                   </th>
-                  <td class="r">{STATUSES[code]}</td>
-                  <td>
-                    <Prose text={MEANS[code]} />
-                  </td>
+                  <th scope="col">When</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(Object.keys(MEANS) as (keyof typeof MEANS)[]).map((code) => (
+                  <tr>
+                    <th scope="row">
+                      <code>{code}</code>
+                    </th>
+                    <td class="text-right">{STATUSES[code]}</td>
+                    <td>
+                      <Prose text={MEANS[code]} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         </>
       )
     }
@@ -518,7 +564,13 @@ const routesOf = (doc: Doc) =>
   )
 type Route = ReturnType<typeof routesOf>[number]
 
-// One route as the reference sets it: what it does, what it takes, and what it answers.
+// A route's method, as a mono chip as wide as the widest, so the paths after them line up.
+const Method = ({ method }: { method: string }) => (
+  <code class={badgeVariants({ className: 'min-w-14 justify-center align-top' })}>{method}</code>
+)
+
+// One route as the reference sets it: what it does, then a compact table of what it takes and what it
+// answers, each parameter, the body, each answer, and the refusals with their codes.
 function RouteEntry({ route }: { route: Route }) {
   const { op } = route
   const params = (op.parameters ?? []).filter((p) => p.name !== 'networkId')
@@ -527,11 +579,13 @@ function RouteEntry({ route }: { route: Route }) {
   const refusals = answers.filter(([status]) => Number(status) >= 400).map(([status]) => status)
   const body = op.requestBody && Object.entries(op.requestBody.content)
   return (
-    <div class="dk-op">
-      <h3 id={route.id}>{op.summary}</h3>
-      <p class="dk-ep">
-        <span class="chip">{route.method}</span>{' '}
-        <code>
+    <div class="space-y-3 pt-8 first-of-type:pt-0">
+      <h3 id={route.id} class="scroll-mt-8 font-semibold">
+        {op.summary}
+      </h3>
+      <p class="flex items-baseline gap-2">
+        <Method method={route.method} />{' '}
+        <code class="min-w-0 bg-transparent p-0">
           <UrlPath path={route.path} />
         </code>
       </p>
@@ -540,75 +594,81 @@ function RouteEntry({ route }: { route: Route }) {
           <Prose text={op.description} />
         </p>
       )}
-      <dl class="rec kv dk-io">
-        {params.map((p) => (
-          <div class="rec-row">
-            <dt>
-              <code>{p.name}</code>
-            </dt>
-            <dd>
-              {p.in === 'query' ? 'In the query, optional. ' : ''}
-              {p.description && <Prose text={p.description} />}
-            </dd>
-          </div>
-        ))}
-        {body && (
-          <div class="rec-row">
-            <dt>Body</dt>
-            <dd>
-              {body.map(([type, { schema }], i) => (
-                <>
-                  {i > 0 && ', or '}
-                  <code>{type}</code>
-                  {schemaName(schema) && (
+      <table class="table-doc">
+        <colgroup>
+          <col class="w-32 sm:w-40" />
+          <col />
+        </colgroup>
+        <tbody>
+          {params.map((p) => (
+            <tr>
+              <th scope="row">
+                <code>{p.name}</code>
+              </th>
+              <td>
+                {p.in === 'query' ? 'In the query, optional. ' : ''}
+                {p.description && <Prose text={p.description} />}
+              </td>
+            </tr>
+          ))}
+          {body && (
+            <tr>
+              <th scope="row">Body</th>
+              <td>
+                {body.map(([type, { schema }], i) => (
+                  <>
+                    {i > 0 && ', or '}
+                    <code>{type}</code>
+                    {schemaName(schema) && (
+                      <>
+                        {' '}
+                        (<code>{schemaName(schema)}</code>)
+                      </>
+                    )}
+                  </>
+                ))}
+                {!op.requestBody!.required && ', optional'}
+              </td>
+            </tr>
+          )}
+          {ok.map(([status, answer]) => {
+            const shape = answer.content && Object.entries(answer.content)[0]
+            return (
+              <tr>
+                <th scope="row">Answers {status}</th>
+                <td>
+                  <Prose text={answer.description} />
+                  {shape && (
                     <>
                       {' '}
-                      (<code>{schemaName(schema)}</code>)
+                      (<code>{schemaName(shape[1].schema) ?? shape[0]}</code>)
                     </>
                   )}
-                </>
-              ))}
-              {!op.requestBody!.required && ', optional'}
-            </dd>
-          </div>
-        )}
-        {ok.map(([status, answer]) => {
-          const shape = answer.content && Object.entries(answer.content)[0]
-          return (
-            <div class="rec-row">
-              <dt>Answers {status}</dt>
-              <dd>
-                <Prose text={answer.description} />
-                {shape && (
+                </td>
+              </tr>
+            )
+          })}
+          {refusals.length > 0 && (
+            <tr>
+              <th scope="row">Refuses</th>
+              <td>
+                {refusals.map((status, i) => (
                   <>
-                    {' '}
-                    (<code>{schemaName(shape[1].schema) ?? shape[0]}</code>)
+                    {i > 0 && ', '}
+                    {status}{' '}
+                    {CODES[Number(status)]?.map((code, j) => (
+                      <>
+                        {j > 0 && ' or '}
+                        <code>{code}</code>
+                      </>
+                    ))}
                   </>
-                )}
-              </dd>
-            </div>
-          )
-        })}
-        {refusals.length > 0 && (
-          <div class="rec-row">
-            <dt>Refuses</dt>
-            <dd>
-              {refusals.map((status, i) => (
-                <>
-                  {i > 0 && ', '}
-                  {status}{' '}
-                  {CODES[Number(status)]?.map((code, j) => (
-                    <>
-                      {j > 0 && ' or '}
-                      <code>{code}</code>
-                    </>
-                  ))}
-                </>
-              ))}
-            </dd>
-          </div>
-        )}
-      </dl>
+                ))}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -641,32 +701,34 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
               <a href="/docs#limits">limits</a> are the same for every route. The inbox and pitch run routes answer 404
               while guest pitches are switched off.
             </p>
-            <table class="mk-table dk-routes">
-              <thead>
-                <tr>
-                  <th scope="col">Method</th>
-                  <th scope="col">Path</th>
-                  <th scope="col">What it does</th>
-                </tr>
-              </thead>
-              <tbody>
-                {routes.map((r) => (
+            <TableScroll label="Every route">
+              <table class="table-doc min-w-[36rem]">
+                <thead>
                   <tr>
-                    <td>
-                      <span class="chip">{r.method}</span>
-                    </td>
-                    <td>
-                      <code>
-                        <UrlPath path={r.path.replace(NETWORK_PATH, '') || '/'} />
-                      </code>
-                    </td>
-                    <td>
-                      <a href={`#${r.id}`}>{r.op.summary}</a>
-                    </td>
+                    <th scope="col">Method</th>
+                    <th scope="col">Path</th>
+                    <th scope="col">What it does</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {routes.map((r) => (
+                    <tr>
+                      <td>
+                        <Method method={r.method} />
+                      </td>
+                      <td>
+                        <code class="bg-transparent p-0">
+                          <UrlPath path={r.path.replace(NETWORK_PATH, '') || '/'} />
+                        </code>
+                      </td>
+                      <td>
+                        <a href={`#${r.id}`}>{r.op.summary}</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           </>
         )
       },
@@ -896,50 +958,50 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
             The {tools.length} tools the server lists today. Each description ends with the same sentence: &ldquo;
             {RELAY}&rdquo;
           </p>
-          <table class="mk-table dk-tools">
-            <thead>
-              <tr>
-                <th scope="col">Tool</th>
-                <th scope="col">What it does</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tools.map((tool) => {
-                const shape = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] }
-                // What it takes, the fields it needs first.
-                const needs = (a: string) => (shape.required?.includes(a) ? 0 : 1)
-                const args = Object.keys(shape.properties ?? {}).sort((a, b) => needs(a) - needs(b))
-                return (
-                  <tr>
-                    <th scope="row">
-                      <code>{tool.name}</code>
-                      <small>
-                        <span class="chip">{effect(tool)}</span>
-                      </small>
-                    </th>
-                    <td>
-                      <span class="dk-cell-text">
-                        <Prose text={(tool.description ?? '').replace(RELAY, '').trim()} />
-                      </span>
-                      {args.length > 0 && (
-                        <span class="dk-args">
-                          Takes{' '}
-                          {args.map((a, i) => (
-                            <>
-                              {i > 0 && ', '}
-                              <code>{a}</code>
-                              {shape.required?.includes(a) ? '' : ' (optional)'}
-                            </>
-                          ))}
-                          .
+          <TableScroll label="Tools">
+            <table class="table-doc min-w-[36rem]">
+              <thead>
+                <tr>
+                  <th scope="col">Tool</th>
+                  <th scope="col">What it does</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tools.map((tool) => {
+                  const shape = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] }
+                  // What it takes, the fields it needs first.
+                  const needs = (a: string) => (shape.required?.includes(a) ? 0 : 1)
+                  const args = Object.keys(shape.properties ?? {}).sort((a, b) => needs(a) - needs(b))
+                  return (
+                    <tr data-tool={tool.name}>
+                      <th scope="row">
+                        <code class="bg-transparent p-0">{tool.name}</code>
+                        <span class={badgeVariants({ className: 'mt-1.5 flex' })}>{effect(tool)}</span>
+                      </th>
+                      <td>
+                        <span class="block">
+                          <Prose text={(tool.description ?? '').replace(RELAY, '').trim()} />
                         </span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                        {args.length > 0 && (
+                          <span class="mt-1.5 block text-muted-foreground">
+                            Takes{' '}
+                            {args.map((a, i) => (
+                              <>
+                                {i > 0 && ', '}
+                                <code>{a}</code>
+                                {shape.required?.includes(a) ? '' : ' (optional)'}
+                              </>
+                            ))}
+                            .
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </TableScroll>
           <p>
             Reads change nothing; Adds create something new, such as a launch or an answer; Changes replace or edit what
             the network has. There&apos;s no approve tool, and no tool changes the network&apos;s CPM. The inbox and
@@ -977,12 +1039,16 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
             Asked to plan promos for a launch, the assistant creates it, starts a run, and reads it until the run waits.
             Then it asks you the run&apos;s question as it is, and answers with your words:
           </p>
-          <figure class="mk-fig dk-fig">
-            <figcaption class="mh">
-              <span class="lbl">A launch through the MCP server</span>
-              <span class="chip">Illustration</span>
+          <figure class="space-y-3">
+            <figcaption class="flex flex-wrap items-center gap-2 type-ui text-muted-foreground">
+              A launch through the MCP server
+              <span class={badgeVariants()}>Illustration</span>
             </figcaption>
-            <table class="mk-table dk-talk">
+            <table class="table-doc">
+              <colgroup>
+                <col class="w-28" />
+                <col />
+              </colgroup>
               <tbody>
                 {(
                   [
@@ -1020,9 +1086,7 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
                 ).map(([who, what]) => (
                   <tr>
                     <th scope="row">{who}</th>
-                    <td>
-                      <span class="dk-cell-text">{what}</span>
-                    </td>
+                    <td>{what}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1053,27 +1117,29 @@ const agentsPage = (origin: string): Page => ({
       title: 'The skills',
       body: (
         <>
-          <table class="mk-table dk-skills">
-            <thead>
-              <tr>
-                <th scope="col">Skill</th>
-                <th scope="col">When an assistant uses it</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(SKILLS).map(([name, text]) => (
+          <TableScroll label="The skills">
+            <table class="table-doc min-w-[36rem]">
+              <thead>
                 <tr>
-                  <th scope="row">
-                    <code>{name}</code>
-                    <small>
-                      <a href={skillUrl(name)}>SKILL.md</a>
-                    </small>
-                  </th>
-                  <td>{frontmatter(text).description}</td>
+                  <th scope="col">Skill</th>
+                  <th scope="col">When an assistant uses it</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {Object.entries(SKILLS).map(([name, text]) => (
+                  <tr>
+                    <th scope="row">
+                      <code class="bg-transparent p-0">{name}</code>
+                      <a href={skillUrl(name)} class="mt-1 block w-fit font-normal">
+                        SKILL.md
+                      </a>
+                    </th>
+                    <td>{frontmatter(text).description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
           <p>
             Each is written to the <a href="https://agentskills.io/specification">Agent Skills specification</a>, with
             its fields only, so any client that reads skills can use it. Both hold the assistant to the same rules: put

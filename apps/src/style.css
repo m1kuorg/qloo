@@ -102,7 +102,8 @@
 @theme inline {
   --font-sans: 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-sans);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The platform mono stack, which preflight gives <pre> and <code>: real code and codes only. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace; /* taste-skill-ignore */
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -278,6 +279,89 @@
 [data-slot='input-group']:has([data-slot='input-group-control']:focus-visible) {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* The reading pages (privacy, the beta terms, the developer docs), which write their text as plain
+   HTML: prose-doc sets its inline parts (links underlined, lists with muted markers, bold at 600,
+   inline code at 14px on the secondary tone, which reads on the ground and on the tone step alike),
+   and table-doc their real tables at 14px, the head in muted ink, a rule under each row. In the
+   components layer, so a utility on an element still wins. */
+@layer components {
+  .prose-doc :where(a) {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+  .prose-doc :where(a):hover {
+    text-decoration-thickness: 2px;
+  }
+  .prose-doc :where(ul) {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+  .prose-doc :where(li + li) {
+    margin-top: 0.5rem;
+  }
+  .prose-doc :where(li)::marker {
+    color: var(--muted-foreground);
+  }
+  .prose-doc :where(b, strong) {
+    font-weight: 600;
+  }
+  .prose-doc :where(:not(pre) > code) {
+    border-radius: 4px;
+    background: var(--secondary);
+    padding: 0.0625rem 0.25rem;
+    font-size: 0.875em;
+    overflow-wrap: anywhere;
+  }
+  .table-doc {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    @apply type-ui;
+  }
+  .table-doc :is(th, td) {
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 1.25rem 0.5rem 0;
+    vertical-align: top;
+  }
+  .table-doc :is(th, td):last-child {
+    padding-right: 0;
+  }
+  /* A table with no head, such as a route's, opens with a rule too. */
+  .table-doc:not(:has(thead)) tr:first-child > :is(th, td) {
+    border-top: 1px solid var(--border);
+  }
+  .table-doc thead th {
+    padding-top: 0;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+  .table-doc tbody th {
+    font-weight: 500;
+  }
+  /* A code that heads a row, such as an error code or a tool's name, stays on one line at the table's
+     size. */
+  .table-doc th :where(code) {
+    font-size: 1em;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+}
+
+/* The docs' nav is a <details> under 1024px and open whatever its state from there: its summary hides
+   and its content shows. Only where ::details-content is understood; elsewhere it stays a disclosure at
+   every width. */
+@media (width >= 64rem) {
+  @supports selector(::details-content) {
+    [data-docs-nav]::details-content {
+      content-visibility: visible;
+    }
+    [data-docs-nav] > summary {
+      display: none;
+    }
+  }
 }
 
 /* Base UI injects this rule as a <style> element, which the policy blocks; the island's CSPProvider
