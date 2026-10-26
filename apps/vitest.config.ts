@@ -50,6 +50,8 @@ export default defineConfig({
       }
     })
   ],
+  // `@/` is apps/src, as in vite.config.ts.
+  resolve: { alias: { '@': path.join(import.meta.dirname, 'src') } },
   // A file's first test loads the Worker and its agent cold: about 2 s locally, over 5 s on CI.
   test: { setupFiles: ['./test/setup.ts'], testTimeout: 30_000 }
 })

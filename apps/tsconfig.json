@@ -11,7 +11,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "test", "worker-configuration.d.ts", "*.config.ts"]
 }
