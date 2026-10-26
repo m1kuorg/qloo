@@ -1,7 +1,9 @@
 import { cn } from 'cn'
+import { CheckIcon, CopyIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { bandMeter, type Band } from '../fit'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
@@ -282,18 +284,16 @@ export function ShownOnce({
         {label}
       </label>
       <div className="flex gap-2">
-        <input
+        <Input
           id={id}
-          className={cn(
-            'h-8 min-w-0 flex-1 rounded-lg border border-input bg-card px-2.5 text-foreground',
-            mono && 'font-mono'
-          )}
+          className={cn('min-w-0 flex-1 max-md:h-11', mono && 'font-mono')}
           value={value}
           readOnly
           onFocus={(e) => e.target.select()}
           spellCheck={false}
         />
-        <Button variant="secondary" onClick={() => void copy()}>
+        <Button variant="secondary" className="max-md:h-11" onClick={() => void copy()}>
+          {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
           {copied ? 'Copied' : `Copy ${noun}`}
         </Button>
       </div>

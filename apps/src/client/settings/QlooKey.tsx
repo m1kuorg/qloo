@@ -1,9 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Spinner } from '@/components/ui/spinner'
 import type { OwnKey, Usage } from '../../gateway'
 import { QLOO_HOSTS } from '../../qloo-hosts'
-import { Alert, send, useAction } from '../controls'
+import { useConfirm } from '../Confirm'
+import { Alert, KeyValue, KeyValues, send, useAction } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
-import { StateLine } from '../states'
+import { Done, Module } from './Module'
 
 const hostName = (host: string | undefined) => (host ? new URL(host).host : '')
 
@@ -13,8 +19,8 @@ type KeyChange = { key: OwnKey; usage: Usage }
 
 // The settings' Qloo key module: the network's own Qloo key (ADR 0004). An owner picks the host it's
 // for and pastes it; the gateway tests it with one search before it keeps it, and from then on it shows
-// only its last four characters, with a way to remove it, back to Crossfeed's shared key. A member sees
-// whether the network has one, not which.
+// only its last four characters, with a way to remove it, back to Crossfeed's shared key, once the
+// owner confirms. A member sees whether the network has one, not which.
 export function QlooKeyModule({
   network,
   qlooKey,
@@ -26,33 +32,27 @@ export function QlooKeyModule({
 }) {
   // Whether the key on show was saved on this page, to say it was tested.
   const [saved, setSaved] = useState(false)
+  const heading = useRef<HTMLHeadingElement>(null)
   return (
-    <section className="mod set-mod" aria-labelledby="set-qloo-h">
-      <div className="set-about">
-        <h2 className="lbl" id="set-qloo-h">
-          Qloo key
-        </h2>
-        <p className="help">
-          During the beta, a network’s Qloo calls run on Crossfeed’s shared key, within its daily caps. With a key of
-          its own, {network.name}’s calls and its launches’ run on that key, under its own agreement with Qloo, with a
-          cache and Qloo caps of their own. Model runs count against Crossfeed’s caps either way.
-        </p>
-      </div>
+    <Module
+      id="set-qloo-h"
+      title="Qloo key"
+      heading={heading}
+      help={`During the beta, a network’s Qloo calls run on Crossfeed’s shared key, within its daily caps. With a key of its own, ${network.name}’s calls and its launches’ run on that key, under its own agreement with Qloo, with a cache and Qloo caps of their own. Model runs count against Crossfeed’s caps either way.`}
+    >
       {network.role !== 'owner' ? (
-        <div className="set-body">
-          <dl className="rec kv">
-            <div className="rec-row">
-              <dt>Qloo key</dt>
-              <dd>{qlooKey.set ? 'The network’s own' : 'Crossfeed’s shared key'}</dd>
-            </div>
-          </dl>
-          <p className="help">Only an owner can add or remove the network’s Qloo key.</p>
-        </div>
+        <>
+          <KeyValues>
+            <KeyValue label="Qloo key">{qlooKey.set ? 'The network’s own' : 'Crossfeed’s shared key'}</KeyValue>
+          </KeyValues>
+          <p className="text-muted-foreground">Only an owner can add or remove the network’s Qloo key.</p>
+        </>
       ) : qlooKey.set ? (
         <OwnKeyRecord
           network={network}
           qlooKey={qlooKey}
           saved={saved}
+          heading={heading}
           onChange={(change) => {
             setSaved(false)
             onChange(change)
@@ -67,7 +67,7 @@ export function QlooKeyModule({
           }}
         />
       )}
-    </section>
+    </Module>
   )
 }
 
@@ -81,47 +81,61 @@ function AddKey({ network, onChange }: { network: NetworkPage; onChange: (change
     })
   return (
     <form
-      className="set-body set-form qloo-key"
+      className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault()
         void save()
       }}
     >
-      <fieldset disabled={busy}>
-        <legend>Host</legend>
-        <div className="opts">
-          {QLOO_HOSTS.map((h) => (
-            <label key={h.url}>
-              <input type="radio" name="qloo-host" checked={host === h.url} onChange={() => setHost(h.url)} />
-              <span>
-                {h.name}
-                <span className="tg opt-desc">
-                  {hostName(h.url)}
-                  {h.note}
+      <FieldGroup>
+        <FieldSet>
+          <FieldLegend id="qloo-host">Host</FieldLegend>
+          <RadioGroup
+            aria-labelledby="qloo-host"
+            value={host}
+            onValueChange={(next) => setHost(next as string)}
+            disabled={busy}
+            className="gap-0.5"
+          >
+            {QLOO_HOSTS.map((h) => (
+              <label
+                key={h.url}
+                className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-card has-checked:bg-card max-md:min-h-11"
+              >
+                <RadioGroupItem value={h.url} className="mt-0.5" />
+                <span className="flex min-w-0 flex-col">
+                  <span>{h.name}</span>
+                  <span className="type-caption text-muted-foreground">
+                    {hostName(h.url)}
+                    {h.note}
+                  </span>
                 </span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <label htmlFor="qloo-key">Key</label>
-      <input
-        type="password"
-        id="qloo-key"
-        className="acct-in"
-        value={key}
-        onChange={(e) => setKey(e.target.value)}
-        autoComplete="off"
-        spellCheck={false}
-        disabled={busy}
-      />
-      <div className="acts">
-        <button className="btn pri" type="submit" disabled={busy || !host || !key.trim()}>
+              </label>
+            ))}
+          </RadioGroup>
+        </FieldSet>
+        <Field>
+          <FieldLabel htmlFor="qloo-key">Key</FieldLabel>
+          <Input
+            type="password"
+            id="qloo-key"
+            className="max-w-sm max-md:h-11"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={busy}
+          />
+        </Field>
+      </FieldGroup>
+      <div>
+        <Button type="submit" variant="secondary" className="max-md:h-11" disabled={busy || !host || !key.trim()}>
+          {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Testing…' : 'Test and save key'}
-        </button>
+        </Button>
       </div>
       <Alert error={error} />
-      <p className="help">
+      <p className="text-muted-foreground">
         Crossfeed tries one search with it first and saves it only once Qloo answers, encrypted. From then on it shows
         only its last four characters.
       </p>
@@ -133,62 +147,45 @@ function OwnKeyRecord({
   network,
   qlooKey,
   saved,
+  heading,
   onChange
 }: {
   network: NetworkPage
   qlooKey: OwnKey
   saved: boolean
+  heading: React.RefObject<HTMLHeadingElement | null>
   onChange: (change: KeyChange) => void
 }) {
-  // Whether removing it waits on a yes.
-  const [asking, setAsking] = useState(false)
-  const { busy, error, run } = useAction()
-  const remove = () =>
-    run(async () => {
-      onChange(await send<KeyChange>(`/app/${network.id}/settings/qloo-key/remove`))
+  const { confirm, dialog } = useConfirm(heading)
+  const askRemove = () =>
+    confirm({
+      title: `Remove ${network.name}’s own Qloo key?`,
+      consequence:
+        'Its cache and today’s Qloo counts go with it, and its Qloo calls go back to Crossfeed’s shared key.',
+      verb: 'Remove key',
+      busy: 'Removing…',
+      keep: 'Keep it',
+      action: async () => onChange(await send<KeyChange>(`/app/${network.id}/settings/qloo-key/remove`))
     })
   return (
-    <div className="set-body qloo-key">
-      <dl className="rec kv">
-        <div className="rec-row">
-          <dt>Key</dt>
-          <dd>
-            Ends in <code>{qlooKey.last4}</code>
-          </dd>
-        </div>
-        <div className="rec-row">
-          <dt>Host</dt>
-          <dd>{hostName(qlooKey.host)}</dd>
-        </div>
-      </dl>
-      {asking ? (
-        <div className="set-ask">
-          <p>
-            Remove {network.name}’s own Qloo key? Its cache and today’s Qloo counts go with it, and its Qloo calls go
-            back to Crossfeed’s shared key.
-          </p>
-          <div className="acts">
-            <button className="btn pri" type="button" disabled={busy} onClick={() => void remove()}>
-              {busy ? 'Removing…' : 'Remove key'}
-            </button>
-            <button className="lnk" type="button" onClick={() => setAsking(false)}>
-              Keep it
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="acts">
-          <button className="btn" type="button" onClick={() => setAsking(true)}>
-            Remove key
-          </button>
-          {saved && <StateLine kind="empty">Tested and saved.</StateLine>}
-        </div>
-      )}
-      <Alert error={error} />
-      <p className="help">
+    <>
+      <KeyValues>
+        <KeyValue label="Key">
+          Ends in <code className="font-mono">{qlooKey.last4}</code>
+        </KeyValue>
+        <KeyValue label="Host">{hostName(qlooKey.host)}</KeyValue>
+      </KeyValues>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="destructive" className="max-md:h-11" onClick={askRemove}>
+          Remove key
+        </Button>
+        <Done shown={saved}>Tested and saved.</Done>
+      </div>
+      <p className="text-muted-foreground">
         The network’s and its launches’ Qloo calls go with this key to its host. To use another key, remove this one and
         add the new one.
       </p>
-    </div>
+      {dialog}
+    </>
   )
 }
