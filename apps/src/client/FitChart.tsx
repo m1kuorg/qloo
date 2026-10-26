@@ -13,7 +13,7 @@ import { dollars, slotPrice } from '../order'
 import { sameName } from '../resolve'
 import { moveGlyph, moveWords } from '../text'
 import { CLIMB, type Move, type Topic } from '../topic'
-import { FitBand, listOf } from './controls'
+import { FitBand, listOf, NotScored } from './controls'
 import { CallButton } from './Evidence'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
@@ -448,27 +448,7 @@ export function FitChart({
         </>
       )}
       {ranking.notScored.length > 0 && (
-        <table className="max-w-3xl type-caption">
-          <caption className="pb-1.5 text-left type-ui font-semibold">Not scored · {ranking.notScored.length}</caption>
-          <thead className="text-muted-foreground">
-            <tr className="border-b">
-              <th scope="col" className="py-1.5 pr-4 text-left font-normal">
-                Show
-              </th>
-              <th scope="col" className="py-1.5 text-left font-normal">
-                Reason
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {ranking.notScored.map((n) => (
-              <tr key={n.show} className="border-b">
-                <td className="py-1.5 pr-4 align-top font-medium">{n.show}</td>
-                <td className="py-1.5 align-top text-muted-foreground">{n.reason}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <NotScored noun="Show" rows={ranking.notScored.map((n) => ({ key: n.show, name: n.show, reason: n.reason }))} />
       )}
     </section>
   )

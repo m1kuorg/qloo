@@ -94,6 +94,32 @@ export function FitBand({ band, finalist, quiet = false }: { band: Band; finalis
   )
 }
 
+// What a ranking left out, and why: the fit chart's shows and a pitch list's pitches, as a compact
+// table under the ranked rows.
+export const NotScored = ({ noun, rows }: { noun: string; rows: { key: string; name: string; reason: string }[] }) => (
+  <table className="max-w-3xl type-caption">
+    <caption className="pb-1.5 text-left type-ui font-semibold">Not scored · {rows.length}</caption>
+    <thead className="text-muted-foreground">
+      <tr className="border-b">
+        <th scope="col" className="py-1.5 pr-4 text-left font-normal">
+          {noun}
+        </th>
+        <th scope="col" className="py-1.5 text-left font-normal">
+          Reason
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      {rows.map((n) => (
+        <tr key={n.key} className="border-b">
+          <td className="py-1.5 pr-4 align-top font-medium">{n.name}</td>
+          <td className="py-1.5 align-top text-muted-foreground">{n.reason}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+)
+
 export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
 
 // A day as the app writes it, such as "Oct 19", from an ISO string or epoch ms.
