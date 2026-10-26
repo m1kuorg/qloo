@@ -2,7 +2,11 @@
 // routes, with the software authenticator in the browser's place.
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { SignInPage } from '../src/client/Account'
+import { RecoveryCode } from '../src/client/Passkeys'
 import worker from '../src/index'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
 import { fakeQloo } from './fake'
@@ -17,6 +21,13 @@ const post = (path: string, body: unknown, headers: Record<string, string> = {})
     headers: { Origin: origin, 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body)
   })
+
+// A page's words, as a reader hears them.
+const words = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 // The session cookie a response sets, as the browser sends it back.
 const sessionCookie = (res: Response) => res.headers.get('set-cookie')?.match(/^__Host-crossfeed_member=[^;]+/)?.[0]
@@ -202,6 +213,23 @@ describe('recovering', () => {
     expect(sessionCookie(again)).toBeUndefined()
     expect((await post('/auth/recover', { code: issued })).status).toBe(200)
   })
+
+  it('shows the new code once, in five groups of four that a screen reader hears letter by letter', async () => {
+    const { recoveryCode } = await openMember({ name: 'Ada Programmer' })
+    const html = renderToStaticMarkup(
+      createElement(RecoveryCode, { code: recoveryCode, next: '/app/account?recovered', frame: '' })
+    )
+    const spelled = recoveryCode
+      .split('-')
+      .map((group) => group.split('').join(' '))
+      .join(', ')
+    expect(words(html)).toBe(
+      `Save your recovery code If you lose every passkey, this code signs you in once. Crossfeed shows it only now, and keeps no copy it can read. Recovery code: ${spelled} ${recoveryCode.replace(/-/g, ' - ')} Copy code I’ve saved it Keep it somewhere other than this device, such as your password manager or on paper.`
+    )
+    // The heading takes focus as the code shows; the groups as set are hidden from screen readers.
+    expect(html).toMatch(/<h1\b[^>]*\stabindex="-1"[^>]*>Save your recovery code<\/h1>/)
+    expect(html).toMatch(new RegExp(`<span aria-hidden="true">.*${recoveryCode.slice(-4)}</span></span></p>`))
+  })
 })
 
 describe('a session', () => {
@@ -257,6 +285,20 @@ describe('the way in', () => {
       ...AWAY_BY_DOTS
     ])
       expect(await nextOf(away)).toBe('/app')
+  })
+
+  it('offers a passkey first, then a new account, each in one labelled panel', async () => {
+    const next = (await (await get('/sign-in?next=/app/new')).text()).match(/data-next="([^"]*)"/)![1]
+    const html = renderToStaticMarkup(createElement(SignInPage, { next }))
+    expect(words(html)).toBe(
+      'Sign in to Crossfeed Crossfeed signs you in with a passkey, kept by your device or password manager. There’s no password, and no email to confirm. Sign in Use the passkey you made for Crossfeed on this device, or on a phone nearby. Sign in with a passkey Lost every passkey? Use a recovery code New here? Create an account Your name, as your teammates will see it Your browser makes a passkey for Crossfeed, then you get a recovery code to keep. Create account'
+    )
+    expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-in"/)
+    expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-new"/)
+    expect(html).toMatch(/<label\b[^>]*\sfor="member-name"/)
+    expect(html).toMatch(/<input\b(?=[^>]*\sid="member-name")(?=[^>]*\srequired="")/)
+    // The island renders no <header> of its own: the auth shell's is the page's one banner.
+    expect(html).not.toContain('<header')
   })
 
   it('sends a signed-in member from the sign-in page straight on to next', async () => {

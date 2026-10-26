@@ -60,7 +60,7 @@ describe('the account page', () => {
     const html = await page(ada)
     const read = words(html)
     expect(read).toMatch(/^Account /)
-    expect(html).toMatch(/<input id="acct-name"[^>]*value="Ada Programmer"/)
+    expect(html).toMatch(/<input\b(?=[^>]*\sid="acct-name")(?=[^>]*\svalue="Ada Programmer")/)
     expect(read).toContain(
       'Passkey Added Last used Actions Passkey Oct 19 Never Remove Chrome on macOS Oct 21 Never Remove'
     )

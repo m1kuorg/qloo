@@ -1,14 +1,24 @@
 import { startRegistration } from '@simplewebauthn/browser'
-import { Fragment, useState, type ReactNode } from 'react'
+import { useRef, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import type { AccountNetwork, AccountPasskey } from '../directory'
 import { initials, listOf, MAX_NAME } from '../text'
+import { useConfirm } from './Confirm'
 import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { prompted, RecoveryCode, sendConfirmed, useCodeAsk, type Ceremony } from './Passkeys'
+import { textLink } from './RosterModules'
+import { cell, Done, head, Module, settingsColumn } from './settings/Module'
 import { StateLine } from './states'
 
 // The member's account page, at /app/account: their name, their passkeys, a new recovery code, their
 // sessions, their networks, and deleting the account, one module per job in the settings' grammar.
 // A recovery code signs a member in here (`recovered`), to add a passkey for the device they're on.
+// Every destructive change confirms first; one that needs the member to confirm it's them (step-up)
+// asks once the confirm has closed, never over it.
 export function AccountPage({
   name,
   passkeys,
@@ -24,34 +34,27 @@ export function AccountPage({
 }) {
   // A new recovery code to show once, until the member says they've saved it.
   const [code, setCode] = useState<string | null>(null)
-  if (code) return <RecoveryCode code={code} next="/app/account" />
+  if (code) return <RecoveryCode code={code} next="/app/account" frame={codeFrame} />
   const onlyOwner = networks.filter((n) => n.onlyOwner).map((n) => n.name)
   return (
-    <>
-      <section className="hd" aria-label="Account">
-        <h1>Account</h1>
-      </section>
-      <main className="set acct-mods">
+    <main className={settingsColumn}>
+      <h1 className="type-title">Account</h1>
+      <div className="flex flex-col gap-12">
         <NameModule name={name} />
         <PasskeysModule listed={passkeys} recovered={recovered} />
         <RecoveryModule onCode={setCode} />
         <SessionsModule sessions={sessions} />
         <NetworksModule networks={networks} onlyOwner={onlyOwner} />
         <DeleteModule onlyOwner={onlyOwner} />
-      </main>
-    </>
+      </div>
+    </main>
   )
 }
 
-// A module's heading and what it's for, beside its body.
-const About = ({ id, title, children }: { id: string; title: string; children: ReactNode }) => (
-  <div className="set-about">
-    <h2 className="lbl" id={id}>
-      {title}
-    </h2>
-    <p className="help">{children}</p>
-  </div>
-)
+// The recovery code screen in the app's canvas: two columns from 1024px on the new network page's
+// centred measure.
+const codeFrame =
+  'mx-auto grid w-full max-w-[1152px] items-start gap-8 px-4 pt-10 pb-16 lg:grid-cols-2 lg:gap-12 lg:px-6 lg:pt-20'
 
 function NameModule({ name: saved }: { name: string }) {
   const [name, setName] = useState(saved)
@@ -71,49 +74,54 @@ function NameModule({ name: saved }: { name: string }) {
       document.querySelectorAll('[data-initials]').forEach((el) => (el.textContent = initials(answer.name)))
     })
   return (
-    <section className="mod set-mod" aria-labelledby="acct-name-h">
-      <About id="acct-name-h" title="Name">
-        How your teammates see you in every network you’re in, on its members, its runs, and the orders you approve.
-      </About>
+    <Module
+      id="acct-name-h"
+      title="Name"
+      help="How your teammates see you in every network you’re in, on its members, its runs, and the orders you approve."
+    >
       <form
-        className="set-body set-form"
+        className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault()
           setDone(false)
           void save()
         }}
       >
-        <label htmlFor="acct-name">Your name</label>
-        <input
-          id="acct-name"
-          className="acct-in"
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value)
-            setDone(false)
-          }}
-          autoComplete="name"
-          maxLength={MAX_NAME}
-          required
-        />
-        <div className="acts">
-          <button className="btn pri" type="submit" disabled={busy || !name.trim() || !changed}>
+        <Field>
+          <FieldLabel htmlFor="acct-name">Your name</FieldLabel>
+          <Input
+            id="acct-name"
+            className="max-w-sm max-md:h-11"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              setDone(false)
+            }}
+            autoComplete="name"
+            maxLength={MAX_NAME}
+            required
+          />
+        </Field>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" className="max-md:h-11" disabled={busy || !name.trim() || !changed}>
+            {busy && <Spinner data-icon="inline-start" />}
             {busy ? 'Saving…' : 'Save'}
-          </button>
-          {done && !changed && <StateLine kind="empty">Saved.</StateLine>}
+          </Button>
+          <Done shown={done && !changed}>Saved.</Done>
         </div>
         <Alert error={error} />
       </form>
-    </section>
+    </Module>
   )
 }
 
 function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recovered: boolean }) {
   const [passkeys, setPasskeys] = useState(listed)
-  // The passkey whose removal waits on a yes, and the one just added.
-  const [asking, setAsking] = useState<string | null>(null)
+  // The passkey just added.
   const [added, setAdded] = useState<string | null>(null)
   const { busy, error, run } = useAction()
+  const heading = useRef<HTMLHeadingElement>(null)
+  const { confirm, dialog } = useConfirm(heading)
   const code = useCodeAsk('acct-keys-code')
   const only = passkeys.length === 1
 
@@ -129,97 +137,99 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
       setAdded(answer.passkeys.find((p) => !passkeys.some((q) => q.id === p.id))?.id ?? null)
       setPasskeys(answer.passkeys)
     })
-  const remove = (id: string) =>
-    run(async () => {
-      setPasskeys((await send<{ passkeys: AccountPasskey[] }>(`/app/account/passkeys/${id}/remove`)).passkeys)
-      setAsking(null)
+  const askRemove = (p: AccountPasskey) =>
+    confirm({
+      title: `Remove the passkey from ${p.label}, added ${addedAt(p, passkeys)}?`,
+      consequence: 'It won’t sign you in again.',
+      verb: 'Remove',
+      busy: 'Removing…',
+      keep: 'Keep',
+      action: async () =>
+        setPasskeys((await send<{ passkeys: AccountPasskey[] }>(`/app/account/passkeys/${p.id}/remove`)).passkeys)
     })
+  // What a recovery code's sign-in asks for, so it's the page's one primary until it's done.
+  const asked = recovered && !added
 
   return (
-    <section className="mod set-mod" aria-labelledby="acct-keys-h">
-      <About id="acct-keys-h" title="Passkeys">
-        Each passkey signs you in from the device or password manager that keeps it. Keep one on a second device, so
-        losing one doesn’t lock you out.
-      </About>
-      <div className="set-body wide">
-        {recovered && !added && (
-          <div className="set-ask" role="status">
-            <p>
-              You signed in with your recovery code. Add a passkey for this device now, so you can sign in without a
-              code next time.
-            </p>
-          </div>
-        )}
-        <ScrollTable label="Passkeys table">
-          <table className="chart passkeys">
-            <thead>
-              <tr>
-                <th scope="col">Passkey</th>
-                <th scope="col">Added</th>
-                <th scope="col">Last used</th>
-                <th scope="col">
-                  <span className="vh">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {passkeys.map((p) => (
-                <Fragment key={p.id}>
-                  <tr className={asking === p.id ? 'on' : undefined}>
-                    <td className="nm">
-                      {p.label}
-                      {added === p.id && <span className="chip">New</span>}
-                    </td>
-                    <td>{addedAt(p, passkeys)}</td>
-                    <td>{p.lastUsed === null ? 'Never' : day(p.lastUsed)}</td>
-                    <td className="r">
-                      <button
-                        className="lnk"
-                        type="button"
-                        disabled={busy || only}
-                        aria-expanded={asking === p.id}
-                        onClick={() => setAsking(asking === p.id ? null : p.id)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                  {asking === p.id && (
-                    <tr className="on ask">
-                      <td colSpan={4}>
-                        <p>
-                          Remove the passkey from {p.label}, added {addedAt(p, passkeys)}? It won’t sign you in again.
-                        </p>
-                        <div className="acts">
-                          <button className="btn pri" type="button" disabled={busy} onClick={() => void remove(p.id)}>
-                            {busy ? 'Removing…' : 'Remove'}
-                          </button>
-                          <button className="lnk" type="button" onClick={() => setAsking(null)}>
-                            Keep
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </ScrollTable>
-        {only && <p className="help">Your only passkey can’t be removed: add another first.</p>}
-        <div className="acts">
-          <button className="btn pri" type="button" disabled={busy} onClick={() => void add()}>
-            {code.asking ? 'Confirming…' : busy ? 'Waiting for your passkey…' : 'Add a passkey'}
-          </button>
-        </div>
-        {code.form}
-        <Alert error={error} />
-        <p className="help">
-          Your browser asks where to keep it: on this device, a phone nearby, or your password manager. If you haven’t
-          confirmed it’s you in the last five minutes, Crossfeed asks you to first.
+    <Module
+      id="acct-keys-h"
+      title="Passkeys"
+      heading={heading}
+      help="Each passkey signs you in from the device or password manager that keeps it. Keep one on a second device, so losing one doesn’t lock you out."
+    >
+      {asked && (
+        <p role="status" className="rounded-lg bg-card p-3">
+          You signed in with your recovery code. Add a passkey for this device now, so you can sign in without a code
+          next time.
         </p>
+      )}
+      <ScrollTable label="Passkeys table">
+        <table className="relative w-full min-w-[20rem] border-separate border-spacing-0">
+          <thead className="type-caption text-muted-foreground">
+            <tr>
+              <th scope="col" className={head}>
+                Passkey
+              </th>
+              <th scope="col" className={head}>
+                Added
+              </th>
+              <th scope="col" className={head}>
+                Last used
+              </th>
+              <th scope="col" className={head}>
+                <span className="vh">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {passkeys.map((p) => (
+              <tr key={p.id}>
+                <th scope="row" className={`${cell} text-left font-medium`}>
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    {p.label}
+                    {added === p.id && <Badge variant="outline">New</Badge>}
+                  </span>
+                </th>
+                <td className={`${cell} whitespace-nowrap`}>{addedAt(p, passkeys)}</td>
+                <td className={`${cell} whitespace-nowrap text-muted-foreground`}>
+                  {p.lastUsed === null ? 'Never' : day(p.lastUsed)}
+                </td>
+                <td className={`${cell} pr-0 text-right`}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="max-md:h-11"
+                    disabled={busy || only}
+                    onClick={() => askRemove(p)}
+                  >
+                    Remove
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollTable>
+      {only && <p className="text-muted-foreground">Your only passkey can’t be removed: add another first.</p>}
+      <div>
+        <Button
+          variant={asked ? 'default' : 'secondary'}
+          className="max-md:h-11"
+          disabled={busy}
+          onClick={() => void add()}
+        >
+          {busy && <Spinner data-icon="inline-start" />}
+          {code.asking ? 'Confirming…' : busy ? 'Waiting for your passkey…' : 'Add a passkey'}
+        </Button>
       </div>
-    </section>
+      <Alert error={error} />
+      <p className="text-muted-foreground">
+        Your browser asks where to keep it: on this device, a phone nearby, or your password manager. If you haven’t
+        confirmed it’s you in the last five minutes, Crossfeed asks you to first.
+      </p>
+      {code.form}
+      {dialog}
+    </Module>
   )
 }
 
@@ -239,214 +249,186 @@ function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
       onCode((await sendConfirmed<{ recoveryCode: string }>('/app/account/recovery-code', code.ask)).recoveryCode)
     )
   return (
-    <section className="mod set-mod" aria-labelledby="acct-code-h">
-      <About id="acct-code-h" title="Recovery code">
-        If you lose every passkey, your recovery code signs you in once. Crossfeed keeps no copy it can read.
-      </About>
-      <div className="set-body">
-        <div className="acts">
-          <button className="btn" type="button" disabled={busy} onClick={() => void renew()}>
-            {code.asking ? 'Confirming…' : busy ? 'Working…' : 'Get a new recovery code'}
-          </button>
-        </div>
-        {code.form}
-        <Alert error={error} />
-        <p className="help">
-          For a code you’ve lost, or one someone else may have seen: your old code stops working, and the new one shows
-          once. If you haven’t confirmed it’s you in the last five minutes, Crossfeed asks you to first.
-        </p>
+    <Module
+      id="acct-code-h"
+      title="Recovery code"
+      help="If you lose every passkey, your recovery code signs you in once. Crossfeed keeps no copy it can read."
+    >
+      <div>
+        <Button variant="secondary" className="max-md:h-11" disabled={busy} onClick={() => void renew()}>
+          {busy && <Spinner data-icon="inline-start" />}
+          {code.asking ? 'Confirming…' : busy ? 'Working…' : 'Get a new recovery code'}
+        </Button>
       </div>
-    </section>
+      <Alert error={error} />
+      <p className="text-muted-foreground">
+        For a code you’ve lost, or one someone else may have seen: your old code stops working, and the new one shows
+        once. If you haven’t confirmed it’s you in the last five minutes, Crossfeed asks you to first.
+      </p>
+      {code.form}
+    </Module>
   )
 }
 
 function SessionsModule({ sessions }: { sessions: number }) {
-  const [asking, setAsking] = useState(false)
-  const { busy, error, run } = useAction()
-  const signOut = () =>
-    run(async () => {
-      await send('/app/account/sign-out-everywhere')
-      window.location.assign('/sign-in')
+  const { confirm, dialog } = useConfirm()
+  const askSignOut = () =>
+    confirm({
+      title: 'Sign out of every browser, this one too?',
+      consequence: 'Your open pages close, and each browser needs your passkey again.',
+      verb: 'Sign out everywhere',
+      busy: 'Signing out…',
+      keep: 'Stay signed in',
+      action: async () => {
+        await send('/app/account/sign-out-everywhere')
+        window.location.assign('/sign-in')
+      }
     })
   return (
-    <section className="mod set-mod" aria-labelledby="acct-sessions-h">
-      <About id="acct-sessions-h" title="Sessions">
-        Each browser you sign in on stays signed in for 30 days from the last time you use it.
-      </About>
-      <div className="set-body">
-        <p>
-          You’re signed in on{' '}
-          {sessions <= 1 ? '1 browser, this one.' : `${sessions.toLocaleString('en-US')} browsers, this one included.`}
-        </p>
-        {asking ? (
-          <div className="set-ask">
-            <p>
-              Sign out of every browser, this one too? Your open pages close, and each browser needs your passkey again.
-            </p>
-            <div className="acts">
-              <button className="btn pri" type="button" disabled={busy} onClick={() => void signOut()}>
-                {busy ? 'Signing out…' : 'Sign out everywhere'}
-              </button>
-              <button className="lnk" type="button" onClick={() => setAsking(false)}>
-                Stay signed in
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="acts">
-            <button className="btn" type="button" onClick={() => setAsking(true)}>
-              Sign out everywhere
-            </button>
-          </div>
-        )}
-        <Alert error={error} />
-        <p className="help">
-          For a lost or shared device: it’s signed out the next time it asks Crossfeed for anything.
-        </p>
+    <Module
+      id="acct-sessions-h"
+      title="Sessions"
+      help="Each browser you sign in on stays signed in for 30 days from the last time you use it."
+    >
+      <p>
+        You’re signed in on{' '}
+        {sessions <= 1 ? '1 browser, this one.' : `${sessions.toLocaleString('en-US')} browsers, this one included.`}
+      </p>
+      <div>
+        <Button variant="destructive" className="max-md:h-11" onClick={askSignOut}>
+          Sign out everywhere
+        </Button>
       </div>
-    </section>
+      <p className="text-muted-foreground">
+        For a lost or shared device: it’s signed out the next time it asks Crossfeed for anything.
+      </p>
+      {dialog}
+    </Module>
   )
 }
 
 function NetworksModule({ networks, onlyOwner }: { networks: AccountNetwork[]; onlyOwner: string[] }) {
-  // The network whose leaving waits on a yes.
-  const [asking, setAsking] = useState<string | null>(null)
-  const { busy, error, run } = useAction()
-  const leave = (id: string) =>
-    run(async () => {
-      await send(`/app/${id}/settings/members/leave`)
-      // The bar's switcher is the server's: a reload drops the network from it too.
-      window.location.reload()
+  const { confirm, dialog } = useConfirm()
+  const askLeave = (n: AccountNetwork) =>
+    confirm({
+      title: `Leave ${n.name}?`,
+      consequence: `Your open pages of it close${n.role === 'owner' ? ', the API keys and invite links you made in it are revoked' : ''}, and you’ll need a new invite to come back.`,
+      verb: 'Leave',
+      busy: 'Leaving…',
+      keep: 'Stay',
+      action: async () => {
+        await send(`/app/${n.id}/settings/members/leave`)
+        // The bar's switcher is the server's: a reload drops the network from it too.
+        window.location.reload()
+      }
     })
   return (
-    <section className="mod set-mod" aria-labelledby="acct-networks-h">
-      <About id="acct-networks-h" title="Networks">
-        The networks you’re a member of, and your role in each. Leaving one closes your open pages of it.
-      </About>
-      <div className="set-body wide">
-        {networks.length === 0 ? (
-          <p>
-            <StateLine kind="empty">You’re not in any network yet.</StateLine>{' '}
-            <a className="lnk" href="/app/new">
-              Create a network
-            </a>
-          </p>
-        ) : (
-          <ScrollTable label="Your networks">
-            <table className="chart nets">
-              <thead>
-                <tr>
-                  <th scope="col">Network</th>
-                  <th scope="col">Role</th>
-                  <th scope="col">
-                    <span className="vh">Actions</span>
+    <Module
+      id="acct-networks-h"
+      title="Networks"
+      help="The networks you’re a member of, and your role in each. Leaving one closes your open pages of it."
+    >
+      {networks.length === 0 ? (
+        <p>
+          <StateLine kind="empty">You’re not in any network yet.</StateLine>{' '}
+          <a className={textLink} href="/app/new">
+            Create a network
+          </a>
+        </p>
+      ) : (
+        <ScrollTable label="Your networks">
+          <table className="relative w-full min-w-[20rem] border-separate border-spacing-0">
+            <thead className="type-caption text-muted-foreground">
+              <tr>
+                <th scope="col" className={head}>
+                  Network
+                </th>
+                <th scope="col" className={head}>
+                  Role
+                </th>
+                <th scope="col" className={head}>
+                  <span className="vh">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {networks.map((n) => (
+                <tr key={n.id}>
+                  <th scope="row" className={`${cell} text-left font-normal`}>
+                    <a className={textLink} href={`/app/${n.id}`}>
+                      {n.name}
+                    </a>
                   </th>
+                  <td className={`${cell} whitespace-nowrap`}>{n.role === 'owner' ? 'Owner' : 'Member'}</td>
+                  <td className={`${cell} pr-0 text-right`}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="max-md:h-11"
+                      disabled={n.onlyOwner}
+                      onClick={() => askLeave(n)}
+                    >
+                      Leave
+                    </Button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {networks.map((n) => (
-                  <Fragment key={n.id}>
-                    <tr className={asking === n.id ? 'on' : undefined}>
-                      <td className="nm">
-                        <a className="lnk" href={`/app/${n.id}`}>
-                          {n.name}
-                        </a>
-                      </td>
-                      <td>{n.role === 'owner' ? 'Owner' : 'Member'}</td>
-                      <td className="r">
-                        <button
-                          className="lnk"
-                          type="button"
-                          disabled={busy || n.onlyOwner}
-                          aria-expanded={asking === n.id}
-                          onClick={() => setAsking(asking === n.id ? null : n.id)}
-                        >
-                          Leave
-                        </button>
-                      </td>
-                    </tr>
-                    {asking === n.id && (
-                      <tr className="on ask">
-                        <td colSpan={3}>
-                          <p>
-                            Leave {n.name}? Your open pages of it close
-                            {n.role === 'owner' && ', the API keys and invite links you made in it are revoked'}, and
-                            you’ll need a new invite to come back.
-                          </p>
-                          <div className="acts">
-                            <button className="btn pri" type="button" disabled={busy} onClick={() => void leave(n.id)}>
-                              {busy ? 'Leaving…' : 'Leave'}
-                            </button>
-                            <button className="lnk" type="button" onClick={() => setAsking(null)}>
-                              Stay
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </ScrollTable>
-        )}
-        <Alert error={error} />
-        {onlyOwner.length > 0 && (
-          <p className="help">
-            You’re the only owner of {listOf(onlyOwner)}. Make someone else an owner in its settings, or delete the
-            network there, before you leave it or delete your account.
-          </p>
-        )}
-      </div>
-    </section>
+              ))}
+            </tbody>
+          </table>
+        </ScrollTable>
+      )}
+      {onlyOwner.length > 0 && (
+        <p className="text-muted-foreground">
+          You’re the only owner of {listOf(onlyOwner)}. Make someone else an owner in its settings, or delete the
+          network there, before you leave it or delete your account.
+        </p>
+      )}
+      {dialog}
+    </Module>
   )
 }
 
 function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
-  const [asking, setAsking] = useState(false)
   const { busy, error, run } = useAction()
   const code = useCodeAsk('acct-delete-code')
+  const { confirm, dialog } = useConfirm()
   const blocked = onlyOwner.length > 0
-  const remove = () =>
-    run(async () => {
-      await sendConfirmed('/app/account/delete', code.ask)
-      window.location.assign('/')
+  // The confirm closes first, then the change goes, asking the member to confirm it's them if it's
+  // been over five minutes: the step-up never stacks on the confirm.
+  const askDelete = () =>
+    confirm({
+      title: 'Delete your account?',
+      consequence: 'You’re signed out everywhere, and it can’t be brought back.',
+      verb: 'Delete account',
+      busy: 'Deleting…',
+      keep: 'Keep it',
+      after: true,
+      action: () =>
+        run(async () => {
+          await sendConfirmed('/app/account/delete', code.ask)
+          window.location.assign('/')
+        })
     })
   return (
-    <section className="mod set-mod" aria-labelledby="acct-delete-h">
-      <About id="acct-delete-h" title="Delete account">
-        Deletes your account, passkeys, recovery code, and sessions, takes you out of every network, and revokes the API
-        keys and invite links you made. What you did in your networks, and in those you left before, stays with them,
-        such as the runs you started and the orders you approved, but under “Former member”, not your name.
-      </About>
-      <div className="set-body">
-        {asking ? (
-          <div className="set-ask">
-            <p>Delete your account? You’re signed out everywhere, and it can’t be brought back.</p>
-            <div className="acts">
-              <button className="btn pri" type="button" disabled={busy} onClick={() => void remove()}>
-                {code.asking ? 'Confirming…' : busy ? 'Deleting…' : 'Delete account'}
-              </button>
-              <button className="lnk" type="button" disabled={busy} onClick={() => setAsking(false)}>
-                Keep it
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="acts">
-            <button className="btn" type="button" disabled={blocked} onClick={() => setAsking(true)}>
-              Delete account
-            </button>
-          </div>
-        )}
-        {code.form}
-        <Alert error={error} />
-        {blocked && (
-          <p className="help">
-            A network needs an owner: while you’re the only owner of {listOf(onlyOwner)}, your account stays.
-          </p>
-        )}
+    <Module
+      id="acct-delete-h"
+      title="Delete account"
+      help="Deletes your account, passkeys, recovery code, and sessions, takes you out of every network, and revokes the API keys and invite links you made. What you did in your networks, and in those you left before, stays with them, such as the runs you started and the orders you approved, but under “Former member”, not your name."
+    >
+      <div>
+        <Button variant="destructive" className="max-md:h-11" disabled={blocked || busy} onClick={askDelete}>
+          {busy && <Spinner data-icon="inline-start" />}
+          {code.asking ? 'Confirming…' : busy ? 'Deleting…' : 'Delete account'}
+        </Button>
       </div>
-    </section>
+      <Alert error={error} />
+      {blocked && (
+        <p className="text-muted-foreground">
+          A network needs an owner: while you’re the only owner of {listOf(onlyOwner)}, your account stays.
+        </p>
+      )}
+      {code.form}
+      {dialog}
+    </Module>
   )
 }

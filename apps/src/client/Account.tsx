@@ -1,11 +1,32 @@
 import { browserSupportsWebAuthn, startAuthentication, startRegistration } from '@simplewebauthn/browser'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import { Alert, send, useAction } from './controls'
 import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
+import { textLink } from './RosterModules'
 import { StateLine } from './states'
 
 // The accounts pages of the island: signing in or up with a passkey, or back in with a recovery
 // code, and joining a network through an invite.
+
+// The sign-in and invite pages' frame, on the marketing pages' measure so it lines up with the
+// wordmark over it: from 1024px, two columns, what the page is for at display size on the left, and
+// the ways in on the right, flush with the page's right edge, each a panel on the card.
+const frame =
+  'mx-auto grid w-full max-w-[1456px] items-start gap-10 px-6 pt-6 pb-16 md:px-10 md:pt-10 lg:grid-cols-2 lg:gap-16 lg:pt-16'
+const panel = 'flex w-full max-w-[32rem] flex-col gap-4 rounded-xl bg-card p-4 sm:p-6 lg:justify-self-end'
+const ways = 'flex w-full max-w-[32rem] flex-col gap-4 lg:justify-self-end'
+
+// The left column: the page's h1 at display size, and what it says under it.
+const Lede = ({ title, children }: { title: string; children: ReactNode }) => (
+  <div className="flex flex-col gap-4">
+    <h1 className="type-display text-balance">{title}</h1>
+    {children}
+  </div>
+)
 
 export function SignInPage({ next }: { next: string }) {
   // A recovery code to show once, after a sign-up or a recovery, until the member says they've saved
@@ -14,34 +35,39 @@ export function SignInPage({ next }: { next: string }) {
   const [code, setCode] = useState<{ code: string; next: string } | null>(null)
   const [recovering, setRecovering] = useState(false)
   const supported = useSupported()
-  if (code) return <RecoveryCode code={code.code} next={code.next} />
+  if (code) return <RecoveryCode code={code.code} next={code.next} frame={frame} />
   const go = () => window.location.assign(next)
 
   return (
-    <main className="acct">
-      <header className="acct-hd">
-        <h1>Sign in to Crossfeed</h1>
-        <p className="help">
+    <main className={frame}>
+      <Lede title="Sign in to Crossfeed">
+        <p className="max-w-[48ch] type-body text-muted-foreground">
           Crossfeed signs you in with a passkey, kept by your device or password manager. There’s no password, and no
           email to confirm.
         </p>
         {supported === false && (
-          <StateLine kind="error" role="alert">
-            This browser can’t use passkeys. Open Crossfeed in a current Chrome, Safari, Edge, or Firefox, or sign in
-            with a recovery code.
-          </StateLine>
+          <p className="max-w-[48ch]">
+            <StateLine kind="error" role="alert">
+              This browser can’t use passkeys. Open Crossfeed in a current Chrome, Safari, Edge, or Firefox, or sign in
+              with a recovery code.
+            </StateLine>
+          </p>
         )}
-      </header>
-      <div className="ways">
+      </Lede>
+      <div className={ways}>
         {recovering ? (
           <Recover
             onBack={() => setRecovering(false)}
             onCode={(c) => setCode({ code: c, next: '/app/account?recovered' })}
           />
         ) : (
-          <PasskeySignIn disabled={supported === false} onIn={go} onRecover={() => setRecovering(true)} />
+          <PasskeySignIn disabled={supported === false} onIn={go} onRecover={() => setRecovering(true)} primary />
         )}
-        <CreateAccount disabled={supported === false} onCode={(c) => setCode({ code: c, next })} />
+        <CreateAccount
+          disabled={supported === false}
+          title="New here? Create an account"
+          onCode={(c) => setCode({ code: c, next })}
+        />
       </div>
     </main>
   )
@@ -56,16 +82,19 @@ function useSupported() {
 
 // Signing in with a passkey. On the invite page, `onIn` joins the network too, and there's no recovery:
 // a member who lost every passkey signs in with their code first, then opens the link again.
+// `primary` makes its button the page's one primary.
 function PasskeySignIn({
   disabled,
   onIn,
   onRecover,
-  action = 'Sign in with a passkey'
+  action = 'Sign in with a passkey',
+  primary = false
 }: {
   disabled: boolean
   onIn: () => unknown
   onRecover?: () => void
   action?: string
+  primary?: boolean
 }) {
   const { busy, error, run } = useAction()
   const signIn = () =>
@@ -79,28 +108,36 @@ function PasskeySignIn({
       await onIn()
     })
   return (
-    <section className="way" aria-labelledby="way-in">
-      <h2 className="lbl" id="way-in">
-        Sign in
-      </h2>
-      <p>Use the passkey you made for Crossfeed on this device, or on a phone nearby.</p>
-      <div className="acts">
-        <button className="btn pri" type="button" disabled={disabled || busy} onClick={() => void signIn()}>
-          {busy ? 'Waiting for your passkey…' : action}
-        </button>
+    <section className={panel} aria-labelledby="way-in">
+      <div className="flex flex-col gap-1">
+        <h2 className="type-body font-medium" id="way-in">
+          Sign in
+        </h2>
+        <p className="text-muted-foreground">
+          Use the passkey you made for Crossfeed on this device, or on a phone nearby.
+        </p>
       </div>
+      <Button
+        variant={primary ? 'default' : 'secondary'}
+        className="w-full max-md:h-11"
+        disabled={disabled || busy}
+        onClick={() => void signIn()}
+      >
+        {busy && <Spinner data-icon="inline-start" />}
+        {busy ? 'Waiting for your passkey…' : action}
+      </Button>
       <Alert error={error} />
       {onRecover ? (
-        <p className="help">
+        <p className="text-muted-foreground">
           Lost every passkey?{' '}
-          <button className="lnk" type="button" onClick={onRecover}>
+          <Button variant="link" onClick={onRecover}>
             Use a recovery code
-          </button>
+          </Button>
         </p>
       ) : (
-        <p className="help">
+        <p className="text-muted-foreground">
           Lost every passkey?{' '}
-          <a className="lnk" href="/sign-in">
+          <a className={textLink} href="/sign-in">
             Sign in with a recovery code
           </a>
           , then open this link again.
@@ -116,60 +153,68 @@ function Recover({ onBack, onCode }: { onBack: () => void; onCode: (code: string
   const recover = () =>
     run(async () => onCode((await send<{ recoveryCode: string }>('/auth/recover', { code: typed })).recoveryCode))
   return (
-    <section className="way" aria-labelledby="way-in">
-      <h2 className="lbl" id="way-in">
+    <section className={panel} aria-labelledby="way-in">
+      <h2 className="type-body font-medium" id="way-in">
         Sign in with a recovery code
       </h2>
       <form
-        className="field"
+        className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault()
           void recover()
         }}
       >
-        <label htmlFor="recovery-code">Your recovery code</label>
-        <input
-          id="recovery-code"
-          className="acct-in code-in"
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
-          autoComplete="off"
-          autoCapitalize="characters"
-          spellCheck={false}
-          autoFocus
-          required
-        />
-        <div className="acts">
-          <button className="btn pri" type="submit" disabled={busy || !typed.trim()}>
+        <Field>
+          <FieldLabel htmlFor="recovery-code">Your recovery code</FieldLabel>
+          <Input
+            id="recovery-code"
+            className="font-mono max-md:h-11"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            autoFocus
+            required
+          />
+          <FieldDescription>
+            The code you saved when you made your account, or when you last used one. It works once, and you’ll get a
+            new one to keep.
+          </FieldDescription>
+        </Field>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" className="max-md:h-11" disabled={busy || !typed.trim()}>
+            {busy && <Spinner data-icon="inline-start" />}
             {busy ? 'Checking…' : 'Sign in'}
-          </button>
-          <button className="lnk" type="button" onClick={onBack}>
+          </Button>
+          <Button variant="ghost" className="max-md:h-11" onClick={onBack}>
             Use a passkey instead
-          </button>
+          </Button>
         </div>
       </form>
       <Alert error={error} />
-      <p className="help">
-        The code you saved when you made your account, or when you last used one. It works once, and you’ll get a new
-        one to keep.
-      </p>
     </section>
   )
 }
 
 // Creating an account with a passkey. On the invite page it carries the link's token, `invite`, and
-// joins the network in the same step: `onCode` gets the network's ID too.
+// joins the network in the same step: `onCode` gets the network's ID too. `primary` makes its button
+// the page's one primary.
 function CreateAccount({
   disabled,
   onCode,
   invite,
-  action = 'Create account'
+  title = 'Create an account',
+  action = 'Create account',
+  primary = false
 }: {
   disabled: boolean
   onCode: (code: string, network?: string) => void
   invite?: string
+  title?: string
   action?: string
+  primary?: boolean
 }) {
   const { busy, error, run } = useAction()
   const [name, setName] = useState('')
@@ -188,35 +233,43 @@ function CreateAccount({
       onCode(done.recoveryCode, done.network)
     })
   return (
-    <section className="way" aria-labelledby="way-new">
-      <h2 className="lbl" id="way-new">
-        Create an account
+    <section className={panel} aria-labelledby="way-new">
+      <h2 className="type-body font-medium" id="way-new">
+        {title}
       </h2>
       <form
-        className="field"
+        className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault()
           void create()
         }}
       >
-        <label htmlFor="member-name">Your name, as your teammates will see it</label>
-        <input
-          id="member-name"
-          className="acct-in"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoComplete="name"
-          maxLength={64}
-          required
-        />
-        <div className="acts">
-          <button className="btn pri" type="submit" disabled={disabled || busy || !name.trim()}>
-            {busy ? 'Waiting for your passkey…' : action}
-          </button>
-        </div>
+        <Field>
+          <FieldLabel htmlFor="member-name">Your name, as your teammates will see it</FieldLabel>
+          <Input
+            id="member-name"
+            className="max-md:h-11"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
+            maxLength={64}
+            required
+          />
+          <FieldDescription>
+            Your browser makes a passkey for Crossfeed, then you get a recovery code to keep.
+          </FieldDescription>
+        </Field>
+        <Button
+          type="submit"
+          variant={primary ? 'default' : 'secondary'}
+          className="w-full max-md:h-11"
+          disabled={disabled || busy || !name.trim()}
+        >
+          {busy && <Spinner data-icon="inline-start" />}
+          {busy ? 'Waiting for your passkey…' : action}
+        </Button>
       </form>
       <Alert error={error} />
-      <p className="help">Your browser makes a passkey for Crossfeed, then you get a recovery code to keep.</p>
     </section>
   )
 }
@@ -244,56 +297,59 @@ export function InvitePage({ memberName }: { memberName: string | null }) {
       (err: Error) => setInvite({ error: err.message })
     )
   }, [token])
-  if (code) return <RecoveryCode code={code.code} next={code.next} />
+  if (code) return <RecoveryCode code={code.code} next={code.next} frame={frame} />
   // Joins as whoever is signed in now, and opens the network.
   const join = async () => window.location.assign(`/app/${(await send<{ id: string }>('/auth/join', { token })).id}`)
 
   if (!invite || 'error' in invite)
     return (
-      <main className="acct">
-        <header className="acct-hd">
-          <h1>{invite ? 'This invite link can’t be used' : 'Opening your invite'}</h1>
-          {invite ? (
-            <StateLine kind="error" role="alert">
-              {invite.error}
-            </StateLine>
-          ) : (
-            <StateLine kind="loading">Checking the link…</StateLine>
-          )}
-        </header>
-        {invite && (
-          <p className="acct-next">
-            <a className="lnk" href={memberName ? '/app' : '/sign-in'}>
-              {memberName ? 'Open your networks' : 'Sign in to Crossfeed'}
-            </a>
+      <main className={frame}>
+        <Lede title={invite ? 'This invite link can’t be used' : 'Opening your invite'}>
+          <p className="max-w-[48ch] type-body">
+            {invite ? (
+              <StateLine kind="error" role="alert">
+                {invite.error}
+              </StateLine>
+            ) : (
+              <StateLine kind="loading">Checking the link…</StateLine>
+            )}
           </p>
-        )}
+          {invite && (
+            <p className="type-body">
+              <a className={textLink} href={memberName ? '/app' : '/sign-in'}>
+                {memberName ? 'Open your networks' : 'Sign in to Crossfeed'}
+              </a>
+            </p>
+          )}
+        </Lede>
       </main>
     )
 
   return (
-    <main className="acct">
-      <header className="acct-hd">
-        <h1>Join {invite.network}</h1>
-        <p className="help">
+    <main className={frame}>
+      <Lede title={`Join ${invite.network}`}>
+        <p className="max-w-[48ch] type-body text-muted-foreground">
           You’re invited to {invite.network} on Crossfeed, as a member: you’ll work on its roster, launches, and inbox
           with its other members. The link works once.
         </p>
         {supported === false && !memberName && (
-          <StateLine kind="error" role="alert">
-            This browser can’t use passkeys. Open the link in a current Chrome, Safari, Edge, or Firefox.
-          </StateLine>
+          <p className="max-w-[48ch]">
+            <StateLine kind="error" role="alert">
+              This browser can’t use passkeys. Open the link in a current Chrome, Safari, Edge, or Firefox.
+            </StateLine>
+          </p>
         )}
-      </header>
+      </Lede>
       {memberName ? (
         <JoinAs name={memberName} network={invite.network} join={join} />
       ) : (
-        <div className="ways">
+        <div className={ways}>
           <CreateAccount
             disabled={supported === false}
             invite={token}
             action="Create account and join"
             onCode={(recoveryCode, network) => setCode({ code: recoveryCode, next: `/app/${network}` })}
+            primary
           />
           <PasskeySignIn disabled={supported === false} onIn={join} action="Sign in and join" />
         </div>
@@ -312,21 +368,20 @@ function JoinAs({ name, network, join }: { name: string; network: string; join: 
       window.location.reload()
     })
   return (
-    <section className="way" aria-label={`Join ${network}`}>
+    <section className={panel} aria-label={`Join ${network}`}>
       <p>
-        You’re signed in as <b>{name}</b>.
+        You’re signed in as <b className="font-semibold">{name}</b>.
       </p>
-      <div className="acts">
-        <button className="btn pri" type="button" disabled={busy} onClick={() => void run(join)}>
-          {busy ? 'Joining…' : `Join ${network}`}
-        </button>
-      </div>
+      <Button className="w-full max-md:h-11" disabled={busy} onClick={() => void run(join)}>
+        {busy && <Spinner data-icon="inline-start" />}
+        {busy ? 'Joining…' : `Join ${network}`}
+      </Button>
       <Alert error={error} />
-      <p className="help">
+      <p className="text-muted-foreground">
         Not {name}?{' '}
-        <button className="lnk" type="button" disabled={busy} onClick={() => void signOut()}>
+        <Button variant="link" disabled={busy} onClick={() => void signOut()}>
           Sign out
-        </button>{' '}
+        </Button>{' '}
         to join with another account.
       </p>
     </section>
