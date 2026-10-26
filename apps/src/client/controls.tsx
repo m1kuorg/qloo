@@ -187,6 +187,18 @@ export function PickOne({
   )
 }
 
+// A record as key/value pairs: each key in grey beside its value, on one grid so the values share a
+// left edge. `KeyValue`s go straight inside.
+export const KeyValues = ({ children }: { children: ReactNode }) => (
+  <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">{children}</dl>
+)
+export const KeyValue = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div className="col-span-full grid grid-cols-subgrid">
+    <dt className="text-muted-foreground">{label}</dt>
+    <dd className="min-w-0">{children}</dd>
+  </div>
+)
+
 // A wide table on a narrow screen scrolls sideways inside this, never the page.
 export const ScrollTable = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="max-w-full overflow-x-auto" role="region" aria-label={label} tabIndex={0}>
