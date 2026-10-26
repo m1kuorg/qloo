@@ -1,5 +1,13 @@
-// Labels where a figure or line came from, wherever it appears: Qloo data is set in a solid chip,
-// agent text in a dashed one, so the two never read alike (DESIGN.md do's).
+import { Badge } from '@/components/ui/badge'
+
+// Labels where a figure or line came from, wherever it appears. The two never read alike: Qloo data
+// is an outlined chip with an ink square, agent text a tone-filled chip with a circle.
 export function Source({ of }: { of: 'qloo' | 'agent' }) {
-  return <span className={`chip src-${of}`}>{of === 'qloo' ? 'Qloo data' : 'Agent'}</span>
+  return of === 'qloo' ? (
+    <Badge variant="outline" mark="square">
+      Qloo data
+    </Badge>
+  ) : (
+    <Badge mark="circle">Agent</Badge>
+  )
 }

@@ -1,5 +1,7 @@
+import { cn } from 'cn'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { Button } from '@/components/ui/button'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
 
@@ -96,48 +98,57 @@ export function PickOne({
   while (size < 36 && new Set(twins.map((c) => c.id.slice(0, size))).size < twins.length) size += 4
   return (
     <form
-      className="pick"
+      className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
         void pick(choice)
       }}
     >
-      <fieldset>
-        <legend className="lbl">{legend}</legend>
-        <div className="opts">
-          {options.map((c) => (
-            <label key={c.id} data-candidate={c.id}>
-              <input
-                type="radio"
-                name={legend}
-                value={c.id}
-                checked={choice === c.id}
-                onChange={() => setChoice(c.id)}
-              />
+      <fieldset className="flex min-w-0 flex-col gap-1">
+        <legend className="mb-2 font-medium">{legend}</legend>
+        {options.map((c) => (
+          <label
+            key={c.id}
+            data-candidate={c.id}
+            className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-muted has-checked:bg-muted"
+          >
+            <input
+              type="radio"
+              name={legend}
+              value={c.id}
+              checked={choice === c.id}
+              onChange={() => setChoice(c.id)}
+              className="mt-0.5 size-4 shrink-0 accent-primary"
+            />
+            <span className="flex min-w-0 flex-col">
               <span>
                 {c.name}
-                {c.disambiguation && <span className="tg"> ({c.disambiguation})</span>}{' '}
-                <span className="pop">{percentile(c.popularity)}</span>
-                {(c.description || described) && (
-                  <span className="tg opt-desc">{c.description || 'No description in Qloo'}</span>
-                )}
-                {twins.includes(c) && <span className="tg opt-desc">Qloo ID {c.id.slice(0, size)}</span>}
+                {c.disambiguation && <span className="text-muted-foreground"> ({c.disambiguation})</span>}{' '}
+                <span className="text-muted-foreground">{percentile(c.popularity)}</span>
               </span>
-            </label>
-          ))}
-        </div>
+              {(c.description || described) && (
+                <span className="type-caption text-muted-foreground">{c.description || 'No description in Qloo'}</span>
+              )}
+              {twins.includes(c) && (
+                <span className="type-caption text-muted-foreground">
+                  Qloo ID <span className="font-mono">{c.id.slice(0, size)}</span>
+                </span>
+              )}
+            </span>
+          </label>
+        ))}
         {twins.length > 0 && (
-          <p className="help">
+          <p className="mt-1 type-caption text-muted-foreground">
             Qloo gives nothing else to tell {twins.length === options.length ? 'these' : 'some of these'} apart, so they
             show their Qloo IDs.
           </p>
         )}
       </fieldset>
-      <div className="acts">
-        <button className="btn pri" type="submit" disabled={busy || !choice || choice === current}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Button type="submit" disabled={busy || !choice || choice === current}>
           {submit}
-        </button>
-        <small>{note}</small>
+        </Button>
+        <small className="type-caption text-muted-foreground">{note}</small>
       </div>
     </form>
   )
@@ -145,14 +156,14 @@ export function PickOne({
 
 // A wide table on a narrow screen scrolls sideways inside this, never the page.
 export const ScrollTable = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="scroll-x" role="region" aria-label={label} tabIndex={0}>
+  <div className="max-w-full overflow-x-auto" role="region" aria-label={label} tabIndex={0}>
     {children}
   </div>
 )
 
-// Something shown once, such as a new invite link or API key, on Panel Grey in a read-only field that
-// selects itself, with a button that copies it, and `children` saying what to do with it. Key it by
-// what it shows, so a new one starts uncopied.
+// Something shown once, such as a new invite link or API key, in a read-only field that selects
+// itself, with a button that copies it, and `children` saying what to do with it. Key it by what it
+// shows, so a new one starts uncopied.
 export function ShownOnce({
   id,
   label,
@@ -178,27 +189,32 @@ export function ShownOnce({
     }
   }
   return (
-    <div className="new-link">
-      <label htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        className={mono ? 'acct-in key-in' : 'acct-in'}
-        value={value}
-        readOnly
-        onFocus={(e) => e.target.select()}
-        spellCheck={false}
-      />
-      <div className="acts">
-        <button className="btn" type="button" onClick={() => void copy()}>
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="font-medium">
+        {label}
+      </label>
+      <div className="flex gap-2">
+        <input
+          id={id}
+          className={cn(
+            'h-8 min-w-0 flex-1 rounded-lg border border-input bg-card px-2.5 text-foreground',
+            mono && 'font-mono'
+          )}
+          value={value}
+          readOnly
+          onFocus={(e) => e.target.select()}
+          spellCheck={false}
+        />
+        <Button variant="secondary" onClick={() => void copy()}>
           {copied ? 'Copied' : `Copy ${noun}`}
-        </button>
+        </Button>
       </div>
       {copied === false && (
         <StateLine kind="error" role="alert">
           This browser didn’t let Crossfeed copy it. Select the {noun} and copy it yourself.
         </StateLine>
       )}
-      <p className="help">{children}</p>
+      <p className="type-caption text-muted-foreground">{children}</p>
     </div>
   )
 }
@@ -217,12 +233,16 @@ export function useIntoView<T extends HTMLElement>(focus?: RefObject<HTMLElement
 
 // While a file is dragged over the page, the window is ruled in ink, as keyboard focus is, with a line
 // along its foot saying what a drop does, wherever the page is scrolled; while the form is still
-// busy, the line alone says to wait. It's portalled to the body, since the chart column's container
-// query would otherwise hold a fixed box inside it.
+// busy, the line alone says to wait. It's portalled to the body, so no container of the page's
+// holds its fixed box.
 export function DropCue({ busy, children }: { busy: boolean; children: ReactNode }) {
   return createPortal(
-    <div className="drop-cue" data-busy={busy || undefined} role="status">
-      <p>{children}</p>
+    <div
+      className="pointer-events-none fixed inset-0 z-50 ring-2 ring-ring ring-inset data-busy:ring-0"
+      data-busy={busy || undefined}
+      role="status"
+    >
+      <p className="absolute inset-x-0 bottom-0 bg-primary px-4 py-3 font-medium text-primary-foreground">{children}</p>
     </div>,
     document.body
   )

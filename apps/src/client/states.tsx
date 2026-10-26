@@ -1,8 +1,13 @@
+import { cn } from 'cn'
+import { CircleDashedIcon, ClockIcon, SquareXIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Spinner } from '@/components/ui/spinner'
 import type { SlowCall } from '../agent'
 import type { Pitch } from '../inbox'
 
-// The workspace's states, worded and marked the same way wherever they appear. A state leads with
-// its word, so it never relies on its color, and no state color is Chart Red (DESIGN.md colors).
+// The workspace's states, worded and marked the same way wherever they appear: a glyph, the state's
+// word in bold, then what it's about. A state leads with its word, so it never relies on its colour
+// or its glyph. Failures are crimson, with a square ✕ where the live dot is a circle.
 // `failed` is Qloo failing after its retries or at the daily cap; `error` is anything else that went wrong.
 export type StateKind = 'empty' | 'loading' | 'slow' | 'failed' | 'missed' | 'error'
 
@@ -13,6 +18,17 @@ const words: Record<StateKind, string | null> = {
   failed: 'Failed',
   missed: 'Missed',
   error: 'Error'
+}
+
+// Set in the line's text, a little under its cap height, hidden from screen readers.
+const glyph = 'mr-1.5 inline-block size-[1em] shrink-0 align-[-0.15em]'
+const glyphs: Record<StateKind, ReactNode> = {
+  empty: null,
+  loading: <Spinner className={glyph} />,
+  slow: <ClockIcon aria-hidden="true" className={glyph} />,
+  failed: <SquareXIcon aria-hidden="true" className={cn(glyph, 'text-destructive')} />,
+  missed: <CircleDashedIcon aria-hidden="true" className={cn(glyph, 'text-muted-foreground')} />,
+  error: <SquareXIcon aria-hidden="true" className={cn(glyph, 'text-destructive')} />
 }
 
 // A span, so it can sit in a line of text; it's set as a block of its own elsewhere. `word`
@@ -26,13 +42,15 @@ export function StateLine({
   kind: StateKind
   word?: string | null
   role?: 'alert'
-  children: React.ReactNode
+  children: ReactNode
 }) {
+  const failure = kind === 'failed' || kind === 'error'
   return (
-    <span className="state" data-state={kind} role={role}>
+    <span className={kind === 'empty' ? 'text-muted-foreground' : undefined} data-state={kind} role={role}>
+      {glyphs[kind]}
       {word && (
         <>
-          <b className="state-w">{word}</b>{' '}
+          <b className={cn('font-semibold', failure && 'text-destructive')}>{word}</b>{' '}
         </>
       )}
       {children}
