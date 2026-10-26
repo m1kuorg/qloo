@@ -69,6 +69,17 @@ const badge = cva(
 )
 export const badgeVariants = merged(badge)
 
+// A segmented control: its options side by side on a tone-step track, the chosen one raised onto the
+// card with the controls' 3:1 outline, so it reads apart without colour. The item marks its choice
+// whichever way it's built: a Base UI tab (data-active) or radio (data-checked), or a server page's
+// label around a native radio (has-checked).
+const segmentedTrack = cva('inline-flex h-8 w-fit max-w-full items-center gap-0.5 rounded-lg bg-muted p-0.5')
+export const segmentedTrackVariants = merged(segmentedTrack)
+const segmentedItem = cva(
+  'inline-flex h-7 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 font-medium whitespace-nowrap text-muted-foreground transition-colors select-none hover:text-foreground has-checked:border-input has-checked:bg-card has-checked:text-foreground has-disabled:cursor-not-allowed has-disabled:opacity-50 data-active:border-input data-active:bg-card data-active:text-foreground data-checked:border-input data-checked:bg-card data-checked:text-foreground data-disabled:cursor-not-allowed data-disabled:opacity-50'
+)
+export const segmentedItemVariants = merged(segmentedItem)
+
 // A call number, such as C-21, which opens its evidence: mono, as codes are, dotted underneath
 // until it's open, then in ink.
 const call = cva(
