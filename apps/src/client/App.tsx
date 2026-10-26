@@ -390,12 +390,16 @@ function LaunchHead({
       : null
   const title =
     launch?.name ?? (launchComps.length ? `From comps: ${launchComps.map((c) => c.name).join(' · ')}` : null)
+  // Back to the latest run, its button goes, and focus goes to the page's heading.
+  const heading = useRef<HTMLHeadingElement>(null)
   return (
     <>
       {/* The name and its lines take what the actions leave, and wrap before the actions do. */}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="flex min-w-0 flex-1 basis-md flex-col gap-1.5">
-          <h1 className="type-title text-balance">{title ?? 'No launch yet'}</h1>
+          <h1 className="type-title text-balance" ref={heading} tabIndex={-1}>
+            {title ?? 'No launch yet'}
+          </h1>
           <div className="flex flex-col gap-1 type-caption text-muted-foreground">
             {viewing && (
               <p className="flex flex-wrap items-center gap-1.5">
@@ -425,7 +429,13 @@ function LaunchHead({
             </a>
           )}
           {viewing ? (
-            <Button variant="secondary" onClick={back}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                back()
+                heading.current?.focus()
+              }}
+            >
               Back to the latest run
             </Button>
           ) : formShown ? (
