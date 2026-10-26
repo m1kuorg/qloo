@@ -1,9 +1,10 @@
-// Forked from shadcn's base-nova alert dialog, trimmed to the parts the app uses and set on the
-// tokens: the app's one confirm for a destructive action, its consequence in words, the verb on the
-// destructive button and the escape (Cancel) secondary, since there's no outline variant. 8px corners
-// and the one floating shadow, no ring and no backdrop blur, left-aligned at every width, a footer
-// without a rule or band. Base UI injects no <style> under the island's CSPProvider, so it runs under
-// the production policy. Don't re-add the original with `shadcn add alert-dialog --overwrite`.
+// Forked from shadcn's base-nova alert dialog, trimmed to the parts the app uses and set on the tokens:
+// the app's one confirm for a destructive action, its consequence in words, the verb on the destructive
+// button and the escape (Cancel) secondary, since there's no outline variant. 8px corners and the one
+// floating shadow (a light ring and a deeper shadow in the dark), over the scrim, with no backdrop
+// blur, left-aligned at every width, a footer without a rule or band. Base UI injects no <style> under
+// the island's CSPProvider, so it runs under the production policy. Don't re-add the original with
+// `shadcn add alert-dialog --overwrite`.
 import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,7 @@ function AlertDialogContent({ className, ...props }: AlertDialogPrimitive.Popup.
     <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal">
       <AlertDialogPrimitive.Backdrop
         data-slot="alert-dialog-overlay"
-        className="fixed inset-0 isolate z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"
+        className="fixed inset-0 isolate z-50 bg-scrim transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"
       />
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
