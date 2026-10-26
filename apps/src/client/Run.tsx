@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon, SquareXIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem, RadioGroupSegment } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
-import type { Budget, Launch, Question, Reply, Run } from '../agent'
+import type { Budget, Launch, Question, Reply, Run, RunSummary } from '../agent'
 import { finalistsOf, markFinalists, type Ranking } from '../fit'
 import { MAX_COMPS } from '../limits'
 import { MAX_ANSWER, MAX_TITLE } from '../text'
@@ -142,6 +142,92 @@ export function RunLog({
           )}
         </KeyValues>
       )}
+    </section>
+  )
+}
+
+// Runs are numbered in the order their agent started them.
+export const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id === id) + 1
+
+// Every run the agent started that `include` keeps, newest first, numbered among all of them: its
+// number and what it ran, when and by whom it started, how it ended, and the one shown, or View, which
+// opens an earlier run read-only to compare it with the latest. `latest` is the run the page shows
+// when none is viewed, the last run started unless the page says otherwise.
+export function RunList({
+  runs,
+  include = () => true,
+  latest = runs.at(-1)?.id,
+  viewing,
+  view,
+  counted
+}: {
+  runs: RunSummary[]
+  include?: (run: RunSummary) => boolean
+  latest?: string
+  viewing: string | null
+  view: (id: string | null) => Promise<void>
+  counted: 'visitor' | 'network' // whom the daily limits on model runs count
+}) {
+  const { busy, error, run } = useAction()
+  // View gives way to Shown on the run it opens, so focus goes to the list's heading, not the page.
+  const heading = useRef<HTMLHeadingElement>(null)
+  const open = async (id: string | null) => {
+    if (await run(() => view(id))) heading.current?.focus()
+  }
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="runs-h">
+      <h2 className="font-semibold" id="runs-h" ref={heading} tabIndex={-1}>
+        Runs
+      </h2>
+      <ol className="-mx-2 flex flex-col gap-0.5">
+        {runs
+          .map((r, i) => ({ ...r, n: i + 1 }))
+          .filter(include)
+          .reverse()
+          .map((r) => {
+            const shown = viewing === null ? r.id === latest : r.id === viewing
+            return (
+              <li
+                key={r.id}
+                aria-current={shown || undefined}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg px-2 py-1.5 aria-[current]:bg-muted"
+              >
+                <span className="min-w-0">
+                  <b className="font-semibold">Run {r.n}</b> ·{' '}
+                  {r.pitchesFor ? `Pitches for ${r.pitchesFor}` : (r.launch ?? 'From comps')}
+                </span>
+                <span className="type-caption text-muted-foreground">
+                  {new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {r.startedBy && ` by ${r.startedBy}`} · {runLabel[r.status]}
+                  {r.replayed && ' · Replayed'}
+                </span>
+                <span className="col-start-2 row-span-2 row-start-1 justify-self-end">
+                  {shown ? (
+                    <span className="type-caption text-muted-foreground">Shown</span>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      aria-label={`View run ${r.n}`}
+                      onClick={() => void open(r.id === latest ? null : r.id)}
+                      className="-mr-1 max-md:h-11"
+                    >
+                      View
+                    </Button>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+      </ol>
+      <p className="type-caption text-muted-foreground">
+        Each run starts fresh; earlier ones stay here to compare.{' '}
+        {counted === 'network'
+          ? "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them. Runs that stop at once have a higher limit of their own."
+          : 'Model runs are limited per visitor and per UTC day, across browsers. Runs that replay or stop at once have a higher limit of their own.'}
+      </p>
+      <Alert error={error} />
     </section>
   )
 }

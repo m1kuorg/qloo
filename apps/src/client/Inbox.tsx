@@ -1,6 +1,6 @@
 import { cn } from 'cn'
-import { CircleDashedIcon, SquareXIcon, UploadIcon } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { CheckIcon, CircleDashedIcon, CopyIcon, SquareXIcon, UploadIcon } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Spinner } from '@/components/ui/spinner'
 import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import type { Run, Show, SlowCall } from '../agent'
+import type { Run, RunSnapshot, RunSummary, Show, SlowCall } from '../agent'
 import { NO_ANGLE, tagged, type PitchList, type SharedTags } from '../fit'
 import {
   workTypes,
@@ -20,6 +20,7 @@ import {
   type PitchReply,
   type Skipped,
   type Verdict,
+  type WorkMatch,
   type WorkType
 } from '../inbox'
 import { MAX_PAST_GUESTS } from '../limits'
@@ -45,7 +46,8 @@ import {
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
 import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
 import { Code, textLink } from './RosterModules'
-import { OpenQuestion, REPLIES_CHANGED, RunLog } from './Run'
+import type { NetworkPage } from './NetworkPage'
+import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
 import { connectionOf, matchLabel, sentence, SlowCalls, stateLabel, StateLine, type Connection } from './states'
 
@@ -60,6 +62,16 @@ type Actions = {
   opened: Opened | null
 }
 
+// The agent's runs, of which the Run tab lists the pitch runs: the one the page shows when none is
+// viewed (`latest`), the earlier one being viewed, and `view`, which shows one, or the latest again.
+type History = {
+  runs: RunSummary[]
+  latest: string | undefined
+  viewing: string | null
+  view: (id: string | null) => Promise<void>
+  counted: 'visitor' | 'network' // whom the daily limits on model runs count
+}
+
 type Page = {
   inbox: Inbox | null
   roster: Show[]
@@ -69,24 +81,30 @@ type Page = {
   question: ReactNode // the pitch run's open question, while it waits on one
   slowCalls: SlowCall[] // Qloo calls still waiting past the slow mark
   connection?: Connection
+  history?: History
   links: Links
 }
 
-// The inbox page on a connected agent, the demo session's or a network's, with the latest run when
-// it's a pitch run. Tests render it from synced state.
-export function InboxWorkspace({ agent, links }: { agent: Session; links: Links }) {
+// The inbox page on a connected agent, the demo session's or a network's (`network`), with the
+// latest run when it's a pitch run, or an earlier pitch run being viewed, read-only, as it ended. Tests
+// render it from synced state.
+export function InboxWorkspace({ agent, links, network }: { agent: Session; links: Links; network?: NetworkPage }) {
   const { opened, openCall } = useEvidence(agent)
+  const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
   if (!agent.state) return <Connecting label="Connecting to the inbox…" />
-  const lastRun = agent.state.run
-  const pitchRun = lastRun && agent.state.booking?.run === lastRun.id ? lastRun : null
+  const shown = viewing?.state ?? agent.state
+  const lastRun = shown.run
+  const pitchRun = lastRun && shown.booking?.run === lastRun.id ? lastRun : null
+  const runs = agent.state.runs ?? []
   return (
     <InboxPage
-      inbox={agent.state.inbox ?? null}
+      inbox={shown.inbox ?? null}
       roster={agent.state.roster ?? []}
-      booking={agent.state.booking ?? null}
+      booking={shown.booking ?? null}
       pitchRun={pitchRun}
-      startedAt={(pitchRun && agent.state.runs?.find((r) => r.id === pitchRun.id)?.startedAt) ?? null}
+      startedAt={(!viewing && pitchRun && runs.find((r) => r.id === pitchRun.id)?.startedAt) || null}
       question={
+        !viewing &&
         pitchRun?.status === 'waiting' &&
         pitchRun.question && (
           <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
@@ -94,6 +112,13 @@ export function InboxWorkspace({ agent, links }: { agent: Session; links: Links 
       }
       slowCalls={agent.state.slowCalls ?? []}
       connection={connectionOf(agent)}
+      history={{
+        runs,
+        latest: agent.state.booking?.run,
+        viewing: viewing?.id ?? null,
+        view: async (id) => setViewing(id === null ? null : { id, state: await agent.stub.getRun(id) }),
+        counted: network ? 'network' : 'visitor'
+      }}
       loadInbox={(source) => agent.stub.loadInbox(source)}
       confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
       startPitches={(input) => agent.stub.startPitches(input)}
@@ -112,8 +137,10 @@ export function InboxWorkspace({ agent, links }: { agent: Session; links: Links 
 // rank the pitched works against a roster show and its past guests, then clear the inbox reply by
 // reply. It's a loop, so every section stays on the canvas once it has something to show, in the
 // order the loop asks: the title row and its readout, the run's question, the show to rank against,
-// the ranked lists, the replies, then the pitches. The inspector holds the run, a call's evidence,
-// and the pitch opened from a list or the table.
+// the ranked lists, the replies, then the pitches. The inspector holds the run and the earlier pitch
+// runs, a call's evidence, and the pitch opened from a list or the table. An earlier pitch run, viewed
+// from Runs, shows read-only as it ended: its lists, replies and pitches, with nothing to start, load,
+// confirm or change.
 export function InboxPage({
   inbox,
   roster,
@@ -123,6 +150,7 @@ export function InboxPage({
   question,
   slowCalls,
   connection = { lost: null, reconnecting: false },
+  history,
   links,
   ...actions
 }: Page & Actions) {
@@ -150,6 +178,8 @@ export function InboxPage({
   // The agent refuses reply actions until its run ends, and a run waiting on a question hasn't ended.
   const drafting = running || pitchRun?.status === 'waiting'
   const opened = actions.opened?.call ?? null
+  // The number of the earlier pitch run shown, read-only.
+  const viewing = history?.viewing ? runNumber(history.runs, history.viewing) : null
   return (
     <div className={frame}>
       <main className={canvas} data-canvas>
@@ -159,11 +189,13 @@ export function InboxPage({
           startedAt={startedAt}
           slowCalls={slowCalls}
           connection={connection}
+          viewing={viewing}
+          back={() => void history?.view(null)}
           runLog={inspector.wide ? null : () => inspector.inspect('run')}
         />
         {/* Before the lists, so the question is what a person reaches first. */}
         {question}
-        {inbox && (
+        {inbox && !viewing && (
           <PitchSetup
             key={inbox.id}
             inbox={inbox}
@@ -191,6 +223,7 @@ export function InboxPage({
             replies={booking.replies}
             pitches={inbox?.pitches ?? []}
             locked={drafting}
+            viewing={viewing}
             actions={{ ...actions, openCall: showCall }}
             opened={opened}
           />
@@ -200,7 +233,11 @@ export function InboxPage({
             <h2 className="text-base font-semibold" id="pitches-h">
               Pitches
             </h2>
-            <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
+            {viewing ? (
+              <p className="text-muted-foreground">As they were when run {viewing} ended.</p>
+            ) : (
+              <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
+            )}
           </div>
           {inbox?.skipped && (
             <p className="max-w-[72ch]">
@@ -241,6 +278,16 @@ export function InboxPage({
             </p>
           )}
           {booking && <Anchors booking={booking} openCall={showCall} opened={opened} />}
+          {history?.runs.some((r) => r.pitchesFor) && (
+            <RunList
+              runs={history.runs}
+              include={(r) => Boolean(r.pitchesFor)}
+              latest={history.latest}
+              viewing={history.viewing}
+              view={history.view}
+              counted={history.counted}
+            />
+          )}
           <InboxCheck pitches={inbox?.pitches ?? []} />
         </TabsContent>
         <TabsContent value="evidence" keepMounted>
@@ -248,7 +295,12 @@ export function InboxPage({
         </TabsContent>
         {pitch && (
           <TabsContent value="pitch" keepMounted>
-            <PitchDetail key={pitch.id} pitch={pitch} confirmWork={actions.confirmWork} close={() => close(pitch.id)} />
+            <PitchDetail
+              key={pitch.id}
+              pitch={pitch}
+              confirmWork={viewing ? null : actions.confirmWork}
+              close={() => close(pitch.id)}
+            />
           </TabsContent>
         )}
       </Inspector>
@@ -260,14 +312,17 @@ const inboxName = (inbox: Inbox | null) =>
   inbox ? (inbox.sample ? 'Sample inbox' : inbox.uploaded ? 'Uploaded pitches' : 'Pasted pitches') : 'None yet'
 
 // The title row: the inbox's name, with the sample label, and what Claude and Qloo are given of each
-// pitch; then the on-air readout, which follows a pitch run, or while there's none, the inbox's
-// reading and its slow calls.
+// pitch; while an earlier pitch run is viewed, its number and the way back to the latest. Then the
+// on-air readout, which follows a pitch run, or while there's none, the inbox's reading and its slow
+// calls.
 function InboxHead({
   inbox,
   pitchRun,
   startedAt,
   slowCalls,
   connection,
+  viewing,
+  back,
   runLog
 }: {
   inbox: Inbox | null
@@ -275,23 +330,48 @@ function InboxHead({
   startedAt: string | null
   slowCalls: SlowCall[]
   connection: Connection
+  viewing: number | null // the number of the earlier pitch run shown
+  back: () => void
   runLog: (() => void) | null // opens the inspector's Run tab, where it's a sheet
 }) {
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
+  // Back to the latest run, its button goes, and focus goes to the page's heading.
+  const heading = useRef<HTMLHeadingElement>(null)
   return (
     <>
-      <div className="flex flex-col gap-1.5">
-        <h1 className="type-title">Inbox</h1>
-        <div className="flex flex-col gap-1 type-caption text-muted-foreground">
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-medium text-foreground">{inboxName(inbox)}</span>
-            {inbox?.sample && <Badge>Sample data</Badge>}
-          </p>
-          <p className="max-w-[72ch]">
-            Claude reads each pitch for its guest and public work. Only the work&apos;s title and type are looked up in
-            Qloo; names, addresses, and pitch text never are.
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 basis-md flex-col gap-1.5">
+          <h1 className="type-title" ref={heading} tabIndex={-1}>
+            Inbox
+          </h1>
+          <div className="flex flex-col gap-1 type-caption text-muted-foreground">
+            {viewing && (
+              <p className="flex flex-wrap items-center gap-1.5">
+                <Badge>Run {viewing}</Badge> An earlier run, read-only.
+              </p>
+            )}
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-medium text-foreground">{inboxName(inbox)}</span>
+              {inbox?.sample && <Badge>Sample data</Badge>}
+            </p>
+            <p className="max-w-[72ch]">
+              Claude reads each pitch for its guest and public work. Only the work&apos;s title and type are looked up
+              in Qloo; names, addresses, and pitch text never are.
+            </p>
+          </div>
         </div>
+        {viewing && (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              back()
+              heading.current?.focus()
+            }}
+            className="max-md:h-11"
+          >
+            Back to the latest run
+          </Button>
+        )}
       </div>
       <Readout connection={connection} since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
         {pitchRun ? (
@@ -854,14 +934,26 @@ function TagLine({
   openCall: (call: string) => void
   opened: string | null
 }) {
+  // The words before the last tag (a separator never starts a line), and the last tag, or the last word
+  // of a line with no tags, which the call stays beside.
+  const words = (text: string) => [text.slice(0, text.lastIndexOf(' ') + 1), text.slice(text.lastIndexOf(' ') + 1)]
+  const [lead, last] = tags.error
+    ? words(`Shared tags failed: ${tags.error}`)
+    : tags.tags.length > 0
+      ? [
+          tags.tags
+            .slice(0, -1)
+            .map((t) => `${t}\u00a0· `)
+            .join(''),
+          tags.tags.at(-1)
+        ]
+      : words('No distinctive shared tags')
   return (
     <span className="type-caption text-muted-foreground">
-      {tags.error
-        ? `Shared tags failed: ${tags.error}`
-        : tags.tags.length > 0
-          ? tags.tags.join('\u00a0· ') // a separator never starts a line
-          : 'No distinctive shared tags'}{' '}
-      <CallButton call={tags.call} label={label} opened={opened} openCall={openCall} />
+      {lead}
+      <span className="whitespace-nowrap">
+        {last} <CallButton call={tags.call} label={label} opened={opened} openCall={openCall} />
+      </span>
     </span>
   )
 }
@@ -869,13 +961,18 @@ function TagLine({
 const verdictLabel: Record<Verdict, string> = { book: 'Book', later: 'Later', decline: 'Decline' }
 const verdicts: Verdict[] = ['book', 'later', 'decline']
 
-// The drafted replies, one per pitch, grouped by the agent's verdict. The booker approves, edits, or
-// discards each one on its own, and only an approved reply can be copied, to send from their own email.
+type ReplyActions = Pick<Actions, 'editReply' | 'approveReply' | 'discardReply' | 'openCall'>
+
+// The drafted replies, one per pitch, grouped by the agent's verdict, each a review item a booker
+// clears in turn. The booker approves, edits, or discards each one on its own, and only an approved
+// reply can be copied, to send from their own email. While the run is still drafting, or for an
+// earlier run viewed read-only (`viewing`), nothing can be changed.
 function Replies({
   show,
   replies,
   pitches,
   locked,
+  viewing,
   actions,
   opened
 }: {
@@ -883,7 +980,8 @@ function Replies({
   replies: PitchReply[]
   pitches: Pitch[]
   locked: boolean // the run is still drafting
-  actions: Pick<Actions, 'editReply' | 'approveReply' | 'discardReply' | 'openCall'>
+  viewing: number | null // the number of the earlier run whose replies these are
+  actions: ReplyActions
   opened: string | null
 }) {
   const kept = replies.filter((r) => r.status !== 'discarded')
@@ -899,8 +997,12 @@ function Replies({
         </div>
         <p className="max-w-[72ch] text-muted-foreground">
           Claude drafted a reply to each pitch with a verdict, and an episode angle for each top pitch from the tags its
-          work shares with {show} in Qloo. Approve, edit, or discard each one. Only an approved reply can be copied, to
-          send from your own email.{locked && ' Claude is still drafting: approve once the run has ended.'}
+          work shares with {show} in Qloo.{' '}
+          {viewing
+            ? `Run ${viewing}'s replies, read-only; an approved one can still be copied.`
+            : `Approve, edit, or discard each one. Only an approved reply can be copied, to send from your own email.${
+                locked ? ' Claude is still drafting: approve once the run has ended.' : ''
+              }`}
         </p>
       </div>
       {verdicts.map((v) => {
@@ -911,7 +1013,8 @@ function Replies({
             <h3 className="font-semibold" id={`replies-${v}`}>
               {verdictLabel[v]} · {group.length}
             </h3>
-            <ol className="flex flex-col gap-3">
+            {/* As wide as the ranked lists, so a reply's chip stays by its words. */}
+            <ul className="flex max-w-3xl flex-col gap-2">
               {group.map((r) => (
                 <ReplyItem
                   key={r.pitch}
@@ -919,11 +1022,12 @@ function Replies({
                   pitch={pitches.find((p) => p.id === r.pitch)}
                   show={show}
                   locked={locked}
+                  readOnly={viewing !== null}
                   actions={actions}
                   opened={opened}
                 />
               ))}
-            </ol>
+            </ul>
           </div>
         )
       })}
@@ -931,11 +1035,35 @@ function Replies({
   )
 }
 
+// The controls a reply's focus moves between as its actions do their work and their buttons go or
+// change: Approve leads to Copy, Discard to Restore, Restore and Save to Approve, Cancel to Edit; an
+// action that fails gives focus back to its own control.
+type Act = 'approve' | 'copy' | 'edit' | 'discard' | 'restore' | 'text'
+
+// A reply's state as a chip: Draft on the tone step; Approved with an ink check, never the signal,
+// which marks what the agent puts forward; Discarded, quiet.
+function ReplyBadge({ status }: { status: PitchReply['status'] }) {
+  if (status === 'approved')
+    return (
+      <Badge variant="outline">
+        <CheckIcon aria-hidden="true" />
+        Approved
+      </Badge>
+    )
+  if (status === 'discarded') return <Badge className="text-muted-foreground">Discarded</Badge>
+  return <Badge>Draft</Badge>
+}
+
+// One reply as a review item, read top to bottom: the pitched work and its guest with the reply's
+// state; whom it goes to; the episode angle and the tags it's built from; the draft, at running-text
+// size in a 72ch measure; then its actions on one row, Approve first. A discarded reply folds to one
+// quiet line off the card, with Restore. Read-only, only an approved reply's Copy is left.
 function ReplyItem({
   reply,
   pitch,
   show,
   locked,
+  readOnly,
   actions,
   opened
 }: {
@@ -943,108 +1071,191 @@ function ReplyItem({
   pitch: Pitch | undefined
   show: string
   locked: boolean
-  actions: Pick<Actions, 'editReply' | 'approveReply' | 'discardReply' | 'openCall'>
+  readOnly: boolean
+  actions: ReplyActions
   opened: string | null
 }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null) // the text last copied
+  const [uncopied, setUncopied] = useState(false) // the browser refused the clipboard
   const { busy, error, run } = useAction()
+  const off = busy || locked
   const name = pitch?.work?.title ?? (pitch ? title(pitch) : reply.pitch)
-  const head = (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-      <span>
-        <span className="font-semibold">{name}</span>
-        {pitch?.guest && <span className="text-muted-foreground"> · {pitch.guest}</span>}
-      </span>
-      <Badge variant={reply.status === 'draft' ? 'outline' : 'default'}>
-        {reply.status === 'approved' ? 'Approved' : reply.status === 'discarded' ? 'Discarded' : 'Draft'}
-      </Badge>
-    </div>
+  // The action whose button takes focus once this item has re-rendered, if focus was left on nothing.
+  const buttons = useRef<Partial<Record<Act, HTMLElement | null>>>({})
+  const next = useRef<Act | null>(null)
+  const item = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    const target = next.current && buttons.current[next.current]
+    if (!target || (target as HTMLButtonElement).disabled) return
+    next.current = null
+    const at = document.activeElement
+    if (!at || at === document.body || item.current?.contains(at)) target.focus()
+  })
+  const act = async (action: () => Promise<unknown>, done: Act, pressed: Act) => {
+    next.current = (await run(action)) ? done : pressed
+  }
+  const ref = (a: Act) => (el: HTMLElement | null) => {
+    buttons.current[a] = el
+  }
+  const who = (
+    <p className="min-w-0 text-[15px] leading-snug">
+      <span className={reply.status === 'discarded' ? 'font-medium' : 'font-semibold'}>{name}</span>
+      {pitch?.guest && <span className="text-muted-foreground"> · {pitch.guest}</span>}
+    </p>
   )
-  const item = 'flex flex-col gap-2 rounded-xl bg-card p-4'
-  const acts = 'flex flex-wrap items-center gap-2 [&>button]:max-md:h-11'
   if (reply.status === 'discarded')
     return (
-      <li className={cn(item, 'text-muted-foreground')} data-pitch={reply.pitch} data-status="discarded">
-        {head}
-        <div className={acts} data-actions>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="-ml-2.5"
-            disabled={busy || locked}
-            onClick={() => void run(() => actions.editReply(reply.pitch, reply.draft))}
-          >
-            Restore
-          </Button>
+      <li
+        ref={item}
+        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-1.5 text-muted-foreground"
+        data-pitch={reply.pitch}
+        data-status="discarded"
+      >
+        {who}
+        <div className="flex items-center gap-2">
+          <ReplyBadge status="discarded" />
+          {!readOnly && (
+            <div className="flex items-center" data-actions>
+              <Button
+                ref={ref('restore')}
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={off}
+                onClick={() => void act(() => actions.editReply(reply.pitch, reply.draft), 'approve', 'restore')}
+                className="-mr-2.5 max-md:h-11"
+              >
+                Restore
+              </Button>
+            </div>
+          )}
         </div>
-        <Alert error={error} />
+        <div className="basis-full empty:hidden">
+          <Alert error={error} />
+        </div>
       </li>
     )
   const approved = reply.status === 'approved'
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await run(() => actions.editReply(reply.pitch, editing!))) setEditing(null)
+    const saved = await run(() => actions.editReply(reply.pitch, editing!))
+    next.current = saved ? 'approve' : 'text'
+    if (saved) setEditing(null)
   }
-  const copy = () =>
-    void run(async () => {
+  // Copied in the browser, not by the agent, so it never waits on the socket or locks the item.
+  const copy = async () => {
+    try {
       await navigator.clipboard.writeText(reply.draft)
       setCopied(reply.draft)
-    })
+      setUncopied(false)
+    } catch {
+      setUncopied(true)
+    }
+  }
+  const row = 'flex flex-wrap items-center gap-x-2 gap-y-1.5 [&>button]:max-md:h-11'
   return (
-    <li className={item} data-pitch={reply.pitch} data-status={reply.status}>
-      {head}
-      {pitch?.from && <p className="type-caption text-muted-foreground">To {pitch.from}</p>}
-      {reply.angle ? (
-        <p>
-          <span className="font-medium">Episode angle</span> {reply.angle}
-        </p>
-      ) : (
-        reply.sharedTags && !tagged(reply.sharedTags) && <p className="text-muted-foreground">{NO_ANGLE}</p>
-      )}
-      {reply.sharedTags && (
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground">
-          <span>Shares with {show}:</span> <Source of="qloo" />{' '}
-          <TagLine
-            tags={reply.sharedTags}
-            label={`Evidence for the tags ${name} shares`}
-            openCall={actions.openCall}
-            opened={opened}
-          />
-        </p>
+    <li
+      ref={item}
+      className="flex flex-col gap-3 rounded-xl bg-card p-4"
+      data-pitch={reply.pitch}
+      data-status={reply.status}
+    >
+      {/* The state's chip on the title's line, read right after it. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5">
+        {who}
+        <ReplyBadge status={reply.status} />
+        {pitch?.from && <p className="col-span-full truncate type-caption text-muted-foreground">To {pitch.from}</p>}
+      </div>
+      {(reply.angle || reply.sharedTags) && (
+        <div className="flex max-w-[72ch] flex-col gap-1">
+          {/* In grey, so the draft is the reply's one line in ink. */}
+          {reply.angle ? (
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">Episode angle</span> {reply.angle}
+            </p>
+          ) : (
+            reply.sharedTags && !tagged(reply.sharedTags) && <p className="text-muted-foreground">{NO_ANGLE}</p>
+          )}
+          {reply.sharedTags && (
+            // A line of text, so its tags wrap as words do.
+            <p className="type-caption leading-5 text-muted-foreground [&_[data-slot=badge]]:align-top [&_button]:align-top">
+              Shares with {show}: <Source of="qloo" />{' '}
+              <TagLine
+                tags={reply.sharedTags}
+                label={`Evidence for the tags ${name} shares`}
+                openCall={actions.openCall}
+                opened={opened}
+              />
+            </p>
+          )}
+        </div>
       )}
       {editing === null ? (
         <>
-          <p className="max-w-[72ch] whitespace-pre-line">{reply.draft}</p>
-          <div className={acts} data-actions>
-            {!approved && (
+          <p className="max-w-[72ch] whitespace-pre-line text-pretty">{reply.draft}</p>
+          {(!readOnly || approved) && (
+            <div className={row} data-actions>
+              {!approved && (
+                <Button
+                  ref={ref('approve')}
+                  type="button"
+                  size="sm"
+                  disabled={off}
+                  onClick={() => void act(() => actions.approveReply(reply.pitch), 'copy', 'approve')}
+                >
+                  Approve
+                </Button>
+              )}
               <Button
+                ref={ref('copy')}
                 type="button"
-                disabled={busy || locked}
-                onClick={() => void run(() => actions.approveReply(reply.pitch))}
+                size="sm"
+                variant={approved ? 'default' : 'secondary'}
+                disabled={!approved}
+                onClick={() => void copy()}
               >
-                Approve
+                {approved && copied === reply.draft ? (
+                  <CheckIcon data-icon="inline-start" aria-hidden="true" />
+                ) : (
+                  <CopyIcon data-icon="inline-start" aria-hidden="true" />
+                )}
+                {approved && copied === reply.draft ? 'Copied' : 'Copy'}
               </Button>
-            )}
-            <Button type="button" variant="secondary" disabled={!approved || busy} onClick={copy}>
-              {approved && copied === reply.draft ? 'Copied' : 'Copy'}
-            </Button>
-            <Button type="button" variant="secondary" disabled={busy || locked} onClick={() => setEditing(reply.draft)}>
-              Edit
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={busy || locked}
-              onClick={() => void run(() => actions.discardReply(reply.pitch))}
-            >
-              Discard
-            </Button>
-            <small className="type-caption text-muted-foreground">
-              {approved ? 'Copy it into your own email to send.' : 'Copy unlocks once you approve.'}
-            </small>
-          </div>
+              {!readOnly && (
+                <>
+                  <Button
+                    ref={ref('edit')}
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={off}
+                    onClick={() => setEditing(reply.draft)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={off}
+                    ref={ref('discard')}
+                    onClick={() => void act(() => actions.discardReply(reply.pitch), 'restore', 'discard')}
+                  >
+                    Discard
+                  </Button>
+                </>
+              )}
+              <small className="type-caption text-muted-foreground">
+                {approved ? 'Copy it into your own email to send.' : 'Copy unlocks once you approve.'}
+              </small>
+            </div>
+          )}
+          {uncopied && (
+            <StateLine kind="error" role="alert">
+              This browser didn&apos;t let Crossfeed copy it. Select the reply and copy it yourself.
+            </StateLine>
+          )}
         </>
       ) : (
         <form className="flex flex-col gap-2" onSubmit={save}>
@@ -1052,21 +1263,35 @@ function ReplyItem({
             Reply about {name}
           </label>
           <Textarea
+            ref={ref('text')}
             id={`reply-${reply.pitch}`}
             rows={5}
             value={editing}
             onChange={(e) => setEditing(e.target.value)}
             disabled={busy}
+            // The Edit button that opened it has gone; the text takes its place, and focus.
+            autoFocus
+            className="max-w-[72ch]"
           />
-          <div className={acts}>
-            <Button type="submit" disabled={busy || !editing.trim()}>
+          <div className={row}>
+            <Button type="submit" size="sm" disabled={busy || !editing.trim()}>
+              {busy && <Spinner data-icon="inline-start" />}
               Save
             </Button>
-            <Button type="button" variant="secondary" disabled={busy} onClick={() => setEditing(null)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => {
+                next.current = 'edit'
+                setEditing(null)
+              }}
+            >
               Cancel
             </Button>
             <small className="type-caption text-muted-foreground">
-              {approved ? 'Saving returns it to draft, to approve again.' : 'Saved as a draft.'}
+              {approved ? 'Saving returns it to draft, to approve again.' : 'Saving keeps it a draft.'}
             </small>
           </div>
         </form>
@@ -1076,7 +1301,9 @@ function ReplyItem({
   )
 }
 
-// What the latest pitch run ranked against: the show, and how each past guest's work resolved.
+// What the pitch run ranked against, as its record: the show, then each past guest's work with its
+// guest and type, how Qloo matched it, and its search's call. A work that didn't match is no anchor,
+// and the note under them says so.
 function Anchors({
   booking,
   openCall,
@@ -1094,23 +1321,31 @@ function Anchors({
         </h2>
         <Source of="qloo" />
       </div>
-      <KeyValues>
-        <KeyValue label="Show">{booking.show.entity.name}</KeyValue>
+      <ul className="flex flex-col gap-2.5">
+        <li className="flex flex-col">
+          <span className="font-medium">{booking.show.entity.name}</span>
+          <span className="type-caption text-muted-foreground">The show</span>
+        </li>
         {booking.pastGuests.map((g, i) => (
-          <KeyValue key={i} label={g.guest}>
-            {g.work.title}{' '}
-            <span className="text-muted-foreground">· {g.match ? matchLabel[g.match.resolution] : 'Looking up…'}</span>{' '}
-            {g.match && (
-              <CallButton
-                call={g.match.evidence}
-                label={`Evidence for ${g.work.title}`}
-                opened={opened}
-                openCall={openCall}
-              />
-            )}
-          </KeyValue>
+          <li key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3">
+            <span className="font-medium">{g.work.title}</span>
+            <span className="justify-self-end">
+              {g.match && (
+                <CallButton
+                  call={g.match.evidence}
+                  label={`Evidence for ${g.work.title}`}
+                  opened={opened}
+                  openCall={openCall}
+                />
+              )}
+            </span>
+            <span className="col-span-full type-caption text-muted-foreground">
+              {g.guest} · {typeLabel[g.work.type]}
+              {g.work.year !== null && ` · ${g.work.year}`} · <AnchorMatch match={g.match} />
+            </span>
+          </li>
         ))}
-      </KeyValues>
+      </ul>
       {booking.pastGuests.some((g) => g.match && g.match.resolution !== 'resolved') && (
         <p className="type-caption text-muted-foreground">
           A past guest&apos;s work that didn&apos;t match isn&apos;t an anchor. Edit it and rank again.
@@ -1118,6 +1353,20 @@ function Anchors({
       )}
     </section>
   )
+}
+
+// How a past guest's work matched, in its word: quiet once matched, in ink when it didn't, and a
+// failed lookup with its square ✕.
+function AnchorMatch({ match }: { match: WorkMatch | null }) {
+  if (!match) return <>Looking up…</>
+  if (match.resolution === 'resolved') return <>{matchLabel.resolved}</>
+  if (match.resolution === 'failed')
+    return (
+      <StateLine kind="failed" word={matchLabel.failed}>
+        {null}
+      </StateLine>
+    )
+  return <b className="font-medium text-foreground">{matchLabel[match.resolution]}</b>
 }
 
 // A pitch's subject, or the first line of a pasted one.
@@ -1321,14 +1570,14 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElem
 
 // The pitch opened from a list or the table, in the inspector's Pitch tab: its subject as the
 // heading, which takes focus as it opens, with Close; what Claude read from it; its work's
-// candidates to confirm; and its text.
+// candidates to confirm, unless it's an earlier run's (`confirmWork` null); and its text.
 function PitchDetail({
   pitch: p,
   confirmWork,
   close
 }: {
   pitch: Pitch
-  confirmWork: Actions['confirmWork']
+  confirmWork: Actions['confirmWork'] | null
   close: () => void
 }) {
   const { busy, error, run } = useAction()
@@ -1373,7 +1622,7 @@ function PitchDetail({
           <Source of="agent" />
         </KeyValue>
       </KeyValues>
-      {match && match.candidates.length > 0 && p.work && (
+      {confirmWork && match && match.candidates.length > 0 && p.work && (
         <PickOne
           legend={`Which Qloo ${typeLabel[p.work.type].toLowerCase()} is ${p.work.title}?`}
           options={match.candidates}
@@ -1393,7 +1642,7 @@ function PitchDetail({
 }
 
 // The inbox's pitches counted by their word, which says how many a run can rank: a compact key/value
-// list, two pairs to a row, as the roster check is.
+// list, two pairs to a row, as the roster check is, with a chip while some are still being read.
 function InboxCheck({ pitches }: { pitches: Pitch[] }) {
   const count = (label: string) => pitches.filter((p) => stateLabel(p) === label).length
   const rows = ['Matched', 'Ambiguous', 'Not in Qloo', 'Lookup failed', 'Set aside', 'Unreadable', 'Failed']
@@ -1404,16 +1653,21 @@ function InboxCheck({ pitches }: { pitches: Pitch[] }) {
         <h2 className="font-semibold" id="inbox-check">
           Inbox check
         </h2>
-        {pending > 0 && <Badge>{pending} still reading</Badge>}
+        {pending > 0 && (
+          <Badge>
+            <Spinner />
+            {pending} still reading
+          </Badge>
+        )}
       </div>
       <p className="type-caption text-muted-foreground">
         Matched works are the ones that can be ranked against the show. Ambiguous works wait for you to confirm a match.
-        Set-aside and unreadable pitches never reach Qloo.
+        Set-aside pitches have no public work; they and unreadable pitches never reach Qloo.
       </p>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1">
         {rows.map((label) => (
           <div key={label} className="flex items-baseline justify-between gap-3">
-            <dt className="text-muted-foreground">{label === 'Set aside' ? 'Set aside: no public work' : label}</dt>
+            <dt className="text-muted-foreground">{label}</dt>
             <dd className="tabular-nums">{count(label)}</dd>
           </div>
         ))}

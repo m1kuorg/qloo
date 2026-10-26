@@ -317,6 +317,35 @@ describe('ranking pitched works against the show', () => {
   })
 })
 
+describe("the inbox's Run tab", () => {
+  // A module of the Run tab, as the browser renders it from synced state.
+  const module = (state: State, heading: string) =>
+    hooked(
+      renderToStaticMarkup(createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+      `aria-labelledby="${heading}"`
+    )[0] ?? ''
+
+  it("records what the run ranked against, each past guest's work with its match and call, and says when one didn't match", async () => {
+    fakeInsights((body) => scores[String(body['filter.type'])])
+    const missing = { guest: 'Lu Park', work: { title: 'Harbor Lights', type: 'film', year: 2001 } }
+    const { state } = await rank([film, missing], [turn(rankPitches(['f-0101'])), turn(text('Ranked.'))])
+
+    const [glass, lights] = state.booking!.pastGuests.map((g) => g.match!.evidence)
+    expect(words(module(state, 'anchors-h'))).toBe(
+      `Ranked against Qloo data Night Shift Cinema The show Glass Harbor ${glass} Mae Ford · Film · 2020 · Matched Harbor Lights ${lights} Lu Park · Film · 2001 · Not in Qloo A past guest's work that didn't match isn't an anchor. Edit it and rank again.`
+    )
+  })
+
+  it('lists the pitch runs, the one shown marked, with the daily limits on model runs', async () => {
+    fakeInsights((body) => scores[String(body['filter.type'])])
+    const { state } = await rank([film], [turn(rankPitches(['f-0101'])), turn(text('Ranked.'))])
+
+    expect(words(module(state, 'runs-h'))).toMatch(
+      /^Runs Run 1 · Pitches for Night Shift Cinema .+ · Completed Shown Each run starts fresh; earlier ones stay here to compare\. Model runs are limited per visitor/
+    )
+  })
+})
+
 describe("the model's view of the ranking", () => {
   it('names every pitch in the tool result by its work, scored or not', async () => {
     // Films score, except Low Tide, which Qloo leaves out; TV shows stay unranked.

@@ -412,8 +412,9 @@ const drafted = [
 ]
 const statuses = (state: State) => state.booking!.replies!.map((r) => [r.pitch, r.status])
 
-// The inbox page as the browser renders it from synced state.
-const inboxPage = (state: State) => {
+// The inbox page as the browser renders it from synced state; with `viewing`, an earlier pitch run's
+// state as getRun returns it, shown read-only.
+const inboxPage = (state: State, viewing?: { runs: State['runs']; id: string }) => {
   const noop = async () => {}
   return renderToStaticMarkup(
     createElement(InboxPage, {
@@ -423,6 +424,13 @@ const inboxPage = (state: State) => {
       pitchRun: null,
       question: null,
       slowCalls: [],
+      history: viewing && {
+        runs: viewing.runs,
+        latest: undefined,
+        viewing: viewing.id,
+        view: noop,
+        counted: 'visitor'
+      },
       loadInbox: noop,
       confirmWork: noop,
       startPitches: noop,
@@ -437,6 +445,24 @@ const inboxPage = (state: State) => {
 }
 // One reply's markup on the page.
 const replyOn = (html: string, pitch: string) => hooked(html, `data-pitch="${pitch}"`)[0] ?? ''
+// The buttons in some markup, in order, each as its attributes and its name as read (tags dropped).
+const buttons = (html: string) =>
+  [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map(
+    ([, attrs, name]) => [attrs, name.replace(/<[^>]+>/g, '').trim()] as const
+  )
+// Markup's words as a reader hears them.
+const words = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;|&apos;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+// A reply's action buttons, by name, and whether each is disabled.
+const actionsOf = (html: string, pitch: string) =>
+  buttons(hooked(replyOn(html, pitch), 'data-actions')[0] ?? '').map(([attrs, name]) => [
+    name,
+    /\sdisabled[\s=>]/.test(attrs)
+  ])
 
 describe('the booker clearing the inbox', () => {
   it('approves one reply and leaves the rest as drafts', async () => {
@@ -457,10 +483,12 @@ describe('the booker clearing the inbox', () => {
   it('enables Copy on a reply only once it is approved, and drops it from a discarded one', async () => {
     const { s } = await pitchRun(drafted)
     const page = () => inboxPage(s.state()!)
-    // Each reply's Copy button: 'enabled', 'disabled', or null when it has none.
+    // Each reply's Copy button, found by its name: 'enabled', 'disabled', or null when it has none.
     const copy = (html: string, pitch: string) => {
-      const button = replyOn(html, pitch).match(/<button[^>]*>Copy<\/button>/)?.[0]
-      return button ? (/\sdisabled[\s=>]/.test(button) ? 'disabled' : 'enabled') : null
+      const [attrs] = buttons(replyOn(html, pitch))
+        .filter(([, name]) => name === 'Copy')
+        .map(([attrs]) => attrs)
+      return attrs === undefined ? null : /\sdisabled[\s=>]/.test(attrs) ? 'disabled' : 'enabled'
     }
     const pitchIds = replies.map((r) => r.pitch)
 
@@ -482,6 +510,57 @@ describe('the booker clearing the inbox', () => {
     expect(reply).toContain(replies[1].angle)
     expect(reply).toContain('Film History')
     expect(reply).toContain(s.state()!.booking!.replies![1].sharedTags!.call)
+  })
+
+  it('reads each reply as a review item, in its group: its work and guest with its state, the angle and its tags, the draft, then its actions', async () => {
+    const { s } = await pitchRun(drafted)
+    await s.call('approveReply', 'pitch-04')
+    await s.call('discardReply', 'pitch-03')
+    const state = s.state()!
+    const html = inboxPage(state)
+    const [, paperMoons, , staticBloom] = state.booking!.replies!
+
+    expect(words(replyOn(html, 'pitch-02'))).toBe(
+      `Paper Moons · Rue Vance Draft Episode angle ${replies[1].angle} Shares with Night Shift Cinema: Qloo data Film History ${paperMoons.sharedTags!.call} ${replies[1].draft} Approve Copy Edit Discard Copy unlocks once you approve.`
+    )
+    // Approved, Approve gives way and Copy leads.
+    expect(words(replyOn(html, 'pitch-04'))).toBe(
+      `Static Bloom · Ben Ochoa Approved Episode angle ${replies[3].angle} Shares with Night Shift Cinema: Qloo data Indie Film · Conversational ${staticBloom.sharedTags!.call} ${replies[3].draft} Copy Edit Discard Copy it into your own email to send.`
+    )
+    expect(actionsOf(html, 'pitch-04')).toEqual([
+      ['Copy', false],
+      ['Edit', false],
+      ['Discard', false]
+    ])
+    // Discarded, it folds to its work, its state and Restore.
+    expect(words(replyOn(html, 'pitch-03'))).toBe('Fen Light · Oda Brink Discarded Restore')
+    expect(actionsOf(html, 'pitch-03')).toEqual([['Restore', false]])
+    // The heading counts the replies kept; each group counts its own.
+    expect(words(html)).toContain('Replies · 1 of 6 approved')
+    expect(words(html).match(/(Book|Later|Decline) · \d/g)).toEqual(['Book · 3', 'Later · 2', 'Decline · 2'])
+  })
+
+  it('shows an earlier pitch run read-only: its replies as they ended, an approved one still copyable, and nothing to start, load, or change', async () => {
+    const { s, state } = await pitchRun(drafted)
+    await s.call('approveReply', 'pitch-02')
+    await s.call('discardReply', 'pitch-03')
+    const ended = await s.call<State>('getRun', state.run!.id)
+    const html = inboxPage(ended, { runs: s.state()!.runs, id: state.run!.id })
+
+    expect(words(html)).toMatch(/^Inbox Run 1 An earlier run, read-only\. Pasted pitches .* Back to the latest run/)
+    expect(words(html)).toContain(
+      "shares with Night Shift Cinema in Qloo. Run 1's replies, read-only; an approved one can still be copied."
+    )
+    expect(actionsOf(html, 'pitch-02')).toEqual([['Copy', false]])
+    expect(words(replyOn(html, 'pitch-02'))).toMatch(/Copy Copy it into your own email to send\.$/)
+    expect(hooked(replyOn(html, 'pitch-01'), 'data-actions')).toEqual([])
+    expect(words(replyOn(html, 'pitch-03'))).toBe('Fen Light · Oda Brink Discarded')
+    // Its pitches as they were, with no way to load others or rank them again.
+    expect(words(html)).toContain('Pitches As they were when run 1 ended.')
+    expect(words(html)).not.toContain('Rank against a show')
+    const named = buttons(html).map(([, name]) => name)
+    for (const absent of ['Rank pitches', 'Read pitches', 'Load sample inbox', 'Approve', 'Edit', 'Discard', 'Restore'])
+      expect(named).not.toContain(absent)
   })
 
   it('keeps edits and discards across a reload, and returns an edited approved reply to draft', async () => {
@@ -550,13 +629,11 @@ describe('the booker clearing the inbox', () => {
     // Before the lists, so a single column reaches it first.
     expect(html.indexOf('Hold the film pitches for next season?')).toBeGreaterThan(-1)
     expect(html.indexOf('Hold the film pitches for next season?')).toBeLessThan(html.indexOf('id="lists-h"'))
-    // A reply's action buttons, by name, and whether they're disabled.
-    const [actions] = hooked(replyOn(html, 'pitch-02'), 'data-actions')
-    const buttons = [...actions.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map(([, attrs, name]) => [
-      name.replace(/<[^>]+>/g, '').trim(),
-      /\sdisabled[\s=>]/.test(attrs)
-    ])
-    expect(buttons).toEqual([
+    // The replies say why they're locked, and every action waits.
+    expect(words(html)).toContain(
+      'Only an approved reply can be copied, to send from your own email. Claude is still drafting: approve once the run has ended.'
+    )
+    expect(actionsOf(html, 'pitch-02')).toEqual([
       ['Approve', true],
       ['Copy', true],
       ['Edit', true],

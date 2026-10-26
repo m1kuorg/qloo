@@ -372,7 +372,17 @@ describe('approving a reply', () => {
 
     await graces.call('approveReply', 'pitch-01')
     expect(reply(graces.state())).toMatchObject({ status: 'approved', approvedBy: grace.id })
-    expect(reply(await adas.until((s) => reply(s).status === 'approved'))).toMatchObject({ approvedBy: grace.id })
+    const seen = await adas.until((s) => reply(s).status === 'approved')
+    expect(reply(seen)).toMatchObject({ approvedBy: grace.id })
+    // Ada's page shows it approved, ready to copy, under the network's limits on model runs.
+    const page = inboxPage(seen, network)
+    expect(page).toMatch(
+      /Night Ferry · Ada Quill Approved To Pat Lindqvist <pat\.lindqvist@example\.com> No angle: Qloo returned no shared tags\. Shares with Night Shift Cinema: Qloo data No distinctive shared tags C-\d+ Let's revisit Night Ferry in spring\. Copy Edit Discard Copy it into your own email to send\./
+    )
+    expect(page).toContain('Runs Run 1 · Pitches for Night Shift Cinema')
+    expect(page).toContain(
+      "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them."
+    )
 
     // An edit returns it to draft, and the approval with it.
     await adas.call('editReply', 'pitch-01', 'Night Ferry is a yes for spring.')
@@ -503,13 +513,15 @@ const words = (html: string) =>
     .replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')
     .trim()
-// The inbox page as a member reads it, from the network agent's synced state and the server's links.
+// The inbox page as a member reads it, from the network agent's synced state and the server's links,
+// as NetworkInboxPage renders it.
 const inboxPage = (state: State | undefined, network: string) =>
   words(
     renderToStaticMarkup(
       <InboxWorkspace
         agent={{ state, stub: {} } as unknown as Agent}
         links={{ roster: networkLinks(env, network).roster }}
+        network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
       />
     )
   )

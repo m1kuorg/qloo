@@ -8,7 +8,7 @@ export function NetworkInboxPage({ agentPath, network }: { agentPath: string; ne
   const agent = useNetwork(agentPath)
   return (
     <NetworkGate agent={agent} network={network}>
-      <InboxWorkspace agent={agent} links={{ roster: network.links.roster }} />
+      <InboxWorkspace agent={agent} links={{ roster: network.links.roster }} network={network} />
     </NetworkGate>
   )
 }
