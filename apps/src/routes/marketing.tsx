@@ -5,6 +5,7 @@
 import { cn } from 'cn'
 import { Hono, type NotFoundHandler } from 'hono'
 import { html } from 'hono/html'
+import type { Child } from 'hono/jsx'
 import { buttonVariants } from '../components/ui/variants'
 import { bandMeter, FINALISTS, type Band as Third } from '../fit'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
@@ -605,160 +606,231 @@ marketing.get(
 // The day the privacy page and the beta terms last changed.
 const UPDATED = '19 October 2026'
 
-const Doc = ({ id, title, lede, children }: { id: string; title: string; lede: string; children: unknown }) => (
-  <main class="mk mk-doc">
+// The reading pages' grid: a heading in the narrow column, its text in the wide one.
+const ledger = 'grid items-baseline gap-x-10 gap-y-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
+
+// A real table that scrolls sideways inside itself, never the page, when it's wider than the screen,
+// as the app's ScrollTable does: a named region the keyboard can reach and scroll.
+export const TableScroll = ({ label, children }: { label: string; children: Child }) => (
+  <div class="max-w-full overflow-x-auto" role="region" aria-label={label} tabindex={0}>
+    {children}
+  </div>
+)
+
+// The privacy page and the beta terms: the title at display size, its lede and the day it last
+// changed, then each section a band across the page, every other one on the tone step.
+const Doc = ({ id, title, lede, children }: { id: string; title: string; lede: string; children: Child }) => (
+  <main class="pt-8 md:pt-16">
     <article aria-labelledby={id}>
-      <h1 id={id}>{title}</h1>
-      <p class="mk-lede">{lede}</p>
-      <p class="mk-note">Last updated {UPDATED}.</p>
-      {children}
+      <header class={cn(marketingFrame, ledger, 'pb-12 md:pb-20')}>
+        <h1 id={id} class="type-display">
+          {title}
+        </h1>
+        <div>
+          <p class="max-w-[40ch] text-2xl/[1.3] tracking-[-0.01em]">{lede}</p>
+          <p class="mt-4 text-muted-foreground">Last updated {UPDATED}.</p>
+        </div>
+      </header>
+      <div>{children}</div>
     </article>
   </main>
+)
+
+// One section of the privacy page or the terms: its heading on the left, its text on the right at a
+// reading measure.
+const Part = ({ id, title, children }: { id: string; title: string; children: Child }) => (
+  <section aria-labelledby={id} class="py-12 even:bg-muted md:py-16">
+    <div class={cn(marketingFrame, ledger)}>
+      <h2 id={id} class="type-title text-balance">
+        {title}
+      </h2>
+      <div class="prose-doc max-w-[64ch] space-y-4">{children}</div>
+    </div>
+  </section>
 )
 
 function Privacy({ accounts }: { accounts: boolean }) {
   return (
     <Doc
       id="privacy"
-      title="Privacy"
+      title="Privacy."
       lede="What the Crossfeed beta sends to Qloo and to Anthropic, what it keeps, and how it's deleted."
     >
-      <h2>What reaches Qloo</h2>
-      <p>Qloo scores the roster and the pitched works. Crossfeed sends it only public names and Qloo&apos;s own IDs:</p>
-      <ul>
-        <li>
-          the names of shows and works to look up: the roster&apos;s shows, the launch or its comps, the past
-          guests&apos; works, and each pitched book, film, TV show, or podcast;
-        </li>
-        <li>Qloo&apos;s IDs for those shows and works, to rank them, compare their tags, and check demographics.</li>
-      </ul>
-      <p>
-        Never a pitch&apos;s text, a guest&apos;s name, an email address, or a sender&apos;s details. A pitch with no
-        public work is set aside, and a work title that holds an email address, or the guest&apos;s or sender&apos;s
-        name, isn&apos;t sent. Requests carry Crossfeed&apos;s key and nothing about you.
+      <Part id="qloo" title="What reaches Qloo">
+        <p>
+          Qloo scores the roster and the pitched works. Crossfeed sends it only public names and Qloo&apos;s own IDs:
+        </p>
+        <ul>
+          <li>
+            the names of shows and works to look up: the roster&apos;s shows, the launch or its comps, the past
+            guests&apos; works, and each pitched book, film, TV show, or podcast;
+          </li>
+          <li>Qloo&apos;s IDs for those shows and works, to rank them, compare their tags, and check demographics.</li>
+        </ul>
+        <p>
+          Never a pitch&apos;s text, a guest&apos;s name, an email address, or a sender&apos;s details. A pitch with no
+          public work is set aside, and a work title that holds an email address, or the guest&apos;s or sender&apos;s
+          name, isn&apos;t sent. Requests carry Crossfeed&apos;s key and nothing about you.
+          {accounts && (
+            <>
+              {' '}
+              A network that adds its own Qloo key sends its requests with that key instead, to the Qloo host it chose.
+            </>
+          )}{' '}
+          Qloo&apos;s terms let it improve its service from the anonymized lists of entities sent to its recommendation
+          endpoint.
+        </p>
+      </Part>
+
+      <Part id="anthropic" title="What reaches Anthropic">
+        <p>
+          Claude Haiku 5.5, through Anthropic&apos;s API, runs the agent, the topic ranking, and the pitch reader. It
+          gets:
+        </p>
+        <ul>
+          <li>
+            the launch&apos;s name or its comps, the roster&apos;s show names and descriptions, and what Qloo returned
+            for them;
+          </li>
+          <li>the answers you give the agent, and the slot values Crossfeed works out from your downloads and CPM;</li>
+          <li>
+            for the inbox, each pitch as you load it, its sender and subject included, and the past guests you name.
+          </li>
+        </ul>
+        <p>
+          The sample inbox is made up. Real pitches would send their text and senders to Anthropic, so load only pitches
+          you&apos;re allowed to share.
+        </p>
+      </Part>
+
+      <Part id="keeps" title="What Crossfeed keeps">
+        {/* Each kind of storage, led by where it is. */}
+        <ul class="list-none space-y-4 pl-0 [&>li]:space-y-4">
+          <li>
+            <p>
+              <b>In your browser:</b> one cookie, <code>crossfeed_session</code>, a random ID that names your session.
+              It&apos;s HttpOnly and lasts {SESSION_DAYS} days. There are no analytics, ads, or third-party scripts.
+            </p>
+          </li>
+          <li>
+            <p>
+              <b>In your session:</b> the roster and your edits, launches, every run with its conversation with Claude,
+              insertion orders, the pitches you load, draft replies, and the evidence record of every Qloo call.
+            </p>
+          </li>
+          {accounts && (
+            <li>
+              <p>
+                <b>With an account:</b> your name; your passkeys&apos; public keys, each with the browser it was added
+                from; and only hashes of your session and recovery code. The networks you create or join, with your role
+                in each and when you joined and last opened it.
+              </p>
+              <p>
+                Invite links are kept only as hashes, with who made each, who used it, and when, and are deleted once
+                they expire, seven days after they&apos;re made. A network&apos;s API keys are kept only as hashes, with
+                each key&apos;s name and first characters, who made it, when, and the last minute it was used.
+              </p>
+              <p>
+                Each network&apos;s roster, CPM, and inbox are kept in its own storage, with the member who approved
+                each reply, and each of its launches in storage of its own: its runs, a copy of the roster and CPM each
+                run ranked, with their Qloo records, the name of the member or API key that started each run, and of the
+                member who approved each insertion order, and when. Only the network&apos;s members and its API keys can
+                open them.
+              </p>
+              <p>
+                A network&apos;s own Qloo key, if an owner adds one, is kept encrypted in the network&apos;s own Qloo
+                storage, with the host it&apos;s for and its last four characters, the only part of it anyone is shown.
+                That storage also caches the answers to the network&apos;s Qloo calls and counts them, apart from every
+                other network&apos;s.
+              </p>
+            </li>
+          )}
+          <li>
+            <p>
+              <b>Uploads:</b> a file you upload is read in your browser
+              {accounts && <>, or by Crossfeed when a program sends it to the API</>}. A roster file&apos;s text is sent
+              and imported like pasted names; of pitch emails, only each one&apos;s sender, subject, and text are sent,
+              never its attachments or other headers. The files themselves aren&apos;t kept.
+            </p>
+          </li>
+          <li>
+            <p>
+              <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached with no
+              expiry in one cache that every visitor{accounts && <> and every network without its own Qloo key</>}{' '}
+              shares. A call someone else made first is answered from it, and its evidence says the cache was hit, so a
+              hit can show that another visitor{accounts && <> or network</>} looked up the same name; nothing else of
+              theirs is shown, and the cache is never published.
+            </p>
+            <p>
+              Also shared: the sample launch&apos;s stored run, which replays when Qloo can&apos;t be called; and each
+              visitor&apos;s{accounts && <> and each network&apos;s</>} counts for the day against the limits in the{' '}
+              <a href="/terms">beta terms</a>.
+            </p>
+          </li>
+          <li>
+            <p>
+              <b>In the logs:</b> one line per Qloo call and per model call, with its timing and counts, and one per
+              run. They hold no roster, pitch, or address.
+            </p>
+          </li>
+        </ul>
+      </Part>
+
+      <Part id="address" title="Your address">
+        <p>
+          Crossfeed never stores your IP address or writes it to its own logs. When the page connects to its agent, the
+          address is hashed with a secret salt, and the hash stays with the connection. The day&apos;s counts are kept
+          under a hash of that hash and the UTC day, and earlier days&apos; counts are deleted.
+          {accounts && <> Sign-in requests are counted for a minute under the salted hash.</>} Cloudflare, which runs
+          Crossfeed, also records each request the Worker serves in its own logs.
+        </p>
+      </Part>
+
+      <Part id="deletion" title="How deletion works">
+        <p>
+          Crossfeed can&apos;t delete a session yet, and doesn&apos;t delete old sessions on a schedule. When the cookie
+          expires or you clear it, your next visit starts a new session, and no browser can reach the old one again, but
+          its storage stays. So load nothing into the sample network that you&apos;d want deleted later. Earlier
+          days&apos; counts are deleted; cached Qloo responses are kept, and never published.
+        </p>
         {accounts && (
           <>
-            {' '}
-            A network that adds its own Qloo key sends its requests with that key instead, to the Qloo host it chose.
+            <p>
+              Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it
+              close. Crossfeed keeps only a note that you were in it, so deleting your account later forgets your name
+              there too. What you added to the network stays with the network.
+            </p>
+            <p>
+              Deleting a launch, which any of the network&apos;s members can do, wipes its storage: its runs, insertion
+              orders, the roster copies, and their Qloo records. Removing a network&apos;s own Qloo key, which only an
+              owner can do, wipes its Qloo storage at once: the key, its cached answers, and its counts. Deleting a
+              network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then
+              wipes its own storage, each of its launches&apos;, and its Qloo storage. A wipe that fails is tried again
+              by the next day&apos;s cleanup, which also deletes expired sessions, sign-in challenges, and invite links.
+            </p>
+            <p>
+              Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code,
+              sessions, and memberships at once. What you did in a network stays with it, but not your name: the
+              launches of the networks you&apos;re in, or were in before, say &ldquo;Former member&rdquo; on the runs
+              you started and the orders you approved, and the replies you approved no longer say who did. The API keys
+              and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed,
+              or is made a member. A network that can&apos;t be reached at once forgets your name at the next day&apos;s
+              cleanup. It&apos;s refused while you&apos;re a network&apos;s only owner.
+            </p>
+            <p>&ldquo;Sign out everywhere&rdquo; deletes every session of yours.</p>
           </>
-        )}{' '}
-        Qloo&apos;s terms let it improve its service from the anonymized lists of entities sent to its recommendation
-        endpoint.
-      </p>
-
-      <h2>What reaches Anthropic</h2>
-      <p>
-        Claude Haiku 5.5, through Anthropic&apos;s API, runs the agent, the topic ranking, and the pitch reader. It
-        gets:
-      </p>
-      <ul>
-        <li>
-          the launch&apos;s name or its comps, the roster&apos;s show names and descriptions, and what Qloo returned for
-          them;
-        </li>
-        <li>the answers you give the agent, and the slot values Crossfeed works out from your downloads and CPM;</li>
-        <li>
-          for the inbox, each pitch as you load it, its sender and subject included, and the past guests you name.
-        </li>
-      </ul>
-      <p>
-        The sample inbox is made up. Real pitches would send their text and senders to Anthropic, so load only pitches
-        you&apos;re allowed to share.
-      </p>
-
-      <h2>What Crossfeed keeps</h2>
-      <ul>
-        <li>
-          <b>In your browser:</b> one cookie, <code>crossfeed_session</code>, a random ID that names your session.
-          It&apos;s HttpOnly and lasts {SESSION_DAYS} days. There are no analytics, ads, or third-party scripts.
-        </li>
-        <li>
-          <b>In your session:</b> the roster and your edits, launches, every run with its conversation with Claude,
-          insertion orders, the pitches you load, draft replies, and the evidence record of every Qloo call.
-        </li>
-        {accounts && (
-          <li>
-            <b>With an account:</b> your name; your passkeys&apos; public keys, each with the browser it was added from;
-            and only hashes of your session and recovery code. The networks you create or join, with your role in each
-            and when you joined and last opened it. Invite links are kept only as hashes, with who made each, who used
-            it, and when, and are deleted once they expire, seven days after they&apos;re made. A network&apos;s API
-            keys are kept only as hashes, with each key&apos;s name and first characters, who made it, when, and the
-            last minute it was used. Each network&apos;s roster, CPM, and inbox are kept in its own storage, with the
-            member who approved each reply, and each of its launches in storage of its own: its runs, a copy of the
-            roster and CPM each run ranked, with their Qloo records, the name of the member or API key that started each
-            run, and of the member who approved each insertion order, and when. Only the network&apos;s members and its
-            API keys can open them. A network&apos;s own Qloo key, if an owner adds one, is kept encrypted in the
-            network&apos;s own Qloo storage, with the host it&apos;s for and its last four characters, the only part of
-            it anyone is shown. That storage also caches the answers to the network&apos;s Qloo calls and counts them,
-            apart from every other network&apos;s.
-          </li>
         )}
-        <li>
-          <b>Uploads:</b> a file you upload is read in your browser
-          {accounts && <>, or by Crossfeed when a program sends it to the API</>}. A roster file&apos;s text is sent and
-          imported like pasted names; of pitch emails, only each one&apos;s sender, subject, and text are sent, never
-          its attachments or other headers. The files themselves aren&apos;t kept.
-        </li>
-        <li>
-          <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached with no expiry
-          in one cache that every visitor{accounts && <> and every network without its own Qloo key</>} shares. A call
-          someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show that
-          another visitor{accounts && <> or network</>} looked up the same name; nothing else of theirs is shown, and
-          the cache is never published. Also shared: the sample launch&apos;s stored run, which replays when Qloo
-          can&apos;t be called; and each visitor&apos;s{accounts && <> and each network&apos;s</>} counts for the day
-          against the limits in the <a href="/terms">beta terms</a>.
-        </li>
-        <li>
-          <b>In the logs:</b> one line per Qloo call and per model call, with its timing and counts, and one per run.
-          They hold no roster, pitch, or address.
-        </li>
-      </ul>
+      </Part>
 
-      <h2>Your address</h2>
-      <p>
-        Crossfeed never stores your IP address or writes it to its own logs. When the page connects to its agent, the
-        address is hashed with a secret salt, and the hash stays with the connection. The day&apos;s counts are kept
-        under a hash of that hash and the UTC day, and earlier days&apos; counts are deleted.
-        {accounts && <> Sign-in requests are counted for a minute under the salted hash.</>} Cloudflare, which runs
-        Crossfeed, also records each request the Worker serves in its own logs.
-      </p>
-
-      <h2>How deletion works</h2>
-      <p>
-        Crossfeed can&apos;t delete a session yet, and doesn&apos;t delete old sessions on a schedule. When the cookie
-        expires or you clear it, your next visit starts a new session, and no browser can reach the old one again, but
-        its storage stays. So load nothing into the sample network that you&apos;d want deleted later. Earlier
-        days&apos; counts are deleted; cached Qloo responses are kept, and never published.
-      </p>
-      {accounts && (
+      <Part id="others" title="Who else handles it">
         <p>
-          Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it close.
-          Crossfeed keeps only a note that you were in it, so deleting your account later forgets your name there too.
-          What you added to the network stays with the network. Deleting a launch, which any of the network&apos;s
-          members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records.
-          Removing a network&apos;s own Qloo key, which only an owner can do, wipes its Qloo storage at once: the key,
-          its cached answers, and its counts. Deleting a network, which only an owner can do, deletes its memberships,
-          invite links, and API keys at once, then wipes its own storage, each of its launches&apos;, and its Qloo
-          storage. A wipe that fails is tried again by the next day&apos;s cleanup, which also deletes expired sessions,
-          sign-in challenges, and invite links. Deleting your account, on your account page, deletes your account with
-          its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it,
-          but not your name: the launches of the networks you&apos;re in, or were in before, say &ldquo;Former
-          member&rdquo; on the runs you started and the orders you approved, and the replies you approved no longer say
-          who did. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a
-          network, is removed, or is made a member. A network that can&apos;t be reached at once forgets your name at
-          the next day&apos;s cleanup. It&apos;s refused while you&apos;re a network&apos;s only owner. &ldquo;Sign out
-          everywhere&rdquo; deletes every session of yours.
+          Crossfeed runs on Cloudflare Workers, which hosts the app and its storage. Cloudflare, Qloo, and Anthropic
+          handle what reaches them under their own policies:{' '}
+          <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare&apos;s</a>,{' '}
+          <a href="https://www.qloo.com/legal/privacy">Qloo&apos;s</a>, and{' '}
+          <a href="https://www.anthropic.com/legal/privacy">Anthropic&apos;s</a>.
         </p>
-      )}
-
-      <h2>Who else handles it</h2>
-      <p>
-        Crossfeed runs on Cloudflare Workers, which hosts the app and its storage. Cloudflare, Qloo, and Anthropic
-        handle what reaches them under their own policies:{' '}
-        <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare&apos;s</a>,{' '}
-        <a href="https://www.qloo.com/legal/privacy">Qloo&apos;s</a>, and{' '}
-        <a href="https://www.anthropic.com/legal/privacy">Anthropic&apos;s</a>.
-      </p>
+      </Part>
     </Doc>
   )
 }
@@ -766,118 +838,145 @@ function Privacy({ accounts }: { accounts: boolean }) {
 // A daily limit from wrangler.jsonc, formatted; a value that isn't a number shows as 0.
 export const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
 
+// A row of the daily limits: what's limited, with what counts as one under it, then the two caps.
+const Limit = ({
+  what,
+  counts,
+  visitor,
+  everyone
+}: {
+  what: string
+  counts: string
+  visitor: string
+  everyone: string
+}) => (
+  <tr>
+    <th scope="row">
+      {what}
+      <span class="block font-normal text-muted-foreground">{counts}</span>
+    </th>
+    <td class="text-right whitespace-nowrap">{visitor}</td>
+    <td class="text-right whitespace-nowrap">{everyone}</td>
+  </tr>
+)
+
 function Terms({ env }: { env: Env }) {
   return (
-    <Doc id="terms" title="Beta terms" lede="The terms of the free Crossfeed beta. Using it means you accept them.">
-      <h2>Free</h2>
-      <p>
-        The beta is free: Crossfeed charges nothing and asks for no payment details. Its Qloo calls run on
-        Crossfeed&apos;s Qloo Agentic Hackathon key, so the beta can&apos;t be sold, and it may stop scoring when Qloo
-        deactivates hackathon keys after the hackathon closes.
-        {env.ACCOUNTS === 'on' && (
-          <>
-            {' '}
-            A network&apos;s owner can add the network&apos;s own Qloo key in its settings; its Qloo calls then run on
-            that key, under the owner&apos;s own agreement with Qloo.
-          </>
-        )}
-      </p>
+    <Doc id="terms" title="Beta terms." lede="The terms of the free Crossfeed beta. Using it means you accept them.">
+      <Part id="free" title="Free">
+        <p>
+          The beta is free: Crossfeed charges nothing and asks for no payment details. Its Qloo calls run on
+          Crossfeed&apos;s Qloo Agentic Hackathon key, so the beta can&apos;t be sold, and it may stop scoring when Qloo
+          deactivates hackathon keys after the hackathon closes.
+          {env.ACCOUNTS === 'on' && (
+            <>
+              {' '}
+              A network&apos;s owner can add the network&apos;s own Qloo key in its settings; its Qloo calls then run on
+              that key, under the owner&apos;s own agreement with Qloo.
+            </>
+          )}
+        </p>
+      </Part>
 
-      <h2>No warranty</h2>
-      <p>
-        Crossfeed is provided as is, with no warranty of any kind. It can be wrong, slow, capped, or offline, and it can
-        change or end at any time. Its rankings describe overlapping audiences in Qloo, not a promise of results. Check
-        a plan before you approve it: no order exports and no reply can be copied until you do, and what you approve is
-        your decision.
-      </p>
+      <Part id="warranty" title="No warranty">
+        <p>
+          Crossfeed is provided as is, with no warranty of any kind. It can be wrong, slow, capped, or offline, and it
+          can change or end at any time. Its rankings describe overlapping audiences in Qloo, not a promise of results.
+          Check a plan before you approve it: no order exports and no reply can be copied until you do, and what you
+          approve is your decision.
+        </p>
+      </Part>
 
-      <h2>Daily limits</h2>
-      <p>
-        Limits keep the beta&apos;s spend and storage bounded. A day is a UTC day, and counts reset at 00:00 UTC. A
-        visitor is an IP address, or an IPv6 address by its /64.
-        {env.ACCOUNTS === 'on' && (
-          <>
-            {' '}
-            A network counts as one visitor of its own, whichever of its members makes the network&apos;s calls and
-            runs. A network with its own Qloo key counts its Qloo calls on that key, apart from everyone else&apos;s,
-            against the same limits; its model runs count with everyone&apos;s.
-          </>
-        )}
-      </p>
-      <table class="mk-table mk-limits">
-        <thead>
-          <tr>
-            <th scope="col">A day</th>
-            <th scope="col" class="r">
-              Each visitor
-            </th>
-            <th scope="col" class="r">
-              Everyone
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row">
-              Model runs<small>a launch run, an inbox load, or a pitch run</small>
-            </th>
-            <td class="r">{cap(env.RUN_VISITOR_DAILY_CAP)}</td>
-            <td class="r">{cap(env.RUN_DAILY_CAP)}</td>
-          </tr>
-          <tr>
-            <th scope="row">
-              Starts that call no model<small>a replay, or a run that stops at once</small>
-            </th>
-            <td class="r">{cap(env.FREE_START_DAILY_CAP)}</td>
-            <td class="r">–</td>
-          </tr>
-          <tr>
-            <th scope="row">
-              Qloo calls<small>cache hits count for a visitor, not for everyone</small>
-            </th>
-            <td class="r">{cap(env.QLOO_VISITOR_DAILY_CALL_CAP)}</td>
-            <td class="r">{cap(env.QLOO_DAILY_CALL_CAP)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>
-        {env.ACCOUNTS === 'on' && (
-          <>
-            A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks, and a network can keep at most{' '}
-            {cap(env.LAUNCHES_PER_NETWORK)} launches and {cap(env.INVITES_PER_NETWORK)} open invite links at once. One
-            member&apos;s invite links can bring in at most {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC
-            day.{' '}
-          </>
-        )}
-        A run makes at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most{' '}
-        {MAX_PITCHES} pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each. At a limit, the
-        unchanged sample launch replays its stored run; anything else is refused or stops, and says which limit it
-        reached.
-        {env.ACCOUNTS === 'on' && (
-          <>
-            {' '}
-            Each API key, and each visitor&apos;s sign-in requests, are also limited per minute; a request past the
-            limit is refused, and says to wait a minute.
-          </>
-        )}
-      </p>
+      <Part id="limits" title="Daily limits">
+        <p>
+          Limits keep the beta&apos;s spend and storage bounded. A day is a UTC day, and counts reset at 00:00 UTC. A
+          visitor is an IP address, or an IPv6 address by its /64.
+          {env.ACCOUNTS === 'on' && (
+            <>
+              {' '}
+              A network counts as one visitor of its own, whichever of its members makes the network&apos;s calls and
+              runs. A network with its own Qloo key counts its Qloo calls on that key, apart from everyone else&apos;s,
+              against the same limits; its model runs count with everyone&apos;s.
+            </>
+          )}
+        </p>
+        <TableScroll label="Daily limits">
+          <table class="table-doc">
+            <thead>
+              <tr>
+                <th scope="col">A day</th>
+                <th scope="col" class="text-right">
+                  Each visitor
+                </th>
+                <th scope="col" class="text-right">
+                  Everyone
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <Limit
+                what="Model runs"
+                counts="a launch run, an inbox load, or a pitch run"
+                visitor={cap(env.RUN_VISITOR_DAILY_CAP)}
+                everyone={cap(env.RUN_DAILY_CAP)}
+              />
+              <Limit
+                what="Starts that call no model"
+                counts="a replay, or a run that stops at once"
+                visitor={cap(env.FREE_START_DAILY_CAP)}
+                everyone="–"
+              />
+              <Limit
+                what="Qloo calls"
+                counts="cache hits count for a visitor, not for everyone"
+                visitor={cap(env.QLOO_VISITOR_DAILY_CALL_CAP)}
+                everyone={cap(env.QLOO_DAILY_CALL_CAP)}
+              />
+            </tbody>
+          </table>
+        </TableScroll>
+        <p>
+          {env.ACCOUNTS === 'on' && (
+            <>
+              A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks, and a network can keep at most{' '}
+              {cap(env.LAUNCHES_PER_NETWORK)} launches and {cap(env.INVITES_PER_NETWORK)} open invite links at once. One
+              member&apos;s invite links can bring in at most {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC
+              day.{' '}
+            </>
+          )}
+          A run makes at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most{' '}
+          {MAX_PITCHES} pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each. At a limit, the
+          unchanged sample launch replays its stored run; anything else is refused or stops, and says which limit it
+          reached.
+          {env.ACCOUNTS === 'on' && (
+            <>
+              {' '}
+              Each API key, and each visitor&apos;s sign-in requests, are also limited per minute; a request past the
+              limit is refused, and says to wait a minute.
+            </>
+          )}
+        </p>
+      </Part>
 
-      <h2>Acceptable use</h2>
-      <p>Use the beta to plan promos and triage pitches for shows you work on. Don&apos;t:</p>
-      <ul>
-        <li>
-          load pitches, rosters, or anything else you aren&apos;t allowed to share with Crossfeed, Qloo, and Anthropic;
-        </li>
-        <li>use its rankings to judge, profile, or decide anything about an individual person;</li>
-        <li>try to get around the limits, reach another visitor&apos;s session, or overload the service;</li>
-        <li>copy, scrape, or republish the Qloo data it shows you.</li>
-      </ul>
+      <Part id="use" title="Acceptable use">
+        <p>Use the beta to plan promos and triage pitches for shows you work on. Don&apos;t:</p>
+        <ul>
+          <li>
+            load pitches, rosters, or anything else you aren&apos;t allowed to share with Crossfeed, Qloo, and
+            Anthropic;
+          </li>
+          <li>use its rankings to judge, profile, or decide anything about an individual person;</li>
+          <li>try to get around the limits, reach another visitor&apos;s session, or overload the service;</li>
+          <li>copy, scrape, or republish the Qloo data it shows you.</li>
+        </ul>
+      </Part>
 
-      <h2>Changes</h2>
-      <p>
-        These terms change with the beta; the date above says when they last did. The{' '}
-        <a href="/privacy">privacy page</a> says what Crossfeed sends and keeps.
-      </p>
+      <Part id="changes" title="Changes">
+        <p>
+          These terms change with the beta; the date above says when they last did. The{' '}
+          <a href="/privacy">privacy page</a> says what Crossfeed sends and keeps.
+        </p>
+      </Part>
     </Doc>
   )
 }
