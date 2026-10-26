@@ -1,11 +1,19 @@
+import { cn } from 'cn'
 import { useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { RadioGroup, RadioGroupItem, RadioGroupSegment } from '@/components/ui/radio-group'
+import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
 import type { Budget, Launch, Question, Reply, Run } from '../agent'
+import { finalistsOf, markFinalists, type Ranking } from '../fit'
 import { MAX_COMPS } from '../limits'
 import { MAX_ANSWER, MAX_TITLE } from '../text'
 import { offeredBy } from '../resolve'
 import { takesText } from '../tools/ask-human'
 import type { Session } from './App'
-import { Alert, percentile, useAction } from './controls'
+import { Alert, FitBand, listOf, percentile, useAction } from './controls'
 import { CallButton } from './Evidence'
 import { Source } from './Source'
 
@@ -128,15 +136,20 @@ const NONE = 'none'
 
 const budgetText = (b: Budget) => ('slots' in b ? `${b.slots} promo slots` : `$${b.dollars.toLocaleString('en-US')}`)
 
-// The agent's open question, the rail's primary action: the run waits here until it's answered.
+// The agent's open question, the page's one action while the run waits on it: a card in the canvas,
+// before the fit chart, whose legend is the question. Each kind is answered with its own form, its
+// options as full-width rows, and one Answer. `ranking` gives the shows to leave out their bands, and
+// says which show leaving one out would bring into the finalists, by the run's own rule.
 export function OpenQuestion({
   question,
   launch,
-  agent
+  agent,
+  ranking = null
 }: {
   question: Question
   launch: Launch | null
   agent: Session
+  ranking?: Ranking | null
 }) {
   const { busy, error, run } = useAction()
   const [choice, setChoice] = useState<string | undefined>(undefined)
@@ -176,143 +189,195 @@ export function OpenQuestion({
   }
   const toggle = (name: string) =>
     setExclude((names) => (names.includes(name) ? names.filter((n) => n !== name) : [...names, name]))
+  // The finalists with these shows left out, as the agent marks them once the answer is in.
+  const finalists = (left: string[]) => (ranking ? finalistsOf(markFinalists(ranking, left)).map((r) => r.show) : [])
+  const now = finalists(exclude)
+  // Who comes into the finalists when this show is left out, with the other ticks as they are.
+  const brings = (name: string) => {
+    const others = exclude.filter((n) => n !== name)
+    const without = finalists(others)
+    return finalists([...others, name]).filter((show) => !without.includes(show))
+  }
   return (
-    // The question itself is the module's heading, under the chips that say who asks and that the run waits.
-    <section className="mod ask" aria-label="Agent asks" data-ask>
-      <div className="mh">
-        <span className="chips">
-          <Source of="agent" />
-          <span className="chip">Waiting on you</span>
-        </span>
+    <section className="flex flex-col gap-4 rounded-xl bg-card p-4 lg:p-5" aria-label="Agent asks" data-ask>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Source of="agent" />
+        <Badge variant="outline" mark="signal">
+          Waiting on you
+        </Badge>
       </div>
       <form onSubmit={submit}>
-        <fieldset disabled={busy}>
-          <legend className="q">{question.question}</legend>
-          {(question.kind === 'choice' || question.kind === 'launch') && question.options.length > 0 && (
-            <div className="opts">
-              {question.options.map((option) => (
-                <label key={option}>
-                  <input
-                    type="radio"
-                    name="ask-choice"
-                    checked={choice === option}
-                    onChange={() => {
-                      setChoice(option)
-                      // A launch is a pick or a name, never both.
-                      if (question.kind === 'launch') setText('')
-                    }}
-                  />
-                  <span>{option}</span>
-                </label>
-              ))}
-            </div>
-          )}
-          {question.kind === 'budget' && (
-            <>
-              <p className="help">The insertion order is checked against it.</p>
-              <div className="opts">
-                <label>
-                  <input type="radio" name="ask-unit" checked={unit === 'slots'} onChange={() => setUnit('slots')} />
-                  <span>Promo slots</span>
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="ask-unit"
-                    checked={unit === 'dollars'}
-                    onChange={() => setUnit('dollars')}
-                  />
-                  <span>A dollar budget</span>
-                </label>
-              </div>
-              <span className="in">
-                {unit === 'dollars' && <span className="pre">$</span>}
-                <input
-                  aria-label={unit === 'slots' ? 'Promo slots' : 'Dollar budget'}
-                  inputMode={unit === 'slots' ? 'numeric' : 'decimal'}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder={unit === 'slots' ? 'Slots, e.g. 20' : 'Budget, e.g. 150,000'}
-                />
-              </span>
-            </>
-          )}
-          {question.kind === 'exclusions' &&
-            (question.options.length > 0 ? (
+        <fieldset disabled={busy} className="min-w-0">
+          <legend className="mb-4 max-w-[60ch] type-title text-pretty" id="ask-q">
+            {question.question}
+          </legend>
+          <div className="flex flex-col gap-4">
+            {(question.kind === 'choice' || question.kind === 'launch') && question.options.length > 0 && (
+              <RadioGroup
+                aria-labelledby="ask-q"
+                value={choice ?? null}
+                onValueChange={(option) => {
+                  setChoice(option as string)
+                  // A launch is a pick or a name, never both.
+                  if (question.kind === 'launch') setText('')
+                }}
+                disabled={busy}
+                className="gap-0.5"
+              >
+                {question.options.map((option) => (
+                  <label key={option} className={optionRow}>
+                    <RadioGroupItem value={option} className="mt-0.5" />
+                    <span className="min-w-0 flex-1">{option}</span>
+                  </label>
+                ))}
+              </RadioGroup>
+            )}
+            {question.kind === 'budget' && (
               <>
-                <p className="help">Left out of this run only; the roster keeps them.</p>
-                <div className="opts">
-                  {question.options.map((name) => (
-                    <label key={name}>
-                      <input type="checkbox" checked={exclude.includes(name)} onChange={() => toggle(name)} />
-                      <span>{name}</span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="help">No roster show can be scored yet, so there's nothing to leave out.</p>
-            ))}
-          {question.kind === 'comps' && (
-            <>
-              <p className="help">Released shows with listeners like the launch's. All of them are scored together.</p>
-              <div className="field comp-names" role="group" aria-labelledby="ask-comps">
-                <span className="lbl" id="ask-comps">
-                  Comps, up to {MAX_COMPS}
-                </span>
-                {comps.map((comp, i) => (
-                  <span className="in" key={i}>
-                    <input
-                      aria-label={`Comp ${i + 1}`}
-                      value={comp}
-                      onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
-                      maxLength={MAX_TITLE}
+                <p className="text-muted-foreground">The insertion order is checked against it.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <RadioGroup
+                    aria-label="Budget in"
+                    value={unit}
+                    onValueChange={(next) => setUnit(next as 'slots' | 'dollars')}
+                    disabled={busy}
+                    className={segmentedTrackVariants({ className: 'flex max-md:h-11' })}
+                  >
+                    <RadioGroupSegment value="slots" className={segmentedItemVariants({ className: 'max-md:h-10' })}>
+                      Promo slots
+                    </RadioGroupSegment>
+                    <RadioGroupSegment value="dollars" className={segmentedItemVariants({ className: 'max-md:h-10' })}>
+                      A dollar budget
+                    </RadioGroupSegment>
+                  </RadioGroup>
+                  <span className="relative">
+                    {unit === 'dollars' && (
+                      <span
+                        className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground"
+                        aria-hidden="true"
+                      >
+                        $
+                      </span>
+                    )}
+                    <Input
+                      aria-label={unit === 'slots' ? 'Promo slots' : 'Dollar budget'}
+                      inputMode={unit === 'slots' ? 'numeric' : 'decimal'}
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder={unit === 'slots' ? 'Slots, e.g. 20' : 'Budget, e.g. 150,000'}
+                      className={cn('w-48 max-md:h-11', unit === 'dollars' && 'pl-6')}
                     />
                   </span>
-                ))}
-              </div>
-            </>
-          )}
-          {question.kind === 'confirm_comps' &&
-            confirming.map(({ name, offered }, i) => (
-              <fieldset key={name} className="confirm">
-                <legend className="lbl">{name}</legend>
-                <div className="opts">
-                  {[...offered, null].map((c) => (
-                    <label key={c?.id ?? NONE}>
-                      <input
-                        type="radio"
-                        name={`confirm-${i}`}
-                        checked={picks[name] === (c?.id ?? NONE)}
-                        onChange={() => setPicks({ ...picks, [name]: c?.id ?? NONE })}
-                      />
-                      {c ? (
-                        <span>
-                          {c.name} <span className="pop">{percentile(c.popularity)}</span>
-                        </span>
-                      ) : (
-                        <span>None of these</span>
-                      )}
-                    </label>
-                  ))}
                 </div>
-              </fieldset>
-            ))}
-          {typed && (
-            <label className="field">
-              <span className="lbl">
-                {question.kind === 'launch'
-                  ? question.options.length > 0
-                    ? 'Or the name Qloo lists it under'
-                    : 'The name Qloo lists it under'
-                  : question.kind === 'comps'
-                    ? 'Or the name Qloo lists it under'
-                    : question.options.length > 0
-                      ? 'Or type your own answer'
-                      : 'Your answer'}
-              </span>
-              <span className="in">
-                <input
+              </>
+            )}
+            {question.kind === 'exclusions' &&
+              (question.options.length > 0 ? (
+                <>
+                  <p className="text-muted-foreground">Left out of this run only; the roster keeps them.</p>
+                  <div className="flex flex-col gap-0.5">
+                    {question.options.map((name) => {
+                      const row = ranking?.rows.find((r) => r.show === name)
+                      const entering = brings(name)
+                      return (
+                        <label key={name} className={optionRow} data-exclusion={name}>
+                          <Checkbox
+                            checked={exclude.includes(name)}
+                            onCheckedChange={() => toggle(name)}
+                            disabled={busy}
+                            className="mt-0.5"
+                          />
+                          <span className="flex min-w-0 flex-1 flex-col">
+                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="font-medium">{name}</span>
+                              {now.includes(name) && (
+                                <Badge variant="outline" mark="signal">
+                                  Finalist
+                                </Badge>
+                              )}
+                            </span>
+                            {entering.length > 0 && (
+                              <span className="type-caption text-muted-foreground">
+                                Leaving it out brings {listOf(entering)} into the finalists.
+                              </span>
+                            )}
+                          </span>
+                          {row && <FitBand band={row.band} finalist={now.includes(name)} />}
+                        </label>
+                      )
+                    })}
+                  </div>
+                </>
+              ) : (
+                <p className="text-muted-foreground">
+                  No roster show can be scored yet, so there's nothing to leave out.
+                </p>
+              ))}
+            {question.kind === 'comps' && (
+              <>
+                <p className="text-muted-foreground">
+                  Released shows with listeners like the launch's. All of them are scored together.
+                </p>
+                <div className="flex flex-col gap-1.5" role="group" aria-labelledby="ask-comps">
+                  <span className="font-medium" id="ask-comps">
+                    Comps, up to {MAX_COMPS}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {comps.map((comp, i) => (
+                      <Input
+                        key={i}
+                        aria-label={`Comp ${i + 1}`}
+                        value={comp}
+                        onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
+                        maxLength={MAX_TITLE}
+                        className="sm:w-48 max-md:h-11"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+            {question.kind === 'confirm_comps' &&
+              confirming.map(({ name, offered }) => (
+                <fieldset key={name} className="min-w-0">
+                  <legend className="mb-1.5 font-semibold">{name}</legend>
+                  <RadioGroup
+                    aria-label={name}
+                    value={picks[name] ?? null}
+                    onValueChange={(id) => setPicks({ ...picks, [name]: id as string })}
+                    disabled={busy}
+                    className="gap-0.5"
+                  >
+                    {[...offered, null].map((c) => (
+                      <label key={c?.id ?? NONE} className={optionRow}>
+                        <RadioGroupItem value={c?.id ?? NONE} className="mt-0.5" />
+                        {c ? (
+                          <span className="min-w-0 flex-1">
+                            {c.name}{' '}
+                            <span className="text-muted-foreground">popularity {percentile(c.popularity)}</span>
+                          </span>
+                        ) : (
+                          <span className="min-w-0 flex-1">None of these</span>
+                        )}
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </fieldset>
+              ))}
+            {typed && (
+              <label className="flex flex-col gap-1.5">
+                <span className="font-medium">
+                  {question.kind === 'launch'
+                    ? question.options.length > 0
+                      ? 'Or the name Qloo lists it under'
+                      : 'The name Qloo lists it under'
+                    : question.kind === 'comps'
+                      ? 'Or the name Qloo lists it under'
+                      : question.options.length > 0
+                        ? 'Or type your own answer'
+                        : 'Your answer'}
+                </span>
+                <Input
                   value={text}
                   onChange={(e) => {
                     setText(e.target.value)
@@ -320,16 +385,21 @@ export function OpenQuestion({
                   }}
                   // A launch's name, or the programmer's own answer.
                   maxLength={question.kind === 'launch' || question.kind === 'comps' ? MAX_TITLE : MAX_ANSWER}
+                  className="sm:max-w-md max-md:h-11"
                 />
-              </span>
-            </label>
-          )}
-          <div className="acts">
-            <button className="btn pri" type="submit" disabled={unpicked}>
-              Answer
-            </button>
-            {question.kind === 'exclusions' && <small>Leave all unticked for no exclusions.</small>}
-            {question.kind === 'confirm_comps' && <small>Only the comps you confirm are scored.</small>}
+              </label>
+            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Button type="submit" disabled={unpicked} className="max-md:h-11">
+                Answer
+              </Button>
+              {question.kind === 'exclusions' && (
+                <small className="type-caption text-muted-foreground">Leave all unticked for no exclusions.</small>
+              )}
+              {question.kind === 'confirm_comps' && (
+                <small className="type-caption text-muted-foreground">Only the comps you confirm are scored.</small>
+              )}
+            </div>
           </div>
         </fieldset>
       </form>
@@ -337,3 +407,7 @@ export function OpenQuestion({
     </section>
   )
 }
+
+// One option of a question: a full-width row whose whole width picks it, on the tone step once picked.
+const optionRow =
+  'flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted has-checked:bg-muted max-md:min-h-11 max-md:py-3'

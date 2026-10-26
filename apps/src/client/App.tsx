@@ -1,4 +1,11 @@
+import { cn } from 'cn'
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { buttonVariants } from '@/components/ui/variants'
 import type { Comp, GuideMark, Launch, LaunchInput, Run, RunSnapshot, RunSummary, Show, SlowCall } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
 import type { Ranking } from '../fit'
@@ -32,8 +39,24 @@ export function App({ agentPath, links }: { agentPath: string; links: Links }) {
   return <Workspace agent={useSession(agentPath)} links={links} />
 }
 
+// The inspector's tabs: the run's trace and history, a call's evidence, and on the demo the show
+// selected in the roster.
+type InspectorTab = 'run' | 'evidence' | 'show'
+
+// The frame, from 1360px: the canvas beside the inspector, a 360px column on the card, sticky under
+// the 48px top bar for the window's height. At 1440 that's 56 (rail) + 24 (gutter) + 976 (canvas) +
+// 24 (gap) + 360 (inspector) = 1440; at 1360, a 896px canvas. Under 1360 the inspector is a sheet
+// and the canvas takes the width, with 24px gutters from 1024px and 16px below. Blocks are 24px apart.
+const WIDE = '(min-width: 1360px)'
+const frame = 'min-[1360px]:grid min-[1360px]:grid-cols-[minmax(0,1fr)_360px] min-[1360px]:gap-6'
+const canvas = 'flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6 min-[1360px]:pr-0'
+const aside = 'sticky top-12 flex h-[calc(100svh-3rem)] flex-col gap-4 self-start overflow-y-auto bg-card p-4'
+
 // The page for a connected session; tests render it from a session's synced state. With `network`,
 // it's a launch's page of that network (Launch.tsx): it ranks the network's roster, read-only here.
+// The canvas reads in the order a run asks for attention: the launch and its readout, the guide, the
+// launch form, the agent's question, then the fit chart, the plan and the roster. The inspector
+// beside it holds what a person checks: the run's trace, a call's evidence, the selected show.
 export function Workspace({ agent, links, network }: { agent: Session; links: Links; network?: NetworkPage }) {
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
@@ -49,9 +72,15 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
   const { opened, openCall } = useEvidence(agent)
-  const oneColumn = useOneColumn()
-  // The roster section moves when the page crosses one column, which remounts it; names typed into
-  // its import box are kept here so the move doesn't drop them.
+  const wide = useMedia(WIDE)
+  const [tab, setTab] = useState<InspectorTab>('run')
+  // The inspector's sheet, under 1360px, which opens on the tab asked for.
+  const [sheet, setSheet] = useState(false)
+  const inspect = (next: InspectorTab) => {
+    setTab(next)
+    if (!wide) setSheet(true)
+  }
+  // Names typed into the roster's import box, kept here so they outlast its form.
   const importDraft = useRef('')
   // The guide's page steps, marked once each while it shows.
   const guiding = useAction()
@@ -59,9 +88,25 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
   const markSeen = (mark: GuideMark) => {
     if (sample && !guide?.dismissed && !guide?.seen.includes(mark)) void guiding.run(() => agent.stub.markGuide(mark))
   }
-  const shell = sample && <SampleShell sample={sample} />
+  // A dropped connection reconnects by itself; one that closed for good says so. The agent's first
+  // state arrives with its identity, so a state without one is a reconnect, never the first connect.
+  const lost = agent.connectionError ? 'This page lost its connection. Reload to try again.' : null
+  const reconnecting = !lost && agent.state !== undefined && agent.identified === false
   // Who edits the roster: the visitor here, or for a launch, the network's members on its roster page.
   const editing = !viewing && !network
+  const editorOpen = editing && show !== undefined
+  const current: InspectorTab = tab === 'show' && !editorOpen ? 'run' : tab
+  // A call number opens its evidence in the inspector, or closes it when it's already shown there.
+  const showCall = (call: string) => {
+    if (opened?.call === call && current === 'evidence' && (wide || sheet)) return void openCall(call)
+    inspect('evidence')
+    if (opened?.call !== call) void openCall(call)
+  }
+
+  if (!agent.state) return <Connecting network={network} wide={wide} />
+
+  const shell = sample && <SampleShell sample={sample} />
+  const order = shown?.insertionOrder ?? null
   const rosterSection = (
     <section className="sec" aria-labelledby="roster-h">
       <div className="mh">
@@ -110,187 +155,304 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
         <RosterTable
           roster={roster}
           selected={editing ? (show?.name ?? null) : null}
-          select={editing ? setSelected : null}
+          select={
+            editing
+              ? (name) => {
+                  setSelected(name)
+                  inspect('show')
+                }
+              : null
+          }
           slowCalls={slowCalls}
-          openCall={openCall}
+          openCall={showCall}
           opened={opened?.call ?? null}
         />
       )}
+      {network
+        ? // A launch takes its CPM with the roster, so it has none to show before its first run.
+          runs.length > 0 && (
+            <CpmRecord
+              cpm={shown?.cpm ?? null}
+              network={network}
+              note="Each run takes the network's CPM as it starts."
+            />
+          )
+        : !viewing && (
+            <NetworkCpm
+              key={agent.state?.cpm ?? 'none'}
+              cpm={agent.state?.cpm ?? null}
+              sample={sample?.cpm ?? false}
+              agent={agent}
+            />
+          )}
     </section>
+  )
+  const inspector = (
+    <Tabs value={current} onValueChange={(next) => setTab(next as InspectorTab)}>
+      {/* The tabs stay at the top of the inspector while what's in it scrolls under them. */}
+      {/* It sticks at the scroller's padding edge, so beside the canvas it's pulled up over the aside's 16px. */}
+      <div className={cn('sticky z-10 -mx-4 bg-card px-4 pb-1', wide ? '-top-4 -mt-4 pt-4' : 'top-0 pt-1')}>
+        <TabsList className="max-md:h-11">
+          {(['run', 'evidence', ...(editorOpen ? ['show'] : [])] as InspectorTab[]).map((t) => (
+            <TabsTrigger key={t} value={t} className="max-md:h-10">
+              {tabName[t]}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
+      {/* Every panel stays mounted, so the ids calls point at (aria-controls="evidence") are always
+          there; Base UI hides and inerts the panels not shown, and nothing else. */}
+      <TabsContent value="run" keepMounted data-legacy>
+        {run && (
+          <RunLog
+            run={run}
+            changedNote={order?.run === run.id && order.edited ? ORDER_CHANGED : null}
+            openCall={showCall}
+            opened={opened?.call ?? null}
+          />
+        )}
+        {runs.length > 0 && (
+          <RunList
+            runs={runs}
+            viewing={viewing?.id ?? null}
+            view={async (id) => setViewing(id === null ? null : { id, state: await agent.stub.getRun(id) })}
+            counted={network ? 'network' : 'visitor'}
+          />
+        )}
+        {(!network || roster.length > 0) && <RosterCheck roster={roster} />}
+        {!run && runs.length === 0 && network && roster.length === 0 && (
+          <p className="help">Not run yet. Each run&apos;s steps and its closing line show here.</p>
+        )}
+      </TabsContent>
+      <TabsContent value="evidence" keepMounted data-legacy>
+        <EvidencePanel opened={opened} />
+      </TabsContent>
+      {editorOpen && (
+        <TabsContent value="show" keepMounted data-legacy>
+          <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />
+        </TabsContent>
+      )}
+    </Tabs>
   )
   return (
     <>
       {shell}
-      <LaunchHeader
-        // A launch's page fills its form in with the launch it plans as that arrives or changes.
-        key={network ? `launch ${launchName(agent.state?.launch)}` : (sampleLaunch ?? 'none')}
-        suggested={sampleLaunch}
-        ownLaunch={Boolean(network)}
-        ran={runs.some((r) => !r.pitchesFor)}
-        launch={shown?.launch ?? null}
-        hasRoster={roster.length > 0}
-        slowCalls={slowCalls}
-        run={run}
-        viewing={viewing && runNumber(runs, viewing.id)}
-        back={() => setViewing(null)}
-        startLaunch={(input) => agent.stub.startLaunch(input)}
-        openCall={openCall}
-        opened={opened?.call ?? null}
-      />
-      <main className="main">
-        {/* Before the chart, so a single column reaches it first; the grid sets it atop the rail when wide. */}
-        {run?.status === 'waiting' && run.question && (
-          <OpenQuestion key={run.question.id} question={run.question} launch={shown?.launch ?? null} agent={agent} />
-        )}
-        <div className="chart-col">
-          <FitChart
-            ranking={shown?.ranking ?? null}
-            leftOut={shown?.run?.exclusions ?? []}
-            demographics={shown?.demographics ?? null}
-            topic={shown?.topic ?? null}
-            failed={roster.filter((s) => s.resolution === 'failed' && !s.excluded).map((s) => s.name)}
-            running={run?.status === 'running'}
-            openCall={openCall}
+      <div className={frame}>
+        <main className={canvas} data-canvas>
+          <LaunchHead
+            // A launch's page fills its form in with the launch it plans as that arrives or changes.
+            key={network ? `launch ${launchName(agent.state.launch)}` : (sampleLaunch ?? 'none')}
+            suggested={sampleLaunch}
+            ownLaunch={Boolean(network)}
+            ran={runs.some((r) => !r.pitchesFor)}
+            latest={runs.findLast((r) => !r.pitchesFor) ?? null}
+            launch={shown?.launch ?? null}
+            hasRoster={roster.length > 0}
+            slowCalls={slowCalls}
+            run={run}
+            order={order !== null}
+            viewing={viewing && runNumber(runs, viewing.id)}
+            back={() => setViewing(null)}
+            startLaunch={(input) => agent.stub.startLaunch(input)}
+            openCall={showCall}
             opened={opened?.call ?? null}
-            markSeen={markSeen}
-            roster={roster}
-            cpm={shown?.cpm ?? null}
-            sampleCpm={shown?.sample?.cpm ?? false}
-          />
-          {!oneColumn && rosterSection}
-        </div>
-        {/* The contract's rail: the open question, the selected show and its evidence, the order to approve. */}
-        <aside className="rail" aria-label="Details">
-          {agent.state && !viewing && (
-            <Guide
-              state={agent.state}
-              dismiss={() => void guiding.run(() => agent.stub.dismissGuide())}
-              error={guiding.error}
-            />
-          )}
-          {show && !viewing && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
-          <EvidencePanel opened={opened} />
-          {shown?.insertionOrder && (
-            <InsertionOrderPanel
-              key={`${viewing?.id ?? 'latest'} ${shown.insertionOrder.id}`}
-              order={shown.insertionOrder}
-              roster={roster}
-              cpm={shown.cpm}
-              sampleCpm={shown.sample?.cpm ?? false}
-              budget={run?.id === shown.insertionOrder.run ? run.budget : null}
-              sharedTags={Object.fromEntries(
-                (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags]] : []))
-              )}
-              openCall={openCall}
-              opened={opened?.call ?? null}
-              exportHref={`${links.orders ?? '/api/insertion-orders'}/${shown.insertionOrder.id}.csv`}
-              actions={
-                viewing || inProgress(run, shown.insertionOrder.run)
-                  ? null
-                  : {
-                      edit: async (lines) => {
-                        await agent.stub.editInsertionOrder(shown.insertionOrder!.id, lines)
-                      },
-                      approve: () => agent.stub.approveInsertionOrder(shown.insertionOrder!.id)
-                    }
-              }
-              readOnly={
-                viewing
-                  ? `Run ${runNumber(runs, viewing.id)}'s order, read-only.`
-                  : 'Edit and approve it once the run ends.'
-              }
-            />
-          )}
-          {run && (
-            <RunLog
-              run={run}
-              changedNote={shown?.insertionOrder?.run === run.id && shown.insertionOrder.edited ? ORDER_CHANGED : null}
-              openCall={openCall}
-              opened={opened?.call ?? null}
-            />
-          )}
-          {runs.length > 0 && (
-            <RunList
-              runs={runs}
-              viewing={viewing?.id ?? null}
-              view={async (id) => setViewing(id === null ? null : { id, state: await agent.stub.getRun(id) })}
-              counted={network ? 'network' : 'visitor'}
-            />
-          )}
-          {(!network || roster.length > 0) && <RosterCheck roster={roster} />}
-          {network
-            ? // A launch takes its CPM with the roster, so it has none to show before its first run.
-              runs.length > 0 && (
-                <CpmRecord
-                  cpm={shown?.cpm ?? null}
-                  network={network}
-                  note="Each run takes the network's CPM as it starts."
+            connection={{ lost, reconnecting }}
+            runLog={wide ? null : () => inspect('run')}
+            guide={
+              !viewing && (
+                <Guide
+                  state={agent.state}
+                  dismiss={() => void guiding.run(() => agent.stub.dismissGuide())}
+                  error={guiding.error}
                 />
               )
-            : !viewing && (
-                <NetworkCpm
-                  key={agent.state?.cpm ?? 'none'}
-                  cpm={agent.state?.cpm ?? null}
-                  sample={sample?.cpm ?? false}
-                  agent={agent}
-                />
-              )}
-        </aside>
-        {/* In one column the roster follows the rail, so the evidence and the order come right after the chart. */}
-        {oneColumn && <div className="chart-col">{rosterSection}</div>}
-      </main>
+            }
+          />
+          {/* Before the chart, so the question is what a person reaches first. */}
+          {run?.status === 'waiting' && run.question && (
+            <OpenQuestion
+              key={run.question.id}
+              question={run.question}
+              launch={shown?.launch ?? null}
+              agent={agent}
+              ranking={shown?.ranking ?? null}
+            />
+          )}
+          {/* The chart has nothing to show before a run ranks the roster, or starts to. */}
+          {(shown?.ranking || run?.status === 'running') && (
+            <div data-legacy>
+              <FitChart
+                ranking={shown?.ranking ?? null}
+                leftOut={shown?.run?.exclusions ?? []}
+                demographics={shown?.demographics ?? null}
+                topic={shown?.topic ?? null}
+                failed={roster.filter((s) => s.resolution === 'failed' && !s.excluded).map((s) => s.name)}
+                running={run?.status === 'running'}
+                openCall={showCall}
+                opened={opened?.call ?? null}
+                markSeen={markSeen}
+                roster={roster}
+                cpm={shown?.cpm ?? null}
+                sampleCpm={shown?.sample?.cpm ?? false}
+              />
+            </div>
+          )}
+          {shown && order && (
+            // "Review the plan" in the title row jumps here, clear of the sticky top bar.
+            <div id="plan" className="scroll-mt-16" data-legacy>
+              <InsertionOrderPanel
+                key={`${viewing?.id ?? 'latest'} ${order.id}`}
+                order={order}
+                roster={roster}
+                cpm={shown.cpm}
+                sampleCpm={shown.sample?.cpm ?? false}
+                budget={run?.id === order.run ? run.budget : null}
+                sharedTags={Object.fromEntries(
+                  (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags]] : []))
+                )}
+                openCall={showCall}
+                opened={opened?.call ?? null}
+                exportHref={`${links.orders ?? '/api/insertion-orders'}/${order.id}.csv`}
+                actions={
+                  viewing || inProgress(run, order.run)
+                    ? null
+                    : {
+                        edit: async (lines) => {
+                          await agent.stub.editInsertionOrder(order.id, lines)
+                        },
+                        approve: () => agent.stub.approveInsertionOrder(order.id)
+                      }
+                }
+                readOnly={
+                  viewing
+                    ? `Run ${runNumber(runs, viewing.id)}'s order, read-only.`
+                    : 'Edit and approve it once the run ends.'
+                }
+              />
+            </div>
+          )}
+          <div data-legacy>{rosterSection}</div>
+        </main>
+        {wide ? (
+          <aside className={aside} aria-label="Details">
+            {inspector}
+          </aside>
+        ) : (
+          // Non-modal and kept mounted while closed: the canvas stays usable beside it, its guide
+          // included, and the calls' aria-controls="evidence" always finds its panel.
+          <Sheet open={sheet} onOpenChange={setSheet} modal={false} disablePointerDismissal>
+            <SheetContent overlay={false} keepMounted className="gap-0">
+              <SheetHeader className="pr-14">
+                <SheetTitle>Details</SheetTitle>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">{inspector}</div>
+            </SheetContent>
+          </Sheet>
+        )}
+      </div>
     </>
   )
 }
 
-// Whether the page is one column, as style.css lays it out below 960px. Rendered without a window,
-// as in tests, it's two.
-const ONE_COLUMN = '(max-width: 960px)'
-function useOneColumn() {
-  const [one, setOne] = useState(() => typeof window !== 'undefined' && window.matchMedia(ONE_COLUMN).matches)
+const tabName: Record<InspectorTab, string> = { run: 'Run', evidence: 'Evidence', show: 'Show' }
+
+// Until the agent's first state arrives: the frame in the shapes it will fill, and the readout saying
+// it's connecting.
+function Connecting({ network, wide }: { network?: NetworkPage; wide: boolean }) {
+  return (
+    <div className={frame}>
+      <main className={canvas} aria-busy="true">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-7 w-72 max-w-full" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </div>
+        <div className={readout}>
+          <span role="status">
+            <StateLine kind="loading">
+              {network ? 'Connecting to the launch…' : 'Connecting to your demo session…'}
+            </StateLine>
+          </span>
+        </div>
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-5 w-56" />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-11 rounded-lg" />
+          ))}
+        </div>
+      </main>
+      {wide && (
+        <aside className={aside} aria-label="Details">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-24" />
+        </aside>
+      )}
+    </div>
+  )
+}
+
+// Whether the window matches a media query, following it as it changes. Rendered without a window, as
+// in tests, it's the wide layout.
+function useMedia(query: string) {
+  const [matches, setMatches] = useState(() => typeof window === 'undefined' || window.matchMedia(query).matches)
   useEffect(() => {
-    const media = window.matchMedia(ONE_COLUMN)
-    const change = () => setOne(media.matches)
+    const media = window.matchMedia(query)
+    const change = () => setMatches(media.matches)
+    change()
     media.addEventListener('change', change)
     return () => media.removeEventListener('change', change)
-  }, [])
-  return one
+  }, [query])
+  return matches
 }
 
 // Runs are numbered in the order this session started them.
 const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) => r.id === id) + 1
 
-// The launch header: start a run from a released launch's name, or from up to three comps for an
-// unreleased one, then follow it here. While an earlier run is viewed, it shows that run and a way
-// back instead of the form.
-function LaunchHeader({
+// The on-air readout's strip: one line on the tone step, which wraps when it has more to say.
+const readout = 'flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2'
+
+// The head of the canvas: the title row, the on-air readout, the guide, and the launch form. The
+// title row names the launch, with its Qloo match and comps, and holds the run's actions: Start run
+// for the form, or once a run has ended, Run again and Change launch, which opens the form; Back to
+// the latest run while an earlier one is viewed; and Review the plan once there's one. The form
+// starts a run from a released launch's name, or from up to three comps for an unreleased one.
+function LaunchHead({
   suggested,
   ownLaunch,
   ran,
+  latest,
   launch,
   hasRoster,
   slowCalls,
   run,
+  order,
   viewing,
   back,
   startLaunch,
   openCall,
-  opened
+  opened,
+  connection,
+  runLog,
+  guide
 }: {
   suggested: string | null // the sample launch, prefilled for the visitor to start
   // A launch's page, which plans one launch: its form keeps the launch's name or comps, to run again as
   // they are or changed, and a launch from comps goes by them.
   ownLaunch: boolean
   ran: boolean // whether any launch run has started here
+  latest: RunSummary | null // the latest launch run, which `run` is unless a pitch run came after it
   launch: Launch | null
   hasRoster: boolean
   slowCalls: SlowCall[]
   run: Run | null
+  order: boolean // whether there's an insertion order to review
   viewing: number | null // the number of the earlier run shown
   back: () => void
   startLaunch: (input: LaunchInput) => Promise<unknown>
   openCall: (call: string) => void
   opened: string | null
+  connection: { lost: string | null; reconnecting: boolean }
+  runLog: (() => void) | null // opens the inspector's Run tab, where it's a sheet
+  guide: React.ReactNode
 }) {
   const form = useLaunchFields(
     suggested
@@ -300,15 +462,24 @@ function LaunchHeader({
         : null
   )
   const action = useAction()
+  // The form opened again after a run, to start one for another launch.
+  const [changing, setChanging] = useState(false)
   const running = run?.status === 'running'
+  const live = running || run?.status === 'waiting'
+  // Whether the latest launch run has ended, read from its summary when a pitch run came after it.
+  const ended = run ? !live : latest !== null && latest.status !== 'running' && latest.status !== 'waiting'
+  const formShown = !viewing && (!ran || changing)
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if ((await action.run(() => startLaunch(form.input))) && !ownLaunch) form.clear()
+    if (await action.run(() => startLaunch(form.input))) {
+      if (!ownLaunch) form.clear()
+      setChanging(false)
+    }
   }
   // The launch to run again once its run has ended: from its comps, if it has any.
   const launchComps = launch?.comps ?? [] // sessions from before comps have none
   const again: LaunchInput | null =
-    run && !running && launch
+    ended && launch
       ? launchComps.length
         ? { comps: launchComps.map((c) => c.name) }
         : launch.name
@@ -317,88 +488,192 @@ function LaunchHeader({
       : null
   // The current step is the latest note still running; between tool calls, Claude is choosing the next.
   const step = run ? run.notes.findLastIndex((n) => n.status === 'running') : -1
+  const elapsed = useElapsed(running && !viewing && latest && latest.id === run?.id ? latest.startedAt : null)
+  const title =
+    launch?.name ?? (launchComps.length ? `From comps: ${launchComps.map((c) => c.name).join(' · ')}` : null)
   return (
-    <section className="hd" aria-label="Launch">
-      <div className="hd-row">
-        <div>
-          <h1>
-            <span>Launch ·</span>{' '}
-            {launch?.name ??
-              (launchComps.length ? (ownLaunch ? launchName(launch) : 'Unreleased, from comps') : 'None yet')}
-          </h1>
-          {launch?.name && (
-            <LaunchMatch launch={launch} running={running} ran={ran} openCall={openCall} opened={opened} />
+    <>
+      {/* The name and its lines take what the actions leave, and wrap before the actions do. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 basis-md flex-col gap-1.5">
+          <h1 className="type-title text-balance">{title ?? 'No launch yet'}</h1>
+          <div className="flex flex-col gap-1 type-caption text-muted-foreground">
+            {viewing && (
+              <p className="flex flex-wrap items-center gap-1.5">
+                <Badge>Run {viewing}</Badge> An earlier run, read-only.
+              </p>
+            )}
+            {launch?.name && (launch.match || ran || running) && (
+              <LaunchMatch launch={launch} running={running} openCall={openCall} opened={opened} />
+            )}
+            {launchComps.length > 0 && (
+              <LaunchComps comps={launchComps} running={running} openCall={openCall} opened={opened} />
+            )}
+            {!launch && (
+              <StateLine kind="empty">
+                {hasRoster
+                  ? 'Name a released launch below and start a run to rank the roster.'
+                  : 'Import a roster first, then name a released launch to rank it.'}
+              </StateLine>
+            )}
+          </div>
+        </div>
+        {/* On a phone the primary leads, where the row wraps. */}
+        <div className="flex flex-wrap items-center gap-2 [&>*]:max-md:h-11">
+          {order && (
+            <a href="#plan" className={buttonVariants({ variant: 'ghost' })}>
+              Review the plan
+            </a>
           )}
-          {launchComps.length > 0 && (
-            <LaunchComps comps={launchComps} running={running} openCall={openCall} opened={opened} />
-          )}
-          {!launch && (
-            <StateLine kind="empty">
-              {hasRoster
-                ? 'No launch yet. Name a released launch below and start a run to rank the roster.'
-                : 'No launch yet. Import a roster first, then name a released launch to rank it.'}
-            </StateLine>
+          {viewing ? (
+            <Button variant="secondary" onClick={back}>
+              Back to the latest run
+            </Button>
+          ) : formShown ? (
+            <>
+              {changing && (
+                <Button variant="ghost" onClick={() => setChanging(false)}>
+                  Cancel
+                </Button>
+              )}
+              <Button
+                type="submit"
+                form="launch-form"
+                disabled={action.busy || running || !form.ready}
+                className="max-sm:order-first"
+              >
+                Start run
+              </Button>
+            </>
+          ) : (
+            ended && (
+              <>
+                <Button variant="ghost" onClick={() => setChanging(true)}>
+                  Change launch
+                </Button>
+                {again && (
+                  <Button
+                    disabled={action.busy}
+                    onClick={() => void action.run(() => startLaunch(again))}
+                    className="max-sm:order-first"
+                  >
+                    Run again
+                  </Button>
+                )}
+              </>
+            )
           )}
         </div>
-        {run && (
-          <div className="status" role="status">
-            {run.status === 'failed' || run.status === 'stopped' ? (
-              <StateLine kind="error" word={runLabel[run.status]}>
-                {run.error}
-              </StateLine>
-            ) : (
-              <b>{runLabel[run.status]}</b>
-            )}
-            {run.replayed && (
-              <>
-                {' '}
-                <span className="chip">Replayed</span>
-                <p>
-                  {run.replayed}, so this is the stored sample run, replayed with its answers. Nothing new was asked of
-                  Qloo or Claude.
-                </p>
-              </>
-            )}
-            {run.status === 'running' && (
-              <p>{step >= 0 ? `${run.notes[step].text} · step ${step + 1}` : 'Waiting for Claude'}</p>
-            )}
-            <SlowCalls calls={slowCalls.filter((c) => c.run === run.id)} />
-            {run.status === 'waiting' && <p>Answer the agent's question to go on.</p>}
-          </div>
+      </div>
+      {!formShown && <Alert error={action.error} />}
+      <div className={readout}>
+        <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+          {connection.lost && <StateLine kind="error">{connection.lost}</StateLine>}
+          {connection.reconnecting && (
+            <StateLine kind="loading" word="Reconnecting…">
+              {null}
+            </StateLine>
+          )}
+          {run ? (
+            <>
+              {run.status === 'failed' || run.status === 'stopped' ? (
+                <StateLine kind="error" word={runLabel[run.status]}>
+                  {run.error}
+                </StateLine>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <OnAir live={live} />
+                  <b className="font-semibold">{runLabel[run.status]}</b>
+                </span>
+              )}
+              {running && (
+                <span>{step >= 0 ? `${run.notes[step].text} · step ${step + 1}` : 'Waiting for Claude'}</span>
+              )}
+              {run.status === 'waiting' && <span>Answer the agent&apos;s question to go on.</span>}
+              {run.replayed && (
+                <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 type-caption">
+                  <Badge variant="outline">Replayed</Badge>
+                  <span>
+                    {run.replayed}, so this is the stored sample run, replayed with its answers. Nothing new was asked
+                    of Qloo or Claude.
+                  </span>
+                </span>
+              )}
+              {slowCalls.some((c) => c.run === run.id) && (
+                <span className="basis-full type-caption">
+                  <SlowCalls calls={slowCalls.filter((c) => c.run === run.id)} />
+                </span>
+              )}
+            </>
+          ) : latest ? (
+            // A guest pitch run came after the latest launch run, which the inbox shows instead.
+            <span className="inline-flex items-center gap-2">
+              <OnAir live={false} />
+              <b className="font-semibold">{runLabel[latest.status]}</b>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              <OnAir live={false} idle />
+              {ownLaunch
+                ? 'Not run yet. A run looks it up in Qloo.'
+                : 'Not run yet. A run looks the launch up in Qloo and ranks the roster against it.'}
+            </span>
+          )}
+        </div>
+        {/* Outside the live region, so screen readers aren't told the time every second. */}
+        {elapsed && (
+          <span className="text-muted-foreground tabular-nums" aria-hidden="true">
+            {elapsed}
+          </span>
+        )}
+        {runLog && (
+          <Button variant="ghost" size="sm" className="-my-1 -mr-1.5 max-md:h-11" onClick={runLog}>
+            Run log
+          </Button>
         )}
       </div>
-      {viewing ? (
-        <p className="viewing">
-          <span className="chip">Run {viewing}</span> An earlier run, read-only.{' '}
-          <button type="button" className="lnk" onClick={back}>
-            Back to the latest run
-          </button>
-        </p>
-      ) : (
-        <form className="launch-form" onSubmit={submit}>
-          {form.fields(action.busy || running)}
-          <button className="btn pri" type="submit" disabled={action.busy || running || !form.ready}>
-            Start run
-          </button>
-          {suggested && form.named(suggested) && <small className="smp">Sample launch</small>}
-          {again && (
-            <>
-              <button
-                className="btn"
-                type="button"
-                disabled={action.busy}
-                onClick={() => void action.run(() => startLaunch(again))}
-              >
-                Run again
-              </button>
-              <small>A new run; this one stays in Runs to compare.</small>
-            </>
-          )}
+      {guide}
+      {formShown && (
+        <form id="launch-form" className="flex flex-col gap-2" onSubmit={submit}>
+          <div className="flex flex-wrap items-center gap-2">
+            {form.fields(action.busy || running)}
+            {suggested && form.named(suggested) && <Badge>Sample launch</Badge>}
+          </div>
+          <Alert error={action.error} />
         </form>
       )}
-      <Alert error={action.error} />
-    </section>
+    </>
   )
+}
+
+// The on-air dot: signal orange, breathing, while a run is running or waiting on a person; ink once it
+// has ended; an empty ring before the first run. Failures show the square ✕ of their state line
+// instead, so the dot is never the only sign of a state.
+const OnAir = ({ live, idle = false }: { live: boolean; idle?: boolean }) => (
+  <span
+    aria-hidden="true"
+    className={cn(
+      'size-2 shrink-0 rounded-full',
+      idle ? 'border border-muted-foreground' : live ? 'bg-signal motion-safe:animate-live' : 'bg-foreground'
+    )}
+  />
+)
+
+// The time since `since` as a clock, such as 1:05, ticking each second; null without a time, and until
+// the page has run in a browser, so a server render never shows a stale one.
+function useElapsed(since: string | null) {
+  const [now, setNow] = useState<number | null>(null)
+  useEffect(() => {
+    if (!since) return
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [since])
+  if (!since || now === null) return null
+  const seconds = Math.max(0, Math.floor((now - Date.parse(since)) / 1000))
+  const [h, m, s] = [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60]
+  const two = (n: number) => String(n).padStart(2, '0')
+  return h ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`
 }
 
 const launchName = (launch: Launch | null | undefined) =>
@@ -408,31 +683,27 @@ const launchName = (launch: Launch | null | undefined) =>
     launch.comps.map((c) => c.name)
   )
 
+// The launch's Qloo match, under its name: the entity and its popularity, or why there's none, with
+// the call it came from.
 function LaunchMatch({
   launch: { name, match },
   running,
-  ran,
   openCall,
   opened
 }: {
   launch: Launch
   running: boolean
-  ran: boolean // a launch's page plans its launch before any run looks it up
   openCall: (call: string) => void
   opened: string | null
 }) {
-  if (!match)
-    return (
-      <p className="sub-line tg">
-        {running ? 'Looking it up in Qloo…' : ran ? 'Not looked up.' : 'Not run yet. A run looks it up in Qloo.'}
-      </p>
-    )
+  if (!match) return <p>{running ? 'Looking it up in Qloo…' : 'Not looked up.'}</p>
   return (
-    <p className="sub-line">
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
       <Source of="qloo" />{' '}
       {match.resolution === 'resolved' && match.entity ? (
-        <span className="ent">
-          {match.entity.name} <span className="pop">{percentile(match.entity.popularity)}</span>
+        <span>
+          <span className="font-medium text-foreground">{match.entity.name}</span> popularity{' '}
+          {percentile(match.entity.popularity)}
         </span>
       ) : match.resolution === 'ambiguous' ? (
         <span>Ambiguous: {match.candidates.map((c) => c.name).join(', ')}</span>
@@ -474,30 +745,28 @@ function LaunchComps({
     return 'to confirm'
   }
   return (
-    <p className="sub-line comps">
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
       <Source of="qloo" /> Comps:{' '}
       {comps.map((c, i) => (
-        <span key={c.name}>
-          {i > 0 && ' · '}
+        <span key={c.name} className="inline-flex flex-wrap items-center gap-x-1.5">
+          {i > 0 && <span aria-hidden="true">·</span>}
           {c.status === 'confirmed' && c.entity ? (
-            <span className="ent">
-              <b>{c.entity.name}</b> <span className="pop">{percentile(c.entity.popularity)}</span>
+            <span>
+              <span className="font-medium text-foreground">{c.entity.name}</span> popularity{' '}
+              {percentile(c.entity.popularity)}
             </span>
           ) : (
-            <>
-              <b>{c.name}</b> <span className="tg">{state(c)}</span>
-            </>
+            <span>
+              <span className="font-medium text-foreground">{c.name}</span> {state(c)}
+            </span>
           )}
           {c.match && (
-            <>
-              {' '}
-              <CallButton
-                call={c.match.evidence}
-                label={`Evidence for the comp ${c.name}`}
-                opened={opened}
-                openCall={openCall}
-              />
-            </>
+            <CallButton
+              call={c.match.evidence}
+              label={`Evidence for the comp ${c.name}`}
+              opened={opened}
+              openCall={openCall}
+            />
           )}
         </span>
       ))}

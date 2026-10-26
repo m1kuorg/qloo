@@ -1,9 +1,11 @@
+import { Button } from '@/components/ui/button'
 import type { GuideMark, State } from '../agent'
 import { Alert, listOf } from './controls'
 
-// A first-time visitor's path through the sample launch (PRD story 50), as numbered steps in the
-// rail. It never blocks the page: each step's own control advances it, and the visitor can do the
-// steps in any order or dismiss it.
+// A first-time visitor's path through the sample launch (PRD story 50), as a card in the canvas, so
+// it stays in view while the inspector shows evidence: the current step's how-to, then the five
+// steps as a numbered list. It never blocks the page: each step's own control advances it, and the
+// visitor can do the steps in any order or dismiss it.
 export function Guide({
   state,
   dismiss,
@@ -59,34 +61,36 @@ export function Guide({
   const current = steps.findLastIndex((s) => s.done) + 1
   const finished = current === steps.length
   return (
-    <section className="mod guide" aria-labelledby="guide-h" data-guide>
-      <div className="mh">
-        <span className="lbl" id="guide-h">
-          Guide
-        </span>
-        <span className="chips">
-          <span className="chip">{finished ? 'Done' : `Step ${current + 1} of ${steps.length}`}</span>
-          <button type="button" className="lnk" onClick={dismiss}>
-            Dismiss
-          </button>
-        </span>
+    <section className="flex flex-col gap-3 rounded-xl bg-card p-4 lg:p-5" aria-labelledby="guide-h" data-guide>
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-base font-semibold" id="guide-h">
+          Try the sample launch{' '}
+          <span className="font-normal whitespace-nowrap text-muted-foreground">
+            · {finished ? 'Done' : `Step ${current + 1} of ${steps.length}`}
+          </span>
+        </h2>
+        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5 max-md:h-11" onClick={dismiss}>
+          Dismiss
+        </Button>
       </div>
-      <ol className="notes steps">
+      <p className="max-w-[72ch]">
+        {finished
+          ? 'That’s the sample launch, from the chart to an approved order. Export CSV downloads it.'
+          : steps[current].how}
+      </p>
+      {/* The steps' numbers are the list's own, so a screen reader hears "3 of 5" too. */}
+      <ol className="grid list-inside list-decimal gap-x-6 gap-y-1 text-muted-foreground marker:normal-nums sm:grid-cols-2 xl:grid-cols-5 xl:list-outside xl:pl-4">
         {steps.map((s, i) => (
-          <li key={s.title} aria-current={i === current ? 'step' : undefined}>
-            <span>
-              {i + 1}. {s.title}
-              {i === current && <span className="help">{s.how}</span>}
-            </span>
-            <span className="tg">{i < current ? (s.done ? 'Done' : 'Skipped') : ''}</span>
+          <li
+            key={s.title}
+            aria-current={i === current ? 'step' : undefined}
+            className="aria-[current]:font-medium aria-[current]:text-foreground"
+          >
+            {s.title}
+            {i < current && <span className="block type-caption">{s.done ? 'Done' : 'Skipped'}</span>}
           </li>
         ))}
       </ol>
-      {finished && (
-        <p className="help">
-          That&apos;s the sample launch, from the chart to an approved order. Export CSV downloads it.
-        </p>
-      )}
       <Alert error={error} />
     </section>
   )
