@@ -229,7 +229,9 @@ const statusLabel: Record<LaunchSummary['status'], string> = {
 
 // A status in a word, after its glyph, in a slot every row keeps so the words line up: the on-air dot
 // while a run is running or waiting on a person, an ink check on an approved order, and on a failed
-// or stopped run the square ✕ with the word in crimson.
+// or stopped run the square ✕ with the word in crimson. The word sits on the text's baseline and the
+// slot is centred on the line, so what's in the slot, or nothing, never moves the word; it doesn't wrap,
+// so a second line never starts under the slot.
 function Status({ status }: { status: LaunchSummary['status'] }) {
   if (status === 'failed' || status === 'stopped')
     return (
@@ -239,9 +241,9 @@ function Status({ status }: { status: LaunchSummary['status'] }) {
     )
   const live = status === 'running' || status === 'waiting'
   return (
-    <span className="inline-flex items-center">
+    <span className="whitespace-nowrap">
       <span
-        className="mr-1.5 inline-flex size-[1em] shrink-0 items-center justify-center"
+        className="mr-1.5 inline-flex size-[1em] shrink-0 items-center justify-center align-middle"
         aria-hidden="true"
         data-mark={live ? 'live' : status === 'order approved' ? 'approved' : undefined}
       >
