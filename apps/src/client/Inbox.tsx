@@ -1,4 +1,13 @@
+import { cn } from 'cn'
+import { CircleDashedIcon, SquareXIcon, UploadIcon } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
+import { TabsContent } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import type { Run, Show, SlowCall } from '../agent'
 import { NO_ANGLE, tagged, type PitchList, type SharedTags } from '../fit'
 import {
@@ -20,9 +29,12 @@ import { readPitchUpload } from '../upload'
 import type { Links, Session } from './App'
 import {
   Alert,
-  bandMeter,
   DropCue,
+  FitBand,
+  KeyValue,
+  KeyValues,
   listOf,
+  NotScored,
   percentile,
   PickOne,
   ScrollTable,
@@ -31,9 +43,22 @@ import {
   useIntoView
 } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
+import {
+  canvas,
+  Connecting,
+  connectionOf,
+  frame,
+  Inspector,
+  OnAir,
+  Readout,
+  RunState,
+  useInspector,
+  type Connection
+} from './Frame'
+import { Code, textLink } from './RosterModules'
 import { OpenQuestion, REPLIES_CHANGED, RunLog } from './Run'
 import { Source } from './Source'
-import { matchLabel, SlowCalls, stateLabel, StateLine } from './states'
+import { matchLabel, sentence, SlowCalls, stateLabel, StateLine } from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
@@ -50,10 +75,11 @@ type Page = {
   inbox: Inbox | null
   roster: Show[]
   booking: Booking | null
-  pitchRunStatus: Run['status'] | null // the latest run's, when it's a pitch run
+  pitchRun: Run | null // the latest run, when it's a pitch run
+  startedAt?: string | null // when the pitch run started, for the readout's clock
   question: ReactNode // the pitch run's open question, while it waits on one
-  runLog: ReactNode // the latest run, when it's a pitch run
   slowCalls: SlowCall[] // Qloo calls still waiting past the slow mark
+  connection?: Connection
   links: Links
 }
 
@@ -61,31 +87,24 @@ type Page = {
 // it's a pitch run. Tests render it from synced state.
 export function InboxWorkspace({ agent, links }: { agent: Session; links: Links }) {
   const { opened, openCall } = useEvidence(agent)
-  const lastRun = agent.state?.run
-  const pitchRun = lastRun && agent.state?.booking?.run === lastRun.id ? lastRun : null
+  if (!agent.state) return <Connecting label="Connecting to the inbox…" />
+  const lastRun = agent.state.run
+  const pitchRun = lastRun && agent.state.booking?.run === lastRun.id ? lastRun : null
   return (
     <InboxPage
-      inbox={agent.state?.inbox ?? null}
-      roster={agent.state?.roster ?? []}
-      booking={agent.state?.booking ?? null}
-      pitchRunStatus={pitchRun?.status ?? null}
+      inbox={agent.state.inbox ?? null}
+      roster={agent.state.roster ?? []}
+      booking={agent.state.booking ?? null}
+      pitchRun={pitchRun}
+      startedAt={(pitchRun && agent.state.runs?.find((r) => r.id === pitchRun.id)?.startedAt) ?? null}
       question={
         pitchRun?.status === 'waiting' &&
         pitchRun.question && (
           <OpenQuestion key={pitchRun.question.id} question={pitchRun.question} launch={null} agent={agent} />
         )
       }
-      runLog={
-        pitchRun && (
-          <RunLog
-            run={pitchRun}
-            changedNote={agent.state?.booking?.repliesEdited ? REPLIES_CHANGED : null}
-            openCall={openCall}
-            opened={opened?.call ?? null}
-          />
-        )
-      }
-      slowCalls={agent.state?.slowCalls ?? []}
+      slowCalls={agent.state.slowCalls ?? []}
+      connection={connectionOf(agent)}
       loadInbox={(source) => agent.stub.loadInbox(source)}
       confirmWork={(pitchId, entityId) => agent.stub.confirmWork(pitchId, entityId)}
       startPitches={(input) => agent.stub.startPitches(input)}
@@ -99,144 +118,226 @@ export function InboxWorkspace({ agent, links }: { agent: Session; links: Links 
   )
 }
 
-// The booker's inbox page, shown only while GUEST_PITCHES is on: load pitches, see what Claude read
-// from each and how Qloo matched its work, confirm ambiguous matches, and rank the pitched works
-// against a roster show and its past guests, then clear the inbox reply by reply.
+// The booker's inbox page, shown only while GUEST_PITCHES is on, on the workspace's frame: load
+// pitches, see what Claude read from each and how Qloo matched its work, confirm ambiguous matches,
+// rank the pitched works against a roster show and its past guests, then clear the inbox reply by
+// reply. It's a loop, so every section stays on the canvas once it has something to show, in the
+// order the loop asks: the title row and its readout, the run's question, the show to rank against,
+// the ranked lists, the replies, then the pitches. The inspector holds the run, a call's evidence,
+// and the pitch opened from a list or the table.
 export function InboxPage({
   inbox,
   roster,
   booking,
-  pitchRunStatus,
+  pitchRun,
+  startedAt = null,
   question,
-  runLog,
   slowCalls,
+  connection = { lost: null, reconnecting: false },
   links,
   ...actions
 }: Page & Actions) {
   const [selected, setSelected] = useState<string | null>(null)
   const pitch = inbox?.pitches.find((p) => p.id === selected)
+  const inspector = useInspector(pitch ? ['run', 'evidence', 'pitch'] : ['run', 'evidence'], actions)
+  const { showCall } = inspector
   // The control a pitch was opened from, so closing it returns the booker to their place.
   const opener = useRef<HTMLElement | null>(null)
   const select = (id: string, from: HTMLElement) => {
     opener.current = from
     setSelected(id)
+    inspector.inspect('pitch')
   }
   const close = (id: string) => {
     setSelected(null)
+    // The sheet was opened for the pitch, and would cover what focus returns to.
+    inspector.setSheet(false)
     // A settled match's "Confirm the match" is gone by then; the pitch's row is still there.
     const back = opener.current?.isConnected ? opener.current : document.getElementById(`open-${id}`)
     back?.focus()
   }
   const reading = inbox?.status === 'reading'
-  const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
-  const running = pitchRunStatus === 'running'
+  const running = pitchRun?.status === 'running'
   // The agent refuses reply actions until its run ends, and a run waiting on a question hasn't ended.
-  const drafting = running || pitchRunStatus === 'waiting'
+  const drafting = running || pitchRun?.status === 'waiting'
+  const opened = actions.opened?.call ?? null
+  return (
+    <div className={frame}>
+      <main className={canvas} data-canvas>
+        <InboxHead
+          inbox={inbox}
+          pitchRun={pitchRun}
+          startedAt={startedAt}
+          slowCalls={slowCalls}
+          connection={connection}
+          runLog={inspector.wide ? null : () => inspector.inspect('run')}
+        />
+        {/* Before the lists, so the question is what a person reaches first. */}
+        {question}
+        {inbox && (
+          <PitchSetup
+            key={inbox.id}
+            inbox={inbox}
+            roster={roster}
+            booking={booking}
+            running={running}
+            startPitches={actions.startPitches}
+            rosterHref={links.roster}
+          />
+        )}
+        {booking?.lists && (
+          <PitchLists
+            booking={booking}
+            lists={booking.lists}
+            pitches={inbox?.pitches ?? []}
+            selected={pitch?.id ?? null}
+            select={select}
+            openCall={showCall}
+            opened={opened}
+          />
+        )}
+        {booking?.replies && (
+          <Replies
+            show={booking.show.name}
+            replies={booking.replies}
+            pitches={inbox?.pitches ?? []}
+            locked={drafting}
+            actions={{ ...actions, openCall: showCall }}
+            opened={opened}
+          />
+        )}
+        <section className="flex min-w-0 flex-col gap-6" aria-labelledby="pitches-h">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-base font-semibold" id="pitches-h">
+              Pitches
+            </h2>
+            <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
+          </div>
+          {inbox?.skipped && (
+            <p className="max-w-[72ch]">
+              <SkippedPitches skipped={inbox.skipped} />
+            </p>
+          )}
+          {inbox?.sample && inbox.notice && (
+            <p className="max-w-[80ch] rounded-xl bg-card p-4" data-sample-notice>
+              {inbox.notice}
+            </p>
+          )}
+          <PitchTable
+            pitches={inbox?.pitches ?? []}
+            selected={pitch?.id ?? null}
+            select={select}
+            openCall={showCall}
+            opened={opened}
+          />
+        </section>
+      </main>
+      {/* Opened for a pitch, the sheet gives its heading focus, as the inspector beside the canvas does. */}
+      <Inspector
+        inspector={inspector}
+        initialFocus={() => (inspector.current === 'pitch' && document.getElementById('pitch-ed')) || true}
+      >
+        <TabsContent value="run" keepMounted className="flex flex-col gap-8">
+          {pitchRun && (
+            <RunLog
+              run={pitchRun}
+              changedNote={booking?.repliesEdited ? REPLIES_CHANGED : null}
+              openCall={showCall}
+              opened={opened}
+            />
+          )}
+          {!pitchRun && !booking && (
+            <p className="text-muted-foreground">
+              Not run yet. A pitch run&apos;s steps and its closing line show here.
+            </p>
+          )}
+          {booking && <Anchors booking={booking} openCall={showCall} opened={opened} />}
+          <InboxCheck pitches={inbox?.pitches ?? []} />
+        </TabsContent>
+        <TabsContent value="evidence" keepMounted>
+          <EvidencePanel opened={actions.opened} />
+        </TabsContent>
+        {pitch && (
+          <TabsContent value="pitch" keepMounted>
+            <PitchDetail key={pitch.id} pitch={pitch} confirmWork={actions.confirmWork} close={() => close(pitch.id)} />
+          </TabsContent>
+        )}
+      </Inspector>
+    </div>
+  )
+}
+
+const inboxName = (inbox: Inbox | null) =>
+  inbox ? (inbox.sample ? 'Sample inbox' : inbox.uploaded ? 'Uploaded pitches' : 'Pasted pitches') : 'None yet'
+
+// The title row: the inbox's name, with the sample label, and what Claude and Qloo are given of each
+// pitch; then the on-air readout, which follows a pitch run, or while there's none, the inbox's
+// reading and its slow calls.
+function InboxHead({
+  inbox,
+  pitchRun,
+  startedAt,
+  slowCalls,
+  connection,
+  runLog
+}: {
+  inbox: Inbox | null
+  pitchRun: Run | null
+  startedAt: string | null
+  slowCalls: SlowCall[]
+  connection: Connection
+  runLog: (() => void) | null // opens the inspector's Run tab, where it's a sheet
+}) {
+  const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
   return (
     <>
-      <section className="hd" aria-label="Inbox">
-        <div className="hd-row">
-          <div>
-            <h1>
-              <span>Inbox ·</span>{' '}
-              {inbox
-                ? inbox.sample
-                  ? 'Sample inbox'
-                  : inbox.uploaded
-                    ? 'Uploaded pitches'
-                    : 'Pasted pitches'
-                : 'None yet'}
-            </h1>
-            <p className="sub-line">
-              Claude reads each pitch for its guest and public work. Only the work's title and type are looked up in
-              Qloo; names, addresses, and pitch text never are.
-            </p>
-          </div>
-          {inbox && (
-            <div className="status" role="status">
-              <b>{reading ? 'Reading' : 'Read'}</b>
-              <p className="count">
-                {reading ? `${done} of ${pitchCount(inbox.pitches.length)} read` : pitchCount(inbox.pitches.length)}
-              </p>
-              <SlowCalls calls={slowCalls} />
-            </div>
-          )}
-        </div>
-        {inbox?.sample && (
-          <p className="help notice">
-            <span className="chip">Sample data</span> {inbox.notice}
+      <div className="flex flex-col gap-1.5">
+        <h1 className="type-title">Inbox</h1>
+        <div className="flex flex-col gap-1 type-caption text-muted-foreground">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-medium text-foreground">{inboxName(inbox)}</span>
+            {inbox?.sample && <Badge>Sample data</Badge>}
           </p>
-        )}
-      </section>
-      <main className="main">
-        {/* Before the lists, so a single column reaches it first; the grid sets it atop the rail when wide. */}
-        {question}
-        <div className="chart-col">
-          {inbox && (
-            <PitchSetup
-              key={inbox.id}
-              inbox={inbox}
-              roster={roster}
-              booking={booking}
-              running={running}
-              startPitches={actions.startPitches}
-              rosterHref={links.roster}
-            />
-          )}
-          {booking?.lists && (
-            <PitchLists
-              booking={booking}
-              lists={booking.lists}
-              pitches={inbox?.pitches ?? []}
-              select={select}
-              openCall={actions.openCall}
-              opened={actions.opened?.call ?? null}
-            />
-          )}
-          {booking?.replies && (
-            <Replies
-              show={booking.show.name}
-              replies={booking.replies}
-              pitches={inbox?.pitches ?? []}
-              locked={drafting}
-              actions={actions}
-              opened={actions.opened?.call ?? null}
-            />
-          )}
-          <section className="sec" aria-labelledby="pitches-h">
-            <div className="mh">
-              <h2 className="lbl" id="pitches-h">
-                Pitches
-              </h2>
-            </div>
-            <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
-            {inbox?.skipped && <SkippedPitches skipped={inbox.skipped} />}
-            <PitchTable
-              pitches={inbox?.pitches ?? []}
-              selected={pitch?.id ?? null}
-              select={select}
-              openCall={actions.openCall}
-              opened={actions.opened?.call ?? null}
-            />
-          </section>
+          <p className="max-w-[72ch]">
+            Claude reads each pitch for its guest and public work. Only the work&apos;s title and type are looked up in
+            Qloo; names, addresses, and pitch text never are.
+          </p>
         </div>
-        {/* As the launch page's rail: the selected pitch and its evidence first, then the run and the checks. */}
-        <aside className="rail" aria-label="Details">
-          {pitch && (
-            <PitchDetail key={pitch.id} pitch={pitch} confirmWork={actions.confirmWork} close={() => close(pitch.id)} />
-          )}
-          <EvidencePanel opened={actions.opened} />
-          {runLog}
-          {booking && <Anchors booking={booking} openCall={actions.openCall} opened={actions.opened?.call ?? null} />}
-          <InboxCheck pitches={inbox?.pitches ?? []} />
-        </aside>
-      </main>
+      </div>
+      <Readout connection={connection} since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
+        {pitchRun ? (
+          <RunState run={pitchRun} slowCalls={slowCalls} />
+        ) : inbox ? (
+          <>
+            {inbox.status === 'reading' ? (
+              <StateLine kind="loading" word="Reading">
+                · {done} of {pitchCount(inbox.pitches.length)} read
+              </StateLine>
+            ) : (
+              <span>
+                <b className="font-semibold">Read</b> · {pitchCount(inbox.pitches.length)}
+              </span>
+            )}
+            {slowCalls.length > 0 && (
+              <span className="basis-full type-caption">
+                <SlowCalls calls={slowCalls} />
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="inline-flex items-center gap-2">
+            <OnAir live={false} idle />
+            No pitches yet.
+          </span>
+        )}
+      </Readout>
     </>
   )
 }
 
 // Pitches pasted, uploaded as email files, or dropped anywhere on the page, read in the browser by the
-// upload module and sent as pitches; or the sample inbox. Each replaces the inbox.
+// upload module and sent as pitches; or the sample inbox. Each replaces the inbox. From 768px the box
+// and what it takes sit side by side, as the roster's import does.
 function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; reading: boolean }) {
   const [text, setText] = useState('')
   const { busy, error, run } = useAction()
@@ -255,7 +356,7 @@ function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; re
   // Files dropped while the inbox is still loading aren't read; the cue says to wait.
   const dragging = useFileDrop((files) => (locked ? null : upload(files)))
   return (
-    <form className="import" onSubmit={paste}>
+    <form className="grid gap-x-6 gap-y-2 md:grid-cols-2" onSubmit={paste}>
       {dragging && (
         <DropCue busy={locked}>
           {locked
@@ -263,45 +364,53 @@ function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; re
             : 'Drop the files to load their pitches: .eml files, an .mbox export, or a .txt of pitches.'}
         </DropCue>
       )}
-      {/* The section's "Pitches" heading names the field. */}
-      <textarea
+      {/* The section's "Pitches" heading, right above it, names the field. */}
+      <Textarea
         aria-labelledby="pitches-h"
-        rows={6}
+        rows={4}
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={'Paste one or more pitch emails.\n---\nPut a line of three dashes between pitches.'}
         disabled={locked}
+        className="max-h-60 min-h-24"
       />
-      <div className="acts">
-        <button className="btn pri" type="submit" disabled={locked || !text.trim()}>
-          Read pitches
-        </button>
-        <button
-          className="btn"
-          type="button"
-          disabled={locked}
-          onClick={() => void run(() => loadInbox({ sample: true }))}
-        >
-          Load sample inbox
-        </button>
-        <button className="btn" type="button" disabled={locked} onClick={() => file.current?.click()}>
-          Upload files
-        </button>
-        <input
-          ref={file}
-          type="file"
-          accept=".eml,.mbox,.txt,message/rfc822,application/mbox,text/plain"
-          multiple
-          hidden
-          onChange={pick}
-        />
-        <small>{reading ? 'Reading the inbox…' : 'Replaces the current inbox, up to 50 pitches.'}</small>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2 [&>button]:max-md:h-11">
+          <Button type="submit" disabled={locked || !text.trim()}>
+            Read pitches
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={locked}
+            onClick={() => void run(() => loadInbox({ sample: true }))}
+          >
+            Load sample inbox
+          </Button>
+          <Button type="button" variant="secondary" disabled={locked} onClick={() => file.current?.click()}>
+            <UploadIcon data-icon="inline-start" aria-hidden="true" />
+            Upload files
+          </Button>
+          <input
+            ref={file}
+            type="file"
+            accept=".eml,.mbox,.txt,message/rfc822,application/mbox,text/plain"
+            multiple
+            hidden
+            onChange={pick}
+          />
+        </div>
+        <small className="type-caption text-muted-foreground">
+          {reading ? 'Reading the inbox…' : 'Replaces the current inbox, up to 50 pitches.'}
+        </small>
+        <p className="max-w-[72ch] type-caption text-muted-foreground">
+          Drop email files anywhere on the page, or upload them: <Code>.eml</Code> files, an <Code>.mbox</Code> export,
+          or a <Code>.txt</Code> with a line of three dashes between pitches.
+        </p>
       </div>
-      <p className="help">
-        Drop email files anywhere on the page, or upload them: <code>.eml</code> files, an <code>.mbox</code> export, or
-        a <code>.txt</code> with a line of three dashes between pitches.
-      </p>
-      <Alert error={error} />
+      <div className="md:col-span-2">
+        <Alert error={error} />
+      </div>
     </form>
   )
 }
@@ -324,12 +433,31 @@ export const typeLabel: Record<WorkType, string> = {
   tv_show: 'TV show',
   podcast: 'Podcast'
 }
+const typeItems = workTypes.map((t) => ({ value: t, label: typeLabel[t] }))
 
 // One past guest as the booker types them: the year stays text until the run starts.
 type GuestRow = { guest: string; title: string; type: WorkType; year: string }
 
 const rowsOf = (guests: Omit<PastGuest, 'match'>[]): GuestRow[] =>
   guests.map(({ guest, work }) => ({ guest, title: work.title, type: work.type, year: work.year?.toString() ?? '' }))
+
+// A past guest's row: from 768px one line under the column names, and on a phone its fields stacked,
+// each with its name over it, the type and year side by side.
+const guestRow =
+  "grid grid-cols-2 gap-x-2 gap-y-1.5 [grid-template-areas:'guest_guest'_'title_title'_'type_year'_'remove_remove'] md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_7.5rem_4.5rem_4.75rem] md:items-center md:[grid-template-areas:'guest_title_type_year_remove']"
+
+// A past guest's field, with its column's name over it on a phone; its own label names it for screen
+// readers, with the guest's number.
+function GuestField({ name, area, children }: { name: string; area: string; children: ReactNode }) {
+  return (
+    <div className={cn('flex min-w-0 flex-col gap-1', area)}>
+      <span aria-hidden="true" className="type-caption text-muted-foreground md:hidden">
+        {name}
+      </span>
+      {children}
+    </div>
+  )
+}
 
 // The show the pitches are for and its best past guests' works, which anchor the rankings with it.
 // The sample inbox comes with its show's past guests filled in; otherwise the last run's are kept.
@@ -363,17 +491,19 @@ function PitchSetup({
         ? rowsOf(inbox.show.pastGuests)
         : [{ guest: '', title: '', type: 'book', year: '' }]
   )
-  const [invalid, setInvalid] = useState<string | null>(null)
+  // The past guest whose year isn't four digits, by its place in the list.
+  const [invalid, setInvalid] = useState<number | null>(null)
   const { busy, error, run } = useAction()
   const chosen = show !== null && shows.some((s) => s.name === show) ? show : (suggested ?? shows[0]?.name ?? '')
   const edit = (i: number, change: Partial<GuestRow>) =>
     setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)))
-  const locked = busy || running || inbox.status === 'reading'
+  const reading = inbox.status === 'reading'
+  const locked = busy || running || reading
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     const year = rows.findIndex((r) => r.year.trim() && !/^\d{4}$/.test(r.year.trim()))
-    if (year >= 0) return setInvalid(`Past guest ${year + 1}'s year must be four digits, such as 2024, or left empty.`)
-    setInvalid(null)
+    setInvalid(year >= 0 ? year : null)
+    if (year >= 0) return
     const pastGuests = rows.map((r) => ({
       guest: r.guest,
       work: { title: r.title, type: r.type, year: r.year.trim() ? Number(r.year) : null }
@@ -381,119 +511,163 @@ function PitchSetup({
     void run(() => startPitches({ show: chosen, pastGuests }))
   }
   return (
-    <section className="sec" aria-labelledby="setup-h">
-      <div className="mh">
-        <h2 className="lbl" id="setup-h">
+    <section className="flex min-w-0 flex-col gap-4" aria-labelledby="setup-h">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-base font-semibold" id="setup-h">
           Rank against a show
         </h2>
+        <p className="max-w-[72ch] text-muted-foreground">
+          Pick the roster show the pitches are for, and name its best past guests&apos; public works. Each type of
+          pitched work is ranked against the show and those works in its own Qloo call. Only titles and types reach
+          Qloo.
+        </p>
       </div>
-      <p className="help sec-help">
-        Pick the roster show the pitches are for, and name its best past guests&apos; public works. Each type of pitched
-        work is ranked against the show and those works in its own Qloo call. Only titles and types reach Qloo.
-      </p>
       {shows.length === 0 ? (
-        <p className="empty">
-          No roster show is matched in Qloo yet. <a href={rosterHref}>Import the roster</a> first: the pitches are
-          ranked against one of its shows.
+        <p className="max-w-[72ch] rounded-xl bg-muted px-4 py-3">
+          No roster show is matched in Qloo yet.{' '}
+          <a className={textLink} href={rosterHref}>
+            Import the roster
+          </a>{' '}
+          first: the pitches are ranked against one of its shows.
         </p>
       ) : (
-        <form className="setup" onSubmit={submit}>
-          <label className="field show-pick">
-            <span className="lbl">Show</span>
-            <select value={chosen} onChange={(e) => setShow(e.target.value)} disabled={locked}>
-              {shows.map((s) => (
-                <option key={s.name} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <fieldset>
-            <legend className="lbl">Past guests&apos; public works</legend>
-            <div className="pg pg-head" aria-hidden="true">
+        <form className="flex flex-col gap-5" onSubmit={submit}>
+          <div className="flex flex-col gap-1.5">
+            <span className="font-medium" id="setup-show">
+              Show
+            </span>
+            <Select
+              items={shows.map((s) => ({ value: s.name, label: s.name }))}
+              value={chosen}
+              onValueChange={(name) => setShow(name as string)}
+              disabled={locked}
+            >
+              <SelectTrigger aria-labelledby="setup-show" className="w-full sm:w-80 max-md:h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {shows.map((s) => (
+                    <SelectItem key={s.name} value={s.name}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <fieldset className="flex min-w-0 flex-col gap-4 md:gap-2">
+            <legend className="mb-1.5 font-medium">Past guests&apos; public works</legend>
+            <div aria-hidden="true" className={cn(guestRow, 'type-caption text-muted-foreground max-md:hidden')}>
               <span>Guest</span>
               <span>Work title</span>
               <span>Type</span>
               <span>Year</span>
-              <span />
             </div>
             {rows.map((r, i) => (
-              <div className="pg" key={i}>
-                <span className="in">
-                  <input
+              <div className={guestRow} key={i}>
+                <GuestField name="Guest" area="[grid-area:guest]">
+                  <Input
                     aria-label={`Past guest ${i + 1}`}
                     value={r.guest}
                     onChange={(e) => edit(i, { guest: e.target.value })}
                     maxLength={MAX_TITLE}
                     disabled={locked}
+                    className="max-md:h-11"
                   />
-                </span>
-                <span className="in">
-                  <input
+                </GuestField>
+                <GuestField name="Work title" area="[grid-area:title]">
+                  <Input
                     aria-label={`Past guest ${i + 1}'s work title`}
                     value={r.title}
                     onChange={(e) => edit(i, { title: e.target.value })}
                     maxLength={MAX_TITLE}
                     disabled={locked}
+                    className="max-md:h-11"
                   />
-                </span>
-                <select
-                  aria-label={`Past guest ${i + 1}'s work type`}
-                  value={r.type}
-                  onChange={(e) => edit(i, { type: e.target.value as WorkType })}
-                  disabled={locked}
-                >
-                  {workTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {typeLabel[t]}
-                    </option>
-                  ))}
-                </select>
-                <span className="in">
-                  <input
+                </GuestField>
+                <GuestField name="Type" area="[grid-area:type]">
+                  <Select
+                    items={typeItems}
+                    value={r.type}
+                    onValueChange={(type) => edit(i, { type: type as WorkType })}
+                    disabled={locked}
+                  >
+                    <SelectTrigger aria-label={`Past guest ${i + 1}'s work type`} className="w-full max-md:h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {typeItems.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </GuestField>
+                <GuestField name="Year" area="[grid-area:year]">
+                  <Input
                     aria-label={`Past guest ${i + 1}'s work year`}
+                    aria-invalid={invalid === i || undefined}
                     inputMode="numeric"
                     value={r.year}
                     onChange={(e) => edit(i, { year: e.target.value })}
                     disabled={locked}
+                    className="max-md:h-11"
                   />
-                </span>
-                <button
+                </GuestField>
+                <Button
                   type="button"
-                  className="lnk"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Remove past guest ${i + 1}`}
                   onClick={() => setRows(rows.filter((_, j) => j !== i))}
                   disabled={locked}
+                  className="justify-self-start [grid-area:remove] max-md:-ml-2.5 max-md:h-11 md:justify-self-end"
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             ))}
             {rows.length < MAX_PAST_GUESTS && (
-              <button
+              <Button
                 type="button"
-                className="lnk"
+                variant="ghost"
+                size="sm"
                 onClick={() => setRows([...rows, { guest: '', title: '', type: 'book', year: '' }])}
                 disabled={locked}
+                className="-ml-2.5 self-start max-md:h-11"
               >
                 Add a past guest
-              </button>
+              </Button>
             )}
           </fieldset>
-          <div className="acts">
-            <button className="btn pri" type="submit" disabled={locked || !chosen || Boolean(awaited)}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Button type="submit" disabled={locked || !chosen || Boolean(awaited)} className="max-md:h-11">
+              {running && <Spinner data-icon="inline-start" />}
               Rank pitches
-            </button>
-            <small>
+            </Button>
+            <small className="type-caption text-muted-foreground">
               {running
                 ? 'Ranking the pitches…'
                 : awaited
                   ? `Waiting for ${awaited}'s Qloo lookup…`
-                  : inbox.show
-                    ? "Filled in from the sample show's episode feed."
-                    : 'A new run: earlier runs stay in Runs.'}
+                  : reading
+                    ? 'Rank them once every pitch is read.'
+                    : inbox.show
+                      ? "Filled in from the sample show's episode feed."
+                      : 'A new run: earlier runs stay in Runs.'}
             </small>
           </div>
-          <Alert error={invalid ?? error} />
+          <Alert
+            error={
+              invalid !== null
+                ? `Past guest ${invalid + 1}'s year must be four digits, such as 2024, or left empty.`
+                : error
+            }
+          />
         </form>
       )}
     </section>
@@ -508,6 +682,7 @@ function PitchLists({
   booking,
   lists,
   pitches,
+  selected,
   select,
   openCall,
   opened
@@ -515,29 +690,33 @@ function PitchLists({
   booking: Booking
   lists: PitchList[]
   pitches: Pitch[]
+  selected: string | null
   select: (id: string, from: HTMLElement) => void
   openCall: (call: string) => void
   opened: string | null
 }) {
   const setAside = pitches.filter((p) => p.status === 'no_work' || p.status === 'unreadable' || p.status === 'failed')
   return (
-    <section className="sec fit" aria-labelledby="lists-h">
-      <div className="mh">
-        <h2 className="lbl" id="lists-h">
-          Pitches for {booking.show.name}
-        </h2>
-        <Source of="qloo" />
+    <section className="flex min-w-0 flex-col gap-6" aria-labelledby="lists-h">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h2 className="text-base font-semibold text-balance" id="lists-h">
+            Pitches for {booking.show.name}
+          </h2>
+          <Source of="qloo" />
+        </div>
+        <p className="max-w-[72ch] text-muted-foreground">
+          One list per type of work, each from its own Qloo call, so a rank in one list can&apos;t be compared with a
+          rank in another. Bands are thirds of their own list.
+          {setAside.length > 0 && ` ${setAside.length} set-aside pitches were never sent to Qloo.`}
+        </p>
       </div>
-      <p className="help sec-help">
-        One list per type of work, each from its own Qloo call, so a rank in one list can&apos;t be compared with a rank
-        in another. Bands are thirds of their own list.
-        {setAside.length > 0 && ` ${setAside.length} set-aside pitches were never sent to Qloo.`}
-      </p>
       {lists.map((list) => (
         <RankedPitches
           key={list.type}
           list={list}
           pitches={pitches}
+          selected={selected}
           select={select}
           openCall={openCall}
           opened={opened}
@@ -547,15 +726,20 @@ function PitchLists({
   )
 }
 
+// One work type's list in the fit chart's anatomy, as a compact real table: the rank, the work as
+// Qloo matched it, which opens its pitch, with the guest as Claude read them and the tags it shares
+// with the show, then its band. Its rules bleed 8px past the text, as the chart's do.
 function RankedPitches({
   list,
   pitches,
+  selected,
   select,
   openCall,
   opened
 }: {
   list: PitchList
   pitches: Pitch[]
+  selected: string | null
   select: (id: string, from: HTMLElement) => void
   openCall: (call: string) => void
   opened: string | null
@@ -564,20 +748,21 @@ function RankedPitches({
   const pitch = (id: string) => pitches.find((p) => p.id === id)
   const names = listOf(list.anchors.map((a) => a.name))
   const noun = typeLabel[list.type].toLowerCase()
-  const tagged = list.rows.some((r) => r.sharedTags)
   const against =
     list.path === 'same_type'
       ? `Ranked against the past guests' ${noun}s alone: ${names}. Qloo scored no ${noun} against the show and every past guest (${list.calls[0]}).`
       : list.path === 'show'
         ? `Ranked against ${names}.`
         : null
+  const cell = 'border-b py-2.5 align-baseline group-data-selected/row:bg-muted'
   return (
-    <div className="plist" role="group" aria-labelledby={id}>
-      <div className="mh">
-        <h3 className="lbl" id={id}>
-          {typePlural[list.type]} · {list.rows.length} ranked
-        </h3>
-        <span className="chips">
+    // Three columns at most 768px wide, so a short work's name isn't left far from its band.
+    <div className="flex max-w-3xl min-w-0 flex-col gap-2" role="group" aria-labelledby={id}>
+      <div className="flex flex-col gap-0.5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h3 className="font-semibold" id={id}>
+            {typePlural[list.type]} · {list.rows.length} ranked
+          </h3>
           {list.calls.map((call) => (
             <CallButton
               key={call}
@@ -587,93 +772,82 @@ function RankedPitches({
               openCall={openCall}
             />
           ))}
-        </span>
+        </div>
+        {against && <p className="max-w-[72ch] type-caption text-muted-foreground">{against}</p>}
       </div>
-      {against && <p className="help">{against}</p>}
       {list.error ? (
-        <StateLine kind="failed" role="alert">
-          Not ranked: {list.error}.
-        </StateLine>
+        <p>
+          <StateLine kind="failed" role="alert">
+            Not ranked: {sentence(list.error)}
+          </StateLine>
+        </p>
       ) : (
-        <table className="chart fit-chart" aria-labelledby={id}>
-          <colgroup>
-            <col className="c-pos" />
-            <col />
-            <col className="c-band" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th scope="col">
-                Rank<small>in this list</small>
-              </th>
-              <th scope="col">
-                Public work
-                {/* The guest is Claude's reading of the pitch, not Qloo data. */}
-                <small>
-                  Qloo match · <Source of="agent" /> guest as Claude read it{tagged && ' · shared Qloo tags'}
-                </small>
-              </th>
-              <th scope="col">
-                Fit band<small>listener overlap</small>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.rows.map((r) => {
-              const { bars, word } = bandMeter[r.band]
-              const p = pitch(r.pitch)
-              return (
-                <tr key={r.pitch}>
-                  <td className="pos">{r.rank}</td>
-                  <td>
-                    <button type="button" className="row-open" onClick={(e) => select(r.pitch, e.currentTarget)}>
-                      <span className="nm">{r.entity.name}</span>
-                    </button>
-                    {p?.guest && <div className="tg">{p.guest}</div>}
-                    {r.sharedTags && (
-                      <TagLine
-                        tags={r.sharedTags}
-                        label={`Evidence for the tags ${r.entity.name} shares`}
-                        openCall={openCall}
-                        opened={opened}
-                      />
-                    )}
-                  </td>
-                  <td>
-                    <span className={`band b${bars}`}>
-                      <i aria-hidden="true" />
-                      <i aria-hidden="true" />
-                      <i aria-hidden="true" />
-                      {word}
+        list.rows.length > 0 && (
+          <div className="-mx-2">
+            <table className="w-full border-separate border-spacing-0" aria-labelledby={id}>
+              <thead className="type-caption text-muted-foreground">
+                <tr>
+                  <th scope="col" className="w-12 border-b pr-1 pb-2 pl-2 text-right align-bottom font-normal">
+                    Rank
+                  </th>
+                  <th scope="col" className="border-b pb-2 pl-3 text-left align-bottom font-normal">
+                    {/* The guest is Claude's reading of the pitch, not Qloo data. */}
+                    <span className="inline-flex flex-wrap items-center gap-1.5">
+                      Public work · guest <Source of="agent" />
                     </span>
-                  </td>
+                  </th>
+                  <th scope="col" className="w-24 border-b pr-2 pb-2 pl-3 text-left align-bottom font-normal">
+                    Fit
+                  </th>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {list.rows.map((r) => {
+                  const guest = pitch(r.pitch)?.guest
+                  return (
+                    <tr key={r.pitch} className="group/row" data-selected={r.pitch === selected || undefined}>
+                      <td className={cn(cell, 'pr-1 pl-2 text-right type-title tabular-nums')}>{r.rank}</td>
+                      <th scope="row" className={cn(cell, 'pl-3 text-left font-normal')}>
+                        <span className="flex flex-col items-start gap-0.5">
+                          <button
+                            type="button"
+                            aria-current={r.pitch === selected || undefined}
+                            onClick={(e) => select(r.pitch, e.currentTarget)}
+                            className="cursor-pointer text-left text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-2 max-md:py-2"
+                          >
+                            {r.entity.name}
+                          </button>
+                          {guest && <span className="type-caption text-muted-foreground">{guest}</span>}
+                          {r.sharedTags && (
+                            <TagLine
+                              tags={r.sharedTags}
+                              label={`Evidence for the tags ${r.entity.name} shares`}
+                              openCall={openCall}
+                              opened={opened}
+                            />
+                          )}
+                        </span>
+                      </th>
+                      <td className={cn(cell, 'pr-2 pl-3')}>
+                        <FitBand band={r.band} finalist={false} />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
       {list.notScored.length > 0 && (
-        <table className="ev not-scored">
-          <caption>Not scored · {list.notScored.length}</caption>
-          <thead>
-            <tr>
-              <th scope="col">Pitch</th>
-              <th scope="col">Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.notScored.map((n) => {
-              const p = pitch(n.pitch)
-              return (
-                <tr key={n.pitch}>
-                  <td>{p?.work?.title ?? n.pitch}</td>
-                  <td>{n.reason}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <NotScored
+          noun="Pitch"
+          rows={list.notScored.map((n) => ({
+            key: n.pitch,
+            name: pitch(n.pitch)?.work?.title ?? n.pitch,
+            reason: n.reason
+          }))}
+        />
       )}
     </div>
   )
@@ -692,14 +866,14 @@ function TagLine({
   opened: string | null
 }) {
   return (
-    <div className="tg">
+    <span className="type-caption text-muted-foreground">
       {tags.error
         ? `Shared tags failed: ${tags.error}`
         : tags.tags.length > 0
           ? tags.tags.join('\u00a0· ') // a separator never starts a line
           : 'No distinctive shared tags'}{' '}
       <CallButton call={tags.call} label={label} opened={opened} openCall={openCall} />
-    </div>
+    </span>
   )
 }
 
@@ -726,27 +900,29 @@ function Replies({
   const kept = replies.filter((r) => r.status !== 'discarded')
   const approved = kept.filter((r) => r.status === 'approved').length
   return (
-    <section className="sec" aria-labelledby="replies-h">
-      <div className="mh">
-        <h2 className="lbl" id="replies-h">
-          Replies · {approved} of {kept.length} approved
-        </h2>
-        <Source of="agent" />
+    <section className="flex min-w-0 flex-col gap-4" aria-labelledby="replies-h">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h2 className="text-base font-semibold" id="replies-h">
+            Replies · {approved} of {kept.length} approved
+          </h2>
+          <Source of="agent" />
+        </div>
+        <p className="max-w-[72ch] text-muted-foreground">
+          Claude drafted a reply to each pitch with a verdict, and an episode angle for each top pitch from the tags its
+          work shares with {show} in Qloo. Approve, edit, or discard each one. Only an approved reply can be copied, to
+          send from your own email.{locked && ' Claude is still drafting: approve once the run has ended.'}
+        </p>
       </div>
-      <p className="help sec-help">
-        Claude drafted a reply to each pitch with a verdict, and an episode angle for each top pitch from the tags its
-        work shares with {show} in Qloo. Approve, edit, or discard each one. Only an approved reply can be copied, to
-        send from your own email.{locked && ' Claude is still drafting: approve once the run has ended.'}
-      </p>
       {verdicts.map((v) => {
         const group = replies.filter((r) => r.verdict === v)
         if (group.length === 0) return null
         return (
-          <div className="replies" role="group" aria-labelledby={`replies-${v}`} key={v}>
-            <h3 className="lbl" id={`replies-${v}`}>
+          <div className="flex flex-col gap-2" role="group" aria-labelledby={`replies-${v}`} key={v}>
+            <h3 className="font-semibold" id={`replies-${v}`}>
               {verdictLabel[v]} · {group.length}
             </h3>
-            <ol>
+            <ol className="flex flex-col gap-3">
               {group.map((r) => (
                 <ReplyItem
                   key={r.pitch}
@@ -786,29 +962,33 @@ function ReplyItem({
   const { busy, error, run } = useAction()
   const name = pitch?.work?.title ?? (pitch ? title(pitch) : reply.pitch)
   const head = (
-    <div className="reply-hd">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <span>
-        <span className="nm">{name}</span>
-        {pitch?.guest && <span className="tg"> · {pitch.guest}</span>}
+        <span className="font-semibold">{name}</span>
+        {pitch?.guest && <span className="text-muted-foreground"> · {pitch.guest}</span>}
       </span>
-      <span className="chip">
+      <Badge variant={reply.status === 'draft' ? 'outline' : 'default'}>
         {reply.status === 'approved' ? 'Approved' : reply.status === 'discarded' ? 'Discarded' : 'Draft'}
-      </span>
+      </Badge>
     </div>
   )
+  const item = 'flex flex-col gap-2 rounded-xl bg-card p-4'
+  const acts = 'flex flex-wrap items-center gap-2 [&>button]:max-md:h-11'
   if (reply.status === 'discarded')
     return (
-      <li className="reply" data-pitch={reply.pitch} data-status="discarded">
+      <li className={cn(item, 'text-muted-foreground')} data-pitch={reply.pitch} data-status="discarded">
         {head}
-        <div className="acts" data-actions>
-          <button
+        <div className={acts} data-actions>
+          <Button
             type="button"
-            className="lnk"
+            variant="ghost"
+            size="sm"
+            className="-ml-2.5"
             disabled={busy || locked}
             onClick={() => void run(() => actions.editReply(reply.pitch, reply.draft))}
           >
             Restore
-          </button>
+          </Button>
         </div>
         <Alert error={error} />
       </li>
@@ -824,78 +1004,81 @@ function ReplyItem({
       setCopied(reply.draft)
     })
   return (
-    <li className="reply" data-pitch={reply.pitch} data-status={reply.status}>
+    <li className={item} data-pitch={reply.pitch} data-status={reply.status}>
       {head}
-      {pitch?.from && <p className="tg">To {pitch.from}</p>}
+      {pitch?.from && <p className="type-caption text-muted-foreground">To {pitch.from}</p>}
       {reply.angle ? (
-        <p className="angle">
-          <span className="lbl">Episode angle</span> {reply.angle}
+        <p>
+          <span className="font-medium">Episode angle</span> {reply.angle}
         </p>
       ) : (
-        reply.sharedTags && !tagged(reply.sharedTags) && <p className="angle tg">{NO_ANGLE}</p>
+        reply.sharedTags && !tagged(reply.sharedTags) && <p className="text-muted-foreground">{NO_ANGLE}</p>
       )}
       {reply.sharedTags && (
-        <div className="angle-tags">
-          <span className="tg">Shares with {show}:</span> <Source of="qloo" />{' '}
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground">
+          <span>Shares with {show}:</span> <Source of="qloo" />{' '}
           <TagLine
             tags={reply.sharedTags}
             label={`Evidence for the tags ${name} shares`}
             openCall={actions.openCall}
             opened={opened}
           />
-        </div>
+        </p>
       )}
       {editing === null ? (
         <>
-          <p className="draft">{reply.draft}</p>
-          <div className="acts" data-actions>
+          <p className="max-w-[72ch] whitespace-pre-line">{reply.draft}</p>
+          <div className={acts} data-actions>
             {!approved && (
-              <button
+              <Button
                 type="button"
-                className="btn pri"
                 disabled={busy || locked}
                 onClick={() => void run(() => actions.approveReply(reply.pitch))}
               >
                 Approve
-              </button>
+              </Button>
             )}
-            <button type="button" className="btn" disabled={!approved || busy} onClick={copy}>
+            <Button type="button" variant="secondary" disabled={!approved || busy} onClick={copy}>
               {approved && copied === reply.draft ? 'Copied' : 'Copy'}
-            </button>
-            <button type="button" className="btn" disabled={busy || locked} onClick={() => setEditing(reply.draft)}>
+            </Button>
+            <Button type="button" variant="secondary" disabled={busy || locked} onClick={() => setEditing(reply.draft)}>
               Edit
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="lnk"
+              variant="ghost"
               disabled={busy || locked}
               onClick={() => void run(() => actions.discardReply(reply.pitch))}
             >
               Discard
-            </button>
-            <small>{approved ? 'Copy it into your own email to send.' : 'Copy unlocks once you approve.'}</small>
+            </Button>
+            <small className="type-caption text-muted-foreground">
+              {approved ? 'Copy it into your own email to send.' : 'Copy unlocks once you approve.'}
+            </small>
           </div>
         </>
       ) : (
-        <form className="reply-edit" onSubmit={save}>
-          <label className="lbl" htmlFor={`reply-${reply.pitch}`}>
+        <form className="flex flex-col gap-2" onSubmit={save}>
+          <label className="font-medium" htmlFor={`reply-${reply.pitch}`}>
             Reply about {name}
           </label>
-          <textarea
+          <Textarea
             id={`reply-${reply.pitch}`}
             rows={5}
             value={editing}
             onChange={(e) => setEditing(e.target.value)}
             disabled={busy}
           />
-          <div className="acts">
-            <button className="btn pri" type="submit" disabled={busy || !editing.trim()}>
+          <div className={acts}>
+            <Button type="submit" disabled={busy || !editing.trim()}>
               Save
-            </button>
-            <button className="btn" type="button" disabled={busy} onClick={() => setEditing(null)}>
+            </Button>
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => setEditing(null)}>
               Cancel
-            </button>
-            <small>{approved ? 'Saving returns it to draft, to approve again.' : 'Saved as a draft.'}</small>
+            </Button>
+            <small className="type-caption text-muted-foreground">
+              {approved ? 'Saving returns it to draft, to approve again.' : 'Saved as a draft.'}
+            </small>
           </div>
         </form>
       )}
@@ -915,37 +1098,32 @@ function Anchors({
   opened: string | null
 }) {
   return (
-    <section className="mod" aria-labelledby="anchors-h">
-      <div className="mh">
-        <span className="lbl" id="anchors-h">
+    <section className="flex flex-col gap-3" aria-labelledby="anchors-h">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold" id="anchors-h">
           Ranked against
-        </span>
+        </h2>
         <Source of="qloo" />
       </div>
-      <dl className="rec kv">
-        <div className="rec-row">
-          <dt>Show</dt>
-          <dd>{booking.show.entity.name}</dd>
-        </div>
+      <KeyValues>
+        <KeyValue label="Show">{booking.show.entity.name}</KeyValue>
         {booking.pastGuests.map((g, i) => (
-          <div className="rec-row" key={i}>
-            <dt>{g.guest}</dt>
-            <dd>
-              {g.work.title} <span className="tg">· {g.match ? matchLabel[g.match.resolution] : 'Looking up…'}</span>{' '}
-              {g.match && (
-                <CallButton
-                  call={g.match.evidence}
-                  label={`Evidence for ${g.work.title}`}
-                  opened={opened}
-                  openCall={openCall}
-                />
-              )}
-            </dd>
-          </div>
+          <KeyValue key={i} label={g.guest}>
+            {g.work.title}{' '}
+            <span className="text-muted-foreground">· {g.match ? matchLabel[g.match.resolution] : 'Looking up…'}</span>{' '}
+            {g.match && (
+              <CallButton
+                call={g.match.evidence}
+                label={`Evidence for ${g.work.title}`}
+                opened={opened}
+                openCall={openCall}
+              />
+            )}
+          </KeyValue>
         ))}
-      </dl>
+      </KeyValues>
       {booking.pastGuests.some((g) => g.match && g.match.resolution !== 'resolved') && (
-        <p className="help">
+        <p className="type-caption text-muted-foreground">
           A past guest&apos;s work that didn&apos;t match isn&apos;t an anchor. Edit it and rank again.
         </p>
       )}
@@ -956,6 +1134,12 @@ function Anchors({
 // A pitch's subject, or the first line of a pasted one.
 const title = (p: Pitch) => p.subject ?? p.body.split('\n').find((l) => l.trim()) ?? p.id
 
+// Every pitch as read, in the roster table's anatomy: a real table whose rules bleed 8px past the
+// text, the pitch's name a button that opens it in the inspector's Pitch tab, with its sender under
+// it; the guest and work as Claude read them; the work's Qloo match, or why it has none and the way
+// to settle it; and the search's call. The pitch open in the inspector, or whose evidence is, holds
+// the tone step. Narrower than the table, it scrolls sideways in its region with the pitch's column
+// held at the left.
 function PitchTable({
   pitches,
   selected,
@@ -970,105 +1154,144 @@ function PitchTable({
   opened: string | null
 }) {
   if (pitches.length === 0)
-    return <p className="empty">No pitches yet. Paste or upload pitches above, or load the sample inbox.</p>
-  // One shaded row: the pitch open in the rail or, with none open, the one whose evidence is.
+    return (
+      <p className="rounded-xl bg-muted px-4 py-3 text-muted-foreground">
+        No pitches yet. Paste or upload pitches above, or load the sample inbox.
+      </p>
+    )
+  // One shaded row: the pitch open in the inspector or, with none open, the one whose evidence is.
   const hot = selected ?? pitches.find((p) => p.match && p.match.evidence === opened)?.id
+  const cell = 'border-b py-3 pl-3 align-top group-data-selected/row:bg-muted'
+  const head = 'border-b pb-2 pl-3 text-left align-bottom font-normal'
+  // The pitch's column, held at the left while the rest scrolls under it, ruled where they meet.
+  const held = 'sticky left-0 bg-background pl-2 max-md:border-r max-md:pr-3'
   return (
-    <ScrollTable label="Pitch table">
-      <table className="chart pitches">
-        <caption>
-          {/* A block of its own, so it wraps within a phone's screen while the table scrolls wider. */}
-          <span className="cap">
-            <Source of="agent" /> Guest and work as Claude read them from each pitch. <Source of="qloo" /> Matches from
-            Qloo search, one call per work. Select a pitch to read it or confirm its match.
-          </span>
-        </caption>
-        <colgroup>
-          <col className="c-pitch" />
-          <col className="c-guest" />
-          <col className="c-work" />
-          <col />
-          <col className="c-call" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th scope="col">Pitch</th>
-            <th scope="col">Guest</th>
-            <th scope="col">
-              Public work<small>type · year</small>
-            </th>
-            <th scope="col">
-              Qloo match<small>popularity percentile</small>
-            </th>
-            <th scope="col" className="r">
-              Call
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {pitches.map((p) => (
-            <tr key={p.id} data-status={p.status} data-selected={p.id === hot || undefined}>
-              <td>
-                <button
-                  type="button"
-                  id={`open-${p.id}`}
-                  className="row-open"
-                  aria-current={p.id === selected || undefined}
-                  onClick={(e) => select(p.id, e.currentTarget)}
-                >
-                  <span className="nm">{title(p)}</span>
-                </button>
-                {p.from && (
-                  <div className="tg desc" title={p.from}>
-                    {p.from}
-                  </div>
-                )}
-              </td>
-              <td>{p.guest ?? '–'}</td>
-              <td>
-                <WorkCell pitch={p} />
-              </td>
-              <td>
-                <MatchCell pitch={p} settle={(from) => select(p.id, from)} />
-              </td>
-              <td className="r">
-                {p.match && (
-                  <CallButton
-                    call={p.match.evidence}
-                    label={`Evidence for ${p.work?.title ?? p.id}`}
-                    opened={opened}
-                    openCall={openCall}
-                  />
-                )}
-              </td>
+    <div className="flex min-w-0 flex-col gap-2">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground" id="pitches-cap">
+        <Source of="agent" /> Guest and work as Claude read them from each pitch. <Source of="qloo" /> Matches from Qloo
+        search, one call per work. Select a pitch to read it or confirm its match.
+      </p>
+      <ScrollTable label="Pitch table" className="-mx-2 max-w-none">
+        <table className="w-full min-w-[46rem] border-separate border-spacing-0" aria-describedby="pitches-cap">
+          <thead className="type-caption text-muted-foreground">
+            <tr>
+              <th scope="col" className={cn(head, held)}>
+                Pitch
+              </th>
+              <th scope="col" className={cn(head, 'w-36')}>
+                Guest
+              </th>
+              <th scope="col" className={head}>
+                Public work · type · year
+              </th>
+              <th scope="col" className={head}>
+                Qloo match · popularity percentile
+              </th>
+              <th scope="col" className={cn(head, 'w-16 pr-2 text-right')}>
+                Call
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollTable>
+          </thead>
+          <tbody>
+            {pitches.map((p) => (
+              <tr
+                key={p.id}
+                // On the selected row's tone step, its tone-filled chips lift onto the card.
+                className="group/row [&[data-selected]_[data-variant=default]]:bg-card"
+                data-status={p.status}
+                data-selected={p.id === hot || undefined}
+                aria-busy={p.status === 'reading' || p.status === 'looking_up' || undefined}
+              >
+                <th scope="row" className={cn(cell, held, 'text-left font-normal')}>
+                  <span className="flex w-48 flex-col items-start gap-1 md:w-60">
+                    <button
+                      type="button"
+                      id={`open-${p.id}`}
+                      aria-current={p.id === selected || undefined}
+                      onClick={(e) => select(p.id, e.currentTarget)}
+                      className="cursor-pointer text-left text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-3 max-md:py-3"
+                    >
+                      {title(p)}
+                    </button>
+                    {p.from && (
+                      <span className="w-full truncate type-caption text-muted-foreground" title={p.from}>
+                        {p.from}
+                      </span>
+                    )}
+                  </span>
+                </th>
+                <td className={cell}>{p.guest ?? <span className="text-muted-foreground">–</span>}</td>
+                <td className={cell}>
+                  <WorkCell pitch={p} />
+                </td>
+                <td className={cell}>
+                  <MatchCell pitch={p} settle={(from) => select(p.id, from)} />
+                </td>
+                <td className={cn(cell, 'pr-2 text-right')}>
+                  {p.match && (
+                    <CallButton
+                      call={p.match.evidence}
+                      label={`Evidence for ${p.work?.title ?? p.id}`}
+                      opened={opened}
+                      openCall={openCall}
+                    />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollTable>
+    </div>
   )
 }
 
 function WorkCell({ pitch: { work, status } }: { pitch: Pitch }) {
-  if (status === 'reading') return <span className="tg">Reading…</span>
-  if (!work) return <span className="tg">–</span>
+  if (status === 'reading') return <span className="text-muted-foreground">Reading…</span>
+  if (!work) return <span className="text-muted-foreground">–</span>
   return (
-    <>
-      <span className="wk">{work.title}</span>
-      <div className="tg">
+    <span className="flex flex-col gap-1">
+      <span className="font-medium">{work.title}</span>
+      <span className="type-caption text-muted-foreground">
         {typeLabel[work.type]}
         {work.year !== null && ` · ${work.year}`}
-      </div>
-    </>
+      </span>
+    </span>
   )
 }
 
+// A pitch's state as a chip, marked when it's in trouble, as the roster's match chips are: a spinner
+// while it's read or looked up; outlined while a person must settle its match, ambiguous or not in
+// Qloo; crimson with the square ✕ when its reading or its lookup failed.
+function PitchChip({ pitch: p }: { pitch: Pitch }) {
+  const resolution = p.status === 'read' ? p.match?.resolution : undefined
+  const pending = p.status === 'reading' || p.status === 'looking_up' || (p.status === 'read' && !p.match)
+  const failed = p.status === 'failed' || resolution === 'failed'
+  return (
+    <Badge
+      variant={failed ? 'destructive' : resolution === 'ambiguous' || resolution === 'missed' ? 'outline' : 'default'}
+    >
+      {pending ? (
+        <Spinner />
+      ) : failed ? (
+        <SquareXIcon aria-hidden="true" />
+      ) : resolution === 'missed' ? (
+        <CircleDashedIcon aria-hidden="true" />
+      ) : null}
+      {stateLabel(p)}
+    </Badge>
+  )
+}
+
+// What Qloo matched a pitch's work to, or why it matched nothing, and the way to settle an ambiguous
+// match.
 function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElement) => void }) {
-  const chip = <span className="chip">{stateLabel(p)}</span>
+  const chip = <PitchChip pitch={p} />
   const why = (text: string) => (
-    <>
-      {chip} <span className="tg">{text}</span>
-    </>
+    <span className="flex flex-col items-start gap-1">
+      {chip}
+      <span className="type-caption text-muted-foreground">{text}</span>
+    </span>
   )
   if (p.status === 'no_work') return why('No public work: never sent to Qloo.')
   if (p.status === 'unreadable' || p.status === 'failed') return why(p.error ?? '')
@@ -1076,21 +1299,29 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElem
   if (!match) return chip
   if (match.resolution === 'resolved' && match.entity)
     return (
-      <span className="ent">
-        {match.entity.name}
-        {match.entity.disambiguation && <span className="tg"> ({match.entity.disambiguation})</span>}{' '}
-        <span className="pop">{percentile(match.entity.popularity)}</span>
+      <span>
+        <span className="font-medium">{match.entity.name}</span>
+        {match.entity.disambiguation && (
+          <span className="text-muted-foreground"> ({match.entity.disambiguation})</span>
+        )}{' '}
+        <span className="text-muted-foreground">{percentile(match.entity.popularity)}</span>
       </span>
     )
   if (match.resolution === 'ambiguous')
     return (
-      <>
-        {chip}{' '}
-        <button type="button" className="lnk" onClick={(e) => settle(e.currentTarget)}>
+      <span className="flex flex-col items-start gap-1">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {chip}
+          <span className="type-caption text-muted-foreground">{match.candidates.length} with this title</span>
+        </span>
+        <Button
+          variant="link"
+          className="text-left whitespace-normal max-md:-my-3 max-md:py-3"
+          onClick={(e) => settle(e.currentTarget)}
+        >
           Confirm the match
-        </button>
-        <span className="tg"> · {match.candidates.length} with this title</span>
-      </>
+        </Button>
+      </span>
     )
   if (match.resolution === 'failed') return why(match.error ?? '')
   const work = p.work
@@ -1099,7 +1330,9 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElem
   return why(`No ${work ? typeLabel[work.type].toLowerCase() : 'work'} with this title${by} in Qloo.`)
 }
 
-// The selected pitch: its text, what Claude read from it, and its work's candidates to confirm.
+// The pitch opened from a list or the table, in the inspector's Pitch tab: its subject as the
+// heading, which takes focus as it opens, with Close; what Claude read from it; its work's
+// candidates to confirm; and its text.
 function PitchDetail({
   pitch: p,
   confirmWork,
@@ -1111,42 +1344,46 @@ function PitchDetail({
 }) {
   const { busy, error, run } = useAction()
   const match = p.match
-  // Brought into view, with focus on its heading.
-  const heading = useRef<HTMLSpanElement>(null)
+  // Brought into view, with focus on its heading. Scrolled to, it stops clear of the inspector's
+  // sticky tabs.
+  const heading = useRef<HTMLHeadingElement>(null)
   const ref = useIntoView<HTMLElement>(heading)
   return (
-    <section className="mod ed" ref={ref} aria-labelledby="pitch-ed">
-      <div className="mh">
-        <span className="lbl" id="pitch-ed" ref={heading} tabIndex={-1}>
-          Pitch
-        </span>
-        <span className="chips">
-          <span className="chip">{stateLabel(p)}</span>
-          <button type="button" className="lnk" onClick={close}>
+    <section
+      className="flex min-w-0 scroll-mt-16 flex-col gap-6"
+      ref={ref}
+      aria-labelledby="pitch-ed"
+      data-pitch-detail
+    >
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-base leading-snug font-semibold text-balance" id="pitch-ed" ref={heading} tabIndex={-1}>
+            {title(p)}
+          </h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Close ${title(p)}`}
+            onClick={close}
+            className="-my-1 -mr-1.5 max-md:h-11"
+          >
             Close
-          </button>
+          </Button>
+        </div>
+        <span className="flex flex-wrap gap-1">
+          <PitchChip pitch={p} />
         </span>
+        {p.from && <p className="text-muted-foreground">From {p.from}</p>}
       </div>
-      <p className="q">{title(p)}</p>
-      {p.from && <p className="help">From {p.from}</p>}
-      <dl className="rec kv">
-        <div className="rec-row">
-          <dt>Guest</dt>
-          <dd>{p.guest ?? '–'}</dd>
-        </div>
-        <div className="rec-row">
-          <dt>Public work</dt>
-          <dd>
-            {p.work ? `${p.work.title} · ${typeLabel[p.work.type]}${p.work.year ? ` · ${p.work.year}` : ''}` : '–'}
-          </dd>
-        </div>
-        <div className="rec-row">
-          <dt>Read by</dt>
-          <dd>
-            <Source of="agent" />
-          </dd>
-        </div>
-      </dl>
+      <KeyValues>
+        <KeyValue label="Guest">{p.guest ?? '–'}</KeyValue>
+        <KeyValue label="Public work">
+          {p.work ? `${p.work.title} · ${typeLabel[p.work.type]}${p.work.year ? ` · ${p.work.year}` : ''}` : '–'}
+        </KeyValue>
+        <KeyValue label="Read by">
+          <Source of="agent" />
+        </KeyValue>
+      </KeyValues>
       {match && match.candidates.length > 0 && p.work && (
         <PickOne
           legend={`Which Qloo ${typeLabel[p.work.type].toLowerCase()} is ${p.work.title}?`}
@@ -1159,34 +1396,36 @@ function PitchDetail({
         />
       )}
       <Alert error={error} />
-      <div className="letter" tabIndex={0} aria-label="Pitch text">
+      <div className="rounded-lg bg-muted p-3 break-words whitespace-pre-line" tabIndex={0} aria-label="Pitch text">
         {p.body}
       </div>
     </section>
   )
 }
 
+// The inbox's pitches counted by their word, which says how many a run can rank: a compact key/value
+// list, two pairs to a row, as the roster check is.
 function InboxCheck({ pitches }: { pitches: Pitch[] }) {
   const count = (label: string) => pitches.filter((p) => stateLabel(p) === label).length
   const rows = ['Matched', 'Ambiguous', 'Not in Qloo', 'Lookup failed', 'Set aside', 'Unreadable', 'Failed']
   const pending = count('Reading') + count('Looking up')
   return (
-    <section className="mod" aria-labelledby="inbox-check">
-      <div className="mh">
-        <span className="lbl" id="inbox-check">
+    <section className="flex flex-col gap-3" aria-labelledby="inbox-check">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold" id="inbox-check">
           Inbox check
-        </span>
-        {pending > 0 && <span className="chip">{pending} still reading</span>}
+        </h2>
+        {pending > 0 && <Badge>{pending} still reading</Badge>}
       </div>
-      <p className="help">
+      <p className="type-caption text-muted-foreground">
         Matched works are the ones that can be ranked against the show. Ambiguous works wait for you to confirm a match.
         Set-aside and unreadable pitches never reach Qloo.
       </p>
-      <dl className="rec">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-1">
         {rows.map((label) => (
-          <div key={label} className="rec-row">
-            <dt>{label === 'Set aside' ? 'Set aside: no public work' : label}</dt>
-            <dd>{count(label)}</dd>
+          <div key={label} className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted-foreground">{label === 'Set aside' ? 'Set aside: no public work' : label}</dt>
+            <dd className="tabular-nums">{count(label)}</dd>
           </div>
         ))}
       </dl>

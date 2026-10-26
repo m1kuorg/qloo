@@ -125,9 +125,9 @@ export function RosterImport({
             : 'Replaces the current roster, up to 50 shows.'}
         </small>
         <p className="max-w-[72ch] type-caption text-muted-foreground">
-          Drop a file anywhere on the page, or upload one: a CSV needs a <Column>name</Column> column, and{' '}
-          <Column>downloads</Column>, <Column>status</Column>, and <Column>description</Column> are optional; a text
-          file has one show name per line.
+          Drop a file anywhere on the page, or upload one: a CSV needs a <Code>name</Code> column, and{' '}
+          <Code>downloads</Code>, <Code>status</Code>, and <Code>description</Code> are optional; a text file has one
+          show name per line.
         </p>
       </div>
       <div className="md:col-span-2">
@@ -137,9 +137,12 @@ export function RosterImport({
   )
 }
 
-// A CSV column's name, as the file spells it: a code.
-const Column = ({ children }: { children: string }) => (
-  <code className="rounded-sm bg-muted px-1 font-mono text-[0.92em] text-foreground">{children}</code>
+// A name as a file spells it, such as a CSV column or a file type: a code, a touch smaller than the
+// text around it, as mono runs large, but never under 12px.
+export const Code = ({ children }: { children: string }) => (
+  <code className="rounded-sm bg-muted px-1 font-mono text-[length:max(0.75rem,0.92em)] text-foreground">
+    {children}
+  </code>
 )
 
 const resolutionLabel: Record<Show['resolution'], string> = {

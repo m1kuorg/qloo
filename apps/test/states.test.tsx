@@ -115,6 +115,21 @@ describe("the workspace's connection", () => {
   })
 })
 
+describe("the inbox's connection", () => {
+  it('says it is connecting until the first state arrives, then reconnecting while the socket is down', async () => {
+    const connecting = page(undefined, 'inbox')
+    expect(connecting).toContain('Working Connecting to the inbox…')
+    expect(connecting).not.toContain('No pitches yet')
+
+    const s = await session()
+    const state = s.state()
+    expect(page(state, 'inbox')).not.toContain('Reconnecting…')
+    const text = page(state, 'inbox', { identified: false })
+    expect(text).toContain('Reconnecting…')
+    expect(text).toContain('No pitches yet. Paste or upload pitches above, or load the sample inbox.')
+  })
+})
+
 describe('a roster being looked up', () => {
   it('marks each pending show busy, with its call not yet openable, and the import counting', async () => {
     fakeQloo({ search })
@@ -247,7 +262,7 @@ describe('a slow Qloo in the inbox', () => {
     await s.call('loadInbox', { text: 'Ada Quill, author of the novel Night Ferry, would love to come on.' })
     const slow = await s.until((st) => st.slowCalls.length > 0)
     expect(page(slow, 'inbox')).toContain(
-      'Reading 0 of 1 pitch read Slow Qloo C-01 has waited over 0.05 s for Qloo. Still trying.'
+      'Reading · 0 of 1 pitch read Slow Qloo C-01 has waited over 0.05 s for Qloo. Still trying.'
     )
 
     held.resolve()
