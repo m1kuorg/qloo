@@ -1134,25 +1134,24 @@ describe('the pages, as a member reads them', () => {
     const ada = await openMember()
     const network = await created(ada)
     const agent = await connect(ada, `/agents/network/${network}`)
-    expect(words(dashboard(network, agent.state()))).toContain(
-      'Night Shift Audio Released Unreleased, from comps New launch Launches'
-    )
+    expect(words(dashboard(network, agent.state()))).toMatch(/^Launches 0 launches New launch /)
     const { id } = await agent.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
     const { id: fromComps } = await agent.call<{ id: string }>('createLaunch', {
       comps: ['Blank Check', 'Filmspotting']
     })
 
     const html = dashboard(network, agent.state())
+    expect(words(html)).toMatch(/^Launches 2 launches New launch /)
     expect(words(html)).toContain(
-      'Blank Check · Filmspotting Unreleased, from comps New – – – Not run yet Delete The Night Watch New – – – Not run yet Delete'
+      'Not run yet 2 Blank Check · Filmspotting Unreleased, from comps New – – – Not run yet The Night Watch New – – – Not run yet'
     )
     expect(html).toContain(`href="/app/${network}/launches/${id}"`)
     expect(html).toContain(`href="/app/${network}/launches/${fromComps}"`)
-    // Each row ends with Delete, which asks before it deletes.
-    expect(html).toContain(
-      '<button class="lnk" type="button" aria-expanded="false" aria-label="Delete The Night Watch">Delete</button>'
-    )
-    expect(html).toContain('aria-label="Delete Blank Check · Filmspotting"')
+    // Each row ends with its menu, whose Delete asks before it deletes.
+    for (const title of ['The Night Watch', 'Blank Check · Filmspotting'])
+      expect(html).toMatch(
+        new RegExp(`<button\\b(?=[^>]*\\saria-haspopup="menu")(?=[^>]*\\saria-label="Actions for ${title}")`)
+      )
   })
 
   it("marks a launch's status as the run moves, a failed or stopped one in its state's colour", async () => {
@@ -1173,18 +1172,75 @@ describe('the pages, as a member reads them', () => {
       ...agent.state()!,
       launches: statuses.map((status, i) => ({ ...base, id: `l-${i}`, status }))
     })
-    expect(words(html).match(/The Night Watch [A-Z][a-z]+( [a-z]+)?/g)).toEqual([
-      'The Night Watch Running',
-      'The Night Watch Waiting',
-      'The Night Watch Ranked',
-      'The Night Watch Order drafted',
-      'The Night Watch Order approved',
-      'The Night Watch Failed',
-      'The Night Watch Stopped'
+    // Grouped by who's blocked: what needs a person first, then running, ranked, and approved.
+    expect(words(html).match(/(Needs you|Running|Ranked|Not run yet|Approved) \d+/g)).toEqual([
+      'Needs you 4',
+      'Running 1',
+      'Ranked 1',
+      'Approved 1'
     ])
-    expect(html).toContain('<span class="chip flag">Order approved</span>')
-    expect(html).toContain('<span class="chip" data-state="failed">Failed</span>')
-    expect(html).toContain('<span class="chip" data-state="failed">Stopped</span>')
+    expect(words(html)).toMatch(/^Launches 4 need you · 1 running · 7 launches New launch /)
+    expect(words(html).match(/The Night Watch [A-Z][a-z]+( [a-z]+)?/g)).toEqual([
+      'The Night Watch Waiting',
+      'The Night Watch Order drafted',
+      'The Night Watch Failed',
+      'The Night Watch Stopped',
+      'The Night Watch Running',
+      'The Night Watch Ranked',
+      'The Night Watch Order approved'
+    ])
+    // The live dot on a run running or waiting, a check on an approved order, a failure's ✕ and word.
+    const row = (status: string) => html.match(new RegExp(`<tr data-status="${status}".*?</tr>`))![0]
+    for (const status of statuses) {
+      expect(row(status).includes('data-mark="live"'), status).toBe(status === 'running' || status === 'waiting')
+      expect(row(status).includes('data-mark="approved"'), status).toBe(status === 'order approved')
+      expect(row(status).includes('data-state="error"'), status).toBe(status === 'failed' || status === 'stopped')
+    }
+  })
+
+  it('moves a launch to its group as its status changes, latest run first, the rest in their order', async () => {
+    const ada = await openMember()
+    const agent = await connect(ada, `/agents/network/${await created(ada)}`)
+    const at = (lastRun: string | null, startedBy: string | null = lastRun && 'Ada Programmer') => ({
+      comps: [],
+      finalists: 0,
+      slots: null,
+      slotValue: null,
+      startedBy,
+      lastRun
+    })
+    const launches = [
+      { id: 'l-5', name: 'Paper Moons', status: 'new', ...at(null) },
+      { id: 'l-4', name: 'Slow Burn', status: 'waiting', ...at('2026-10-19T12:00:00Z') },
+      { id: 'l-3', name: 'The Long Take', status: 'new', ...at(null) },
+      { id: 'l-2', name: 'Corner Booth', status: 'order drafted', ...at('2026-10-20T12:00:00Z') },
+      { id: 'l-1', name: 'Night Shift Cinema', status: 'running', ...at('2026-10-21T12:00:00Z') }
+    ] satisfies NonNullable<State['launches']>
+    const order = (list: NonNullable<State['launches']>) =>
+      words(dashboard('n-1', { ...agent.state()!, launches: list })).match(
+        /Needs you \d+|Running \d+|Not run yet \d+|Paper Moons|Slow Burn|The Long Take|Corner Booth|Night Shift Cinema/g
+      )
+    expect(order(launches)).toEqual([
+      'Needs you 2',
+      'Corner Booth',
+      'Slow Burn',
+      'Running 1',
+      'Night Shift Cinema',
+      'Not run yet 2',
+      'Paper Moons',
+      'The Long Take'
+    ])
+    // Slow Burn's question is answered, and its run goes on.
+    expect(order(launches.map((l) => (l.id === 'l-4' ? { ...l, status: 'running' as const } : l)))).toEqual([
+      'Needs you 1',
+      'Corner Booth',
+      'Running 2',
+      'Night Shift Cinema',
+      'Slow Burn',
+      'Not run yet 2',
+      'Paper Moons',
+      'The Long Take'
+    ])
   })
 
   it('titles a launch from comps by its comps, and keeps them in its form', async () => {

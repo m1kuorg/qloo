@@ -10,8 +10,9 @@ import { MAX_TITLE } from '../text'
 export const launchTitle = (name: string | null, comps: string[]) => name ?? comps.join(' · ')
 
 // A form's launch: released, by its name, or unreleased, by up to three comps, starting from
-// `prefill`. The workspace starts a run from it, and the dashboard plans a new launch. Which kind
-// the launch is, is a segmented control of two radios; the text boxes set no `type`.
+// `prefill`. The workspace starts a run from it, in a row, and the dashboard plans a new launch, in
+// its dialog, `stacked`. Which kind the launch is, is a segmented control of two radios; the text
+// boxes set no `type`.
 export function useLaunchFields(prefill: { name: string | null; comps: string[] } | null) {
   const [name, setName] = useState(prefill?.name ?? '')
   const [unreleased, setUnreleased] = useState(!prefill?.name && (prefill?.comps.length ?? 0) > 0)
@@ -23,7 +24,7 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
     // Whether the form holds this released launch's name, as typed.
     named: (launch: string) => !unreleased && name === launch,
     clear: () => (unreleased ? setComps(Array(MAX_COMPS).fill('')) : setName('')),
-    fields: (disabled: boolean) => (
+    fields: (disabled: boolean, stacked = false) => (
       <>
         <RadioGroup
           aria-label="The launch is"
@@ -48,7 +49,7 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
               placeholder={['Blank Check', 'Filmspotting', 'You Must Remember This'][i]}
               maxLength={MAX_TITLE}
               disabled={disabled}
-              className="sm:w-48 max-md:h-11"
+              className={stacked ? 'max-md:h-11' : 'sm:w-48 max-md:h-11'}
             />
           ))
         ) : (
@@ -59,7 +60,7 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
             placeholder="The Big Picture"
             maxLength={MAX_TITLE}
             disabled={disabled}
-            className="sm:w-72 max-md:h-11"
+            className={stacked ? 'max-md:h-11' : 'sm:w-72 max-md:h-11'}
           />
         )}
       </>
