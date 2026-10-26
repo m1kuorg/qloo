@@ -39,17 +39,22 @@ export const textLink = 'font-medium text-foreground underline decoration-1 unde
 // The import answers at once, and each show fills in through synced state as its search settles. A
 // file can come from the picker or be dropped anywhere on the page, so one dropped beside the form
 // imports too, rather than opening in the browser. From 768px the box and what it takes sit side by
-// side, so the form stays short above the table.
+// side, so the form stays short above the table, unless it's `stacked`, as in the roster page's
+// sheet. `dropped` hears of a dropped file it imports, so a page can show the form it imports in.
 export function RosterImport({
   roster,
   draft,
   importRoster,
-  keepsSettledShows
+  keepsSettledShows,
+  stacked = false,
+  dropped
 }: {
   roster: Show[]
   draft: { current: string } // what's typed, kept by the page across a remount
   importRoster: (text: string, format: RosterFormat) => Promise<void>
   keepsSettledShows: boolean // whether an import keeps the shows already on the roster, as a network's does
+  stacked?: boolean
+  dropped?: () => void
 }) {
   const [text, setTyped] = useState(() => draft.current)
   const setText = (value: string) => {
@@ -81,9 +86,17 @@ export function RosterImport({
     if (files.length) void upload(files)
   }
   // A file dropped while an import is still running isn't imported; the cue says to wait.
-  const dragging = useFileDrop((files) => (busy ? null : upload(files)))
+  const dragging = useFileDrop((files) => {
+    if (busy) return null
+    dropped?.()
+    return upload(files)
+  })
   return (
-    <form className="grid gap-x-6 gap-y-2 md:grid-cols-2" onSubmit={submit} data-roster-import>
+    <form
+      className={stacked ? 'flex flex-col gap-2' : 'grid gap-x-6 gap-y-2 md:grid-cols-2'}
+      onSubmit={submit}
+      data-roster-import
+    >
       {dragging && (
         <DropCue busy={busy}>
           {busy

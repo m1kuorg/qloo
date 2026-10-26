@@ -1,113 +1,273 @@
+import { cn } from 'cn'
 import { useRef, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
+import { TabsContent } from '@/components/ui/tabs'
+import type { Show } from '../agent'
+import { dollars } from '../order'
 import { sample as sampleNetwork, sampleRoster, type Sample } from '../sample'
 import { Alert, useAction } from './controls'
 import { EvidencePanel, useEvidence } from './Evidence'
+import { canvas, frame, Inspector, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
-import { CpmRecord, RosterCheck, RosterFailures, RosterImport, RosterTable, ShowEditor } from './RosterModules'
-import { StateLine } from './states'
+import { RosterCounts, RosterFailures, RosterImport, RosterTable, ShowEditor, textLink } from './RosterModules'
+import { connectionOf, ConnectionState, StateLine, type Connection } from './states'
 
 // The network's roster page, connected to the network's agent.
 export function RosterPage({ agentPath, network }: { agentPath: string; network: NetworkPage }) {
   const agent = useNetwork(agentPath)
   return (
-    <NetworkGate agent={agent} network={network} notice>
-      <NetworkRoster agent={agent} network={network} />
+    <NetworkGate agent={agent} network={network}>
+      <NetworkRoster agent={agent} network={network} connection={connectionOf(agent)} />
     </NetworkGate>
   )
 }
 
-// The roster every launch on the network ranks, kept by its agent: the demo's roster table and show
-// editor, with an import that keeps the shows already settled. Every member's edits reach the others
-// through synced state. Tests render it from a network agent's synced state.
-export function NetworkRoster({ agent, network }: { agent: NetworkConnection; network: NetworkPage }) {
+// A page without the inspector beside it takes its gutter on both sides.
+const alone = cn(canvas, 'min-[1360px]:pr-6')
+
+// The roster every launch on the network ranks, kept by its agent, which answers "Is my roster ready
+// to rank?": the title row with its counts and CPM, the sample's notice, the shows Qloo failed on,
+// and the roster table, whose shows open in the inspector's Show tab beside it (a sheet under
+// 1360px) and whose calls open in its Evidence tab. "Import shows" opens the import in a sheet; an
+// empty roster has the import as its body, with the sample roster to start from. Every member's
+// edits reach the others through synced state. Tests render it from a network agent's synced state.
+export function NetworkRoster({
+  agent,
+  network,
+  connection = { lost: null, reconnecting: false }
+}: {
+  agent: NetworkConnection
+  network: NetworkPage
+  connection?: Connection
+}) {
   const state = agent.state
   const roster = state?.roster ?? []
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
-  const { opened, openCall } = useEvidence(agent)
+  const evidence = useEvidence(agent)
+  const inspector = useInspector(show ? ['show', 'evidence'] : ['evidence'], evidence)
+  // The import's sheet, which stays open after an import so a refusal shows where it was asked.
+  const [importing, setImporting] = useState(false)
   const importDraft = useRef('')
-  return (
-    <>
-      <section className="hd" aria-label="Roster">
-        <h1>Roster</h1>
-        <p className="sub-line">Every launch on {network.name} ranks this roster, as it stands when its run starts.</p>
-      </section>
-      <main className="main net-roster">
-        <div className="chart-col">
-          {state ? (
-            <>
-              {state.sample && <SampleRoster sample={state.sample} />}
-              <RosterFailures roster={roster} />
-              <RosterImport
-                roster={roster}
-                draft={importDraft}
-                importRoster={(text, format) => agent.stub.importRoster(text, format)}
-                keepsSettledShows
-              />
-              {roster.length > 0 ? (
-                <RosterTable
-                  roster={roster}
-                  selected={show?.name ?? null}
-                  select={setSelected}
-                  slowCalls={state.slowCalls ?? []}
-                  openCall={openCall}
-                  opened={opened?.call ?? null}
-                />
-              ) : (
-                <EmptyRoster start={() => agent.stub.startFromSample()} />
-              )}
-            </>
-          ) : (
-            <StateLine kind="loading">Connecting to the network…</StateLine>
-          )}
+  const importer = (stacked: boolean) => (
+    <RosterImport
+      roster={roster}
+      draft={importDraft}
+      importRoster={(text, format) => agent.stub.importRoster(text, format)}
+      keepsSettledShows
+      stacked={stacked}
+      dropped={stacked ? () => setImporting(true) : undefined}
+    />
+  )
+  const head = (
+    <RosterHead
+      network={network}
+      roster={state ? roster : null}
+      cpm={state ? state.cpm : undefined}
+      connection={connection}
+      action={
+        roster.length > 0 && (
+          <Button onClick={() => setImporting(true)} className="max-md:h-11">
+            Import shows
+          </Button>
+        )
+      }
+    />
+  )
+
+  if (!state)
+    return (
+      <main className={alone} aria-busy="true">
+        {head}
+        <div className="flex flex-col gap-3">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-11 rounded-lg" />
+          ))}
         </div>
-        <aside className="rail" aria-label="Details">
-          {show && <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />}
-          {/* An empty roster cites no call and has nothing to count. */}
-          {roster.length > 0 && (
-            <>
-              <EvidencePanel opened={opened} />
-              <RosterCheck roster={roster} />
-            </>
-          )}
-          <CpmRecord cpm={state ? state.cpm : undefined} network={network} />
-        </aside>
       </main>
-    </>
+    )
+
+  if (roster.length === 0)
+    return (
+      <main className={alone}>
+        {head}
+        <section className="flex flex-col gap-4 rounded-xl bg-card p-4 lg:p-6" aria-labelledby="import-h">
+          <h2 className="text-base font-semibold" id="import-h">
+            Import shows
+          </h2>
+          {importer(false)}
+        </section>
+        <SampleStart start={() => agent.stub.startFromSample()} />
+      </main>
+    )
+
+  return (
+    <div className={frame}>
+      <main className={canvas}>
+        {head}
+        {state.sample && <SampleRoster sample={state.sample} />}
+        <RosterFailures roster={roster} />
+        <RosterTable
+          roster={roster}
+          selected={show?.name ?? null}
+          select={(name) => {
+            setSelected(name)
+            inspector.inspect('show')
+          }}
+          slowCalls={state.slowCalls ?? []}
+          openCall={inspector.showCall}
+          opened={evidence.opened?.call ?? null}
+        />
+      </main>
+      <Inspector inspector={inspector}>
+        {/* Every panel stays mounted, so the ids calls point at (aria-controls="evidence") are always
+            there; Base UI hides and inerts the panels not shown, and nothing else. */}
+        {show && (
+          <TabsContent value="show" keepMounted>
+            <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />
+          </TabsContent>
+        )}
+        <TabsContent value="evidence" keepMounted>
+          <EvidencePanel opened={evidence.opened} />
+        </TabsContent>
+      </Inspector>
+      {/* Kept mounted while closed, so a file dropped anywhere on the page imports, opening it. */}
+      <Sheet open={importing} onOpenChange={setImporting}>
+        <SheetContent keepMounted className="gap-0">
+          <SheetHeader className="pr-14">
+            <SheetTitle>Import shows</SheetTitle>
+            <SheetDescription>
+              Paste show names or upload the roster&apos;s file. Crossfeed looks each new one up in Qloo.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">{importer(true)}</div>
+        </SheetContent>
+      </Sheet>
+    </div>
   )
 }
 
-// An empty roster: the import form above takes the network's own file or names, or the sample roster
-// can stand in to try first.
-function EmptyRoster({ start }: { start: () => Promise<unknown> }) {
+// The title row: what the roster is for; once connected, its counts and whether it's ready to rank,
+// or that there's none yet; the CPM its slots are priced at; the connection's state; and `action`.
+function RosterHead({
+  network,
+  roster,
+  cpm,
+  connection,
+  action
+}: {
+  network: NetworkPage
+  roster: Show[] | null // null until the agent is connected
+  cpm: number | null | undefined
+  connection: Connection
+  action: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+      <div className="flex min-w-0 flex-1 basis-md flex-col gap-1.5">
+        <h1 className="type-title">Roster</h1>
+        <p className="max-w-[72ch] text-muted-foreground">
+          Every launch on {network.name} ranks this roster, as it stands when its run starts.
+        </p>
+        {roster &&
+          (roster.length > 0 ? (
+            <div className="flex flex-wrap gap-x-1.5 font-medium">
+              <RosterCounts roster={roster} />
+              <Readiness roster={roster} />
+            </div>
+          ) : (
+            <p>
+              <StateLine kind="empty">No roster yet.</StateLine>
+            </p>
+          ))}
+        {cpm !== undefined && <CpmLine cpm={cpm} network={network} />}
+        {/* Always there, so a screen reader hears the line as it appears. */}
+        <span role="status" className="type-caption">
+          {roster ? (
+            <ConnectionState connection={connection} />
+          ) : (
+            <StateLine kind="loading">Connecting to the network…</StateLine>
+          )}
+        </span>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+// Whether a run can score every show yet: shows still looked up, ambiguous, missed or failed in Qloo
+// are listed as not scored until they're settled or left out.
+function Readiness({ roster }: { roster: Show[] }) {
+  if (roster.some((s) => s.resolution === 'pending')) return null
+  const unsettled = roster.filter(
+    (s) => !s.excluded && (s.resolution === 'ambiguous' || s.resolution === 'missed' || s.resolution === 'failed')
+  ).length
+  const scorable = roster.filter((s) => !s.excluded && (s.resolution === 'resolved' || s.resolution === 'mapped'))
+  return (
+    <p className="font-normal text-muted-foreground">
+      {unsettled > 0
+        ? `${unsettled} ${unsettled === 1 ? "show isn't" : "shows aren't"} scored until you settle or leave ${unsettled === 1 ? 'it' : 'them'} out.`
+        : scorable.length > 0
+          ? 'Ready to rank: every show can be scored.'
+          : 'Every show is left out, so a run has nothing to rank.'}
+    </p>
+  )
+}
+
+// The CPM that prices every launch's slots, read-only here: an owner changes it in settings.
+function CpmLine({ cpm, network }: { cpm: number | null; network: NetworkPage }) {
+  return (
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground">
+      <span>CPM</span>
+      {cpm === null ? (
+        <Badge>Not set</Badge>
+      ) : (
+        <span>
+          <span className="text-foreground">{dollars(cpm)}</span> per 1,000 downloads
+        </span>
+      )}
+      <span aria-hidden="true">·</span>
+      {network.role === 'owner' ? (
+        <a className={textLink} href={network.links.settings}>
+          {cpm === null ? 'Set it in settings' : 'Change it in settings'}
+        </a>
+      ) : (
+        <span>An owner sets it in settings.</span>
+      )}
+    </p>
+  )
+}
+
+// An empty roster's other way in: the sample roster, to try Crossfeed before importing one's own.
+function SampleStart({ start }: { start: () => Promise<unknown> }) {
   const { busy, error, run } = useAction()
   return (
-    <div className="empty">
-      <p>
-        <StateLine kind="empty">No roster yet.</StateLine>
+    <div className="flex flex-col items-start gap-x-4 gap-y-2 rounded-xl bg-card p-4 md:flex-row md:items-center lg:px-6">
+      <Button variant="secondary" disabled={busy} onClick={() => void run(start)} className="max-md:h-11">
+        {busy && <Spinner data-icon="inline-start" />}
+        Start from the sample roster
+      </Button>
+      <p className="text-muted-foreground">
+        {sampleNetwork.network}&apos;s {sampleRoster.length} public show names, with made-up figures labelled sample, to
+        try Crossfeed before your own.
       </p>
-      <div className="acts">
-        <button type="button" className="btn" disabled={busy} onClick={() => void run(start)}>
-          Start from the sample roster
-        </button>
-        <small>
-          {sampleNetwork.network}&apos;s {sampleRoster.length} public show names, with made-up figures labelled sample,
-          to try Crossfeed before your own.
-        </small>
-      </div>
       <Alert error={error} />
     </div>
   )
 }
 
-// What a roster started from the sample is, where its notice would be on the demo. Its CPM isn't the
-// sample's, so the notice leaves it out.
+// What a roster started from the sample is, where its notice would be on the demo: a block on the
+// card, as notices about the page's data are. Its CPM isn't the sample's, so the notice leaves it out.
 function SampleRoster({ sample }: { sample: Sample }) {
   return (
-    <p className="help sample-notice">
-      <b>Sample roster.</b> {sample.network}&apos;s public show names, with downloads, statuses, and descriptions
-      Crossfeed chose, each labelled sample until you change it. Crossfeed isn&apos;t affiliated with {sample.network}.
-      Import your own roster over it; shows on both keep their matches.
+    <p className="max-w-[72ch] rounded-xl bg-card p-4 lg:max-w-none" data-sample-notice>
+      <b className="font-semibold">Sample roster.</b> {sample.network}&apos;s public show names, with downloads,
+      statuses, and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn&apos;t
+      affiliated with {sample.network}. Import your own roster over it; shows on both keep their matches.
     </p>
   )
 }

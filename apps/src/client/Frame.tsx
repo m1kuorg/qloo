@@ -27,9 +27,10 @@ const aside = 'sticky top-12 flex h-[calc(100svh-3rem)] flex-col gap-4 self-star
 export type InspectorTab = 'run' | 'evidence' | 'show' | 'pitch'
 const tabName: Record<InspectorTab, string> = { run: 'Run', evidence: 'Evidence', show: 'Show', pitch: 'Pitch' }
 
-// Which of `tabs` the inspector shows, falling back to Run when the one asked for has gone (its show
-// or pitch closed); whether it's beside the canvas or a sheet, and the sheet's state. `inspect` opens
-// it on a tab, and `showCall` opens a call's evidence there, or closes it when it's already shown.
+// Which of `tabs` the inspector shows, falling back to the first, Run on a run page, when the one
+// asked for has gone (its show or pitch closed); whether it's beside the canvas or a sheet, and the
+// sheet's state. `inspect` opens it on a tab, and `showCall` opens a call's evidence there, or closes
+// it when it's already shown.
 export function useInspector(
   tabs: InspectorTab[],
   { opened, openCall }: { opened: Opened | null; openCall: (call: string) => unknown }
@@ -38,7 +39,7 @@ export function useInspector(
   const [tab, setTab] = useState<InspectorTab>('run')
   // The inspector's sheet, under 1360px, which opens on the tab asked for.
   const [sheet, setSheet] = useState(false)
-  const current = tabs.includes(tab) ? tab : 'run'
+  const current = tabs.includes(tab) ? tab : tabs[0]
   const inspect = (next: InspectorTab) => {
     setTab(next)
     if (!wide) setSheet(true)

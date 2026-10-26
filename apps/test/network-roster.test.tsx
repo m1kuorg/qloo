@@ -507,23 +507,28 @@ describe("the roster page's words", () => {
     const ada = await openMember()
     const network = await created(ada)
     const read = page((await connect(ada, network)).state(), network)
-    expect(read).toContain(
-      'Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts.'
+    expect(read).toMatch(
+      /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. No roster yet\. CPM Not set · Set it in settings Import shows /
     )
     expect(read).toContain(
-      'Show names Import roster Upload a file Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
+      'Import shows Show names Import roster Upload a file Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
     )
     expect(read).toContain(
       'Drop a file anywhere on the page, or upload one: a CSV needs a name column, and downloads , status , and description are optional; a text file has one show name per line.'
     )
-    expect(read).toContain(
-      "No roster yet. Start from the sample roster The Ringer's 19 public show names, with made-up figures labelled sample, to try Crossfeed before your own."
-    )
-    // The rail has nothing to cite or count yet, only the CPM.
+    // The sample roster is the last way in; with no shows, there's nothing to cite or count yet.
     expect(read).toMatch(
-      /before your own\. Network CPM Not set Prices each promo slot: downloads per episode × CPM ÷ 1,000\. Set it in settings$/
+      /Start from the sample roster The Ringer's 19 public show names, with made-up figures labelled sample, to try Crossfeed before your own\.$/
     )
-    for (const elsewhere of ['Start run', 'Launch ·', 'Guide', 'Clear sample network', 'Replaces the current roster'])
+    for (const elsewhere of [
+      'Start run',
+      'Launch ·',
+      'Guide',
+      'Clear sample network',
+      'Replaces the current roster',
+      'Evidence',
+      'Roster check'
+    ])
       expect(read).not.toContain(elsewhere)
   })
 
@@ -546,8 +551,9 @@ describe("the roster page's words", () => {
     expect(read).toContain(
       'Missed No show by this name in Qloo. Map a comp or leave out 340,000 sample active sample C-06'
     )
-    expect(read).toContain(
-      'Network CPM CPM $20 per 1,000 downloads Prices each promo slot: downloads per episode × CPM ÷ 1,000. An owner sets it in settings.'
+    // The title row: whether it's ready to rank, the CPM an owner set, and the import, now in a sheet.
+    expect(read).toMatch(
+      /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. 19 shows: 19 missed 19 shows aren't scored until you settle or leave them out\. CPM \$20 per 1,000 downloads · An owner sets it in settings\. Import shows Sample roster\. /
     )
     expect(read).not.toContain('Start from the sample roster')
     expect(read).not.toContain('in settings Set')
