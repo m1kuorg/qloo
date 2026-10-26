@@ -8,6 +8,7 @@ import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
 import { LostAccess, NetworkGate } from '../src/client/NetworkPage'
 import { Settings } from '../src/client/Settings'
+import { connectionOf } from '../src/client/states'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
 import { api, openMember, regions, type Member, type Session } from './session'
 
@@ -86,6 +87,12 @@ const dashboard = async (member: Member, id: string, state: State | undefined) =
   )
 
 const STEPS = ['Import the roster', 'Set the CPM', 'Plan a launch', 'Invite a teammate', 'Create an API key']
+// The setup checklist's steps, each as a reader hears it, in the order of its numbered list.
+const steps = (html: string) =>
+  (html.match(/<ol\b[^>]*>(.*?)<\/ol>/)?.[1] ?? '')
+    .split(/<li\b/)
+    .slice(1)
+    .map((li) => words(`<li${li}`))
 
 describe('the dashboard', () => {
   it('says plainly that a new network has no launches, roster, or CPM, and lists all five setup steps', async () => {
@@ -93,15 +100,19 @@ describe('the dashboard', () => {
     const { id, agent } = await network(ada)
     const html = await dashboard(ada, id, agent.state())
     const read = words(html)
-    expect(read).toContain('Night Shift Audio')
+    // The page is the network's launches; the top bar's switcher names the network.
+    expect(await (await ada.fetch(`/app/${id}`)).text()).toMatch(/data-current-network[^>]*>Night Shift Audio</)
+    expect(read).toMatch(/^Launches 0 launches New launch /)
     expect(read).toContain(
-      'Launch Status Finalists Slots Slot value Last run Actions No launches yet. Each launch you plan is listed here with its status, finalists, promo slots, and their slot value.'
+      'Launch Status Finalists Slots Slot value Last run Actions No launches yet. Each launch you plan is listed here with its status, finalists, promo slots, and their slot value. New launch'
     )
     expect(read).toContain('Roster No shows yet Open')
     expect(read).toContain('CPM Not set Set')
     expect(read).not.toContain('Inbox')
-    expect(read).toContain(`Setup 0 of 5 done Dismiss 1. ${STEPS[0]}`)
-    for (const step of STEPS) expect(read).toMatch(new RegExp(`\\d\\. ${step} [A-Z][^.]+\\.`))
+    expect(read).toContain('Setup · 0 of 5 done Dismiss')
+    const listed = steps(html)
+    expect(listed).toHaveLength(STEPS.length)
+    STEPS.forEach((step, i) => expect(listed[i]).toMatch(new RegExp(`^${step} [A-Z][^.]+\\.`)))
     expect(html).toContain(`href="/app/${id}/roster"`)
     expect(html).toContain(`href="/app/${id}/settings"`)
   })
@@ -124,12 +135,16 @@ describe('the dashboard', () => {
     })
     await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
 
-    const read = words(await dashboard(ada, id, await agent.until((s) => s.cpm === 20)))
+    const html = await dashboard(ada, id, await agent.until((s) => s.cpm === 20))
+    const read = words(html)
     expect(read).toContain('Roster 3 shows: 2 matched, 1 not in Qloo Open')
     expect(read).toContain('CPM $20 per 1,000 downloads Change')
-    expect(read).toContain('Setup 3 of 5 done')
-    expect(read).toContain(`1. ${STEPS[0]} Done 2. ${STEPS[1]} Done 3. ${STEPS[2]} Name`)
-    expect(read).toContain(`4. ${STEPS[3]} Done 5. ${STEPS[4]} Make a key in settings`)
+    expect(read).toContain('Setup · 3 of 5 done')
+    const listed = steps(html)
+    expect(listed.slice(0, 2)).toEqual([`${STEPS[0]} Done`, `${STEPS[1]} Done`])
+    expect(listed[2]).toMatch(new RegExp(`^${STEPS[2]} Name`))
+    expect(listed[3]).toBe(`${STEPS[3]} Done`)
+    expect(listed[4]).toMatch(new RegExp(`^${STEPS[4]} Make a key in settings`))
   })
 
   it("is dismissed for the member who dismisses it, and stays for everyone else's", async () => {
@@ -140,7 +155,7 @@ describe('the dashboard', () => {
 
     const state = agent.state()
     expect(words(await dashboard(ada, id, state))).not.toContain('Setup')
-    expect(words(await dashboard(grace, id, state))).toContain('Setup 1 of 5 done')
+    expect(words(await dashboard(grace, id, state))).toContain('Setup · 1 of 5 done')
   })
 
   it('lines up the inbox, while guest pitches are on: its pitches, how they matched, and those set aside', async () => {
@@ -190,7 +205,7 @@ describe('the dashboard', () => {
       ]
     }
     const html = await dashboard(ada, id, state)
-    expect(words(html)).toContain('The Night Watch Order approved 5 20 $52,000 Oct 19, Ada Programmer')
+    expect(words(html)).toContain('Approved 1 The Night Watch Order approved 5 20 $52,000 Oct 19 · Ada Programmer')
     expect(html).toContain(`href="/app/${id}/launches/l-1"`)
     expect(words(html)).not.toContain('No launches yet')
   })
@@ -421,39 +436,54 @@ describe('settings', () => {
 })
 
 // What a network's page shows of its agent's socket, the same on every network page: the dashboard
-// here, as DashboardPage wraps it.
+// here, as DashboardPage wraps it, which says so in its title row.
 describe("a network page's connection", () => {
-  const gated = async (connection: { identified?: boolean; connectionError?: { code: number; reason: string } }) => {
+  const gated = async (connection: {
+    state?: undefined
+    identified?: boolean
+    connectionError?: { code: number; reason: string }
+  }) => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
     const page = await island(ada, `/app/${id}`)
-    const html = await dashboard(ada, id, agent.state())
     const gate = { state: agent.state(), identified: true, connectionError: null, ...connection }
     return words(
       renderToStaticMarkup(
-        <NetworkGate agent={gate} network={page.network} notice>
-          <div dangerouslySetInnerHTML={{ __html: html }} />
+        <NetworkGate agent={gate} network={page.network}>
+          <Dashboard
+            {...page}
+            state={gate.state}
+            connection={connectionOf(gate)}
+            dismiss={async () => {}}
+            createLaunch={async () => ({ id: 'l-1' })}
+          />
         </NetworkGate>
       )
     )
   }
 
+  it('says it is connecting until the first state arrives', async () => {
+    const read = await gated({ state: undefined, identified: false })
+    expect(read).toMatch(/^Launches Working Connecting to the network… New launch /)
+    expect(read).not.toContain('No launches yet')
+  })
+
   it('says nothing of a connection that is up', async () => {
     const read = await gated({})
     expect(read).not.toContain('Reconnecting…')
-    expect(read).toContain('Launches')
+    expect(read).toMatch(/^Launches 0 launches New launch /)
   })
 
   it('says it is reconnecting while the socket is down, keeping what the page showed', async () => {
     const read = await gated({ identified: false })
-    expect(read).toMatch(/^Reconnecting… Night Shift Audio/)
-    expect(read).toContain('Launches')
+    expect(read).toMatch(/^Launches 0 launches Reconnecting… New launch /)
+    expect(read).toContain('No launches yet')
   })
 
   it('says a connection closed for good without a reason of its own is lost, keeping the page', async () => {
     const read = await gated({ connectionError: { code: 1008, reason: '' } })
-    expect(read).toMatch(/^Error This page lost its connection\. Reload to try again\. Night Shift Audio/)
-    expect(read).toContain('Launches')
+    expect(read).toMatch(/^Launches 0 launches Error This page lost its connection\. Reload to try again\. New launch /)
+    expect(read).toContain('No launches yet')
   })
 
   it("drops the page for the agent's reason when it shuts the member out, 4403, or the network is gone, 4410", async () => {

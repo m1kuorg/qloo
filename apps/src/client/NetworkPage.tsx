@@ -27,7 +27,8 @@ const FORCED = [4403, 4410]
 // A network's page (the dashboard, the roster, the inbox, settings, a launch) on its agent's socket.
 // Shut out for good by a forced close, the page gives way to LostAccess. Any other drop is the
 // connection's own, which reconnects by itself while the page keeps what it showed: a page with an
-// on-air readout says so there, and one without (`notice`) says so in a line above it.
+// on-air readout or a title row that takes the connection says so there, and one without (`notice`)
+// says so in a line above it.
 export function NetworkGate({
   agent,
   network,
