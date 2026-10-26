@@ -1,9 +1,14 @@
 import { env, exports } from 'cloudflare:workers'
 import { http } from 'msw'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { State } from '../src/agent'
+import { Workspace, type Session as Agent } from '../src/client/App'
+import { ShowEditor } from '../src/client/RosterModules'
 import type { Evidence } from '../src/evidence'
 import { fakeQloo, network, requests } from './fake'
-import { openSession, type Session } from './session'
+import { links, openSession, type Session } from './session'
 
 // Synthetic shows: one exact match, one name shared by two spin-off feeds, one Qloo doesn't have.
 const search = {
@@ -248,6 +253,121 @@ describe('importing a pasted roster', () => {
 
     const reloaded = await session(s.cookie)
     expect(reloaded.state()?.roster).toHaveLength(3)
+  })
+})
+
+describe('the roster as the demo shows it', () => {
+  // The page's words, as a visitor reads them, and its HTML, from the session's synced state.
+  const words = (html: string) =>
+    html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&#x27;|&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const agentOf = (state: State) => ({ state, stub: {} }) as unknown as Agent
+  const workspace = (state: State) => renderToStaticMarkup(createElement(Workspace, { agent: agentOf(state), links }))
+  // The inspector's Show tab for one of the roster's shows, as selecting its row opens it.
+  const editor = (state: State, name: string) =>
+    renderToStaticMarkup(
+      createElement(ShowEditor, {
+        show: state.roster.find((show) => show.name === name)!,
+        agent: agentOf(state),
+        close: () => {}
+      })
+    )
+
+  it('counts the shows by match, and lists each with its match and a way to settle it', async () => {
+    fakeQloo({ search })
+    const s = await session()
+    const html = workspace(await s.importRoster(roster))
+
+    const read = words(html)
+    expect(read).toContain('Roster 3 shows: 1 resolved, 1 ambiguous, 1 missed')
+    expect(read).toContain(
+      'Show Match Qloo entity · popularity percentile Downloads per episode Status Call Night Shift Cinema Resolved Night Shift Cinema 91.0 – – C-01'
+    )
+    expect(read).toContain(
+      'Deep Cuts Ambiguous Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Pick the match – – C-02'
+    )
+    expect(read).toContain(
+      'The Ghost Signal Show Missed No show by this name in Qloo. Map a comp or leave out – – C-03'
+    )
+    // Each show's name opens it in the inspector's Show tab.
+    expect([...html.matchAll(/<button\b[^>]*\sdata-open-show[^>]*>([^<]*)<\/button>/g)].map((m) => m[1])).toEqual([
+      'Night Shift Cinema',
+      'Deep Cuts',
+      'The Ghost Signal Show'
+    ])
+    expect(html).toMatch(/<tr\b(?=[^>]*\sdata-resolution="ambiguous")[^>]*>/)
+  })
+
+  it('opens an ambiguous show to pick its match, edit its figures, or leave it out', async () => {
+    fakeQloo({ search })
+    const s = await session()
+    const html = editor(await s.importRoster(roster), 'Deep Cuts')
+
+    expect(html).toMatch(/<h2\b[^>]*\sid="show-ed"[^>]*>Deep Cuts<\/h2>/)
+    expect(words(html)).toContain(
+      'Deep Cuts Close Ambiguous Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
+    )
+    expect(html).toMatch(/<label\b[^>]*\sfor="comp-q"/)
+    expect(html).toMatch(/<input\b[^>]*\sid="comp-q"/)
+  })
+
+  it('maps a missed show to a comp from its search, then counts it as mapped', async () => {
+    fakeQloo({
+      search: { ...search, 'Ghost Hour': [{ entity_id: 'e-0201', name: 'The Ghost Hour Show', popularity: 0.88 }] }
+    })
+    const s = await session()
+    await s.importRoster(roster)
+    const searched = await s.searchComps('The Ghost Signal Show', 'Ghost Hour')
+
+    expect(words(editor(searched, 'The Ghost Signal Show'))).toContain(
+      'The Ghost Signal Show Close Missed Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04 Downloads per episode'
+    )
+    await s.call('updateShow', 'The Ghost Signal Show', { compId: 'e-0201' })
+    const read = words(workspace(s.state()!))
+    expect(read).toContain('Roster 3 shows: 1 resolved, 1 mapped to a comp, 1 ambiguous')
+    expect(read).toContain('The Ghost Signal Show Mapped Mapped to The Ghost Hour Show 88.0 – – C-04')
+  })
+
+  it('says a comp search is under way, citing its call, until Qloo answers', async () => {
+    fakeQloo({ search })
+    const s = await session()
+    await s.importRoster(roster)
+    // Holds the comp search until released; returning nothing hands the request on to fakeQloo.
+    const held = Promise.withResolvers<void>()
+    network.use(
+      http.get(`${env.QLOO_BASE_URL}/search`, ({ request }) =>
+        new URL(request.url).searchParams.get('query') === 'Ghost Hour' ? held.promise : undefined
+      )
+    )
+    await s.call('searchComps', 'The Ghost Signal Show', 'Ghost Hour')
+
+    const html = editor(s.state()!, 'The Ghost Signal Show')
+    expect(html).toMatch(/<p\b[^>]*\srole="status"[^>]*>[\s\S]*Searching Qloo for “Ghost Hour”…/)
+    expect(words(html)).toContain('Searching Qloo for “Ghost Hour”… C-04')
+    held.resolve()
+    const done = await s.until((st) => st.roster.some((show) => show.compSearch?.status === 'done'))
+    expect(words(editor(done, 'The Ghost Signal Show'))).toContain('No podcasts in Qloo match “Ghost Hour”. C-04')
+  })
+
+  it('marks a show left out, counted apart, and offers to include it again', async () => {
+    fakeQloo({ search })
+    const s = await session()
+    await s.importRoster(roster)
+    await s.call('updateShow', 'The Ghost Signal Show', { excluded: true })
+
+    const html = workspace(s.state()!)
+    expect(words(html)).toContain('Roster 3 shows: 1 resolved, 1 ambiguous, 1 excluded')
+    // Left out, it needs nothing settled.
+    expect(words(html)).toContain('The Ghost Signal Show Missed Excluded No show by this name in Qloo. – – C-03')
+    expect(html).toMatch(/<tr\b(?=[^>]*\sdata-excluded="true")[^>]*>\s*<th\b[^>]*>[\s\S]*?The Ghost Signal Show/)
+    expect(words(editor(s.state()!, 'The Ghost Signal Show'))).toContain(
+      'Include again Excluded: kept here, never proposed for a launch.'
+    )
   })
 })
 

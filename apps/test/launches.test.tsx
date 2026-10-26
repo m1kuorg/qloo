@@ -1292,7 +1292,7 @@ describe('the pages, as a member reads them', () => {
     // Nothing is counted or priced until a run brings the roster and its CPM.
     expect(words(before)).not.toContain('Roster check')
     expect(words(before)).not.toContain('Network CPM')
-    expect(before).toContain(`<a class="lnk" href="/app/${network}/roster">the roster page</a>`)
+    expect(before).toMatch(new RegExp(`<a\\b[^>]*\\shref="/app/${network}/roster"[^>]*>the roster page</a>`))
 
     rankAsked()
     fakeClaude([turn(resolve('The Night Watch')), turn(rank('e-0001')), turn(text('Ranked.'))])
@@ -1323,8 +1323,8 @@ describe('the pages, as a member reads them', () => {
       'Map a comp or leave out'
     ])
       expect(read).not.toContain(elsewhere)
-    // No CPM field, and no show to open in an editor.
+    // No CPM field, and no show to open in an editor (the demo's rows open theirs with data-open-show).
     expect(after).not.toMatch(/<input[^>]*aria-labelledby="cpm-h"/)
-    expect(after).not.toContain('<button type="button" class="row-open"')
+    expect(after).not.toContain('data-open-show')
   })
 })
