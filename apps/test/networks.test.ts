@@ -72,7 +72,12 @@ describe('creating a network', () => {
   it('names a network, makes its creator a member, and lands them on its dashboard', async () => {
     const ada = await openMember()
     expect(await where(ada, '/app')).toBe('/app/new')
-    expect(await page(ada, '/app/new')).toContain('data-page="new-network"')
+    const first = await page(ada, '/app/new')
+    expect(first).toContain('data-page="new-network"')
+    // With no network yet, the top bar's switcher still reads "Your networks", and offers a new one.
+    expect(first).toMatch(/<span class="vh">Network: <\/span>\s*<span[^>]*>Your networks<\/span>/)
+    expect(first).toContain('No networks yet.')
+    expect(first).toMatch(/<a href="\/app\/new"[^>]*>\s*New network\s*<\/a>/)
 
     const res = await create(ada, '  Night Shift Audio ')
     expect(res.status).toBe(200)

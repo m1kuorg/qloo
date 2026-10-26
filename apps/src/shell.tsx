@@ -193,8 +193,8 @@ const AccountMenu = ({ member, path }: { member: Member; path: string }) => (
 
 // The network switcher, first in the app's top bar: the current network's name, or "Your networks" on
 // a page outside one, after a visually hidden "Network: ". Its menu lists the member's networks, the
-// current one checked, and "New network". Renaming the network in its settings changes its name in
-// place (data-current-network).
+// current one checked, or says there are none yet, and "New network". Renaming the network in its
+// settings changes its name in place (data-current-network).
 const Switcher = ({ networks, network }: { networks: Network[]; network?: Network }) => (
   <details data-menu class={cn(menu, 'min-w-0')}>
     <summary class={cn(menuButton, 'h-8 min-w-0 px-2 font-medium max-md:h-11 md:-ml-2')}>
@@ -209,25 +209,29 @@ const Switcher = ({ networks, network }: { networks: Network[]; network?: Networ
       <ChevronsUpDown class="size-3.5 shrink-0 text-muted-foreground" />
     </summary>
     <div class={cn(menuPanel, 'left-0 max-w-[calc(100vw-2rem)] origin-top-left')}>
-      <ul aria-label="Your networks" class="flex flex-col">
-        {networks.map((n) => (
-          <li>
-            {n.id === network?.id ? (
-              <a href={`/app/${n.id}`} class={menuItem} aria-current="true">
-                <span class="min-w-0 flex-1 truncate" data-current-network>
-                  {n.name}
-                </span>
-                <Check class="size-4 shrink-0" />
-              </a>
-            ) : (
-              <a href={`/app/${n.id}`} class={menuItem}>
-                <span class="min-w-0 flex-1 truncate">{n.name}</span>
-              </a>
-            )}
-          </li>
-        ))}
-      </ul>
-      <a href="/app/new" class={cn(menuItem, 'mt-1')}>
+      {networks.length === 0 ? (
+        <p class="px-2 pt-1.5 pb-1 type-caption text-muted-foreground">No networks yet.</p>
+      ) : (
+        <ul aria-label="Your networks" class="flex flex-col">
+          {networks.map((n) => (
+            <li>
+              {n.id === network?.id ? (
+                <a href={`/app/${n.id}`} class={menuItem} aria-current="true">
+                  <span class="min-w-0 flex-1 truncate" data-current-network>
+                    {n.name}
+                  </span>
+                  <Check class="size-4 shrink-0" />
+                </a>
+              ) : (
+                <a href={`/app/${n.id}`} class={menuItem}>
+                  <span class="min-w-0 flex-1 truncate">{n.name}</span>
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <a href="/app/new" class={cn(menuItem, networks.length > 0 && 'mt-1')}>
         New network
       </a>
     </div>
@@ -537,9 +541,11 @@ export const appShell = jsxRenderer(({ children }, c) => {
       bar={
         <header class="sticky top-0 z-30 flex h-12 items-center gap-2 bg-background px-4 lg:px-6">
           <MarkLink href="/app" class="-ml-2.5 shrink-0 md:hidden" />
-          {(networks.length > 0 || here) && (
+          {/* Every page here is a member's, so the switcher is always there: on a page outside a network
+              with no networks yet, as on /app/new, it reads "Your networks" and offers New network. */}
+          {(member || here) && (
             <ol class="flex min-w-0 items-center gap-2">
-              {networks.length > 0 && (
+              {member && (
                 <li class="min-w-0">
                   <Switcher networks={networks} network={network} />
                 </li>
