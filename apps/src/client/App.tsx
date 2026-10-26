@@ -11,18 +11,7 @@ import { Alert, percentile, useAction } from './controls'
 import { SampleShell, useSession } from './Demo'
 import { CallButton, EvidencePanel, useEvidence } from './Evidence'
 import { FitChart } from './FitChart'
-import {
-  canvas,
-  Connecting,
-  connectionOf,
-  frame,
-  Inspector,
-  OnAir,
-  Readout,
-  RunState,
-  useInspector,
-  type Connection
-} from './Frame'
+import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
 import { Guide } from './Guide'
 import { InsertionOrderPanel } from './InsertionOrder'
 import { launchTitle, useLaunchFields } from './LaunchFields'
@@ -40,7 +29,7 @@ import {
 } from './RosterModules'
 import { OpenQuestion, ORDER_CHANGED, runLabel, RunLog } from './Run'
 import { Source } from './Source'
-import { sentence, StateLine } from './states'
+import { connectionOf, sentence, StateLine, type Connection } from './states'
 
 // The agent connection the workspace's modules take, as `useSession` (Demo.tsx) opens it.
 export type Session = ReturnType<typeof useSession>

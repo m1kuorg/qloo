@@ -43,22 +43,11 @@ import {
   useIntoView
 } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
-import {
-  canvas,
-  Connecting,
-  connectionOf,
-  frame,
-  Inspector,
-  OnAir,
-  Readout,
-  RunState,
-  useInspector,
-  type Connection
-} from './Frame'
+import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
 import { Code, textLink } from './RosterModules'
 import { OpenQuestion, REPLIES_CHANGED, RunLog } from './Run'
 import { Source } from './Source'
-import { matchLabel, sentence, SlowCalls, stateLabel, StateLine } from './states'
+import { connectionOf, matchLabel, sentence, SlowCalls, stateLabel, StateLine, type Connection } from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>

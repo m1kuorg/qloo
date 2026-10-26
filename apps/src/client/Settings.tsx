@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { State } from '../agent'
 import type { ApiKey, Invite, NetworkMember } from '../directory'
 import type { OwnKey, Usage } from '../gateway'
-import { LostAccess, useNetwork, type NetworkPage } from './NetworkPage'
+import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { ApiKeysModule } from './settings/ApiKeys'
 import { DangerZoneModule } from './settings/DangerZone'
 import { MembersModule } from './settings/Members'
@@ -31,8 +31,11 @@ export function SettingsPage({
   ...membersProps
 }: { agentPath: string; network: NetworkPage } & MembersProps) {
   const agent = useNetwork(agentPath)
-  if (agent.connectionError) return <LostAccess network={network} reason={agent.connectionError.reason} />
-  return <Settings state={agent.state} network={network} {...membersProps} />
+  return (
+    <NetworkGate agent={agent} network={network} notice>
+      <Settings state={agent.state} network={network} {...membersProps} />
+    </NetworkGate>
+  )
 }
 
 // Tests render it from a network agent's synced state; `state` is undefined until it arrives.
