@@ -18,23 +18,33 @@ import { StateLine } from './states'
 // sessions, their networks, and deleting the account, one module per job in the settings' grammar.
 // A recovery code signs a member in here (`recovered`), to add a passkey for the device they're on.
 // Every destructive change confirms first; one that needs the member to confirm it's them (step-up)
-// asks once the confirm has closed, never over it.
+// asks once the confirm has closed, never over it. The guest member's page (`guest`) shows only what's a
+// guest's to do (ADR 0005).
 export function AccountPage({
   name,
   passkeys,
   sessions,
   networks,
-  recovered
+  recovered,
+  guest = false
 }: {
   name: string
   passkeys: AccountPasskey[]
   sessions: number
   networks: AccountNetwork[]
   recovered: boolean
+  guest?: boolean
 }) {
   // A new recovery code to show once, until the member says they've saved it.
   const [code, setCode] = useState<string | null>(null)
   if (code) return <RecoveryCode code={code} next="/app/account" frame={codeFrame} />
+  if (guest)
+    return (
+      <main className={settingsColumn}>
+        <h1 className="type-title">Account</h1>
+        <GuestModule />
+      </main>
+    )
   const onlyOwner = networks.filter((n) => n.onlyOwner).map((n) => n.name)
   return (
     <main className={settingsColumn}>
@@ -55,6 +65,36 @@ export function AccountPage({
 // centred measure.
 const codeFrame =
   'mx-auto grid w-full max-w-[1152px] items-start gap-8 px-4 pt-10 pb-16 lg:grid-cols-2 lg:gap-12 lg:px-6 lg:pt-20'
+
+// The guest member's account, which every guest shares: what that rules out, and signing out of this
+// browser's session alone.
+function GuestModule() {
+  const { busy, error, run } = useAction()
+  const signOut = () =>
+    run(async () => {
+      await send('/auth/sign-out')
+      window.location.assign('/sign-in')
+    })
+  return (
+    <Module
+      id="acct-guest-h"
+      title="Guest"
+      help="Everyone who signs in as a guest is the one guest member, in the guest network, and shares everything in it and its daily limits."
+    >
+      <p>
+        A guest can’t add a passkey or a recovery code, rename the guest member, sign out every guest, or delete the
+        account, and can’t create or join a network. For any of that, sign out and create an account of your own.
+      </p>
+      <div>
+        <Button variant="secondary" disabled={busy} onClick={() => void signOut()}>
+          {busy && <Spinner data-icon="inline-start" />}
+          {busy ? 'Signing out…' : 'Sign out'}
+        </Button>
+      </div>
+      <Alert error={error} />
+    </Module>
+  )
+}
 
 function NameModule({ name: saved }: { name: string }) {
   const [name, setName] = useState(saved)

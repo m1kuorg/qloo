@@ -41,6 +41,8 @@ import {
   setRole,
   setupProgress,
   signOutEverywhere,
+  GUEST_MEMBER,
+  GUEST_NETWORK,
   type Member,
   type Network
 } from '../directory'
@@ -121,6 +123,8 @@ appPages.get('/app/account', async (c) => {
       data-networks={JSON.stringify(networks)}
       // Signing in with a recovery code lands here, to add a passkey.
       data-recovered={String(c.req.query('recovered') !== undefined)}
+      // The guest member's page shows only that it's the guest member, and signing out (ADR 0005).
+      data-guest={id === GUEST_MEMBER ? 'true' : undefined}
     />
   )
 })
@@ -528,7 +532,7 @@ appPages.post('/app/:networkId/settings/delete', async (c) => {
 })
 
 // What every network page tells the island: where the network's agent connects, the network and the
-// member's role in it, and where its pages are.
+// member's role in it, whether it's the guest network, and where its pages are.
 const island = (c: Context<AppEnv>, network: Network) => {
   const links = networkLinks(c.env, network.id)
   return {
@@ -536,6 +540,7 @@ const island = (c: Context<AppEnv>, network: Network) => {
     'data-network-id': network.id,
     'data-network-name': network.name,
     'data-role': network.role,
+    'data-guest': network.id === GUEST_NETWORK ? 'true' : undefined,
     'data-roster-link': links.roster,
     'data-inbox-link': links.inbox ?? undefined,
     'data-settings-link': links.settings,

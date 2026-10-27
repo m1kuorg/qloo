@@ -2,7 +2,7 @@
 // through the accounts routes and the app's pages, as the sign-in page's "Sign in as a guest" does.
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { guestSignIn, openGuest, openMember, type Guest } from './session'
+import { guestSignIn, hooked, openGuest, openMember, type Guest } from './session'
 
 const origin = 'https://crossfeed.test'
 const accounts = env.ACCOUNTS
@@ -185,6 +185,42 @@ describe('what a guest can’t change', () => {
     const page = await (await guest.fetch(settings)).text()
     expect(page).toContain('data-network-name="Guest network"')
     expect(page).toContain('data-role="member"')
+  })
+})
+
+// A page's words, as a reader hears them.
+const words = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+describe('the app, as a guest sees it', () => {
+  const NOTICE =
+    'You’re signed in as a guest. Everyone who signs in as a guest shares the guest network and its daily limits, so put nothing private in it. Sign out and create an account'
+
+  it('says on every page that the guest network is shared, offers a way to an account, and no network of one’s own', async () => {
+    const guest = await openGuest()
+    const network = await guest.connect('/agents/network/guest-network')
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    for (const path of [
+      '/app/guest-network',
+      '/app/guest-network/roster',
+      '/app/guest-network/settings',
+      `/app/guest-network/launches/${id}`,
+      '/app/account',
+      '/app/new'
+    ]) {
+      const html = await (await guest.fetch(path)).text()
+      expect(hooked(html, 'data-guest-notice').map(words), path).toEqual([NOTICE])
+      expect(html, path).not.toContain('New network')
+    }
+    const ada = await openMember()
+    for (const path of ['/app/new', '/app/account']) {
+      const html = await (await ada.fetch(path)).text()
+      expect(hooked(html, 'data-guest-notice'), path).toEqual([])
+      expect(html, path).toContain('New network')
+    }
   })
 })
 
