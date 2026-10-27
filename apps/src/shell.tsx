@@ -128,7 +128,10 @@ const IslandHead = () => {
 export const marketingFrame = 'mx-auto w-full max-w-[1456px] px-6 md:px-10'
 
 // "Skip to content", first in every shell: off the screen until it's focused, it jumps past the shell's
-// links to the page, in #content.
+// links to the page. Its target, #content, is an empty element at the head of the page that takes
+// focus, so the next Tab starts there in every browser; empty, so a click on the page never lands on
+// it.
+const SkipTarget = () => <span id="content" tabindex={-1} class="block" />
 const SkipLink = () => (
   <a
     href="#content"
@@ -138,25 +141,33 @@ const SkipLink = () => (
   </a>
 )
 
-// The mark, as a link home. Its name is Crossfeed.
+// The mark, as a link home, on the tone step while it's hovered. Its name is Crossfeed.
 const MarkLink = ({ href, class: className }: { href: string; class?: string }) => (
-  <a href={href} class={cn('flex size-11 items-center justify-center rounded-lg', className)}>
+  <a
+    href={href}
+    class={cn('flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-muted', className)}
+  >
     <Mark />
     <span class="vh">Crossfeed</span>
   </a>
 )
 
-// The marketing pages' mark and wordmark, top left, linking home.
+// The marketing pages' mark and wordmark, top left, linking home, a shade softer while it's hovered.
+// The name isn't translated.
 const Wordmark = () => (
-  <a href="/" class="-ml-1 flex items-center gap-2 rounded-sm px-1 py-2 font-semibold">
+  <a
+    href="/"
+    translate="no"
+    class="-ml-1 flex items-center gap-2 rounded-sm px-1 py-2 font-semibold transition-opacity hover:opacity-75"
+  >
     <Mark />
     Crossfeed
   </a>
 )
 
 // The shells' menus: native <details data-menu>, so they open without JavaScript; menus.ts closes them
-// one at a time, on a click outside, and on Escape. Styled as shadcn's dropdown menu: an 8px panel on
-// the floating shadow while it's open, with 4px items.
+// one at a time, on a click outside, and on Escape. Styled as shadcn's dropdown menu: an 8px panel that
+// floats (shadow-float) while it's open, with 4px items.
 const menu = 'group/menu relative'
 const menuButton =
   'flex cursor-default list-none items-center gap-1.5 rounded-lg transition-colors select-none hover:bg-muted group-open/menu:bg-muted [&::-webkit-details-marker]:hidden'
@@ -198,6 +209,8 @@ const AccountMenu = ({ member, path }: { member: Member; path: string }) => (
       <button type="button" class={menuItem} data-sign-out>
         Sign out
       </button>
+      {/* main.tsx says here when Sign out fails. */}
+      <span role="status" class="vh" data-sign-out-status />
     </div>
   </details>
 )
@@ -312,6 +325,8 @@ function Rail({ label, home, destinations }: { label: string; home: string; dest
 
 // The app's and the demo's frame: the rail beside a column of the top bar over the page, the React
 // island in #root. Under 768px the rail is a bottom bar, which the page leaves room for.
+// The page scrolls what Tab reaches clear of the 48px top bar, which sticks in the app and from 768px
+// in the demo, and of the phone's bottom bar.
 const AppFrame = ({
   rail,
   bar,
@@ -323,7 +338,10 @@ const AppFrame = ({
   bottomBar: boolean
   children: Child
 }) => (
-  <html lang="en">
+  <html
+    lang="en"
+    class={cn('scroll-pt-12', bottomBar && 'max-md:scroll-pb-[calc(3.5rem+env(safe-area-inset-bottom))]')}
+  >
     <IslandHead />
     <body>
       <SkipLink />
@@ -331,7 +349,8 @@ const AppFrame = ({
         {rail}
         <div class="min-w-0">
           {bar}
-          <div id="content" class={bottomBar ? 'max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))]' : undefined}>
+          <div class={bottomBar ? 'max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))]' : undefined}>
+            <SkipTarget />
             {children}
           </div>
         </div>
@@ -340,53 +359,46 @@ const AppFrame = ({
   </html>
 )
 
-// The marketing pages' links, top right: the sample network, the developer docs, current on every docs
-// page, and while ACCOUNTS is on, Sign in and "Create your network", secondary, so the page's own
-// primary stays the only one. `inMenu` sets them as the items of the phone's Menu.
-const SiteLinks = ({ path, accounts, inMenu }: { path: string; accounts: boolean; inMenu?: boolean }) => {
-  const link = inMenu
-    ? menuItem
-    : 'rounded-sm decoration-1 underline-offset-[5px] hover:underline aria-[current]:underline'
-  return (
-    <>
-      <a class={link} href="/demo">
-        Sample network
-      </a>
-      <a class={link} href="/docs" aria-current={path.startsWith('/docs') ? 'page' : undefined}>
-        Developers
-      </a>
-      {accounts && (
-        <>
-          <a class={link} href="/sign-in">
-            Sign in
-          </a>
-          <a class={inMenu ? menuItem : buttonVariants({ variant: 'secondary', size: 'lg' })} href="/app/new">
-            Create your network
-          </a>
-        </>
-      )}
-    </>
-  )
-}
-
-// The marketing pages' head of the page, with no bar: the wordmark top left and the links top right,
-// which fold into one Menu under 768px. The nav is written twice, for each width, and only one shows,
-// so a page has one nav at a time.
+// The marketing pages' head of the page, with no bar: the wordmark top left and the links top right:
+// the sample network, the developer docs, current on every docs page, and while ACCOUNTS is on, Sign in
+// and "Create your network", secondary, so the page's own primary stays the only one. One nav at every
+// width, as the app's rail is: a <details> "Menu" whose panel holds the links under 768px, and from
+// there its summary hides and the same links sit in a row (style.css, where ::details-content is
+// understood; elsewhere it stays a Menu at every width).
+const siteLink =
+  'rounded-md max-md:flex max-md:min-h-11 max-md:w-full max-md:items-center max-md:px-2 max-md:py-1.5 max-md:transition-colors max-md:hover:bg-accent max-md:focus-visible:bg-accent max-md:aria-[current]:font-medium md:rounded-sm md:decoration-1 md:underline-offset-[5px] md:hover:underline md:aria-[current]:underline'
 const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }) => (
   <header class={cn(marketingFrame, 'flex h-16 items-center justify-between gap-6 md:h-20')}>
     <Wordmark />
-    <nav aria-label="Site" class="flex items-center gap-6 max-md:hidden">
-      <SiteLinks path={path} accounts={accounts} />
+    <nav aria-label="Site">
+      <details data-menu data-site-nav class={menu}>
+        <summary class={cn(menuButton, '-mr-3 h-11 px-3')}>
+          Menu
+          <ChevronDown class="size-4 text-muted-foreground" />
+        </summary>
+        <div class="max-md:absolute max-md:top-full max-md:right-0 max-md:z-50 max-md:mt-1 max-md:flex max-md:min-w-56 max-md:origin-top-right max-md:flex-col max-md:rounded-xl max-md:bg-popover max-md:p-1 max-md:text-popover-foreground max-md:animate-in max-md:duration-100 max-md:fade-in-0 max-md:zoom-in-95 max-md:group-open/menu:shadow-float md:flex md:items-center md:gap-6">
+          <a class={siteLink} href="/demo">
+            Sample network
+          </a>
+          <a class={siteLink} href="/docs" aria-current={path.startsWith('/docs') ? 'page' : undefined}>
+            Developers
+          </a>
+          {accounts && (
+            <>
+              <a class={siteLink} href="/sign-in">
+                Sign in
+              </a>
+              <a
+                class={buttonVariants({ variant: 'secondary', size: 'lg', className: 'max-md:mt-1 max-md:w-full' })}
+                href="/app/new"
+              >
+                Create your network
+              </a>
+            </>
+          )}
+        </div>
+      </details>
     </nav>
-    <details data-menu class={cn(menu, 'md:hidden')}>
-      <summary class={cn(menuButton, '-mr-3 h-11 px-3')}>
-        Menu
-        <ChevronDown class="size-4 text-muted-foreground" />
-      </summary>
-      <nav aria-label="Site" class={cn(menuPanel, 'right-0 origin-top-right')}>
-        <SiteLinks path={path} accounts={accounts} inMenu />
-      </nav>
-    </details>
   </header>
 )
 
@@ -398,7 +410,10 @@ const footerLink =
 const Footer = () => (
   <footer class="mt-24 overflow-hidden bg-muted md:mt-40">
     <div class={cn(marketingFrame, 'pt-8 pb-8 md:pt-12 md:pb-12')}>
-      <p class="text-[length:calc((min(100vw,1456px)_-_3rem)_/_4.5)] leading-[0.8] font-semibold tracking-[-0.05em] whitespace-nowrap md:text-[length:calc((min(100vw,1456px)_-_5rem)_/_4.5)]">
+      <p
+        translate="no"
+        class="text-[length:calc((min(100vw,1456px)_-_3rem)_/_4.5)] leading-[0.8] font-semibold tracking-[-0.05em] whitespace-nowrap md:text-[length:calc((min(100vw,1456px)_-_5rem)_/_4.5)]"
+      >
         Crossfeed
       </p>
       <div class="mt-10 flex flex-col gap-2 md:mt-16 md:flex-row md:items-baseline md:justify-between">
@@ -457,7 +472,8 @@ export const MarketingPage = ({
     <body class="flex min-h-svh flex-col type-body">
       <SkipLink />
       <MarketingHeader path={path} accounts={accounts} />
-      <div id="content" class="flex-1">
+      <div class="flex-1">
+        <SkipTarget />
         {children}
       </div>
       <Footer />
@@ -628,7 +644,10 @@ export const authShell = jsxRenderer(({ children }, c) => {
           <Wordmark />
           {member && <AccountMenu member={member} path={c.req.path} />}
         </header>
-        <div id="content">{children}</div>
+        <div>
+          <SkipTarget />
+          {children}
+        </div>
       </body>
     </html>
   )
