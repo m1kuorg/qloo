@@ -1050,7 +1050,7 @@ marketing.get(
   marketingShell(
     null,
     'Crossfeed ranks a podcast network’s own shows by how much their listeners overlap a launch’s, in Qloo, and drafts the promo plan as an insertion order you approve.',
-    { reveal: true }
+    { reveal: true, ascii: true }
   ),
   (c) => c.render(<Landing accounts={c.env.ACCOUNTS === 'on'} inbox={c.env.GUEST_PITCHES === 'on'} />)
 )

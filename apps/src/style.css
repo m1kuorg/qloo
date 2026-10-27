@@ -62,6 +62,10 @@
   --signal-foreground: #121318;
   --signal-ink: #a24a00;
   --signal-tint: #fdeee2;
+  /* The landing page's ASCII field (client/ascii.ts): its densest glyph, ink over the ground, no darker
+     than keeps muted text 4.5:1 against it (4.57:1 here, 4.54:1 in dark), so every word reads over
+     the field. */
+  --ascii: #dfdfe1;
   /* What floats (menus, popovers, selects, dialogs, sheets): a faint ring and one shadow. */
   --float-shadow: 0 0 0 1px rgb(18 19 24 / 0.06), 0 8px 24px -8px rgb(0 0 0 / 0.16);
   /* Under a modal dialog, alert dialog or sheet: ink at 40%. */
@@ -93,6 +97,7 @@
     --signal-foreground: #0e0f12;
     --signal-ink: #ffa266;
     --signal-tint: #2a1a0e;
+    --ascii: #343538;
     /* A light ring and a deeper shadow, so what floats stands off the dark ground. */
     --float-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 16px 40px -8px rgb(0 0 0 / 0.72);
     --scrim: rgb(0 0 0 / 0.6);
