@@ -8,9 +8,9 @@ import { Module } from './Module'
 
 // The settings' usage module: what the network has used today against the beta's daily caps, as the
 // gateway counts them for the network whichever member or API key spends them, and when they reset.
-// Every member sees it, so a refused run is never a surprise. `usage` is read as the page loads, and
-// again as the network's own Qloo key comes or goes (`hasOwnKey`), since its Qloo calls count in its own
-// gateway instance while it has one.
+// Every member sees it, so a refused run is never a surprise; in the guest network, it says every guest's
+// use counts together (ADR 0005). `usage` is read as the page loads, and again as the network's own Qloo
+// key comes or goes (`hasOwnKey`), since its Qloo calls count in its own gateway instance while it has one.
 export function UsageModule({ network, usage, hasOwnKey }: { network: NetworkPage; usage: Usage; hasOwnKey: boolean }) {
   const rows = [
     {
@@ -27,12 +27,15 @@ export function UsageModule({ network, usage, hasOwnKey }: { network: NetworkPag
     }
   ]
   const local = localTime(usage.resets)
+  const what = network.guest
+    ? 'What the guest network can use each UTC day, shared by everyone who signs in as a guest'
+    : `What ${network.name} can use each UTC day, whichever member or API key uses it`
   return (
     <Module
       id="set-usage-h"
       title="Usage"
       badge={<Badge>Beta</Badge>}
-      help={`What ${network.name} can use each UTC day, whichever member or API key uses it. Model runs are launch runs, inbox loads, and pitch runs; Qloo calls count cached answers too. Crossfeed’s caps across every network apply as well.`}
+      help={`${what}. Model runs are launch runs, inbox loads, and pitch runs; Qloo calls count cached answers too. Crossfeed’s caps across every network apply as well.`}
     >
       <KeyValues>
         {rows.map((r) => (
