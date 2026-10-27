@@ -151,12 +151,13 @@ async function registered(c: Context<{ Bindings: Env }>, ceremony: string, start
 const taken = (err: unknown) => String(err).includes('passkeys.credential_id')
 
 // The sign-in page, a page of the React island: `next` is where it goes once the member is in, a
-// path on this site. A member already signed in goes straight there.
+// path on this site, and `runs` the guest network's model runs a day, which its guests share. A member
+// already signed in goes straight there.
 auth.get('/sign-in', async (c) => {
   const next = nextPath(c, c.req.query('next'))
   if (await signedIn(c)) return c.redirect(next, 302)
   c.header('Cache-Control', 'no-store')
-  return c.render(<Island page="sign-in" data-next={next} />)
+  return c.render(<Island page="sign-in" data-next={next} data-runs={Number(c.env.RUN_VISITOR_DAILY_CAP) || 0} />)
 })
 
 // The invite page, a page of the React island. The link's token is in its fragment, which the browser

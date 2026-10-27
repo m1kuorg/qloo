@@ -21,7 +21,7 @@ const network = () => ({
 // the demo's inbox, and any other page the demo's roster, "roster". It isn't React.lazy: its Suspense
 // holds back the page's first render by about 300 ms.
 const pages: Record<string, () => Promise<ReactNode>> = {
-  'sign-in': () => import('./Account').then(({ SignInPage }) => <SignInPage next={d.next!} />),
+  'sign-in': () => import('./Account').then(({ SignInPage }) => <SignInPage next={d.next!} runs={Number(d.runs)} />),
   invite: () => import('./Account').then(({ InvitePage }) => <InvitePage memberName={d.memberName ?? null} />),
   account: () =>
     import('./AccountPage').then(({ AccountPage }) => (

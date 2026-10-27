@@ -274,7 +274,9 @@ describe('the way in', () => {
   it('serves the sign-in page with where to go next, a path on this site or else /app', async () => {
     const nextOf = async (next: string) =>
       (await (await get(`/sign-in?next=${encodeURIComponent(next)}`)).text()).match(/data-next="([^"]*)"/)?.[1]
-    expect(await (await get('/sign-in')).text()).toContain('<div id="root" data-page="sign-in" data-next="/app">')
+    expect(await (await get('/sign-in')).text()).toContain(
+      '<div id="root" data-page="sign-in" data-next="/app" data-runs="10">'
+    )
     expect(await nextOf('/app/new')).toBe('/app/new')
     for (const away of [
       'https://crossfeed.example/app',
@@ -287,14 +289,21 @@ describe('the way in', () => {
       expect(await nextOf(away)).toBe('/app')
   })
 
-  it('offers a passkey first, then a new account, each in one labelled panel', async () => {
-    const next = (await (await get('/sign-in?next=/app/new')).text()).match(/data-next="([^"]*)"/)![1]
-    const html = renderToStaticMarkup(createElement(SignInPage, { next }))
+  it('offers a passkey first, then a new account, then a guest’s way in, each in one labelled panel', async () => {
+    const page = await (await get('/sign-in?next=/app/new')).text()
+    const next = page.match(/data-next="([^"]*)"/)![1]
+    // The guest network's model runs a day, RUN_VISITOR_DAILY_CAP.
+    const runs = Number(page.match(/data-runs="([^"]*)"/)![1])
+    const html = renderToStaticMarkup(createElement(SignInPage, { next, runs }))
     expect(words(html)).toBe(
-      'Sign in to Crossfeed Crossfeed signs you in with a passkey, kept by your device or password manager. There’s no password, and no email to confirm. Sign in Use the passkey you made for Crossfeed on this device, or on a phone nearby. Sign in with a passkey Lost every passkey? Use a recovery code New here? Create an account Your name, as your teammates will see it Your browser makes a passkey for Crossfeed, then you get a recovery code to keep. Create account'
+      'Sign in to Crossfeed Crossfeed signs you in with a passkey, kept by your device or password manager. There’s no password, and no email to confirm. Sign in Use the passkey you made for Crossfeed on this device, or on a phone nearby. Sign in with a passkey Lost every passkey? Use a recovery code New here? Create an account Your name, as your teammates will see it Your browser makes a passkey for Crossfeed, then you get a recovery code to keep. Create account Look around as a guest Everyone who signs in as a guest shares one guest network and its daily limits, 10 model runs a day between them, so put nothing private in it. Sign in as a guest'
+    )
+    expect(words(renderToStaticMarkup(createElement(SignInPage, { next, runs: 1 })))).toContain(
+      'its daily limits, 1 model run a day between them,'
     )
     expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-in"/)
     expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-new"/)
+    expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-guest"/)
     expect(html).toMatch(/<label\b[^>]*\sfor="member-name"/)
     expect(html).toMatch(/<input\b(?=[^>]*\sid="member-name")(?=[^>]*\srequired="")/)
     // The island renders no <header> of its own: the auth shell's is the page's one banner.
