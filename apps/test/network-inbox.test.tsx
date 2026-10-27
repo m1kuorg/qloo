@@ -377,7 +377,7 @@ describe('approving a reply', () => {
     // Ada's page shows it approved, ready to copy, under the network's limits on model runs.
     const page = inboxPage(seen, network)
     expect(page).toMatch(
-      /Night Ferry · Ada Quill Approved To Pat Lindqvist <pat\.lindqvist@example\.com> No angle: Qloo returned no shared tags\. Shares with Night Shift Cinema: Qloo data No distinctive shared tags C-\d+ Let's revisit Night Ferry in spring\. Copy Edit Discard Copy it into your own email to send\./
+      /Night Ferry · Ada Quill Approved To Pat Lindqvist <pat\.lindqvist@example\.com> No angle: Qloo returned no shared tags\. Shares with Night Shift Cinema: Qloo data No distinctive shared tags C-\d+ Let's revisit Night Ferry in spring\. Copy reply about Night Ferry Edit reply about Night Ferry Discard reply about Night Ferry Copy it into your own email to send\./
     )
     expect(page).toContain('Runs Run 1 · Pitches for Night Shift Cinema')
     expect(page).toContain(
@@ -599,7 +599,7 @@ describe("the inbox page's words", () => {
 
     await upload(agent, new File([long], 'digest.eml'), new File([blank], 'kit.eml'), new File([nightFerry], 'a.eml'))
     expect(inboxPage(await loaded(agent), network)).toContain(
-      'Skipped "Weekly Digest <digest@example.com>" is over the 10,000-character limit and "Press kit attached" has no text, so they aren\'t in the inbox.'
+      'Skipped “Weekly Digest <digest@example.com>” is over the 10,000-character limit and “Press kit attached” has no text, so they aren’t in the inbox.'
     )
   })
 })

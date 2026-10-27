@@ -28,6 +28,7 @@ import { MAX_TITLE } from '../text'
 import { sameName } from '../resolve'
 import { readPitchUpload } from '../upload'
 import type { Links, Session } from './App'
+import { useConfirm } from './Confirm'
 import {
   Alert,
   DropCue,
@@ -41,7 +42,8 @@ import {
   ScrollTable,
   useAction,
   useFileDrop,
-  useIntoView
+  useIntoView,
+  useLeaveGuard
 } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
 import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
@@ -236,7 +238,11 @@ export function InboxPage({
             {viewing ? (
               <p className="text-muted-foreground">As they were when run {viewing} ended.</p>
             ) : (
-              <InboxLoad loadInbox={actions.loadInbox} reading={reading} />
+              <InboxLoad
+                loadInbox={actions.loadInbox}
+                reading={reading}
+                wipes={Boolean(booking?.lists?.length || booking?.replies?.length)}
+              />
             )}
           </div>
           {inbox?.skipped && (
@@ -300,6 +306,8 @@ export function InboxPage({
               pitch={pitch}
               confirmWork={viewing ? null : actions.confirmWork}
               close={() => close(pitch.id)}
+              openCall={showCall}
+              opened={opened}
             />
           </TabsContent>
         )}
@@ -394,9 +402,10 @@ function InboxHead({
             )}
           </>
         ) : (
+          // The state word alone: the pitches' section says what to do.
           <span className="inline-flex items-center gap-2">
             <OnAir live={false} idle />
-            No pitches yet.
+            <b className="font-semibold">Not loaded</b>
           </span>
         )}
       </Readout>
@@ -405,18 +414,44 @@ function InboxHead({
 }
 
 // Pitches pasted, uploaded as email files, or dropped anywhere on the page, read in the browser by the
-// upload module and sent as pitches; or the sample inbox. Each replaces the inbox. From 768px the box
-// and what it takes sit side by side, as the roster's import does.
-function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; reading: boolean }) {
+// upload module and sent as pitches; or the sample inbox. Each replaces the inbox; over one with ranked
+// lists or replies (`wipes`), which go with it, a load confirms first. From 768px the box and what it
+// takes sit side by side, as the roster's import does.
+function InboxLoad({
+  loadInbox,
+  reading,
+  wipes
+}: {
+  loadInbox: Actions['loadInbox']
+  reading: boolean
+  wipes: boolean
+}) {
   const [text, setText] = useState('')
   const { busy, error, run } = useAction()
+  const { confirm, dialog } = useConfirm()
   const locked = busy || reading
   const file = useRef<HTMLInputElement>(null)
+  const load = async (go: () => Promise<unknown>) => {
+    if (!wipes) return run(go)
+    confirm({
+      title: 'Replace the inbox?',
+      consequence:
+        'Its ranked lists and replies go with it, approved replies included, and can’t be brought back. Earlier pitch runs stay in Runs, read-only.',
+      verb: 'Replace inbox',
+      busy: 'Loading…',
+      keep: 'Keep',
+      action: go
+    })
+    return false
+  }
   const paste = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await run(() => loadInbox({ text }))) setText('')
+    await load(async () => {
+      await loadInbox({ text })
+      setText('')
+    })
   }
-  const upload = (files: File[]) => run(async () => loadInbox({ pitches: await readPitchUpload(files) }))
+  const upload = (files: File[]) => load(async () => loadInbox({ pitches: await readPitchUpload(files) }))
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = [...(e.target.files ?? [])]
     e.target.value = ''
@@ -452,7 +487,7 @@ function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; re
             type="button"
             variant="secondary"
             disabled={locked}
-            onClick={() => void run(() => loadInbox({ sample: true }))}
+            onClick={() => void load(() => loadInbox({ sample: true }))}
           >
             Load sample inbox
           </Button>
@@ -480,6 +515,7 @@ function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; re
       <div className="md:col-span-2">
         <Alert error={error} />
       </div>
+      {dialog}
     </form>
   )
 }
@@ -488,7 +524,7 @@ function InboxLoad({ loadInbox, reading }: { loadInbox: Actions['loadInbox']; re
 function SkippedPitches({ skipped }: { skipped: Skipped[] }) {
   return (
     <StateLine kind="error" word="Skipped">
-      {listOf(skipped.map((s) => `"${s.pitch}" ${s.why}`))}, so {skipped.length === 1 ? "it isn't" : "they aren't"} in
+      {listOf(skipped.map((s) => `“${s.pitch}” ${s.why}`))}, so {skipped.length === 1 ? 'it isn’t' : 'they aren’t'} in
       the inbox.
     </StateLine>
   )
@@ -515,14 +551,24 @@ const rowsOf = (guests: Omit<PastGuest, 'match'>[]): GuestRow[] =>
 const guestRow =
   "grid grid-cols-2 gap-x-2 gap-y-1.5 [grid-template-areas:'guest_guest'_'title_title'_'type_year'_'remove_remove'] md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_7.5rem_4.5rem_4.75rem] md:items-center md:[grid-template-areas:'guest_title_type_year_remove']"
 
-// A past guest's field, with its column's name over it on a phone; its own label names it for screen
-// readers, with the guest's number.
-function GuestField({ name, area, children }: { name: string; area: string; children: ReactNode }) {
+// A past guest's field, with its column's name over it on a phone, which a tap focuses it from; its own
+// aria-label names it for screen readers, with the guest's number, so the name over it isn't read too.
+function GuestField({
+  name,
+  area,
+  field,
+  children
+}: {
+  name: string
+  area: string
+  field: string
+  children: ReactNode
+}) {
   return (
     <div className={cn('flex min-w-0 flex-col gap-1', area)}>
-      <span aria-hidden="true" className="type-caption text-muted-foreground md:hidden">
+      <label htmlFor={field} aria-hidden="true" className="type-caption text-muted-foreground md:hidden">
         {name}
-      </span>
+      </label>
       {children}
     </div>
   )
@@ -564,20 +610,29 @@ function PitchSetup({
   const [invalid, setInvalid] = useState<number | null>(null)
   const { busy, error, run } = useAction()
   const chosen = show !== null && shows.some((s) => s.name === show) ? show : (suggested ?? shows[0]?.name ?? '')
-  const edit = (i: number, change: Partial<GuestRow>) =>
+  const edit = (i: number, change: Partial<GuestRow>) => {
     setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)))
+    setTyped(true)
+  }
+  // Past guests typed and not yet run: leaving the page asks first.
+  const [typed, setTyped] = useState(false)
+  useLeaveGuard(typed)
   const reading = inbox.status === 'reading'
   const locked = busy || running || reading
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     const year = rows.findIndex((r) => r.year.trim() && !/^\d{4}$/.test(r.year.trim()))
     setInvalid(year >= 0 ? year : null)
-    if (year >= 0) return
+    // Back to the year to fix, which the error under the form describes.
+    if (year >= 0) return document.getElementById(`guest-${year}-year`)?.focus()
     const pastGuests = rows.map((r) => ({
       guest: r.guest,
       work: { title: r.title, type: r.type, year: r.year.trim() ? Number(r.year) : null }
     }))
-    void run(() => startPitches({ show: chosen, pastGuests }))
+    void run(async () => {
+      await startPitches({ show: chosen, pastGuests })
+      setTyped(false)
+    })
   }
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-labelledby="setup-h">
@@ -602,16 +657,20 @@ function PitchSetup({
       ) : (
         <form className="flex flex-col gap-5" onSubmit={submit}>
           <div className="flex flex-col gap-1.5">
-            <span className="font-medium" id="setup-show">
+            <label className="font-medium" id="setup-show" htmlFor="setup-show-trigger">
               Show
-            </span>
+            </label>
             <Select
               items={shows.map((s) => ({ value: s.name, label: s.name }))}
               value={chosen}
               onValueChange={(name) => setShow(name as string)}
               disabled={locked}
             >
-              <SelectTrigger aria-labelledby="setup-show" className="w-full sm:w-80 max-md:h-11">
+              <SelectTrigger
+                id="setup-show-trigger"
+                aria-labelledby="setup-show"
+                className="w-full sm:w-80 max-md:h-11"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -635,8 +694,9 @@ function PitchSetup({
             </div>
             {rows.map((r, i) => (
               <div className={guestRow} key={i}>
-                <GuestField name="Guest" area="[grid-area:guest]">
+                <GuestField name="Guest" area="[grid-area:guest]" field={`guest-${i}-name`}>
                   <Input
+                    id={`guest-${i}-name`}
                     aria-label={`Past guest ${i + 1}`}
                     value={r.guest}
                     onChange={(e) => edit(i, { guest: e.target.value })}
@@ -645,8 +705,9 @@ function PitchSetup({
                     className="max-md:h-11"
                   />
                 </GuestField>
-                <GuestField name="Work title" area="[grid-area:title]">
+                <GuestField name="Work title" area="[grid-area:title]" field={`guest-${i}-title`}>
                   <Input
+                    id={`guest-${i}-title`}
                     aria-label={`Past guest ${i + 1}'s work title`}
                     value={r.title}
                     onChange={(e) => edit(i, { title: e.target.value })}
@@ -655,14 +716,18 @@ function PitchSetup({
                     className="max-md:h-11"
                   />
                 </GuestField>
-                <GuestField name="Type" area="[grid-area:type]">
+                <GuestField name="Type" area="[grid-area:type]" field={`guest-${i}-type`}>
                   <Select
                     items={typeItems}
                     value={r.type}
                     onValueChange={(type) => edit(i, { type: type as WorkType })}
                     disabled={locked}
                   >
-                    <SelectTrigger aria-label={`Past guest ${i + 1}'s work type`} className="w-full max-md:h-11">
+                    <SelectTrigger
+                      id={`guest-${i}-type`}
+                      aria-label={`Past guest ${i + 1}'s work type`}
+                      className="w-full max-md:h-11"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -676,10 +741,12 @@ function PitchSetup({
                     </SelectContent>
                   </Select>
                 </GuestField>
-                <GuestField name="Year" area="[grid-area:year]">
+                <GuestField name="Year" area="[grid-area:year]" field={`guest-${i}-year`}>
                   <Input
+                    id={`guest-${i}-year`}
                     aria-label={`Past guest ${i + 1}'s work year`}
                     aria-invalid={invalid === i || undefined}
+                    aria-describedby={invalid === i ? 'setup-error' : undefined}
                     inputMode="numeric"
                     value={r.year}
                     onChange={(e) => edit(i, { year: e.target.value })}
@@ -692,7 +759,10 @@ function PitchSetup({
                   variant="ghost"
                   size="sm"
                   aria-label={`Remove past guest ${i + 1}`}
-                  onClick={() => setRows(rows.filter((_, j) => j !== i))}
+                  onClick={() => {
+                    setRows(rows.filter((_, j) => j !== i))
+                    setTyped(true)
+                  }}
                   disabled={locked}
                   className="justify-self-start [grid-area:remove] max-md:-ml-2.5 max-md:h-11 md:justify-self-end"
                 >
@@ -705,7 +775,10 @@ function PitchSetup({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setRows([...rows, { guest: '', title: '', type: 'book', year: '' }])}
+                onClick={() => {
+                  setRows([...rows, { guest: '', title: '', type: 'book', year: '' }])
+                  setTyped(true)
+                }}
                 disabled={locked}
                 className="-ml-2.5 self-start max-md:h-11"
               >
@@ -730,13 +803,15 @@ function PitchSetup({
                       : 'A new run: earlier runs stay in Runs.'}
             </small>
           </div>
-          <Alert
-            error={
-              invalid !== null
-                ? `Past guest ${invalid + 1}'s year must be four digits, such as 2024, or left empty.`
-                : error
-            }
-          />
+          <div id="setup-error">
+            <Alert
+              error={
+                invalid !== null
+                  ? `Past guest ${invalid + 1}’s year must be four digits, such as 2024, or left empty.`
+                  : error
+              }
+            />
+          </div>
         </form>
       )}
     </section>
@@ -826,7 +901,7 @@ function RankedPitches({
   const cell = 'border-b py-2.5 align-baseline group-data-selected/row:bg-muted'
   return (
     // Three columns at most 768px wide, so a short work's name isn't left far from its band.
-    <div className="flex max-w-3xl min-w-0 flex-col gap-2" role="group" aria-labelledby={id}>
+    <div className="flex min-w-0 flex-col gap-2" role="group" aria-labelledby={id}>
       <div className="flex flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <h3 className="font-semibold" id={id}>
@@ -1013,8 +1088,9 @@ function Replies({
             <h3 className="font-semibold" id={`replies-${v}`}>
               {verdictLabel[v]} · {group.length}
             </h3>
-            {/* As wide as the ranked lists, so a reply's chip stays by its words. */}
-            <ul className="flex max-w-3xl flex-col gap-2">
+            {/* As wide as the canvas, as the ranked lists and the chart are; each reply's text keeps its
+                72ch measure inside. */}
+            <ul className="flex flex-col gap-2">
               {group.map((r) => (
                 <ReplyItem
                   key={r.pitch}
@@ -1098,6 +1174,11 @@ function ReplyItem({
   const ref = (a: Act) => (el: HTMLElement | null) => {
     buttons.current[a] = el
   }
+  // A draft typed and not saved: leaving the page asks first.
+  useLeaveGuard(editing !== null && editing !== reply.draft)
+  // Each action's name says which reply it's for, so a screen reader's list of buttons tells forty
+  // replies' Approves apart; the eye has the reply around it.
+  const about = <span className="vh"> reply about {name}</span>
   const who = (
     <p className="min-w-0 text-[15px] leading-snug">
       <span className={reply.status === 'discarded' ? 'font-medium' : 'font-semibold'}>{name}</span>
@@ -1127,6 +1208,7 @@ function ReplyItem({
                 className="-mr-2.5 max-md:h-11"
               >
                 Restore
+                {about}
               </Button>
             </div>
           )}
@@ -1205,6 +1287,7 @@ function ReplyItem({
                   onClick={() => void act(() => actions.approveReply(reply.pitch), 'copy', 'approve')}
                 >
                   Approve
+                  {about}
                 </Button>
               )}
               <Button
@@ -1221,6 +1304,7 @@ function ReplyItem({
                   <CopyIcon data-icon="inline-start" aria-hidden="true" />
                 )}
                 {approved && copied === reply.draft ? 'Copied' : 'Copy'}
+                {about}
               </Button>
               {!readOnly && (
                 <>
@@ -1233,6 +1317,7 @@ function ReplyItem({
                     onClick={() => setEditing(reply.draft)}
                   >
                     Edit
+                    {about}
                   </Button>
                   <Button
                     type="button"
@@ -1243,6 +1328,7 @@ function ReplyItem({
                     onClick={() => void act(() => actions.discardReply(reply.pitch), 'restore', 'discard')}
                   >
                     Discard
+                    {about}
                   </Button>
                 </>
               )}
@@ -1251,9 +1337,13 @@ function ReplyItem({
               </small>
             </div>
           )}
+          {/* The button's "Copied", told to screen readers too. */}
+          <span role="status" className="vh">
+            {approved && copied === reply.draft ? 'Copied' : ''}
+          </span>
           {uncopied && (
             <StateLine kind="error" role="alert">
-              This browser didn&apos;t let Crossfeed copy it. Select the reply and copy it yourself.
+              This browser didn’t let Crossfeed copy it. Select the reply and copy it yourself.
             </StateLine>
           )}
         </>
@@ -1574,11 +1664,15 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElem
 function PitchDetail({
   pitch: p,
   confirmWork,
-  close
+  close,
+  openCall,
+  opened
 }: {
   pitch: Pitch
   confirmWork: Actions['confirmWork'] | null
   close: () => void
+  openCall: (call: string) => void
+  opened: string | null
 }) {
   const { busy, error, run } = useAction()
   const match = p.match
@@ -1627,14 +1721,29 @@ function PitchDetail({
           legend={`Which Qloo ${typeLabel[p.work.type].toLowerCase()} is ${p.work.title}?`}
           options={match.candidates}
           current={match.resolution === 'resolved' ? match.entity?.id : undefined}
-          note={`Same-title results from Qloo search ${match.evidence}`}
+          note={
+            <>
+              Same-title results from Qloo search{' '}
+              <CallButton
+                call={match.evidence}
+                label={`Evidence for ${p.work.title}`}
+                opened={opened}
+                openCall={openCall}
+              />
+            </>
+          }
           submit="Use this match"
           busy={busy}
           pick={(id) => run(() => confirmWork(p.id, id))}
         />
       )}
       <Alert error={error} />
-      <div className="rounded-lg bg-muted p-3 break-words whitespace-pre-line" tabIndex={0} aria-label="Pitch text">
+      <div
+        className="rounded-lg bg-muted p-3 break-words whitespace-pre-line"
+        tabIndex={0}
+        role="region"
+        aria-label="Pitch text"
+      >
         {p.body}
       </div>
     </section>

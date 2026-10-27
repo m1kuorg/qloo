@@ -483,10 +483,11 @@ describe('the booker clearing the inbox', () => {
   it('enables Copy on a reply only once it is approved, and drops it from a discarded one', async () => {
     const { s } = await pitchRun(drafted)
     const page = () => inboxPage(s.state()!)
-    // Each reply's Copy button, found by its name: 'enabled', 'disabled', or null when it has none.
+    // Each reply's Copy button, found by its name, which says which reply it copies: 'enabled',
+    // 'disabled', or null when it has none.
     const copy = (html: string, pitch: string) => {
       const [attrs] = buttons(replyOn(html, pitch))
-        .filter(([, name]) => name === 'Copy')
+        .filter(([, name]) => name.startsWith('Copy reply about '))
         .map(([attrs]) => attrs)
       return attrs === undefined ? null : /\sdisabled[\s=>]/.test(attrs) ? 'disabled' : 'enabled'
     }
@@ -521,20 +522,21 @@ describe('the booker clearing the inbox', () => {
     const [, paperMoons, , staticBloom] = state.booking!.replies!
 
     expect(words(replyOn(html, 'pitch-02'))).toBe(
-      `Paper Moons · Rue Vance Draft Episode angle ${replies[1].angle} Shares with Night Shift Cinema: Qloo data Film History ${paperMoons.sharedTags!.call} ${replies[1].draft} Approve Copy Edit Discard Copy unlocks once you approve.`
+      `Paper Moons · Rue Vance Draft Episode angle ${replies[1].angle} Shares with Night Shift Cinema: Qloo data Film History ${paperMoons.sharedTags!.call} ${replies[1].draft} Approve reply about Paper Moons Copy reply about Paper Moons Edit reply about Paper Moons Discard reply about Paper Moons Copy unlocks once you approve.`
     )
     // Approved, Approve gives way and Copy leads.
     expect(words(replyOn(html, 'pitch-04'))).toBe(
-      `Static Bloom · Ben Ochoa Approved Episode angle ${replies[3].angle} Shares with Night Shift Cinema: Qloo data Indie Film · Conversational ${staticBloom.sharedTags!.call} ${replies[3].draft} Copy Edit Discard Copy it into your own email to send.`
+      `Static Bloom · Ben Ochoa Approved Episode angle ${replies[3].angle} Shares with Night Shift Cinema: Qloo data Indie Film · Conversational ${staticBloom.sharedTags!.call} ${replies[3].draft} Copy reply about Static Bloom Edit reply about Static Bloom Discard reply about Static Bloom Copy it into your own email to send.`
     )
+    // Each action's name says which reply it's for, so a screen reader's list of buttons tells them apart.
     expect(actionsOf(html, 'pitch-04')).toEqual([
-      ['Copy', false],
-      ['Edit', false],
-      ['Discard', false]
+      ['Copy reply about Static Bloom', false],
+      ['Edit reply about Static Bloom', false],
+      ['Discard reply about Static Bloom', false]
     ])
     // Discarded, it folds to its work, its state and Restore.
-    expect(words(replyOn(html, 'pitch-03'))).toBe('Fen Light · Oda Brink Discarded Restore')
-    expect(actionsOf(html, 'pitch-03')).toEqual([['Restore', false]])
+    expect(words(replyOn(html, 'pitch-03'))).toBe('Fen Light · Oda Brink Discarded Restore reply about Fen Light')
+    expect(actionsOf(html, 'pitch-03')).toEqual([['Restore reply about Fen Light', false]])
     // The heading counts the replies kept; each group counts its own.
     expect(words(html)).toContain('Replies · 1 of 6 approved')
     expect(words(html).match(/(Book|Later|Decline) · \d/g)).toEqual(['Book · 3', 'Later · 2', 'Decline · 2'])
@@ -551,8 +553,10 @@ describe('the booker clearing the inbox', () => {
     expect(words(html)).toContain(
       "shares with Night Shift Cinema in Qloo. Run 1's replies, read-only; an approved one can still be copied."
     )
-    expect(actionsOf(html, 'pitch-02')).toEqual([['Copy', false]])
-    expect(words(replyOn(html, 'pitch-02'))).toMatch(/Copy Copy it into your own email to send\.$/)
+    expect(actionsOf(html, 'pitch-02')).toEqual([['Copy reply about Paper Moons', false]])
+    expect(words(replyOn(html, 'pitch-02'))).toMatch(
+      /Copy reply about Paper Moons Copy it into your own email to send\.$/
+    )
     expect(hooked(replyOn(html, 'pitch-01'), 'data-actions')).toEqual([])
     expect(words(replyOn(html, 'pitch-03'))).toBe('Fen Light · Oda Brink Discarded')
     // Its pitches as they were, with no way to load others or rank them again.
@@ -560,7 +564,10 @@ describe('the booker clearing the inbox', () => {
     expect(words(html)).not.toContain('Rank against a show')
     const named = buttons(html).map(([, name]) => name)
     for (const absent of ['Rank pitches', 'Read pitches', 'Load sample inbox', 'Approve', 'Edit', 'Discard', 'Restore'])
-      expect(named).not.toContain(absent)
+      expect(
+        named.filter((name) => name === absent || name.startsWith(`${absent} reply about`)),
+        absent
+      ).toEqual([])
   })
 
   it('keeps edits and discards across a reload, and returns an edited approved reply to draft', async () => {
@@ -634,10 +641,10 @@ describe('the booker clearing the inbox', () => {
       'Only an approved reply can be copied, to send from your own email. Claude is still drafting: approve once the run has ended.'
     )
     expect(actionsOf(html, 'pitch-02')).toEqual([
-      ['Approve', true],
-      ['Copy', true],
-      ['Edit', true],
-      ['Discard', true]
+      ['Approve reply about Paper Moons', true],
+      ['Copy reply about Paper Moons', true],
+      ['Edit reply about Paper Moons', true],
+      ['Discard reply about Paper Moons', true]
     ])
     await expect(s.call('approveReply', 'pitch-02')).rejects.toThrow('The agent is still drafting replies.')
   })
