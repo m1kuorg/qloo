@@ -18,9 +18,13 @@ if (canvas && ctx) {
   // skill's linter (lint.mjs), which flags mono outside code.
   const FONT = 'ui-monospace, SFMono-Regular, Menlo, monospace' // taste-skill-ignore
   const FPS = 24
-  // How long the field keeps its full pace after the visitor last moved, in ms; it then slows to a
-  // stop in under two seconds.
+  // How long the field keeps its full pace after the visitor last moved, and how long it then takes
+  // to slow to a stop, in ms, whatever the frame rate: still 4.4 seconds after the last move, inside
+  // WCAG 2.2.2's five. The pace eases by a factor of e every EASE ms, so it's down to 2% (1/50) of its
+  // full pace by the stop.
   const AWAKE = 2500
+  const SETTLE = 1900
+  const EASE = SETTLE / Math.log(50)
   // Ripples: their wavenumber, the phase a ripple turns through per CSS pixel, for a wavelength of
   // 120px, and the sum at which a cell starts to show a character and at which it takes the densest.
   // Each ripple is a thin crest, so one ring alone is faint and rings that cross add up to the dense
@@ -170,17 +174,24 @@ if (canvas && ctx) {
     // At most FPS frames a second, taking a display's frame that comes up to 4ms early: 20 at 60Hz,
     // 24 at 120Hz.
     if (now - last < 1000 / FPS - 4) return
+    // The pace eases toward full while the visitor moves and toward still once `awake` has passed, by
+    // the time since the last frame rather than by the frame, so it settles in SETTLE at any rate.
+    const elapsed = now - last
+    pace += ((now < awake ? 1 : 0) - pace) * (1 - Math.exp(-elapsed / EASE))
+    // Settled: the last frame holds until the visitor moves again. It's checked before drawing, so
+    // however few frames a second there are, none is drawn more than SETTLE after `awake`.
+    if (now >= awake && pace < 0.02) {
+      stop()
+      return
+    }
     // The clock runs only while frames are drawn, at the field's pace, so it picks up where it
     // left off.
-    pace += ((now < awake ? 1 : 0) - pace) * 0.1
-    clock += (Math.min(now - last, 100) / 1000) * pace
+    clock += (Math.min(elapsed, 100) / 1000) * pace
     last = now
     launch.strength += (launch.targetStrength - launch.strength) * 0.08
     launch.x += (launch.targetX - launch.x) * 0.15
     launch.y += (launch.targetY - launch.y) * 0.15
     draw()
-    // Settled: the last frame holds until the visitor moves again.
-    if (now >= awake && pace < 0.02) stop()
   }
 
   // Starts the frames, unless they're running, motion is reduced, or the tab is hidden. The clock
