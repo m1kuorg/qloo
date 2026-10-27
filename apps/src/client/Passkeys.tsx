@@ -129,8 +129,9 @@ export function useCodeAsk(id: string) {
 }
 
 // The recovery code, shown once: the member copies or writes it down, then goes on. Its heading takes
-// focus as it shows. The code is set in mono at title size, its five groups of four apart, and read to
-// screen readers letter by letter, a group at a time. In `frame`, the page's two columns from 1024px:
+// focus as it shows. The code is set in mono at title size, 18px on a phone so it fits one line, its
+// five groups of four apart, and read to screen readers letter by letter, a group at a time. Where it
+// can't fit, it wraps between groups, each dash leading its group, never at a line's end. In `frame`, the page's two columns from 1024px:
 // what it is, at display size, beside the code on the card.
 export function RecoveryCode({ code, next, frame }: { code: string; next: string; frame: string }) {
   const heading = useRef<HTMLHeadingElement>(null)
@@ -157,11 +158,11 @@ export function RecoveryCode({ code, next, frame }: { code: string; next: string
         </p>
       </div>
       <div className="flex w-full max-w-[32rem] flex-col gap-4 rounded-xl bg-card p-4 sm:p-6 lg:justify-self-end">
-        <p className="font-mono type-title">
+        <p className="font-mono type-title max-sm:text-[1.125rem]">
           <span className="sr-only">Recovery code: {groups.map((g) => g.split('').join(' ')).join(', ')}</span>
           <span aria-hidden="true">
             {groups.map((g, i) => (
-              <span key={i}>
+              <span key={i} className="inline-block whitespace-nowrap">
                 {i > 0 && <span className="mx-1 text-muted-foreground">-</span>}
                 {g}
               </span>
@@ -173,6 +174,10 @@ export function RecoveryCode({ code, next, frame }: { code: string; next: string
             {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
             {copied ? 'Copied' : 'Copy code'}
           </Button>
+          {/* The button's "Copied", told to screen readers too. */}
+          <span role="status" className="vh">
+            {copied ? 'Copied' : ''}
+          </span>
           <Button className="max-md:h-11" onClick={() => window.location.assign(next)}>
             I’ve saved it
           </Button>

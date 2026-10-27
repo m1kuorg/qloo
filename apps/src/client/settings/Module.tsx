@@ -44,8 +44,8 @@ export function Module({
 }
 
 // A table's header and body cells in a panel: rules between rows, one step darker than the tone step
-// so they read on it, and the actions in a trailing column.
-export const head = 'border-b border-foreground/10 pr-3 pb-2 text-left align-bottom font-normal'
+// so they read on it, and the actions in a trailing column. Each column's name stays on one line.
+export const head = 'border-b border-foreground/10 pr-3 pb-2 text-left align-bottom font-normal whitespace-nowrap'
 export const cell = 'border-b border-foreground/10 py-2 pr-3 align-middle'
 
 // The centred column the modules stand in, under the page's title row.

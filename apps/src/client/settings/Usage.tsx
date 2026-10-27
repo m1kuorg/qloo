@@ -84,7 +84,7 @@ function fromNow(when: string) {
   const minutes = Math.max(0, Math.floor((Date.parse(when) - Date.now()) / 60_000))
   const [h, m] = [Math.floor(minutes / 60), minutes % 60]
   if (h === 0) return m === 0 ? 'in under a minute' : `in ${m} min`
-  return m === 0 ? `in ${h} h` : `in ${h} h ${m} min`
+  return m === 0 ? `in ${h}\u00a0h` : `in ${h}\u00a0h ${m}\u00a0min`
 }
 
 // `when` in the browser's own time, such as "8:00 PM", or null where that's UTC already.

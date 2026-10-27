@@ -123,6 +123,12 @@ function AddKey({ network, onChange }: { network: NetworkPage; onChange: (change
             value={key}
             onChange={(e) => setKey(e.target.value)}
             autoComplete="off"
+            // A password field, so the password managers that ignore autoComplete="off" there are told
+            // by name not to offer, or save, the Qloo key as this site's login.
+            data-1p-ignore=""
+            data-lpignore="true"
+            data-bwignore=""
+            data-form-type="other"
             spellCheck={false}
             disabled={busy}
           />

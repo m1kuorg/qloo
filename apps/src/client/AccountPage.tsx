@@ -8,7 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import type { AccountNetwork, AccountPasskey } from '../directory'
 import { initials, listOf, MAX_NAME } from '../text'
 import { useConfirm } from './Confirm'
-import { Alert, day, ScrollTable, send, useAction } from './controls'
+import { Alert, day, ScrollTable, send, useAction, useLeaveGuard } from './controls'
 import { prompted, RecoveryCode, sendConfirmed, useCodeAsk, type Ceremony } from './Passkeys'
 import { textLink } from './RosterModules'
 import { cell, Done, head, Module, settingsColumn } from './settings/Module'
@@ -62,6 +62,8 @@ function NameModule({ name: saved }: { name: string }) {
   const [done, setDone] = useState(false)
   const { busy, error, run } = useAction()
   const changed = name.trim() !== kept
+  // Typed and not saved: leaving the page asks first.
+  useLeaveGuard(changed)
   const save = () =>
     run(async () => {
       const answer = await send<{ name: string }>('/app/account/name', { name })
@@ -163,8 +165,9 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
           next time.
         </p>
       )}
+      {/* Narrower than its columns, as on a phone, it scrolls in its region rather than crowd them. */}
       <ScrollTable label="Passkeys table">
-        <table className="relative w-full min-w-[20rem] border-separate border-spacing-0">
+        <table className="relative w-full min-w-[24rem] border-separate border-spacing-0">
           <thead className="type-caption text-muted-foreground">
             <tr>
               <th scope="col" className={head}>
