@@ -5,7 +5,7 @@ import { Spinner } from '@/components/ui/spinner'
 import type { Invite, NetworkMember } from '../../directory'
 import { useConfirm } from '../Confirm'
 import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
-import type { NetworkPage } from '../NetworkPage'
+import { ownersOnly, type NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
 import { cell, head, Module } from './Module'
 
@@ -160,9 +160,11 @@ export function MembersModule({
       )}
       {!owner && (
         <p className="text-muted-foreground">
-          {network.guest
-            ? 'The guest network has no owner, so no one can invite people, change roles, or remove members, and no guest can leave it.'
-            : 'Only an owner can invite people, change roles, or remove members.'}
+          {ownersOnly(
+            network,
+            'Only an owner can invite people, change roles, or remove members.',
+            'invite people, change roles, or remove members, and no guest can leave it'
+          )}
         </p>
       )}
       {invites && <InviteLinks path={path} invites={invites} />}
