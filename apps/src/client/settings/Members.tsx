@@ -12,8 +12,8 @@ import { cell, head, Module } from './Module'
 // The settings' members module: who's in the network, with their role and when they joined, and, for
 // an owner, its invite links. An owner changes roles, removes members, and makes and revokes links;
 // any member can leave. No change may leave the network without an owner: the Worker refuses one, and
-// the module doesn't offer it. `invites` is null for a member, who doesn't see them. Removing, leaving
-// and revoking each confirm first.
+// the module doesn't offer it. `invites` is null for a member, who doesn't see them. Removing, leaving,
+// revoking, and making an owner a member, which revokes their keys and links, each confirm first.
 export function MembersModule({
   network,
   memberId,
@@ -35,15 +35,29 @@ export function MembersModule({
   const lastOwner = me?.role === 'owner' && ownerCount === 1
   const path = `/app/${network.id}/settings/members`
 
-  const setRole = (m: NetworkMember) =>
-    run(async () => {
-      const answer = await send<{ members: NetworkMember[] }>(`${path}/${m.id}/role`, {
-        role: m.role === 'owner' ? 'member' : 'owner'
-      })
-      // An owner who made themselves a member reloads, to see settings as a member does.
-      if (m.id === memberId) return window.location.reload()
-      setMembers(answer.members)
+  const changeRole = async (m: NetworkMember) => {
+    const answer = await send<{ members: NetworkMember[] }>(`${path}/${m.id}/role`, {
+      role: m.role === 'owner' ? 'member' : 'owner'
     })
+    // An owner who made themselves a member reloads, to see settings as a member does.
+    if (m.id === memberId) return window.location.reload()
+    setMembers(answer.members)
+  }
+  // Making an owner a member revokes what they made, so it asks first; making someone an owner doesn't.
+  const setRole = (m: NetworkMember) => {
+    if (m.role !== 'owner') return void run(() => changeRole(m))
+    const self = m.id === memberId
+    confirm({
+      title: self ? `Make yourself a member of ${network.name}?` : `Make ${m.name} a member?`,
+      consequence: self
+        ? 'The API keys and invite links you made are revoked at once, and only an owner can make you an owner again.'
+        : 'The API keys and invite links they made are revoked at once, and only an owner can make them an owner again.',
+      verb: 'Make member',
+      busy: 'Changing…',
+      keep: 'Keep',
+      action: () => changeRole(m)
+    })
+  }
   const askOut = (m: NetworkMember) => {
     const self = m.id === memberId
     const made = m.role === 'owner'
@@ -119,7 +133,7 @@ export function MembersModule({
                           size="sm"
                           className="max-md:h-11"
                           disabled={busy}
-                          onClick={() => void setRole(m)}
+                          onClick={() => setRole(m)}
                         >
                           {m.role === 'owner' ? 'Make member' : 'Make owner'}
                         </Button>
@@ -203,7 +217,7 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
         </Button>
       </div>
       {made && (
-        <ShownOnce key={made.id} id="invite-link" label="New invite link" noun="link" value={made.link}>
+        <ShownOnce key={made.id} id="invite-link" label="New invite link" noun="link" value={made.link} mono>
           Copy it now and send it to your teammate: Crossfeed shows each link only once.
         </ShownOnce>
       )}
