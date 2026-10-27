@@ -6,14 +6,14 @@ Crossfeed is an agent that tells a podcast network which of its own shows should
 
 ## Try the demo
 
-1. On `/`, select **Open the sample network**.
-2. Select **Start run** on the sample launch, The Watch. The fit chart ranks the roster by listener overlap ("this week") beside a topic-only ranking ("last week").
-3. Select a show with a red bullet for why it moved, then a call number such as `C-21` for the Qloo request behind it.
-4. Answer the agent's questions: a slot budget, such as 20 slots, and which shows to leave out.
-5. Approve the insertion order and export it as CSV.
-6. Open **Inbox**, load the 40-pitch sample inbox, and select **Rank pitches**. It ranks the guests' public works against The Big Picture and drafts a reply to every pitch. You can also drop your own `.eml`, `.mbox`, or text pitches on it.
+1. On `/`, select **Open the sample network**. It opens on a sample network of The Ringer's 19 public show names, with labelled sample figures, and the sample launch, The Watch, in the launch field.
+2. Select **Start run**. The fit chart ranks the roster by listener overlap in Qloo, with each show's rank in a topic-only plan in the Topic column, and the on-air readout at the top of the page says what the agent is doing.
+3. Select a show marked ▲ in the Move column, such as The Bill Simmons Podcast, for why it moved, then the call number in that line, such as `C-21`: the inspector's Evidence tab shows the Qloo request behind the ranking and the raw scores the chart leaves out. Switch the chart to **By topic** to watch the shows move to the topic-only plan's order.
+4. Answer the agent's questions in the card above the chart: a slot budget, such as 20 promo slots, then which shows to leave out.
+5. When the run completes, read **The plan**, the insertion order the agent drafted and code priced, then select **Approve** and **Export CSV**.
+6. Select **Inbox** in the rail, **Load sample inbox** (40 pitches), and **Rank pitches**. It ranks the guests' public works against The Big Picture, one list per type of work, and drafts a reply to every pitch for you to approve, edit, or discard. You can also drop your own `.eml`, `.mbox`, or text pitches on it.
 
-The guide in the rail walks steps 2 to 5. [docs/SUBMISSION.md](docs/SUBMISSION.md) explains what Qloo does at each step, the endpoints it calls, and the known limitations.
+The guide above the question walks steps 2 to 5. [docs/SUBMISSION.md](docs/SUBMISSION.md) explains what Qloo does at each step, the endpoints it calls, and the known limitations.
 
 ## The product
 
