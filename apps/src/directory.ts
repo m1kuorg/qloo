@@ -15,6 +15,11 @@ const CHALLENGE_MS = 5 * 60_000
 // recovery code, and deleting the account need.
 export const STEP_UP_MS = 5 * 60_000
 
+// The guest member and the guest network (ADR 0005), as migration 0005 wrote them: everyone who signs
+// in as a guest is the guest member, in the guest network.
+export const GUEST_MEMBER = 'guest-member'
+export const GUEST_NETWORK = 'guest-network'
+
 export type Member = { id: string; name: string }
 
 // A passkey as the directory keeps it: base64url credential ID and public key, the signature
@@ -166,6 +171,29 @@ export async function signIn(db: D1Database, passkey: Passkey, counter: number) 
     insertSession(db, await sha256(secret), passkey.memberId, now)
   ])
   return secret
+}
+
+// Signs in as the guest member: a new session of its own, which never proves it's the member. The
+// session the browser held, with token `held`, ends in the same batch, once the guest's is written.
+export async function guestSignIn(db: D1Database, held?: string) {
+  const secret = token()
+  const hash = await sha256(secret)
+  const now = Date.now()
+  const [written] = await db.batch([
+    db
+      .prepare('INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) VALUES (?1, ?2, ?3, ?4, ?3)')
+      .bind(hash, GUEST_MEMBER, now, now + SESSION_MS),
+    ...(held
+      ? [
+          db
+            .prepare(
+              'DELETE FROM sessions WHERE token_hash = ? AND EXISTS (SELECT 1 FROM sessions WHERE token_hash = ?)'
+            )
+            .bind(await sha256(held), hash)
+        ]
+      : [])
+  ])
+  return written.meta.changes ? secret : null
 }
 
 // Signs in the member whose recovery code `code` is, and replaces it with a new one in the same

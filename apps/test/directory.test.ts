@@ -24,7 +24,7 @@ describe('the directory', () => {
     expect(member).toEqual({ name: 'Ada Programmer' })
   })
 
-  it('starts the next test with every table and no rows', async () => {
+  it('starts the next test with every table, and no rows but the guest member, the guest network, and its membership', async () => {
     expect(await tables()).toEqual([
       'api_keys',
       'challenges',
@@ -38,7 +38,16 @@ describe('the directory', () => {
       'sessions',
       'wipes'
     ])
-    expect(await env.DB.prepare('SELECT count(*) AS n FROM members').first('n')).toBe(0)
+    const all = async (query: string) => (await env.DB.prepare(query).all()).results
+    expect(await all('SELECT id, name FROM members')).toEqual([{ id: 'guest-member', name: 'Guest' }])
+    expect(await all('SELECT id, name, created_by FROM networks')).toEqual([
+      { id: 'guest-network', name: 'Guest network', created_by: null }
+    ])
+    expect(await all('SELECT network_id, member_id, role FROM memberships')).toEqual([
+      { network_id: 'guest-network', member_id: 'guest-member', role: 'member' }
+    ])
+    for (const table of ['passkeys', 'sessions', 'invites', 'api_keys'])
+      expect(await env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n'), table).toBe(0)
   })
 })
 
