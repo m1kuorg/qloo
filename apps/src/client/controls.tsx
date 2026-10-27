@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import { bandMeter, type Band } from '../fit'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
@@ -52,6 +53,17 @@ export function useAction() {
     }
   }
   return { busy, error, run }
+}
+
+// While `dirty`, leaving the page (a link in the shell, a reload, closing the tab) asks first, so edits
+// typed and not yet saved aren't lost without a word.
+export function useLeaveGuard(dirty: boolean) {
+  useEffect(() => {
+    if (!dirty) return
+    const ask = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', ask)
+    return () => window.removeEventListener('beforeunload', ask)
+  }, [dirty])
 }
 
 export const Alert = ({ error }: { error: string | null }) =>
@@ -145,7 +157,7 @@ export function PickOne({
   legend: string
   options: (Candidate & { disambiguation?: string | null; description?: string | null })[]
   current: string | undefined
-  note: string
+  note: ReactNode
   submit: string
   busy: boolean
   pick: (id: string) => Promise<unknown>
@@ -215,6 +227,7 @@ export function PickOne({
       </fieldset>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Button type="submit" disabled={busy || !choice || choice === current}>
+          {busy && <Spinner data-icon="inline-start" />}
           {submit}
         </Button>
         <small className="type-caption text-muted-foreground">{note}</small>
@@ -246,7 +259,12 @@ export const ScrollTable = ({
   className?: string
   children: ReactNode
 }) => (
-  <div className={cn('max-w-full overflow-x-auto', className)} role="region" aria-label={label} tabIndex={0}>
+  <div
+    className={cn('max-w-full overflow-x-auto overscroll-x-contain', className)}
+    role="region"
+    aria-label={label}
+    tabIndex={0}
+  >
     {children}
   </div>
 )
@@ -297,6 +315,10 @@ export function ShownOnce({
           {copied ? 'Copied' : `Copy ${noun}`}
         </Button>
       </div>
+      {/* The button's "Copied", told to screen readers too. */}
+      <span role="status" className="vh">
+        {copied ? 'Copied' : ''}
+      </span>
       {copied === false && (
         <StateLine kind="error" role="alert">
           This browser didn’t let Crossfeed copy it. Select the {noun} and copy it yourself.
