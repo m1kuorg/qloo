@@ -38,7 +38,7 @@ import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { OnAir } from './Frame'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
-import { connectionOf, ConnectionState, stateLabel, StateLine, type Connection } from './states'
+import { connectionOf, ConnectionState, endedBadly, isLive, stateLabel, StateLine, type Connection } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
 // invited or has joined, and whether an API key was ever created.
@@ -233,13 +233,13 @@ const statusLabel: Record<LaunchSummary['status'], string> = {
 // slot is centred on the line, so what's in the slot, or nothing, never moves the word; it doesn't wrap,
 // so a second line never starts under the slot.
 function Status({ status }: { status: LaunchSummary['status'] }) {
-  if (status === 'failed' || status === 'stopped')
+  if (endedBadly(status))
     return (
       <StateLine kind="error" word={statusLabel[status]}>
         {null}
       </StateLine>
     )
-  const live = status === 'running' || status === 'waiting'
+  const live = isLive(status)
   return (
     <span className="whitespace-nowrap">
       <span

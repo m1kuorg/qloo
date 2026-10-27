@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Run, SlowCall } from '../agent'
 import type { Opened } from './Evidence'
 import { runLabel } from './Run'
-import { ConnectionState, SlowCalls, StateLine, type Connection } from './states'
+import { ConnectionState, endedBadly, isLive, SlowCalls, StateLine, type Connection } from './states'
 
 // The frame the run pages share, the launch workspace (App.tsx) and the inbox (Inbox.tsx): a canvas
 // beside an inspector, the on-air readout at the head of the canvas, and the connecting state.
@@ -237,13 +237,13 @@ export function RunState({ run, slowCalls }: { run: Run; slowCalls: SlowCall[] }
   const slow = slowCalls.filter((c) => c.run === run.id)
   return (
     <>
-      {run.status === 'failed' || run.status === 'stopped' ? (
+      {endedBadly(run.status) ? (
         <StateLine kind="error" word={runLabel[run.status]}>
           {run.error}
         </StateLine>
       ) : (
         <span className="inline-flex items-center gap-2">
-          <OnAir live={running || run.status === 'waiting'} />
+          <OnAir live={isLive(run.status)} />
           <b className="font-semibold">{runLabel[run.status]}</b>
         </span>
       )}

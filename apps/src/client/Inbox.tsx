@@ -53,7 +53,7 @@ import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInsp
 import type { NetworkPage } from './NetworkPage'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
-import { connectionOf, matchLabel, sentence, SlowCalls, stateLabel, StateLine, type Connection } from './states'
+import { connectionOf, isLive, matchLabel, sentence, SlowCalls, stateLabel, StateLine, type Connection } from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
@@ -180,7 +180,7 @@ export function InboxPage({
   const reading = inbox?.status === 'reading'
   const running = pitchRun?.status === 'running'
   // The agent refuses reply actions until its run ends, and a run waiting on a question hasn't ended.
-  const drafting = running || pitchRun?.status === 'waiting'
+  const drafting = isLive(pitchRun?.status)
   const opened = actions.opened?.call ?? null
   // The number of the earlier pitch run shown, read-only.
   const viewing = history?.viewing ? runNumber(history.runs, history.viewing) : null

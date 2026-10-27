@@ -2,7 +2,7 @@ import { cn } from 'cn'
 import { CircleDashedIcon, ClockIcon, SquareXIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Spinner } from '@/components/ui/spinner'
-import type { SlowCall } from '../agent'
+import type { LaunchSummary, Run, SlowCall } from '../agent'
 import type { Pitch } from '../inbox'
 
 // The workspace's states, worded and marked the same way wherever they appear: a glyph, the state's
@@ -57,6 +57,13 @@ export function StateLine({
     </span>
   )
 }
+
+// A run's status, or a launch's by its latest run: live while it runs or waits on a person, which the
+// on-air dot marks, and ended badly once it failed or stopped at a limit, which leads with its word
+// in crimson and the square ✕.
+type RunStatus = Run['status'] | LaunchSummary['status']
+export const isLive = (status: RunStatus | undefined) => status === 'running' || status === 'waiting'
+export const endedBadly = (status: RunStatus | undefined) => status === 'failed' || status === 'stopped'
 
 // Qloo calls still waiting past the slow mark, by call number, as a sentence for a table row.
 export const slowText = (calls: SlowCall[]) =>
