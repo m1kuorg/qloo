@@ -27,7 +27,7 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
 }
 
 // A page without the inspector beside it takes its gutter on both sides.
-const alone = cn(canvas, 'min-[1360px]:pr-6')
+const alone = cn(canvas, 'min-[85rem]:pr-6')
 
 // The roster every launch on the network ranks, kept by its agent, which answers "Is my roster ready
 // to rank?": the title row with its counts and CPM, the sample's notice, the shows Qloo failed on,
@@ -49,7 +49,8 @@ export function NetworkRoster({
   const [selected, setSelected] = useState<string | null>(null)
   const show = roster.find((s) => s.name === selected)
   const evidence = useEvidence(agent)
-  const inspector = useInspector(show ? ['show', 'evidence'] : ['evidence'], evidence)
+  // The Show tab is there with no show selected too, saying how to open one.
+  const inspector = useInspector(['show', 'evidence'], evidence)
   // The import's sheet, which stays open after an import so a refusal shows where it was asked.
   const [importing, setImporting] = useState(false)
   const importDraft = useRef('')
@@ -126,11 +127,22 @@ export function NetworkRoster({
       <Inspector inspector={inspector}>
         {/* Every panel stays mounted, so the ids calls point at (aria-controls="evidence") are always
             there; Base UI hides and inerts the panels not shown, and nothing else. */}
-        {show && (
-          <TabsContent value="show" keepMounted>
-            <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />
-          </TabsContent>
-        )}
+        <TabsContent value="show" keepMounted>
+          {show ? (
+            <ShowEditor
+              key={show.name}
+              show={show}
+              agent={agent}
+              close={() => setSelected(null)}
+              openCall={inspector.showCall}
+              opened={evidence.opened?.call ?? null}
+            />
+          ) : (
+            <p className="text-muted-foreground">
+              Select a show in the roster to settle its match or edit its figures.
+            </p>
+          )}
+        </TabsContent>
         <TabsContent value="evidence" keepMounted>
           <EvidencePanel opened={evidence.opened} />
         </TabsContent>

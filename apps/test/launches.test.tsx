@@ -1276,7 +1276,7 @@ describe('the pages, as a member reads them', () => {
     const html = workspace(network, agent, id)
     const at = new Date(agent.state()!.insertionOrder!.approvedAt!)
     const day = at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    const time = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const time = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     const [plan] = hooked(html, 'data-io')
     expect(words(plan)).toMatch(/^The plan Insertion order IO-0001 Approved /)
     expect(words(plan)).toContain(

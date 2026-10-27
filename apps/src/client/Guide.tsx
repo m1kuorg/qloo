@@ -65,8 +65,10 @@ export function Guide({
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-base font-semibold" id="guide-h">
           Try the sample launch{' '}
-          <span className="font-normal whitespace-nowrap text-muted-foreground">
-            · {finished ? 'Done' : `Step ${current + 1} of ${steps.length}`}
+          {/* On a phone, where the title fills the line, the step count takes a line of its own. */}
+          <span className="font-normal whitespace-nowrap text-muted-foreground max-sm:block max-sm:type-caption">
+            <span className="max-sm:hidden">· </span>
+            {finished ? 'Done' : `Step ${current + 1} of ${steps.length}`}
           </span>
         </h2>
         <Button variant="ghost" size="sm" className="-my-1 -mr-1.5 max-md:h-11" onClick={dismiss}>
@@ -78,8 +80,9 @@ export function Guide({
           ? 'That’s the sample launch, from the chart to an approved order. Export CSV downloads it.'
           : steps[current].how}
       </p>
-      {/* The steps' numbers are the list's own, so a screen reader hears "3 of 5" too. */}
-      <ol className="grid list-inside list-decimal gap-x-6 gap-y-1 text-muted-foreground marker:normal-nums sm:grid-cols-2 xl:grid-cols-5 xl:list-outside xl:pl-4">
+      {/* The steps' numbers are the list's own, so a screen reader hears "3 of 5" too. In one row from
+          1280px, each column as wide as its step, so a long one doesn't wrap beside short ones. */}
+      <ol className="grid list-inside list-decimal gap-x-6 gap-y-1 text-muted-foreground marker:normal-nums sm:grid-cols-2 xl:grid-cols-[repeat(5,auto)] xl:list-outside xl:pl-4">
         {steps.map((s, i) => (
           <li
             key={s.title}
