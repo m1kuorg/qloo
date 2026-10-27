@@ -3,6 +3,7 @@ import { CheckIcon, CircleDashedIcon, CopyIcon, SquareXIcon, UploadIcon } from '
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
@@ -460,7 +461,7 @@ function InboxLoad({
   // Files dropped while the inbox is still loading aren't read; the cue says to wait.
   const dragging = useFileDrop((files) => (locked ? null : upload(files)))
   return (
-    <form className="grid gap-x-6 gap-y-2 md:grid-cols-2" onSubmit={paste}>
+    <form className="flex flex-col gap-2" onSubmit={paste}>
       {dragging && (
         <DropCue busy={locked}>
           {locked
@@ -469,50 +470,52 @@ function InboxLoad({
         </DropCue>
       )}
       {/* The section's "Pitches" heading, right above it, names the field. */}
-      <Textarea
-        aria-labelledby="pitches-h"
-        rows={4}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder={'Paste one or more pitch emails.\n---\nPut a line of three dashes between pitches.'}
-        disabled={locked}
-        className="max-h-60 min-h-24"
-      />
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2 [&>button]:max-md:h-11">
-          <Button type="submit" disabled={locked || !text.trim()}>
-            Read pitches
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={locked}
-            onClick={() => void load(() => loadInbox({ sample: true }))}
-          >
-            Load sample inbox
-          </Button>
-          <Button type="button" variant="secondary" disabled={locked} onClick={() => file.current?.click()}>
-            <UploadIcon data-icon="inline-start" aria-hidden="true" />
-            Upload files
-          </Button>
-          <input
-            ref={file}
-            type="file"
-            accept=".eml,.mbox,.txt,message/rfc822,application/mbox,text/plain"
-            multiple
-            hidden
-            onChange={pick}
-          />
+      <Field className="grid gap-x-6 gap-y-2 md:grid-cols-2">
+        <Textarea
+          aria-labelledby="pitches-h"
+          rows={4}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={'Paste one or more pitch emails.\n---\nPut a line of three dashes between pitches.'}
+          disabled={locked}
+          className="max-h-60 min-h-24"
+        />
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2 [&>button]:max-md:h-11">
+            <Button type="submit" disabled={locked || !text.trim()}>
+              Read pitches
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={locked}
+              onClick={() => void load(() => loadInbox({ sample: true }))}
+            >
+              Load sample inbox
+            </Button>
+            <Button type="button" variant="secondary" disabled={locked} onClick={() => file.current?.click()}>
+              <UploadIcon data-icon="inline-start" aria-hidden="true" />
+              Upload files
+            </Button>
+            <input
+              ref={file}
+              type="file"
+              accept=".eml,.mbox,.txt,message/rfc822,application/mbox,text/plain"
+              multiple
+              hidden
+              onChange={pick}
+            />
+          </div>
+          <FieldDescription>
+            {reading ? 'Reading the inbox…' : 'Replaces the current inbox, up to 50 pitches.'}
+          </FieldDescription>
+          <FieldDescription className="max-w-[72ch]">
+            Drop email files anywhere on the page, or upload them: <Code>.eml</Code> files, an <Code>.mbox</Code>{' '}
+            export, or a <Code>.txt</Code> with a line of three dashes between pitches.
+          </FieldDescription>
         </div>
-        <small className="type-caption text-muted-foreground">
-          {reading ? 'Reading the inbox…' : 'Replaces the current inbox, up to 50 pitches.'}
-        </small>
-        <p className="max-w-[72ch] type-caption text-muted-foreground">
-          Drop email files anywhere on the page, or upload them: <Code>.eml</Code> files, an <Code>.mbox</Code> export,
-          or a <Code>.txt</Code> with a line of three dashes between pitches.
-        </p>
-      </div>
-      <div className="md:col-span-2">
+      </Field>
+      <div>
         <Alert error={error} />
       </div>
       {dialog}
@@ -557,20 +560,26 @@ function GuestField({
   name,
   area,
   field,
+  invalid = false,
   children
 }: {
   name: string
   area: string
   field: string
+  invalid?: boolean
   children: ReactNode
 }) {
   return (
-    <div className={cn('flex min-w-0 flex-col gap-1', area)}>
-      <label htmlFor={field} aria-hidden="true" className="type-caption text-muted-foreground md:hidden">
+    <Field className={cn('min-w-0 gap-1', area)} data-invalid={invalid || undefined}>
+      <FieldLabel
+        htmlFor={field}
+        aria-hidden="true"
+        className="type-caption font-normal text-muted-foreground md:hidden"
+      >
         {name}
-      </label>
+      </FieldLabel>
       {children}
-    </div>
+    </Field>
   )
 }
 
@@ -656,136 +665,138 @@ function PitchSetup({
         </p>
       ) : (
         <form className="flex flex-col gap-5" onSubmit={submit}>
-          <div className="flex flex-col gap-1.5">
-            <label className="font-medium" id="setup-show" htmlFor="setup-show-trigger">
-              Show
-            </label>
-            <Select
-              items={shows.map((s) => ({ value: s.name, label: s.name }))}
-              value={chosen}
-              onValueChange={(name) => setShow(name as string)}
-              disabled={locked}
-            >
-              <SelectTrigger
-                id="setup-show-trigger"
-                aria-labelledby="setup-show"
-                className="w-full sm:w-80 max-md:h-11"
+          <FieldGroup className="gap-5">
+            <Field>
+              <FieldLabel id="setup-show" htmlFor="setup-show-trigger">
+                Show
+              </FieldLabel>
+              <Select
+                items={shows.map((s) => ({ value: s.name, label: s.name }))}
+                value={chosen}
+                onValueChange={(name) => setShow(name as string)}
+                disabled={locked}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {shows.map((s) => (
-                    <SelectItem key={s.name} value={s.name}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          <fieldset className="flex min-w-0 flex-col gap-4 md:gap-2">
-            <legend className="mb-1.5 font-medium">Past guests&apos; public works</legend>
-            <div aria-hidden="true" className={cn(guestRow, 'type-caption text-muted-foreground max-md:hidden')}>
-              <span>Guest</span>
-              <span>Work title</span>
-              <span>Type</span>
-              <span>Year</span>
-            </div>
-            {rows.map((r, i) => (
-              <div className={guestRow} key={i}>
-                <GuestField name="Guest" area="[grid-area:guest]" field={`guest-${i}-name`}>
-                  <Input
-                    id={`guest-${i}-name`}
-                    aria-label={`Past guest ${i + 1}`}
-                    value={r.guest}
-                    onChange={(e) => edit(i, { guest: e.target.value })}
-                    maxLength={MAX_TITLE}
-                    disabled={locked}
-                    className="max-md:h-11"
-                  />
-                </GuestField>
-                <GuestField name="Work title" area="[grid-area:title]" field={`guest-${i}-title`}>
-                  <Input
-                    id={`guest-${i}-title`}
-                    aria-label={`Past guest ${i + 1}'s work title`}
-                    value={r.title}
-                    onChange={(e) => edit(i, { title: e.target.value })}
-                    maxLength={MAX_TITLE}
-                    disabled={locked}
-                    className="max-md:h-11"
-                  />
-                </GuestField>
-                <GuestField name="Type" area="[grid-area:type]" field={`guest-${i}-type`}>
-                  <Select
-                    items={typeItems}
-                    value={r.type}
-                    onValueChange={(type) => edit(i, { type: type as WorkType })}
-                    disabled={locked}
-                  >
-                    <SelectTrigger
-                      id={`guest-${i}-type`}
-                      aria-label={`Past guest ${i + 1}'s work type`}
-                      className="w-full max-md:h-11"
+                <SelectTrigger
+                  id="setup-show-trigger"
+                  aria-labelledby="setup-show"
+                  className="w-full sm:w-80 max-md:h-11"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {shows.map((s) => (
+                      <SelectItem key={s.name} value={s.name}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <FieldSet className="gap-4 md:gap-2">
+              <FieldLegend className="mb-1.5">Past guests&apos; public works</FieldLegend>
+              <div aria-hidden="true" className={cn(guestRow, 'type-caption text-muted-foreground max-md:hidden')}>
+                <span>Guest</span>
+                <span>Work title</span>
+                <span>Type</span>
+                <span>Year</span>
+              </div>
+              {rows.map((r, i) => (
+                <div className={guestRow} key={i}>
+                  <GuestField name="Guest" area="[grid-area:guest]" field={`guest-${i}-name`}>
+                    <Input
+                      id={`guest-${i}-name`}
+                      aria-label={`Past guest ${i + 1}`}
+                      value={r.guest}
+                      onChange={(e) => edit(i, { guest: e.target.value })}
+                      maxLength={MAX_TITLE}
+                      disabled={locked}
+                      className="max-md:h-11"
+                    />
+                  </GuestField>
+                  <GuestField name="Work title" area="[grid-area:title]" field={`guest-${i}-title`}>
+                    <Input
+                      id={`guest-${i}-title`}
+                      aria-label={`Past guest ${i + 1}'s work title`}
+                      value={r.title}
+                      onChange={(e) => edit(i, { title: e.target.value })}
+                      maxLength={MAX_TITLE}
+                      disabled={locked}
+                      className="max-md:h-11"
+                    />
+                  </GuestField>
+                  <GuestField name="Type" area="[grid-area:type]" field={`guest-${i}-type`}>
+                    <Select
+                      items={typeItems}
+                      value={r.type}
+                      onValueChange={(type) => edit(i, { type: type as WorkType })}
+                      disabled={locked}
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {typeItems.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </GuestField>
-                <GuestField name="Year" area="[grid-area:year]" field={`guest-${i}-year`}>
-                  <Input
-                    id={`guest-${i}-year`}
-                    aria-label={`Past guest ${i + 1}'s work year`}
-                    aria-invalid={invalid === i || undefined}
-                    aria-describedby={invalid === i ? 'setup-error' : undefined}
-                    inputMode="numeric"
-                    value={r.year}
-                    onChange={(e) => edit(i, { year: e.target.value })}
+                      <SelectTrigger
+                        id={`guest-${i}-type`}
+                        aria-label={`Past guest ${i + 1}'s work type`}
+                        className="w-full max-md:h-11"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {typeItems.map((t) => (
+                            <SelectItem key={t.value} value={t.value}>
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </GuestField>
+                  <GuestField name="Year" area="[grid-area:year]" field={`guest-${i}-year`} invalid={invalid === i}>
+                    <Input
+                      id={`guest-${i}-year`}
+                      aria-label={`Past guest ${i + 1}'s work year`}
+                      aria-invalid={invalid === i || undefined}
+                      aria-describedby={invalid === i ? 'setup-error' : undefined}
+                      inputMode="numeric"
+                      value={r.year}
+                      onChange={(e) => edit(i, { year: e.target.value })}
+                      disabled={locked}
+                      className="max-md:h-11"
+                    />
+                  </GuestField>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Remove past guest ${i + 1}`}
+                    onClick={() => {
+                      setRows(rows.filter((_, j) => j !== i))
+                      setTyped(true)
+                    }}
                     disabled={locked}
-                    className="max-md:h-11"
-                  />
-                </GuestField>
+                    className="justify-self-start [grid-area:remove] max-md:-ml-2.5 max-md:h-11 md:justify-self-end"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              {rows.length < MAX_PAST_GUESTS && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label={`Remove past guest ${i + 1}`}
                   onClick={() => {
-                    setRows(rows.filter((_, j) => j !== i))
+                    setRows([...rows, { guest: '', title: '', type: 'book', year: '' }])
                     setTyped(true)
                   }}
                   disabled={locked}
-                  className="justify-self-start [grid-area:remove] max-md:-ml-2.5 max-md:h-11 md:justify-self-end"
+                  className="-ml-2.5 self-start max-md:h-11"
                 >
-                  Remove
+                  Add a past guest
                 </Button>
-              </div>
-            ))}
-            {rows.length < MAX_PAST_GUESTS && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setRows([...rows, { guest: '', title: '', type: 'book', year: '' }])
-                  setTyped(true)
-                }}
-                disabled={locked}
-                className="-ml-2.5 self-start max-md:h-11"
-              >
-                Add a past guest
-              </Button>
-            )}
-          </fieldset>
+              )}
+            </FieldSet>
+          </FieldGroup>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Button type="submit" disabled={locked || !chosen || Boolean(awaited)} className="max-md:h-11">
               {running && <Spinner data-icon="inline-start" />}
@@ -1349,20 +1360,20 @@ function ReplyItem({
         </>
       ) : (
         <form className="flex flex-col gap-2" onSubmit={save}>
-          <label className="font-medium" htmlFor={`reply-${reply.pitch}`}>
-            Reply about {name}
-          </label>
-          <Textarea
-            ref={ref('text')}
-            id={`reply-${reply.pitch}`}
-            rows={5}
-            value={editing}
-            onChange={(e) => setEditing(e.target.value)}
-            disabled={busy}
-            // The Edit button that opened it has gone; the text takes its place, and focus.
-            autoFocus
-            className="max-w-[72ch]"
-          />
+          <Field>
+            <FieldLabel htmlFor={`reply-${reply.pitch}`}>Reply about {name}</FieldLabel>
+            <Textarea
+              ref={ref('text')}
+              id={`reply-${reply.pitch}`}
+              rows={5}
+              value={editing}
+              onChange={(e) => setEditing(e.target.value)}
+              disabled={busy}
+              // The Edit button that opened it has gone; the text takes its place, and focus.
+              autoFocus
+              className="max-w-[72ch]"
+            />
+          </Field>
           <div className={row}>
             <Button type="submit" size="sm" disabled={busy || !editing.trim()}>
               {busy && <Spinner data-icon="inline-start" />}

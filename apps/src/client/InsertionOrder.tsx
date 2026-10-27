@@ -3,6 +3,7 @@ import { CheckIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Field, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
@@ -375,36 +376,44 @@ function EditLines({
         void save(typed)
       }}
     >
-      <fieldset disabled={busy} className="flex min-w-0 flex-col gap-4">
+      <FieldSet disabled={busy} className="gap-4">
         <Lines priced={priced} sample={sample}>
           {(line, i) => ({
             angle: (
-              <Textarea
-                aria-label={`Angle for ${line.show}`}
-                aria-invalid={lacksAngle(lines[i]) || undefined}
-                aria-describedby={lacksAngle(lines[i]) ? 'io-edit-hint' : undefined}
-                rows={2}
-                value={lines[i].angle}
-                onChange={(e) => change(i, 'angle', e.target.value)}
-                maxLength={MAX_ANGLE}
-                placeholder={
-                  angleOptional(sharedTags[line.show])
-                    ? 'Qloo returned no shared tags. Type your own angle, or leave it empty.'
-                    : undefined
-                }
-                className="min-h-14 max-w-[72ch]"
-              />
+              <Field data-invalid={lacksAngle(lines[i]) || undefined}>
+                <Textarea
+                  aria-label={`Angle for ${line.show}`}
+                  aria-invalid={lacksAngle(lines[i]) || undefined}
+                  aria-describedby={lacksAngle(lines[i]) ? 'io-edit-hint' : undefined}
+                  rows={2}
+                  value={lines[i].angle}
+                  onChange={(e) => change(i, 'angle', e.target.value)}
+                  maxLength={MAX_ANGLE}
+                  placeholder={
+                    angleOptional(sharedTags[line.show])
+                      ? 'Qloo returned no shared tags. Type your own angle, or leave it empty.'
+                      : undefined
+                  }
+                  className="min-h-14 max-w-[72ch]"
+                />
+              </Field>
             ),
             slots: (
-              <Input
-                aria-label={`Slots on ${line.show}`}
-                aria-invalid={whole(lines[i].slots) === null || undefined}
-                aria-describedby={whole(lines[i].slots) === null ? 'io-edit-hint' : undefined}
-                inputMode="numeric"
-                value={lines[i].slots}
-                onChange={(e) => change(i, 'slots', e.target.value)}
-                className="ml-auto w-14 text-right normal-nums max-md:h-11"
-              />
+              <Field
+                orientation="horizontal"
+                data-invalid={whole(lines[i].slots) === null || undefined}
+                className="justify-end"
+              >
+                <Input
+                  aria-label={`Slots on ${line.show}`}
+                  aria-invalid={whole(lines[i].slots) === null || undefined}
+                  aria-describedby={whole(lines[i].slots) === null ? 'io-edit-hint' : undefined}
+                  inputMode="numeric"
+                  value={lines[i].slots}
+                  onChange={(e) => change(i, 'slots', e.target.value)}
+                  className="w-14 text-right normal-nums max-md:h-11"
+                />
+              </Field>
             ),
             value: <Value line={line} />,
             price: (
@@ -446,7 +455,7 @@ function EditLines({
                 : 'Totals update as you type.'}
           </p>
         </div>
-      </fieldset>
+      </FieldSet>
     </form>
   )
 }

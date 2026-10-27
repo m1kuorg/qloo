@@ -3,7 +3,9 @@ import { CircleDashedIcon, ClockIcon, SquareXIcon, UploadIcon } from 'lucide-rea
 import { useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import type { Show, ShowPatch, SlowCall } from '../agent'
@@ -92,11 +94,7 @@ export function RosterImport({
     return upload(files)
   })
   return (
-    <form
-      className={stacked ? 'flex flex-col gap-2' : 'grid gap-x-6 gap-y-2 md:grid-cols-2'}
-      onSubmit={submit}
-      data-roster-import
-    >
+    <form className="flex flex-col gap-2" onSubmit={submit} data-roster-import>
       {dragging && (
         <DropCue busy={busy}>
           {busy
@@ -104,46 +102,48 @@ export function RosterImport({
             : 'Drop the file to import it: a CSV, or a text file with one show name per line.'}
         </DropCue>
       )}
-      <label className="font-medium md:col-span-2" htmlFor="roster-names">
-        Show names
-      </label>
-      <Textarea
-        id="roster-names"
-        rows={4}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder={'The Rewatchables\nThe Big Picture\nBinge Mode'}
-        disabled={busy}
-        className="max-h-60 min-h-24"
-      />
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2 [&>button]:max-md:h-11">
-          <Button type="submit" disabled={busy || count === 0}>
-            {busy && <Spinner data-icon="inline-start" />}
-            {pending > 0
-              ? `Looked up ${roster.length - pending} of ${roster.length}…`
-              : busy
-                ? importing
-                : 'Import roster'}
-          </Button>
-          <Button type="button" variant="secondary" disabled={busy} onClick={() => file.current?.click()}>
-            <UploadIcon data-icon="inline-start" aria-hidden="true" />
-            Upload a file
-          </Button>
-          <input ref={file} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={pick} />
+      <Field>
+        <FieldLabel htmlFor="roster-names">Show names</FieldLabel>
+        <div className={stacked ? 'flex flex-col gap-2' : 'grid gap-x-6 gap-y-2 md:grid-cols-2'}>
+          <Textarea
+            id="roster-names"
+            rows={4}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={'The Rewatchables\nThe Big Picture\nBinge Mode'}
+            disabled={busy}
+            className="max-h-60 min-h-24"
+          />
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2 [&>button]:max-md:h-11">
+              <Button type="submit" disabled={busy || count === 0}>
+                {busy && <Spinner data-icon="inline-start" />}
+                {pending > 0
+                  ? `Looked up ${roster.length - pending} of ${roster.length}…`
+                  : busy
+                    ? importing
+                    : 'Import roster'}
+              </Button>
+              <Button type="button" variant="secondary" disabled={busy} onClick={() => file.current?.click()}>
+                <UploadIcon data-icon="inline-start" aria-hidden="true" />
+                Upload a file
+              </Button>
+              <input ref={file} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={pick} />
+            </div>
+            <FieldDescription>
+              {keepsSettledShows
+                ? 'Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
+                : 'Replaces the current roster, up to 50 shows.'}
+            </FieldDescription>
+            <FieldDescription className="max-w-[72ch]">
+              Drop a file anywhere on the page, or upload one: a CSV needs a <Code>name</Code> column, and{' '}
+              <Code>downloads</Code>, <Code>status</Code>, and <Code>description</Code> are optional; a text file has
+              one show name per line.
+            </FieldDescription>
+          </div>
         </div>
-        <small className="type-caption text-muted-foreground">
-          {keepsSettledShows
-            ? 'Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
-            : 'Replaces the current roster, up to 50 shows.'}
-        </small>
-        <p className="max-w-[72ch] type-caption text-muted-foreground">
-          Drop a file anywhere on the page, or upload one: a CSV needs a <Code>name</Code> column, and{' '}
-          <Code>downloads</Code>, <Code>status</Code>, and <Code>description</Code> are optional; a text file has one
-          show name per line.
-        </p>
-      </div>
-      <div className="md:col-span-2">
+      </Field>
+      <div>
         <Alert error={error} />
       </div>
     </form>
@@ -551,25 +551,32 @@ function CompSearch({
   }
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <form onSubmit={search} className="flex flex-col gap-1.5">
-        <label className="font-medium" htmlFor="comp-q">
-          {show.candidates.length > 0 ? 'Or map it to a comparable show' : 'Map it to a comparable show'}
-        </label>
-        <div className="flex gap-2">
-          <Input
-            id="comp-q"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search Qloo podcasts"
-            maxLength={MAX_TITLE}
-            disabled={searching.busy}
-            className="max-md:h-11"
-          />
-          <Button type="submit" variant="secondary" disabled={searching.busy || !query.trim()} className="max-md:h-11">
-            {searching.busy && <Spinner data-icon="inline-start" />}
-            {searching.busy ? 'Searching…' : 'Search'}
-          </Button>
-        </div>
+      <form onSubmit={search}>
+        <Field>
+          <FieldLabel htmlFor="comp-q">
+            {show.candidates.length > 0 ? 'Or map it to a comparable show' : 'Map it to a comparable show'}
+          </FieldLabel>
+          <div className="flex gap-2">
+            <Input
+              id="comp-q"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search Qloo podcasts"
+              maxLength={MAX_TITLE}
+              disabled={searching.busy}
+              className="max-md:h-11"
+            />
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={searching.busy || !query.trim()}
+              className="max-md:h-11"
+            >
+              {searching.busy && <Spinner data-icon="inline-start" />}
+              {searching.busy ? 'Searching…' : 'Search'}
+            </Button>
+          </div>
+        </Field>
       </form>
       <Alert error={searching.error} />
       {found &&
@@ -636,31 +643,35 @@ function ShowFields({
   }
   return (
     <form className="flex flex-col gap-3" onSubmit={(e) => void save(e)}>
-      <label className="flex flex-col gap-1.5">
-        <span className="flex flex-wrap items-center gap-1.5 font-medium">
-          Downloads per episode {sampled(show, 'downloads') && <SampleChip />}
-        </span>
-        <Input
-          ref={downloadsField}
-          inputMode="numeric"
-          aria-invalid={invalid !== null || undefined}
-          aria-describedby={invalid !== null ? 'show-downloads-error' : undefined}
-          value={downloads}
-          onChange={(e) => setDownloads(e.target.value)}
-          className="max-md:h-11"
-        />
-      </label>
-      <label className="flex flex-col gap-1.5">
-        <span className="flex flex-wrap items-center gap-1.5 font-medium">
-          Status {sampled(show, 'status') && <SampleChip />}
-        </span>
-        <Input
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          placeholder="active, hiatus"
-          className="max-md:h-11"
-        />
-      </label>
+      <FieldGroup className="gap-3">
+        <Field data-invalid={invalid !== null || undefined}>
+          <FieldLabel htmlFor="show-downloads" className="flex-wrap gap-1.5">
+            Downloads per episode {sampled(show, 'downloads') && <SampleChip />}
+          </FieldLabel>
+          <Input
+            id="show-downloads"
+            ref={downloadsField}
+            inputMode="numeric"
+            aria-invalid={invalid !== null || undefined}
+            aria-describedby={invalid !== null ? 'show-downloads-error' : undefined}
+            value={downloads}
+            onChange={(e) => setDownloads(e.target.value)}
+            className="max-md:h-11"
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="show-status" className="flex-wrap gap-1.5">
+            Status {sampled(show, 'status') && <SampleChip />}
+          </FieldLabel>
+          <Input
+            id="show-status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            placeholder="active, hiatus"
+            className="max-md:h-11"
+          />
+        </Field>
+      </FieldGroup>
       <Button type="submit" variant="secondary" disabled={busy} className="self-start max-md:h-11">
         {saving && <Spinner data-icon="inline-start" />}
         Save
@@ -729,22 +740,16 @@ export function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample:
       <CpmHead cpm={cpm} />
       <p className="text-muted-foreground">{PRICES}</p>
       <form className="flex flex-wrap items-center gap-x-3 gap-y-2" onSubmit={save}>
-        <span className="relative">
-          <span
-            className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground"
-            aria-hidden="true"
-          >
-            $
-          </span>
-          <Input
+        <InputGroup className="w-52 max-md:h-11">
+          <InputGroupAddon aria-hidden="true">$</InputGroupAddon>
+          <InputGroupInput
             aria-labelledby="cpm-h"
             inputMode="decimal"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="CPM in dollars, e.g. 20"
-            className="w-52 pl-6 max-md:h-11"
           />
-        </span>
+        </InputGroup>
         <Button
           type="submit"
           variant="secondary"

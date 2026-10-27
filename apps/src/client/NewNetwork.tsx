@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { MAX_NAME } from '../text'
@@ -32,10 +33,8 @@ export function NewNetworkPage({ cap }: { cap: number }) {
           void create()
         }}
       >
-        <div className="flex flex-col gap-2">
-          <label className="font-medium" htmlFor="network-name">
-            Network name, as its members will see it
-          </label>
+        <Field>
+          <FieldLabel htmlFor="network-name">Network name, as its members will see it</FieldLabel>
           <Input
             id="network-name"
             className="h-10"
@@ -46,7 +45,7 @@ export function NewNetworkPage({ cap }: { cap: number }) {
             autoFocus
             required
           />
-        </div>
+        </Field>
         <Button type="submit" disabled={busy || !name.trim()} className="self-start max-md:h-11">
           {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Creating…' : 'Create network'}
