@@ -4,8 +4,10 @@
 // from a ramp that runs from a space to a dense glyph. The glyphs are drawn once into an atlas, in the
 // field's colour (--ascii in style.css, no darker than keeps every word 4.5:1 against it), and copied
 // from there; the frame rate and the pixel ratio are capped, and nothing is drawn while the tab is
-// hidden. With reduced motion it draws one frame and ignores the pointer. Without this script the
-// canvas stays empty and the page is the flat ground.
+// hidden. It moves on arrival and while the visitor moves the pointer, touches or scrolls, and a few
+// seconds after, it slows to a still frame, so nothing moves on its own for more than five seconds
+// (WCAG 2.2.2) and an idle page draws nothing. With reduced motion it draws one frame and ignores the
+// pointer. Without this script the canvas stays empty and the page is the flat ground.
 const canvas = document.querySelector<HTMLCanvasElement>('canvas[data-ascii]')
 const ctx = canvas?.getContext('2d')
 
@@ -16,6 +18,9 @@ if (canvas && ctx) {
   // skill's linter (lint.mjs), which flags mono outside code.
   const FONT = 'ui-monospace, SFMono-Regular, Menlo, monospace' // taste-skill-ignore
   const FPS = 24
+  // How long the field keeps its full pace after the visitor last moved, in ms; it then slows to a
+  // stop in under two seconds.
+  const AWAKE = 2500
   // Ripples: their wavelength in CSS pixels, and the sum at which a cell starts to show a character
   // and at which it takes the densest. Each ripple is a thin crest, so one ring alone is faint and
   // rings that cross add up to the dense glyphs.
@@ -50,6 +55,9 @@ if (canvas && ctx) {
   let t = 12
   let last = 0
   let frame = 0
+  // When the field starts to settle, and how fast its clock runs, from 0 to 1.
+  let awake = performance.now() + AWAKE
+  let pace = 1
 
   // The glyphs, densest last, each lighter the sparser it is, one cell apart.
   const drawAtlas = () => {
@@ -65,10 +73,8 @@ if (canvas && ctx) {
     }
   }
 
-  const size = () => {
+  const size = (width: number, height: number) => {
     dpr = Math.min(devicePixelRatio || 1, 2)
-    const width = canvas.clientWidth
-    const height = canvas.clientHeight
     canvas.width = Math.round(width * dpr)
     canvas.height = Math.round(height * dpr)
     const cell = width < 768 ? 12 : 14
@@ -146,13 +152,17 @@ if (canvas && ctx) {
     // At most FPS frames a second, taking a display's frame that comes up to 4ms early: 20 at 60Hz,
     // 24 at 120Hz.
     if (now - last < 1000 / FPS - 4) return
-    // The clock runs only while frames are drawn, so the field picks up where it left off.
-    t += Math.min(now - last, 100) / 1000
+    // The clock runs only while frames are drawn, at the field's pace, so it picks up where it
+    // left off.
+    pace += ((now < awake ? 1 : 0) - pace) * 0.1
+    t += (Math.min(now - last, 100) / 1000) * pace
     last = now
     launch.on += (launch.to - launch.on) * 0.08
     launch.x += (launch.toX - launch.x) * 0.15
     launch.y += (launch.toY - launch.y) * 0.15
     draw()
+    // Settled: the last frame holds until the visitor moves again.
+    if (now >= awake && pace < 0.02) stop()
   }
 
   const start = () => {
@@ -164,38 +174,46 @@ if (canvas && ctx) {
     cancelAnimationFrame(frame)
     frame = 0
   }
+  const wake = () => {
+    if (still.matches) return
+    awake = performance.now() + AWAKE
+    start()
+  }
 
-  addEventListener(
-    'pointermove',
-    (e) => {
-      if (still.matches) return
-      if (launch.to === 0) {
-        launch.x = e.clientX
-        launch.y = e.clientY
-      }
-      launch.toX = e.clientX
-      launch.toY = e.clientY
-      launch.to = 1
-    },
-    { passive: true }
-  )
-  // The pointer leaving the window takes the launch's ripples with it.
+  // The pointer, or a finger as it lands, is the launch.
+  const point = (e: PointerEvent) => {
+    if (still.matches) return
+    if (launch.to === 0) {
+      launch.x = e.clientX
+      launch.y = e.clientY
+    }
+    launch.toX = e.clientX
+    launch.toY = e.clientY
+    launch.to = 1
+    wake()
+  }
+  addEventListener('pointermove', point, { passive: true })
+  addEventListener('pointerdown', point, { passive: true })
+  addEventListener('scroll', wake, { passive: true })
+  // The pointer leaving the window takes the launch's ripples with it as they fade.
   document.addEventListener('pointerout', (e) => {
-    if (!e.relatedTarget) launch.to = 0
+    if (e.relatedTarget) return
+    launch.to = 0
+    wake()
   })
   document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()))
   still.addEventListener('change', () => {
     launch.on = launch.to = 0
     stop()
     draw()
-    start()
+    wake()
   })
   dark.addEventListener('change', () => {
     drawAtlas()
     draw()
   })
-  new ResizeObserver(() => {
-    size()
+  new ResizeObserver(([entry]) => {
+    size(entry.contentRect.width, entry.contentRect.height)
     draw()
   }).observe(canvas)
   start()
