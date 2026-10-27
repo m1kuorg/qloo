@@ -1,5 +1,10 @@
 .agents/
 .claude/
+# Local tool workspaces: the design-taste skill's inspections, the redesign's briefs and shots, and
+# impeccable's hook cache.
+.taste-skill/
+.product/
+.impeccable/hook.cache.json
 apps/worker-configuration.d.ts
 apps/dist/
 apps/.wrangler/
