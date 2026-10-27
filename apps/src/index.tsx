@@ -54,14 +54,16 @@ app.notFound(notFound)
 export default {
   fetch: app.fetch,
   // The daily cron in wrangler.jsonc: the Qloo health check, the directory's expired sessions,
-  // challenges, and invites cleared, any agent wipe that failed tried again, and the guest network
-  // cleared, each logging what it did. Each runs to its end whether or not the others fail, and then a
-  // failure fails the run.
+  // challenges, and invites cleared, any agent wipe that failed tried again, and then the guest network
+  // cleared, after the retry so the two never wipe one instance at once, each logging what it did. Each
+  // runs to its end whether or not the others fail, and then a failure fails the run.
   async scheduled(_controller, env) {
     const purged = purgeExpired(env.DB).then((counts) =>
       console.log(JSON.stringify({ event: 'directory_purged', ...counts }))
     )
-    for (const result of await Promise.allSettled([checkHealth(env), purged, retryWipes(env), resetGuestNetwork(env)]))
+    const retried = retryWipes(env)
+    const cleared = retried.catch(() => {}).then(() => resetGuestNetwork(env))
+    for (const result of await Promise.allSettled([checkHealth(env), purged, retried, cleared]))
       if (result.status === 'rejected') throw result.reason
   }
 } satisfies ExportedHandler<Env>

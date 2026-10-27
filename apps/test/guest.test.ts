@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Invite } from '../src/client/Account'
 import { NewNetworkPage } from '../src/client/NewNetwork'
 import worker from '../src/index'
+import { LaunchAgent } from '../src/launch-agent'
+import { NetworkAgent } from '../src/network-agent'
 import { fakeClaude, fakeQloo, text, toolUse, turn } from './fake'
 import { guestSignIn, hooked, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
 
@@ -561,7 +563,8 @@ describe("the guest network's daily budget", () => {
 })
 
 describe("the guest network's daily reset", () => {
-  const RESET = { code: 4410, reason: 'The guest network was cleared for the day, as it is every day at 12:00 UTC.' }
+  const RESET = { code: 4410, reason: 'The guest network was cleared, as it is every day at 12:00 UTC.' }
+  const health = { 'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }] }
   const open: Omit<Session, 'cookie'>[] = []
   afterEach(() => open.splice(0).forEach((agent) => agent.close()))
   const connect = async (who: { connect: Guest['connect'] }, path: string) => {
@@ -569,6 +572,17 @@ describe("the guest network's daily reset", () => {
     open.push(agent)
     return agent
   }
+  // Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
+  async function runCron() {
+    const ctx = createExecutionContext()
+    await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+    await waitOnExecutionContext(ctx)
+  }
+  // What launch `id`'s agent holds, once a wipe has reset it: null when it's empty.
+  const launchHeld = (id: string) =>
+    readAfterReset(
+      async () => (await (await getAgentByName(env.LaunchAgent, `guest-network:${id}`)).state).launch?.name ?? null
+    )
   // The usage the guest network's settings page shows, as its island reads it.
   const usage = async (guest: Guest) =>
     (await (await guest.fetch('/app/guest-network/settings')).text()).match(/data-usage="([^"]*)"/)?.[1]
@@ -578,7 +592,7 @@ describe("the guest network's daily reset", () => {
       search: {
         'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.8 }],
         // The cron's health check searches Qloo too.
-        'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }]
+        ...health
       }
     })
     const guest = await openGuest()
@@ -601,13 +615,12 @@ describe("the guest network's daily reset", () => {
     const spent = await usage(guest)
     const logged = vi.spyOn(console, 'log')
 
-    const ctx = createExecutionContext()
-    await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
-    await waitOnExecutionContext(ctx)
+    await runCron()
 
     expect(await network.closed()).toEqual(RESET)
     expect(await launch.closed()).toEqual(RESET)
-    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 1 }))
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 1, failed: 0 }))
+    expect(await launchHeld(id)).toBeNull()
     // The guest is still signed in, and the guest network opens afresh: the sample's CPM, nothing else.
     const fresh = await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
     expect(fresh).toMatchObject({ cpm: 20, roster: [], launches: [], checklistDismissed: [] })
@@ -616,5 +629,53 @@ describe("the guest network's daily reset", () => {
     expect((await connect(guest, '/agents/network/guest-network')).state()).toMatchObject({ roster: [], launches: [] })
     expect(await usage(guest)).toBe(spent)
     expect((await (await getAgentByName(env.NetworkAgent, own.id)).state).launches).toHaveLength(1)
+  })
+
+  it('fails the cron’s run when a wipe fails, with the launch already gone from the guest network, and wipes it the next day', async () => {
+    fakeQloo({ search: health })
+    const guest = await openGuest()
+    const { id } = await (
+      await connect(guest, '/agents/network/guest-network')
+    ).call<{ id: string }>('createLaunch', {
+      name: 'The Night Watch'
+    })
+    vi.spyOn(LaunchAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    const logged = vi.spyOn(console, 'log')
+    const failed = vi.spyOn(console, 'error')
+
+    await expect(runCron()).rejects.toThrow(
+      'Clearing the guest network, 1 agent wipe failed; the next daily run tries again.'
+    )
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 0, failed: 1 }))
+    expect(failed.mock.calls.flat().filter((line) => String(line).includes('"event":"wipe_failed"'))).toHaveLength(1)
+    expect((await guest.fetch(`/app/guest-network/launches/${id}`)).status).toBe(404)
+    expect(await launchHeld(id)).toBe('The Night Watch')
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 2 * 60_000)
+    await runCron()
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'wipes_retried', wiped: 1, kept: 0, failed: 0 }))
+    expect(await launchHeld(id)).toBeNull()
+  })
+
+  it('wipes a launch planned on an open page while the guest network was being cleared', async () => {
+    fakeQloo({ search: health })
+    const guest = await openGuest()
+    const page = await connect(guest, '/agents/network/guest-network')
+    // A launch is planned on the guest network's agent, as an open page's call would, after the
+    // clearing read its list and before the agent let go.
+    let late = ''
+    const letGo = NetworkAgent.prototype.letGo
+    // Its RPC caller awaits it, so the stand-in may take a moment.
+    const planThenLetGo = async function (this: NetworkAgent, reason?: string) {
+      late = (await this.createLaunch({ name: 'Paper Route' })).id
+      return letGo.call(this, reason)
+    }
+    vi.spyOn(NetworkAgent.prototype, 'letGo').mockImplementationOnce(planThenLetGo as never)
+
+    await runCron()
+    expect(await page.closed()).toEqual(RESET)
+    expect(await launchHeld(late)).toBeNull()
+    expect((await guest.fetch(`/app/guest-network/launches/${late}`)).status).toBe(404)
   })
 })

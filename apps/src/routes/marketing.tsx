@@ -22,7 +22,7 @@ import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
 import { MarketingPage, marketingShell } from '../shell'
-import { moveGlyph, moveWords, nth } from '../text'
+import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
 import { CLIMB, topicFinding } from '../topic'
 import { SESSION_DAYS } from './demo'
 
@@ -1213,7 +1213,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
                 Signing in as a guest asks for nothing and keeps only a hash of your session, for a day. Every guest is
                 the same guest member, in the one guest network: everything in it, its roster, launches, runs, inbox,
                 and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them
-                deletes or replaces it, or until it’s cleared, every day at 12:00 UTC.
+                deletes or replaces it, or until it’s cleared, every day at {GUEST_NETWORK_CLEARS}.
               </p>
             </li>
           )}
