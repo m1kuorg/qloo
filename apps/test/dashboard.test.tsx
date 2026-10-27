@@ -482,6 +482,48 @@ describe('settings', () => {
     expect(read).not.toContain('Leave')
     expect(read).not.toContain('Only an owner')
   })
+
+  it('show every guest the guest network’s usage today, every guest’s together, from any address or none', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
+    env.GUEST_PITCHES = 'on'
+    fakeQloo({
+      search: {
+        'Corner Booth': [{ entity_id: 'e-0501', name: 'Corner Booth', popularity: 0.6 }],
+        'Night Ferry': [{ entity_id: 'e-0502', name: 'Night Ferry', popularity: 0.4 }]
+      }
+    })
+    // The inbox load reads its one pitch, which pitches no public work.
+    fakeClaude([turn(text(JSON.stringify({ guest: 'Ada Quill', work: null })))])
+    const id = 'guest-network'
+    // One guest imports a show and another searches for a comp for it, each from an address of their
+    // own; a third, from none, loads an inbox.
+    const from = async (ip?: string) => {
+      const guest = await openGuest({ ip })
+      const agent = await guest.connect(`/agents/network/${id}`, ip ? { 'CF-Connecting-IP': ip } : {})
+      open.push(agent)
+      return { guest, agent }
+    }
+    const ada = await from('203.0.113.7')
+    await ada.agent.importRoster('Corner Booth')
+    await (await from('2001:db8::1')).agent.searchComps('Corner Booth', 'Night Ferry')
+    const someone = await from()
+    await someone.agent.call('loadInbox', { text: 'From: Pat <pat@example.com>\nSubject: A guest\n\nAda Quill.' })
+    const state = await someone.agent.until((s) => s.inbox?.status === 'done')
+
+    for (const { guest } of [ada, someone, await from('192.0.2.1')]) {
+      expect((await island(guest, `/app/${id}/settings`)).usage).toEqual({
+        modelRuns: { used: 1, limit: 10 },
+        qlooCalls: { used: 2, limit: 2000 },
+        resets: '2026-10-20T00:00:00.000Z'
+      })
+      const read = words(await settings(guest, id, state))
+      expect(read).toContain(
+        'Usage Beta What the guest network can use each UTC day, shared by everyone who signs in as a guest. Model runs are'
+      )
+      expect(read).toContain('Model runs 1 of 10 today Qloo calls 2 of 2,000 today Resets 00:00 UTC, in 9 h 30 min')
+    }
+  })
 })
 
 // What a network's page shows of its agent's socket, the same on every network page: the dashboard
