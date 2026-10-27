@@ -128,6 +128,9 @@ describe("a network's own Qloo key", () => {
     expect(res.status).toBe(200)
     const body = await res.text()
     expect(JSON.parse(body).key).toEqual({ set: true, host: HACKATHON, last4: '7f3a' })
+    // The saved key's test search was a call on the network's key, so its usage counts it; the
+    // refused key's, which saved nothing, it doesn't.
+    expect(JSON.parse(body).usage.qlooCalls.used).toBe(1)
     expect(body).not.toContain(OWN)
     expect(sent()).toEqual([
       [`${HACKATHON}/search`, UNKNOWN],
@@ -311,10 +314,10 @@ describe("a network's own Qloo key", () => {
     await launch.call('startLaunch', { name: 'Night Shift Cinema' })
     expect((await launch.until((s) => s.run?.status !== 'running')).run?.status).toBe('completed')
 
-    // Two lookups and the run's three calls, its cache hit too; the key's test search is no one's.
+    // The key's test search, two lookups, and the run's three calls, its cache hit too.
     const usage = (await settings(ada, own)).usage
     expect([usage.qlooCalls, usage.modelRuns]).toEqual([
-      { used: 5, limit: 2000 },
+      { used: 6, limit: 2000 },
       { used: 1, limit: 10 }
     ])
     const { secret } = await (
@@ -377,7 +380,8 @@ describe("a network's own Qloo key", () => {
     await network.searchComps('Corner Booth', 'Slow Burn')
     await network.searchComps('Corner Booth', 'Slow Burn')
     expect(searched().slice(1)).toEqual(['Corner Booth', 'Slow Burn']) // the second search, from its cache
-    expect((await settings(ada, own)).usage.qlooCalls.used).toBe(3)
+    // The key's test search, then the three.
+    expect((await settings(ada, own)).usage.qlooCalls.used).toBe(4)
 
     requests.length = 0
     const res = await post(ada, `/app/${own}/settings/qloo-key/remove`)
@@ -391,12 +395,13 @@ describe("a network's own Qloo key", () => {
     await network.importRoster('Corner Booth\nSlow Burn')
     expect(sent()).toEqual([[`${env.QLOO_BASE_URL}/search`, env.QLOO_API_KEY]])
 
-    // Its instance kept nothing: added again, the key starts with an empty cache and no calls counted.
+    // Its instance kept nothing: added again, the key starts with an empty cache, and only its new test
+    // search counted before the comp search.
     requests.length = 0
     expect((await addKey(ada, own, PRODUCTION, OWN)).status).toBe(200)
     await network.searchComps('Corner Booth', 'Slow Burn')
     expect(sent().slice(1)).toEqual([[`${PRODUCTION}/search`, OWN]])
-    expect((await settings(ada, own)).usage.qlooCalls.used).toBe(1)
+    expect((await settings(ada, own)).usage.qlooCalls.used).toBe(2)
   })
 
   it("stays the network's when it was saved before its agent kept whether it has one (#197)", async () => {
@@ -529,7 +534,8 @@ describe("a network's own Qloo key", () => {
       const id = await created(ada, name)
       expect((await addKey(ada, id, HACKATHON, OWN)).status).toBe(200)
       await (await connect(ada, `/agents/network/${id}`)).importRoster('Corner Booth')
-      expect(await held(id)).toEqual([{ set: true, host: HACKATHON, last4: '7f3a' }, 1])
+      // The key's test search and the lookup.
+      expect(await held(id)).toEqual([{ set: true, host: HACKATHON, last4: '7f3a' }, 2])
       networks.push({ id, name })
     }
     const wiped = async (id: string) => expect(await readAfterReset(() => held(id))).toEqual([{ set: false }, 0])
