@@ -461,10 +461,11 @@ const Footer = () => (
 )
 
 // A marketing page: server-rendered with no island, at 16px, under the marketing header and over the
-// footer, which a short page keeps at the window's foot. `title` names the page before the product; the 404 handler renders it too (routes/marketing).
-// menus.ts closes the phone's Menu on a click outside and on Escape; `reveal` adds reveal.ts, the
-// landing page's section entrances, and `ascii` its ASCII field: a canvas fixed behind the page, which
-// ascii.ts draws, sized by its classes and its own width and height, never a style attribute. The face's Latin file is preloaded, so the landing page's poster
+// footer, which a short page keeps at the window's foot. `title` names the page before the product; the
+// 404 handler renders it too (routes/marketing). menus.ts closes the phone's Menu on a click outside
+// and on Escape; `reveal` adds reveal.ts, the landing page's section entrances, and `ascii` its ASCII
+// field: a canvas fixed behind the page, which ascii.ts draws, sized by its classes and its own width
+// and height, never a style attribute. The face's Latin file is preloaded, so the landing page's poster
 // type is set in it from the first paint rather than re-wrapping when it swaps in for the size-adjusted
 // fallback (style.css).
 export const MarketingPage = ({
