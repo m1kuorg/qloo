@@ -7,7 +7,7 @@ import type { Evidence } from '../evidence'
 import type { Session } from './App'
 import { KeyValue, KeyValues } from './controls'
 import { Source } from './Source'
-import { StateLine } from './states'
+import { sentence, StateLine } from './states'
 
 // The call whose evidence the inspector shows, fetched on demand with getEvidence.
 export type Opened =
@@ -16,7 +16,7 @@ export type Opened =
   | { call: string; status: 'failed'; error: string }
 
 // A cited call number: opens that call's evidence in the inspector, or closes it when it's open. `label`
-// says what it's evidence for, and screen readers hear it before the number.
+// says what it's evidence for, and screen readers hear it before the number. Codes aren't translated.
 export function CallButton({
   call,
   label,
@@ -35,6 +35,7 @@ export function CallButton({
       aria-pressed={call === opened}
       aria-controls="evidence"
       aria-label={`${label}: call ${call}`}
+      translate="no"
       onClick={() => openCall(call)}
     >
       {call}
@@ -98,7 +99,7 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
       )}
       {opened?.status === 'failed' && (
         <StateLine kind="error" role="alert">
-          Couldn&apos;t load {opened.call}: {opened.error}
+          Couldn&apos;t load {opened.call}: {sentence(opened.error)} Select the call again to try again.
         </StateLine>
       )}
       {opened?.status === 'loaded' &&
@@ -113,15 +114,15 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour12: false })
 
-// A raw figure as Qloo returned it, less the binary-float noise its decimals can carry
-// (-0.03799999999999999 is -0.038). The noise sits in the 16th and 17th significant digits, so 12
-// drop it and keep the figure.
-const raw = (n: number | null) => (n === null ? '–' : String(Number(n.toPrecision(12))))
+// A raw figure as Qloo returned it: the number's shortest round trip, which is the figure Qloo's JSON
+// wrote. Qloo's own answers carry binary-float noise, such as a demographics bucket of
+// -0.11400000000000002, and that stays, since rounding it would no longer be what Qloo sent.
+const raw = (n: number | null) => (n === null ? '–' : String(n))
 
 // A code, such as an entity's Qloo ID, on one line: cut short with an ellipsis where it doesn't fit,
-// whole in its tooltip and to screen readers.
+// whole in its tooltip and to screen readers, and never translated.
 const Code = ({ children }: { children: string }) => (
-  <code className="block truncate font-mono text-xs" title={children}>
+  <code className="block truncate font-mono text-xs" title={children} translate="no">
     {children}
   </code>
 )
@@ -149,7 +150,7 @@ function EvidenceRecord({ record }: { record: Evidence }) {
           <Parameters params={record.params} />
         </KeyValue>
         <KeyValue label="Status">{record.status ?? 'No response'}</KeyValue>
-        <KeyValue label="Latency">{record.latencyMs} ms</KeyValue>
+        <KeyValue label="Latency">{`${record.latencyMs}\u00a0ms`}</KeyValue>
         <KeyValue label="Retries">{record.retries}</KeyValue>
         <KeyValue label="Cache">{record.cacheHit ? 'Hit, no new request' : 'Miss, called Qloo'}</KeyValue>
         <KeyValue label="Called at">{time(record.at)}</KeyValue>
