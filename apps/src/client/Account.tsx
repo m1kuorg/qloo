@@ -93,7 +93,8 @@ function GuestSignIn({ next, runs }: { next: string; runs: number }) {
         </h2>
         <p className="text-muted-foreground">
           Everyone who signs in as a guest shares one guest network and its daily limits,{' '}
-          {runs === 1 ? '1 model run' : `${runs} model runs`} a day between them, so put nothing private in it.
+          {runs === 1 ? '1 model run' : `${runs.toLocaleString('en-US')} model runs`} a day between them, so put nothing
+          private in it.
         </p>
       </div>
       <Button variant="secondary" className="w-full" disabled={busy} onClick={() => void signIn()}>
