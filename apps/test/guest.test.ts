@@ -223,6 +223,17 @@ describe('a guest session', () => {
     expect(ended.status).toBe(302)
     expect(ended.headers.get('location')).toBe('/sign-in?next=/app/guest-network')
   })
+
+  it('ends at sign-out for that guest alone: every other guest stays signed in', async () => {
+    const ada = await openGuest()
+    const grace = await openGuest()
+    const out = await ada.fetch('/auth/sign-out', { method: 'POST' })
+    expect(out.status).toBe(200)
+    expect(out.headers.get('set-cookie')).toMatch(/^__Host-crossfeed_member=; Max-Age=0;/)
+    const signedOut = await ada.fetch('/app/guest-network', { redirect: 'manual' })
+    expect(signedOut.headers.get('location')).toBe('/sign-in?next=/app/guest-network')
+    expect((await grace.fetch('/app/guest-network')).status).toBe(200)
+  })
 })
 
 describe('the guest sign-in limit', () => {
@@ -247,6 +258,15 @@ describe('the guest sign-in limit', () => {
     expect((await guestSignIn({ ip: '192.0.2.1' })).status).toBe(429)
     vi.setSystemTime(start + 60_000)
     expect((await guestSignIn({ ip: '192.0.2.1' })).status).toBe(200)
+  })
+
+  it('counts a guest session that ended in the minute, by sign-out or by signing in as a guest again', async () => {
+    // 15 guests sign in and out again, and 15 more sign in, each from the last one's browser.
+    for (let i = 0; i < 15; i++) await (await openGuest()).fetch('/auth/sign-out', { method: 'POST' })
+    let cookie: string | undefined
+    for (let i = 0; i < 15; i++) cookie = (await openGuest({ cookie })).cookie
+    expect(await (await guestSignIn({ cookie })).json()).toEqual(BUSY)
+    expect((await guestSignIn()).status).toBe(429)
   })
 
   it('counts exactly, so two sign-ins at once for the last place leave one refused', async () => {
