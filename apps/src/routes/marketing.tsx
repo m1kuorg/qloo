@@ -81,8 +81,10 @@ const plan = [
 const planSlots = plan.reduce((n, l) => n + l.slots, 0)
 const planTotal = plan.reduce((n, l) => n + l.value, 0)
 
-// The page's rhythm: sections 96px apart on phones, 160px from 768px, 192px from 1024px.
-const section = cn(marketingFrame, 'mt-24 md:mt-40 lg:mt-48')
+// The page's rhythm: each section a screen at least (docs/DESIGN.md), its content in the middle of it,
+// and the sections' own room above and below them, not margins, sets their content 96px apart on
+// phones, 160px from 768px, 192px from 1024px.
+const section = cn(marketingFrame, 'flex min-h-svh flex-col justify-center py-12 md:py-20 lg:py-24')
 // The rules inside the re-rank and the interface fragments (data-ui), as the app draws its tables'.
 // taste-skill-ignore keeps a line out of the design-taste skill's linter (lint.mjs), which flags a 1px
 // rule outside a real table; they're constants so it's said once.
@@ -292,7 +294,7 @@ const Stages = () => (
           >
             <div
               class={cn(
-                'flex flex-col justify-between gap-6 lg:h-[22svh] lg:min-h-40 lg:rounded-lg lg:p-5',
+                'flex flex-col justify-between gap-6 lg:h-[40svh] lg:min-h-40 lg:rounded-lg lg:p-5',
                 person ? 'lg:bg-primary lg:text-primary-foreground' : 'lg:bg-secondary'
               )}
             >
@@ -828,10 +830,10 @@ const Nevers = () => (
       <tbody role="rowgroup" class="max-md:block">
         {nevers.map(([never, instead]) => (
           <tr role="row" class="align-baseline odd:bg-muted max-md:flex max-md:flex-col max-md:gap-1 max-md:py-4">
-            <th role="rowheader" scope="row" class="px-3 font-semibold md:px-4 md:py-3.5">
+            <th role="rowheader" scope="row" class="px-3 font-semibold text-balance md:px-4 md:py-5 md:type-title">
               {never}
             </th>
-            <td role="cell" class="px-3 md:px-4 md:py-3.5">
+            <td role="cell" class="px-3 md:px-4 md:py-5">
               {instead}
             </td>
           </tr>
@@ -867,7 +869,11 @@ const RUN_WAITING = `{
   }
 }`
 const Developers = ({ inbox }: { inbox: boolean }) => (
-  <section id="developers" aria-labelledby="dev-h" class={cn(section, 'lg:grid lg:grid-cols-12 lg:gap-x-6')}>
+  <section
+    id="developers"
+    aria-labelledby="dev-h"
+    class={cn(section, 'lg:grid lg:grid-cols-12 lg:content-center lg:gap-x-6')}
+  >
     <div class="lg:col-span-5">
       <h2 id="dev-h" class="type-display" data-rise>
         For developers
@@ -939,15 +945,17 @@ const Developers = ({ inbox }: { inbox: boolean }) => (
 )
 
 // The close, the page's one colour field: the question across two lines with the ways in between
-// them, the sample first and, while accounts are on, a network of one's own. It meets the footer,
+// them, the sample first and, while accounts are on, a network of one's own. A screen at least: the
+// question's lines hold its top and its foot, and the ways in sit in the middle. It meets the footer,
 // taking back the margin the shell sets above it.
 const Close = ({ accounts }: { accounts: boolean }) => (
-  <section
-    aria-labelledby="close-h"
-    data-band="signal"
-    class="mt-24 -mb-24 bg-signal text-signal-foreground md:mt-40 md:-mb-40 lg:mt-48"
-  >
-    <div class={cn(marketingFrame, 'grid justify-items-center py-20 text-center md:py-28')}>
+  <section aria-labelledby="close-h" data-band="signal" class="-mb-24 bg-signal text-signal-foreground md:-mb-40">
+    <div
+      class={cn(
+        marketingFrame,
+        'grid min-h-svh grid-rows-[auto_1fr_auto] justify-items-center py-20 text-center md:py-28'
+      )}
+    >
       <h2
         id="close-h"
         class="col-start-1 row-span-3 row-start-1 grid grid-rows-subgrid type-display text-balance"
@@ -955,7 +963,7 @@ const Close = ({ accounts }: { accounts: boolean }) => (
       >
         <span class="row-start-1">Try the sample,</span> <span class="row-start-3">or your roster?</span>
       </h2>
-      <div class="col-start-1 row-start-2 my-14 flex w-full flex-col items-center gap-5 md:my-20">
+      <div class="col-start-1 row-start-2 my-14 flex w-full flex-col items-center gap-5 self-center md:my-20">
         <div class="flex w-full flex-col items-center gap-3 md:w-auto md:flex-row md:gap-8">
           <a class={buttonVariants({ size: 'lg', className: 'max-md:w-[72%]' })} href="/demo">
             Open the sample network
@@ -988,11 +996,12 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
   const line = 'line-mask pb-[0.16em] -mb-[0.16em]'
   return (
     <main>
+      {/* The first screen less the header's height (shell.tsx), so the two fill it together. */}
       <section
         aria-labelledby="hero-h"
         class={cn(
           marketingFrame,
-          'flex flex-col pt-[7svh] md:pt-[6svh] lg:min-h-[min(calc(100svh_-_5rem),60rem)] lg:pb-7'
+          'flex min-h-[calc(100svh_-_4rem)] flex-col pt-[12svh] pb-5 md:min-h-[calc(100svh_-_5rem)] lg:pt-[6svh] lg:pb-7'
         )}
       >
         <h1 id="hero-h" class="type-poster">
@@ -1006,8 +1015,8 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
           </span>
         </h1>
         {/* The sentence and the action on one baseline, the action's fine print hung under it; stacked
-            under 1024px. */}
-        <div class="mt-[18svh] flex flex-col gap-6 motion-safe:animate-rise-in lg:mt-auto lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-baseline-last lg:gap-x-10 lg:gap-y-3 lg:pt-[12svh]">
+            under 1024px. At the screen's foot at every width. */}
+        <div class="mt-auto flex flex-col gap-6 pt-[18svh] motion-safe:animate-rise-in lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-baseline-last lg:gap-x-10 lg:gap-y-3 lg:pt-[12svh]">
           <p class="max-w-[34em] type-title font-normal text-pretty max-md:text-lg/[1.45]">
             An agent that ranks your network’s shows by listener overlap in Qloo, asks you at each fork, and ends in an
             insertion order you approve.
