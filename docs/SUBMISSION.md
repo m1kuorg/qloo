@@ -27,7 +27,7 @@ Contents:
 - **Elevator pitch:** An agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners want, by ranking the network's own lists in Qloo.
 - **Try it out:** <https://crossfeed.m1kuorg.workers.dev>, whose first button opens the sample network at <https://crossfeed.m1kuorg.workers.dev/demo>, and <https://github.com/m1kuorg/qloo>
 - **Built with:** qloo, claude, anthropic, cloudflare-workers, durable-objects, cloudflare-agents, cloudflare-d1, hono, react, typescript, vite, vitest, webauthn, openapi, mcp
-- **Video and images:** the video is `crossfeed-demo.mp4`, 2 minutes 50 seconds with captions and no voice, on the draft release `submission`, which waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63). The screenshots are from the same run on the live demo, on sample data:
+- **Video and images:** the video is `crossfeed-demo.mp4`, 2 minutes 50 seconds with captions and no voice, on the draft release `submission`, which waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63). The screenshots are from one run on the sample network, on sample data:
   - [The chart, with a climber and its "why it moved" line](https://github.com/m1kuorg/qloo/blob/main/docs/images/chart.png)
   - [The agent's open question](https://github.com/m1kuorg/qloo/blob/main/docs/images/question.png)
   - [The evidence for the ranking call](https://github.com/m1kuorg/qloo/blob/main/docs/images/evidence.png)
@@ -44,7 +44,7 @@ Crossfeed is an agent for a podcast network, with two jobs:
 
 Every promo slot is an ad the network didn't sell, yet launch plans are drawn up by topic: the new true-crime show goes on the other true-crime shows.
 
-Without Qloo, an agent can only plan by topic, so Crossfeed runs that plan as its control. Claude Haiku 5.5 ranks the roster from show names and descriptions alone, with no Qloo input. The fit chart shows that rank as "last week" beside Qloo's as "this week".
+Without Qloo, an agent can only plan by topic, so Crossfeed runs that plan as its control. Claude Haiku 5.5 ranks the roster from show names and descriptions alone, with no Qloo input. The fit chart shows that rank in its Topic column beside Qloo's, and its lens re-orders the roster between the two, "By topic" and "By who listens".
 
 The live demo opens on a sample network built from The Ringer's public show names. Its sample launch is The Watch, whose description covers the week's TV, movies, and music. Across three fresh sessions ([live check]):
 
@@ -133,20 +133,20 @@ The guest flow runs the same way ([live check]):
 
 ## Design
 
-A judge opens the URL on a one-screen landing page: an illustrative chart of made-up shows, labelled as an illustration, with what Crossfeed never does and the ways in. Its first button opens the sample network with no sign-in, on a working screen, not a chat:
+A judge opens the URL on a type-led landing page whose one live thing is the re-rank: a made-up roster, labelled as an illustration, that switches between "By topic" and "By who listens", its shows travelling to their new places. True-size fragments of the app show a run, then what Crossfeed never does and the ways in. Its first button opens the sample network with no sign-in, in the signed-in app's shell, on a working screen, not a chat:
 
 - **Sample data, labelled:** the network opens ready, with a notice that Crossfeed isn't affiliated with The Ringer. Every download, status, description, and CPM figure is labelled "sample" until the visitor edits it.
-- **A weekly chart:** the fit chart reads like a music chart:
-  - "This week" is the fit rank, and "last week" is the topic rank.
-  - A red bullet marks a show that climbed three or more places.
+- **The re-rank:** the fit chart leads with the roster ranked by listener overlap:
+  - Its Topic column is each show's rank in the topic-only plan, and its Move column the difference, marked ▲ in signal orange for a show that climbed three or more places.
+  - Its lens switches the rows between "By who listens" and "By topic", each row travelling to its new place.
   - Selecting a climber opens its "why it moved" line, which cites the ranking and the compare.
 - **Rank and band, not decimals:** Qloo normalizes affinity per query, so the chart shows Strong, Good, or Fair by thirds of the ranking. Raw scores stay in the evidence.
 - **Data and agent kept apart:** Qloo results are labelled "Qloo data", and the agent's text "Agent", wherever they appear.
-- **Slot value beside fit:** each charted show's slot value, its downloads per episode × CPM ÷ 1,000, has its own column, labelled "sample" while its figures are. It comes from the same formula that prices the insertion order, so the two never disagree. On a narrow chart, it moves into the show's cell.
-- **A rail beside the chart:** the agent's open question sits at its top, as a form. Under it come the guide through the sample launch, the selected show, the evidence for any call, the insertion order with its totals, and the progress notes with the agent's closing line. In one column, the question comes before the chart, and the roster follows the rail.
+- **Slot value beside fit:** each charted show's slot value, its downloads per episode × CPM ÷ 1,000, has its own column, labelled "sample" while its figures are. It comes from the same formula that prices the insertion order, so the two never disagree. On a phone, each row folds to two lines and the slot value moves to the second.
+- **A canvas and an inspector:** the page reads in one column: the on-air readout, which says what the run is doing, the guide through the sample launch, the agent's open question as a card, the chart, the plan with its totals, and the roster. Beside it from 1360px, or in a sheet on smaller screens, the inspector's tabs hold the progress notes with the agent's closing line, the evidence for any call, and the selected show.
 - **Honest states:** loading, slow, failed, missed, not scored, and replayed each have their own wording. A Qloo call still waiting after 8 seconds is named as slow ([wrangler.jsonc]).
 - **The booker's inbox:** each pitch shows its guest, the public work, and the work's Qloo match. Pitched works are ranked in one list per type. Every pitch gets a drafted reply under Book, Later, or Decline. The booker approves, edits, or discards each reply, then copies it to send.
-- **The same world, signed in:** the product's dashboard, roster, settings, and account pages keep the chart's tables under a black rule and its hairline modules, with no KPI tiles, cards, or shadows, and one black button for each page's decision ([DESIGN.md]).
+- **The same world, signed in:** the product's pages share the demo's icon rail and top bar, with the network switcher. The dashboard groups launches by who's blocked, the roster and the inbox reuse the chart's rows, settings are labelled sections beside their help, and every destructive action confirms in one dialog. There are no KPI tiles, decorative icons, or shadows at rest, one ink button for each page's decision, and signal orange only for what the agent puts forward ([DESIGN.md]).
 
 [DESIGN.md]: https://github.com/m1kuorg/qloo/blob/main/docs/DESIGN.md
 
