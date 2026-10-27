@@ -108,6 +108,7 @@ export const segmentedItemVariants = merged(segmentedItem)
 // A call number, such as C-21, which opens its evidence: mono, as codes are, dotted underneath
 // until it's open, then in ink.
 const call = cva(
-  'inline-flex h-5 items-center rounded-lg px-1 font-mono text-xs text-muted-foreground underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted hover:text-foreground aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:no-underline'
+  // On a touch screen the 20px chip gets an invisible 44px hit area around it, without changing its look.
+  "relative inline-flex h-5 items-center rounded-lg px-1 pointer-coarse:after:absolute pointer-coarse:after:-inset-x-1 pointer-coarse:after:-inset-y-3 pointer-coarse:after:content-[''] font-mono text-xs text-muted-foreground underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted hover:text-foreground aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:no-underline"
 )
 export const callVariants = merged(call)

@@ -56,6 +56,18 @@ export function InsertionOrderPanel({
 }) {
   const [editing, setEditing] = useState(false)
   const { busy, error, run } = useAction()
+  // Leaving the editor removes its fields, so focus goes back to the button that opened it.
+  const leavingEdit = useRef(false)
+  const editButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (editing || !leavingEdit.current) return
+    leavingEdit.current = false
+    editButton.current?.focus()
+  }, [editing])
+  const stopEditing = () => {
+    leavingEdit.current = true
+    setEditing(false)
+  }
   const approved = order.status === 'approved'
   // Approve goes once the order is approved, so focus moves on to what follows it: Export CSV, or the
   // line saying who approved it.
@@ -115,9 +127,9 @@ export function InsertionOrderPanel({
             sample={sample}
             sharedTags={sharedTags}
             save={async (lines) => {
-              if (await run(() => actions.edit(lines))) setEditing(false)
+              if (await run(() => actions.edit(lines))) stopEditing()
             }}
-            cancel={() => setEditing(false)}
+            cancel={stopEditing}
             busy={busy}
           />
         ) : (
@@ -165,7 +177,7 @@ export function InsertionOrderPanel({
                     Approve
                   </Button>
                 )}
-                <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>
+                <Button ref={editButton} variant="ghost" disabled={busy} onClick={() => setEditing(true)}>
                   Edit lines
                 </Button>
                 <p className="type-caption text-muted-foreground">
@@ -353,6 +365,9 @@ function EditLines({
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [field]: value } : l)))
   const lacksAngle = (l: { show: string; angle: string }) => !l.angle.trim() && !angleOptional(sharedTags[l.show])
   const invalid = lines.some((l) => whole(l.slots) === null || lacksAngle(l)) || lines.length === 0
+  // Opening the editor replaces the button that opened it, so focus starts on the first angle.
+  const firstAngle = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => firstAngle.current?.focus(), [])
   // Typed and not saved: leaving the page asks first.
   useLeaveGuard(
     lines.length !== order.lines.length ||
@@ -377,6 +392,7 @@ function EditLines({
             angle: (
               <Field data-invalid={lacksAngle(lines[i]) || undefined}>
                 <Textarea
+                  ref={i === 0 ? firstAngle : undefined}
                   aria-label={`Angle for ${line.show}`}
                   aria-invalid={lacksAngle(lines[i]) || undefined}
                   aria-describedby={lacksAngle(lines[i]) ? 'io-edit-hint' : undefined}
