@@ -11,8 +11,10 @@ const ctx = canvas?.getContext('2d')
 
 if (canvas && ctx) {
   const RAMP = ' .:-=+*#%@'
-  // The platform mono stack, as style.css's --font-mono.
-  const FONT = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+  // The glyphs' face: the platform mono stack, as style.css sets code in, DESIGN.md's one sanctioned
+  // exception to mono for real code alone. taste-skill-ignore keeps the line out of the design-taste
+  // skill's linter (lint.mjs), which flags mono outside code.
+  const FONT = 'ui-monospace, SFMono-Regular, Menlo, monospace' // taste-skill-ignore
   const FPS = 24
   // Ripples: their wavelength in CSS pixels, and the sum at which a cell starts to show a character
   // and at which it takes the densest. Each ripple is a thin crest, so one ring alone is faint and
