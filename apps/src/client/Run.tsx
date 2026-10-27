@@ -4,7 +4,9 @@ import { useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { RadioGroup, RadioGroupItem, RadioGroupSegment } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
@@ -308,11 +310,11 @@ export function OpenQuestion({
         </Badge>
       </div>
       <form onSubmit={submit}>
-        <fieldset disabled={busy} className="min-w-0">
-          <legend className="mb-4 max-w-[60ch] type-title text-pretty" id="ask-q">
+        <FieldSet disabled={busy}>
+          <FieldLegend className="mb-4 max-w-[60ch] type-title font-semibold text-pretty" id="ask-q">
             {question.question}
-          </legend>
-          <div className="flex flex-col gap-4">
+          </FieldLegend>
+          <FieldGroup>
             {(question.kind === 'choice' || question.kind === 'launch') && question.options.length > 0 && (
               <RadioGroup
                 aria-labelledby="ask-q"
@@ -336,7 +338,7 @@ export function OpenQuestion({
             {question.kind === 'budget' && (
               <>
                 <p className="text-muted-foreground">The insertion order is checked against it.</p>
-                <div className="flex flex-wrap items-center gap-2">
+                <Field orientation="horizontal" className="flex-wrap">
                   <RadioGroup
                     aria-label="Budget in"
                     value={unit}
@@ -351,25 +353,18 @@ export function OpenQuestion({
                       A dollar budget
                     </RadioGroupSegment>
                   </RadioGroup>
-                  <span className="relative">
-                    {unit === 'dollars' && (
-                      <span
-                        className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground"
-                        aria-hidden="true"
-                      >
-                        $
-                      </span>
-                    )}
-                    <Input
+                  <InputGroup className="w-48 max-md:h-11">
+                    {unit === 'dollars' && <InputGroupAddon aria-hidden="true">$</InputGroupAddon>}
+                    <InputGroupInput
                       aria-label={unit === 'slots' ? 'Promo slots' : 'Dollar budget'}
                       inputMode={unit === 'slots' ? 'numeric' : 'decimal'}
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder={unit === 'slots' ? 'Slots, e.g. 20' : 'Budget, e.g. 150,000'}
-                      className={cn('w-48 max-md:h-11', unit === 'dollars' && 'pl-6')}
+                      className={unit === 'slots' ? 'pl-2.5' : undefined}
                     />
-                  </span>
-                </div>
+                  </InputGroup>
+                </Field>
               </>
             )}
             {question.kind === 'exclusions' &&
@@ -415,10 +410,8 @@ export function OpenQuestion({
                 <p className="text-muted-foreground">
                   Released shows with listeners like the launch's. All of them are scored together.
                 </p>
-                <div className="flex flex-col gap-1.5" role="group" aria-labelledby="ask-comps">
-                  <span className="font-medium" id="ask-comps">
-                    Comps, up to {MAX_COMPS}
-                  </span>
+                <FieldSet>
+                  <FieldLegend className="mb-1.5">Comps, up to {MAX_COMPS}</FieldLegend>
                   <div className="flex flex-wrap gap-2">
                     {comps.map((comp, i) => (
                       <Input
@@ -431,13 +424,13 @@ export function OpenQuestion({
                       />
                     ))}
                   </div>
-                </div>
+                </FieldSet>
               </>
             )}
             {question.kind === 'confirm_comps' &&
               confirming.map(({ name, offered }) => (
-                <fieldset key={name} className="min-w-0">
-                  <legend className="mb-1.5 font-semibold">{name}</legend>
+                <FieldSet key={name}>
+                  <FieldLegend className="mb-1.5 font-semibold">{name}</FieldLegend>
                   <RadioGroup
                     aria-label={name}
                     value={picks[name] ?? null}
@@ -459,11 +452,11 @@ export function OpenQuestion({
                       </label>
                     ))}
                   </RadioGroup>
-                </fieldset>
+                </FieldSet>
               ))}
             {typed && (
-              <label className="flex flex-col gap-1.5">
-                <span className="font-medium">
+              <Field>
+                <FieldLabel htmlFor="ask-text">
                   {question.kind === 'launch'
                     ? question.options.length > 0
                       ? 'Or the name Qloo lists it under'
@@ -473,8 +466,9 @@ export function OpenQuestion({
                       : question.options.length > 0
                         ? 'Or type your own answer'
                         : 'Your answer'}
-                </span>
+                </FieldLabel>
                 <Input
+                  id="ask-text"
                   value={text}
                   onChange={(e) => {
                     setText(e.target.value)
@@ -484,7 +478,7 @@ export function OpenQuestion({
                   maxLength={question.kind === 'launch' || question.kind === 'comps' ? MAX_TITLE : MAX_ANSWER}
                   className="sm:max-w-md max-md:h-11"
                 />
-              </label>
+              </Field>
             )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <Button type="submit" disabled={unpicked} className="max-md:h-11">
@@ -498,8 +492,8 @@ export function OpenQuestion({
                 <small className="type-caption text-muted-foreground">Only the comps you confirm are scored.</small>
               )}
             </div>
-          </div>
-        </fieldset>
+          </FieldGroup>
+        </FieldSet>
       </form>
       <Alert error={error} />
     </section>
