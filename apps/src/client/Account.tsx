@@ -306,15 +306,15 @@ function CreateAccount({
   )
 }
 
+// What `/auth/invite` answers for an invite link: the network it's for, or why it can't be used.
+type InviteAnswer = { network: string } | { error: string }
+
 // The invite page: the link's token is in the address's fragment, which the browser never sends, so
-// the page reads it and posts it. It names the network, then lets a signed-in member join, or anyone
-// else create an account or sign in, and join in the same step. `memberName` is who's signed in, and
+// the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in, and
 // `guest` whether that's the guest member, who can't join (ADR 0005).
 export function InvitePage({ memberName, guest = false }: { memberName: string | null; guest?: boolean }) {
   const [token] = useState(() => window.location.hash.slice(1))
-  const [invite, setInvite] = useState<{ network: string } | { error: string } | null>(null)
-  const [code, setCode] = useState<{ code: string; next: string } | null>(null)
-  const supported = useSupported()
+  const [invite, setInvite] = useState<InviteAnswer | null>(null)
   // Another link opened in this tab changes only the fragment, which loads no page: load it.
   useEffect(() => {
     const reload = () => window.location.reload()
@@ -330,6 +330,25 @@ export function InvitePage({ memberName, guest = false }: { memberName: string |
       (err: Error) => setInvite({ error: err.message })
     )
   }, [token])
+  return <Invite token={token} invite={invite} memberName={memberName} guest={guest} />
+}
+
+// The invite page for the link's `token`, once `/auth/invite` has answered (`invite`, null until then):
+// it names the network, then lets a signed-in member join, or anyone else create an account or sign
+// in, and join in the same step.
+export function Invite({
+  token,
+  invite,
+  memberName,
+  guest
+}: {
+  token: string
+  invite: InviteAnswer | null
+  memberName: string | null
+  guest: boolean
+}) {
+  const [code, setCode] = useState<{ code: string; next: string } | null>(null)
+  const supported = useSupported()
   if (code) return <RecoveryCode code={code.code} next={code.next} frame={frame} />
   // Joins as whoever is signed in now, and opens the network.
   const join = async () => window.location.assign(`/app/${(await send<{ id: string }>('/auth/join', { token })).id}`)
@@ -393,7 +412,7 @@ export function InvitePage({ memberName, guest = false }: { memberName: string |
 
 // A signed-in member joins as themselves, in one step, or signs out to join with another account. A
 // guest can only sign out, to create an account and join with it.
-export function JoinAs({
+function JoinAs({
   name,
   network,
   guest,
