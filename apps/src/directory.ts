@@ -176,16 +176,20 @@ export async function signIn(db: D1Database, passkey: Passkey, counter: number) 
 }
 
 // Signs in as the guest member: a new session of its own, for a day, which never proves it's the
-// member. The session the browser held, with token `held`, ends in the same batch, once the guest's is
-// written.
-export async function guestSignIn(db: D1Database, held?: string) {
+// member, written only while fewer than `perMinute` guest sessions were created in the last minute. The
+// count is in the same statement, so it holds for every request at once, from anywhere. The session
+// the browser held, with token `held`, ends in the same batch, once the guest's is written. Null when
+// the minute's guest sign-ins are spent, and nothing was written.
+export async function guestSignIn(db: D1Database, perMinute: number, held?: string) {
   const secret = token()
   const hash = await sha256(secret)
   const now = Date.now()
   const [written] = await db.batch([
     db
-      .prepare('INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) VALUES (?1, ?2, ?3, ?4, ?3)')
-      .bind(hash, GUEST_MEMBER, now, now + GUEST_SESSION_MS),
+      .prepare(
+        'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?1, ?2, ?3, ?4, ?3 WHERE (SELECT count(*) FROM sessions WHERE member_id = ?2 AND created > ?5) < ?6'
+      )
+      .bind(hash, GUEST_MEMBER, now, now + GUEST_SESSION_MS, now - 60_000, perMinute),
     ...(held
       ? [
           db

@@ -412,10 +412,14 @@ auth.post('/auth/recover', async (c) => {
 
 // Signing in as a guest (ADR 0005), in one click with nothing to give: a session of the guest member's,
 // in the guest network. The session the browser held, if any, ends. The answer is where to go next,
-// `?next` under the same rules as a passkey sign-in's. It isn't limited per visitor.
+// `?next` under the same rules as a passkey sign-in's. It isn't limited per visitor: everyone's guest
+// sign-ins together are, GUEST_SIGNINS_PER_MINUTE a minute.
 auth.post('/auth/guest', async (c) => {
-  const token = await guestSignIn(c.env.DB, sessionToken(c))
-  if (!token) return refuse(c, 'Guest sign-in failed. Try again.', 429)
+  const token = await guestSignIn(c.env.DB, Number(c.env.GUEST_SIGNINS_PER_MINUTE) || 0, sessionToken(c))
+  if (!token) {
+    c.header('Retry-After', '60')
+    return refuse(c, 'Guest sign-ins are busy for everyone right now. Try again in a minute.', 429)
+  }
   setSession(c, token, GUEST_SESSION_MS)
   console.log(JSON.stringify({ event: 'guest_sign_in' }))
   return c.json({ next: nextPath(c, c.req.query('next')) })
