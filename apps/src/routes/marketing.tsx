@@ -16,7 +16,7 @@ import {
   segmentedItemVariants,
   segmentedTrackVariants
 } from '../components/ui/variants'
-import { bandMeter, FINALISTS, type Band as Third } from '../fit'
+import { bandMeter, FINALISTS, type Band } from '../fit'
 import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
@@ -36,7 +36,7 @@ const LAUNCH = 'Low Tide'
 // The roster in listener order, as Qloo's ranking would put it: each show's place is its fit rank.
 // `topic` is the rank a topic-only plan gives it. Bands are thirds of the ranking, as fit.ts sets
 // them; `tags` are the tags its listeners share with the launch's.
-const roster: { show: string; topic: number; band: Third; tags: string[] }[] = [
+const roster: { show: string; topic: number; band: Band; tags: string[] }[] = [
   { show: 'Case Notes', topic: 1, band: 'top', tags: ['Cold case', 'Small-town'] },
   { show: 'The Harbour', topic: 6, band: 'top', tags: ['Coastal', 'Oral history'] },
   { show: 'Plain Sight', topic: 2, band: 'top', tags: ['Investigative', 'Courtroom'] },
@@ -84,12 +84,12 @@ const planTotal = plan.reduce((n, l) => n + l.value, 0)
 // The page's rhythm: sections 96px apart on phones, 160px from 768px, 192px from 1024px.
 const section = cn(marketingFrame, 'mt-24 md:mt-40 lg:mt-48')
 // The rules inside the re-rank and the interface fragments (data-ui), as the app draws its tables'.
-const ruleTop = 'border-t' // taste-skill-ignore
-const ruleBottom = 'border-b' // taste-skill-ignore
+const rowRuleAbove = 'border-t' // taste-skill-ignore
+const rowRuleBelow = 'border-b' // taste-skill-ignore
 
 // The fit band's meter, three bars filled from the left, signal for a finalist, then its word, as the
 // app's FitBand sets it, at the re-rank's scale.
-const Meter = ({ band, finalist }: { band: Third; finalist: boolean }) => {
+const Meter = ({ band, finalist }: { band: Band; finalist: boolean }) => {
   const { bars, word } = bandMeter[band]
   return (
     <span class="inline-flex items-center gap-2 text-muted-foreground">
@@ -182,7 +182,7 @@ function ReRank() {
             </span>
           </div>
         </div>
-        <div role="rowgroup" class={cn('grid auto-rows-fr', ruleBottom)}>
+        <div role="rowgroup" class={cn('grid auto-rows-fr', rowRuleBelow)}>
           {ranked.map((r) => (
             <div
               role="row"
@@ -191,7 +191,7 @@ function ReRank() {
               data-t={r.topic}
               class={cn(
                 reRankRow,
-                ruleTop,
+                rowRuleAbove,
                 '-mx-3 px-3 py-4 md:-mx-4 md:px-4 md:py-5',
                 r.finalist ? 'bg-signal-tint' : 'bg-background'
               )}
@@ -456,7 +456,7 @@ const PlanFragment = () => (
       </div>
       <table class="w-full">
         <thead class="type-caption text-muted-foreground">
-          <tr class={ruleBottom}>
+          <tr class={rowRuleBelow}>
             <th scope="col" class="pb-2 text-left font-normal">
               Show · angle
             </th>
@@ -469,7 +469,7 @@ const PlanFragment = () => (
           </tr>
         </thead>
         {plan.map((line) => (
-          <tbody class={ruleBottom}>
+          <tbody class={rowRuleBelow}>
             <tr class="align-baseline">
               <th scope="row" class="pt-3 text-left font-normal">
                 <span class="inline-flex items-center gap-2 text-[15px] leading-snug font-semibold">
