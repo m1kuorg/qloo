@@ -489,7 +489,7 @@ describe("a launch's run", () => {
         .replace(/&#x27;/g, "'")
         .replace(/\s+/g, ' ')
     ).toContain(
-      "Evidence · C-06 Qloo data From the roster Copied From the network's roster, its call C-08 , as Qloo answered it then; the run made no new request"
+      'Evidence · C-06 Qloo data From the roster Copied From the network’s roster, its call C-08 , as Qloo answered it then; the run made no new request'
     )
     expect(state.run?.replayed).toBeUndefined()
     expect(await roster.call<Evidence[]>('getEvidence')).toEqual(networkLog)
@@ -1317,7 +1317,7 @@ describe('the pages, as a member reads them', () => {
     await roster.call('updateShow', 'Paper Route', { excluded: true })
     await agent.until((s) => s.rosterChanged === true)
     expect(words(workspace(network, agent))).toContain(
-      `Roster The latest run ranks Night Shift Audio's roster as it stood when that run started. ${changed} Edit its shows on the roster page .`
+      `Roster The latest run ranks Night Shift Audio’s roster as it stood when that run started. ${changed} Edit its shows on the roster page .`
     )
     // Put back as it was, the roster is the run's again.
     await roster.call('updateShow', 'Paper Route', { excluded: false })
@@ -1343,7 +1343,7 @@ describe('the pages, as a member reads them', () => {
     expect(words(before)).toMatch(/^The Night Watch Start run Not run yet\. A run looks it up in Qloo\. /)
     expect(before).toMatch(/<input\b(?=[^>]*\saria-label="Released launch")(?=[^>]*\svalue="The Night Watch")/)
     expect(words(before)).toContain(
-      "Roster Each run ranks Night Shift Audio's roster as it stands when the run starts. Edit its shows on the roster page ."
+      'Roster Each run ranks Night Shift Audio’s roster as it stands when the run starts. Edit its shows on the roster page .'
     )
     // Nothing is counted or priced until a run brings the roster and its CPM.
     expect(words(before)).not.toContain('Roster check')
@@ -1362,13 +1362,13 @@ describe('the pages, as a member reads them', () => {
     )
     const read = words(after)
     expect(read).toContain(
-      "Roster The latest run ranks Night Shift Audio's roster as it stood when that run started. Edit its shows on the roster page ."
+      'Roster The latest run ranks Night Shift Audio’s roster as it stood when that run started. Edit its shows on the roster page .'
     )
     expect(read).toContain('Corner Booth Resolved Corner Booth')
     expect(read).toContain('Network CPM CPM $25 per 1,000 downloads')
-    expect(read).toContain("Each run takes the network's CPM as it starts.")
+    expect(read).toContain('Each run takes the network’s CPM as it starts.')
     expect(read).toContain(
-      "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them."
+      'Model runs are limited per UTC day across the network’s launches and inbox, whoever starts them.'
     )
     for (const elsewhere of [
       'Import roster',

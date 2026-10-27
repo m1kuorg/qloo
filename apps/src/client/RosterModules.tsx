@@ -166,8 +166,8 @@ export function RosterFailures({ roster }: { roster: Show[] }) {
   return (
     <p className="max-w-[72ch]">
       <StateLine kind="failed">
-        {failed.length} {one ? 'show' : 'shows'} couldn&apos;t be looked up in Qloo, so {one ? 'it' : 'they'} can&apos;t
-        be scored: {failed.join(', ')}. Import the roster again to retry {one ? 'it' : 'them'}; shows already found come
+        {failed.length} {one ? 'show' : 'shows'} couldn’t be looked up in Qloo, so {one ? 'it' : 'they'} can’t be
+        scored: {failed.join(', ')}. Import the roster again to retry {one ? 'it' : 'them'}; shows already found come
         from the cache.
       </StateLine>
     </p>
@@ -728,7 +728,7 @@ export function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample:
         </Button>
         {sample && (
           <small className="flex items-center gap-1.5 type-caption text-muted-foreground">
-            <SampleChip /> Arbitrary sample figure, not the network&apos;s. Enter your own.
+            <SampleChip /> Arbitrary sample figure, not the network’s. Enter your own.
           </small>
         )}
       </form>

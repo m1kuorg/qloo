@@ -77,7 +77,7 @@ void (pages[d.page ?? ''] ?? demo)()
   .catch((err: unknown) => (
     <main className="lost">
       <StateLine kind="error" role="alert">
-        This page didn&apos;t load ({err instanceof Error ? err.message : String(err)}). Reload to try again.
+        This page didn’t load ({err instanceof Error ? err.message : String(err)}). Reload to try again.
       </StateLine>
     </main>
   ))

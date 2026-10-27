@@ -551,7 +551,7 @@ describe('the booker clearing the inbox', () => {
 
     expect(words(html)).toMatch(/^Inbox Run 1 An earlier run, read-only\. Pasted pitches .* Back to the latest run/)
     expect(words(html)).toContain(
-      "shares with Night Shift Cinema in Qloo. Run 1's replies, read-only; an approved one can still be copied."
+      'shares with Night Shift Cinema in Qloo. Run 1’s replies, read-only; an approved one can still be copied.'
     )
     expect(actionsOf(html, 'pitch-02')).toEqual([['Copy reply about Paper Moons', false]])
     expect(words(replyOn(html, 'pitch-02'))).toMatch(

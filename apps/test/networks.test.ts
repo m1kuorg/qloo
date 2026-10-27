@@ -136,7 +136,7 @@ describe('creating a network', () => {
     const fourth = await create(ada, 'Four')
     expect(fourth.status).toBe(429)
     expect(await fourth.json()).toEqual({
-      error: "You've created 3 networks, the most one member can create in the beta. Open one of them instead."
+      error: 'You’ve created 3 networks, the most one member can create in the beta. Open one of them instead.'
     })
     expect(switcher(await page(ada, '/app/new')).map(([name]) => name)).toEqual(['One', 'Three', 'Two'])
 
@@ -302,7 +302,7 @@ describe('settings', () => {
 
     const res = await saveNetwork(grace, network, { name: 'Grace Audio', cpm: 30 })
     expect(res.status).toBe(403)
-    expect(await res.json()).toEqual({ error: "Only an owner can change the network's name and CPM." })
+    expect(await res.json()).toEqual({ error: 'Only an owner can change the network’s name and CPM.' })
     expect(await page(grace, `/app/${network}`)).toContain('data-network-name="Night Shift Audio"')
     expect((await connect(grace, network)).state()!.cpm).toBeNull()
   })

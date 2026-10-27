@@ -300,7 +300,7 @@ describe('deleting an account', () => {
     expect(await page.closed()).toEqual({ code: 4403, reason: 'Your account was deleted.' })
     expect(await accountFor(grace.cookie)).toBe('302 /sign-in?next=/app/account')
     expect(await (await signInWith(grace.authenticator)).json()).toEqual({
-      error: "Crossfeed doesn't know this passkey. Try another, or create an account."
+      error: 'Crossfeed doesn’t know this passkey. Try another, or create an account.'
     })
     const recovered = await exports.default.fetch(`${origin}/auth/recover`, {
       method: 'POST',
@@ -342,13 +342,13 @@ describe('deleting an account', () => {
       409,
       {
         error:
-          "You're the only owner of Day Shift Audio and Night Shift Audio. Make someone else an owner, or delete the network, before you delete your account."
+          'You’re the only owner of Day Shift Audio and Night Shift Audio. Make someone else an owner, or delete the network, before you delete your account.'
       }
     ])
     await post(ada, `/app/${night}/settings/members/${grace.id}/role`, { role: 'owner' })
     expect(await (await deleteAccount(ada)).json()).toEqual({
       error:
-        "You're the only owner of Day Shift Audio. Make someone else an owner, or delete the network, before you delete your account."
+        'You’re the only owner of Day Shift Audio. Make someone else an owner, or delete the network, before you delete your account.'
     })
     expect(await accountFor(ada.cookie)).toBe(200)
     expect((await accountPage(ada)).networks.map((n) => n.onlyOwner)).toEqual([true, false])

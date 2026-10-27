@@ -381,7 +381,7 @@ describe('approving a reply', () => {
     )
     expect(page).toContain('Runs Run 1 · Pitches for Night Shift Cinema')
     expect(page).toContain(
-      "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them."
+      'Model runs are limited per UTC day across the network’s launches and inbox, whoever starts them.'
     )
 
     // An edit returns it to draft, and the approval with it.

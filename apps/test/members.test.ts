@@ -91,7 +91,7 @@ describe('invite links', () => {
     expect(unknown.status).toBe(404)
     expect(await unknown.json()).toEqual({
       error:
-        "Crossfeed doesn't know this invite link: it may be incomplete, or it expired. Ask an owner of the network for a new one."
+        'Crossfeed doesn’t know this invite link: it may be incomplete, or it expired. Ask an owner of the network for a new one.'
     })
   })
 
@@ -257,7 +257,7 @@ describe('invite links', () => {
       write({ challenge: started.challenge, response: await lin.authenticate(started.options) })
     )
     expect(await answer.json()).toEqual({
-      error: "Crossfeed doesn't know this passkey. Try another, or create an account."
+      error: 'Crossfeed doesn’t know this passkey. Try another, or create an account.'
     })
 
     const refused = await exports.default.fetch(
@@ -569,7 +569,7 @@ describe('leaving a network', () => {
     const last = await post(ada, `/app/${network}/settings/members/leave`)
     expect([last.status, await last.json()]).toEqual([
       409,
-      { error: "You're this network's last owner. Make someone else an owner before you leave." }
+      { error: 'You’re this network’s last owner. Make someone else an owner before you leave.' }
     ])
     await setRole(ada, network, grace, 'owner')
     expect((await post(ada, `/app/${network}/settings/members/leave`)).status).toBe(200)

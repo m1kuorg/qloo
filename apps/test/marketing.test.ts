@@ -130,7 +130,7 @@ describe('the landing page', () => {
       'For developers'
     ])
       expect(text).toContain(heading)
-    expect(text).toContain("Sends a guest's name or a pitch to Qloo.")
+    expect(text).toContain('Sends a guest’s name or a pitch to Qloo.')
     expect(text).toContain('Approves anything for you.')
     expect(hrefs(await page('/'))).toContain('/docs')
   })
@@ -157,17 +157,17 @@ describe('the privacy page and the beta terms', () => {
     const text = words(await page('/privacy'))
     for (const heading of ['What reaches Qloo', 'What reaches Anthropic', 'What Crossfeed keeps', 'How deletion works'])
       expect(text).toContain(heading)
-    expect(text).toContain("Never a pitch's text, a guest's name, an email address, or a sender's details.")
+    expect(text).toContain('Never a pitch’s text, a guest’s name, an email address, or a sender’s details.')
     expect(text).toContain('Crossfeed never stores your IP address or writes it to its own logs.')
-    expect(text).toContain("Crossfeed can't delete a session yet")
+    expect(text).toContain('Crossfeed can’t delete a session yet')
     expect(text).toContain(
-      "Uploads: a file you upload is read in your browser, or by Crossfeed when a program sends it to the API. A roster file's text is sent and imported like pasted names; of pitch emails, only each one's sender, subject, and text are sent, never its attachments or other headers. The files themselves aren't kept."
+      'Uploads: a file you upload is read in your browser, or by Crossfeed when a program sends it to the API. A roster file’s text is sent and imported like pasted names; of pitch emails, only each one’s sender, subject, and text are sent, never its attachments or other headers. The files themselves aren’t kept.'
     )
   })
 
   it('says the Qloo cache is shared, and that a cache hit can show someone else looked up the same name', async () => {
     const shared = (who: string, someone: string) =>
-      `Qloo's responses with the requests they answered, cached with no expiry in one cache that ${who} shares. A call someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show that ${someone} looked up the same name; nothing else of theirs is shown, and the cache is never published.`
+      `Qloo’s responses with the requests they answered, cached with no expiry in one cache that ${who} shares. A call someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show that ${someone} looked up the same name; nothing else of theirs is shown, and the cache is never published.`
     expect(words(await page('/privacy'))).toContain(
       shared('every visitor and every network without its own Qloo key', 'another visitor or network')
     )
@@ -193,33 +193,33 @@ describe('the privacy page and the beta terms', () => {
     env.INVITED_SIGNUP_DAILY_CAP = '12'
     const kept = 'With an account: your name'
     const approvals = 'with the member who approved each reply'
-    const counts = "each visitor's and each network's counts for the day"
+    const counts = 'each visitor’s and each network’s counts for the day'
     const cap =
-      "A member can create at most 2 networks, and a network can keep at most 40 launches and 15 open invite links at once. One member's invite links can bring in at most 12 new accounts a UTC day."
+      'A member can create at most 2 networks, and a network can keep at most 40 launches and 15 open invite links at once. One member’s invite links can bring in at most 12 new accounts a UTC day.'
     const network =
-      "A network counts as one visitor of its own, whichever of its members makes the network's calls and runs."
-    const keys = "A network's API keys are kept only as hashes"
+      'A network counts as one visitor of its own, whichever of its members makes the network’s calls and runs.'
+    const keys = 'A network’s API keys are kept only as hashes'
     const signOff =
       'the name of the member or API key that started each run, and of the member who approved each insertion order, and when'
     const left =
       'Leaving a network, or being removed from it, deletes your membership at once, and your open pages of it close. Crossfeed keeps only a note that you were in it, so deleting your account later forgets your name there too.'
     const launchGone =
-      "Deleting a launch, which any of the network's members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records."
+      'Deleting a launch, which any of the network’s members can do, wipes its storage: its runs, insertion orders, the roster copies, and their Qloo records.'
     const networkGone =
-      "Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage, each of its launches', and its Qloo storage. A wipe that fails is tried again by the next day's cleanup, which also deletes expired sessions, sign-in challenges, and invite links."
+      'Deleting a network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its own storage, each of its launches’, and its Qloo storage. A wipe that fails is tried again by the next day’s cleanup, which also deletes expired sessions, sign-in challenges, and invite links.'
     const accountGone =
-      "Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you're in, or were in before, say “Former member” on the runs you started and the orders you approved, and the replies you approved no longer say who did. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or is made a member. A network that can't be reached at once forgets your name at the next day's cleanup. It's refused while you're a network's only owner. “Sign out everywhere” deletes every session of yours."
-    const perMinute = "Each API key, and each visitor's sign-in requests, are also limited per minute"
+      'Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you’re in, or were in before, say “Former member” on the runs you started and the orders you approved, and the replies you approved no longer say who did. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or is made a member. A network that can’t be reached at once forgets your name at the next day’s cleanup. It’s refused while you’re a network’s only owner. “Sign out everywhere” deletes every session of yours.'
+    const perMinute = 'Each API key, and each visitor’s sign-in requests, are also limited per minute'
     const ownKey =
-      "A network's own Qloo key, if an owner adds one, is kept encrypted in the network's own Qloo storage, with the host it's for and its last four characters, the only part of it anyone is shown."
+      'A network’s own Qloo key, if an owner adds one, is kept encrypted in the network’s own Qloo storage, with the host it’s for and its last four characters, the only part of it anyone is shown.'
     const ownKeySent =
       'A network that adds its own Qloo key sends its requests with that key instead, to the Qloo host it chose.'
     const keyGone =
-      "Removing a network's own Qloo key, which only an owner can do, wipes its Qloo storage at once: the key, its cached answers, and its counts."
+      'Removing a network’s own Qloo key, which only an owner can do, wipes its Qloo storage at once: the key, its cached answers, and its counts.'
     const ownKeyTerms =
-      "A network's owner can add the network's own Qloo key in its settings; its Qloo calls then run on that key, under the owner's own agreement with Qloo."
+      'A network’s owner can add the network’s own Qloo key in its settings; its Qloo calls then run on that key, under the owner’s own agreement with Qloo.'
     const ownKeyLimits =
-      "A network with its own Qloo key counts its Qloo calls on that key, apart from everyone else's, against the same limits; its model runs count with everyone's."
+      'A network with its own Qloo key counts its Qloo calls on that key, apart from everyone else’s, against the same limits; its model runs count with everyone’s.'
     expect(words(await page('/privacy'))).toContain(kept)
     expect(words(await page('/privacy'))).toContain(approvals)
     expect(words(await page('/privacy'))).toContain(counts)
@@ -243,7 +243,7 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).not.toContain(accountGone)
     for (const line of [ownKey, ownKeySent, keyGone]) expect(words(await page('/privacy'))).not.toContain(line)
     for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).not.toContain(line)
-    expect(words(await page('/privacy'))).toContain("each visitor's counts for the day")
+    expect(words(await page('/privacy'))).toContain('each visitor’s counts for the day')
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)
     expect(words(await page('/terms'))).not.toContain(perMinute)

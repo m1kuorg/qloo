@@ -281,9 +281,7 @@ export function InboxPage({
             />
           )}
           {!pitchRun && !booking && (
-            <p className="text-muted-foreground">
-              Not run yet. A pitch run&apos;s steps and its closing line show here.
-            </p>
+            <p className="text-muted-foreground">Not run yet. A pitch run’s steps and its closing line show here.</p>
           )}
           {booking && <Anchors booking={booking} openCall={showCall} opened={opened} />}
           {history?.runs.some((r) => r.pitchesFor) && (
@@ -365,8 +363,8 @@ function InboxHead({
               {inbox?.sample && <Badge>Sample data</Badge>}
             </p>
             <p className="max-w-[72ch]">
-              Claude reads each pitch for its guest and public work. Only the work&apos;s title and type are looked up
-              in Qloo; names, addresses, and pitch text never are.
+              Claude reads each pitch for its guest and public work. Only the work’s title and type are looked up in
+              Qloo; names, addresses, and pitch text never are.
             </p>
           </div>
         </div>
@@ -650,9 +648,8 @@ function PitchSetup({
           Rank against a show
         </h2>
         <p className="max-w-[72ch] text-muted-foreground">
-          Pick the roster show the pitches are for, and name its best past guests&apos; public works. Each type of
-          pitched work is ranked against the show and those works in its own Qloo call. Only titles and types reach
-          Qloo.
+          Pick the roster show the pitches are for, and name its best past guests’ public works. Each type of pitched
+          work is ranked against the show and those works in its own Qloo call. Only titles and types reach Qloo.
         </p>
       </div>
       {shows.length === 0 ? (
@@ -691,7 +688,7 @@ function PitchSetup({
               </Select>
             </Field>
             <FieldSet className="gap-4 md:gap-2">
-              <FieldLegend className="mb-1.5">Past guests&apos; public works</FieldLegend>
+              <FieldLegend className="mb-1.5">Past guests’ public works</FieldLegend>
               <div aria-hidden="true" className={cn(guestRow, 'type-caption text-muted-foreground max-md:hidden')}>
                 <span>Guest</span>
                 <span>Work title</span>
@@ -713,7 +710,7 @@ function PitchSetup({
                   <GuestField name="Work title" area="[grid-area:title]" field={`guest-${i}-title`}>
                     <Input
                       id={`guest-${i}-title`}
-                      aria-label={`Past guest ${i + 1}'s work title`}
+                      aria-label={`Past guest ${i + 1}’s work title`}
                       value={r.title}
                       onChange={(e) => edit(i, { title: e.target.value })}
                       maxLength={MAX_TITLE}
@@ -729,7 +726,7 @@ function PitchSetup({
                     >
                       <SelectTrigger
                         id={`guest-${i}-type`}
-                        aria-label={`Past guest ${i + 1}'s work type`}
+                        aria-label={`Past guest ${i + 1}’s work type`}
                         className="w-full"
                       >
                         <SelectValue />
@@ -748,7 +745,7 @@ function PitchSetup({
                   <GuestField name="Year" area="[grid-area:year]" field={`guest-${i}-year`} invalid={invalid === i}>
                     <Input
                       id={`guest-${i}-year`}
-                      aria-label={`Past guest ${i + 1}'s work year`}
+                      aria-label={`Past guest ${i + 1}’s work year`}
                       aria-invalid={invalid === i || undefined}
                       aria-describedby={invalid === i ? 'setup-error' : undefined}
                       inputMode="numeric"
@@ -799,11 +796,11 @@ function PitchSetup({
               {running
                 ? 'Ranking the pitches…'
                 : awaited
-                  ? `Waiting for ${awaited}'s Qloo lookup…`
+                  ? `Waiting for ${awaited}’s Qloo lookup…`
                   : reading
                     ? 'Rank them once every pitch is read.'
                     : inbox.show
-                      ? "Filled in from the sample show's episode feed."
+                      ? 'Filled in from the sample show’s episode feed.'
                       : 'A new run: earlier runs stay in Runs.'}
             </small>
           </div>
@@ -854,8 +851,8 @@ function PitchLists({
           <Source of="qloo" />
         </div>
         <p className="max-w-[72ch] text-muted-foreground">
-          One list per type of work, each from its own Qloo call, so a rank in one list can&apos;t be compared with a
-          rank in another. Bands are thirds of their own list.
+          One list per type of work, each from its own Qloo call, so a rank in one list can’t be compared with a rank in
+          another. Bands are thirds of their own list.
           {setAside.length > 0 && ` ${setAside.length} set-aside pitches were never sent to Qloo.`}
         </p>
       </div>
@@ -898,7 +895,7 @@ function RankedPitches({
   const noun = typeLabel[list.type].toLowerCase()
   const against =
     list.path === 'same_type'
-      ? `Ranked against the past guests' ${noun}s alone: ${names}. Qloo scored no ${noun} against the show and every past guest (${list.calls[0]}).`
+      ? `Ranked against the past guests’ ${noun}s alone: ${names}. Qloo scored no ${noun} against the show and every past guest (${list.calls[0]}).`
       : list.path === 'show'
         ? `Ranked against ${names}.`
         : null
@@ -1078,7 +1075,7 @@ function Replies({
           Claude drafted a reply to each pitch with a verdict, and an episode angle for each top pitch from the tags its
           work shares with {show} in Qloo.{' '}
           {viewing
-            ? `Run ${viewing}'s replies, read-only; an approved one can still be copied.`
+            ? `Run ${viewing}’s replies, read-only; an approved one can still be copied.`
             : `Approve, edit, or discard each one. Only an approved reply can be copied, to send from your own email.${
                 locked ? ' Claude is still drafting: approve once the run has ended.' : ''
               }`}
@@ -1442,7 +1439,7 @@ function Anchors({
       </ul>
       {booking.pastGuests.some((g) => g.match && g.match.resolution !== 'resolved') && (
         <p className="type-caption text-muted-foreground">
-          A past guest&apos;s work that didn&apos;t match isn&apos;t an anchor. Edit it and rank again.
+          A past guest’s work that didn’t match isn’t an anchor. Edit it and rank again.
         </p>
       )}
     </section>

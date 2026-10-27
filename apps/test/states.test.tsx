@@ -278,7 +278,7 @@ describe('a failing Qloo', () => {
 
     const text = page(state)
     expect(text).toContain(
-      "Failed 1 show couldn't be looked up in Qloo, so it can't be scored: Deep Cuts. Import the roster again to retry it; shows already found come from the cache."
+      'Failed 1 show couldn’t be looked up in Qloo, so it can’t be scored: Deep Cuts. Import the roster again to retry it; shows already found come from the cache.'
     )
     expect(text).toContain('Deep Cuts Lookup failed Qloo returned 503: fake failure, after 2 retries. Not scored.')
   })
@@ -290,7 +290,7 @@ describe('a failing Qloo', () => {
     const state = await s.importRoster('Night Shift Cinema\nDeep Cuts')
 
     const text = page(state)
-    expect(text).toContain("Failed 1 show couldn't be looked up in Qloo, so it can't be scored: Deep Cuts.")
+    expect(text).toContain('Failed 1 show couldn’t be looked up in Qloo, so it can’t be scored: Deep Cuts.')
     expect(text).toContain(
       'Deep Cuts Lookup failed The daily cap of 1 Qloo calls is reached; it resets at 00:00 UTC. Not scored.'
     )
@@ -316,7 +316,7 @@ describe('a failing Qloo', () => {
     await s.call('startLaunch', { name: 'Night Shift Cinema' })
     const done = await s.until((st) => st.run?.status === 'completed')
     expect(page(done)).toContain(
-      "Failed The launch isn't resolved, so nothing can be ranked: Qloo returned 503: fake failure, after 2 retries."
+      'Failed The launch isn’t resolved, so nothing can be ranked: Qloo returned 503: fake failure, after 2 retries.'
     )
   })
 
@@ -343,7 +343,7 @@ describe('a failing Qloo', () => {
 
     await s.call('startLaunch', { name: 'Night Shift Cinema' })
     const done = await s.until((st) => st.run?.status === 'completed')
-    expect(page(done)).toContain("Failed Partial ranking: Deep Cuts isn't in it, because its Qloo lookup failed.")
+    expect(page(done)).toContain('Failed Partial ranking: Deep Cuts isn’t in it, because its Qloo lookup failed.')
   })
 })
 

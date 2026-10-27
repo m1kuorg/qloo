@@ -103,12 +103,12 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
         {(viewing || network || !sample) && (
           <p className="max-w-[72ch] text-muted-foreground">
             {viewing ? (
-              `As it was when run ${runNumber(runs, viewing.id)} ended, with that run's exclusions.`
+              `As it was when run ${runNumber(runs, viewing.id)} ended, with that run’s exclusions.`
             ) : network ? (
               <>
                 {runs.length > 0
-                  ? `The latest run ranks ${network.name}'s roster as it stood when that run started.`
-                  : `Each run ranks ${network.name}'s roster as it stands when the run starts.`}{' '}
+                  ? `The latest run ranks ${network.name}’s roster as it stood when that run started.`
+                  : `Each run ranks ${network.name}’s roster as it stands when the run starts.`}{' '}
                 {runs.length > 0 && agent.state?.rosterChanged && (
                   <>
                     <b className="font-semibold text-foreground">
@@ -123,7 +123,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
                 .
               </>
             ) : (
-              "Paste your network's show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo."
+              'Paste your network’s show names, one per line, or upload a CSV. Crossfeed looks each one up in Qloo.'
             )}
           </p>
         )}
@@ -177,7 +177,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
             <CpmRecord
               cpm={shown?.cpm ?? null}
               network={network}
-              note="Each run takes the network's CPM as it starts."
+              note="Each run takes the network’s CPM as it starts."
             />
           )
         : !viewing && (
@@ -213,7 +213,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
         )}
         {(!network || roster.length > 0) && <RosterCheck roster={roster} />}
         {!run && runs.length === 0 && network && roster.length === 0 && (
-          <p className="text-muted-foreground">Not run yet. Each run&apos;s steps and its closing line show here.</p>
+          <p className="text-muted-foreground">Not run yet. Each run’s steps and its closing line show here.</p>
         )}
       </TabsContent>
       <TabsContent value="evidence" keepMounted>
@@ -324,7 +324,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
                 }
                 readOnly={
                   viewing
-                    ? `Run ${runNumber(runs, viewing.id)}'s order, read-only.`
+                    ? `Run ${runNumber(runs, viewing.id)}’s order, read-only.`
                     : 'Edit and approve it once the run ends.'
                 }
               />
@@ -571,7 +571,7 @@ function LaunchMatch({
         <span>Ambiguous: {match.candidates.map((c) => c.name).join(', ')}</span>
       ) : match.resolution === 'failed' ? (
         <StateLine kind="failed">
-          The launch isn&apos;t resolved, so nothing can be ranked: {sentence(match.error ?? 'the lookup failed')}
+          The launch isn’t resolved, so nothing can be ranked: {sentence(match.error ?? 'the lookup failed')}
         </StateLine>
       ) : (
         <StateLine kind="missed">No show by this name in Qloo.</StateLine>

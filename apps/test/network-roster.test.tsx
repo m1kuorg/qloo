@@ -518,7 +518,7 @@ describe("the roster page's words", () => {
     )
     // The sample roster is the last way in; with no shows, there's nothing to cite or count yet.
     expect(read).toMatch(
-      /Start from the sample roster The Ringer's 19 public show names, with made-up figures labelled sample, to try Crossfeed before your own\.$/
+      /Start from the sample roster The Ringer’s 19 public show names, with made-up figures labelled sample, to try Crossfeed before your own\.$/
     )
     for (const elsewhere of [
       'Start run',
@@ -546,14 +546,14 @@ describe("the roster page's words", () => {
     await agent.call('startFromSample')
     const read = page(await agent.until((s) => s.roster.length > 0 && settled(s)), network, 'member')
     expect(read).toContain(
-      "Sample roster. The Ringer's public show names, with downloads, statuses, and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn't affiliated with The Ringer. Import your own roster over it; shows on both keep their matches."
+      'Sample roster. The Ringer’s public show names, with downloads, statuses, and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn’t affiliated with The Ringer. Import your own roster over it; shows on both keep their matches.'
     )
     expect(read).toContain(
       'Missed No show by this name in Qloo. Map a comp or leave out 340,000 sample active sample C-06'
     )
     // The title row: whether it's ready to rank, the CPM an owner set, and the import, now in a sheet.
     expect(read).toMatch(
-      /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. 19 shows: 19 missed 19 shows aren't scored until you settle or leave them out\. CPM \$20 per 1,000 downloads · An owner sets it in settings\. Import shows Sample roster\. /
+      /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. 19 shows: 19 missed 19 shows aren’t scored until you settle or leave them out\. CPM \$20 per 1,000 downloads · An owner sets it in settings\. Import shows Sample roster\. /
     )
     expect(read).not.toContain('Start from the sample roster')
     expect(read).not.toContain('in settings Set')

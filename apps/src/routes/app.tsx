@@ -96,7 +96,7 @@ appPages.post('/app/new', async (c) => {
   if (!id)
     return c.json(
       {
-        error: `You've created ${cap} networks, the most one member can create in the beta. Open one of them instead.`
+        error: `You’ve created ${cap} networks, the most one member can create in the beta. Open one of them instead.`
       },
       429
     )
@@ -185,7 +185,7 @@ appPages.post('/app/account/delete', async (c) => {
     return c.json(
       {
         error: only.length
-          ? `You're the only owner of ${listOf(only)}. Make someone else an owner, or delete the network, before you delete your account.`
+          ? `You’re the only owner of ${listOf(only)}. Make someone else an owner, or delete the network, before you delete your account.`
           : 'Your networks changed while your account was being deleted. Reload, and try again.'
       },
       409
@@ -314,7 +314,7 @@ appPages.post('/app/:networkId/settings/network', async (c) => {
   const id = c.req.param('networkId')
   const role = await memberRole(c.env.DB, id, c.var.member.id)
   if (!role) return c.notFound()
-  const notOwner = () => c.json({ error: "Only an owner can change the network's name and CPM." }, 403)
+  const notOwner = () => c.json({ error: 'Only an owner can change the network’s name and CPM.' }, 403)
   if (role !== 'owner') return notOwner()
   const { name, cpm } = await jsonBody(c)
   const read = readName(name, 'Name the network.')
@@ -372,7 +372,7 @@ appPages.post('/app/:networkId/settings/members/invites/:inviteId/revoke', async
   if (refused) return refused
   if (!(await revokeInvite(c.env.DB, id, c.req.param('inviteId'), c.var.member.id)))
     return c.json(
-      { error: "This invite can't be revoked: it was used, or it expired. Reload to see who has joined." },
+      { error: 'This invite can’t be revoked: it was used, or it expired. Reload to see who has joined.' },
       409
     )
   return c.json({ invites: await openInvites(c.env.DB, id) })
@@ -409,7 +409,7 @@ appPages.post('/app/:networkId/settings/members/leave', async (c) => {
   const id = c.req.param('networkId')
   if (!(await memberRole(c.env.DB, id, c.var.member.id))) return c.notFound()
   if (!(await removeMember(c.env.DB, id, c.var.member.id, c.var.member.id)))
-    return c.json({ error: "You're this network's last owner. Make someone else an owner before you leave." }, 409)
+    return c.json({ error: 'You’re this network’s last owner. Make someone else an owner before you leave.' }, 409)
   await kickMember(c.env, id, c.var.member.id)
   return c.json({})
 })
@@ -443,7 +443,7 @@ appPages.post('/app/:networkId/settings/api-keys/:keyId/revoke', async (c) => {
 // The settings' Qloo key module, for owners alone: the network's own Qloo key (ADR 0004), which its own
 // gateway instance tests with one search, then keeps encrypted. No answer carries the key back: the
 // settings show an owner its host and last four characters, and a member only whether one is set.
-const QLOO_KEY_OWNERS_ONLY = "Only an owner can add or remove the network's Qloo key."
+const QLOO_KEY_OWNERS_ONLY = 'Only an owner can add or remove the network’s Qloo key.'
 // Longer than any Qloo key: what's pasted past it is something else.
 const MAX_QLOO_KEY = 200
 

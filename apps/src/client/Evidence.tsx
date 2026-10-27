@@ -99,7 +99,7 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
       )}
       {opened?.status === 'failed' && (
         <StateLine kind="error" role="alert">
-          Couldn&apos;t load {opened.call}: {sentence(opened.error)} Select the call again to try again.
+          Couldn’t load {opened.call}: {sentence(opened.error)} Select the call again to try again.
         </StateLine>
       )}
       {opened?.status === 'loaded' &&
@@ -137,8 +137,8 @@ function EvidenceRecord({ record }: { record: Evidence }) {
         )}
         {record.copiedFrom && (
           <KeyValue label="Copied">
-            From the network&apos;s roster, its call <code className="font-mono text-xs">{record.copiedFrom}</code>, as
-            Qloo answered it then; the run made no new request
+            From the network’s roster, its call <code className="font-mono text-xs">{record.copiedFrom}</code>, as Qloo
+            answered it then; the run made no new request
           </KeyValue>
         )}
         <KeyValue label="Request">
