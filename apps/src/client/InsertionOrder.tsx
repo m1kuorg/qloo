@@ -1,9 +1,10 @@
 import { cn } from 'cn'
 import { CheckIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { buttonVariants } from '@/components/ui/variants'
 import type { Budget, Show } from '../agent'
@@ -18,7 +19,7 @@ import {
   type OrderLine,
   type Priced
 } from '../order'
-import { Alert, day, useAction } from './controls'
+import { Alert, day, useAction, useLeaveGuard } from './controls'
 import { CallButton } from './Evidence'
 import { Source } from './Source'
 import { StateLine } from './states'
@@ -55,10 +56,29 @@ export function InsertionOrderPanel({
   const [editing, setEditing] = useState(false)
   const { busy, error, run } = useAction()
   const approved = order.status === 'approved'
+  // Approve goes once the order is approved, so focus moves on to what follows it: Export CSV, or the
+  // line saying who approved it.
+  const approving = useRef(false)
+  const exportLink = useRef<HTMLAnchorElement>(null)
+  const approvedLine = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    if (!approved || !approving.current) return
+    approving.current = false
+    ;(exportLink.current ?? approvedLine.current)?.focus()
+  }, [approved])
+  const approve = async () => {
+    approving.current = true
+    if (!(await run(actions!.approve))) approving.current = false
+  }
   const sample = (line: OrderLine) =>
     sampleCpm || !!roster.find((s) => s.name === line.show)?.sample?.includes('downloads')
   const exported = approved && exportHref && (
-    <a className={buttonVariants({ variant: 'secondary', className: 'max-md:h-11' })} href={exportHref} download>
+    <a
+      ref={exportLink}
+      className={buttonVariants({ variant: 'secondary', className: 'max-md:h-11' })}
+      href={exportHref}
+      download
+    >
       Export CSV
     </a>
   )
@@ -71,7 +91,10 @@ export function InsertionOrderPanel({
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="font-semibold" id="io-h">
-              Insertion order <code className="font-mono font-medium">{order.id}</code>
+              Insertion order{' '}
+              <code className="font-mono font-medium" translate="no">
+                {order.id}
+              </code>
             </h3>
             {approved ? (
               <Badge variant="outline">
@@ -128,11 +151,11 @@ export function InsertionOrderPanel({
             </Lines>
             <Checks priced={order} budget={budget} />
             {approved && order.approvedBy && order.approvedAt && (
-              <p className="flex items-start gap-1.5">
+              <p className="flex items-start gap-1.5" ref={approvedLine} tabIndex={-1}>
                 <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                 <span>
                   Approved by {order.approvedBy} on {day(order.approvedAt)} at{' '}
-                  {new Date(order.approvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
+                  {new Date(order.approvedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
                 </span>
               </p>
             )}
@@ -141,7 +164,8 @@ export function InsertionOrderPanel({
                 {approved ? (
                   exported
                 ) : (
-                  <Button disabled={busy} onClick={() => void run(actions.approve)} className="max-md:h-11">
+                  <Button disabled={busy} onClick={() => void approve()} className="max-md:h-11">
+                    {busy && <Spinner data-icon="inline-start" />}
                     Approve
                   </Button>
                 )}
@@ -333,6 +357,16 @@ function EditLines({
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [field]: value } : l)))
   const lacksAngle = (l: { show: string; angle: string }) => !l.angle.trim() && !angleOptional(sharedTags[l.show])
   const invalid = lines.some((l) => whole(l.slots) === null || lacksAngle(l)) || lines.length === 0
+  // Typed and not saved: leaving the page asks first.
+  useLeaveGuard(
+    lines.length !== order.lines.length ||
+      lines.some(
+        (l, i) =>
+          l.show !== order.lines[i].show ||
+          l.slots !== String(order.lines[i].slots) ||
+          l.angle !== (order.lines[i].angle ?? '')
+      )
+  )
   return (
     <form
       aria-label="Edit the insertion order's lines"
@@ -348,6 +382,7 @@ function EditLines({
               <Textarea
                 aria-label={`Angle for ${line.show}`}
                 aria-invalid={lacksAngle(lines[i]) || undefined}
+                aria-describedby={lacksAngle(lines[i]) ? 'io-edit-hint' : undefined}
                 rows={2}
                 value={lines[i].angle}
                 onChange={(e) => change(i, 'angle', e.target.value)}
@@ -364,6 +399,7 @@ function EditLines({
               <Input
                 aria-label={`Slots on ${line.show}`}
                 aria-invalid={whole(lines[i].slots) === null || undefined}
+                aria-describedby={whole(lines[i].slots) === null ? 'io-edit-hint' : undefined}
                 inputMode="numeric"
                 value={lines[i].slots}
                 onChange={(e) => change(i, 'slots', e.target.value)}
@@ -391,12 +427,18 @@ function EditLines({
         <Checks priced={priced} budget={budget} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Button type="submit" disabled={invalid} className="max-md:h-11">
+            {busy && <Spinner data-icon="inline-start" />}
             Save
           </Button>
           <Button type="button" variant="ghost" onClick={cancel} className="max-md:h-11">
             Cancel
           </Button>
-          <p className={cn('type-caption', invalid ? 'text-foreground' : 'text-muted-foreground')}>
+          {/* Why Save is off, told as it changes; the fields it's about point here. */}
+          <p
+            id="io-edit-hint"
+            role="status"
+            className={cn('type-caption', invalid ? 'text-foreground' : 'text-muted-foreground')}
+          >
             {lines.length === 0
               ? 'Keep at least one show.'
               : invalid

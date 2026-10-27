@@ -197,7 +197,7 @@ export function RunList({
                   {r.pitchesFor ? `Pitches for ${r.pitchesFor}` : (r.launch ?? 'From comps')}
                 </span>
                 <span className="type-caption text-muted-foreground">
-                  {new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(r.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   {r.startedBy && ` by ${r.startedBy}`} · {runLabel[r.status]}
                   {r.replayed && ' · Replayed'}
                 </span>
@@ -391,11 +391,7 @@ export function OpenQuestion({
                           <span className="flex min-w-0 flex-1 flex-col">
                             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="font-medium">{name}</span>
-                              {now.includes(name) && (
-                                <Badge variant="outline" mark="signal">
-                                  Finalist
-                                </Badge>
-                              )}
+                              {now.includes(name) && <Badge mark="signal">Finalist</Badge>}
                             </span>
                             {entering.length > 0 && (
                               <span className="type-caption text-muted-foreground">
@@ -492,6 +488,7 @@ export function OpenQuestion({
             )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <Button type="submit" disabled={unpicked} className="max-md:h-11">
+                {busy && <Spinner data-icon="inline-start" />}
                 Answer
               </Button>
               {question.kind === 'exclusions' && (

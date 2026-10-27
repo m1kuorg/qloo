@@ -274,7 +274,9 @@ describe('the roster as the demo shows it', () => {
       createElement(ShowEditor, {
         show: state.roster.find((show) => show.name === name)!,
         agent: agentOf(state),
-        close: () => {}
+        close: () => {},
+        openCall: () => {},
+        opened: null
       })
     )
 

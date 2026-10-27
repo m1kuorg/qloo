@@ -436,7 +436,19 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
 
 // The selected show, in the inspector's Show tab: settle its match, edit its figures, or leave it
 // out. Each part is its own form, so a search or a pick doesn't send the figures being typed.
-export function ShowEditor({ show, agent, close }: { show: Show; agent: Session; close: () => void }) {
+export function ShowEditor({
+  show,
+  agent,
+  close,
+  openCall,
+  opened
+}: {
+  show: Show
+  agent: Session
+  close: () => void
+  openCall: (call: string) => void
+  opened: string | null
+}) {
   const { busy, error, run } = useAction()
   const update = (patch: ShowPatch) => run(() => agent.stub.updateShow(show.name, patch))
   const ref = useIntoView<HTMLElement>()
@@ -473,7 +485,17 @@ export function ShowEditor({ show, agent, close }: { show: Show; agent: Session;
           legend={`Which Qloo show is ${show.name}?`}
           options={show.candidates}
           current={show.resolution === 'resolved' ? show.entity?.id : undefined}
-          note={`Candidates from Qloo search ${show.evidence}`}
+          note={
+            <>
+              Candidates from Qloo search{' '}
+              <CallButton
+                call={show.evidence}
+                label={`Evidence for ${show.name}`}
+                opened={opened}
+                openCall={openCall}
+              />
+            </>
+          }
           submit="Use this match"
           busy={busy}
           pick={(entityId) => update({ entityId })}
@@ -597,22 +619,32 @@ function ShowFields({
   const [downloads, setDownloads] = useState(show.downloads == null ? '' : String(show.downloads))
   const [status, setStatus] = useState(show.status ?? '')
   const [invalid, setInvalid] = useState<string | null>(null)
-  const save = (e: React.FormEvent) => {
+  const [saving, setSaving] = useState(false)
+  const downloadsField = useRef<HTMLInputElement>(null)
+  const save = async (e: React.FormEvent) => {
     e.preventDefault()
     const digits = downloads.replace(/[,\s]/g, '')
-    if (digits && !/^\d+$/.test(digits)) return setInvalid('Downloads per episode must be a whole number.')
+    if (digits && !/^\d+$/.test(digits)) {
+      setInvalid('Downloads per episode must be a whole number.')
+      // Back to the field to fix, which the error describes.
+      return downloadsField.current?.focus()
+    }
     setInvalid(null)
-    void update({ downloads: digits ? Number(digits) : null, status })
+    setSaving(true)
+    await update({ downloads: digits ? Number(digits) : null, status })
+    setSaving(false)
   }
   return (
-    <form className="flex flex-col gap-3" onSubmit={save}>
+    <form className="flex flex-col gap-3" onSubmit={(e) => void save(e)}>
       <label className="flex flex-col gap-1.5">
         <span className="flex flex-wrap items-center gap-1.5 font-medium">
           Downloads per episode {sampled(show, 'downloads') && <SampleChip />}
         </span>
         <Input
+          ref={downloadsField}
           inputMode="numeric"
           aria-invalid={invalid !== null || undefined}
+          aria-describedby={invalid !== null ? 'show-downloads-error' : undefined}
           value={downloads}
           onChange={(e) => setDownloads(e.target.value)}
           className="max-md:h-11"
@@ -630,9 +662,12 @@ function ShowFields({
         />
       </label>
       <Button type="submit" variant="secondary" disabled={busy} className="self-start max-md:h-11">
+        {saving && <Spinner data-icon="inline-start" />}
         Save
       </Button>
-      <Alert error={invalid} />
+      <span id="show-downloads-error">
+        <Alert error={invalid} />
+      </span>
     </form>
   )
 }
@@ -716,6 +751,7 @@ export function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample:
           disabled={busy || !value.trim() || Number(value) === cpm}
           className="max-md:h-11"
         >
+          {busy && <Spinner data-icon="inline-start" />}
           Save
         </Button>
         {sample && (

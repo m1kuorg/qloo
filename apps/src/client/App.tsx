@@ -7,6 +7,7 @@ import { buttonVariants } from '@/components/ui/variants'
 import type { Comp, GuideMark, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall } from '../agent'
 import { inProgress } from '../limits'
 import type { Sample } from '../sample'
+import { useConfirm } from './Confirm'
 import { Alert, percentile, useAction } from './controls'
 import { SampleShell, useSession } from './Demo'
 import { CallButton, EvidencePanel, useEvidence } from './Evidence'
@@ -81,6 +82,9 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
   // in the roster. A call number anywhere opens its evidence there.
   const inspector = useInspector(editorOpen ? ['run', 'evidence', 'show'] : ['run', 'evidence'], evidence)
   const { inspect, showCall } = inspector
+  // Clearing the sample confirms first; focus then goes to the roster's heading, as its notice is gone.
+  const rosterHeading = useRef<HTMLHeadingElement>(null)
+  const { confirm, dialog } = useConfirm(rosterHeading)
 
   if (!agent.state)
     return <Connecting label={network ? 'Connecting to the launch…' : 'Connecting to your demo session…'} />
@@ -93,7 +97,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
   const rosterSection = (
     <section className="flex min-w-0 flex-col gap-6" aria-labelledby="roster-h" data-roster>
       <div className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold" id="roster-h">
+        <h2 className="text-base font-semibold" id="roster-h" ref={rosterHeading} tabIndex={-1}>
           Roster
         </h2>
         {!network && <RosterCounts roster={roster} />}
@@ -125,7 +129,22 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
           </p>
         )}
       </div>
-      {sample && !viewing && <SampleNotice sample={sample} clear={() => agent.stub.clearSample()} />}
+      {sample && !viewing && (
+        <SampleNotice
+          sample={sample}
+          clear={() =>
+            confirm({
+              title: 'Clear the sample network?',
+              consequence:
+                'It empties the roster, with any figures you edited, so you can import your own shows. The sample network can’t be loaded again in this session.',
+              verb: 'Clear sample network',
+              busy: 'Clearing…',
+              keep: 'Keep',
+              action: () => agent.stub.clearSample()
+            })
+          }
+        />
+      )}
       {editing && <RosterFailures roster={roster} />}
       {editing && (
         <RosterImport
@@ -203,7 +222,14 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
       </TabsContent>
       {editorOpen && (
         <TabsContent value="show" keepMounted>
-          <ShowEditor key={show.name} show={show} agent={agent} close={() => setSelected(null)} />
+          <ShowEditor
+            key={show.name}
+            show={show}
+            agent={agent}
+            close={() => setSelected(null)}
+            openCall={showCall}
+            opened={opened?.call ?? null}
+          />
         </TabsContent>
       )}
     </>
@@ -211,6 +237,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
   return (
     <>
       {shell}
+      {dialog}
       <div className={frame}>
         <main className={canvas} data-canvas>
           <LaunchHead
@@ -421,8 +448,8 @@ function LaunchHead({
             )}
           </div>
         </div>
-        {/* On a phone the primary leads, where the row wraps. */}
-        <div className="flex flex-wrap items-center gap-2 [&>*]:max-md:h-11">
+        {/* On a phone the primary leads, on a line of its own, and the rest share the line under it. */}
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full [&>*]:max-md:h-11">
           {order && (
             <a href="#plan" className={buttonVariants({ variant: 'ghost' })}>
               Review the plan
@@ -449,8 +476,9 @@ function LaunchHead({
                 type="submit"
                 form="launch-form"
                 disabled={action.busy || running || !form.ready}
-                className="max-sm:order-first"
+                className="max-sm:order-first max-sm:basis-full"
               >
+                {action.busy && <Spinner data-icon="inline-start" />}
                 Start run
               </Button>
             </>
@@ -464,8 +492,9 @@ function LaunchHead({
                   <Button
                     disabled={action.busy}
                     onClick={() => void action.run(() => startLaunch(again))}
-                    className="max-sm:order-first"
+                    className="max-sm:order-first max-sm:basis-full"
                   >
+                    {action.busy && <Spinner data-icon="inline-start" />}
                     Run again
                   </Button>
                 )}
@@ -611,22 +640,19 @@ function LaunchComps({
 
 // The roster's notice while it is the sample network, and a way back to an empty roster: a block on
 // the card, as notices about the page's data are, with its one action.
-function SampleNotice({ sample, clear }: { sample: Sample; clear: () => Promise<void> }) {
-  const { busy, error, run } = useAction()
+function SampleNotice({ sample, clear }: { sample: Sample; clear: () => void }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl bg-card p-4 md:flex-row md:items-start md:gap-8" data-sample-notice>
       <p className="max-w-[72ch] flex-1">
         <b className="font-semibold">{sample.network}.</b> {sample.notice}
       </p>
       <div className="flex flex-col items-start gap-1.5 md:w-60 md:shrink-0">
-        <Button variant="secondary" disabled={busy} onClick={() => void run(clear)} className="max-md:h-11">
-          {busy && <Spinner data-icon="inline-start" />}
+        <Button variant="secondary" onClick={clear} className="max-md:h-11">
           Clear sample network
         </Button>
         <small className="type-caption text-muted-foreground">
           Empties the roster so you can import your own. Or edit any figure.
         </small>
-        <Alert error={error} />
       </div>
     </div>
   )
