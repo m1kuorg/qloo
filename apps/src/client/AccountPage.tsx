@@ -9,7 +9,7 @@ import { linkVariants } from '@/components/ui/variants'
 import type { AccountNetwork, AccountPasskey } from '../directory'
 import { initials, listOf, MAX_NAME } from '../text'
 import { useConfirm } from './Confirm'
-import { Alert, day, ScrollTable, send, useAction, useLeaveGuard } from './controls'
+import { Alert, day, ScrollTable, send, SignOut, useAction, useLeaveGuard } from './controls'
 import { prompted, RecoveryCode, sendConfirmed, useCodeAsk, type Ceremony } from './Passkeys'
 import { cell, Done, head, Module, settingsColumn } from './settings/Module'
 import { StateLine } from './states'
@@ -69,12 +69,6 @@ const codeFrame =
 // The guest member's account, which every guest shares: what that rules out, and signing out of this
 // browser's session alone.
 function GuestModule() {
-  const { busy, error, run } = useAction()
-  const signOut = () =>
-    run(async () => {
-      await send('/auth/sign-out')
-      window.location.assign('/sign-in')
-    })
   return (
     <Module
       id="acct-guest-h"
@@ -85,13 +79,9 @@ function GuestModule() {
         A guest can’t add a passkey or a recovery code, rename the guest member, sign out every guest, or delete the
         account, and can’t create or join a network. For any of that, sign out and create an account of your own.
       </p>
-      <div>
-        <Button variant="secondary" disabled={busy} onClick={() => void signOut()}>
-          {busy && <Spinner data-icon="inline-start" />}
-          {busy ? 'Signing out…' : 'Sign out'}
-        </Button>
-      </div>
-      <Alert error={error} />
+      <SignOut variant="secondary" className="self-start">
+        Sign out
+      </SignOut>
     </Module>
   )
 }
