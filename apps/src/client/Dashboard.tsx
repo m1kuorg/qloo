@@ -326,7 +326,7 @@ function Launches({
           grouped(launches).map((group) => (
             <tbody key={group.name}>
               <tr>
-                <th colSpan={7} scope="colgroup" className="rounded-lg bg-muted py-1.5 pl-2 text-left font-normal">
+                <th colSpan={7} scope="rowgroup" className="rounded-lg bg-muted py-1.5 pl-2 text-left font-normal">
                   <span className="sticky left-2">
                     <span className="font-semibold">{group.name}</span>{' '}
                     <span className="text-muted-foreground tabular-nums">{group.rows.length}</span>
@@ -368,7 +368,8 @@ function Launches({
 
 // The launches table's frame and head: a real table, its rules bleeding 8px past the text as the
 // roster's do, figures right-aligned; narrower than the table, it scrolls in its region with the
-// launch's column held at the left, ruled where they meet.
+// launch's column held at the left, ruled where they meet. Under 1024px its columns tighten and a run's
+// starter goes under its day, so at 768px the whole table, its row menus included, fits the canvas.
 const head = 'border-b pb-2 pl-3 text-left align-bottom font-normal'
 const cell = 'border-b py-3 pl-3 align-top'
 const held = 'sticky left-0 bg-background pl-2 max-lg:border-r max-lg:pr-3'
@@ -376,7 +377,7 @@ function LaunchesTable({ children }: { children: React.ReactNode }) {
   return (
     <ScrollTable label="Launches table" className="-mx-2 max-w-none">
       {/* Positioned, so the visually hidden "Actions" scrolls and clips with the table, not the page. */}
-      <table className="relative w-full min-w-[46rem] border-separate border-spacing-0">
+      <table className="relative w-full min-w-[43rem] border-separate border-spacing-0 lg:min-w-[46rem]">
         <thead className="type-caption text-muted-foreground">
           <tr>
             <th scope="col" className={cn(head, held)}>
@@ -385,16 +386,16 @@ function LaunchesTable({ children }: { children: React.ReactNode }) {
             <th scope="col" className={cn(head, 'w-36')}>
               Status
             </th>
-            <th scope="col" className={cn(head, 'w-24 text-right')}>
+            <th scope="col" className={cn(head, 'w-20 text-right lg:w-24')}>
               Finalists
             </th>
             <th scope="col" className={cn(head, 'w-16 text-right')}>
               Slots
             </th>
-            <th scope="col" className={cn(head, 'w-24 text-right')}>
+            <th scope="col" className={cn(head, 'w-20 text-right lg:w-24')}>
               Slot value
             </th>
-            <th scope="col" className={cn(head, 'w-48')}>
+            <th scope="col" className={cn(head, 'w-32 lg:w-48')}>
               Last run
             </th>
             <th scope="col" className={cn(head, 'w-12 pr-2')}>
@@ -412,7 +413,7 @@ function LaunchRow({ launch: l, href, ask }: { launch: LaunchSummary; href: stri
   const title = launchTitle(l.name, l.comps)
   return (
     <tr data-status={l.status}>
-      <th scope="row" className={cn(cell, held, 'min-w-44 text-left font-normal')}>
+      <th scope="row" className={cn(cell, held, 'min-w-36 text-left font-normal lg:min-w-44')}>
         <a
           className="text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline"
           href={href}
@@ -430,7 +431,19 @@ function LaunchRow({ launch: l, href, ask }: { launch: LaunchSummary; href: stri
       <td className={cn(cell, 'text-right tabular-nums')}>{l.slots ?? '–'}</td>
       <td className={cn(cell, 'text-right')}>{l.slotValue === null ? '–' : dollars(l.slotValue)}</td>
       <td className={cn(cell, 'text-muted-foreground')}>
-        {l.lastRun ? `${day(l.lastRun)}${l.startedBy ? ` · ${l.startedBy}` : ''}` : 'Not run yet'}
+        {l.lastRun ? (
+          <>
+            {day(l.lastRun)}
+            {l.startedBy && (
+              <span className="max-lg:block">
+                <span className="max-lg:hidden"> · </span>
+                {l.startedBy}
+              </span>
+            )}
+          </>
+        ) : (
+          'Not run yet'
+        )}
       </td>
       <td className={cn(cell, 'py-2 pr-2 text-right')}>
         <DropdownMenu>
