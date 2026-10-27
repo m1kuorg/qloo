@@ -187,7 +187,9 @@ cd apps && bun install && bun run deploy
 
 `bun run deploy` builds, applies the directory's new migrations to the `crossfeed` D1 database (`wrangler d1 migrations apply DB --remote`, which lists them and asks before applying), then deploys the `crossfeed` Worker.
 
-Secrets live on the `crossfeed` Worker in the `qloo` Cloudflare account, and are set once with `bunx wrangler secret put QLOO_API_KEY`, `ANTHROPIC_API_KEY`, `VISITOR_SALT` (a random value, such as `openssl rand -hex 32`; changing it restarts every visitor's count), and `QLOO_KEY_SECRET` (a random value, such as `openssl rand -base64 32`, which encrypts each network's own Qloo key; changing it makes every saved key unreadable, so each owner adds theirs again). List them with `bunx wrangler secret list`.
+Wrangler takes the Cloudflare account from `account_id` in `wrangler.jsonc`, the `m1kuorg` account, so a login that can see several accounts deploys to the right one. One command ignores it, in Wrangler 4.151 and 4.153: `wrangler d1 migrations list --remote` fails with "More than one account available" when it can't ask which, so give it the same account: `CLOUDFLARE_ACCOUNT_ID=f0621d6622ac79af0e8e6f3520f78063 bunx wrangler d1 migrations list DB --remote` lists the migrations not yet applied to production's database.
+
+Secrets live on the `crossfeed` Worker in the `m1kuorg` Cloudflare account, and are set once with `bunx wrangler secret put QLOO_API_KEY`, `ANTHROPIC_API_KEY`, `VISITOR_SALT` (a random value, such as `openssl rand -hex 32`; changing it restarts every visitor's count), and `QLOO_KEY_SECRET` (a random value, such as `openssl rand -base64 32`, which encrypts each network's own Qloo key; changing it makes every saved key unreadable, so each owner adds theirs again). List them with `bunx wrangler secret list`.
 
 ### Deploy the preview
 
@@ -199,7 +201,7 @@ cd apps && bun install && bun run deploy:preview
 
 `bun run deploy:preview` builds with `CLOUDFLARE_ENV=preview`, applies migrations to `crossfeed-preview`, and runs `wrangler deploy --env preview`. Don't run `bunx wrangler deploy --env preview` by hand after `bun run build`: the Vite plugin picks the environment when it builds, and Wrangler deploys whatever the build was for, production included. `bunx wrangler deploy --env preview --dry-run` after `CLOUDFLARE_ENV=preview bun run build` shows what would deploy without deploying. `wrangler secret` and `wrangler d1` read `wrangler.jsonc` itself, whatever was built, so `--env preview` is enough for them.
 
-Wrangler can't set secrets on a Worker that doesn't exist yet, so the first deploy takes them from a file: write `QLOO_API_KEY`, `ANTHROPIC_API_KEY`, a new `VISITOR_SALT`, and a new `QLOO_KEY_SECRET` as `NAME=value` lines to a file outside the repo, run `bun run deploy:preview --secrets-file <file>`, and delete the file. Afterwards, set and list them with `bunx wrangler secret put <NAME> --env preview` and `bunx wrangler secret list --env preview`. `bunx wrangler d1 migrations list crossfeed-preview --env preview --remote` lists the migrations not yet applied.
+Wrangler can't set secrets on a Worker that doesn't exist yet, so the first deploy takes them from a file: write `QLOO_API_KEY`, `ANTHROPIC_API_KEY`, a new `VISITOR_SALT`, and a new `QLOO_KEY_SECRET` as `NAME=value` lines to a file outside the repo, run `bun run deploy:preview --secrets-file <file>`, and delete the file. Afterwards, set and list them with `bunx wrangler secret put <NAME> --env preview` and `bunx wrangler secret list --env preview`. `CLOUDFLARE_ACCOUNT_ID=f0621d6622ac79af0e8e6f3520f78063 bunx wrangler d1 migrations list crossfeed-preview --env preview --remote` lists the migrations not yet applied to the preview's.
 
 ## Live check
 
