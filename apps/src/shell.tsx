@@ -7,7 +7,7 @@ import { buttonVariants, linkVariants, marketingFrame } from './components/ui/va
 import { isGuestMember, type Member, type Network } from './directory'
 import { Check, ChevronDown, ChevronsUpDown, Inbox, Podcast, Rocket, Settings } from './icons'
 import { Mark } from './mark'
-import { initials } from './text'
+import { GUEST_NETWORK_CLEARS, initials } from './text'
 
 // @vitejs/plugin-react's Fast Refresh preamble, which Vite injects only into HTML it serves itself.
 const reactRefresh = `import RefreshRuntime from '/@react-refresh'
@@ -272,7 +272,7 @@ const GuestNotice = () => (
   >
     <p>
       <b class="font-medium">You’re signed in as a guest.</b> Everyone who signs in as a guest shares the guest network
-      and its daily limits, so put nothing private in it. It’s cleared every day at 12:00 UTC.
+      and its daily limits, so put nothing private in it. It’s cleared every day at {GUEST_NETWORK_CLEARS}.
     </p>
     <span>
       <button type="button" class={buttonVariants({ variant: 'link' })} data-sign-out>

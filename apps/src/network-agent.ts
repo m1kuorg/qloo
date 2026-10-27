@@ -17,6 +17,7 @@ import { globalGateway } from './gateway'
 import type { Booking, PitchReply } from './inbox'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster } from './sample'
+import { GUEST_NETWORK_CLEARS } from './text'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
 // a network's agent, once it has checked the session and the membership, replacing any the browser
@@ -66,7 +67,7 @@ export const kickMember = async (env: Env, networkId: string, memberId: string, 
 // What a deleted network's open pages, and its launches', say as they close; and the guest network's,
 // as the daily cron clears it.
 export const NETWORK_DELETED = 'This network was deleted.'
-export const GUEST_NETWORK_RESET = 'The guest network was cleared for the day, as it is every day at 12:00 UTC.'
+export const GUEST_NETWORK_RESET = `The guest network was cleared, as it is every day at ${GUEST_NETWORK_CLEARS}.`
 
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."

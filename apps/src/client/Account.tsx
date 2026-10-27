@@ -6,7 +6,7 @@ import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { linkVariants, marketingFrame } from '@/components/ui/variants'
-import { modelRuns } from '../text'
+import { GUEST_NETWORK_CLEARS, modelRuns } from '../text'
 import { Alert, send, SignOut, useAction } from './controls'
 import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
 import { StateLine } from './states'
@@ -94,7 +94,7 @@ function GuestSignIn({ next, runs }: { next: string; runs: number }) {
         </h2>
         <p className="text-muted-foreground">
           Everyone who signs in as a guest shares one guest network and its daily limits, {modelRuns(runs)} a day
-          between them, so put nothing private in it. It’s cleared every day at 12:00 UTC.
+          between them, so put nothing private in it. It’s cleared every day at {GUEST_NETWORK_CLEARS}.
         </p>
       </div>
       <Button variant="secondary" className="w-full" disabled={busy} onClick={() => void signIn()}>
