@@ -17,6 +17,7 @@ import {
   accountsOn,
   appOrigins,
   endSession,
+  guestRefused,
   jsonBody,
   jsonLimit,
   nextPath,
@@ -198,6 +199,8 @@ auth.post('/auth/invite', async (c) => {
 auth.post('/auth/join', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, 'Sign in, or create an account, to join.', 401)
+  const guest = guestRefused(c, member)
+  if (guest) return guest
   const { token } = await jsonBody(c)
   const id = typeof token === 'string' && token ? await joinByInvite(c.env.DB, token, member.id) : null
   if (id) return c.json({ id })
