@@ -9,6 +9,8 @@ import { sha256 } from './text'
 // lasts a day from sign-in, and isn't extended (ADR 0005).
 export const SESSION_MS = 30 * 24 * 60 * 60_000
 export const GUEST_SESSION_MS = 24 * 60 * 60_000
+// Guest sign-ins are limited per minute: the guest sessions created in the last minute count.
+const GUEST_SIGNINS_MS = 60_000
 const SEEN_EVERY_MS = 60_000
 // A passkey ceremony's challenge is good for five minutes.
 const CHALLENGE_MS = 5 * 60_000
@@ -189,7 +191,7 @@ export async function guestSignIn(db: D1Database, perMinute: number, held?: stri
       .prepare(
         'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?1, ?2, ?3, ?4, ?3 WHERE (SELECT count(*) FROM sessions WHERE member_id = ?2 AND created > ?5) < ?6'
       )
-      .bind(hash, GUEST_MEMBER, now, now + GUEST_SESSION_MS, now - 60_000, perMinute),
+      .bind(hash, GUEST_MEMBER, now, now + GUEST_SESSION_MS, now - GUEST_SIGNINS_MS, perMinute),
     ...(held ? ending(db, await sha256(held), hash) : [])
   ])
   return written.meta.changes ? secret : null
@@ -782,11 +784,14 @@ export async function wipesDue(db: D1Database, before: number) {
 }
 
 // What the daily cron clears: sessions, challenges, and invites that have expired. Returns how many of
-// each it deleted.
+// each it deleted. A guest session created in the last minute is kept, ended or not, as it still counts
+// toward the minute's guest sign-ins (guestSignIn).
 export async function purgeExpired(db: D1Database) {
   const now = Date.now()
   const [sessions, challenges, invites] = await db.batch([
-    db.prepare('DELETE FROM sessions WHERE expires <= ?').bind(now),
+    db
+      .prepare('DELETE FROM sessions WHERE expires <= ?1 AND NOT (member_id = ?2 AND created > ?3)')
+      .bind(now, GUEST_MEMBER, now - GUEST_SIGNINS_MS),
     db.prepare('DELETE FROM challenges WHERE expires <= ?').bind(now),
     db.prepare('DELETE FROM invites WHERE expires <= ?').bind(now)
   ])
