@@ -22,8 +22,8 @@ import {
   createApiKey,
   createInvite,
   createNetwork,
-  GUEST_MEMBER,
   GUEST_NETWORK,
+  isGuestMember,
   lastNetwork,
   memberNetworks,
   memberPasskeys,
@@ -92,7 +92,7 @@ appPages.get('/app/new', async (c) => {
     <Island
       page="new-network"
       data-cap={c.env.NETWORKS_PER_MEMBER}
-      data-guest={c.var.member.id === GUEST_MEMBER ? 'true' : undefined}
+      data-guest={isGuestMember(c.var.member) ? 'true' : undefined}
     />
   )
 })
@@ -131,7 +131,7 @@ appPages.get('/app/account', async (c) => {
       // Signing in with a recovery code lands here, to add a passkey.
       data-recovered={String(c.req.query('recovered') !== undefined)}
       // The guest member's page shows only that it's the guest member, and signing out (ADR 0005).
-      data-guest={id === GUEST_MEMBER ? 'true' : undefined}
+      data-guest={isGuestMember(c.var.member) ? 'true' : undefined}
     />
   )
 })

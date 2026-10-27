@@ -24,6 +24,9 @@ export const STEP_UP_MS = 5 * 60_000
 export const GUEST_MEMBER = 'guest-member'
 export const GUEST_NETWORK = 'guest-network'
 
+// Whether `member` is the guest member, as everyone signed in as a guest is.
+export const isGuestMember = (member: { id: string } | null | undefined) => member?.id === GUEST_MEMBER
+
 export type Member = { id: string; name: string }
 
 // A passkey as the directory keeps it: base64url credential ID and public key, the signature
@@ -251,7 +254,7 @@ export async function sessionMember(db: D1Database, token: string): Promise<(Mem
     .bind(hash, now)
     .first<{ id: string; name: string; last_seen: number }>()
   if (!row) return null
-  const extended = row.id !== GUEST_MEMBER && now - row.last_seen >= SEEN_EVERY_MS
+  const extended = !isGuestMember(row) && now - row.last_seen >= SEEN_EVERY_MS
   if (extended)
     await db
       .prepare('UPDATE sessions SET last_seen = ?, expires = ? WHERE token_hash = ?')
