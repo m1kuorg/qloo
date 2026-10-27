@@ -11,7 +11,7 @@ import { ageWords, type DemographicCheck } from '../demographics'
 import { FINALISTS, type FitRow, type Ranking } from '../fit'
 import { dollars, slotPrice } from '../order'
 import { sameName } from '../resolve'
-import { moveGlyph, moveWords } from '../text'
+import { moveGlyph, moveWords, nth } from '../text'
 import { CLIMB, type Move, type Topic } from '../topic'
 import { FitBand, listOf, NotScored } from './controls'
 import { CallButton } from './Evidence'
@@ -106,27 +106,27 @@ export function FitChart({
   const moves = topic?.status === 'ranked' && ranking && !ranking.error ? topic.moves : null
   const order = rowOrder(ranking?.rows ?? [], lens, moves)
   // Flip: the rows are in their new places now, before the browser paints; each starts where it was and
-  // travels to where it is.
+  // travels to where it is. In three passes, so the layout is worked out once, not once a row: stop
+  // every travel still running, read where every row now is, then start them all.
   useLayoutEffect(() => {
     const first = before.current
     before.current = null
     if (!first) return
     // Only the rows on screen are counted, so the stagger runs down the chart evenly.
-    order
-      .flatMap((r) => rowEls.current.get(r.show) ?? [])
-      .forEach((el, i) => {
-        const show = el.dataset.show!
-        for (const a of el.getAnimations()) a.cancel()
-        const from = first.get(show)
-        const by = from === undefined ? 0 : from - el.getBoundingClientRect().top
-        if (Math.abs(by) < 1) return
-        el.animate([{ transform: `translateY(${by}px)` }, { transform: 'none' }], {
-          duration: TRAVEL.duration,
-          easing: TRAVEL.easing,
-          delay: i * TRAVEL.stagger,
-          fill: 'backwards'
-        })
+    const els = order.flatMap((r) => rowEls.current.get(r.show) ?? [])
+    for (const el of els) for (const a of el.getAnimations()) a.cancel()
+    const now = els.map((el) => el.getBoundingClientRect().top)
+    els.forEach((el, i) => {
+      const from = first.get(el.dataset.show!)
+      const by = from === undefined ? 0 : from - now[i]
+      if (Math.abs(by) < 1) return
+      el.animate([{ transform: `translateY(${by}px)` }, { transform: 'none' }], {
+        duration: TRAVEL.duration,
+        easing: TRAVEL.easing,
+        delay: i * TRAVEL.stagger,
+        fill: 'backwards'
       })
+    })
   }, [lens])
 
   const heading = (
@@ -179,6 +179,7 @@ export function FitChart({
   const shown = all ? order : order.filter(featured)
   const folded = order.length - order.filter(featured).length
   const grid = moves ? rowGrid.topic : rowGrid.plain
+  const topicLens = moves !== null && lens === 'topic'
   // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
   const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   const show = (name: string) => roster.find((s) => s.name === name)
@@ -248,10 +249,23 @@ export function FitChart({
                 <span role="columnheader" className="[grid-area:show]">
                   Show
                 </span>
+                {/* The other lens's rank, labelled by who ranked it: the topic rank Claude gave it, or under
+                    "By topic" the listener rank Qloo's data gave it. Wider than its column, the header runs
+                    left into the show's, which has room. */}
                 {moves && (
-                  // Claude ranked it, so it's labelled the agent's.
-                  <span role="columnheader" className="flex items-center justify-end gap-1.5 [grid-area:topic]">
-                    Topic <Source of="agent" />
+                  <span
+                    role="columnheader"
+                    className="flex w-max items-center gap-1.5 justify-self-end [grid-area:topic]"
+                  >
+                    {topicLens ? (
+                      <>
+                        Listeners <Source of="qloo" />
+                      </>
+                    ) : (
+                      <>
+                        Topic <Source of="agent" />
+                      </>
+                    )}
                   </span>
                 )}
                 <span role="columnheader" className="[grid-area:fit]">
@@ -306,8 +320,17 @@ export function FitChart({
                       data-finalist={r.finalist || undefined}
                       data-left-out={out || undefined}
                     >
+                      {/* The rank in the lens's order, the order the rows are in; screen readers hear both
+                          ranks, the lens's first. */}
                       <span role="cell" className="text-right type-title tabular-nums [grid-area:rank]">
-                        {r.rank}
+                        {moves ? (
+                          <>
+                            <span aria-hidden="true">{topicLens ? (move?.topicRank ?? '–') : r.rank}</span>
+                            <span className="vh">{rankWords(r.rank, move?.topicRank ?? null, lens)}</span>
+                          </>
+                        ) : (
+                          r.rank
+                        )}
                       </span>
                       {moves && (
                         <span
@@ -328,9 +351,11 @@ export function FitChart({
                       <div role="cell" className="flex min-w-0 flex-col gap-1 [grid-area:show]">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           {move?.climber ? (
+                            // The chevron rides on the name's last word, so a name that wraps keeps it beside
+                            // its end rather than at the row's far edge.
                             <button
                               type="button"
-                              className="group/why inline-flex cursor-pointer items-center gap-1 text-left text-[15px] leading-snug font-semibold underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11"
+                              className="group/why inline-block cursor-pointer text-left text-[15px] leading-snug font-semibold underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11"
                               aria-expanded={open}
                               aria-controls={`why-${r.rank}`}
                               onClick={() => {
@@ -338,11 +363,14 @@ export function FitChart({
                                 if (!open) markSeen('why')
                               }}
                             >
-                              {r.show}
-                              <ChevronDownIcon
-                                aria-hidden="true"
-                                className="size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded/why:rotate-180"
-                              />
+                              {r.show.includes(' ') && `${r.show.slice(0, r.show.lastIndexOf(' '))} `}
+                              <span className="whitespace-nowrap">
+                                {r.show.slice(r.show.lastIndexOf(' ') + 1)}
+                                <ChevronDownIcon
+                                  aria-hidden="true"
+                                  className="ml-1 inline-block size-4 align-[-0.1875rem] text-muted-foreground transition-transform group-aria-expanded/why:rotate-180"
+                                />
+                              </span>
                             </button>
                           ) : (
                             <span className="text-[15px] leading-snug font-semibold">{r.show}</span>
@@ -374,9 +402,15 @@ export function FitChart({
                       {moves && (
                         <span role="cell" className="text-right text-muted-foreground [grid-area:topic]">
                           <span className="md:hidden" aria-hidden="true">
-                            Topic{' '}
+                            {topicLens ? 'Listeners' : 'Topic'}{' '}
                           </span>
-                          {move ? <span className="tabular-nums">#{move.topicRank}</span> : '–'}
+                          {topicLens ? (
+                            <span className="tabular-nums">#{r.rank}</span>
+                          ) : move ? (
+                            <span className="tabular-nums">#{move.topicRank}</span>
+                          ) : (
+                            '–'
+                          )}
                         </span>
                       )}
                       <span role="cell" className="[grid-area:fit]">
@@ -452,6 +486,14 @@ export function FitChart({
       )}
     </section>
   )
+}
+
+// A row's two ranks in words, the lens's first: "2nd by who listens, 6th by topic". A show the topic
+// ranking doesn't place has no topic rank.
+function rankWords(fit: number, topic: number | null, lens: Lens) {
+  const listeners = `${nth(fit)} by who listens`
+  const byTopic = topic === null ? 'not ranked by topic' : `${nth(topic)} by topic`
+  return lens === 'topic' ? `${byTopic}, ${listeners}` : `${listeners}, ${byTopic}`
 }
 
 // The rows in the lens's order: fit order, or topic rank, with any show the topic ranking doesn't

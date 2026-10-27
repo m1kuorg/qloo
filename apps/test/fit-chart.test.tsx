@@ -123,14 +123,21 @@ describe('the fit chart', () => {
     const state = await launched()
 
     expect(words(hooked(chart(state), 'role="rowgroup"')[0])).toBe('Rank Move Show Topic Agent Fit Slot value')
-    // The glyph is for the eye, its words for screen readers; the band is the meter's word.
-    expect(row(state, 'Signal Boost')).toBe('2 ▲4 Up 4 places Signal Boost Finalist Topic #6 Strong – No network CPM')
-    expect(row(state, 'Paper Trail')).toBe('3 ▼1 Down 1 place Paper Trail Finalist Topic #2 Strong – No network CPM')
-    expect(row(state, 'Corner Booth')).toBe('6 ▼1 Down 1 place Corner Booth Topic #5 Good – No network CPM')
-    // A climber's name opens why it moved; no other show's does.
-    expect(hooked(chart(state), 'data-show="Signal Boost"')[0]).toMatch(
-      /<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="why-2")[^>]*>Signal Boost/
+    // The glyph is for the eye, its words for screen readers, as are both ranks, the lens's first; the
+    // band is the meter's word.
+    expect(row(state, 'Signal Boost')).toBe(
+      '2 2nd by who listens, 6th by topic ▲4 Up 4 places Signal Boost Finalist Topic #6 Strong – No network CPM'
     )
+    expect(row(state, 'Paper Trail')).toBe(
+      '3 3rd by who listens, 2nd by topic ▼1 Down 1 place Paper Trail Finalist Topic #2 Strong – No network CPM'
+    )
+    expect(row(state, 'Corner Booth')).toBe(
+      '6 6th by who listens, 5th by topic ▼1 Down 1 place Corner Booth Topic #5 Good – No network CPM'
+    )
+    // A climber's name opens why it moved; no other show's does.
+    const climber = hooked(chart(state), 'data-show="Signal Boost"')[0]
+    expect(climber).toMatch(/<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="why-2")/)
+    expect(words(climber.match(/<button\b[\s\S]*?<\/button>/)![0])).toBe('Signal Boost')
     expect(hooked(chart(state), 'data-show="Paper Trail"')[0]).not.toContain('<button')
   })
 
