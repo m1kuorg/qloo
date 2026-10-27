@@ -11,8 +11,17 @@ import type { NetworkPage } from '../NetworkPage'
 import { Done, Module } from './Module'
 
 // The settings' network module: the network's name and its CPM. An owner changes them here; a member
-// reads them. `cpm` is the agent's, live, and undefined until it's connected.
-export function NetworkModule({ network, cpm }: { network: NetworkPage; cpm: number | null | undefined }) {
+// reads them. `cpm` is the agent's, live, and undefined until it's connected; `onRenamed` hears a saved
+// new name.
+export function NetworkModule({
+  network,
+  cpm,
+  onRenamed
+}: {
+  network: NetworkPage
+  cpm: number | null | undefined
+  onRenamed: (name: string) => void
+}) {
   return (
     <Module
       id="set-network-h"
@@ -20,7 +29,7 @@ export function NetworkModule({ network, cpm }: { network: NetworkPage; cpm: num
       help="The name your members see, and the CPM that prices every promo slot: downloads per episode × CPM ÷ 1,000."
     >
       {network.role === 'owner' ? (
-        <NetworkForm network={network} cpm={cpm} />
+        <NetworkForm network={network} cpm={cpm} onRenamed={onRenamed} />
       ) : (
         <>
           <KeyValues>
@@ -36,7 +45,15 @@ export function NetworkModule({ network, cpm }: { network: NetworkPage; cpm: num
   )
 }
 
-function NetworkForm({ network, cpm }: { network: NetworkPage; cpm: number | null | undefined }) {
+function NetworkForm({
+  network,
+  cpm,
+  onRenamed
+}: {
+  network: NetworkPage
+  cpm: number | null | undefined
+  onRenamed: (name: string) => void
+}) {
   const [name, setName] = useState(network.name)
   const [saved, setSaved] = useState({ name: network.name, cpm: cpm ?? null })
   const [typedCpm, setTypedCpm] = useState<string | null>(null)
@@ -60,6 +77,7 @@ function NetworkForm({ network, cpm }: { network: NetworkPage; cpm: number | nul
       })
       setSaved({ name: answer.name, cpm: answer.cpm ?? saved.cpm })
       setName(answer.name)
+      onRenamed(answer.name)
       setTypedCpm(null)
       setDone(true)
       // The top bar is the server's: its switcher shows the new name without a reload.

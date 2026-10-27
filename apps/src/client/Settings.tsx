@@ -56,6 +56,10 @@ export function Settings({
 }: { state: State | undefined; connection?: Connection; network: NetworkPage } & MembersProps) {
   // Adding or removing the Qloo key moves where the network's Qloo calls count, so usage follows it.
   const [{ key: qlooKey, usage }, setKeyAndUsage] = useState({ key: loadedKey, usage: loaded })
+  // A rename saved here reaches every module at once: the danger zone asks for the new name, as the
+  // server does, and the help lines say it.
+  const [name, setName] = useState(network.name)
+  const named = { ...network, name }
   return (
     <main className={settingsColumn}>
       <div className="flex flex-col gap-1.5">
@@ -77,12 +81,12 @@ export function Settings({
         </p>
       </div>
       <div className="flex flex-col gap-12">
-        <NetworkModule network={network} cpm={state ? state.cpm : undefined} />
-        <MembersModule network={network} memberId={memberId} members={members} invites={invites} />
-        <ApiKeysModule network={network} keys={apiKeys} />
-        <QlooKeyModule network={network} qlooKey={qlooKey} onChange={setKeyAndUsage} />
-        <UsageModule network={network} usage={usage} hasOwnKey={qlooKey.set} />
-        <DangerZoneModule network={network} />
+        <NetworkModule network={named} cpm={state ? state.cpm : undefined} onRenamed={setName} />
+        <MembersModule network={named} memberId={memberId} members={members} invites={invites} />
+        <ApiKeysModule network={named} keys={apiKeys} />
+        <QlooKeyModule network={named} qlooKey={qlooKey} onChange={setKeyAndUsage} />
+        <UsageModule network={named} usage={usage} hasOwnKey={qlooKey.set} />
+        <DangerZoneModule network={named} />
       </div>
     </main>
   )
