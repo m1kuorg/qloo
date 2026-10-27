@@ -1213,7 +1213,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
                 Signing in as a guest asks for nothing and keeps only a hash of your session, for a day. Every guest is
                 the same guest member, in the one guest network: everything in it, its roster, launches, runs, inbox,
                 and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them
-                deletes or replaces it. Nothing resets it on a schedule.
+                deletes or replaces it, or until it’s cleared, every day at 12:00 UTC.
               </p>
             </li>
           )}

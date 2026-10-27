@@ -94,7 +94,7 @@ function GuestSignIn({ next, runs }: { next: string; runs: number }) {
         </h2>
         <p className="text-muted-foreground">
           Everyone who signs in as a guest shares one guest network and its daily limits, {modelRuns(runs)} a day
-          between them, so put nothing private in it.
+          between them, so put nothing private in it. It’s cleared every day at 12:00 UTC.
         </p>
       </div>
       <Button variant="secondary" className="w-full" disabled={busy} onClick={() => void signIn()}>
