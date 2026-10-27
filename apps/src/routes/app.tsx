@@ -84,10 +84,17 @@ appPages.get('/app', async (c) => {
   return c.redirect(last ? `/app/${last}` : '/app/new', 302)
 })
 
-// Naming a new network. The demo's and the landing page's "Create your network" lead here.
+// Naming a new network. The demo's and the landing page's "Create your network" lead here. The guest
+// member is told it can't create one instead.
 appPages.get('/app/new', async (c) => {
   c.set('networks', await memberNetworks(c.env.DB, c.var.member.id))
-  return c.render(<Island page="new-network" data-cap={c.env.NETWORKS_PER_MEMBER} />)
+  return c.render(
+    <Island
+      page="new-network"
+      data-cap={c.env.NETWORKS_PER_MEMBER}
+      data-guest={c.var.member.id === GUEST_MEMBER ? 'true' : undefined}
+    />
+  )
 })
 
 // Creates the network, with the member as its owner, unless they've created NETWORKS_PER_MEMBER.

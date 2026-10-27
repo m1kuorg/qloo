@@ -1,7 +1,11 @@
 // Signing in as a guest (ADR 0005): one click, no passkey, to the guest network, as the guest member,
 // through the accounts routes and the app's pages, as the sign-in page's "Sign in as a guest" does.
 import { env, exports } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { JoinAs } from '../src/client/Account'
+import { NewNetworkPage } from '../src/client/NewNetwork'
 import { guestSignIn, hooked, openGuest, openMember, type Guest } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -221,6 +225,33 @@ describe('the app, as a guest sees it', () => {
       expect(hooked(html, 'data-guest-notice'), path).toEqual([])
       expect(html, path).toContain('New network')
     }
+  })
+
+  it('tells a guest on the new network page that a guest can’t create one, with no form', async () => {
+    const page = await (await (await openGuest()).fetch('/app/new')).text()
+    const root = page.match(/<div id="root"([^>]*)>/)![1]
+    expect(root).toContain('data-guest="true"')
+    const cap = Number(root.match(/data-cap="(\d+)"/)![1])
+    const html = renderToStaticMarkup(createElement(NewNetworkPage, { cap, guest: true }))
+    expect(words(html)).toBe(
+      'Create a network A network holds your roster, its launches, and your booking inbox, for you and the teammates you invite. You own the networks you create, up to 3. A guest can’t create a network: every guest shares the guest network. Sign out and create an account to create one of your own. Sign out and create an account'
+    )
+    expect(html).not.toContain('<input')
+  })
+
+  it('tells a guest who opens an invite link to sign out and create an account to join, with no Join', async () => {
+    const ada = await openMember()
+    const invite = await (await ada.fetch('/invite')).text()
+    expect(invite).not.toContain('data-guest')
+    const page = await (await (await openGuest()).fetch('/invite')).text()
+    expect(page).toContain('data-member-name="Guest"')
+    expect(page).toContain('data-guest="true"')
+    const html = renderToStaticMarkup(
+      createElement(JoinAs, { name: 'Guest', network: 'Night Shift Audio', guest: true, join: async () => {} })
+    )
+    expect(words(html)).toBe(
+      'You’re signed in as a guest, and the guest member every guest shares can’t join a network. Sign out and create an account to join Night Shift Audio. Sign out and create an account'
+    )
   })
 })
 
