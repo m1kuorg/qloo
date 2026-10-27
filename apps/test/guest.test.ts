@@ -358,7 +358,8 @@ describe("the guest network's daily budget", () => {
   }
   const saved = {
     GUEST_PITCHES: env.GUEST_PITCHES,
-    RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
+    RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
+    FREE_START_DAILY_CAP: env.FREE_START_DAILY_CAP
   }
   const open: Omit<Session, 'cookie'>[] = []
   afterEach(() => {
@@ -422,5 +423,31 @@ describe("the guest network's daily budget", () => {
       status: 'stopped',
       error: `${used}, so runs on your own data wait until then. Only the sample launch, on the unchanged sample network, replays its stored run.`
     })
+  })
+
+  it('counts every guest’s free starts together, from any address or none, then refuses every guest the next', async () => {
+    env.RUN_VISITOR_DAILY_CAP = '1'
+    env.FREE_START_DAILY_CAP = '2'
+    fakeClaude([turn(text('Nothing to rank.'))])
+    const ada = await openGuest({ ip: adaIp })
+    const { id } = await (await connect(ada, adaIp)).call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    const start = async (launch: Omit<Session, 'cookie'>) =>
+      (await ended(launch, (await launch.call<{ runId: string }>('startLaunch', { name: 'The Night Watch' })).runId))
+        .run
+    const adas = await connect(ada, adaIp, id)
+    expect(await start(adas)).toMatchObject({ status: 'completed' })
+
+    // Past the day's one model run, Grace's start and a start with no address each stop at once.
+    expect(await start(await connect(await openGuest({ ip: graceIp }), graceIp, id))).toMatchObject({
+      status: 'stopped'
+    })
+    expect(await start(await connect(await openGuest(), undefined, id))).toMatchObject({ status: 'stopped' })
+
+    const used =
+      'Guests have started 2 runs today that replayed or stopped at once, the most the guest network can start in a UTC day, shared by everyone who signs in as a guest; they reset at 00:00 UTC.'
+    const dots = await connect(await openGuest({ ip: dotIp }), dotIp, id)
+    for (const launch of [adas, dots])
+      await expect(launch.call('startLaunch', { name: 'The Night Watch' })).rejects.toThrow(used)
+    expect(dots.state()!.runs.map((r) => r.status)).toEqual(['completed', 'stopped', 'stopped'])
   })
 })

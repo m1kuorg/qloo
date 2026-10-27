@@ -279,7 +279,8 @@ export class QlooGateway extends DurableObject<Env> {
     const day = utcDay()
     const key = await sha256(`${visitor}:${day}`)
     // From here on nothing awaits, so concurrent starts can't both pass a limit.
-    const limited = down ? null : this.countModelRun(key, day, whoCounts(visitor)).refused
+    const who = whoCounts(visitor)
+    const limited = down ? null : this.countModelRun(key, day, who).refused
     if (!down && !limited) return { down, limited, refused: null, stored: null }
     // A limit that isn't a number refuses every start, rather than none.
     const limit = Number(this.env.FREE_START_DAILY_CAP) || 0
@@ -287,7 +288,7 @@ export class QlooGateway extends DurableObject<Env> {
       return {
         down,
         limited,
-        refused: `You've started ${limit === 1 ? '1 run' : `${limit} runs`} today that replayed or stopped at once, the most ${whoCounts(visitor).one} can start in a UTC day; they reset at 00:00 UTC`,
+        refused: `${who.you} started ${limit === 1 ? '1 run' : `${limit} runs`} today that replayed or stopped at once, the most ${who.one} can start in a UTC day${who.shared}; they reset at 00:00 UTC`,
         stored: null
       }
     this.add('free_starts', key, day)
