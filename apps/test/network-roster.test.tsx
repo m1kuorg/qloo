@@ -15,7 +15,7 @@ import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
 import { fakeClaude, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
-import { currentLinks, openMember, openSession, regions, type Member, type Session } from './session'
+import { currentLinks, openGuest, openMember, openSession, regions, type Member, type Session } from './session'
 
 // Synthetic shows: two exact matches, one name shared by two feeds, and one Qloo doesn't have.
 const search = {
@@ -54,7 +54,7 @@ async function created(member: Member, name = 'Night Shift Audio') {
   return (await res.json<{ id: string }>()).id
 }
 // The network's agent, opened from one of its pages, from the member's address if given.
-async function connect(member: Member, network: string, ip?: string) {
+async function connect(member: Pick<Member, 'connect'>, network: string, ip?: string) {
   const agent = await member.connect(`/agents/network/${network}`, ip ? { 'CF-Connecting-IP': ip } : {})
   open.push(agent)
   return agent
@@ -530,6 +530,28 @@ describe("the roster page's words", () => {
       'Roster check'
     ])
       expect(read).not.toContain(elsewhere)
+  })
+
+  it('tells a guest that no one can change the guest network’s CPM, as it has no owner', async () => {
+    const guest = await openGuest()
+    const state = await (await connect(guest, 'guest-network')).until((s) => s.cpm === 20)
+    const read = words(
+      renderToStaticMarkup(
+        <NetworkRoster
+          agent={{ state, stub: {} } as unknown as NetworkConnection}
+          network={{
+            id: 'guest-network',
+            name: 'Guest network',
+            role: 'member',
+            guest: true,
+            links: networkLinks(env, 'guest-network')
+          }}
+        />
+      )
+    )
+    expect(read).toMatch(
+      /No roster yet\. CPM \$20 per 1,000 downloads · The guest network has no owner, so no one can change it\. Import shows /
+    )
   })
 
   it('labels a roster started from the sample, and shows a member the CPM an owner set', async () => {
