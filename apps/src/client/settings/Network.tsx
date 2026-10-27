@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { cpmProblem, dollars } from '../../order'
 import { MAX_NAME } from '../../text'
 import { Alert, KeyValue, KeyValues, send, useAction, useLeaveGuard } from '../controls'
-import type { NetworkPage } from '../NetworkPage'
+import { ownersOnly, type NetworkPage } from '../NetworkPage'
 import { Done, Module } from './Module'
 
 // The settings' network module: the network's name and its CPM. An owner changes them here; a member
@@ -38,7 +38,9 @@ export function NetworkModule({
               {cpm === undefined ? 'Connecting…' : cpm === null ? 'Not set' : dollars(cpm)}
             </KeyValue>
           </KeyValues>
-          <p className="text-muted-foreground">Only an owner can change these.</p>
+          <p className="text-muted-foreground">
+            {ownersOnly(network, 'Only an owner can change these.', 'change these')}
+          </p>
         </>
       )}
     </Module>

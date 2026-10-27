@@ -10,7 +10,7 @@ import { LostAccess, NetworkGate } from '../src/client/NetworkPage'
 import { Settings } from '../src/client/Settings'
 import { connectionOf } from '../src/client/states'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
-import { api, openMember, regions, type Member, type Session } from './session'
+import { api, openGuest, openMember, regions, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 const saved = { GUEST_PITCHES: env.GUEST_PITCHES, QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP }
@@ -30,14 +30,14 @@ async function network(member: Member, name = 'Night Shift Audio') {
   const { id } = await res.json<{ id: string }>()
   return { id, agent: await connect(member, id) }
 }
-const connect = async (member: Member, id: string) => {
+const connect = async (member: Pick<Member, 'connect'>, id: string) => {
   const agent = await member.connect(`/agents/network/${id}`)
   open.push(agent)
   return agent
 }
 
 // The data attributes the server gave a page's #root, as main.tsx reads them.
-async function island(member: Member, path: string) {
+async function island(member: Pick<Member, 'fetch'>, path: string) {
   const html = await (await member.fetch(path)).text()
   const root = html.match(/<div id="root"([^>]*)>/)![1]
   const d = Object.fromEntries(
@@ -63,6 +63,7 @@ async function island(member: Member, path: string) {
       id: d.networkId,
       name: d.networkName,
       role: d.role as 'owner' | 'member',
+      guest: d.guest === 'true',
       links: { roster: d.rosterLink, inbox: d.inboxLink ?? null, settings: d.settingsLink, launches: d.launchesLink }
     }
   }
@@ -76,7 +77,7 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-const dashboard = async (member: Member, id: string, state: State | undefined) =>
+const dashboard = async (member: Pick<Member, 'fetch'>, id: string, state: State | undefined) =>
   renderToStaticMarkup(
     <Dashboard
       {...await island(member, `/app/${id}`)}
@@ -212,7 +213,7 @@ describe('the dashboard', () => {
 })
 
 describe('settings', () => {
-  const settings = async (member: Member, id: string, state: State | undefined) => {
+  const settings = async (member: Pick<Member, 'fetch'>, id: string, state: State | undefined) => {
     const { network, memberId, members, invites, apiKeys, usage, qlooKey } = await island(member, `/app/${id}/settings`)
     return renderToStaticMarkup(
       <Settings
@@ -446,6 +447,28 @@ describe('settings', () => {
     expect(theirs).toContain('Danger zone')
     expect(theirs).toContain('Only an owner can delete the network.')
     expect(theirs).not.toContain('Delete network')
+  })
+
+  it('show a guest the guest network’s settings read-only, saying it has no owner, with no Leave', async () => {
+    const guest = await openGuest()
+    const id = 'guest-network'
+    const html = await settings(guest, id, await (await connect(guest, id)).until((s) => s.cpm === 20))
+    const read = words(html)
+    expect(html).not.toContain('<input')
+    expect(read).toMatch(
+      /^Settings You’re a guest\. The guest network has no owner, so what only an owner can change is read-only\. Network /
+    )
+    expect(read).toContain('Name Guest network CPM $20 The guest network has no owner, so no one can change these.')
+    expect(read).toMatch(
+      /Member Role Joined Actions Guest You Member \w{3} \d{1,2} The guest network has no owner, so no one can invite people, change roles, or remove members, and no guest can leave it\./
+    )
+    expect(read).toContain('The guest network has no owner, so no one can create or revoke API keys.')
+    expect(read).toContain(
+      'Qloo key Crossfeed’s shared key The guest network has no owner, so no one can add or remove its Qloo key.'
+    )
+    expect(read).toContain('The guest network has no owner, so no one can delete it.')
+    expect(read).not.toContain('Leave')
+    expect(read).not.toContain('Only an owner')
   })
 })
 

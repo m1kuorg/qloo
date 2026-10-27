@@ -9,7 +9,7 @@ import type { ApiKey } from '../../directory'
 import { MAX_NAME } from '../../text'
 import { useConfirm } from '../Confirm'
 import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
-import type { NetworkPage } from '../NetworkPage'
+import { ownersOnly, type NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
 import { cell, head, Module } from './Module'
 
@@ -29,7 +29,9 @@ export function ApiKeysModule({ network, keys }: { network: NetworkPage; keys: A
       {keys ? (
         <OwnerKeys network={network} keys={keys} heading={heading} />
       ) : (
-        <p className="text-muted-foreground">Only an owner can create and revoke API keys.</p>
+        <p className="text-muted-foreground">
+          {ownersOnly(network, 'Only an owner can create and revoke API keys.', 'create or revoke API keys')}
+        </p>
       )}
     </Module>
   )
