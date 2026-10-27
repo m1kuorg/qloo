@@ -1,11 +1,13 @@
 // Signing in as a guest (ADR 0005): one click, no passkey, to the guest network, as the guest member,
 // through the accounts routes and the app's pages, as the sign-in page's "Sign in as a guest" does.
+import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { JoinAs } from '../src/client/Account'
 import { NewNetworkPage } from '../src/client/NewNetwork'
+import worker from '../src/index'
 import { fakeClaude, fakeQloo, text, toolUse, turn } from './fake'
 import { guestSignIn, hooked, openGuest, openMember, type Guest, type Session } from './session'
 
@@ -335,6 +337,29 @@ describe('the guest sign-in limit', () => {
     for (let i = 0; i < 15; i++) cookie = (await openGuest({ cookie })).cookie
     expect(await (await guestSignIn({ cookie })).json()).toEqual(BUSY)
     expect((await guestSignIn()).status).toBe(429)
+  })
+
+  it('keeps counting a guest session that ended in the minute after the daily cron clears expired ones', async () => {
+    // The cron's health check searches Qloo too.
+    fakeQloo({ search: { 'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }] } })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.now()
+    // A guest who signed out two minutes before the cron, and 30 who signed in and out since.
+    await (await openGuest()).fetch('/auth/sign-out', { method: 'POST' })
+    vi.setSystemTime(start + 2 * 60_000)
+    for (let i = 0; i < 30; i++) await (await openGuest()).fetch('/auth/sign-out', { method: 'POST' })
+    const logged = vi.spyOn(console, 'log')
+
+    const ctx = createExecutionContext()
+    await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(logged).toHaveBeenCalledWith(
+      JSON.stringify({ event: 'directory_purged', sessions: 1, challenges: 0, invites: 0 })
+    )
+    expect(await (await guestSignIn()).json()).toEqual(BUSY)
+    vi.setSystemTime(start + 3 * 60_000)
+    expect((await guestSignIn()).status).toBe(200)
   })
 
   it('counts exactly, so two sign-ins at once for the last place leave one refused', async () => {
