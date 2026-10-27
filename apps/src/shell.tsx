@@ -272,7 +272,7 @@ const GuestNotice = () => (
   >
     <p>
       <b class="font-medium">You’re signed in as a guest.</b> Everyone who signs in as a guest shares the guest network
-      and its daily limits, so put nothing private in it.
+      and its daily limits, so put nothing private in it. It’s cleared every day at 12:00 UTC.
     </p>
     <span>
       <button type="button" class={buttonVariants({ variant: 'link' })} data-sign-out>
