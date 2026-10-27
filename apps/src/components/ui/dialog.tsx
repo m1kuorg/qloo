@@ -1,15 +1,21 @@
 // Forked from shadcn's base-nova dialog, trimmed to the parts the app uses and set on the tokens: 8px
 // corners and the one floating shadow (a light ring and a deeper shadow in the dark), over the scrim,
 // with no backdrop blur, a footer without a rule or band, secondary in place of the outline variant,
-// the close button 44px on a phone. Base UI injects no <style> under the island's CSPProvider, so it
-// runs under the production policy. Don't re-add the original with `shadcn add dialog --overwrite`.
+// the close button 44px on a phone, and, while it's open, the page under it inert (./modal-layer.ts).
+// Base UI injects no <style> under the island's CSPProvider, so it runs under the production policy.
+// Don't re-add the original with `shadcn add dialog --overwrite`.
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { cn } from 'cn'
 import { XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ModalOpen, useModalLayer } from '@/components/ui/modal-layer'
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+  return (
+    <ModalOpen.Provider value={Boolean(props.open) && (props.modal ?? true) === true}>
+      <DialogPrimitive.Root data-slot="dialog" {...props} />
+    </ModalOpen.Provider>
+  )
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
@@ -28,6 +34,7 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
+  const layer = useModalLayer()
   return (
     <DialogPrimitive.Portal data-slot="dialog-portal">
       <DialogPrimitive.Backdrop
@@ -35,6 +42,7 @@ function DialogContent({
         className="fixed inset-0 isolate z-50 bg-scrim transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"
       />
       <DialogPrimitive.Popup
+        ref={layer}
         data-slot="dialog-content"
         className={cn(
           'fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100svh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-xl bg-popover p-6 text-popover-foreground shadow-float transition duration-150 ease-swap outline-none data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:scale-[0.98] data-starting-style:opacity-0 sm:max-w-md',

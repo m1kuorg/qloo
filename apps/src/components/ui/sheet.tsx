@@ -2,14 +2,21 @@
 // shadow, no rule along its edge, over the scrim while it's modal, no backdrop blur), full width on a
 // phone and 400px from 640px, and with two props of its own: `overlay`, off for a non-modal sheet that
 // leaves the page usable, and `keepMounted`, which keeps the popup in the DOM while it's closed, so ids
-// inside it stay present. Don't re-add the original with `shadcn add sheet --overwrite`.
+// inside it stay present. A modal sheet, open, makes the page under it inert (./modal-layer.ts). Don't
+// re-add the original with `shadcn add sheet --overwrite`.
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog'
 import { cn } from 'cn'
+import { useCallback } from 'react'
 import { XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ModalOpen, useModalLayer } from '@/components/ui/modal-layer'
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+  return (
+    <ModalOpen.Provider value={Boolean(props.open) && (props.modal ?? true) === true}>
+      <SheetPrimitive.Root data-slot="sheet" {...props} />
+    </ModalOpen.Provider>
+  )
 }
 
 function SheetTrigger({ ...props }: SheetPrimitive.Trigger.Props) {
@@ -44,17 +51,30 @@ function SheetContent({
   showCloseButton = true,
   overlay = true,
   keepMounted = false,
+  ref,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: 'top' | 'right' | 'bottom' | 'left'
   showCloseButton?: boolean
   overlay?: boolean
   keepMounted?: boolean
+  ref?: React.Ref<HTMLDivElement>
 }) {
+  const layer = useModalLayer()
+  // The popup to the modal layer and to the caller's ref, such as the inspector's.
+  const popupRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      layer(el)
+      if (typeof ref === 'function') ref(el)
+      else if (ref) ref.current = el
+    },
+    [layer, ref]
+  )
   return (
     <SheetPortal keepMounted={keepMounted}>
       {overlay && <SheetOverlay />}
       <SheetPrimitive.Popup
+        ref={popupRef}
         data-slot="sheet-content"
         data-side={side}
         className={cn(
