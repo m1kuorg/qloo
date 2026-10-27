@@ -63,8 +63,10 @@ export const networkGateway = (env: Env, name: string, storage: DurableObjectSto
 export const kickMember = async (env: Env, networkId: string, memberId: string, reason?: string) =>
   (await getAgentByName(env.NetworkAgent, networkId)).kick(memberId, reason)
 
-// What a deleted network's open pages, and its launches', say as they close.
+// What a deleted network's open pages, and its launches', say as they close; and the guest network's,
+// as the daily cron clears it.
 export const NETWORK_DELETED = 'This network was deleted.'
+export const GUEST_NETWORK_RESET = 'The guest network was cleared for the day, as it is every day at 12:00 UTC.'
 
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."
@@ -173,11 +175,11 @@ export class NetworkAgent extends CrossfeedAgent {
     )
   }
 
-  // Lets go of the network as its deletion wipes it, once the directory has (wipe.ts): its open pages
-  // close for good, saying why, so none plans another launch, and it returns the launches it lists, to
-  // be wiped with it. Over RPC only.
-  letGo() {
-    for (const connection of this.getConnections()) connection.close(4410, NETWORK_DELETED)
+  // Lets go of the network as its deletion, or the guest network's daily reset, wipes it (wipe.ts): its
+  // open pages close for good, saying `reason`, so none plans another launch, and it returns the
+  // launches it lists, to be wiped with it. Over RPC only.
+  letGo(reason = NETWORK_DELETED) {
+    for (const connection of this.getConnections()) connection.close(4410, reason)
     return (this.state.launches ?? []).map((l) => l.id)
   }
 

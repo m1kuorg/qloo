@@ -1,5 +1,6 @@
 // Signing in as a guest (ADR 0005): one click, no passkey, to the guest network, as the guest member,
 // through the accounts routes and the app's pages, as the sign-in page's "Sign in as a guest" does.
+import { getAgentByName } from 'agents'
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { createElement } from 'react'
@@ -9,7 +10,7 @@ import { Invite } from '../src/client/Account'
 import { NewNetworkPage } from '../src/client/NewNetwork'
 import worker from '../src/index'
 import { fakeClaude, fakeQloo, text, toolUse, turn } from './fake'
-import { guestSignIn, hooked, openGuest, openMember, type Guest, type Session } from './session'
+import { guestSignIn, hooked, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
 const accounts = env.ACCOUNTS
@@ -204,7 +205,7 @@ const words = (html: string) =>
 
 describe('the app, as a guest sees it', () => {
   const NOTICE =
-    'You’re signed in as a guest. Everyone who signs in as a guest shares the guest network and its daily limits, so put nothing private in it. Sign out and create an account'
+    'You’re signed in as a guest. Everyone who signs in as a guest shares the guest network and its daily limits, so put nothing private in it. It’s cleared every day at 12:00 UTC. Sign out and create an account'
 
   it('says on every page that the guest network is shared, offers a way to an account, and no network of one’s own', async () => {
     const guest = await openGuest()
@@ -556,5 +557,64 @@ describe("the guest network's daily budget", () => {
     expect((await network.importRoster('Night Ferry')).roster).toMatchObject([
       { resolution: 'failed', error: 'The daily cap of 1 Qloo calls is reached; it resets at 00:00 UTC' }
     ])
+  })
+})
+
+describe("the guest network's daily reset", () => {
+  const RESET = { code: 4410, reason: 'The guest network was cleared for the day, as it is every day at 12:00 UTC.' }
+  const open: Omit<Session, 'cookie'>[] = []
+  afterEach(() => open.splice(0).forEach((agent) => agent.close()))
+  const connect = async (who: { connect: Guest['connect'] }, path: string) => {
+    const agent = await who.connect(path)
+    open.push(agent)
+    return agent
+  }
+  // The usage the guest network's settings page shows, as its island reads it.
+  const usage = async (guest: Guest) =>
+    (await (await guest.fetch('/app/guest-network/settings')).text()).match(/data-usage="([^"]*)"/)?.[1]
+
+  it('clears it at the daily cron, closing guests’ pages, so the next guest starts afresh with the day’s budget spent as it was', async () => {
+    fakeQloo({
+      search: {
+        'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.8 }],
+        // The cron's health check searches Qloo too.
+        'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }]
+      }
+    })
+    const guest = await openGuest()
+    const network = await connect(guest, '/agents/network/guest-network')
+    await network.importRoster('Night Shift Cinema')
+    await network.call('dismissChecklist')
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    const launch = await connect(guest, `/agents/launch/guest-network/${id}`)
+    // A member's own network, which the reset leaves alone.
+    const ada = await openMember()
+    const own = await (
+      await ada.fetch('/app/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Night Shift Audio' })
+      })
+    ).json<{ id: string }>()
+    const theirs = await connect(ada, `/agents/network/${own.id}`)
+    await theirs.call('createLaunch', { name: 'Paper Route' })
+    const spent = await usage(guest)
+    const logged = vi.spyOn(console, 'log')
+
+    const ctx = createExecutionContext()
+    await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(await network.closed()).toEqual(RESET)
+    expect(await launch.closed()).toEqual(RESET)
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 1 }))
+    // The guest is still signed in, and the guest network opens afresh: the sample's CPM, nothing else.
+    const fresh = await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+    expect(fresh).toMatchObject({ cpm: 20, roster: [], launches: [], checklistDismissed: [] })
+    expect((await guest.fetch(`/app/guest-network/launches/${id}`)).status).toBe(404)
+    expect((await guest.fetch('/app', { redirect: 'manual' })).headers.get('location')).toBe('/app/guest-network')
+    expect((await connect(guest, '/agents/network/guest-network')).state()).toMatchObject({ roster: [], launches: [] })
+    expect(await usage(guest)).toBe(spent)
+    expect((await (await getAgentByName(env.NetworkAgent, own.id)).state).launches).toHaveLength(1)
   })
 })
