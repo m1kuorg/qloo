@@ -6,7 +6,7 @@ import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { linkVariants, marketingFrame } from '@/components/ui/variants'
-import { Alert, send, useAction } from './controls'
+import { Alert, send, SignOut, useAction } from './controls'
 import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
 import { StateLine } from './states'
 
@@ -437,11 +437,10 @@ function JoinAs({
           You’re signed in as a guest, and the guest member every guest shares can’t join a network. Sign out and create
           an account to join {network}.
         </p>
-        <Button className="w-full" disabled={busy} onClick={() => void signOut()}>
-          {busy && <Spinner data-icon="inline-start" />}
-          {busy ? 'Signing out…' : 'Sign out and create an account'}
-        </Button>
-        <Alert error={error} />
+        {/* As signOut does above: signed out, the page opens on the invite again. */}
+        <SignOut className="w-full" then={() => window.location.reload()}>
+          Sign out and create an account
+        </SignOut>
       </section>
     )
   return (

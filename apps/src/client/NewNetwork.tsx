@@ -4,7 +4,7 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { MAX_NAME } from '../text'
-import { Alert, send, useAction } from './controls'
+import { Alert, send, SignOut, useAction } from './controls'
 
 // Naming a new network, which its creator then owns. `cap` is how many networks one member can create.
 // From 1024px, two columns on one centred measure: what a network is, at display size, beside the
@@ -17,11 +17,6 @@ export function NewNetworkPage({ cap, guest = false }: { cap: number; guest?: bo
     run(async () => {
       const { id } = await send<{ id: string }>('/app/new', { name })
       window.location.assign(`/app/${id}`)
-    })
-  const signOut = () =>
-    run(async () => {
-      await send('/auth/sign-out')
-      window.location.assign('/sign-in')
     })
   return (
     <main className="mx-auto grid w-full max-w-[1152px] items-start gap-8 px-4 pt-10 pb-16 lg:grid-cols-2 lg:gap-12 lg:px-6 lg:pt-20">
@@ -38,11 +33,7 @@ export function NewNetworkPage({ cap, guest = false }: { cap: number; guest?: bo
             A guest can’t create a network: every guest shares the guest network. Sign out and create an account to
             create one of your own.
           </p>
-          <Button disabled={busy} onClick={() => void signOut()} className="self-start">
-            {busy && <Spinner data-icon="inline-start" />}
-            {busy ? 'Signing out…' : 'Sign out and create an account'}
-          </Button>
-          <Alert error={error} />
+          <SignOut className="self-start">Sign out and create an account</SignOut>
         </section>
       ) : (
         <form
