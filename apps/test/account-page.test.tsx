@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccountPage } from '../src/client/AccountPage'
 import { softwareAuthenticator } from './authenticator'
-import { addPasskey, openMember, regions, type Member } from './session'
+import { addPasskey, openGuest, openMember, regions, type Member } from './session'
 
 afterEach(() => vi.useRealTimers())
 
@@ -12,7 +12,7 @@ const post = (member: Member, path: string, body: object = {}) =>
   member.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
 // The account page as main.tsx renders it from the server's data attributes.
-async function page(member: Member, path = '/app/account') {
+async function page(member: Pick<Member, 'fetch'>, path = '/app/account') {
   const html = await (await member.fetch(path)).text()
   const root = html.match(/<div id="root"([^>]*)>/)![1]
   const d = Object.fromEntries(
@@ -31,6 +31,7 @@ async function page(member: Member, path = '/app/account') {
       sessions={Number(d.sessions)}
       networks={JSON.parse(d.networks)}
       recovered={d.recovered === 'true'}
+      guest={d.guest === 'true'}
     />
   )
 }
@@ -115,5 +116,13 @@ describe('the account page', () => {
     expect(words(await page(ada))).toContain(
       'Passkey Oct 19, 12:00 PM Never Remove Passkey Oct 19, 12:05 PM Never Remove'
     )
+  })
+
+  it('shows a guest only that they’re the guest member, what that rules out, and signing out', async () => {
+    const html = await page(await openGuest())
+    expect(words(html)).toBe(
+      'Account Guest Everyone who signs in as a guest is the one guest member, in the guest network, and shares everything in it and its daily limits. A guest can’t add a passkey or a recovery code, rename the guest member, sign out every guest, or delete the account, and can’t create or join a network. For any of that, sign out and create an account of your own. Sign out'
+    )
+    expect(regions(html)).toEqual(['Guest'])
   })
 })

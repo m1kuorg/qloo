@@ -14,6 +14,7 @@ const network = () => ({
   id: d.networkId!,
   name: d.networkName!,
   role: d.role as Role,
+  guest: d.guest === 'true',
   links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink!, launches: d.launchesLink! }
 })
 // Each page's code is a chunk of its own, loaded before the island renders the page, so a page fetches
@@ -31,6 +32,7 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         sessions={Number(d.sessions)}
         networks={JSON.parse(d.networks!)}
         recovered={d.recovered === 'true'}
+        guest={d.guest === 'true'}
       />
     )),
   'new-network': () => import('./NewNetwork').then(({ NewNetworkPage }) => <NewNetworkPage cap={Number(d.cap)} />),
@@ -85,11 +87,11 @@ void (pages[d.page ?? ''] ?? demo)()
   // the one rule they'd add is in style.css.
   .then((page) => createRoot(root).render(<CSPProvider disableStyleElements>{page}</CSPProvider>))
 
-const signOut = document.querySelector<HTMLButtonElement>('[data-sign-out]')
-if (signOut) wireSignOut(signOut)
+document.querySelectorAll<HTMLButtonElement>('[data-sign-out]').forEach(wireSignOut)
 
-// The app shell's account menu: its Sign out button ends the session, then goes to the sign-in page.
-// The shell is server-rendered, so the island finds the button rather than rendering it.
+// The app shell's Sign out buttons, the account menu's and the guest notice's "Sign out and create an
+// account": each ends the session, then goes to the sign-in page. The shell is server-rendered, so the
+// island finds the buttons rather than rendering them.
 function wireSignOut(button: HTMLButtonElement) {
   button.addEventListener('click', async () => {
     button.disabled = true
@@ -100,7 +102,7 @@ function wireSignOut(button: HTMLButtonElement) {
       button.disabled = false
       button.textContent = 'Sign out failed. Try again'
       // Told to screen readers too, which don't hear a button's words change.
-      const status = document.querySelector('[data-sign-out-status]')
+      const status = button.parentElement?.querySelector('[data-sign-out-status]')
       if (status) status.textContent = 'Sign out failed. Try again.'
     }
   })

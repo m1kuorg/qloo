@@ -4,7 +4,7 @@ import type { Child } from 'hono/jsx'
 import { jsxRenderer, useRequestContext } from 'hono/jsx-renderer'
 import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
 import { buttonVariants, linkVariants, marketingFrame } from './components/ui/variants'
-import type { Member, Network } from './directory'
+import { GUEST_MEMBER, type Member, type Network } from './directory'
 import { Check, ChevronDown, ChevronsUpDown, Inbox, Podcast, Rocket, Settings } from './icons'
 import { Mark } from './mark'
 import { initials } from './text'
@@ -213,9 +213,10 @@ const AccountMenu = ({ member, path }: { member: Member; path: string }) => (
 
 // The network switcher, first in the app's top bar: the current network's name, or "Your networks" on
 // a page outside one, after a visually hidden "Network: ". Its menu lists the member's networks, the
-// current one checked, or says there are none yet, and "New network". Renaming the network in its
-// settings changes its name in place (data-current-network).
-const Switcher = ({ networks, network }: { networks: Network[]; network?: Network }) => (
+// current one checked, or says there are none yet, and "New network", unless they're the guest member,
+// who can't create one. Renaming the network in its settings changes its name in place
+// (data-current-network).
+const Switcher = ({ networks, network, guest }: { networks: Network[]; network?: Network; guest: boolean }) => (
   <details data-menu class={cn(menu, 'min-w-0')}>
     <summary class={cn(menuButton, 'h-8 min-w-0 px-2 font-medium max-md:h-11 md:-ml-2')}>
       <span class="vh">Network: </span>
@@ -251,11 +252,35 @@ const Switcher = ({ networks, network }: { networks: Network[]; network?: Networ
           ))}
         </ul>
       )}
-      <a href="/app/new" class={cn(menuItem, networks.length > 0 && 'mt-1')}>
-        New network
-      </a>
+      {!guest && (
+        <a href="/app/new" class={cn(menuItem, networks.length > 0 && 'mt-1')}>
+          New network
+        </a>
+      )}
     </div>
   </details>
+)
+
+// The guest notice, under the app's top bar on every page for the guest member (ADR 0005): everyone who
+// signs in as a guest shares the guest network and its daily limits. Its button ends the session and
+// opens the sign-in page, to create an account; main.tsx wires it, as it does the account menu's Sign out.
+const GuestNotice = () => (
+  <aside
+    aria-label="Guest notice"
+    data-guest-notice
+    class="flex flex-wrap items-center gap-x-3 gap-y-1 bg-muted px-4 py-2 lg:px-6"
+  >
+    <p>
+      <b class="font-medium">You’re signed in as a guest.</b> Everyone who signs in as a guest shares the guest network
+      and its daily limits, so put nothing private in it.
+    </p>
+    <span>
+      <button type="button" class={buttonVariants({ variant: 'link' })} data-sign-out>
+        Sign out and create an account
+      </button>
+      <span role="status" class="vh" data-sign-out-status />
+    </span>
+  </aside>
 )
 
 // A page the rail leads to: its icon, and its name, the icon's tooltip and the link's accessible name.
@@ -569,55 +594,59 @@ export const appShell = jsxRenderer(({ children }, c) => {
           : undefined
   // The page's name, after the switcher: on a launch's page, Launches, as a link back to the list.
   const here = destinations.find((d) => d.current)
+  const guest = member?.id === GUEST_MEMBER
   return (
     <AppFrame
       rail={<Rail label="Network" home="/app" destinations={destinations} />}
       bottomBar={destinations.length > 0}
       bar={
-        <header class="sticky top-0 z-30 flex h-12 items-center gap-2 bg-background px-4 lg:px-6">
-          <MarkLink href="/app" class="-ml-2.5 shrink-0 md:hidden" />
-          {/* Every page here is a member's, so the switcher is always there: on a page outside a network
+        <>
+          <header class="sticky top-0 z-30 flex h-12 items-center gap-2 bg-background px-4 lg:px-6">
+            <MarkLink href="/app" class="-ml-2.5 shrink-0 md:hidden" />
+            {/* Every page here is a member's, so the switcher is always there: on a page outside a network
               with no networks yet, as on /app/new, it reads "Your networks" and offers New network. */}
-          {(member || here) && (
-            <ol class="flex min-w-0 items-center gap-2">
-              {member && (
-                <li class="min-w-0">
-                  <Switcher networks={networks} network={network} />
-                </li>
-              )}
-              {here && (
-                <>
-                  <li aria-hidden="true" class="text-muted-foreground max-md:hidden">
-                    /
+            {(member || here) && (
+              <ol class="flex min-w-0 items-center gap-2">
+                {member && (
+                  <li class="min-w-0">
+                    <Switcher networks={networks} network={network} guest={guest} />
                   </li>
-                  <li class="truncate max-md:hidden">
-                    {here.current === 'true' ? (
-                      <a
-                        href={here.href}
-                        class="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                      >
-                        {here.label}
-                      </a>
-                    ) : (
-                      here.label
-                    )}
-                  </li>
-                </>
-              )}
-              {/* On a launch's page, the launch's name, which only its agent knows: the island fills
+                )}
+                {here && (
+                  <>
+                    <li aria-hidden="true" class="text-muted-foreground max-md:hidden">
+                      /
+                    </li>
+                    <li class="truncate max-md:hidden">
+                      {here.current === 'true' ? (
+                        <a
+                          href={here.href}
+                          class="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                        >
+                          {here.label}
+                        </a>
+                      ) : (
+                        here.label
+                      )}
+                    </li>
+                  </>
+                )}
+                {/* On a launch's page, the launch's name, which only its agent knows: the island fills
                   this (Launch.tsx). It's last on the bar's line, so the late fill moves nothing, and
                   hidden while it's empty. */}
-              {here?.current === 'true' && (
-                <li id="shell-launch" class="flex min-w-0 items-center gap-2 empty:hidden max-md:hidden" />
-              )}
-            </ol>
-          )}
-          {member && (
-            <div class="ml-auto shrink-0">
-              <AccountMenu member={member} path={path} />
-            </div>
-          )}
-        </header>
+                {here?.current === 'true' && (
+                  <li id="shell-launch" class="flex min-w-0 items-center gap-2 empty:hidden max-md:hidden" />
+                )}
+              </ol>
+            )}
+            {member && (
+              <div class="ml-auto shrink-0">
+                <AccountMenu member={member} path={path} />
+              </div>
+            )}
+          </header>
+          {guest && <GuestNotice />}
+        </>
       }
     >
       {children}
