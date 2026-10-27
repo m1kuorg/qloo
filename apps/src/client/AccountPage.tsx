@@ -93,7 +93,7 @@ function NameModule({ name: saved }: { name: string }) {
           <FieldLabel htmlFor="acct-name">Your name</FieldLabel>
           <Input
             id="acct-name"
-            className="max-w-sm max-md:h-11"
+            className="max-w-sm"
             value={name}
             onChange={(e) => {
               setName(e.target.value)
@@ -105,7 +105,7 @@ function NameModule({ name: saved }: { name: string }) {
           />
         </Field>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" className="max-md:h-11" disabled={busy || !name.trim() || !changed}>
+          <Button type="submit" disabled={busy || !name.trim() || !changed}>
             {busy && <Spinner data-icon="inline-start" />}
             {busy ? 'Saving…' : 'Save'}
           </Button>
@@ -198,13 +198,7 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
                   {p.lastUsed === null ? 'Never' : day(p.lastUsed)}
                 </td>
                 <td className={`${cell} pr-0 text-right`}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="max-md:h-11"
-                    disabled={busy || only}
-                    onClick={() => askRemove(p)}
-                  >
+                  <Button variant="ghost" size="sm" disabled={busy || only} onClick={() => askRemove(p)}>
                     Remove
                   </Button>
                 </td>
@@ -215,12 +209,7 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
       </ScrollTable>
       {only && <p className="text-muted-foreground">Your only passkey can’t be removed: add another first.</p>}
       <div>
-        <Button
-          variant={asked ? 'default' : 'secondary'}
-          className="max-md:h-11"
-          disabled={busy}
-          onClick={() => void add()}
-        >
+        <Button variant={asked ? 'default' : 'secondary'} disabled={busy} onClick={() => void add()}>
           {busy && <Spinner data-icon="inline-start" />}
           {code.asking ? 'Confirming…' : busy ? 'Waiting for your passkey…' : 'Add a passkey'}
         </Button>
@@ -258,7 +247,7 @@ function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
       help="If you lose every passkey, your recovery code signs you in once. Crossfeed keeps no copy it can read."
     >
       <div>
-        <Button variant="secondary" className="max-md:h-11" disabled={busy} onClick={() => void renew()}>
+        <Button variant="secondary" disabled={busy} onClick={() => void renew()}>
           {busy && <Spinner data-icon="inline-start" />}
           {code.asking ? 'Confirming…' : busy ? 'Working…' : 'Get a new recovery code'}
         </Button>
@@ -298,7 +287,7 @@ function SessionsModule({ sessions }: { sessions: number }) {
         {sessions <= 1 ? '1 browser, this one.' : `${sessions.toLocaleString('en-US')} browsers, this one included.`}
       </p>
       <div>
-        <Button variant="destructive" className="max-md:h-11" onClick={askSignOut}>
+        <Button variant="destructive" onClick={askSignOut}>
           Sign out everywhere
         </Button>
       </div>
@@ -364,13 +353,7 @@ function NetworksModule({ networks, onlyOwner }: { networks: AccountNetwork[]; o
                   </th>
                   <td className={`${cell} whitespace-nowrap`}>{n.role === 'owner' ? 'Owner' : 'Member'}</td>
                   <td className={`${cell} pr-0 text-right`}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="max-md:h-11"
-                      disabled={n.onlyOwner}
-                      onClick={() => askLeave(n)}
-                    >
+                    <Button variant="ghost" size="sm" disabled={n.onlyOwner} onClick={() => askLeave(n)}>
                       Leave
                     </Button>
                   </td>
@@ -419,7 +402,7 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
       help="Deletes your account, passkeys, recovery code, and sessions, takes you out of every network, and revokes the API keys and invite links you made. What you did in your networks, and in those you left before, stays with them, such as the runs you started and the orders you approved, but under “Former member”, not your name."
     >
       <div>
-        <Button variant="destructive" className="max-md:h-11" disabled={blocked || busy} onClick={askDelete}>
+        <Button variant="destructive" disabled={blocked || busy} onClick={askDelete}>
           {busy && <Spinner data-icon="inline-start" />}
           {code.asking ? 'Confirming…' : busy ? 'Deleting…' : 'Delete account'}
         </Button>

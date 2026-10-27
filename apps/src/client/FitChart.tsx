@@ -194,12 +194,12 @@ export function FitChart({
                 aria-label="Order the chart"
                 value={lens}
                 onValueChange={(next) => switchLens(next as Lens)}
-                className={segmentedTrackVariants({ className: 'flex max-md:h-11' })}
+                className={segmentedTrackVariants({ className: 'flex' })}
               >
-                <RadioGroupSegment value="listeners" className={segmentedItemVariants({ className: 'max-md:h-10' })}>
+                <RadioGroupSegment value="listeners" className={segmentedItemVariants()}>
                   By who listens
                 </RadioGroupSegment>
-                <RadioGroupSegment value="topic" className={segmentedItemVariants({ className: 'max-md:h-10' })}>
+                <RadioGroupSegment value="topic" className={segmentedItemVariants()}>
                   By topic
                 </RadioGroupSegment>
               </RadioGroup>
@@ -445,7 +445,7 @@ export function FitChart({
             </div>
           </div>
           {(folded > 0 || all) && (
-            <Button variant="ghost" size="sm" className="-ml-2.5 self-start max-md:h-11" onClick={() => setAll(!all)}>
+            <Button variant="ghost" size="sm" className="-ml-2.5 self-start" onClick={() => setAll(!all)}>
               {all ? 'Show fewer' : `Show all ${order.length}`}
             </Button>
           )}

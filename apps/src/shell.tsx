@@ -513,10 +513,10 @@ export const demoShell = jsxRenderer(({ children }, c) => {
           </div>
           {c.env.ACCOUNTS === 'on' && (
             <div class="ml-auto flex h-12 shrink-0 items-center gap-1">
-              <a class={buttonVariants({ variant: 'ghost', className: 'max-md:h-11' })} href="/sign-in">
+              <a class={buttonVariants({ variant: 'ghost' })} href="/sign-in">
                 Sign in
               </a>
-              <a class={buttonVariants({ className: 'max-md:h-11' })} href="/app/new">
+              <a class={buttonVariants()} href="/app/new">
                 Create your network
               </a>
             </div>

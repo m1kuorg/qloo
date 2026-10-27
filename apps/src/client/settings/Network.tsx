@@ -79,7 +79,7 @@ function NetworkForm({ network, cpm }: { network: NetworkPage; cpm: number | nul
           <FieldLabel htmlFor="set-name">Name</FieldLabel>
           <Input
             id="set-name"
-            className="max-w-sm max-md:h-11"
+            className="max-w-sm"
             value={name}
             onChange={(e) => {
               setName(e.target.value)
@@ -91,7 +91,7 @@ function NetworkForm({ network, cpm }: { network: NetworkPage; cpm: number | nul
         </Field>
         <Field data-disabled={cpm === undefined || undefined}>
           <FieldLabel htmlFor="set-cpm">CPM</FieldLabel>
-          <InputGroup className="max-w-40 max-md:h-11">
+          <InputGroup className="max-w-40">
             <InputGroupAddon>$</InputGroupAddon>
             <InputGroupInput
               id="set-cpm"
@@ -109,7 +109,7 @@ function NetworkForm({ network, cpm }: { network: NetworkPage; cpm: number | nul
         </Field>
       </FieldGroup>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={busy || !name.trim() || !changed} className="max-md:h-11">
+        <Button type="submit" disabled={busy || !name.trim() || !changed}>
           {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Saving…' : 'Save'}
         </Button>

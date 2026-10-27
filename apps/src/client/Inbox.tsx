@@ -377,7 +377,6 @@ function InboxHead({
               back()
               heading.current?.focus()
             }}
-            className="max-md:h-11"
           >
             Back to the latest run
           </Button>
@@ -482,7 +481,7 @@ function InboxLoad({
           className="max-h-60 min-h-24"
         />
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2 [&>button]:max-md:h-11">
+          <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={locked || !text.trim()}>
               Read pitches
             </Button>
@@ -677,11 +676,7 @@ function PitchSetup({
                 onValueChange={(name) => setShow(name as string)}
                 disabled={locked}
               >
-                <SelectTrigger
-                  id="setup-show-trigger"
-                  aria-labelledby="setup-show"
-                  className="w-full sm:w-80 max-md:h-11"
-                >
+                <SelectTrigger id="setup-show-trigger" aria-labelledby="setup-show" className="w-full sm:w-80">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -713,7 +708,6 @@ function PitchSetup({
                       onChange={(e) => edit(i, { guest: e.target.value })}
                       maxLength={MAX_TITLE}
                       disabled={locked}
-                      className="max-md:h-11"
                     />
                   </GuestField>
                   <GuestField name="Work title" area="[grid-area:title]" field={`guest-${i}-title`}>
@@ -724,7 +718,6 @@ function PitchSetup({
                       onChange={(e) => edit(i, { title: e.target.value })}
                       maxLength={MAX_TITLE}
                       disabled={locked}
-                      className="max-md:h-11"
                     />
                   </GuestField>
                   <GuestField name="Type" area="[grid-area:type]" field={`guest-${i}-type`}>
@@ -737,7 +730,7 @@ function PitchSetup({
                       <SelectTrigger
                         id={`guest-${i}-type`}
                         aria-label={`Past guest ${i + 1}'s work type`}
-                        className="w-full max-md:h-11"
+                        className="w-full"
                       >
                         <SelectValue />
                       </SelectTrigger>
@@ -762,7 +755,6 @@ function PitchSetup({
                       value={r.year}
                       onChange={(e) => edit(i, { year: e.target.value })}
                       disabled={locked}
-                      className="max-md:h-11"
                     />
                   </GuestField>
                   <Button
@@ -775,7 +767,7 @@ function PitchSetup({
                       setTyped(true)
                     }}
                     disabled={locked}
-                    className="justify-self-start [grid-area:remove] max-md:-ml-2.5 max-md:h-11 md:justify-self-end"
+                    className="justify-self-start [grid-area:remove] max-md:-ml-2.5 md:justify-self-end"
                   >
                     Remove
                   </Button>
@@ -791,7 +783,7 @@ function PitchSetup({
                     setTyped(true)
                   }}
                   disabled={locked}
-                  className="-ml-2.5 self-start max-md:h-11"
+                  className="-ml-2.5 self-start"
                 >
                   Add a past guest
                 </Button>
@@ -799,7 +791,7 @@ function PitchSetup({
             </FieldSet>
           </FieldGroup>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Button type="submit" disabled={locked || !chosen || Boolean(awaited)} className="max-md:h-11">
+            <Button type="submit" disabled={locked || !chosen || Boolean(awaited)}>
               {running && <Spinner data-icon="inline-start" />}
               Rank pitches
             </Button>
@@ -1217,7 +1209,7 @@ function ReplyItem({
                 size="sm"
                 disabled={off}
                 onClick={() => void act(() => actions.editReply(reply.pitch, reply.draft), 'approve', 'restore')}
-                className="-mr-2.5 max-md:h-11"
+                className="-mr-2.5"
               >
                 Restore
                 {about}
@@ -1247,7 +1239,7 @@ function ReplyItem({
       setUncopied(true)
     }
   }
-  const row = 'flex flex-wrap items-center gap-x-2 gap-y-1.5 [&>button]:max-md:h-11'
+  const row = 'flex flex-wrap items-center gap-x-2 gap-y-1.5'
   return (
     <li
       ref={item}
@@ -1654,11 +1646,7 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElem
           {chip}
           <span className="type-caption text-muted-foreground">{match.candidates.length} with this title</span>
         </span>
-        <Button
-          variant="link"
-          className="text-left whitespace-normal max-md:-my-3 max-md:py-3"
-          onClick={(e) => settle(e.currentTarget)}
-        >
+        <Button variant="link" className="text-left whitespace-normal" onClick={(e) => settle(e.currentTarget)}>
           Confirm the match
         </Button>
       </span>
@@ -1704,13 +1692,7 @@ function PitchDetail({
           <h2 className="text-base leading-snug font-semibold text-balance" id="pitch-ed" ref={heading} tabIndex={-1}>
             {title(p)}
           </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={`Close ${title(p)}`}
-            onClick={close}
-            className="-my-1 -mr-1.5 max-md:h-11"
-          >
+          <Button variant="ghost" size="sm" aria-label={`Close ${title(p)}`} onClick={close} className="-my-1 -mr-1.5">
             Close
           </Button>
         </div>

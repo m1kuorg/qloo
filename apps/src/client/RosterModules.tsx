@@ -114,7 +114,7 @@ export function RosterImport({
             className="max-h-60 min-h-24"
           />
           <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2 [&>button]:max-md:h-11">
+            <div className="flex flex-wrap items-center gap-2">
               <Button type="submit" disabled={busy || count === 0}>
                 {busy && <Spinner data-icon="inline-start" />}
                 {pending > 0
@@ -399,7 +399,7 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
     )
   const action = show.excluded ? null : show.resolution === 'ambiguous' ? 'Pick the match' : 'Map a comp or leave out'
   const settleButton = action && settle && (
-    <Button variant="link" className="text-left whitespace-normal max-md:-my-3 max-md:py-3" onClick={settle}>
+    <Button variant="link" className="text-left whitespace-normal" onClick={settle}>
       {action}
     </Button>
   )
@@ -451,13 +451,7 @@ export function ShowEditor({
           <h2 className="text-base leading-snug font-semibold text-balance" id="show-ed">
             {show.name}
           </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={`Close ${show.name}`}
-            onClick={close}
-            className="-my-1 -mr-1.5 max-md:h-11"
-          >
+          <Button variant="ghost" size="sm" aria-label={`Close ${show.name}`} onClick={close} className="-my-1 -mr-1.5">
             Close
           </Button>
         </div>
@@ -504,12 +498,7 @@ export function ShowEditor({
       )}
       <ShowFields show={show} update={update} busy={busy} />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Button
-          variant="secondary"
-          disabled={busy}
-          onClick={() => void update({ excluded: !show.excluded })}
-          className="max-md:h-11"
-        >
+        <Button variant="secondary" disabled={busy} onClick={() => void update({ excluded: !show.excluded })}>
           {show.excluded ? 'Include again' : 'Leave out'}
         </Button>
         <small className="type-caption text-muted-foreground">
@@ -555,14 +544,8 @@ function CompSearch({
               placeholder="Search Qloo podcasts"
               maxLength={MAX_TITLE}
               disabled={searching.busy}
-              className="max-md:h-11"
             />
-            <Button
-              type="submit"
-              variant="secondary"
-              disabled={searching.busy || !query.trim()}
-              className="max-md:h-11"
-            >
+            <Button type="submit" variant="secondary" disabled={searching.busy || !query.trim()}>
               {searching.busy && <Spinner data-icon="inline-start" />}
               {searching.busy ? 'Searching…' : 'Search'}
             </Button>
@@ -647,7 +630,6 @@ function ShowFields({
             aria-describedby={invalid !== null ? 'show-downloads-error' : undefined}
             value={downloads}
             onChange={(e) => setDownloads(e.target.value)}
-            className="max-md:h-11"
           />
         </Field>
         <Field>
@@ -659,11 +641,10 @@ function ShowFields({
             value={status}
             onChange={(e) => setStatus(e.target.value)}
             placeholder="active, hiatus"
-            className="max-md:h-11"
           />
         </Field>
       </FieldGroup>
-      <Button type="submit" variant="secondary" disabled={busy} className="self-start max-md:h-11">
+      <Button type="submit" variant="secondary" disabled={busy} className="self-start">
         {saving && <Spinner data-icon="inline-start" />}
         Save
       </Button>
@@ -731,7 +712,7 @@ export function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample:
       <CpmHead cpm={cpm} />
       <p className="text-muted-foreground">{PRICES}</p>
       <form className="flex flex-wrap items-center gap-x-3 gap-y-2" onSubmit={save}>
-        <InputGroup className="w-52 max-md:h-11">
+        <InputGroup className="w-52">
           <InputGroupAddon aria-hidden="true">$</InputGroupAddon>
           <InputGroupInput
             aria-labelledby="cpm-h"
@@ -741,12 +722,7 @@ export function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample:
             placeholder="CPM in dollars, e.g. 20"
           />
         </InputGroup>
-        <Button
-          type="submit"
-          variant="secondary"
-          disabled={busy || !value.trim() || Number(value) === cpm}
-          className="max-md:h-11"
-        >
+        <Button type="submit" variant="secondary" disabled={busy || !value.trim() || Number(value) === cpm}>
           {busy && <Spinner data-icon="inline-start" />}
           Save
         </Button>

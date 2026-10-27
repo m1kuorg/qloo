@@ -71,13 +71,7 @@ export function NetworkRoster({
       roster={state ? roster : null}
       cpm={state ? state.cpm : undefined}
       connection={connection}
-      action={
-        roster.length > 0 && (
-          <Button onClick={() => setImporting(true)} className="max-md:h-11">
-            Import shows
-          </Button>
-        )
-      }
+      action={roster.length > 0 && <Button onClick={() => setImporting(true)}>Import shows</Button>}
     />
   )
 
@@ -260,7 +254,7 @@ function SampleStart({ start }: { start: () => Promise<unknown> }) {
   const { busy, error, run } = useAction()
   return (
     <div className="flex flex-col items-start gap-x-4 gap-y-2 rounded-xl bg-card p-4 md:flex-row md:items-center lg:px-6">
-      <Button variant="secondary" disabled={busy} onClick={() => void run(start)} className="max-md:h-11">
+      <Button variant="secondary" disabled={busy} onClick={() => void run(start)}>
         {busy && <Spinner data-icon="inline-start" />}
         Start from the sample roster
       </Button>

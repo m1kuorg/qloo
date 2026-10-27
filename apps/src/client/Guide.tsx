@@ -71,7 +71,7 @@ export function Guide({
             {finished ? 'Done' : `Step ${current + 1} of ${steps.length}`}
           </span>
         </h2>
-        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5 max-md:h-11" onClick={dismiss}>
+        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={dismiss}>
           Dismiss
         </Button>
       </div>

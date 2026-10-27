@@ -119,7 +119,7 @@ function PasskeySignIn({
       </div>
       <Button
         variant={primary ? 'default' : 'secondary'}
-        className="w-full max-md:h-11"
+        className="w-full"
         disabled={disabled || busy}
         onClick={() => void signIn()}
       >
@@ -168,7 +168,7 @@ function Recover({ onBack, onCode }: { onBack: () => void; onCode: (code: string
           <FieldLabel htmlFor="recovery-code">Your recovery code</FieldLabel>
           <Input
             id="recovery-code"
-            className="font-mono max-md:h-11"
+            className="font-mono"
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
@@ -184,11 +184,11 @@ function Recover({ onBack, onCode }: { onBack: () => void; onCode: (code: string
           </FieldDescription>
         </Field>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="submit" className="max-md:h-11" disabled={busy || !typed.trim()}>
+          <Button type="submit" disabled={busy || !typed.trim()}>
             {busy && <Spinner data-icon="inline-start" />}
             {busy ? 'Checking…' : 'Sign in'}
           </Button>
-          <Button variant="ghost" className="max-md:h-11" onClick={onBack}>
+          <Button variant="ghost" onClick={onBack}>
             Use a passkey instead
           </Button>
         </div>
@@ -248,7 +248,6 @@ function CreateAccount({
           <FieldLabel htmlFor="member-name">Your name, as your teammates will see it</FieldLabel>
           <Input
             id="member-name"
-            className="max-md:h-11"
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoComplete="name"
@@ -262,7 +261,7 @@ function CreateAccount({
         <Button
           type="submit"
           variant={primary ? 'default' : 'secondary'}
-          className="w-full max-md:h-11"
+          className="w-full"
           disabled={disabled || busy || !name.trim()}
         >
           {busy && <Spinner data-icon="inline-start" />}
@@ -372,7 +371,7 @@ function JoinAs({ name, network, join }: { name: string; network: string; join: 
       <p>
         You’re signed in as <b className="font-semibold">{name}</b>.
       </p>
-      <Button className="w-full max-md:h-11" disabled={busy} onClick={() => void run(join)}>
+      <Button className="w-full" disabled={busy} onClick={() => void run(join)}>
         {busy && <Spinner data-icon="inline-start" />}
         {busy ? 'Joining…' : `Join ${network}`}
       </Button>

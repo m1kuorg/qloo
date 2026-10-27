@@ -119,7 +119,7 @@ function AddKey({ network, onChange }: { network: NetworkPage; onChange: (change
           <Input
             type="password"
             id="qloo-key"
-            className="max-w-sm max-md:h-11"
+            className="max-w-sm"
             value={key}
             onChange={(e) => setKey(e.target.value)}
             autoComplete="off"
@@ -135,7 +135,7 @@ function AddKey({ network, onChange }: { network: NetworkPage; onChange: (change
         </Field>
       </FieldGroup>
       <div>
-        <Button type="submit" variant="secondary" className="max-md:h-11" disabled={busy || !host || !key.trim()}>
+        <Button type="submit" variant="secondary" disabled={busy || !host || !key.trim()}>
           {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Testing…' : 'Test and save key'}
         </Button>
@@ -182,7 +182,7 @@ function OwnKeyRecord({
         <KeyValue label="Host">{hostName(qlooKey.host)}</KeyValue>
       </KeyValues>
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="destructive" className="max-md:h-11" onClick={askRemove}>
+        <Button variant="destructive" onClick={askRemove}>
           Remove key
         </Button>
         <Done shown={saved}>Tested and saved.</Done>

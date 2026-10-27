@@ -106,7 +106,7 @@ export function Dashboard({
             </span>
           </p>
         </div>
-        <Button onClick={plan} disabled={!state} className="max-md:h-11">
+        <Button onClick={plan} disabled={!state}>
           New launch
         </Button>
       </div>
@@ -315,7 +315,7 @@ function Launches({
                     No launches yet. Each launch you plan is listed here with its status, finalists, promo slots, and
                     their slot value.
                   </p>
-                  <Button variant="secondary" onClick={plan} className="max-md:h-11">
+                  <Button variant="secondary" onClick={plan}>
                     New launch
                   </Button>
                 </div>
@@ -447,10 +447,7 @@ function LaunchRow({ launch: l, href, ask }: { launch: LaunchSummary; href: stri
       </td>
       <td className={cn(cell, 'py-2 pr-2 text-right')}>
         <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button variant="ghost" size="icon-sm" className="max-md:size-11" />}
-            aria-label={`Actions for ${title}`}
-          >
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />} aria-label={`Actions for ${title}`}>
             <EllipsisIcon />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -627,7 +624,7 @@ function Checklist({
             · {done === items.length ? 'Done' : `${done} of ${items.length} done`}
           </span>
         </h2>
-        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5 max-md:h-11" onClick={() => void run(dismiss)}>
+        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={() => void run(dismiss)}>
           Dismiss
         </Button>
       </div>

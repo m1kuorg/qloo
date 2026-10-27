@@ -26,9 +26,10 @@ const link = cva('underline decoration-1 underline-offset-4 hover:decoration-2',
 export const linkVariants = merged(link)
 
 // Flat, one fill, 6px corners. App controls are 32px tall (sm, row actions, 28px); marketing pages
-// use lg, 44px. Destructive is a crimson outline; destructive-solid, its fill, is only for the verb
-// inside its confirm dialog. There's no outline variant: a shadcn component that asks for one gets
-// secondary or ghost instead.
+// use lg, 44px. Under 768px every size is 44px tall, a finger's target; a link keeps its line's height
+// and reaches 44px with padding it gives back as negative margin, so the line doesn't grow. Destructive
+// is a crimson outline; destructive-solid, its fill, is only for the verb inside its confirm dialog.
+// There's no outline variant: a shadcn component that asks for one gets secondary or ghost instead.
 const button = cva(
   "group/button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-clip-padding font-medium whitespace-nowrap transition-colors select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
@@ -43,26 +44,26 @@ const button = cva(
         'destructive-solid': 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
       },
       size: {
-        default: 'h-8 px-3 type-ui has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5',
-        sm: "h-7 gap-1 px-2.5 type-ui has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3.5",
+        default: 'h-8 px-3 type-ui has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 max-md:h-11',
+        sm: "h-7 gap-1 px-2.5 type-ui has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 max-md:h-11 [&_svg:not([class*='size-'])]:size-3.5",
         lg: 'h-11 gap-2 px-5 type-body has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4',
-        icon: 'size-8',
-        'icon-sm': 'size-7',
+        icon: 'size-8 max-md:size-11',
+        'icon-sm': 'size-7 max-md:size-11',
         'icon-lg': 'size-11'
       }
     },
     // A link sits in a line of text, whatever its size.
-    compoundVariants: [{ variant: 'link', className: 'h-auto px-0' }],
+    compoundVariants: [{ variant: 'link', className: 'h-auto px-0 max-md:-my-3 max-md:h-auto max-md:py-3' }],
     defaultVariants: { variant: 'default', size: 'default' }
   }
 )
 export const buttonVariants = merged(button)
 
-// A text field: on the card whatever it sits on, outlined at --input's 3:1, 32px tall, with the
-// stylesheet's focus ring, crimson once invalid. Its text is 16px on a phone, so iOS
+// A text field: on the card whatever it sits on, outlined at --input's 3:1, 32px tall (44px under
+// 768px), with the stylesheet's focus ring, crimson once invalid. Its text is 16px on a phone, so iOS
 // doesn't zoom in on focus. The landing page's fragments set it on a span.
 const input = cva(
-  'h-8 w-full min-w-0 rounded-lg border border-input bg-card px-2.5 py-1 text-base text-foreground transition-colors outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm'
+  'h-8 w-full min-w-0 rounded-lg border border-input bg-card px-2.5 py-1 text-base text-foreground transition-colors outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive max-md:h-11 md:text-sm'
 )
 export const inputVariants = merged(input)
 
@@ -92,13 +93,15 @@ const badge = cva(
 export const badgeVariants = merged(badge)
 
 // A segmented control: its options side by side on a tone-step track, the chosen one raised onto the
-// card with the controls' 3:1 outline, so it reads apart without colour. The item marks its choice
-// whichever way it's built: a Base UI tab (data-active) or radio (data-checked), or a server page's
-// label around a native radio (has-checked).
-const segmentedTrack = cva('inline-flex h-8 w-fit max-w-full items-center gap-0.5 rounded-lg bg-muted p-0.5')
+// card with the controls' 3:1 outline, so it reads apart without colour. 32px tall; under 768px the
+// track is 44px and its items 40px. The item marks its choice whichever way it's built: a Base UI tab
+// (data-active) or radio (data-checked), or a server page's label around a native radio (has-checked).
+const segmentedTrack = cva(
+  'inline-flex h-8 w-fit max-w-full items-center gap-0.5 rounded-lg bg-muted p-0.5 max-md:h-11'
+)
 export const segmentedTrackVariants = merged(segmentedTrack)
 const segmentedItem = cva(
-  'inline-flex h-7 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 font-medium whitespace-nowrap text-muted-foreground transition-colors select-none hover:text-foreground has-checked:border-input has-checked:bg-card has-checked:text-foreground has-disabled:cursor-not-allowed has-disabled:opacity-50 data-active:border-input data-active:bg-card data-active:text-foreground data-checked:border-input data-checked:bg-card data-checked:text-foreground data-disabled:cursor-not-allowed data-disabled:opacity-50'
+  'inline-flex h-7 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 font-medium whitespace-nowrap text-muted-foreground transition-colors select-none hover:text-foreground has-checked:border-input has-checked:bg-card has-checked:text-foreground has-disabled:cursor-not-allowed has-disabled:opacity-50 data-active:border-input data-active:bg-card data-active:text-foreground data-checked:border-input data-checked:bg-card data-checked:text-foreground data-disabled:cursor-not-allowed data-disabled:opacity-50 max-md:h-10'
 )
 export const segmentedItemVariants = merged(segmentedItem)
 
