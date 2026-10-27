@@ -135,6 +135,40 @@ describe('the landing page', () => {
     expect(hrefs(await page('/'))).toContain('/docs')
   })
 
+  // Each part of the page is a screen of its own (docs/DESIGN.md), so each is a section at the top of the
+  // main region, named by its heading; the screens themselves are checked in a browser (apps/README.md).
+  it('sets out its main region as the hero, then one section after another, each named by its heading', async () => {
+    const html = main(await page('/'))
+    // The sections at the top of the main region, not the ones inside its pictures.
+    const top: string[] = []
+    let depth = 0
+    for (const [tag] of html.matchAll(/<\/?section\b[^>]*>/g)) {
+      if (tag.startsWith('</')) depth--
+      else if (depth++ === 0) top.push(tag)
+    }
+    const headings = top.map((tag) => {
+      const id = tag.match(/\baria-labelledby="([^"]+)"/)?.[1]
+      const heading = html.match(new RegExp(`<(h[12])\\b[^>]*\\bid="${id}"[^>]*>([\\s\\S]*?)</\\1>`))
+      return heading && words(heading[2]).trim()
+    })
+    expect(headings).toEqual([
+      'Rank by who listens',
+      'What a topic plan misses',
+      'How a run works',
+      'What it does',
+      'What Crossfeed never does',
+      'For developers',
+      'Try the sample, or your roster?'
+    ])
+  })
+
+  it('lands every in-page link on an element of the page', async () => {
+    const html = await page('/')
+    const anchors = hrefs(html).filter((href) => href.startsWith('#'))
+    expect(anchors).toEqual(expect.arrayContaining(['#content', '#developers', '#does-rank']))
+    for (const href of anchors) expect(html, href).toContain(`id="${href.slice(1)}"`)
+  })
+
   it('shows the booking inbox only while guest pitches are on', async () => {
     env.GUEST_PITCHES = 'off'
     for (const line of ['Triages pitches', 'Replies drafted to guests pitched to The Harbour.'])
