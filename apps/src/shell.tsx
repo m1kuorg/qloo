@@ -4,7 +4,7 @@ import type { Child } from 'hono/jsx'
 import { jsxRenderer, useRequestContext } from 'hono/jsx-renderer'
 import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
 import { buttonVariants, linkVariants, marketingFrame } from './components/ui/variants'
-import { GUEST_MEMBER, type Member, type Network } from './directory'
+import { isGuestMember, type Member, type Network } from './directory'
 import { Check, ChevronDown, ChevronsUpDown, Inbox, Podcast, Rocket, Settings } from './icons'
 import { Mark } from './mark'
 import { initials } from './text'
@@ -607,7 +607,7 @@ export const appShell = jsxRenderer(({ children }, c) => {
           : undefined
   // The page's name, after the switcher: on a launch's page, Launches, as a link back to the list.
   const here = destinations.find((d) => d.current)
-  const guest = member?.id === GUEST_MEMBER
+  const guest = isGuestMember(member)
   return (
     <AppFrame
       rail={<Rail label="Network" home="/app" destinations={destinations} />}

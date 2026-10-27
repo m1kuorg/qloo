@@ -6,10 +6,10 @@ import type { Context, MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import {
-  GUEST_MEMBER,
   SESSION_MS,
   STEP_UP_MS,
   apiKeyFor,
+  isGuestMember,
   memberPasskeys,
   saveChallenge,
   sessionMember,
@@ -56,7 +56,7 @@ export const sessionToken = (c: Context) => getCookie(c, COOKIE, 'host')
 // or to which networks it's in: its passkeys, recovery code, name, sessions, and account, creating a
 // network, joining one, or leaving the guest network. Null for any other member.
 export const guestRefused = (c: Context, member: Member) =>
-  member.id === GUEST_MEMBER
+  isGuestMember(member)
     ? c.json(
         {
           error:

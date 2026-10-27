@@ -31,10 +31,10 @@ import {
   addPasskey,
   findInvite,
   findPasskey,
-  GUEST_MEMBER,
   GUEST_SESSION_MS,
   guestSignIn,
   invitedCapped,
+  isGuestMember,
   isRecoveryCode,
   joinByInvite,
   memberPasskeys,
@@ -171,11 +171,7 @@ auth.get('/invite', async (c: Context<{ Bindings: Env; Variables: AppVariables }
   if (member) c.set('member', member)
   c.header('Cache-Control', 'no-store')
   return c.render(
-    <Island
-      page="invite"
-      data-member-name={member?.name}
-      data-guest={member?.id === GUEST_MEMBER ? 'true' : undefined}
-    />
+    <Island page="invite" data-member-name={member?.name} data-guest={isGuestMember(member) ? 'true' : undefined} />
   )
 })
 
