@@ -66,6 +66,14 @@ export const guestRefused = (c: Context, member: Member) =>
       )
     : null
 
+// The guard on a route that changes the signed-in member, or which networks they're in: the guest
+// member is refused (guestRefused) before it runs. `member` is who the app's gate signed in.
+export const notGuestMember: MiddlewareHandler<{ Variables: { member: Member } }> = async (c, next) => {
+  const refused = guestRefused(c, c.var.member)
+  if (refused) return refused
+  await next()
+}
+
 // Null when the signed-in `member`'s session proved it's them in the last five minutes (STEP_UP_MS), as
 // adding a passkey, a new recovery code, and deleting the account need. Otherwise the 403 that asks
 // them to, so the page asks at once: for a passkey of theirs, user-verified, with the ceremony's
