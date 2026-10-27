@@ -60,7 +60,7 @@ export function StateLine({
 
 // Qloo calls still waiting past the slow mark, by call number, as a sentence for a table row.
 export const slowText = (calls: SlowCall[]) =>
-  `${calls.map((c) => c.call).join(', ')} ${calls.length === 1 ? 'has' : 'have'} waited over ${calls[0].waitedMs / 1000} s for Qloo. Still trying.`
+  `${calls.map((c) => c.call).join(', ')} ${calls.length === 1 ? 'has' : 'have'} waited over ${calls[0].waitedMs / 1000}\u00a0s for Qloo. Still trying.`
 
 // The same as a line of its own, with what happens next.
 export function SlowCalls({ calls }: { calls: SlowCall[] }) {

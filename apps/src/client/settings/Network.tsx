@@ -6,7 +6,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Spinner } from '@/components/ui/spinner'
 import { cpmProblem, dollars } from '../../order'
 import { MAX_NAME } from '../../text'
-import { Alert, KeyValue, KeyValues, send, useAction } from '../controls'
+import { Alert, KeyValue, KeyValues, send, useAction, useLeaveGuard } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
 import { Done, Module } from './Module'
 
@@ -46,6 +46,8 @@ function NetworkForm({ network, cpm }: { network: NetworkPage; cpm: number | nul
   const shownCpm = typedCpm ?? (cpm == null ? '' : String(cpm))
   useEffect(() => setSaved((s) => ({ ...s, cpm: cpm ?? null })), [cpm])
   const changed = name.trim() !== saved.name || (shownCpm.trim() !== '' && Number(shownCpm) !== saved.cpm)
+  // Typed and not saved: leaving the page asks first.
+  useLeaveGuard(changed)
   const save = () =>
     run(async () => {
       // An empty field leaves the CPM as it is; anything else must be a dollar amount.
