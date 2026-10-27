@@ -16,6 +16,10 @@ export const moveWords = (move: number) =>
 export const nth = (n: number) =>
   `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`
 
+// A count of model runs, as the gateway's refusals and the sign-in page's guest panel say it: "1 model
+// run", "1,000 model runs".
+export const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n.toLocaleString('en-US')} model runs`)
+
 // The longest name a member or a network can have.
 export const MAX_NAME = 64
 

@@ -6,6 +6,7 @@ import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { linkVariants, marketingFrame } from '@/components/ui/variants'
+import { modelRuns } from '../text'
 import { Alert, send, SignOut, useAction } from './controls'
 import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
 import { StateLine } from './states'
@@ -92,9 +93,8 @@ function GuestSignIn({ next, runs }: { next: string; runs: number }) {
           Look around as a guest
         </h2>
         <p className="text-muted-foreground">
-          Everyone who signs in as a guest shares one guest network and its daily limits,{' '}
-          {runs === 1 ? '1 model run' : `${runs.toLocaleString('en-US')} model runs`} a day between them, so put nothing
-          private in it.
+          Everyone who signs in as a guest shares one guest network and its daily limits, {modelRuns(runs)} a day
+          between them, so put nothing private in it.
         </p>
       </div>
       <Button variant="secondary" className="w-full" disabled={busy} onClick={() => void signIn()}>
