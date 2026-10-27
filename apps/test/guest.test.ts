@@ -5,7 +5,7 @@ import { env, exports } from 'cloudflare:workers'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { JoinAs } from '../src/client/Account'
+import { Invite } from '../src/client/Account'
 import { NewNetworkPage } from '../src/client/NewNetwork'
 import worker from '../src/index'
 import { fakeClaude, fakeQloo, text, toolUse, turn } from './fake'
@@ -242,18 +242,40 @@ describe('the app, as a guest sees it', () => {
     expect(html).not.toContain('<input')
   })
 
+  // The invite page for `link`, as main.tsx renders it from the server's data attributes, once it has
+  // posted the link's token to /auth/invite, as the page does, with the answer.
+  async function invitePage(visitor: Pick<Guest, 'fetch'>, link: string) {
+    const page = await (await visitor.fetch('/invite')).text()
+    const root = page.match(/<div id="root"([^>]*)>/)![1]
+    const attr = (name: string) => root.match(new RegExp(`data-${name}="([^"]*)"`))?.[1]
+    const token = new URL(link).hash.slice(1)
+    const answer = await visitor.fetch('/auth/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+    return renderToStaticMarkup(
+      createElement(Invite, {
+        token,
+        invite: await answer.json<{ network: string } | { error: string }>(),
+        memberName: attr('member-name') ?? null,
+        guest: attr('guest') === 'true'
+      })
+    )
+  }
+
   it('tells a guest who opens an invite link to sign out and create an account to join, with no Join', async () => {
     const ada = await openMember()
-    const invite = await (await ada.fetch('/invite')).text()
-    expect(invite).not.toContain('data-guest')
-    const page = await (await (await openGuest()).fetch('/invite')).text()
-    expect(page).toContain('data-member-name="Guest"')
-    expect(page).toContain('data-guest="true"')
-    const html = renderToStaticMarkup(
-      createElement(JoinAs, { name: 'Guest', network: 'Night Shift Audio', guest: true, join: async () => {} })
-    )
-    expect(words(html)).toBe(
-      'You’re signed in as a guest, and the guest member every guest shares can’t join a network. Sign out and create an account to join Night Shift Audio. Sign out and create an account'
+    const network = await ada.fetch('/app/new', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Night Shift Audio' })
+    })
+    const link = await ada.invite((await network.json<{ id: string }>()).id)
+    // A member is offered Join, and signing out to join with another account.
+    expect(words(await invitePage(ada, link))).toContain('Join Night Shift Audio Not Ada Programmer? Sign out')
+    expect(words(await invitePage(await openGuest(), link))).toBe(
+      'Join Night Shift Audio You’re invited to Night Shift Audio on Crossfeed, as a member: you’ll work on its roster, launches, and inbox with its other members. The link works once. You’re signed in as a guest, and the guest member every guest shares can’t join a network. Sign out and create an account to join Night Shift Audio. Sign out and create an account'
     )
   })
 })
