@@ -113,7 +113,9 @@ const OpenApi = ({ accounts }: { accounts: boolean }) =>
   )
 
 // What `claude mcp list` prints for a server it reached, its own check mark included.
-const CONNECTED = '✔ Connected' // taste-skill-ignore: the CLI's output, quoted in a code sample, not an icon
+// taste-skill-ignore keeps a line out of the design-taste skill's linter (lint.mjs), which reads ✔ as
+// an emoji: here it's the CLI's output, quoted in a code sample, not an icon.
+const CONNECTED = '✔ Connected' // taste-skill-ignore
 
 // The command that connects Claude Code to the MCP server of the deployment at `origin`.
 const McpAdd = ({ origin }: { origin: string }) => (

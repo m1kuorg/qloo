@@ -28,9 +28,10 @@ export type Confirmation = {
   after?: boolean
 }
 
-// The app's one confirm for a destructive action (brief: Confirmations, app-wide): `confirm` asks,
-// and `dialog`, rendered once anywhere in the module, is the AlertDialog. Focus goes back to what
-// opened it, or, when that's gone with what it removed, to `fallback`.
+// The app's one confirm for a destructive action, so every delete, removal, revocation and sign-out
+// asks the same way, its consequence spelled out and its verb on the button: `confirm` asks, and
+// `dialog`, rendered once anywhere in the module, is the AlertDialog. Focus goes back to what opened
+// it, or, when that's gone with what it removed, to `fallback`.
 export function useConfirm(fallback?: RefObject<HTMLElement | null>) {
   const [asked, setAsked] = useState<Confirmation | null>(null)
   const [open, setOpen] = useState(false)

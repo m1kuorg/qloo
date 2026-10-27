@@ -84,6 +84,8 @@ const planTotal = plan.reduce((n, l) => n + l.value, 0)
 // The page's rhythm: sections 96px apart on phones, 160px from 768px, 192px from 1024px.
 const section = cn(marketingFrame, 'mt-24 md:mt-40 lg:mt-48')
 // The rules inside the re-rank and the interface fragments (data-ui), as the app draws its tables'.
+// taste-skill-ignore keeps a line out of the design-taste skill's linter (lint.mjs), which flags a 1px
+// rule outside a real table; they're constants so it's said once.
 const rowRuleAbove = 'border-t' // taste-skill-ignore
 const rowRuleBelow = 'border-b' // taste-skill-ignore
 

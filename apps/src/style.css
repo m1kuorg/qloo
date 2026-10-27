@@ -1,6 +1,6 @@
 /* Crossfeed's one stylesheet: Tailwind CSS v4 with preflight, shadcn/ui's theme variables, and the
-   design tokens (.product/redesign/brief.md, Design system). Every shell links it. Tailwind reads
-   class names from apps/src only. */
+   design tokens docs/DESIGN.md describes. Every shell links it. Tailwind reads class names from
+   apps/src only. */
 @import 'tailwindcss' source('.');
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
@@ -54,7 +54,7 @@
   --destructive-foreground: #ffffff;
   /* Rules inside tables. */
   --border: #e3e4ea;
-  /* Control outlines, 3:1 on the tone step too (the brief's #8a8d99 is 2.88:1 there). */
+  /* Control outlines, 3:1 on the tone step too, where a lighter grey such as #8a8d99 falls to 2.88:1. */
   --input: #868995;
   --ring: #121318;
   /* What the agent puts forward, and that it's live. */
@@ -103,7 +103,7 @@
   --font-sans: 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-sans);
   /* The platform mono stack, which preflight gives <pre> and <code>: real code and codes only. */
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace; /* taste-skill-ignore */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -193,7 +193,7 @@
   letter-spacing: -0.025em;
   font-weight: 600;
 }
-/* The landing h1 only, per the page sheet's hero: 12.5vw, and 17vw flush left on phones. */
+/* The landing h1 only, a two-line statement across the page: 12.5vw, and 17vw flush left on phones. */
 @utility type-poster {
   font-size: clamp(96px, 12.5vw, 200px);
   line-height: 0.86;
@@ -212,7 +212,7 @@
   font-weight: 500;
 }
 
-/* The page sheet's masked headline: a line rises from behind its own baseline, in a mask that keeps
+/* The landing hero's masked headline: a line rises from behind its own baseline, in a mask that keeps
    its descenders (line-mask). What follows it rises into place after (rise-in). Only with motion
    allowed (motion-safe:), so with reduced motion everything is in place from the start. */
 @theme {
