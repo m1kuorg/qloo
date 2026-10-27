@@ -225,8 +225,10 @@ describe('the evidence behind each Qloo call', () => {
     )
   })
 
-  it('shows raw figures as Qloo returned them, without the noise of binary floats', () => {
-    // A demographics call, whose buckets are signed decimals: one carries float noise, one is a sum.
+  it('shows raw figures exactly as Qloo returned them, never rounded', () => {
+    // A demographics call, whose buckets are signed decimals. Qloo's own JSON carries binary-float noise
+    // in some (its answer for The Watch had "30_to_34": -0.11400000000000002), and more significant
+    // digits than 12 in others: each prints as Qloo wrote it.
     const record: Evidence = {
       call: 'C-07',
       run: null,
@@ -247,9 +249,9 @@ describe('the evidence behind each Qloo call', () => {
           name: 'Night Shift Cinema',
           affinity: null,
           explainability: [
-            { id: 'age.25_to_29', score: -0.03799999999999999 },
-            { id: 'age.30_to_34', score: 0.1 + 0.2 },
-            { id: 'gender.male', score: 0.417 }
+            ...(JSON.parse(
+              '[{"id":"age.25_to_29","score":-0.11400000000000002},{"id":"age.30_to_34","score":0.1234567890123456},{"id":"gender.male","score":0.417}]'
+            ) as { id: string; score: number }[])
           ]
         }
       ]
@@ -259,7 +261,6 @@ describe('the evidence behind each Qloo call', () => {
     )
     const read = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
     expect(read).toContain('Affinities · 1 Name Affinity, raw Night Shift Cinema e-0001')
-    expect(read).toContain('age.25_to_29 -0.038 age.30_to_34 0.3 gender.male 0.417 –')
-    expect(read).not.toMatch(/9999|0000/)
+    expect(read).toContain('age.25_to_29 -0.11400000000000002 age.30_to_34 0.1234567890123456 gender.male 0.417 –')
   })
 })
