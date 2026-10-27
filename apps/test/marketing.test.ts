@@ -406,10 +406,12 @@ describe('the developer docs', () => {
     for (const path of docs) expect(hrefs(band), path).toContain(path)
     for (const path of ['/', ...docs]) {
       const top = (await page(path)).match(/<header[\s\S]*?<\/header>/)?.[0] ?? ''
-      const developers = top.match(/<a\b[^>]*\shref="\/docs"[^>]*>Developers<\/a>/)?.[0]
-      expect(developers, path).toBeDefined()
-      if (path.startsWith('/docs')) expect(developers, path).toContain('aria-current="page"')
-      else expect(developers, path).not.toContain('aria-current')
+      // One nav at every width, the phone's Menu included, so one Developers link and one current page.
+      expect(top.match(/<nav\b/g), path).toHaveLength(1)
+      const developers = top.match(/<a\b[^>]*\shref="\/docs"[^>]*>Developers<\/a>/g) ?? []
+      expect(developers, path).toHaveLength(1)
+      if (path.startsWith('/docs')) expect(developers[0], path).toContain('aria-current="page"')
+      else expect(developers[0], path).not.toContain('aria-current')
     }
   })
 })

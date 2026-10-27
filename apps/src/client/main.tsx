@@ -99,6 +99,9 @@ function wireSignOut(button: HTMLButtonElement) {
     } catch {
       button.disabled = false
       button.textContent = 'Sign out failed. Try again'
+      // Told to screen readers too, which don't hear a button's words change.
+      const status = document.querySelector('[data-sign-out-status]')
+      if (status) status.textContent = 'Sign out failed. Try again.'
     }
   })
 }
