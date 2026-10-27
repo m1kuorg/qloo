@@ -49,8 +49,8 @@ export function SignInPage({ next, runs }: { next: string; runs: number }) {
         {supported === false && (
           <p className="max-w-[48ch]">
             <StateLine kind="error" role="alert">
-              This browser can’t use passkeys. Open Crossfeed in a current Chrome, Safari, Edge, or Firefox, or sign in
-              with a recovery code.
+              This browser can’t use passkeys. Open Crossfeed in a current Chrome, Safari, Edge, or Firefox, sign in
+              with a recovery code, or sign in as a guest.
             </StateLine>
           </p>
         )}
@@ -308,8 +308,9 @@ function CreateAccount({
 
 // The invite page: the link's token is in the address's fragment, which the browser never sends, so
 // the page reads it and posts it. It names the network, then lets a signed-in member join, or anyone
-// else create an account or sign in, and join in the same step. `memberName` is who's signed in.
-export function InvitePage({ memberName }: { memberName: string | null }) {
+// else create an account or sign in, and join in the same step. `memberName` is who's signed in, and
+// `guest` whether that's the guest member, who can't join (ADR 0005).
+export function InvitePage({ memberName, guest = false }: { memberName: string | null; guest?: boolean }) {
   const [token] = useState(() => window.location.hash.slice(1))
   const [invite, setInvite] = useState<{ network: string } | { error: string } | null>(null)
   const [code, setCode] = useState<{ code: string; next: string } | null>(null)
@@ -373,7 +374,7 @@ export function InvitePage({ memberName }: { memberName: string | null }) {
         )}
       </Lede>
       {memberName ? (
-        <JoinAs name={memberName} network={invite.network} join={join} />
+        <JoinAs name={memberName} network={invite.network} guest={guest} join={join} />
       ) : (
         <div className={ways}>
           <CreateAccount
@@ -390,8 +391,19 @@ export function InvitePage({ memberName }: { memberName: string | null }) {
   )
 }
 
-// A signed-in member joins as themselves, in one step, or signs out to join with another account.
-function JoinAs({ name, network, join }: { name: string; network: string; join: () => Promise<void> }) {
+// A signed-in member joins as themselves, in one step, or signs out to join with another account. A
+// guest can only sign out, to create an account and join with it.
+export function JoinAs({
+  name,
+  network,
+  guest,
+  join
+}: {
+  name: string
+  network: string
+  guest: boolean
+  join: () => Promise<void>
+}) {
   const { busy, error, run } = useAction()
   const signOut = () =>
     run(async () => {
@@ -399,6 +411,20 @@ function JoinAs({ name, network, join }: { name: string; network: string; join: 
       // The link's fragment stays in the address, so the page opens on the invite again, signed out.
       window.location.reload()
     })
+  if (guest)
+    return (
+      <section className={panel} aria-label={`Join ${network}`}>
+        <p>
+          You’re signed in as a guest, and the guest member every guest shares can’t join a network. Sign out and create
+          an account to join {network}.
+        </p>
+        <Button className="w-full" disabled={busy} onClick={() => void signOut()}>
+          {busy && <Spinner data-icon="inline-start" />}
+          {busy ? 'Signing out…' : 'Sign out and create an account'}
+        </Button>
+        <Alert error={error} />
+      </section>
+    )
   return (
     <section className={panel} aria-label={`Join ${network}`}>
       <p>

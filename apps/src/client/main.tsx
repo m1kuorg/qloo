@@ -23,7 +23,10 @@ const network = () => ({
 // holds back the page's first render by about 300 ms.
 const pages: Record<string, () => Promise<ReactNode>> = {
   'sign-in': () => import('./Account').then(({ SignInPage }) => <SignInPage next={d.next!} runs={Number(d.runs)} />),
-  invite: () => import('./Account').then(({ InvitePage }) => <InvitePage memberName={d.memberName ?? null} />),
+  invite: () =>
+    import('./Account').then(({ InvitePage }) => (
+      <InvitePage memberName={d.memberName ?? null} guest={d.guest === 'true'} />
+    )),
   account: () =>
     import('./AccountPage').then(({ AccountPage }) => (
       <AccountPage
@@ -35,7 +38,10 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         guest={d.guest === 'true'}
       />
     )),
-  'new-network': () => import('./NewNetwork').then(({ NewNetworkPage }) => <NewNetworkPage cap={Number(d.cap)} />),
+  'new-network': () =>
+    import('./NewNetwork').then(({ NewNetworkPage }) => (
+      <NewNetworkPage cap={Number(d.cap)} guest={d.guest === 'true'} />
+    )),
   dashboard: () =>
     import('./Dashboard').then(({ DashboardPage }) => (
       <DashboardPage
