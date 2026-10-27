@@ -21,14 +21,15 @@ import { Refusal } from './refusal'
 // HTTPS, never to scripts, and on top-level navigations from other sites but not their requests.
 const COOKIE = 'crossfeed_member'
 
-export function setSession(c: Context, token: string) {
+// Sets the session cookie for as long as its session lasts, `ms`: a member's 30 days, or a guest's day.
+export function setSession(c: Context, token: string, ms = SESSION_MS) {
   setCookie(c, COOKIE, token, {
     prefix: 'host',
     path: '/',
     secure: true,
     httpOnly: true,
     sameSite: 'Lax',
-    maxAge: SESSION_MS / 1000
+    maxAge: ms / 1000
   })
 }
 

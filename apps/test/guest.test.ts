@@ -108,3 +108,31 @@ describe('the guest network', () => {
     expect(network.state()).toMatchObject({ cpm: 20, roster: [], sample: null })
   })
 })
+
+describe('a guest session', () => {
+  const HOUR = 60 * 60_000
+
+  it('lasts a day from sign-in, however much it’s used, as its cookie does', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.now()
+    const signedIn = await guestSignIn()
+    const set = signedIn.headers.get('set-cookie')!
+    expect(set).toMatch(/^__Host-crossfeed_member=[\w-]{43}; Max-Age=86400; Path=\/; HttpOnly; Secure; SameSite=Lax$/)
+    const open = (time: number) => {
+      vi.setSystemTime(time)
+      return exports.default.fetch(`${origin}/app/guest-network`, {
+        headers: { Cookie: set.split(';')[0] },
+        redirect: 'manual'
+      })
+    }
+    for (let hours = 1; hours < 24; hours += 2) {
+      const used = await open(start + hours * HOUR)
+      expect(used.status, `${hours} hours on`).toBe(200)
+      expect(used.headers.get('set-cookie')).toBeNull()
+    }
+    expect((await open(start + 24 * HOUR - 1)).status).toBe(200)
+    const ended = await open(start + 24 * HOUR)
+    expect(ended.status).toBe(302)
+    expect(ended.headers.get('location')).toBe('/sign-in?next=/app/guest-network')
+  })
+})
