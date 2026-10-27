@@ -33,7 +33,15 @@ _Avoid_: Token, access token
 
 **Visitor**:
 Someone using the sample network without signing in.
-_Avoid_: Guest, which means a pitched guest
+_Avoid_: Guest, which means a pitched guest, or someone signed in to the guest network
+
+**Guest network**:
+The one network anyone can open with "Sign in as a guest", without a passkey: everyone who does shares it, everything in it, and its daily caps.
+_Avoid_: Guest workspace, demo account
+
+**Guest member**:
+The one member everyone who signs in as a guest is signed in as; it belongs to the guest network, owns nothing, and has no passkey or recovery code.
+_Avoid_: Guest user, guest account
 
 **Sample network**:
 The demo network built from The Ringer's public show names with labelled sample figures, open to any visitor.
