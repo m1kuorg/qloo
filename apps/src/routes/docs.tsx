@@ -158,7 +158,7 @@ const DocsNav = ({ path, accounts }: { path: Path; accounts: boolean }) => {
   return (
     <nav aria-label="Developer docs" class="lg:sticky lg:top-8 lg:self-start">
       <details data-docs-nav class="group/docs">
-        <summary class="flex h-11 list-none items-center gap-2 rounded-xl bg-muted px-4 select-none [&::-webkit-details-marker]:hidden">
+        <summary class="flex h-11 list-none items-center gap-2 rounded-xl bg-muted px-4 transition-colors select-none hover:bg-secondary [&::-webkit-details-marker]:hidden">
           <span class="font-medium">
             Developer docs<span class="vh">: </span>
           </span>
@@ -273,52 +273,58 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
       title: 'Four ways in',
       body: (
         <TableScroll label="Four ways in">
-          <table class="table-doc min-w-[36rem]">
-            <thead>
-              <tr>
-                <th scope="col">Way in</th>
-                <th scope="col">What it is</th>
-                <th scope="col">Reached with</th>
+          <table role="table" class="table-doc table-fold sm:min-w-[36rem]">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th role="columnheader" scope="col">
+                  Way in
+                </th>
+                <th role="columnheader" scope="col">
+                  What it is
+                </th>
+                <th role="columnheader" scope="col">
+                  Reached with
+                </th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <th scope="row">
+            <tbody role="rowgroup">
+              <tr role="row">
+                <th role="rowheader" scope="row">
                   <a href="/docs/api">REST API</a>
                 </th>
-                <td>
+                <td role="cell">
                   Every resource of a network under <code>/api/v1</code>, for scripts in any language, described by an
                   OpenAPI 3.1 document.
                 </td>
-                <td>An API key</td>
+                <td role="cell">An API key</td>
               </tr>
-              <tr>
-                <th scope="row">
+              <tr role="row">
+                <th role="rowheader" scope="row">
                   <a href="/docs/sdk">TypeScript SDK</a>
                 </th>
-                <td>
+                <td role="cell">
                   A typed method for every route, and helpers that wait for long work, in Node, Bun, Deno, and Workers.
                 </td>
-                <td>An API key and the network&apos;s ID</td>
+                <td role="cell">An API key and the network&apos;s ID</td>
               </tr>
-              <tr>
-                <th scope="row">
+              <tr role="row">
+                <th role="rowheader" scope="row">
                   <a href="/docs/mcp">MCP server</a>
                 </th>
-                <td>
+                <td role="cell">
                   {tools} tools for assistants such as Claude Code, over Streamable HTTP at <code>/mcp</code>.
                 </td>
-                <td>An API key</td>
+                <td role="cell">An API key</td>
               </tr>
-              <tr>
-                <th scope="row">
+              <tr role="row">
+                <th role="rowheader" scope="row">
                   <a href="/docs/agents">Skills and plugin</a>
                 </th>
-                <td>
+                <td role="cell">
                   Two Agent Skills that plan launch promos and triage guest pitches, and a Claude Code plugin that
                   installs them with the MCP server.
                 </td>
-                <td>
+                <td role="cell">
                   An API key in <code>CROSSFEED_API_KEY</code>
                 </td>
               </tr>
@@ -403,62 +409,80 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
       body: (
         <>
           <TableScroll label="Limits">
-            <table class="table-doc min-w-[30rem]">
-              <thead>
-                <tr>
-                  <th scope="col">Limit</th>
-                  <th scope="col">How much</th>
+            <table role="table" class="table-doc table-fold sm:min-w-[30rem]">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader" scope="col">
+                    Limit
+                  </th>
+                  <th role="columnheader" scope="col">
+                    How much
+                  </th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">Requests</th>
-                  <td>
+              <tbody role="rowgroup">
+                <tr role="row">
+                  <th role="rowheader" scope="row">
+                    Requests
+                  </th>
+                  <td role="cell">
                     {REQUESTS_A_MINUTE} requests a minute per API key, the MCP server&apos;s included; past it, 429{' '}
                     <code>rate_limited</code>
                   </td>
                 </tr>
-                <tr>
-                  <th scope="row">
+                <tr role="row">
+                  <th role="rowheader" scope="row">
                     Model runs
                     <span class="block font-normal text-muted-foreground">
                       a launch run, an inbox load, or a pitch run
                     </span>
                   </th>
-                  <td>
+                  <td role="cell">
                     {cap(env.RUN_VISITOR_DAILY_CAP)} a day per network; past it, 429 <code>limit</code>
                   </td>
                 </tr>
-                <tr>
-                  <th scope="row">Qloo calls</th>
-                  <td>
+                <tr role="row">
+                  <th role="rowheader" scope="row">
+                    Qloo calls
+                  </th>
+                  <td role="cell">
                     {cap(env.QLOO_VISITOR_DAILY_CALL_CAP)} a day per network, counted on the network&apos;s own Qloo key
                     apart from everyone else&apos;s once an owner adds one
                   </td>
                 </tr>
-                <tr>
-                  <th scope="row">A run</th>
-                  <td>
+                <tr role="row">
+                  <th role="rowheader" scope="row">
+                    A run
+                  </th>
+                  <td role="cell">
                     At most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls
                   </td>
                 </tr>
-                <tr>
-                  <th scope="row">Launches</th>
-                  <td>At most {cap(env.LAUNCHES_PER_NETWORK)} a network keeps at once</td>
+                <tr role="row">
+                  <th role="rowheader" scope="row">
+                    Launches
+                  </th>
+                  <td role="cell">At most {cap(env.LAUNCHES_PER_NETWORK)} a network keeps at once</td>
                 </tr>
-                <tr>
-                  <th scope="row">Roster</th>
-                  <td>At most {MAX_SHOWS} shows</td>
+                <tr role="row">
+                  <th role="rowheader" scope="row">
+                    Roster
+                  </th>
+                  <td role="cell">At most {MAX_SHOWS} shows</td>
                 </tr>
-                <tr>
-                  <th scope="row">Inbox</th>
-                  <td>
+                <tr role="row">
+                  <th role="rowheader" scope="row">
+                    Inbox
+                  </th>
+                  <td role="cell">
                     At most {MAX_PITCHES} pitches of up to {MAX_PITCH_CHARS.toLocaleString('en-US')} characters each
                   </td>
                 </tr>
-                <tr>
-                  <th scope="row">Uploads</th>
-                  <td>{MAX_UPLOAD_BYTES / 1024 / 1024} MB a body</td>
+                <tr role="row">
+                  <th role="rowheader" scope="row">
+                    Uploads
+                  </th>
+                  <td role="cell">{`${MAX_UPLOAD_BYTES / 1024 / 1024}\u00a0MB a body`}</td>
                 </tr>
               </tbody>
             </table>
@@ -492,24 +516,30 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
             )}
           </Code>
           <TableScroll label="Error codes">
-            <table class="table-doc min-w-[32rem]">
-              <thead>
-                <tr>
-                  <th scope="col">Code</th>
-                  <th scope="col" class="text-right">
+            <table role="table" class="table-doc table-fold sm:min-w-[32rem]">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader" scope="col">
+                    Code
+                  </th>
+                  <th role="columnheader" scope="col" class="sm:text-right">
                     Status
                   </th>
-                  <th scope="col">When</th>
+                  <th role="columnheader" scope="col">
+                    When
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {(Object.keys(MEANS) as (keyof typeof MEANS)[]).map((code) => (
-                  <tr>
-                    <th scope="row">
+                  <tr role="row">
+                    <th role="rowheader" scope="row">
                       <code>{code}</code>
                     </th>
-                    <td class="text-right">{STATUSES[code]}</td>
-                    <td>
+                    <td role="cell" class="sm:text-right">
+                      {STATUSES[code]}
+                    </td>
+                    <td role="cell">
                       <Prose text={MEANS[code]} />
                     </td>
                   </tr>
@@ -689,26 +719,32 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
               while guest pitches are switched off.
             </p>
             <TableScroll label="Every route">
-              <table class="table-doc min-w-[36rem]">
-                <thead>
-                  <tr>
-                    <th scope="col">Method</th>
-                    <th scope="col">Path</th>
-                    <th scope="col">What it does</th>
+              <table role="table" class="table-doc table-fold sm:min-w-[36rem]">
+                <thead role="rowgroup">
+                  <tr role="row">
+                    <th role="columnheader" scope="col">
+                      Method
+                    </th>
+                    <th role="columnheader" scope="col">
+                      Path
+                    </th>
+                    <th role="columnheader" scope="col">
+                      What it does
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup">
                   {routes.map((r) => (
-                    <tr>
-                      <td>
+                    <tr role="row">
+                      <td role="cell" class="max-sm:mr-2 max-sm:inline-block">
                         <Method method={r.method} />
                       </td>
-                      <td>
+                      <td role="cell" class="max-sm:inline">
                         <code class="bg-transparent p-0">
                           <UrlPath path={r.path.replace(NETWORK_PATH, '') || '/'} />
                         </code>
                       </td>
-                      <td>
+                      <td role="cell">
                         <a href={`#${r.id}`}>{r.op.summary}</a>
                       </td>
                     </tr>
@@ -946,26 +982,30 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
             {RELAY}&rdquo;
           </p>
           <TableScroll label="Tools">
-            <table class="table-doc min-w-[36rem]">
-              <thead>
-                <tr>
-                  <th scope="col">Tool</th>
-                  <th scope="col">What it does</th>
+            <table role="table" class="table-doc table-fold sm:min-w-[36rem]">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader" scope="col">
+                    Tool
+                  </th>
+                  <th role="columnheader" scope="col">
+                    What it does
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {tools.map((tool) => {
                   const shape = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] }
                   // What it takes, the fields it needs first.
                   const needs = (a: string) => (shape.required?.includes(a) ? 0 : 1)
                   const args = Object.keys(shape.properties ?? {}).sort((a, b) => needs(a) - needs(b))
                   return (
-                    <tr data-tool={tool.name}>
-                      <th scope="row">
+                    <tr role="row" data-tool={tool.name}>
+                      <th role="rowheader" scope="row">
                         <code class="bg-transparent p-0">{tool.name}</code>
                         <span class={badgeVariants({ className: 'mt-1.5 flex' })}>{effect(tool)}</span>
                       </th>
-                      <td>
+                      <td role="cell">
                         <span class="block">
                           <Prose text={(tool.description ?? '').replace(RELAY, '').trim()} />
                         </span>
@@ -1105,23 +1145,27 @@ const agentsPage = (origin: string): Page => ({
       body: (
         <>
           <TableScroll label="The skills">
-            <table class="table-doc min-w-[36rem]">
-              <thead>
-                <tr>
-                  <th scope="col">Skill</th>
-                  <th scope="col">When an assistant uses it</th>
+            <table role="table" class="table-doc table-fold sm:min-w-[36rem]">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader" scope="col">
+                    Skill
+                  </th>
+                  <th role="columnheader" scope="col">
+                    When an assistant uses it
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {Object.entries(SKILLS).map(([name, text]) => (
-                  <tr>
-                    <th scope="row">
+                  <tr role="row">
+                    <th role="rowheader" scope="row">
                       <code class="bg-transparent p-0">{name}</code>
                       <a href={skillUrl(name)} class="mt-1 block w-fit font-normal">
                         SKILL.md
                       </a>
                     </th>
-                    <td>{frontmatter(text).description}</td>
+                    <td role="cell">{frontmatter(text).description}</td>
                   </tr>
                 ))}
               </tbody>

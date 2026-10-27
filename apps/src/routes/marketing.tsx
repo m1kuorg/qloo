@@ -19,7 +19,7 @@ import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
 import { marketingFrame, MarketingPage, marketingShell } from '../shell'
-import { moveGlyph, moveWords } from '../text'
+import { moveGlyph, moveWords, nth } from '../text'
 import { CLIMB } from '../topic'
 import { SESSION_DAYS } from './demo'
 
@@ -75,10 +75,6 @@ const plan = [
 })
 const planSlots = plan.reduce((n, l) => n + l.slots, 0)
 const planTotal = plan.reduce((n, l) => n + l.value, 0)
-
-// A rank as words: "2nd".
-const nth = (n: number) =>
-  `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`
 
 // The page's rhythm: sections 96px apart on phones, 160px from 768px, 192px from 1024px.
 const section = cn(marketingFrame, 'mt-24 md:mt-40 lg:mt-48')
@@ -328,7 +324,7 @@ const Source = ({ of }: { of: 'qloo' | 'agent' }) =>
   )
 // A call number as the app's CallButton sets it, here part of a picture.
 const Call = ({ call }: { call: string }) => (
-  <button type="button" class={callVariants()}>
+  <button type="button" class={callVariants()} translate="no">
     {call}
   </button>
 )
@@ -369,7 +365,9 @@ const RunFragment = () => (
     <div class="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2">
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
         <span class="inline-flex items-center gap-2">
-          <span class="size-2 shrink-0 rounded-full bg-signal motion-safe:animate-live" />
+          {/* A picture, so its live dot and spinner run a few times and stop, rather than move for as long as
+              the page is open. */}
+          <span class="size-2 shrink-0 rounded-full bg-signal motion-safe:animate-live motion-safe:[animation-iteration-count:3]" />
           <b class="font-semibold">Running</b>
         </span>
         <span>
@@ -389,7 +387,7 @@ const RunFragment = () => (
         {notes.map((n) => (
           <li class="flex items-start gap-2.5">
             {n.running ? (
-              <LoaderCircle class="mt-0.5 size-4 shrink-0 text-muted-foreground motion-safe:animate-spin" />
+              <LoaderCircle class="mt-0.5 size-4 shrink-0 text-muted-foreground motion-safe:animate-spin motion-safe:[animation-iteration-count:5]" />
             ) : (
               <Check class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             )}
@@ -565,7 +563,7 @@ const EvidenceFragment = () => (
         </ul>
       </KeyValue>
       <KeyValue label="Status">200</KeyValue>
-      <KeyValue label="Latency">1,240 ms</KeyValue>
+      <KeyValue label="Latency">{'1,240\u00a0ms'}</KeyValue>
       <KeyValue label="Retries">0</KeyValue>
       <KeyValue label="Cache">Miss, called Qloo</KeyValue>
       <KeyValue label="Called at">14:01:58</KeyValue>
@@ -577,7 +575,8 @@ const EvidenceFragment = () => (
 )
 
 // Two of the replies the agent drafted to guests pitched to The Harbour, one approved and one still a
-// draft (Inbox.tsx's Replies). Cropped on phones to the draft, with Approve before Copy.
+// draft, with Approve before Copy (Inbox.tsx's Replies). Both at every width, so the counts over them
+// add up.
 const replies = [
   {
     work: 'Salt Ledger',
@@ -614,7 +613,7 @@ const RepliesFragment = () => (
       <p class="font-semibold">Book · {replies.length}</p>
       <ul class="flex flex-col gap-2">
         {replies.map((r) => (
-          <li class={cn('flex flex-col gap-3 rounded-xl bg-card p-4', r.approved && 'max-md:hidden')}>
+          <li class="flex flex-col gap-3 rounded-xl bg-card p-4">
             <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5">
               <p class="min-w-0 text-[15px] leading-snug">
                 <span class="font-semibold">{r.work}</span>
@@ -746,7 +745,7 @@ function Capabilities({ inbox }: { inbox: boolean }) {
               <a
                 href={`#does-${c.id}`}
                 data-does-link={c.id}
-                class="type-display transition-colors hover:text-foreground"
+                class="type-display decoration-[0.06em] underline-offset-[0.14em] hover:underline"
               >
                 {c.name}
               </a>
@@ -995,7 +994,9 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
           <span class={line}>
             <span class="block motion-safe:animate-line-up">Rank by</span>
           </span>{' '}
-          <span class={cn(line, 'md:text-right')}>
+          {/* Nudged down a little from 768px, where it sits under the first line's "y", whose descender
+              would touch its "h" at the poster's leading. */}
+          <span class={cn(line, 'md:mt-[0.06em] md:text-right')}>
             <span class="block motion-safe:animate-line-up motion-safe:[animation-delay:260ms]">who listens</span>
           </span>
         </h1>
@@ -1012,7 +1013,9 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
           >
             Open the sample network
           </a>
-          <p class="-mt-3 max-w-[44ch] type-ui text-muted-foreground lg:col-start-2 lg:mt-0 lg:text-right">
+          {/* Fine print at 13px, the smallest size the page rules allow on a marketing page (the app's
+              captions are 12px). */}
+          <p class="-mt-3 max-w-[44ch] text-[0.8125rem] leading-[1.45] text-muted-foreground lg:col-start-2 lg:mt-0 lg:text-right">
             No sign-in. It opens on 19 public show names from The Ringer, with sample figures. Crossfeed isn&apos;t
             affiliated with The Ringer.
           </p>
@@ -1047,20 +1050,25 @@ const ledger = 'grid items-baseline gap-x-10 gap-y-4 md:grid-cols-[minmax(0,1fr)
 // A real table that scrolls sideways inside itself, never the page, when it's wider than the screen,
 // as the app's ScrollTable does: a named region the keyboard can reach and scroll.
 export const TableScroll = ({ label, children }: { label: string; children: Child }) => (
-  <div class="max-w-full overflow-x-auto" role="region" aria-label={label} tabindex={0}>
+  <div class="max-w-full overflow-x-auto overscroll-x-contain" role="region" aria-label={label} tabindex={0}>
     {children}
   </div>
 )
 
 // A code sample, captioned above by its language or the file it is, on a tone-step panel: 14px
 // monospace that scrolls sideways inside the panel, and the keyboard can reach to scroll. The
-// developer docs and the landing page's developers section set theirs in it.
+// developer docs and the landing page's developers section set theirs in it. Code isn't translated, and
+// a sideways scroll stops at its ends rather than going on to swipe the page back.
 export const Code = ({ label, file, children }: { label?: string; file?: string; children: string }) => (
   <figure class="overflow-hidden rounded-xl bg-muted">
     <figcaption class="px-4 pt-3 type-caption text-muted-foreground">
       {file ? <code class="bg-transparent p-0 text-xs">{file}</code> : label}
     </figcaption>
-    <pre tabindex={0} class="overflow-x-auto px-4 pt-2 pb-4 type-ui leading-[1.6] focus-visible:-outline-offset-2">
+    <pre
+      tabindex={0}
+      translate="no"
+      class="overflow-x-auto overscroll-x-contain px-4 pt-2 pb-4 type-ui leading-[1.6] focus-visible:-outline-offset-2"
+    >
       <code>{children.trim()}</code>
     </pre>
   </figure>
@@ -1436,7 +1444,14 @@ marketing.get('/terms', marketingShell('Beta terms'), (c) => c.render(<Terms env
 // The 404 page's body: ways back home, to the sample network, and while ACCOUNTS is on, to the
 // visitor's networks.
 const NotFound = ({ accounts }: { accounts: boolean }) => (
-  <main class={cn(marketingFrame, 'grid gap-x-10 gap-y-6 pt-16 md:pt-32 lg:grid-cols-2 lg:items-baseline')}>
+  // At least 60% of the window tall, so the footer's full-width name starts at the fold rather than in
+  // the first screen, where it would outweigh the page's heading, without a window of nothing above it.
+  <main
+    class={cn(
+      marketingFrame,
+      'grid min-h-[60svh] content-start gap-x-10 gap-y-6 pt-16 md:pt-32 lg:grid-cols-2 lg:items-baseline'
+    )}
+  >
     <h1 class="type-display">
       <span class="line-mask">
         <span class="block motion-safe:animate-line-up">Not on the roster.</span>
