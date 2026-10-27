@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers'
 import { GUEST_NETWORK } from './directory'
 import type { CallEvidence } from './evidence'
 import { isQlooHost } from './qloo-hosts'
-import { sha256 } from './text'
+import { modelRuns, sha256 } from './text'
 
 export type QlooEntity = {
   id: string
@@ -728,8 +728,6 @@ function list<T>(data: unknown, ...path: string[]): T[] {
   if (!Array.isArray(value)) throw new Error(`${path.join('.')} isn't a list`)
   return value
 }
-
-const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n} model runs`)
 
 // Who a per-visitor limit counts, in its refusal: whose use it is (`you`, and `youHave` to start a
 // sentence), and who the limit is for (`one`), one visitor or one network, as a signed-in network's
