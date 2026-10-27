@@ -8,7 +8,7 @@ import type { OwnKey, Usage } from '../../gateway'
 import { QLOO_HOSTS } from '../../qloo-hosts'
 import { useConfirm } from '../Confirm'
 import { Alert, KeyValue, KeyValues, send, useAction } from '../controls'
-import type { NetworkPage } from '../NetworkPage'
+import { ownersOnly, type NetworkPage } from '../NetworkPage'
 import { Done, Module } from './Module'
 
 const hostName = (host: string | undefined) => (host ? new URL(host).host : '')
@@ -45,7 +45,13 @@ export function QlooKeyModule({
           <KeyValues>
             <KeyValue label="Qloo key">{qlooKey.set ? 'The network’s own' : 'Crossfeed’s shared key'}</KeyValue>
           </KeyValues>
-          <p className="text-muted-foreground">Only an owner can add or remove the network’s Qloo key.</p>
+          <p className="text-muted-foreground">
+            {ownersOnly(
+              network,
+              'Only an owner can add or remove the network’s Qloo key.',
+              'add or remove its Qloo key'
+            )}
+          </p>
         </>
       ) : qlooKey.set ? (
         <OwnKeyRecord
