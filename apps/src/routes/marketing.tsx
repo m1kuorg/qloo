@@ -1047,7 +1047,7 @@ marketing.get(
 )
 
 // The day the privacy page and the beta terms last changed.
-const UPDATED = '19 October 2026'
+const UPDATED = '27 October 2026'
 
 // The reading pages' grid: a heading in the narrow column, its text in the wide one.
 const ledger = 'grid items-baseline gap-x-10 gap-y-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
@@ -1200,6 +1200,12 @@ function Privacy({ accounts }: { accounts: boolean }) {
                 with the host it’s for and its last four characters, the only part of it anyone is shown. That storage
                 also caches the answers to the network’s Qloo calls and counts them, apart from every other network’s.
               </p>
+              <p>
+                Signing in as a guest asks for nothing and keeps only a hash of your session, for a day. Every guest is
+                the same guest member, in the one guest network: everything in it, its roster, launches, runs, inbox,
+                and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them
+                deletes or replaces it. Nothing resets it on a schedule.
+              </p>
             </li>
           )}
           <li>
@@ -1238,8 +1244,14 @@ function Privacy({ accounts }: { accounts: boolean }) {
           Crossfeed never stores your IP address or writes it to its own logs. When the page connects to its agent, the
           address is hashed with a secret salt, and the hash stays with the connection. The day’s counts are kept under
           a hash of that hash and the UTC day, and earlier days’ counts are deleted.
-          {accounts && <> Sign-in requests are counted for a minute under the salted hash.</>} Cloudflare, which runs
-          Crossfeed, also records each request the Worker serves in its own logs.
+          {accounts && (
+            <>
+              {' '}
+              Sign-in requests are counted for a minute under the salted hash. Guest sign-ins are counted for everyone
+              together, with no address.
+            </>
+          )}{' '}
+          Cloudflare, which runs Crossfeed, also records each request the Worker serves in its own logs.
         </p>
       </Part>
 
