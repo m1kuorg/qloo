@@ -20,7 +20,7 @@ import type { Session } from './App'
 import { Alert, FitBand, KeyValue, KeyValues, listOf, percentile, useAction } from './controls'
 import { CallButton } from './Evidence'
 import { Source } from './Source'
-import { StateLine } from './states'
+import { endedBadly, isLive, StateLine } from './states'
 
 // A run as the workspace and the inbox both show it: its status words, its log with its progress notes
 // and Claude's closing line, and the agent's open question.
@@ -96,7 +96,7 @@ export function RunLog({
   openCall: (call: string) => void
   opened: string | null
 }) {
-  const live = run.status === 'running' || run.status === 'waiting'
+  const live = isLive(run.status)
   return (
     <section className="flex flex-col gap-3" aria-labelledby="run-log" data-run-log>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -122,7 +122,7 @@ export function RunLog({
       {run.notes.length === 0 && run.status === 'running' && (
         <p className="text-muted-foreground">Waiting for Claude.</p>
       )}
-      {(run.status === 'failed' || run.status === 'stopped') && run.error && (
+      {endedBadly(run.status) && run.error && (
         <p data-run-error>
           <StateLine kind="error" word={runLabel[run.status]}>
             {run.error}

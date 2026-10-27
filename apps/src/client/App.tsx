@@ -29,7 +29,7 @@ import {
 } from './RosterModules'
 import { OpenQuestion, ORDER_CHANGED, runLabel, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
-import { connectionOf, sentence, StateLine, type Connection } from './states'
+import { connectionOf, isLive, sentence, StateLine, type Connection } from './states'
 
 // The agent connection the workspace's modules take, as `useSession` (Demo.tsx) opens it.
 export type Session = ReturnType<typeof useSession>
@@ -393,9 +393,8 @@ function LaunchHead({
   // The form opened again after a run, to start one for another launch.
   const [changing, setChanging] = useState(false)
   const running = run?.status === 'running'
-  const live = running || run?.status === 'waiting'
   // Whether the latest launch run has ended, read from its summary when a pitch run came after it.
-  const ended = run ? !live : latest !== null && latest.status !== 'running' && latest.status !== 'waiting'
+  const ended = run ? !isLive(run.status) : latest !== null && !isLive(latest.status)
   const formShown = !viewing && (!ran || changing)
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
