@@ -140,7 +140,7 @@ describe('a change to how a member signs in, or deleting their account', () => {
     const byGrace = await confirm(ada, await changes['delete the account'](ada), grace.authenticator)
     expect([byGrace.status, await byGrace.json()]).toEqual([
       400,
-      { error: "That passkey isn't one of yours. Confirm with a passkey of your account." }
+      { error: 'That passkey isn’t one of yours. Confirm with a passkey of your account.' }
     ])
     const { challenge } = await (await changes['delete the account'](ada)).json<StepUp>()
     const signInOptions = await (await write('/auth/sign-in/options', {})).json<{ options: never }>()
@@ -150,12 +150,12 @@ describe('a change to how a member signs in, or deleting their account', () => {
     })
     expect([other.status, await other.json()]).toEqual([
       400,
-      { error: "Crossfeed couldn't verify this passkey. Try again." }
+      { error: 'Crossfeed couldn’t verify this passkey. Try again.' }
     ])
     const code = await post(ada, '/auth/verify', { code: ada.recoveryCode })
     expect([code.status, await code.json()]).toEqual([
       400,
-      { error: "Confirm it's you with your passkey: a recovery code confirms only a browser signed in with it." }
+      { error: 'Confirm it’s you with your passkey: a recovery code confirms only a browser signed in with it.' }
     ])
 
     expect((await changes['delete the account'](ada)).status).toBe(403)
@@ -188,7 +188,7 @@ describe('a browser signed in with a recovery code', () => {
     const old = await post(browser, '/auth/verify', { code: ada.recoveryCode })
     expect([old.status, await old.json()]).toEqual([
       400,
-      { error: "That isn't your recovery code. Check it, or the one Crossfeed showed you last, and try again." }
+      { error: 'That isn’t your recovery code. Check it, or the one Crossfeed showed you last, and try again.' }
     ])
     expect((await post(browser, '/auth/verify', { code: browser.recoveryCode.toLowerCase() })).status).toBe(200)
 

@@ -122,8 +122,8 @@ function ReRank() {
           What a topic plan misses
         </h2>
         <p class="max-w-[60ch] text-pretty lg:col-span-5 lg:col-start-8">
-          A plan by topic puts {LAUNCH}, a true-crime launch, on the network&apos;s crime and courtroom shows. Ranked by
-          who listens, {count[missed]} of its {count[finalists.length]} finalists come from outside that top five.
+          A plan by topic puts {LAUNCH}, a true-crime launch, on the network’s crime and courtroom shows. Ranked by who
+          listens, {count[missed]} of its {count[finalists.length]} finalists come from outside that top five.
         </p>
       </div>
       <div class="mt-12 flex flex-col gap-6 md:mt-16 md:flex-row md:items-end md:justify-between">
@@ -252,7 +252,7 @@ const stages = [
   {
     who: 'You',
     took: 'Seconds',
-    text: "First, you name the launch, or up to three comps for one that isn't out yet."
+    text: 'First, you name the launch, or up to three comps for one that isn’t out yet.'
   },
   {
     who: 'Agent',
@@ -267,7 +267,7 @@ const stages = [
   {
     who: 'Agent',
     took: 'Under a minute',
-    text: "Then it checks the finalists' listeners, finds the tags each shares with the launch, and drafts the plan."
+    text: 'Then it checks the finalists’ listeners, finds the tags each shares with the launch, and drafts the plan.'
   },
   {
     who: 'You',
@@ -410,7 +410,7 @@ const RunFragment = () => (
 )
 
 // The agent's question, waiting on the slot budget, with an answer typed in (Run.tsx's OpenQuestion).
-const QUESTION = `What's the slot budget for ${LAUNCH}, in promo slots or dollars?`
+const QUESTION = `What’s the slot budget for ${LAUNCH}, in promo slots or dollars?`
 const QuestionFragment = () => (
   <section class="flex max-w-2xl flex-col gap-4 rounded-xl bg-card p-4 lg:p-5">
     <div class="flex flex-wrap items-center gap-1.5">
@@ -588,22 +588,22 @@ const replies = [
     guest: 'Mara Quist',
     to: 'Ines Tolland at Brightwater Books',
     approved: true,
-    angle: "The cannery strike of 1931, told from the harbourmaster's ledgers.",
+    angle: 'The cannery strike of 1931, told from the harbourmaster’s ledgers.',
     tags: ['Coastal', 'Oral history', 'Working life'],
     call: 'C-31',
     draft:
-      "Hi Ines, thanks for sending Salt Ledger. Mara's book is a close fit for The Harbour's listeners, and we'd like her on for an episode about the cannery strike. Could she record in the first week of March?"
+      'Hi Ines, thanks for sending Salt Ledger. Mara’s book is a close fit for The Harbour’s listeners, and we’d like her on for an episode about the cannery strike. Could she record in the first week of March?'
   },
   {
     work: 'The Breakwater',
     guest: 'Tom Ruel',
     to: 'Sam Odum at Northlight Films',
     approved: false,
-    angle: "Filming the storm of 1953 with the town's own boats.",
+    angle: 'Filming the storm of 1953 with the town’s own boats.',
     tags: ['Coastal', 'Weather', 'Documentary'],
     call: 'C-32',
     draft:
-      "Hi Sam, The Breakwater looks like one for The Harbour: its audience is close to ours. We'd like Tom on to talk about filming the 1953 storm with the town's boats. Is he free to record this spring?"
+      'Hi Sam, The Breakwater looks like one for The Harbour: its audience is close to ours. We’d like Tom on to talk about filming the 1953 storm with the town’s boats. Is he free to record this spring?'
   }
 ]
 const RepliesFragment = () => (
@@ -671,9 +671,9 @@ function Capabilities({ inbox }: { inbox: boolean }) {
     {
       id: 'rank',
       name: 'Ranks the roster',
-      text: `It looks every show up in Qloo and scores the whole roster against the launch in one call. The on-air readout and the run log say what it's doing while it works.`,
+      text: `It looks every show up in Qloo and scores the whole roster against the launch in one call. The on-air readout and the run log say what it’s doing while it works.`,
       picture: (
-        <Picture caption={`A run's readout and log while it finds the tags the finalists share with ${LAUNCH}.`}>
+        <Picture caption={`A run’s readout and log while it finds the tags the finalists share with ${LAUNCH}.`}>
           <RunFragment />
         </Picture>
       )
@@ -705,7 +705,7 @@ function Capabilities({ inbox }: { inbox: boolean }) {
       name: 'Cites every figure',
       text: 'Every match, rank, and tag carries the number of the Qloo call behind it. Open one for the request, its parameters, and what Qloo returned. Claude explains and drafts from those records, and never makes up a score.',
       picture: (
-        <Picture caption={`Call ${RANKING_CALL}, the ranking of ${NETWORK}'s roster against ${LAUNCH}.`}>
+        <Picture caption={`Call ${RANKING_CALL}, the ranking of ${NETWORK}’s roster against ${LAUNCH}.`}>
           <EvidenceFragment />
         </Picture>
       )
@@ -715,7 +715,7 @@ function Capabilities({ inbox }: { inbox: boolean }) {
           {
             id: 'pitches',
             name: 'Triages pitches',
-            text: `Paste a day's pitches. Claude reads each one for the guest's public work, Qloo ranks those works against your show by who listens, and the agent drafts a Book, Later, or Decline reply. A reply can be copied only once you approve it.`,
+            text: `Paste a day’s pitches. Claude reads each one for the guest’s public work, Qloo ranks those works against your show by who listens, and the agent drafts a Book, Later, or Decline reply. A reply can be copied only once you approve it.`,
             picture: (
               <Picture caption="Replies drafted to guests pitched to The Harbour.">
                 <RepliesFragment />
@@ -729,8 +729,8 @@ function Capabilities({ inbox }: { inbox: boolean }) {
       name: 'Works from code',
       text: (
         <>
-          Programs and assistants start runs, relay the agent&apos;s questions, and edit drafts through the REST API,
-          the TypeScript SDK, the MCP server, and Agent Skills. None of them can approve.{' '}
+          Programs and assistants start runs, relay the agent’s questions, and edit drafts through the REST API, the
+          TypeScript SDK, the MCP server, and Agent Skills. None of them can approve.{' '}
           <a class={linkVariants({ tone: 'text' })} href="#developers">
             For developers
           </a>
@@ -779,26 +779,26 @@ function Capabilities({ inbox }: { inbox: boolean }) {
 // tone step, which folds to one block a row on phones.
 const nevers = [
   [
-    "Sends a guest's name or a pitch to Qloo.",
-    "Only public shows and works are looked up. A guest with no public work is set aside, and a title holding an email address or the guest's own name isn't sent."
+    'Sends a guest’s name or a pitch to Qloo.',
+    'Only public shows and works are looked up. A guest with no public work is set aside, and a title holding an email address or the guest’s own name isn’t sent.'
   ],
   [
     'Reads a result as a fact about a person.',
-    "Fit describes overlapping audiences, never a probability about an individual, and nothing infers anyone's politics, health, or eligibility for anything."
+    'Fit describes overlapping audiences, never a probability about an individual, and nothing infers anyone’s politics, health, or eligibility for anything.'
   ],
   [
     'Makes up a score.',
     'Every fit ranking is a Qloo call you can open. The model narrates the evidence and drafts from it.'
   ],
   [
-    "Prices a plan with numbers you didn't give it.",
-    "Slot value comes from the downloads and CPM your network enters. There's no default CPM; the sample network's is labelled sample."
+    'Prices a plan with numbers you didn’t give it.',
+    'Slot value comes from the downloads and CPM your network enters. There’s no default CPM; the sample network’s is labelled sample.'
   ],
   [
     'Approves anything for you.',
     'The agent proposes and you decide. An insertion order exports, and a reply can be copied, only after you approve it. Crossfeed sends no email.'
   ],
-  ["Publishes Qloo's data.", "Qloo's responses are cached on Crossfeed's server and shown only in the app."]
+  ['Publishes Qloo’s data.', 'Qloo’s responses are cached on Crossfeed’s server and shown only in the app.']
 ]
 const Nevers = () => (
   <section aria-labelledby="never-h" class={section}>
@@ -875,11 +875,11 @@ const Developers = ({ inbox }: { inbox: boolean }) => (
       <div class="mt-6 flex max-w-[56ch] flex-col gap-4" data-rise>
         <p>
           Crossfeed is one Cloudflare Worker. The page is server-rendered, and the workspace talks to its agent over a
-          WebSocket: it reads the agent&apos;s synced state and calls its actions, and never writes state itself.
+          WebSocket: it reads the agent’s synced state and calls its actions, and never writes state itself.
         </p>
         <p>
-          Programs and assistants can plan a network&apos;s launches{inbox && <> and triage its pitches</>} too, with
-          one of its API keys. None of them can approve: that stays with the network&apos;s members, in the app.
+          Programs and assistants can plan a network’s launches{inbox && <> and triage its pitches</>} too, with one of
+          its API keys. None of them can approve: that stays with the network’s members, in the app.
         </p>
       </div>
       <ul class="mt-10 flex flex-col gap-6" data-rise="2">
@@ -900,7 +900,7 @@ const Developers = ({ inbox }: { inbox: boolean }) => (
     </div>
     <div class="mt-12 flex min-w-0 flex-col gap-6 lg:col-span-7 lg:col-start-6 lg:mt-0">
       <p class="max-w-[60ch]" data-rise>
-        Reading a run with a key from the network&apos;s settings answers 200, here with the run waiting on its question
+        Reading a run with a key from the network’s settings answers 200, here with the run waiting on its question
         (trimmed):
       </p>
       <div data-rise="2">
@@ -915,7 +915,7 @@ const Developers = ({ inbox }: { inbox: boolean }) => (
             ['Runtime', 'Cloudflare Workers, with a Hono app'],
             ['Agent', 'A Durable Object per session, on the Cloudflare Agents SDK'],
             ['Model', 'Claude Haiku 5.5, through the Anthropic API'],
-            ['Scores', "Qloo's REST API, behind one gateway that caches, paces, retries, and caps every call"],
+            ['Scores', 'Qloo’s REST API, behind one gateway that caches, paces, retries, and caps every call'],
             [
               'Evidence',
               'A record of every Qloo call: its parameters and the names, tags, and scores it returned, numbered per session'
@@ -1009,8 +1009,8 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
             under 1024px. */}
         <div class="mt-[18svh] flex flex-col gap-6 motion-safe:animate-rise-in lg:mt-auto lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-baseline-last lg:gap-x-10 lg:gap-y-3 lg:pt-[12svh]">
           <p class="max-w-[34em] type-title font-normal text-pretty max-md:text-lg/[1.45]">
-            An agent that ranks your network&apos;s shows by listener overlap in Qloo, asks you at each fork, and ends
-            in an insertion order you approve.
+            An agent that ranks your network’s shows by listener overlap in Qloo, asks you at each fork, and ends in an
+            insertion order you approve.
           </p>
           <a
             class={buttonVariants({ size: 'lg', className: 'max-lg:self-start max-md:w-full lg:justify-self-end' })}
@@ -1021,7 +1021,7 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
           {/* Fine print at 13px, the smallest size the page rules allow on a marketing page (the app's
               captions are 12px). */}
           <p class="-mt-3 max-w-[44ch] text-[0.8125rem] leading-[1.45] text-muted-foreground lg:col-start-2 lg:mt-0 lg:text-right">
-            No sign-in. It opens on 19 public show names from The Ringer, with sample figures. Crossfeed isn&apos;t
+            No sign-in. It opens on 19 public show names from The Ringer, with sample figures. Crossfeed isn’t
             affiliated with The Ringer.
           </p>
         </div>
@@ -1116,43 +1116,39 @@ function Privacy({ accounts }: { accounts: boolean }) {
     <Doc
       id="privacy"
       title="Privacy."
-      lede="What the Crossfeed beta sends to Qloo and to Anthropic, what it keeps, and how it's deleted."
+      lede="What the Crossfeed beta sends to Qloo and to Anthropic, what it keeps, and how it’s deleted."
     >
       <Part id="qloo" title="What reaches Qloo">
-        <p>
-          Qloo scores the roster and the pitched works. Crossfeed sends it only public names and Qloo&apos;s own IDs:
-        </p>
+        <p>Qloo scores the roster and the pitched works. Crossfeed sends it only public names and Qloo’s own IDs:</p>
         <ul>
           <li>
-            the names of shows and works to look up: the roster&apos;s shows, the launch or its comps, the past
-            guests&apos; works, and each pitched book, film, TV show, or podcast;
+            the names of shows and works to look up: the roster’s shows, the launch or its comps, the past guests’
+            works, and each pitched book, film, TV show, or podcast;
           </li>
-          <li>Qloo&apos;s IDs for those shows and works, to rank them, compare their tags, and check demographics.</li>
+          <li>Qloo’s IDs for those shows and works, to rank them, compare their tags, and check demographics.</li>
         </ul>
         <p>
-          Never a pitch&apos;s text, a guest&apos;s name, an email address, or a sender&apos;s details. A pitch with no
-          public work is set aside, and a work title that holds an email address, or the guest&apos;s or sender&apos;s
-          name, isn&apos;t sent. Requests carry Crossfeed&apos;s key and nothing about you.
+          Never a pitch’s text, a guest’s name, an email address, or a sender’s details. A pitch with no public work is
+          set aside, and a work title that holds an email address, or the guest’s or sender’s name, isn’t sent. Requests
+          carry Crossfeed’s key and nothing about you.
           {accounts && (
             <>
               {' '}
               A network that adds its own Qloo key sends its requests with that key instead, to the Qloo host it chose.
             </>
           )}{' '}
-          Qloo&apos;s terms let it improve its service from the anonymized lists of entities sent to its recommendation
+          Qloo’s terms let it improve its service from the anonymized lists of entities sent to its recommendation
           endpoint.
         </p>
       </Part>
 
       <Part id="anthropic" title="What reaches Anthropic">
         <p>
-          Claude Haiku 5.5, through Anthropic&apos;s API, runs the agent, the topic ranking, and the pitch reader. It
-          gets:
+          Claude Haiku 5.5, through Anthropic’s API, runs the agent, the topic ranking, and the pitch reader. It gets:
         </p>
         <ul>
           <li>
-            the launch&apos;s name or its comps, the roster&apos;s show names and descriptions, and what Qloo returned
-            for them;
+            the launch’s name or its comps, the roster’s show names and descriptions, and what Qloo returned for them;
           </li>
           <li>the answers you give the agent, and the slot values Crossfeed works out from your downloads and CPM;</li>
           <li>
@@ -1161,7 +1157,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
         </ul>
         <p>
           The sample inbox is made up. Real pitches would send their text and senders to Anthropic, so load only pitches
-          you&apos;re allowed to share.
+          you’re allowed to share.
         </p>
       </Part>
 
@@ -1171,7 +1167,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
           <li>
             <p>
               <b>In your browser:</b> one cookie, <code>crossfeed_session</code>, a random ID that names your session.
-              It&apos;s HttpOnly and lasts {SESSION_DAYS} days. There are no analytics, ads, or third-party scripts.
+              It’s HttpOnly and lasts {SESSION_DAYS} days. There are no analytics, ads, or third-party scripts.
             </p>
           </li>
           <li>
@@ -1183,49 +1179,48 @@ function Privacy({ accounts }: { accounts: boolean }) {
           {accounts && (
             <li>
               <p>
-                <b>With an account:</b> your name; your passkeys&apos; public keys, each with the browser it was added
-                from; and only hashes of your session and recovery code. The networks you create or join, with your role
-                in each and when you joined and last opened it.
+                <b>With an account:</b> your name; your passkeys’ public keys, each with the browser it was added from;
+                and only hashes of your session and recovery code. The networks you create or join, with your role in
+                each and when you joined and last opened it.
               </p>
               <p>
                 Invite links are kept only as hashes, with who made each, who used it, and when, and are deleted once
-                they expire, seven days after they&apos;re made. A network&apos;s API keys are kept only as hashes, with
-                each key&apos;s name and first characters, who made it, when, and the last minute it was used.
+                they expire, seven days after they’re made. A network’s API keys are kept only as hashes, with each
+                key’s name and first characters, who made it, when, and the last minute it was used.
               </p>
               <p>
-                Each network&apos;s roster, CPM, and inbox are kept in its own storage, with the member who approved
-                each reply, and each of its launches in storage of its own: its runs, a copy of the roster and CPM each
-                run ranked, with their Qloo records, the name of the member or API key that started each run, and of the
-                member who approved each insertion order, and when. Only the network&apos;s members and its API keys can
-                open them.
+                Each network’s roster, CPM, and inbox are kept in its own storage, with the member who approved each
+                reply, and each of its launches in storage of its own: its runs, a copy of the roster and CPM each run
+                ranked, with their Qloo records, the name of the member or API key that started each run, and of the
+                member who approved each insertion order, and when. Only the network’s members and its API keys can open
+                them.
               </p>
               <p>
-                A network&apos;s own Qloo key, if an owner adds one, is kept encrypted in the network&apos;s own Qloo
-                storage, with the host it&apos;s for and its last four characters, the only part of it anyone is shown.
-                That storage also caches the answers to the network&apos;s Qloo calls and counts them, apart from every
-                other network&apos;s.
+                A network’s own Qloo key, if an owner adds one, is kept encrypted in the network’s own Qloo storage,
+                with the host it’s for and its last four characters, the only part of it anyone is shown. That storage
+                also caches the answers to the network’s Qloo calls and counts them, apart from every other network’s.
               </p>
             </li>
           )}
           <li>
             <p>
               <b>Uploads:</b> a file you upload is read in your browser
-              {accounts && <>, or by Crossfeed when a program sends it to the API</>}. A roster file&apos;s text is sent
-              and imported like pasted names; of pitch emails, only each one&apos;s sender, subject, and text are sent,
-              never its attachments or other headers. The files themselves aren&apos;t kept.
+              {accounts && <>, or by Crossfeed when a program sends it to the API</>}. A roster file’s text is sent and
+              imported like pasted names; of pitch emails, only each one’s sender, subject, and text are sent, never its
+              attachments or other headers. The files themselves aren’t kept.
             </p>
           </li>
           <li>
             <p>
-              <b>Shared by every session:</b> Qloo&apos;s responses with the requests they answered, cached with no
-              expiry in one cache that every visitor{accounts && <> and every network without its own Qloo key</>}{' '}
-              shares. A call someone else made first is answered from it, and its evidence says the cache was hit, so a
-              hit can show that another visitor{accounts && <> or network</>} looked up the same name; nothing else of
-              theirs is shown, and the cache is never published.
+              <b>Shared by every session:</b> Qloo’s responses with the requests they answered, cached with no expiry in
+              one cache that every visitor{accounts && <> and every network without its own Qloo key</>} shares. A call
+              someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show
+              that another visitor{accounts && <> or network</>} looked up the same name; nothing else of theirs is
+              shown, and the cache is never published.
             </p>
             <p>
-              Also shared: the sample launch&apos;s stored run, which replays when Qloo can&apos;t be called; and each
-              visitor&apos;s{accounts && <> and each network&apos;s</>} counts for the day against the limits in the{' '}
+              Also shared: the sample launch’s stored run, which replays when Qloo can’t be called; and each visitor’s
+              {accounts && <> and each network’s</>} counts for the day against the limits in the{' '}
               <a href="/terms">beta terms</a>.
             </p>
           </li>
@@ -1241,8 +1236,8 @@ function Privacy({ accounts }: { accounts: boolean }) {
       <Part id="address" title="Your address">
         <p>
           Crossfeed never stores your IP address or writes it to its own logs. When the page connects to its agent, the
-          address is hashed with a secret salt, and the hash stays with the connection. The day&apos;s counts are kept
-          under a hash of that hash and the UTC day, and earlier days&apos; counts are deleted.
+          address is hashed with a secret salt, and the hash stays with the connection. The day’s counts are kept under
+          a hash of that hash and the UTC day, and earlier days’ counts are deleted.
           {accounts && <> Sign-in requests are counted for a minute under the salted hash.</>} Cloudflare, which runs
           Crossfeed, also records each request the Worker serves in its own logs.
         </p>
@@ -1250,10 +1245,10 @@ function Privacy({ accounts }: { accounts: boolean }) {
 
       <Part id="deletion" title="How deletion works">
         <p>
-          Crossfeed can&apos;t delete a session yet, and doesn&apos;t delete old sessions on a schedule. When the cookie
-          expires or you clear it, your next visit starts a new session, and no browser can reach the old one again, but
-          its storage stays. So load nothing into the sample network that you&apos;d want deleted later. Earlier
-          days&apos; counts are deleted; cached Qloo responses are kept, and never published.
+          Crossfeed can’t delete a session yet, and doesn’t delete old sessions on a schedule. When the cookie expires
+          or you clear it, your next visit starts a new session, and no browser can reach the old one again, but its
+          storage stays. So load nothing into the sample network that you’d want deleted later. Earlier days’ counts are
+          deleted; cached Qloo responses are kept, and never published.
         </p>
         {accounts && (
           <>
@@ -1263,21 +1258,21 @@ function Privacy({ accounts }: { accounts: boolean }) {
               there too. What you added to the network stays with the network.
             </p>
             <p>
-              Deleting a launch, which any of the network&apos;s members can do, wipes its storage: its runs, insertion
-              orders, the roster copies, and their Qloo records. Removing a network&apos;s own Qloo key, which only an
-              owner can do, wipes its Qloo storage at once: the key, its cached answers, and its counts. Deleting a
-              network, which only an owner can do, deletes its memberships, invite links, and API keys at once, then
-              wipes its own storage, each of its launches&apos;, and its Qloo storage. A wipe that fails is tried again
-              by the next day&apos;s cleanup, which also deletes expired sessions, sign-in challenges, and invite links.
+              Deleting a launch, which any of the network’s members can do, wipes its storage: its runs, insertion
+              orders, the roster copies, and their Qloo records. Removing a network’s own Qloo key, which only an owner
+              can do, wipes its Qloo storage at once: the key, its cached answers, and its counts. Deleting a network,
+              which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its
+              own storage, each of its launches’, and its Qloo storage. A wipe that fails is tried again by the next
+              day’s cleanup, which also deletes expired sessions, sign-in challenges, and invite links.
             </p>
             <p>
               Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code,
               sessions, and memberships at once. What you did in a network stays with it, but not your name: the
-              launches of the networks you&apos;re in, or were in before, say &ldquo;Former member&rdquo; on the runs
-              you started and the orders you approved, and the replies you approved no longer say who did. The API keys
-              and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed,
-              or is made a member. A network that can&apos;t be reached at once forgets your name at the next day&apos;s
-              cleanup. It&apos;s refused while you&apos;re a network&apos;s only owner.
+              launches of the networks you’re in, or were in before, say &ldquo;Former member&rdquo; on the runs you
+              started and the orders you approved, and the replies you approved no longer say who did. The API keys and
+              invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or
+              is made a member. A network that can’t be reached at once forgets your name at the next day’s cleanup.
+              It’s refused while you’re a network’s only owner.
             </p>
             <p>&ldquo;Sign out everywhere&rdquo; deletes every session of yours.</p>
           </>
@@ -1288,9 +1283,9 @@ function Privacy({ accounts }: { accounts: boolean }) {
         <p>
           Crossfeed runs on Cloudflare Workers, which hosts the app and its storage. Cloudflare, Qloo, and Anthropic
           handle what reaches them under their own policies:{' '}
-          <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare&apos;s</a>,{' '}
-          <a href="https://www.qloo.com/legal/privacy">Qloo&apos;s</a>, and{' '}
-          <a href="https://www.anthropic.com/legal/privacy">Anthropic&apos;s</a>.
+          <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare’s</a>,{' '}
+          <a href="https://www.qloo.com/legal/privacy">Qloo’s</a>, and{' '}
+          <a href="https://www.anthropic.com/legal/privacy">Anthropic’s</a>.
         </p>
       </Part>
     </Doc>
@@ -1327,14 +1322,14 @@ function Terms({ env }: { env: Env }) {
     <Doc id="terms" title="Beta terms." lede="The terms of the free Crossfeed beta. Using it means you accept them.">
       <Part id="free" title="Free">
         <p>
-          The beta is free: Crossfeed charges nothing and asks for no payment details. Its Qloo calls run on
-          Crossfeed&apos;s Qloo Agentic Hackathon key, so the beta can&apos;t be sold, and it may stop scoring when Qloo
-          deactivates hackathon keys after the hackathon closes.
+          The beta is free: Crossfeed charges nothing and asks for no payment details. Its Qloo calls run on Crossfeed’s
+          Qloo Agentic Hackathon key, so the beta can’t be sold, and it may stop scoring when Qloo deactivates hackathon
+          keys after the hackathon closes.
           {env.ACCOUNTS === 'on' && (
             <>
               {' '}
-              A network&apos;s owner can add the network&apos;s own Qloo key in its settings; its Qloo calls then run on
-              that key, under the owner&apos;s own agreement with Qloo.
+              A network’s owner can add the network’s own Qloo key in its settings; its Qloo calls then run on that key,
+              under the owner’s own agreement with Qloo.
             </>
           )}
         </p>
@@ -1351,14 +1346,14 @@ function Terms({ env }: { env: Env }) {
 
       <Part id="limits" title="Daily limits">
         <p>
-          Limits keep the beta&apos;s spend and storage bounded. A day is a UTC day, and counts reset at 00:00 UTC. A
-          visitor is an IP address, or an IPv6 address by its /64.
+          Limits keep the beta’s spend and storage bounded. A day is a UTC day, and counts reset at 00:00 UTC. A visitor
+          is an IP address, or an IPv6 address by its /64.
           {env.ACCOUNTS === 'on' && (
             <>
               {' '}
-              A network counts as one visitor of its own, whichever of its members makes the network&apos;s calls and
-              runs. A network with its own Qloo key counts its Qloo calls on that key, apart from everyone else&apos;s,
-              against the same limits; its model runs count with everyone&apos;s.
+              A network counts as one visitor of its own, whichever of its members makes the network’s calls and runs. A
+              network with its own Qloo key counts its Qloo calls on that key, apart from everyone else’s, against the
+              same limits; its model runs count with everyone’s.
             </>
           )}
         </p>
@@ -1402,7 +1397,7 @@ function Terms({ env }: { env: Env }) {
             <>
               A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks, and a network can keep at most{' '}
               {cap(env.LAUNCHES_PER_NETWORK)} launches and {cap(env.INVITES_PER_NETWORK)} open invite links at once. One
-              member&apos;s invite links can bring in at most {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC
+              member’s invite links can bring in at most {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC
               day.{' '}
             </>
           )}
@@ -1413,22 +1408,21 @@ function Terms({ env }: { env: Env }) {
           {env.ACCOUNTS === 'on' && (
             <>
               {' '}
-              Each API key, and each visitor&apos;s sign-in requests, are also limited per minute; a request past the
-              limit is refused, and says to wait a minute.
+              Each API key, and each visitor’s sign-in requests, are also limited per minute; a request past the limit
+              is refused, and says to wait a minute.
             </>
           )}
         </p>
       </Part>
 
       <Part id="use" title="Acceptable use">
-        <p>Use the beta to plan promos and triage pitches for shows you work on. Don&apos;t:</p>
+        <p>Use the beta to plan promos and triage pitches for shows you work on. Don’t:</p>
         <ul>
           <li>
-            load pitches, rosters, or anything else you aren&apos;t allowed to share with Crossfeed, Qloo, and
-            Anthropic;
+            load pitches, rosters, or anything else you aren’t allowed to share with Crossfeed, Qloo, and Anthropic;
           </li>
           <li>use its rankings to judge, profile, or decide anything about an individual person;</li>
-          <li>try to get around the limits, reach another visitor&apos;s session, or overload the service;</li>
+          <li>try to get around the limits, reach another visitor’s session, or overload the service;</li>
           <li>copy, scrape, or republish the Qloo data it shows you.</li>
         </ul>
       </Part>

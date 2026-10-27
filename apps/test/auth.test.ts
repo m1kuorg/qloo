@@ -56,7 +56,7 @@ const ceremony = async (kind: 'sign-up' | 'sign-in', body: object = {}) => {
   return { challenge, options, finish: (response: unknown) => post(`/auth/${kind}`, { challenge, response }) }
 }
 const STALE = { error: 'This passkey request has expired or was already used. Try again.' }
-const UNVERIFIED = { error: "Crossfeed couldn't verify this passkey. Try again." }
+const UNVERIFIED = { error: 'Crossfeed couldn’t verify this passkey. Try again.' }
 
 const accounts = env.ACCOUNTS
 afterEach(() => {
@@ -208,7 +208,7 @@ describe('recovering', () => {
     const again = await post('/auth/recover', { code: recoveryCode })
     expect(again.status).toBe(400)
     expect(await again.json()).toEqual({
-      error: "Crossfeed doesn't know this recovery code, or it was used already. Check it and try again."
+      error: 'Crossfeed doesn’t know this recovery code, or it was used already. Check it and try again.'
     })
     expect(sessionCookie(again)).toBeUndefined()
     expect((await post('/auth/recover', { code: issued })).status).toBe(200)

@@ -94,7 +94,7 @@ async function takeStarted(c: Context<{ Bindings: Env }>, kind: string, id: unkn
   return challenge && challenge.expires > Date.now() ? challenge : null
 }
 const STALE = 'This passkey request has expired or was already used. Try again.'
-const UNVERIFIED = "Crossfeed couldn't verify this passkey. Try again."
+const UNVERIFIED = 'Crossfeed couldn’t verify this passkey. Try again.'
 const SIGN_IN_TO_ADD = 'Sign in to add a passkey.'
 
 // Verifies a browser's answer, or says why it can't be: the reason goes to the log, not the page.
@@ -171,7 +171,7 @@ auth.get('/invite', async (c: Context<{ Bindings: Env; Variables: AppVariables }
 // Why an invite link can't be used, in words for the invite page.
 const INVITE_REFUSED = {
   unknown:
-    "Crossfeed doesn't know this invite link: it may be incomplete, or it expired. Ask an owner of the network for a new one.",
+    'Crossfeed doesn’t know this invite link: it may be incomplete, or it expired. Ask an owner of the network for a new one.',
   used: 'This invite link was used already. Each one works once: ask an owner of the network for a new one.',
   revoked: 'This invite link was revoked. Ask an owner of the network for a new one.',
   expired: 'This invite link has expired. Each one lasts seven days: ask an owner of the network for a new one.'
@@ -332,7 +332,7 @@ auth.post('/auth/sign-in', async (c) => {
   const passkey = typeof answer?.id === 'string' ? await findPasskey(c.env.DB, answer.id) : null
   const handle = answer?.response?.userHandle
   if (!passkey || (handle && handle !== isoBase64URL.fromUTF8String(passkey.memberId)))
-    return refuse(c, "Crossfeed doesn't know this passkey. Try another, or create an account.")
+    return refuse(c, 'Crossfeed doesn’t know this passkey. Try another, or create an account.')
   const authentication = await asserted(c, 'sign-in', started, answer, passkey)
   if (!authentication) return refuse(c, UNVERIFIED)
   setSession(c, await signIn(c.env.DB, passkey, authentication.authenticationInfo.newCounter))
@@ -375,9 +375,9 @@ auth.post('/auth/verify', async (c) => {
   const { challenge, response, code } = await jsonBody(c)
   if (code !== undefined) {
     if (!(await sessionProof(c.env.DB, token))?.recovered)
-      return refuse(c, "Confirm it's you with your passkey: a recovery code confirms only a browser signed in with it.")
+      return refuse(c, 'Confirm it’s you with your passkey: a recovery code confirms only a browser signed in with it.')
     if (typeof code !== 'string' || !(await isRecoveryCode(c.env.DB, member.id, code)))
-      return refuse(c, "That isn't your recovery code. Check it, or the one Crossfeed showed you last, and try again.")
+      return refuse(c, 'That isn’t your recovery code. Check it, or the one Crossfeed showed you last, and try again.')
     await proveSession(c.env.DB, token)
     return c.json({})
   }
@@ -386,7 +386,7 @@ auth.post('/auth/verify', async (c) => {
   const answer = response as AuthenticationResponseJSON
   const passkey = typeof answer?.id === 'string' ? await findPasskey(c.env.DB, answer.id) : null
   if (!passkey || passkey.memberId !== member.id)
-    return refuse(c, "That passkey isn't one of yours. Confirm with a passkey of your account.")
+    return refuse(c, 'That passkey isn’t one of yours. Confirm with a passkey of your account.')
   const authentication = await asserted(c, 'step-up', started, answer, passkey)
   if (!authentication) return refuse(c, UNVERIFIED)
   await proveSession(c.env.DB, token, {
@@ -403,7 +403,7 @@ auth.post('/auth/recover', async (c) => {
   if (typeof code !== 'string' || !code.trim()) return refuse(c, 'Enter your recovery code.')
   const recovered = await recover(c.env.DB, code)
   if (!recovered)
-    return refuse(c, "Crossfeed doesn't know this recovery code, or it was used already. Check it and try again.")
+    return refuse(c, 'Crossfeed doesn’t know this recovery code, or it was used already. Check it and try again.')
   setSession(c, recovered.token)
   return c.json({ recoveryCode: recovered.recoveryCode })
 })

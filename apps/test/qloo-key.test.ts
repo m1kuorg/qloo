@@ -156,7 +156,7 @@ describe("a network's own Qloo key", () => {
 
     expect(await refusal(await addKey(grace, network, HACKATHON, OWN))).toEqual([
       403,
-      { error: "Only an owner can add or remove the network's Qloo key." }
+      { error: 'Only an owner can add or remove the network’s Qloo key.' }
     ])
     expect(await refusal(await addKey(mal, network, HACKATHON, OWN))).toEqual([404, null])
     expect(await refusal(await addKey(ada, network, 'https://qloo.example', OWN))).toEqual([
@@ -185,7 +185,7 @@ describe("a network's own Qloo key", () => {
     ])
     expect(await refusal(await remove(grace))).toEqual([
       403,
-      { error: "Only an owner can add or remove the network's Qloo key." }
+      { error: 'Only an owner can add or remove the network’s Qloo key.' }
     ])
     expect(await refusal(await remove(mal))).toEqual([404, null])
     expect((await settings(ada, network)).qlooKey).toEqual({ set: true, host: PRODUCTION, last4: '7f3a' })

@@ -248,7 +248,7 @@ export function RunState({ run, slowCalls }: { run: Run; slowCalls: SlowCall[] }
         </span>
       )}
       {running && <span>{step >= 0 ? `${run.notes[step].text} · step ${step + 1}` : 'Waiting for Claude'}</span>}
-      {run.status === 'waiting' && <span>Answer the agent&apos;s question to go on.</span>}
+      {run.status === 'waiting' && <span>Answer the agent’s question to go on.</span>}
       {run.replayed && (
         <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 type-caption">
           <Badge variant="outline">Replayed</Badge>

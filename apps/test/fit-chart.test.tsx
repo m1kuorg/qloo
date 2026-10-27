@@ -99,7 +99,7 @@ describe('the fit chart', () => {
 
     expect(words(chart(state))).toMatch(
       new RegExp(
-        `^Who shares Night Shift Cinema's listeners 5 finalists\\. Signal Boost climbs 4 places over a topic-only plan\\. ${state.ranking!.call} `
+        `^Who shares Night Shift Cinema’s listeners 5 finalists\\. Signal Boost climbs 4 places over a topic-only plan\\. ${state.ranking!.call} `
       )
     )
   })

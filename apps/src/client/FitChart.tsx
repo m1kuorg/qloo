@@ -43,10 +43,10 @@ const TRAVEL = { duration: 450, easing: 'cubic-bezier(0.215, 0.61, 0.355, 1)', s
 // Who the chart's ranking is against, as its heading asks it.
 const whoShares = (names: string[]) =>
   names.length === 1
-    ? `Who shares ${names[0]}'s listeners`
+    ? `Who shares ${names[0]}’s listeners`
     : names.length
       ? `Who shares the listeners of ${listOf(names)}`
-      : "Who shares the launch's listeners"
+      : 'Who shares the launch’s listeners'
 
 // The chart's finding, from the ranking and the topic moves.
 const finding = (ranking: Ranking, moves: Move[] | null) =>
@@ -427,7 +427,7 @@ export function FitChart({
                           </p>
                           <p>
                             <Source of="qloo" /> Listener overlap with {anchors} ranks it{'\u00a0'}
-                            {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}'s fit`, true)}
+                            {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}’s fit`, true)}
                           </p>
                           {r.leadingComp && <p>Led by {r.leadingComp.name}.</p>}
                           {shared && !shared.error && shared.tags.length > 0 && (
@@ -465,7 +465,7 @@ export function FitChart({
           </div>
           {missing.length > 0 && (
             <StateLine kind="failed">
-              Partial ranking: {listOf(missing)} {missing.length === 1 ? "isn't" : "aren't"} in it, because{' '}
+              Partial ranking: {listOf(missing)} {missing.length === 1 ? 'isn’t' : 'aren’t'} in it, because{' '}
               {missing.length === 1 ? 'its Qloo lookup' : 'their Qloo lookups'} failed.
             </StateLine>
           )}
@@ -563,11 +563,11 @@ function DemographicSummary({
       {noData.length > 0 && ` Qloo had no demographics for ${listOf(noData)}.`}{' '}
       <b className="font-semibold text-foreground">
         {flagged
-          ? `${flagged} of ${check.rows.length} finalists' listeners differ.`
+          ? `${flagged} of ${check.rows.length} finalists’ listeners differ.`
           : `No demographic mismatches among the ${check.rows.length} finalists.`}
       </b>
       {unchecked.length > 0 &&
-        ` Qloo had no demographics for ${listOf(unchecked)}, so ${unchecked.length > 1 ? "they weren't" : "it wasn't"} checked.`}
+        ` Qloo had no demographics for ${listOf(unchecked)}, so ${unchecked.length > 1 ? 'they weren’t' : 'it wasn’t'} checked.`}
     </p>
   )
 }

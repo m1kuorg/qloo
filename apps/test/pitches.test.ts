@@ -309,7 +309,7 @@ describe('ranking pitched works against the show', () => {
     ])
     // The page says which anchors each list used, and why a type isn't ranked, with its pitches.
     expect(words(list(state, 'book'))).toContain(
-      "Books · 2 ranked C-09 C-12 Ranked against the past guests' books alone: Salt Roads. Qloo scored no book against the show and every past guest (C-09)."
+      'Books · 2 ranked C-09 C-12 Ranked against the past guests’ books alone: Salt Roads. Qloo scored no book against the show and every past guest (C-09).'
     )
     const unranked = words(list(state, 'tv_show'))
     expect(unranked).toMatch(/^TV shows · 0 ranked C-11 Failed Not ranked: .*no past guest's work is a TV show/)
@@ -332,7 +332,7 @@ describe("the inbox's Run tab", () => {
 
     const [glass, lights] = state.booking!.pastGuests.map((g) => g.match!.evidence)
     expect(words(module(state, 'anchors-h'))).toBe(
-      `Ranked against Qloo data Night Shift Cinema The show Glass Harbor ${glass} Mae Ford · Film · 2020 · Matched Harbor Lights ${lights} Lu Park · Film · 2001 · Not in Qloo A past guest's work that didn't match isn't an anchor. Edit it and rank again.`
+      `Ranked against Qloo data Night Shift Cinema The show Glass Harbor ${glass} Mae Ford · Film · 2020 · Matched Harbor Lights ${lights} Lu Park · Film · 2001 · Not in Qloo A past guest’s work that didn’t match isn’t an anchor. Edit it and rank again.`
     )
   })
 

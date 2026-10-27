@@ -148,7 +148,7 @@ export function NetworkRoster({
           <SheetHeader className="pr-14">
             <SheetTitle>Import shows</SheetTitle>
             <SheetDescription>
-              Paste show names or upload the roster&apos;s file. Crossfeed looks each new one up in Qloo.
+              Paste show names or upload the roster’s file. Crossfeed looks each new one up in Qloo.
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">{importer(true)}</div>
@@ -217,7 +217,7 @@ function Readiness({ roster }: { roster: Show[] }) {
   return (
     <p className="font-normal text-muted-foreground">
       {unsettled > 0
-        ? `${unsettled} ${unsettled === 1 ? "show isn't" : "shows aren't"} scored until you settle or leave ${unsettled === 1 ? 'it' : 'them'} out.`
+        ? `${unsettled} ${unsettled === 1 ? 'show isn’t' : 'shows aren’t'} scored until you settle or leave ${unsettled === 1 ? 'it' : 'them'} out.`
         : scorable.length > 0
           ? 'Ready to rank: every show can be scored.'
           : 'Every show is left out, so a run has nothing to rank.'}
@@ -259,8 +259,8 @@ function SampleStart({ start }: { start: () => Promise<unknown> }) {
         Start from the sample roster
       </Button>
       <p className="text-muted-foreground">
-        {sampleNetwork.network}&apos;s {sampleRoster.length} public show names, with made-up figures labelled sample, to
-        try Crossfeed before your own.
+        {sampleNetwork.network}’s {sampleRoster.length} public show names, with made-up figures labelled sample, to try
+        Crossfeed before your own.
       </p>
       <Alert error={error} />
     </div>
@@ -272,9 +272,9 @@ function SampleStart({ start }: { start: () => Promise<unknown> }) {
 function SampleRoster({ sample }: { sample: Sample }) {
   return (
     <p className="max-w-[72ch] rounded-xl bg-card p-4 lg:max-w-none" data-sample-notice>
-      <b className="font-semibold">Sample roster.</b> {sample.network}&apos;s public show names, with downloads,
-      statuses, and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn&apos;t
-      affiliated with {sample.network}. Import your own roster over it; shows on both keep their matches.
+      <b className="font-semibold">Sample roster.</b> {sample.network}’s public show names, with downloads, statuses,
+      and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn’t affiliated with{' '}
+      {sample.network}. Import your own roster over it; shows on both keep their matches.
     </p>
   )
 }

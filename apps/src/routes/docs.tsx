@@ -61,14 +61,14 @@ const REQUESTS_A_MINUTE = 120
 
 // What each refusal code means, beside the status refusal.ts gives it.
 const MEANS: Record<RefusalCode | 'internal', string> = {
-  invalid: "The request, or a value in it, can't be used as it is. The message names the field.",
+  invalid: 'The request, or a value in it, can’t be used as it is. The message names the field.',
   unauthorized: 'No API key, or one that is unknown or revoked.',
-  forbidden: "The caller can't do this, such as an API key deleting a launch.",
-  not_found: "No such resource, or one the key can't reach, such as another network.",
-  conflict: "The resource's state refuses it, such as an import over a roster without `replace=true`.",
+  forbidden: 'The caller can’t do this, such as an API key deleting a launch.',
+  not_found: 'No such resource, or one the key can’t reach, such as another network.',
+  conflict: 'The resource’s state refuses it, such as an import over a roster without `replace=true`.',
   too_large: `An upload over ${megabytes(MAX_UPLOAD_BYTES, 0)}.`,
-  unreadable: "An upload that can't be read, such as a CSV with no `name` column.",
-  limit: "A daily cap, the network's or all of Crossfeed's. Counts reset at 00:00 UTC.",
+  unreadable: 'An upload that can’t be read, such as a CSV with no `name` column.',
+  limit: 'A daily cap, the network’s or all of Crossfeed’s. Counts reset at 00:00 UTC.',
   rate_limited: 'Too many requests a minute with one key. Wait a minute: it answers `Retry-After: 60`.',
   internal: 'Something went wrong in Crossfeed. Try again in a moment.'
 }
@@ -130,8 +130,8 @@ claude mcp list   # crossfeed: ${origin}/mcp (HTTP) - ${CONNECTED}
 // The note every page carries while accounts are off, as in production until the product opens.
 const Closed = () => (
   <p class="rounded-xl bg-muted px-4 py-3">
-    Accounts aren&apos;t open on this deployment yet, so its API and MCP server answer 404 here. These pages describe
-    them as they work once accounts are open.
+    Accounts aren’t open on this deployment yet, so its API and MCP server answer 404 here. These pages describe them as
+    they work once accounts are open.
   </p>
 )
 
@@ -262,8 +262,8 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
   lede: (
     <>
       Programs and assistants can do for a network what its members do in the app: import the roster, plan and run
-      launches, answer the agent&apos;s questions, edit drafts, and triage pitches. Approving stays with the members, in
-      the app.
+      launches, answer the agent’s questions, edit drafts, and triage pitches. Approving stays with the members, in the
+      app.
     </>
   ),
   sections: [
@@ -304,7 +304,7 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
                 <td role="cell">
                   A typed method for every route, and helpers that wait for long work, in Node, Bun, Deno, and Workers.
                 </td>
-                <td role="cell">An API key and the network&apos;s ID</td>
+                <td role="cell">An API key and the network’s ID</td>
               </tr>
               <tr role="row">
                 <th role="rowheader" scope="row">
@@ -338,21 +338,21 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
       body: (
         <>
           <p>
-            An API key acts for its network. It reads the network and today&apos;s usage, renames the network and sets
-            its CPM, imports the roster and settles its shows, plans launches and starts their runs, answers the
-            agent&apos;s questions, edits draft insertion orders, exports approved ones as CSV, reads the evidence of
-            every Qloo call, loads the inbox, starts pitch runs, and edits or discards drafted replies.
+            An API key acts for its network. It reads the network and today’s usage, renames the network and sets its
+            CPM, imports the roster and settles its shows, plans launches and starts their runs, answers the agent’s
+            questions, edits draft insertion orders, exports approved ones as CSV, reads the evidence of every Qloo
+            call, loads the inbox, starts pitch runs, and edits or discards drafted replies.
           </p>
           <p>
             Only a member of the network, signed in to the app, approves an insertion order or a reply. No route or tool
             approves either (ADR 0002, approval stays in the app): an API key is held by a program that may run
             unattended, and a plan or an email never ships without a person. An order exports only once a member has
             approved it; until then its export answers 409 <code>conflict</code>. Members, invites, API keys, the
-            network&apos;s own Qloo key, deleting a launch, and deleting the network are the app&apos;s too.
+            network’s own Qloo key, deleting a launch, and deleting the network are the app’s too.
           </p>
           <p>
             When a run needs a decision, such as the slot budget, it waits on a question for a person. A program relays
-            the question and answers with that person&apos;s words.
+            the question and answers with that person’s words.
           </p>
         </>
       )
@@ -363,14 +363,14 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
       body: (
         <>
           <p>
-            An owner makes a key in the network&apos;s settings, under API keys, and sees its secret once. The settings
-            show the network&apos;s ID under the keys. Send the key with every request:
+            An owner makes a key in the network’s settings, under API keys, and sees its secret once. The settings show
+            the network’s ID under the keys. Send the key with every request:
           </p>
           <Code label="HTTP">Authorization: Bearer cf_live_…</Code>
           <p>
             A key reaches its own network alone: to it, every other network is the same 404 <code>not_found</code>. Keys
-            don&apos;t expire. Revoking one stops it at once, and its next request answers 401 <code>unauthorized</code>
-            . A member&apos;s session reaches the API too, from Crossfeed&apos;s own pages; programs use a key.
+            don’t expire. Revoking one stops it at once, and its next request answers 401 <code>unauthorized</code>. A
+            member’s session reaches the API too, from Crossfeed’s own pages; programs use a key.
           </p>
         </>
       )
@@ -425,7 +425,7 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
                     Requests
                   </th>
                   <td role="cell">
-                    {REQUESTS_A_MINUTE} requests a minute per API key, the MCP server&apos;s included; past it, 429{' '}
+                    {REQUESTS_A_MINUTE} requests a minute per API key, the MCP server’s included; past it, 429{' '}
                     <code>rate_limited</code>
                   </td>
                 </tr>
@@ -445,8 +445,8 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
                     Qloo calls
                   </th>
                   <td role="cell">
-                    {cap(env.QLOO_VISITOR_DAILY_CALL_CAP)} a day per network, counted on the network&apos;s own Qloo key
-                    apart from everyone else&apos;s once an owner adds one
+                    {cap(env.QLOO_VISITOR_DAILY_CALL_CAP)} a day per network, counted on the network’s own Qloo key
+                    apart from everyone else’s once an owner adds one
                   </td>
                 </tr>
                 <tr role="row">
@@ -488,8 +488,8 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
           </TableScroll>
           <p>
             A day is a UTC day, and counts reset at 00:00 UTC. A network counts as one visitor of its own, so its
-            members&apos; pages and its keys share its daily counts, beside the limits for everyone in the{' '}
-            <a href="/terms">beta terms</a>. Settings shows the network&apos;s usage, and so does{' '}
+            members’ pages and its keys share its daily counts, beside the limits for everyone in the{' '}
+            <a href="/terms">beta terms</a>. Settings shows the network’s usage, and so does{' '}
             <code>GET /api/v1/networks/{'{networkId}'}/usage</code>.
           </p>
         </>
@@ -700,7 +700,7 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
         <code>
           <UrlPath path={`${origin}${NETWORK_PATH}`} />
         </code>
-        . This reference is generated from the API&apos;s OpenAPI 3.1 document, the contract its requests are validated
+        . This reference is generated from the API’s OpenAPI 3.1 document, the contract its requests are validated
         against, served at <OpenApi accounts={accounts} />.
       </>
     ),
@@ -711,7 +711,7 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
         body: (
           <>
             <p>
-              Each route takes the network&apos;s ID, from its settings, and one of its API keys as{' '}
+              Each route takes the network’s ID, from its settings, and one of its API keys as{' '}
               <code>Authorization: Bearer cf_live_…</code>. The paths below are under <code>{NETWORK_PATH}</code>.
               Bodies are JSON unless a route takes a file. The <a href="/docs#errors">errors</a> and{' '}
               <a href="/docs#limits">limits</a> are the same for every route. The inbox and pitch run routes answer 404
@@ -775,9 +775,9 @@ const sdkPage = (origin: string): Page => ({
   path: '/docs/sdk',
   lede: (
     <>
-      <code>@crossfeed/sdk</code> is a typed client for the REST API: one network&apos;s roster, launches, and inbox,
-      with one of its API keys. Its methods mirror the API&apos;s routes, typed from the OpenAPI document, and it needs
-      nothing but <code>fetch</code>, so it runs in Node, Bun, Deno, and Workers.
+      <code>@crossfeed/sdk</code> is a typed client for the REST API: one network’s roster, launches, and inbox, with
+      one of its API keys. Its methods mirror the API’s routes, typed from the OpenAPI document, and it needs nothing
+      but <code>fetch</code>, so it runs in Node, Bun, Deno, and Workers.
     </>
   ),
   sections: [
@@ -786,9 +786,7 @@ const sdkPage = (origin: string): Page => ({
       title: 'Install from the repo',
       body: (
         <>
-          <p>
-            It isn&apos;t on npm yet. Clone the repo and build the package, then add it to your project by its path:
-          </p>
+          <p>It isn’t on npm yet. Clone the repo and build the package, then add it to your project by its path:</p>
           <Code label="Shell">{`
 git clone https://github.com/m1kuorg/qloo.git
 cd qloo/packages/sdk && bun install   # builds dist/
@@ -807,7 +805,7 @@ bun add <path to qloo>/packages/sdk   # or: npm install <path to qloo>/packages/
       title: 'Create a client',
       body: (
         <>
-          <p>The client takes one of the network&apos;s API keys and its ID, both from its settings:</p>
+          <p>The client takes one of the network’s API keys and its ID, both from its settings:</p>
           <Code label="TypeScript">{`
 import { Crossfeed } from '@crossfeed/sdk'
 
@@ -818,10 +816,10 @@ const crossfeed = new Crossfeed({
 })
 `}</Code>
           <p>
-            <code>fetch</code> replaces the runtime&apos;s own, such as a service binding&apos;s in a Worker. Its
-            namespaces follow the API: <code>network</code>, <code>roster</code>, <code>launches</code>,{' '}
-            <code>runs</code>, <code>insertionOrders</code>, <code>evidence</code>, <code>inbox</code>,{' '}
-            <code>pitchRuns</code>, and <code>replies</code>. None of them approves anything.
+            <code>fetch</code> replaces the runtime’s own, such as a service binding’s in a Worker. Its namespaces
+            follow the API: <code>network</code>, <code>roster</code>, <code>launches</code>, <code>runs</code>,{' '}
+            <code>insertionOrders</code>, <code>evidence</code>, <code>inbox</code>, <code>pitchRuns</code>, and{' '}
+            <code>replies</code>. None of them approves anything.
           </p>
         </>
       )
@@ -832,8 +830,8 @@ const crossfeed = new Crossfeed({
       body: (
         <>
           <p>
-            Import the roster, settle what Qloo couldn&apos;t match on its own, then run the launch. A run asks the
-            person planning it its questions, such as the slot budget: relay each one and answer with their words.
+            Import the roster, settle what Qloo couldn’t match on its own, then run the launch. A run asks the person
+            planning it its questions, such as the slot budget: relay each one and answer with their words.
           </p>
           <Code label="TypeScript">{`
 await crossfeed.roster.import('name,downloads\\nDeep Cuts,12000\\nField Notes,8000\\n')
@@ -854,8 +852,8 @@ for (const row of run.chart!.rows) console.log(row.rank, row.show, row.band)
 console.log(run.insertionOrder) // the draft, priced at the network's CPM
 `}</Code>
           <p>
-            <code>askThePerson</code> is yours: a prompt, a form, a message. Each question&apos;s <code>kind</code> says
-            which answer fields it takes. A member approves the order on the launch&apos;s page in the app; until then{' '}
+            <code>askThePerson</code> is yours: a prompt, a form, a message. Each question’s <code>kind</code> says
+            which answer fields it takes. A member approves the order on the launch’s page in the app; until then{' '}
             <code>insertionOrders.exportCsv</code> rejects with <code>conflict</code>, and after, it resolves with the
             CSV the app exports.
           </p>
@@ -868,8 +866,8 @@ console.log(run.insertionOrder) // the draft, priced at the network's CPM
       body: (
         <>
           <p>
-            Load the day&apos;s pitches as an <code>.mbox</code> export, an <code>.eml</code>, text with a line of{' '}
-            <code>---</code> between pitches, or one by one, then rank them against one of the network&apos;s shows:
+            Load the day’s pitches as an <code>.mbox</code> export, an <code>.eml</code>, text with a line of{' '}
+            <code>---</code> between pitches, or one by one, then rank them against one of the network’s shows:
           </p>
           <Code label="TypeScript">{`
 await crossfeed.inbox.load({ pitches: [{ subject: 'A guest for Deep Cuts', body: '…' }] })
@@ -916,7 +914,7 @@ for (const reply of run.replies ?? []) console.log(reply.pitch, reply.verdict, r
       body: (
         <>
           <p>
-            Every refusal rejects with a <code>CrossfeedError</code>: the API&apos;s <code>code</code>, its{' '}
+            Every refusal rejects with a <code>CrossfeedError</code>: the API’s <code>code</code>, its{' '}
             <code>message</code> for a person, and the HTTP <code>status</code>.
           </p>
           <Code label="TypeScript">{`
@@ -930,9 +928,9 @@ try {
 }
 `}</Code>
           <p>
-            The codes are the API&apos;s, in the <a href="/docs#errors">errors table</a>. The wait helpers add{' '}
+            The codes are the API’s, in the <a href="/docs#errors">errors table</a>. The wait helpers add{' '}
             <code>run_failed</code>, <code>run_stopped</code>, and <code>timeout</code>, with a null status, and{' '}
-            <code>unexpected_response</code> is an answer that isn&apos;t one of Crossfeed&apos;s, as from a wrong{' '}
+            <code>unexpected_response</code> is an answer that isn’t one of Crossfeed’s, as from a wrong{' '}
             <code>baseUrl</code>.
           </p>
         </>
@@ -962,7 +960,7 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
       title: 'Connect Claude Code',
       body: (
         <>
-          <p>With one of the network&apos;s API keys in your environment:</p>
+          <p>With one of the network’s API keys in your environment:</p>
           <McpAdd origin={origin} />
           <p>
             Any MCP client that sends a header of your choice connects the same way. The{' '}
@@ -1030,8 +1028,8 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
           </TableScroll>
           <p>
             Reads change nothing; Adds create something new, such as a launch or an answer; Changes replace or edit what
-            the network has. There&apos;s no approve tool, and no tool changes the network&apos;s CPM. The inbox and
-            pitch run tools are listed only while guest pitches are switched on.
+            the network has. There’s no approve tool, and no tool changes the network’s CPM. The inbox and pitch run
+            tools are listed only while guest pitches are switched on.
           </p>
         </>
       )
@@ -1044,14 +1042,14 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
           <p>
             Each tool answers in short text for the assistant: where things stand and what to call next, such as the
             question a run waits on and the tool, IDs, and fields that answer it. Its structured content is the
-            operation&apos;s result as the REST API answers it, with the same text again as <code>summary</code>, since
+            operation’s result as the REST API answers it, with the same text again as <code>summary</code>, since
             Claude Code gives its model the structured content alone.
           </p>
           <p>
             A refusal is a tool result marked as an error, with <code>{'{ error: { code, message } }'}</code> and the
-            API&apos;s codes. Only the checks before any tool runs answer with an HTTP status: 401 without a key or with
-            an unknown or revoked one, 429 past {REQUESTS_A_MINUTE} requests a minute, 403 to a browser whose{' '}
-            <code>Origin</code> is neither Crossfeed&apos;s nor a local one, and 404 while accounts aren&apos;t open.
+            API’s codes. Only the checks before any tool runs answer with an HTTP status: 401 without a key or with an
+            unknown or revoked one, 429 past {REQUESTS_A_MINUTE} requests a minute, 403 to a browser whose{' '}
+            <code>Origin</code> is neither Crossfeed’s nor a local one, and 404 while accounts aren’t open.
           </p>
         </>
       )
@@ -1063,7 +1061,7 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
         <>
           <p>
             Asked to plan promos for a launch, the assistant creates it, starts a run, and reads it until the run waits.
-            Then it asks you the run&apos;s question as it is, and answers with your words:
+            Then it asks you the run’s question as it is, and answers with your words:
           </p>
           <figure class="flex flex-col gap-3">
             <figcaption class="flex flex-wrap items-center gap-2 type-ui text-muted-foreground">
@@ -1089,22 +1087,22 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
                       'Crossfeed',
                       <>
                         Run 5f0c… is waiting on a question for the human (budget): What is the slot budget for Night
-                        Shift Cinema&apos;s promos, as a slot count or a dollar amount? Ask the human this question as
-                        it is, and answer with their words…
+                        Shift Cinema’s promos, as a slot count or a dollar amount? Ask the human this question as it is,
+                        and answer with their words…
                       </>
                     ],
                     [
                       'Assistant',
                       <>
-                        Crossfeed asks: what is the slot budget for Night Shift Cinema&apos;s promos, as a slot count or
-                        a dollar amount?
+                        Crossfeed asks: what is the slot budget for Night Shift Cinema’s promos, as a slot count or a
+                        dollar amount?
                       </>
                     ],
                     ['You', <>20 slots.</>],
                     [
                       'Assistant',
                       <>
-                        Calls <code>answer_launch_question</code> with the run&apos;s IDs and{' '}
+                        Calls <code>answer_launch_question</code> with the run’s IDs and{' '}
                         <code>{'{ "slots": 20 }'}</code>, then reads the launch until the run is done.
                       </>
                     ]
@@ -1119,8 +1117,8 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
             </table>
           </figure>
           <p>
-            Once the run is done, <code>get_launch</code> has the chart and the draft insertion order, and the
-            launch&apos;s page in the app, where a member approves the order.
+            Once the run is done, <code>get_launch</code> has the chart and the draft insertion order, and the launch’s
+            page in the app, where a member approves the order.
           </p>
         </>
       )
@@ -1132,9 +1130,8 @@ const agentsPage = (origin: string): Page => ({
   path: '/docs/agents',
   lede: (
     <>
-      Two Agent Skills teach an assistant Crossfeed&apos;s flows through the MCP server: relaying the agent&apos;s
-      questions to you word for word, and leaving approval to the app. A Claude Code plugin installs both with the
-      server.
+      Two Agent Skills teach an assistant Crossfeed’s flows through the MCP server: relaying the agent’s questions to
+      you word for word, and leaving approval to the app. A Claude Code plugin installs both with the server.
     </>
   ),
   sections: [
@@ -1173,8 +1170,8 @@ const agentsPage = (origin: string): Page => ({
           <p>
             Each is written to the <a href="https://agentskills.io/specification">Agent Skills specification</a>, with
             its fields only, so any client that reads skills can use it. Both hold the assistant to the same rules: put
-            each of the agent&apos;s questions to you exactly as it&apos;s asked and answer with your words, never with
-            its own; leave approval to a member, in the app, and give the page where it happens; keep guest names, email
+            each of the agent’s questions to you exactly as it’s asked and answer with your words, never with its own;
+            leave approval to a member, in the app, and give the page where it happens; keep guest names, email
             addresses, and sender details out of every field but the ones made for them, such as the pitches it loads;
             and explain a rank only from the Qloo evidence behind it.
           </p>
@@ -1187,13 +1184,13 @@ const agentsPage = (origin: string): Page => ({
       body: (
         <>
           <p>
-            The plugin, <code>crossfeed</code>, sits in the repo&apos;s <code>plugins/crossfeed</code>, beside a
-            marketplace file at the repo&apos;s root. It holds both skills and this MCP server config:
+            The plugin, <code>crossfeed</code>, sits in the repo’s <code>plugins/crossfeed</code>, beside a marketplace
+            file at the repo’s root. It holds both skills and this MCP server config:
           </p>
           <Code file="plugins/crossfeed/.mcp.json">{mcpConfig}</Code>
           <p>
-            <code>CROSSFEED_API_KEY</code> is one of the network&apos;s API keys. <code>CROSSFEED_URL</code> points it
-            at another deployment, such as <code>{origin}</code>; without it, the plugin connects to{' '}
+            <code>CROSSFEED_API_KEY</code> is one of the network’s API keys. <code>CROSSFEED_URL</code> points it at
+            another deployment, such as <code>{origin}</code>; without it, the plugin connects to{' '}
             <code>https://crossfeed.m1kuorg.workers.dev</code>. Set both in the environment Claude Code starts in.
           </p>
         </>
@@ -1204,7 +1201,7 @@ const agentsPage = (origin: string): Page => ({
       title: 'Install it',
       body: (
         <>
-          <p>It isn&apos;t in a public marketplace yet. From a clone of the repo:</p>
+          <p>It isn’t in a public marketplace yet. From a clone of the repo:</p>
           <Code label="Shell">{`
 git clone https://github.com/m1kuorg/qloo.git
 claude plugin marketplace add ./qloo
@@ -1225,12 +1222,11 @@ claude                                # then: "Plan promos for our launch"
       title: 'Without the plugin',
       body: (
         <>
-          <p>Connect the MCP server with one of the network&apos;s API keys in your environment:</p>
+          <p>Connect the MCP server with one of the network’s API keys in your environment:</p>
           <McpAdd origin={origin} />
           <p>
-            Then copy a skill&apos;s directory from <code>plugins/crossfeed/skills</code> into{' '}
-            <code>~/.claude/skills</code>, or wherever your client reads skills from. Each skill&apos;s text is also
-            served here, at a stable URL:{' '}
+            Then copy a skill’s directory from <code>plugins/crossfeed/skills</code> into <code>~/.claude/skills</code>,
+            or wherever your client reads skills from. Each skill’s text is also served here, at a stable URL:{' '}
             {Object.keys(SKILLS).map((name, i) => (
               <>
                 {i > 0 && ' and '}

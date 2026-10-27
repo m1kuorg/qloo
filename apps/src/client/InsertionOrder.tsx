@@ -380,7 +380,7 @@ function EditLines({
   )
   return (
     <form
-      aria-label="Edit the insertion order's lines"
+      aria-label="Edit the insertion order’s lines"
       onSubmit={(e) => {
         e.preventDefault()
         void save(typed)

@@ -226,7 +226,7 @@ export function RunList({
       <p className="type-caption text-muted-foreground">
         Each run starts fresh; earlier ones stay here to compare.{' '}
         {counted === 'network'
-          ? "Model runs are limited per UTC day across the network's launches and inbox, whoever starts them. Runs that stop at once have a higher limit of their own."
+          ? 'Model runs are limited per UTC day across the network’s launches and inbox, whoever starts them. Runs that stop at once have a higher limit of their own.'
           : 'Model runs are limited per visitor and per UTC day, across browsers. Runs that replay or stop at once have a higher limit of their own.'}
       </p>
       <Alert error={error} />
@@ -402,13 +402,13 @@ export function OpenQuestion({
                 </>
               ) : (
                 <p className="text-muted-foreground">
-                  No roster show can be scored yet, so there's nothing to leave out.
+                  No roster show can be scored yet, so there’s nothing to leave out.
                 </p>
               ))}
             {question.kind === 'comps' && (
               <>
                 <p className="text-muted-foreground">
-                  Released shows with listeners like the launch's. All of them are scored together.
+                  Released shows with listeners like the launch’s. All of them are scored together.
                 </p>
                 <FieldSet>
                   <FieldLegend className="mb-1.5">Comps, up to {MAX_COMPS}</FieldLegend>
