@@ -12,10 +12,11 @@ import {
   type SessionProps,
   type State
 } from './agent'
+import { GUEST_NETWORK } from './directory'
 import { globalGateway } from './gateway'
 import type { Booking, PitchReply } from './inbox'
 import { Refusal } from './refusal'
-import { sample, sampleRoster } from './sample'
+import { sample, sampleCpm, sampleRoster } from './sample'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
 // a network's agent, once it has checked the session and the membership, replacing any the browser
@@ -111,7 +112,9 @@ export class NetworkAgent extends CrossfeedAgent {
           .ownKey()
           .then(({ set }) => keepOwnKey(storage, set))
           .catch((e) => console.error(JSON.stringify({ event: 'own_key_lookup', error: String(e) })))
-    return super.onStart(props)
+    await super.onStart(props)
+    // The guest network has no owner to set its CPM (ADR 0005), so it takes the sample network's.
+    if (this.name === GUEST_NETWORK && this.state.cpm === null) this.setState({ ...this.state, cpm: sampleCpm })
   }
 
   // Its Qloo calls go through its own gateway instance while it has a Qloo key of its own (ADR 0004).

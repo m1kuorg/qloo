@@ -349,12 +349,7 @@ export async function openMember({
   const { recoveryCode, network = null } = await done.json<{ recoveryCode: string; network?: string }>()
   const cookie = done.headers.get('set-cookie')?.split(';')[0]
   if (!cookie) throw new Error('Sign-up set no session cookie')
-  const fetch: Member['fetch'] = (path, init = {}) => {
-    const headers = new Headers(init.headers)
-    headers.set('Cookie', cookie)
-    if (init.method && !['GET', 'HEAD'].includes(init.method)) headers.set('Origin', origin)
-    return exports.default.fetch(`${origin}${path}`, { ...init, headers })
-  }
+  const fetch = browserFetch(cookie)
   return {
     // The member's ID, the passkey's user handle.
     id: new TextDecoder().decode(isoBase64URL.toBuffer(options.user.id)),
@@ -370,5 +365,50 @@ export async function openMember({
       if (res.status !== 200) throw new Error(`Inviting to ${network} returned ${res.status}: ${await res.text()}`)
       return (await res.json<{ link: string }>()).link
     }
+  }
+}
+
+// Requests from the browser holding session cookie `cookie`: each carries it, and a write the app's
+// Origin, as a page's write does.
+const browserFetch =
+  (cookie: string): Member['fetch'] =>
+  (path, init = {}) => {
+    const headers = new Headers(init.headers)
+    headers.set('Cookie', cookie)
+    if (init.method && !['GET', 'HEAD'].includes(init.method)) headers.set('Origin', origin)
+    return exports.default.fetch(`${origin}${path}`, { ...init, headers })
+  }
+
+// "Sign in as a guest" on the sign-in page, as its one request: from address `ip`, as Cloudflare's edge
+// sends it, if given, from a browser holding session cookie `cookie`, if given, with `?next` if given.
+export const guestSignIn = ({ ip, cookie, next }: { ip?: string; cookie?: string; next?: string } = {}) =>
+  exports.default.fetch(`${origin}/auth/guest${next === undefined ? '' : `?next=${encodeURIComponent(next)}`}`, {
+    method: 'POST',
+    headers: {
+      Origin: origin,
+      'Content-Type': 'application/json',
+      ...(ip && { 'CF-Connecting-IP': ip }),
+      ...(cookie && { Cookie: cookie })
+    },
+    body: '{}'
+  })
+
+export type Guest = Pick<Member, 'cookie' | 'fetch' | 'connect'> & {
+  // Where the sign-in answered to go next.
+  next: string
+}
+
+// Someone signed in as a guest, as the guest member in the guest network (ADR 0005), through
+// guestSignIn's request, with the same `fetch` and `connect` as a member.
+export async function openGuest(options: Parameters<typeof guestSignIn>[0] = {}): Promise<Guest> {
+  const res = await guestSignIn(options)
+  if (res.status !== 200) throw new Error(`Guest sign-in returned ${res.status}: ${await res.text()}`)
+  const cookie = res.headers.get('set-cookie')?.split(';')[0]
+  if (!cookie) throw new Error('Guest sign-in set no session cookie')
+  return {
+    cookie,
+    next: (await res.json<{ next: string }>()).next,
+    fetch: browserFetch(cookie),
+    connect: (path, headers = {}) => connect(path, { Cookie: cookie, Origin: origin, ...headers })
   }
 }

@@ -30,6 +30,7 @@ import {
   addPasskey,
   findInvite,
   findPasskey,
+  guestSignIn,
   invitedCapped,
   isRecoveryCode,
   joinByInvite,
@@ -406,6 +407,17 @@ auth.post('/auth/recover', async (c) => {
     return refuse(c, 'Crossfeed doesn’t know this recovery code, or it was used already. Check it and try again.')
   setSession(c, recovered.token)
   return c.json({ recoveryCode: recovered.recoveryCode })
+})
+
+// Signing in as a guest (ADR 0005), in one click with nothing to give: a session of the guest member's,
+// in the guest network. The session the browser held, if any, ends. The answer is where to go next,
+// `?next` under the same rules as a passkey sign-in's. It isn't limited per visitor.
+auth.post('/auth/guest', async (c) => {
+  const token = await guestSignIn(c.env.DB, sessionToken(c))
+  if (!token) return refuse(c, 'Guest sign-in failed. Try again.', 429)
+  setSession(c, token)
+  console.log(JSON.stringify({ event: 'guest_sign_in' }))
+  return c.json({ next: nextPath(c, c.req.query('next')) })
 })
 
 // Sign-out: the session ends here and in the browser.
