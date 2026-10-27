@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -16,11 +16,15 @@ import { ConnectionState, SlowCalls, StateLine, type Connection } from './states
 // From 1360px, the canvas beside the inspector, a 360px column on the card, sticky under the 48px top
 // bar for the window's height. At 1440 that's 56 (rail) + 24 (gutter) + 976 (canvas) + 24 (gap) + 360
 // (inspector) = 1440; at 1360, a 896px canvas. Under 1360 the inspector is a sheet and the canvas
-// takes the width, with 24px gutters from 1024px and 16px below. Blocks are 24px apart.
-const WIDE = '(min-width: 1360px)'
-export const frame = 'min-[1360px]:grid min-[1360px]:grid-cols-[minmax(0,1fr)_360px] min-[1360px]:gap-6'
-export const canvas = 'flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6 min-[1360px]:pr-0'
-const aside = 'sticky top-12 flex h-[calc(100svh-3rem)] flex-col gap-4 self-start overflow-y-auto bg-card p-4'
+// takes the width, with 24px gutters from 1024px and 16px below. Blocks are 24px apart. 1360px is
+// written 85rem, so Tailwind orders it after lg's 64rem and the canvas's right gutter goes from it.
+const WIDE = '(min-width: 85rem)'
+export const frame = 'min-[85rem]:grid min-[85rem]:grid-cols-[minmax(0,1fr)_360px] min-[85rem]:gap-6'
+export const canvas = 'flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6 min-[85rem]:pr-0'
+// Its own scroller, which keeps a scroll at its ends from moving the page, and keeps what Tab reaches
+// clear of its sticky tabs.
+const aside =
+  'sticky top-12 flex h-[calc(100svh-3rem)] scroll-pt-14 flex-col gap-4 self-start overflow-y-auto overscroll-contain bg-card p-4'
 
 // The inspector's tabs: the run's trace and history, a call's evidence, and the object selected on the
 // canvas, a show on the demo or a pitch in the inbox.
@@ -55,7 +59,9 @@ export function useInspector(
 // The inspector, a Base UI Tabs panel: beside the canvas from 1360px, and below it a non-modal right
 // sheet. `children` are its TabsContent panels, each kept mounted, so the ids calls point at
 // (aria-controls="evidence") are always there; Base UI hides and inerts the panels not shown, and
-// nothing else.
+// nothing else. The sheet leaves the page usable, so focus may leave it; when Tab takes focus to
+// something the sheet covers (all of the canvas on a phone, where it's full width), the sheet closes
+// and focus stays where it went.
 // `initialFocus` is what the sheet focuses as it opens, when the page asks for more than Base UI's
 // default, such as an opened object's heading.
 export function Inspector({
@@ -67,6 +73,27 @@ export function Inspector({
   initialFocus?: () => HTMLElement | true
   children: ReactNode
 }) {
+  const popup = useRef<HTMLDivElement>(null)
+  // Closed because focus went under it: focus stays where it went.
+  const away = useRef(false)
+  useEffect(() => {
+    if (wide || !sheet) return
+    away.current = false
+    const moved = (e: FocusEvent) => {
+      const to = e.target
+      const from = popup.current
+      // Inside the sheet, or anything floating over it, such as its own focus guards.
+      if (!from || !(to instanceof Element) || from.contains(to) || to.closest('[data-base-ui-portal]')) return
+      const a = from.getBoundingClientRect()
+      const b = to.getBoundingClientRect()
+      if (b.right > a.left && b.left < a.right && b.bottom > a.top && b.top < a.bottom) {
+        away.current = true
+        setSheet(false)
+      }
+    }
+    document.addEventListener('focusin', moved)
+    return () => document.removeEventListener('focusin', moved)
+  }, [wide, sheet, setSheet])
   const panels = (
     <Tabs value={current} onValueChange={(next) => setTab(next as InspectorTab)}>
       {/* The tabs stay at the top of the inspector while what's in it scrolls under them. */}
@@ -91,11 +118,18 @@ export function Inspector({
     // Non-modal and kept mounted while closed: the canvas stays usable beside it, its guide included,
     // and the calls' aria-controls="evidence" always finds its panel.
     <Sheet open={sheet} onOpenChange={setSheet} modal={false} disablePointerDismissal>
-      <SheetContent overlay={false} keepMounted className="gap-0" {...(initialFocus && { initialFocus })}>
+      <SheetContent
+        ref={popup}
+        overlay={false}
+        keepMounted
+        className="gap-0"
+        finalFocus={() => !away.current}
+        {...(initialFocus && { initialFocus })}
+      >
         <SheetHeader className="pr-14">
           <SheetTitle>Details</SheetTitle>
         </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">{panels}</div>
+        <div className="min-h-0 flex-1 scroll-pt-14 overflow-y-auto overscroll-contain px-4 pb-6">{panels}</div>
       </SheetContent>
     </Sheet>
   )
