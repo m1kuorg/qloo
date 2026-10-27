@@ -1,8 +1,8 @@
 // The class recipes the island's components and the server's pages share. Hono JSX can't render
 // React components, so a server page sets these classes on its own elements; this module has no
 // React in it, so importing it keeps the island's code out of the Worker's routes. The shadcn
-// components in this folder import their variants from here (brief: Stack and architecture).
-// Each recipe returns merged classes, so a server page gets the same result as the component.
+// components in this folder import their variants from here, so the two can't drift apart. Each
+// recipe returns merged classes, so a server page gets the same result as the component.
 import { cva } from 'class-variance-authority'
 import { cn } from 'cn'
 

@@ -398,9 +398,9 @@ const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }
   </header>
 )
 
-// The marketing pages' footer, per the page sheet's: the name set across the full content width
-// first, then the legal pages and the docs, and what Crossfeed was made for, on a tone step from the
-// page. The name is 4.48em wide in Schibsted Grotesk at 600, so the content's width over 4.5 sets it.
+// The marketing pages' footer: the name set across the full content width first, then the legal
+// pages and the docs, and what Crossfeed was made for, on a tone step from the page. The name is
+// 4.48em wide in Schibsted Grotesk at 600, so the content's width over 4.5 sets it.
 const footerLink = linkVariants({ tone: 'text', className: 'inline-flex min-h-11 items-center md:min-h-0' })
 const Footer = () => (
   <footer class="mt-24 overflow-hidden bg-muted md:mt-40">

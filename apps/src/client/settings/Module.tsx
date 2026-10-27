@@ -1,8 +1,8 @@
 import { CheckIcon } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 
-// The settings' grammar, which the account page shares (the app sheet's "Settings in two columns"):
-// each module a row of its heading and what it's for, beside its panel on the tone step. From 1024px
+// The settings' grammar, which the account page shares, so a control is found by its label: each
+// module a row of its heading and what it's for, beside its panel on the tone step. From 1024px
 // the two sit side by side at 2:3 of the centred column (at 1152px, 442 + 48 + 662), the heading level
 // with the panel's first line; below, the heading and help stack over the panel. `heading` takes
 // focus when what had it goes, such as a removed row's button.

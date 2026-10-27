@@ -1,5 +1,5 @@
 // Forked from shadcn's spinner: hidden from screen readers, since every state in Crossfeed leads with
-// its word (brief: States), which says it instead. Don't restore its role="status" with
+// its word (states.tsx), which says it instead. Don't restore its role="status" with
 // `shadcn add spinner --overwrite`.
 import { cn } from 'cn'
 import { Loader2Icon } from 'lucide-react'
