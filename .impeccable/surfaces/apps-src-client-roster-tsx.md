@@ -2,29 +2,30 @@
 version: 1
 slug: 'apps-src-client-roster-tsx'
 primary_target: 'apps/src/client/Roster.tsx'
-related_targets: ['apps/src/client/App.tsx', 'apps/src/style.css']
+# prettier-ignore
+related_targets: ["apps/src/client/RosterModules.tsx", "apps/src/client/Frame.tsx", "apps/src/client/controls.tsx", "apps/src/client/App.tsx", "apps/src/style.css"]
 ---
 
 # Network roster
 
-- **Scope and mode:** a signed-in network's roster page, `/app/:networkId/roster`, and the import form it shares with the demo's roster section (drop or pick a `.csv` or `.txt` file, paste names). Operate.
+- **Scope and mode:** a signed-in network's roster page, `/app/<id>/roster`, and the import it shares with the demo's roster section (paste names, upload a `.csv` or `.txt`, or drop a file anywhere on the page). Operate.
 - **Audience:** a network's head of programming and its bookers, at a desk in daylight, keeping the roster every launch ranks; often two members at once.
-- **Job:** import the roster from the network's own file or pasted names, or start from the sample roster; settle ambiguous shows, map misses to comps, edit figures, leave shows out; re-import a fresh download without losing what's settled; read the CPM an owner set.
+- **Job:** answer "Is my roster ready to rank?": import the roster or start from the sample roster; settle ambiguous shows, map misses to comps, edit figures, leave shows out; re-import a fresh download without losing what's settled; read the CPM an owner set.
 - **Proof and content:** the network's own shows and their Qloo matches, each citing its search call; the sample roster's public show names with every made-up figure labelled sample. No invented figures.
-- **Constraints:** DESIGN.md's Weekly Chart world unchanged. No launch header, fit chart, run log, or guide here: the network's agent refuses launch actions. The CPM changes only in settings, by an owner. A dropped file never navigates the page away.
-- **Chosen direction:** an extension of the launch workspace: its roster section and rail, relocated to the network, with the dashboard's header. Memorable moment: dragging a file anywhere over the page rules the window in ink, with a line along its foot saying what a drop imports, wherever the page is scrolled; the rows then fill in from Qloo as on the demo.
-- **Unresolved:** the inbox page (#164) adds its own pitch upload; the launch workspace (#162) links here for edits.
+- **Constraints:** DESIGN.md's system unchanged. No launch title row, fit chart, plan or guide here: the network's agent refuses launch actions. The CPM changes only in settings, by an owner. A dropped file never navigates the page away.
+- **Chosen direction:** the run pages' canvas and inspector, holding the roster table in the fit chart's row anatomy, with the inspector's Show and Evidence tabs. Memorable moment: dragging a file anywhere over the page rings the window in ink, with an ink line along its foot saying what a drop imports; the rows then fill in from Qloo.
+- **Unresolved:** nothing recorded.
 
 ## Direction contract
 
-THESIS: The roster is the chart's standing list, kept once for every launch: the workspace's roster table and rail on a page of their own. It refuses an uploads dashboard: no file cards, progress bars, or upload history.
+THESIS: The roster is the standing list every launch ranks, kept once for the network: one ranked-list table on the canvas, its shows opening in the inspector. It refuses an uploads dashboard: file cards, progress bars, upload history and filter chips.
 
-OWN-WORLD: The Weekly Chart's white ground, Press Black bar and header rule, the roster table's 44px hairline rows, Label headings, Column Grey help, chips with state markers, Panel Grey for the open show, ink focus rings, tabular figures.
+OWN-WORLD: The achromatic app: the roster as a real table, its rules bleeding 8px past the text, names at 15px 600 over their caption line, figures right-aligned; match chips (Resolved and Mapped tone-filled, Ambiguous and Missed outlined, Lookup failed in crimson with its square ✕, Slow Qloo with its clock), call numbers in mono, the inspector on the card, ink focus rings.
 
-STORY: The member drops the network's CSV, watches each show find its Qloo match, settles the ambiguous ones beside the table while a teammate sees it happen, and next week drops the new download knowing the settled shows stay.
+STORY: The member drops the network's CSV, watches each show find its Qloo match, settles the ambiguous ones in the inspector while a teammate sees it happen, and next week drops the new download knowing the settled shows stay.
 
-FIRST VIEWPORT: Black bar with Roster current. Header: "Roster" as the 22px headline, one Column Grey line saying every launch ranks it. Left: the import form (names field, black Import roster, secondary Upload a file, the note on what a re-import keeps), then the roster table or its empty state with "Start from the sample roster". Rail from the top: the open show's editor, its evidence, Roster check, Network CPM.
+FIRST VIEWPORT: The rail with Roster current and the top bar. Title row: "Roster" at title size, "Every launch on <network> ranks this roster, as it stands when its run starts.", the counts and readiness line, the CPM line, and "Import shows" (primary, opening a sheet) at the right. Then the sample notice, any lookup failures and the roster table; from 1360px the 360px inspector beside it on Show. Empty: the import form as the page's body, and "Start from the sample roster".
 
-FORM: The workspace's chart column and rail, position 1 on my ordered list. This page relocates an established surface's roster section and rail, so new-work §3 "Extend an existing surface" governs it: "Inherit its world and composition. Resolve only the new purpose, content, hierarchy, states, interaction, and how the addition joins the surrounding experience. No concept tournament"; and of the roll, "Never run the script for a local extension or a precisely specified narrow request; shape those directly." seed: none (extension, no roll)
+FORM: design-taste-frontend's app style "Achromatic ledger" with its "Icon rail" shell, dealt by that skill for every app screen (its own seed 823806018), with the redesign brief's palette and type kept in place of the style's; no impeccable roll ran, so there's no list position. seed: none (unavailable)
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
