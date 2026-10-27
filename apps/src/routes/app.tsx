@@ -22,6 +22,8 @@ import {
   createApiKey,
   createInvite,
   createNetwork,
+  GUEST_MEMBER,
+  GUEST_NETWORK,
   lastNetwork,
   memberNetworks,
   memberPasskeys,
@@ -41,8 +43,6 @@ import {
   setRole,
   setupProgress,
   signOutEverywhere,
-  GUEST_MEMBER,
-  GUEST_NETWORK,
   type Member,
   type Network
 } from '../directory'
