@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { linkVariants } from '@/components/ui/variants'
 import type { AccountNetwork, AccountPasskey } from '../directory'
 import { initials, listOf, MAX_NAME } from '../text'
 import { useConfirm } from './Confirm'
 import { Alert, day, ScrollTable, send, useAction, useLeaveGuard } from './controls'
 import { prompted, RecoveryCode, sendConfirmed, useCodeAsk, type Ceremony } from './Passkeys'
-import { textLink } from './RosterModules'
 import { cell, Done, head, Module, settingsColumn } from './settings/Module'
 import { StateLine } from './states'
 
@@ -334,7 +334,7 @@ function NetworksModule({ networks, onlyOwner }: { networks: AccountNetwork[]; o
       {networks.length === 0 ? (
         <p>
           <StateLine kind="empty">You’re not in any network yet.</StateLine>{' '}
-          <a className={textLink} href="/app/new">
+          <a className={linkVariants()} href="/app/new">
             Create a network
           </a>
         </p>
@@ -358,7 +358,7 @@ function NetworksModule({ networks, onlyOwner }: { networks: AccountNetwork[]; o
               {networks.map((n) => (
                 <tr key={n.id}>
                   <th scope="row" className={`${cell} text-left font-normal`}>
-                    <a className={textLink} href={`/app/${n.id}`}>
+                    <a className={linkVariants()} href={`/app/${n.id}`}>
                       {n.name}
                     </a>
                   </th>

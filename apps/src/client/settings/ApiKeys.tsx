@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { linkVariants } from '@/components/ui/variants'
 import type { ApiKey } from '../../directory'
 import { MAX_NAME } from '../../text'
 import { useConfirm } from '../Confirm'
 import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
-import { textLink } from '../RosterModules'
 import { StateLine } from '../states'
 import { cell, head, Module } from './Module'
 
@@ -159,7 +159,7 @@ function OwnerKeys({
       <p className="text-muted-foreground">
         Programs name this network by its ID, <code className="font-mono text-foreground">{network.id}</code>. The API’s
         requests and answers are in its{' '}
-        <a className={textLink} href="/api/v1/openapi.json">
+        <a className={linkVariants()} href="/api/v1/openapi.json">
           OpenAPI document
         </a>
         .

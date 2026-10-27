@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { linkVariants } from '@/components/ui/variants'
 import type { Show, ShowPatch, SlowCall } from '../agent'
 import { dollars } from '../order'
 import { MAX_TITLE } from '../text'
@@ -17,6 +18,7 @@ import { readRosterUpload } from '../upload'
 import type { Session } from './App'
 import {
   Alert,
+  Code,
   DropCue,
   KeyValue,
   KeyValues,
@@ -34,9 +36,6 @@ import { sentence, SlowCalls, slowText, StateLine } from './states'
 
 // The roster's modules, shared by the demo's workspace and a network's roster page: its import, its
 // counts, its table, the show editor, the roster check, and the CPM its slots are priced at.
-
-// A link set in a line of text.
-export const textLink = 'font-medium text-foreground underline decoration-1 underline-offset-4 hover:decoration-2'
 
 // The import answers at once, and each show fills in through synced state as its search settles. A
 // file can come from the picker or be dropped anywhere on the page, so one dropped beside the form
@@ -149,14 +148,6 @@ export function RosterImport({
     </form>
   )
 }
-
-// A name as a file spells it, such as a CSV column or a file type: a code, a touch smaller than the
-// text around it, as mono runs large, but never under 12px.
-export const Code = ({ children }: { children: string }) => (
-  <code className="rounded-sm bg-muted px-1 font-mono text-[length:max(0.75rem,0.92em)] text-foreground">
-    {children}
-  </code>
-)
 
 const resolutionLabel: Record<Show['resolution'], string> = {
   pending: 'Looking up',
@@ -793,7 +784,7 @@ export function CpmRecord({
       <p className="type-caption text-muted-foreground">
         {PRICES} {note && `${note} `}
         {network.role === 'owner' ? (
-          <a className={textLink} href={network.links.settings}>
+          <a className={linkVariants()} href={network.links.settings}>
             {cpm === null ? 'Set it in settings' : 'Change it in settings'}
           </a>
         ) : (

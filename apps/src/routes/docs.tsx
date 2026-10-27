@@ -12,12 +12,12 @@ import mcpConfig from '../../../plugins/crossfeed/.mcp.json?raw'
 import planLaunchPromos from '../../../plugins/crossfeed/skills/plan-launch-promos/SKILL.md?raw'
 import triageGuestPitches from '../../../plugins/crossfeed/skills/triage-guest-pitches/SKILL.md?raw'
 import { MAX_SHOWS } from '../agent'
-import { badgeVariants } from '../components/ui/variants'
+import { badgeVariants, linkVariants, marketingFrame } from '../components/ui/variants'
 import { ChevronDown } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { REFUSALS, type RefusalCode } from '../refusal'
-import { marketingFrame, marketingShell } from '../shell'
+import { marketingShell } from '../shell'
 import { MAX_UPLOAD_BYTES, megabytes } from '../upload'
 import { apiDocument } from './api'
 import { cap, Code, TableScroll } from './marketing'
@@ -98,13 +98,10 @@ const UrlPath = ({ path }: { path: string }) => (
   </>
 )
 
-// A link outside the article's text, underlined as the article's are.
-const link = 'underline decoration-1 underline-offset-4 hover:decoration-2'
-
 // The OpenAPI document's URL: a link while accounts are on, as the API serves it then.
 const OpenApi = ({ accounts }: { accounts: boolean }) =>
   accounts ? (
-    <a href="/api/v1/openapi.json" class={link}>
+    <a href="/api/v1/openapi.json" class={linkVariants({ tone: 'text' })}>
       <code>
         <UrlPath path="/api/v1/openapi.json" />
       </code>
@@ -150,7 +147,7 @@ const DocsNav = ({ path, accounts }: { path: Path; accounts: boolean }) => {
     ['Auth', <code>Bearer cf_live_…</code>],
     [
       'For agents',
-      <a href="/llms.txt" class={link}>
+      <a href="/llms.txt" class={linkVariants({ tone: 'text' })}>
         <code>/llms.txt</code>
       </a>
     ]
