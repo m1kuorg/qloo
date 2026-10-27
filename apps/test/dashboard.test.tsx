@@ -148,6 +148,18 @@ describe('the dashboard', () => {
     expect(listed[4]).toMatch(new RegExp(`^${STEPS[4]} Make a key in settings`))
   })
 
+  it('leaves out of the guest network’s setup what no one in it can do: inviting a teammate and making an API key', async () => {
+    const guest = await openGuest()
+    const agent = await connect(guest, 'guest-network')
+    const html = await dashboard(guest, 'guest-network', await agent.until((s) => s.cpm === 20))
+    const read = words(html)
+    expect(read).toContain('CPM $20 per 1,000 downloads View')
+    expect(read).toContain('Setup · 1 of 3 done Dismiss')
+    const listed = steps(html)
+    expect(listed[0]).toMatch(new RegExp(`^${STEPS[0]} Paste`))
+    expect(listed.slice(1)).toEqual([`${STEPS[1]} Done`, expect.stringMatching(new RegExp(`^${STEPS[2]} Name`))])
+  })
+
   it("is dismissed for the member who dismisses it, and stays for everyone else's", async () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
