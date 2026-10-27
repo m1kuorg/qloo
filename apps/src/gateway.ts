@@ -193,7 +193,9 @@ export class QlooGateway extends DurableObject<Env> {
 
   // Tests `key` with one search on `host`, past the cache, and keeps it as this network's own only once
   // Qloo answers, replacing any key before it; or says why Qloo refused it, keeping nothing. The search
-  // counts against today's cap like any request, but among no one's calls.
+  // counts against today's cap like any request, and once the key is saved, among the network's calls:
+  // it was a call on the network's own key, and this instance serves that network alone. A refused key's
+  // search isn't counted there, as its usage doesn't read this instance until a key is saved.
   async setKey(host: string, key: string): Promise<string | null> {
     // The key goes nowhere but Qloo, whatever the caller checked.
     if (!isQlooHost(host)) throw new Error(`${host} isn't one of Qloo's hosts.`)
@@ -214,6 +216,9 @@ export class QlooGateway extends DurableObject<Env> {
       await seal(this.env.QLOO_KEY_SECRET, key),
       key.slice(-4)
     )
+    // This instance's name is the key the network's limits count under (networkLimitKey).
+    const day = utcDay()
+    this.add('visitor_calls', await sha256(`${this.ctx.id.name}:${day}`), day)
     return null
   }
 

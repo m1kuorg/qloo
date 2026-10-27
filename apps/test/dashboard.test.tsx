@@ -407,7 +407,8 @@ describe('settings', () => {
     await agent.importRoster('Corner Booth')
     const keyed = await settings(ada, id, agent.state())
     expect(words(keyed)).toContain('either way. Key Ends in 7f3a Host hackathon.api.qloo.com Remove key')
-    expect(words(keyed)).toContain('Qloo calls 1 of 2,000 today On the network’s own Qloo key')
+    // The key's test search and the lookup, both on the network's key.
+    expect(words(keyed)).toContain('Qloo calls 2 of 2,000 today On the network’s own Qloo key')
     expect(keyed).not.toContain('qk-made-up-7f3a')
     expect(keyed).not.toContain('Test and save key')
 
