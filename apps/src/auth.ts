@@ -6,6 +6,7 @@ import type { Context, MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import {
+  GUEST_MEMBER,
   SESSION_MS,
   STEP_UP_MS,
   apiKeyFor,
@@ -51,11 +52,28 @@ export async function session<E extends { Bindings: Env }>(c: Context<E>) {
 // The session's token, as the cookie holds it, for the directory to look it up; undefined without one.
 export const sessionToken = (c: Context) => getCookie(c, COOKIE, 'host')
 
+// The 403 for the guest member (ADR 0005), whom every guest is signed in as, for a change to the member
+// or to which networks it's in: its passkeys, recovery code, name, sessions, and account, creating a
+// network, joining one, or leaving the guest network. Null for any other member.
+export const guestRefused = (c: Context, member: Member) =>
+  member.id === GUEST_MEMBER
+    ? c.json(
+        {
+          error:
+            'Everyone who signs in as a guest shares the guest network and its one guest member, so no guest can do this. Sign out and create an account to do it.'
+        },
+        403
+      )
+    : null
+
 // Null when the signed-in `member`'s session proved it's them in the last five minutes (STEP_UP_MS), as
 // adding a passkey, a new recovery code, and deleting the account need. Otherwise the 403 that asks
 // them to, so the page asks at once: for a passkey of theirs, user-verified, with the ceremony's
 // challenge and options, or, in a browser signed in with the recovery code, for that code (`/auth/verify`).
+// The guest member, who has neither, is refused first, before any challenge is written.
 export async function stepUpRefused<E extends { Bindings: Env }>(c: Context<E>, member: Member) {
+  const guest = guestRefused(c, member)
+  if (guest) return guest
   const token = sessionToken(c)
   const proof = token ? await sessionProof(c.env.DB, token) : null
   if (proof?.verified && Date.now() - proof.verified < STEP_UP_MS) return null

@@ -100,6 +100,94 @@ describe('signing in as a guest', () => {
   })
 })
 
+describe('what a guest can’t change', () => {
+  const REFUSED = {
+    error:
+      'Everyone who signs in as a guest shares the guest network and its one guest member, so no guest can do this. Sign out and create an account to do it.'
+  }
+  const post = (guest: Guest, path: string, body: object = {}) =>
+    guest.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const challenges = () => env.DB.prepare('SELECT count(*) AS n FROM challenges').first<number>('n')
+
+  it('refuses the guest member’s passkeys, recovery code, name, sessions, and account, even just signed in, and asks for no step-up', async () => {
+    const guest = await openGuest()
+    const other = await openGuest()
+    for (const [path, body] of [
+      ['/auth/passkeys/options', {}],
+      ['/auth/passkeys', { challenge: 'none', response: {} }],
+      ['/app/account/recovery-code', {}],
+      ['/app/account/name', { name: 'Mallory' }],
+      ['/app/account/sign-out-everywhere', {}],
+      ['/app/account/delete', {}]
+    ] as const) {
+      const refused = await post(guest, path, body)
+      expect(refused.status, path).toBe(403)
+      expect(await refused.json(), path).toEqual(REFUSED)
+    }
+    // No ceremony was started for a step-up the guest member has no passkey or code to answer.
+    expect(await challenges()).toBe(0)
+    // Both guests are still signed in, as the guest member, by its name.
+    for (const g of [guest, other]) {
+      const page = await g.fetch('/app/account')
+      expect(page.status).toBe(200)
+      expect(await page.text()).toContain('data-member-name="Guest"')
+    }
+  })
+
+  it('refuses creating a network, joining one by invite, and leaving the guest network', async () => {
+    const ada = await openMember()
+    const created = await ada.fetch('/app/new', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Night Shift Audio' })
+    })
+    const { id } = await created.json<{ id: string }>()
+    const token = new URL(await ada.invite(id)).hash.slice(1)
+    const guest = await openGuest()
+
+    for (const [path, body] of [
+      ['/app/new', { name: 'Guest Audio' }],
+      ['/auth/join', { token }],
+      ['/app/guest-network/settings/members/leave', {}]
+    ] as const) {
+      const refused = await post(guest, path, body)
+      expect(refused.status, path).toBe(403)
+      expect(await refused.json(), path).toEqual(REFUSED)
+    }
+    // The guest network keeps its guest member, and the invite is still there for a person to use.
+    expect((await guest.fetch('/app/guest-network')).status).toBe(200)
+    expect((await guest.fetch(`/app/${id}`)).status).toBe(404)
+    await openMember({ name: 'Grace Booker', invite: `https://crossfeed.test/invite#${token}` })
+  })
+
+  it('refuses every owner’s change to the guest network, which has no owner', async () => {
+    const guest = await openGuest()
+    const settings = '/app/guest-network/settings'
+    for (const [path, body, error] of [
+      [`${settings}/network`, { name: 'Mine now', cpm: 1 }, 'Only an owner can change the network’s name and CPM.'],
+      [`${settings}/members/invites`, {}, 'Only an owner can invite and manage members.'],
+      [`${settings}/members/guest-member/role`, { role: 'owner' }, 'Only an owner can invite and manage members.'],
+      [`${settings}/members/guest-member/remove`, {}, 'Only an owner can invite and manage members.'],
+      [`${settings}/api-keys`, { name: 'Mine' }, 'Only an owner can create and revoke API keys.'],
+      [
+        `${settings}/qloo-key`,
+        { host: 'https://api.qloo.com', key: 'k' },
+        'Only an owner can add or remove the network’s Qloo key.'
+      ],
+      [`${settings}/delete`, { name: 'Guest network' }, 'Only an owner can delete the network.']
+    ] as const) {
+      const refused = await post(guest, path, body)
+      expect(refused.status, path).toBe(403)
+      expect(await refused.json(), path).toEqual({ error })
+    }
+    const network = await guest.connect('/agents/network/guest-network')
+    expect(network.state()).toMatchObject({ cpm: 20 })
+    const page = await (await guest.fetch(settings)).text()
+    expect(page).toContain('data-network-name="Guest network"')
+    expect(page).toContain('data-role="member"')
+  })
+})
+
 describe('the guest network', () => {
   it('has the sample network’s CPM from its agent’s start, and its roster as guests leave it', async () => {
     const guest = await openGuest()

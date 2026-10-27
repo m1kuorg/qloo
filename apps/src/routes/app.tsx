@@ -8,6 +8,7 @@ import {
   accountsOn,
   endSession,
   fromAppOrigin,
+  guestRefused,
   jsonBody,
   jsonLimit,
   sameOrigin,
@@ -89,6 +90,8 @@ appPages.get('/app/new', async (c) => {
 
 // Creates the network, with the member as its owner, unless they've created NETWORKS_PER_MEMBER.
 appPages.post('/app/new', async (c) => {
+  const guest = guestRefused(c, c.var.member)
+  if (guest) return guest
   const read = readName((await jsonBody(c)).name, 'Name the network.')
   if ('error' in read) return c.json({ error: read.error }, 400)
   const cap = Number(c.env.NETWORKS_PER_MEMBER) || 0
@@ -124,6 +127,8 @@ appPages.get('/app/account', async (c) => {
 
 // Renames the member, as their teammates see them from then on.
 appPages.post('/app/account/name', async (c) => {
+  const guest = guestRefused(c, c.var.member)
+  if (guest) return guest
   const read = readName((await jsonBody(c)).name, 'Enter your name.')
   if ('error' in read) return c.json({ error: read.error }, 400)
   await renameMember(c.env.DB, c.var.member.id, read.name)
@@ -155,6 +160,8 @@ appPages.post('/app/account/recovery-code', async (c) => {
 // Signs the member out on every browser, as when a device is lost: every session ends, this one's
 // cookie goes, and their open pages close on every network and launch.
 appPages.post('/app/account/sign-out-everywhere', async (c) => {
+  const guest = guestRefused(c, c.var.member)
+  if (guest) return guest
   const { id } = c.var.member
   await signOutEverywhere(c.env.DB, id)
   endSession(c)
@@ -406,6 +413,8 @@ appPages.post('/app/:networkId/settings/members/:memberId/remove', async (c) => 
 
 // Leaves the network, unless the member is its last owner. Their other open pages close too.
 appPages.post('/app/:networkId/settings/members/leave', async (c) => {
+  const guest = guestRefused(c, c.var.member)
+  if (guest) return guest
   const id = c.req.param('networkId')
   if (!(await memberRole(c.env.DB, id, c.var.member.id))) return c.notFound()
   if (!(await removeMember(c.env.DB, id, c.var.member.id, c.var.member.id)))
