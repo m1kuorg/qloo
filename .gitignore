@@ -82,6 +82,8 @@ tmbootpicker.efi
 node_modules/
 .worktrees/
 .playwright-cli/
+# The design-taste skill's inspections and dealt sheets
+.taste-skill/
 
 # Environment
 .env*
