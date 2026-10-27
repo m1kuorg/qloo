@@ -30,6 +30,7 @@ import {
   addPasskey,
   findInvite,
   findPasskey,
+  GUEST_SESSION_MS,
   guestSignIn,
   invitedCapped,
   isRecoveryCode,
@@ -415,7 +416,7 @@ auth.post('/auth/recover', async (c) => {
 auth.post('/auth/guest', async (c) => {
   const token = await guestSignIn(c.env.DB, sessionToken(c))
   if (!token) return refuse(c, 'Guest sign-in failed. Try again.', 429)
-  setSession(c, token)
+  setSession(c, token, GUEST_SESSION_MS)
   console.log(JSON.stringify({ event: 'guest_sign_in' }))
   return c.json({ next: nextPath(c, c.req.query('next')) })
 })

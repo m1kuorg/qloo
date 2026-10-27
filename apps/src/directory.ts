@@ -5,8 +5,10 @@
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { sha256 } from './text'
 
-// A session lasts 30 days from its last use; a use extends it at most once a minute.
+// A session lasts 30 days from its last use; a use extends it at most once a minute. A guest session
+// lasts a day from sign-in, and isn't extended (ADR 0005).
 export const SESSION_MS = 30 * 24 * 60 * 60_000
+export const GUEST_SESSION_MS = 24 * 60 * 60_000
 const SEEN_EVERY_MS = 60_000
 // A passkey ceremony's challenge is good for five minutes.
 const CHALLENGE_MS = 5 * 60_000
@@ -173,8 +175,9 @@ export async function signIn(db: D1Database, passkey: Passkey, counter: number) 
   return secret
 }
 
-// Signs in as the guest member: a new session of its own, which never proves it's the member. The
-// session the browser held, with token `held`, ends in the same batch, once the guest's is written.
+// Signs in as the guest member: a new session of its own, for a day, which never proves it's the
+// member. The session the browser held, with token `held`, ends in the same batch, once the guest's is
+// written.
 export async function guestSignIn(db: D1Database, held?: string) {
   const secret = token()
   const hash = await sha256(secret)
@@ -182,7 +185,7 @@ export async function guestSignIn(db: D1Database, held?: string) {
   const [written] = await db.batch([
     db
       .prepare('INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) VALUES (?1, ?2, ?3, ?4, ?3)')
-      .bind(hash, GUEST_MEMBER, now, now + SESSION_MS),
+      .bind(hash, GUEST_MEMBER, now, now + GUEST_SESSION_MS),
     ...(held
       ? [
           db
@@ -226,7 +229,7 @@ export async function newRecoveryCode(db: D1Database, memberId: string) {
 }
 
 // The member a session token belongs to, while the session lasts. A use more than a minute after the
-// last extends it, and `extended` says so, for the cookie to be extended too.
+// last extends it, unless it's a guest session, and `extended` says so, for the cookie to be extended too.
 export async function sessionMember(db: D1Database, token: string): Promise<(Member & { extended: boolean }) | null> {
   const hash = await sha256(token)
   const now = Date.now()
@@ -237,7 +240,7 @@ export async function sessionMember(db: D1Database, token: string): Promise<(Mem
     .bind(hash, now)
     .first<{ id: string; name: string; last_seen: number }>()
   if (!row) return null
-  const extended = now - row.last_seen >= SEEN_EVERY_MS
+  const extended = row.id !== GUEST_MEMBER && now - row.last_seen >= SEEN_EVERY_MS
   if (extended)
     await db
       .prepare('UPDATE sessions SET last_seen = ?, expires = ? WHERE token_hash = ?')
