@@ -360,7 +360,9 @@ describe("the guest network's daily budget", () => {
     GUEST_PITCHES: env.GUEST_PITCHES,
     RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
     FREE_START_DAILY_CAP: env.FREE_START_DAILY_CAP,
-    QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP
+    QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP,
+    RUN_DAILY_CAP: env.RUN_DAILY_CAP,
+    QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP
   }
   const open: Omit<Session, 'cookie'>[] = []
   afterEach(() => {
@@ -479,5 +481,33 @@ describe("the guest network's daily budget", () => {
       await expect(guest.call('searchComps', 'Night Shift Cinema', 'Night Ferry')).rejects.toThrow(used)
     }
     expect(dot.state()!.roster.map((show) => show.name)).toEqual(['Night Shift Cinema'])
+  })
+
+  it('counts guests’ model runs and Qloo calls toward Crossfeed’s caps across every network too', async () => {
+    env.GUEST_PITCHES = 'on'
+    env.RUN_DAILY_CAP = '1'
+    env.QLOO_DAILY_CALL_CAP = '1'
+    fakeQloo({ search })
+    // The guest's inbox load reads its one pitch, which pitches no public work.
+    fakeClaude([turn(text(JSON.stringify({ guest: 'Ada Quill', work: null })))])
+    const guest = await connect(await openGuest({ ip: adaIp }), adaIp)
+    await guest.importRoster('Night Shift Cinema')
+    await guest.call('loadInbox', pitch)
+    await guest.until((s) => s.inbox?.status === 'done')
+
+    const ada = await openMember()
+    const created = await ada.fetch('/app/new', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Night Shift Audio' })
+    })
+    const network = await ada.connect(`/agents/network/${(await created.json<{ id: string }>()).id}`)
+    open.push(network)
+    await expect(network.call('loadInbox', pitch)).rejects.toThrow(
+      "Crossfeed's cap of 1 model run a day across all visitors is reached; it resets at 00:00 UTC."
+    )
+    expect((await network.importRoster('Night Ferry')).roster).toMatchObject([
+      { resolution: 'failed', error: 'The daily cap of 1 Qloo calls is reached; it resets at 00:00 UTC' }
+    ])
   })
 })
