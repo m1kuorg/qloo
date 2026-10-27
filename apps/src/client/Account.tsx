@@ -28,7 +28,8 @@ const Lede = ({ title, children }: { title: string; children: ReactNode }) => (
   </div>
 )
 
-export function SignInPage({ next }: { next: string }) {
+// `runs` is the guest network's model runs a day, which everyone who signs in as a guest shares.
+export function SignInPage({ next, runs }: { next: string; runs: number }) {
   // A recovery code to show once, after a sign-up or a recovery, until the member says they've saved
   // it, and where they go then: `next` after a sign-up, and the account page after a recovery, to add a
   // passkey for the device they're on.
@@ -68,8 +69,39 @@ export function SignInPage({ next }: { next: string }) {
           title="New here? Create an account"
           onCode={(c) => setCode({ code: c, next })}
         />
+        <GuestSignIn next={next} runs={runs} />
       </div>
     </main>
+  )
+}
+
+// Signing in as a guest (ADR 0005), with no passkey, so it stays open in a browser without passkeys:
+// one click into the guest network, which every guest shares with its daily limits, then on to where
+// the answer says, `next` under the sign-in's rules.
+function GuestSignIn({ next, runs }: { next: string; runs: number }) {
+  const { busy, error, run } = useAction()
+  const signIn = () =>
+    run(async () => {
+      const answer = await send<{ next: string }>(`/auth/guest?next=${encodeURIComponent(next)}`)
+      window.location.assign(answer.next)
+    })
+  return (
+    <section className={panel} aria-labelledby="way-guest">
+      <div className="flex flex-col gap-1">
+        <h2 className="type-body font-medium" id="way-guest">
+          Look around as a guest
+        </h2>
+        <p className="text-muted-foreground">
+          Everyone who signs in as a guest shares one guest network and its daily limits,{' '}
+          {runs === 1 ? '1 model run' : `${runs} model runs`} a day between them, so put nothing private in it.
+        </p>
+      </div>
+      <Button variant="secondary" className="w-full" disabled={busy} onClick={() => void signIn()}>
+        {busy && <Spinner data-icon="inline-start" />}
+        {busy ? 'Signing in…' : 'Sign in as a guest'}
+      </Button>
+      <Alert error={error} />
+    </section>
   )
 }
 
