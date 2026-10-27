@@ -435,7 +435,7 @@ KV is a poor fit because writes take 60 seconds or more to propagate, and the Ca
 
 ## Deployment and configuration
 
-One Worker, `crossfeed`, in the `qloo` Cloudflare account, serves production at <https://crossfeed.m1kuorg.workers.dev>; the `preview` environment deploys a separate Worker, `crossfeed-preview`, at <https://crossfeed-preview.m1kuorg.workers.dev>, with its own D1 database, Durable Objects, rate limit namespaces, and secrets, for checking the product before production. `apps/wrangler.jsonc` holds both. Wrangler doesn't inherit `vars`, secrets, or bindings into an environment, so each is repeated under `env.preview`, which differs only in `ACCOUNTS`, the host in `RP_ID` and `APP_ORIGINS`, the D1 database, and the rate limits' namespace IDs. After changing it, `bun run cf-typegen` regenerates `Env` in `worker-configuration.d.ts`. The [apps README](/apps/README.md#deploy) is the how-to.
+One Worker, `crossfeed`, in the `m1kuorg` Cloudflare account, serves production at <https://crossfeed.m1kuorg.workers.dev>; the `preview` environment deploys a separate Worker, `crossfeed-preview`, at <https://crossfeed-preview.m1kuorg.workers.dev>, with its own D1 database, Durable Objects, rate limit namespaces, and secrets, for checking the product before production. `apps/wrangler.jsonc` holds both. Wrangler doesn't inherit `vars`, secrets, or bindings into an environment, so each is repeated under `env.preview`, which differs only in `ACCOUNTS`, the host in `RP_ID` and `APP_ORIGINS`, the D1 database, and the rate limits' namespace IDs. After changing it, `bun run cf-typegen` regenerates `Env` in `worker-configuration.d.ts`. The [apps README](/apps/README.md#deploy) is the how-to.
 
 ### Variables and secrets
 
