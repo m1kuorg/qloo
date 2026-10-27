@@ -195,18 +195,18 @@ export async function guestSignIn(db: D1Database, perMinute: number, held?: stri
         'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?1, ?2, ?3, ?4, ?3 WHERE (SELECT count(*) FROM sessions WHERE member_id = ?2 AND created > ?5) < ?6'
       )
       .bind(hash, GUEST_MEMBER, now, now + GUEST_SESSION_MS, now - GUEST_SIGNINS_MS, perMinute),
-    ...(held ? ending(db, await sha256(held), hash) : [])
+    ...(held ? endSessionStatements(db, await sha256(held), hash) : [])
   ])
   return written.meta.changes ? secret : null
 }
 
 // The statements that end the session whose token hash is `hash`: a member's is deleted, and a guest's
 // expires now, so it still counts toward the minute's guest sign-ins until the daily cleanup deletes it.
-// With `written`, a session's hash, only once that session is there.
-function ending(db: D1Database, hash: string, written?: string) {
-  const once = written ? ' AND EXISTS (SELECT 1 FROM sessions WHERE token_hash = ?4)' : ''
+// With `replacement`, the hash of the session that replaces it, only once that session is written.
+function endSessionStatements(db: D1Database, hash: string, replacement?: string) {
+  const whenReplaced = replacement ? ' AND EXISTS (SELECT 1 FROM sessions WHERE token_hash = ?4)' : ''
   const statement = (sql: string) =>
-    db.prepare(sql + once).bind(hash, Date.now(), GUEST_MEMBER, ...(written ? [written] : []))
+    db.prepare(sql + whenReplaced).bind(hash, Date.now(), GUEST_MEMBER, ...(replacement ? [replacement] : []))
   return [
     statement('UPDATE sessions SET expires = ?2 WHERE token_hash = ?1 AND member_id = ?3'),
     statement('DELETE FROM sessions WHERE token_hash = ?1 AND member_id <> ?3')
@@ -301,7 +301,7 @@ export async function isRecoveryCode(db: D1Database, memberId: string, code: str
 
 // Ends the session with token `token`, if there is one.
 export async function signOut(db: D1Database, token: string) {
-  await db.batch(ending(db, await sha256(token)))
+  await db.batch(endSessionStatements(db, await sha256(token)))
 }
 
 // Ends every one of member `memberId`'s sessions, on every browser.
