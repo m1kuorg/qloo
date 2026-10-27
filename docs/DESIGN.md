@@ -402,6 +402,7 @@ Every `/app` page: a 56px icon rail beside a column of a 48px top bar over the p
 
 - **Rail:** on the page ground with nothing dividing it, sticky full height. The mark at the top links `/app`, then Launches (the dashboard), Roster, Inbox (while `GUEST_PITCHES` is on), and Settings at the rail's foot. Each is an 18px outline icon on a 40px square, its name a tooltip from 768px and its accessible name; the current one sits on a tone-step square with `aria-current="page"` (`"true"` for a launch page under Launches).
 - **Top bar:** the network switcher (a native `<details>` showing the network's name after a visually hidden "Network: "; its menu lists `Your networks`, the current one checked, then "New network"), and at the right the account menu (the member's initials and name after a visually hidden "Account: "; its menu: "Signed in as", "Your account", "Sign out").
+- **Guest notice:** for the guest member alone ([ADR 0005](/docs/adr/0005-guests-share-one-member-and-network.md)), every page has a strip on the tone step under the top bar, `<aside aria-label="Guest notice">`: "You’re signed in as a guest." in 500, that every guest shares the guest network and its daily limits, and "Sign out and create an account", a link button that `main.tsx` wires as it does Sign out. It scrolls with the page and can't be dismissed. The switcher offers a guest no "New network".
 - **Pages outside a network** (`/app/new`, `/app/account`) have the mark alone in the rail and "Your networks" in the switcher.
 - **Phones:** one nav at every width. Under 768px the same `<nav>` restyles as a bottom bar, each icon over its name, so there's one nav landmark and one current item, and the mark moves to the top bar.
 
@@ -515,11 +516,11 @@ The roster table (`RosterTable`), the inbox's pitch lists and the launches table
 
 ### Launches dashboard
 
-`Dashboard.tsx`: h1 "Launches" with counts ("2 need you · 1 running · 4 launches") and "New launch", which opens a dialog. Launches are grouped by who's blocked, groups shown only when they have rows: Needs you (waiting, order drafted, failed, stopped), Running, Ranked, Not run yet, Approved; latest run first within a group. Status shows the on-air dot for running and waiting, an ink check for an approved order, the square ✕ and the word in crimson for failed and stopped. Each row has a finalist meter and a row menu with Delete. Beside it, the Network panel (roster, inbox and CPM lines) and Setup ("Setup · 2 of 5 done", a real `<ol>`, until this member dismisses it).
+`Dashboard.tsx`: h1 "Launches" with counts ("2 need you · 1 running · 4 launches") and "New launch", which opens a dialog. Launches are grouped by who's blocked, groups shown only when they have rows: Needs you (waiting, order drafted, failed, stopped), Running, Ranked, Not run yet, Approved; latest run first within a group. Status shows the on-air dot for running and waiting, an ink check for an approved order, the square ✕ and the word in crimson for failed and stopped. Each row has a finalist meter and a row menu with Delete. Beside it, the Network panel (roster, inbox and CPM lines) and Setup ("Setup · 2 of 5 done", a real `<ol>`, until this member dismisses it; the guest network's has three steps, with no invite or API key).
 
 ### Settings grammar
 
-`settings/Module.tsx`, shared by settings and the account page: a centred column about 1152px wide; each module a row of its heading and what it's for, beside its panel on the tone step, side by side at 2:3 from 1024px and stacked below. Owner-only modules show members read-only text, never nothing. One-time secrets (an API key, an invite link) show once in a read-only mono field with "Copy".
+`settings/Module.tsx`, shared by settings and the account page: a centred column about 1152px wide; each module a row of its heading and what it's for, beside its panel on the tone step, side by side at 2:3 from 1024px and stacked below. Owner-only modules show members read-only text, never nothing; in the guest network, which has no owner, the text says so (`ownersOnly` in `NetworkPage.tsx`). One-time secrets (an API key, an invite link) show once in a read-only mono field with "Copy".
 
 ### Forms
 
