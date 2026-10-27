@@ -210,6 +210,9 @@ describe('the privacy page and the beta terms', () => {
     const accountGone =
       'Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you’re in, or were in before, say “Former member” on the runs you started and the orders you approved, and the replies you approved no longer say who did. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or is made a member. A network that can’t be reached at once forgets your name at the next day’s cleanup. It’s refused while you’re a network’s only owner. “Sign out everywhere” deletes every session of yours.'
     const perMinute = 'Each API key, and each visitor’s sign-in requests, are also limited per minute'
+    const guest =
+      'Signing in as a guest asks for nothing and keeps only a hash of your session, for a day. Every guest is the same guest member, in the one guest network: everything in it, its roster, launches, runs, inbox, and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them deletes or replaces it. Nothing resets it on a schedule.'
+    const guestCount = 'Guest sign-ins are counted for everyone together, with no address.'
     const ownKey =
       'A network’s own Qloo key, if an owner adds one, is kept encrypted in the network’s own Qloo storage, with the host it’s for and its last four characters, the only part of it anyone is shown.'
     const ownKeySent =
@@ -229,7 +232,8 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).toContain(launchGone)
     expect(words(await page('/privacy'))).toContain(networkGone)
     expect(words(await page('/privacy'))).toContain(accountGone)
-    for (const line of [ownKey, ownKeySent, keyGone]) expect(words(await page('/privacy'))).toContain(line)
+    for (const line of [ownKey, ownKeySent, keyGone, guest, guestCount])
+      expect(words(await page('/privacy'))).toContain(line)
     for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).toContain(line)
     expect(words(await page('/terms'))).toContain(cap)
     expect(words(await page('/terms'))).toContain(network)
@@ -241,7 +245,8 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).not.toContain(left)
     expect(words(await page('/privacy'))).not.toContain(launchGone)
     expect(words(await page('/privacy'))).not.toContain(accountGone)
-    for (const line of [ownKey, ownKeySent, keyGone]) expect(words(await page('/privacy'))).not.toContain(line)
+    for (const line of [ownKey, ownKeySent, keyGone, guest, guestCount])
+      expect(words(await page('/privacy'))).not.toContain(line)
     for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).not.toContain(line)
     expect(words(await page('/privacy'))).toContain('each visitor’s counts for the day')
     expect(words(await page('/terms'))).not.toContain(cap)
