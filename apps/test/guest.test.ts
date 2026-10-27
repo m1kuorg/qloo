@@ -136,3 +136,34 @@ describe('a guest session', () => {
     expect(ended.headers.get('location')).toBe('/sign-in?next=/app/guest-network')
   })
 })
+
+describe('the guest sign-in limit', () => {
+  const BUSY = { error: 'Guest sign-ins are busy for everyone right now. Try again in a minute.' }
+
+  it('lets 30 guests sign in a minute in all, from any address or none, then refuses the next until a minute on', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.now()
+    // GUEST_SIGNINS_PER_MINUTE, as wrangler.jsonc sets it: 21 from one address, past the sign-in requests a
+    // minute one visitor's address may send, 5 from another, and 4 with none.
+    const from = [...Array(21).fill('203.0.113.7'), ...Array(5).fill('198.51.100.4'), ...Array(4).fill(undefined)]
+    for (const ip of from) expect((await guestSignIn({ ip })).status).toBe(200)
+
+    for (const ip of ['192.0.2.1', '2001:db8::1', undefined]) {
+      const refused = await guestSignIn({ ip })
+      expect(refused.status).toBe(429)
+      expect(refused.headers.get('retry-after')).toBe('60')
+      expect(refused.headers.get('set-cookie')).toBeNull()
+      expect(await refused.json()).toEqual(BUSY)
+    }
+    vi.setSystemTime(start + 60_000 - 1)
+    expect((await guestSignIn({ ip: '192.0.2.1' })).status).toBe(429)
+    vi.setSystemTime(start + 60_000)
+    expect((await guestSignIn({ ip: '192.0.2.1' })).status).toBe(200)
+  })
+
+  it('counts exactly, so two sign-ins at once for the last place leave one refused', async () => {
+    for (let i = 0; i < 29; i++) expect((await guestSignIn()).status).toBe(200)
+    const both = await Promise.all([guestSignIn({ ip: '203.0.113.7' }), guestSignIn({ ip: '198.51.100.4' })])
+    expect(both.map((res) => res.status).sort()).toEqual([200, 429])
+  })
+})
