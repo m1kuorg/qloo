@@ -1,3 +1,240 @@
+---
+name: Crossfeed
+description: A network's own shows ranked by who listens, set as the biggest thing on the screen; ink on a cool grey ground, one signal orange, light or dark as the system sets it.
+colors:
+  background: '#f8f8fa'
+  card: '#ffffff'
+  popover: '#ffffff'
+  muted: '#efeff3'
+  accent: '#efeff3'
+  foreground: '#121318'
+  muted-foreground: '#5f626d'
+  border: '#e3e4ea'
+  input: '#868995'
+  primary: '#121318'
+  primary-foreground: '#ffffff'
+  secondary: '#e8e9ee'
+  secondary-foreground: '#121318'
+  signal: '#e4630c'
+  signal-foreground: '#121318'
+  signal-ink: '#a24a00'
+  signal-tint: '#fdeee2'
+  destructive: '#c8153e'
+  destructive-foreground: '#ffffff'
+  ring: '#121318'
+  scrim: 'rgb(18 19 24 / 0.4)'
+  background-dark: '#0e0f12'
+  card-dark: '#16171c'
+  popover-dark: '#16171c'
+  muted-dark: '#1d1f25'
+  accent-dark: '#1d1f25'
+  foreground-dark: '#ececf1'
+  muted-foreground-dark: '#9a9daa'
+  border-dark: '#26282f'
+  input-dark: '#6c6f7c'
+  primary-dark: '#ececf1'
+  primary-foreground-dark: '#0e0f12'
+  secondary-dark: '#24262d'
+  secondary-foreground-dark: '#ececf1'
+  signal-dark: '#ff8a3d'
+  signal-foreground-dark: '#0e0f12'
+  signal-ink-dark: '#ffa266'
+  signal-tint-dark: '#2a1a0e'
+  destructive-dark: '#ff5c7a'
+  destructive-foreground-dark: '#0e0f12'
+  ring-dark: '#ececf1'
+  scrim-dark: 'rgb(0 0 0 / 0.6)'
+typography:
+  caption:
+    fontFamily: 'Schibsted Grotesk Variable, Schibsted Grotesk Fallback, ui-sans-serif, system-ui, sans-serif'
+    fontSize: '0.75rem'
+    lineHeight: 1.45
+    letterSpacing: '0'
+  ui:
+    fontFamily: 'Schibsted Grotesk Variable, Schibsted Grotesk Fallback, ui-sans-serif, system-ui, sans-serif'
+    fontSize: '0.875rem'
+    lineHeight: 1.45
+    letterSpacing: '0'
+  body:
+    fontFamily: 'Schibsted Grotesk Variable, Schibsted Grotesk Fallback, ui-sans-serif, system-ui, sans-serif'
+    fontSize: '1rem'
+    lineHeight: 1.55
+    letterSpacing: '0'
+  title:
+    fontFamily: 'Schibsted Grotesk Variable, Schibsted Grotesk Fallback, ui-sans-serif, system-ui, sans-serif'
+    fontSize: '1.5rem'
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: '-0.01em'
+  display:
+    fontFamily: 'Schibsted Grotesk Variable, Schibsted Grotesk Fallback, ui-sans-serif, system-ui, sans-serif'
+    fontSize: 'clamp(36px, 2rem + 2vw, 56px)'
+    fontWeight: 600
+    lineHeight: 1.04
+    letterSpacing: '-0.025em'
+  poster:
+    fontFamily: 'Schibsted Grotesk Variable, Schibsted Grotesk Fallback, ui-sans-serif, system-ui, sans-serif'
+    fontSize: 'clamp(96px, 12.5vw, 200px)'
+    fontWeight: 600
+    lineHeight: 0.86
+    letterSpacing: '-0.05em'
+  index:
+    fontFamily: 'Schibsted Grotesk Variable, Schibsted Grotesk Fallback, ui-sans-serif, system-ui, sans-serif'
+    fontSize: 'clamp(28px, 1rem + 3.6vw, 72px)'
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: '-0.03em'
+  show-name:
+    fontFamily: 'Schibsted Grotesk Variable, Schibsted Grotesk Fallback, ui-sans-serif, system-ui, sans-serif'
+    fontSize: '15px'
+    fontWeight: 600
+    lineHeight: 1.375
+  mono:
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace'
+rounded:
+  sm: '4px'
+  md: '4px'
+  lg: '6px'
+  xl: '8px'
+  full: 'calc(infinity * 1px)'
+spacing:
+  unit: '4px'
+  gutter-narrow: '16px'
+  gutter: '24px'
+  block: '24px'
+  panel: '16px'
+  margin-marketing-phone: '24px'
+  margin-marketing: '40px'
+components:
+  button-primary:
+    backgroundColor: '{colors.primary}'
+    textColor: '{colors.primary-foreground}'
+    typography: '{typography.ui}'
+    rounded: '{rounded.lg}'
+    height: '32px'
+    padding: '0 12px'
+  button-secondary:
+    backgroundColor: '{colors.secondary}'
+    textColor: '{colors.secondary-foreground}'
+    typography: '{typography.ui}'
+    rounded: '{rounded.lg}'
+    height: '32px'
+    padding: '0 12px'
+  button-ghost:
+    textColor: '{colors.foreground}'
+    typography: '{typography.ui}'
+    rounded: '{rounded.lg}'
+    height: '32px'
+    padding: '0 12px'
+  button-ghost-hover:
+    backgroundColor: '{colors.muted}'
+  button-link:
+    textColor: '{colors.foreground}'
+    typography: '{typography.ui}'
+  button-destructive:
+    textColor: '{colors.destructive}'
+    typography: '{typography.ui}'
+    rounded: '{rounded.lg}'
+    height: '32px'
+    padding: '0 12px'
+  button-destructive-solid:
+    backgroundColor: '{colors.destructive}'
+    textColor: '{colors.destructive-foreground}'
+    typography: '{typography.ui}'
+    rounded: '{rounded.lg}'
+    height: '32px'
+    padding: '0 12px'
+  button-sm:
+    height: '28px'
+    padding: '0 10px'
+  button-lg:
+    typography: '{typography.body}'
+    height: '44px'
+    padding: '0 20px'
+  input:
+    backgroundColor: '{colors.card}'
+    textColor: '{colors.foreground}'
+    typography: '{typography.ui}'
+    rounded: '{rounded.lg}'
+    height: '32px'
+    padding: '4px 10px'
+  chip:
+    backgroundColor: '{colors.muted}'
+    textColor: '{colors.foreground}'
+    typography: '{typography.caption}'
+    rounded: '{rounded.lg}'
+    height: '20px'
+    padding: '0 6px'
+  chip-outline:
+    textColor: '{colors.foreground}'
+    typography: '{typography.caption}'
+    rounded: '{rounded.lg}'
+    height: '20px'
+    padding: '0 6px'
+  chip-destructive:
+    textColor: '{colors.destructive}'
+    typography: '{typography.caption}'
+    rounded: '{rounded.lg}'
+    height: '20px'
+    padding: '0 6px'
+  segmented-track:
+    backgroundColor: '{colors.muted}'
+    rounded: '{rounded.lg}'
+    height: '32px'
+    padding: '2px'
+  segmented-item:
+    textColor: '{colors.muted-foreground}'
+    rounded: '{rounded.md}'
+    height: '28px'
+    padding: '0 10px'
+  segmented-item-active:
+    backgroundColor: '{colors.card}'
+    textColor: '{colors.foreground}'
+  call-number:
+    textColor: '{colors.muted-foreground}'
+    typography: '{typography.mono}'
+    rounded: '{rounded.lg}'
+    height: '20px'
+    padding: '0 4px'
+  call-number-open:
+    backgroundColor: '{colors.primary}'
+    textColor: '{colors.primary-foreground}'
+  readout:
+    backgroundColor: '{colors.muted}'
+    rounded: '{rounded.lg}'
+    height: '40px'
+    padding: '8px 12px'
+  on-air-dot:
+    backgroundColor: '{colors.signal}'
+    rounded: '{rounded.full}'
+    size: '8px'
+  on-air-dot-ended:
+    backgroundColor: '{colors.foreground}'
+  panel:
+    backgroundColor: '{colors.card}'
+    rounded: '{rounded.xl}'
+    padding: '16px'
+  menu:
+    backgroundColor: '{colors.popover}'
+    textColor: '{colors.foreground}'
+    rounded: '{rounded.xl}'
+  rail:
+    backgroundColor: '{colors.background}'
+    width: '56px'
+  rail-item-current:
+    backgroundColor: '{colors.muted}'
+    rounded: '{rounded.lg}'
+    size: '40px'
+  top-bar:
+    backgroundColor: '{colors.background}'
+    height: '48px'
+    padding: '0 24px'
+  inspector:
+    backgroundColor: '{colors.card}'
+    width: '360px'
+    padding: '16px'
+---
+
 # Design
 
 Crossfeed's design system as it ships: the idea behind the look, the tokens, the shells, the components and the recipes they share, the patterns each screen is built from, the rules the Content-Security-Policy sets for UI work, and how a change is checked. [PRODUCT.md](/docs/PRODUCT.md) owns what the product does; this file owns how it looks and behaves. The code it describes is in `apps/src/`: `style.css` holds the tokens, `components/ui/` the components, and `client/` the island's screens.

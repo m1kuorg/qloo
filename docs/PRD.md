@@ -56,7 +56,7 @@ Every ranking opens to its evidence: the Qloo call, the entities and tags it use
 
 ### The sample network
 
-The landing page at `/` explains Crossfeed in one screen, with an illustrative chart of made-up shows, and its first button opens the sample network at `/demo` with no sign-in. The sample network opens on The Ringer's public show names with labelled sample figures, a guide through the sample launch, a stored run that replays when Qloo can't be called, and daily limits per visitor. An old `/inbox` link opens the sample inbox at `/demo/inbox`. While `ACCOUNTS` is on, the landing page and the demo also offer "Create your network".
+The landing page at `/` says what Crossfeed does in its first screen, then lets a visitor re-rank a made-up network's roster by who listens or by topic, labelled an illustration, and its first button opens the sample network at `/demo` with no sign-in. The sample network opens on The Ringer's public show names with labelled sample figures, a guide through the sample launch, a stored run that replays when Qloo can't be called, and daily limits per visitor. An old `/inbox` link opens the sample inbox at `/demo/inbox`. While `ACCOUNTS` is on, the landing page and the demo also offer "Create your network".
 
 ### Networks and members
 

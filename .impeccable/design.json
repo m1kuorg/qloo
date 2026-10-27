@@ -1,234 +1,490 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-22T00:00:00Z",
+  "generatedAt": "2026-10-27T06:34:47.497Z",
   "title": "Design system: Crossfeed",
   "extensions": {
     "colorMeta": {
+      "background": {
+        "role": "neutral",
+        "displayName": "Page ground",
+        "description": "The page ground every shell sits on, the rail and the top bar included.",
+        "scheme": "light",
+        "dark": "#0e0f12",
+        "darkToken": "background-dark"
+      },
+      "background-dark": {
+        "role": "neutral",
+        "displayName": "Page ground, dark",
+        "description": "The page ground every shell sits on, the rail and the top bar included. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#f8f8fa",
+        "lightToken": "background"
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Raised surface",
+        "description": "Panels, the inspector, the question card, the plan, and every text field, whatever it sits on.",
+        "scheme": "light",
+        "dark": "#16171c",
+        "darkToken": "card-dark"
+      },
+      "card-dark": {
+        "role": "neutral",
+        "displayName": "Raised surface, dark",
+        "description": "Panels, the inspector, the question card, the plan, and every text field, whatever it sits on. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#ffffff",
+        "lightToken": "card"
+      },
+      "popover": {
+        "role": "neutral",
+        "displayName": "Raised surface, floating",
+        "description": "The raised surface as what floats takes it: menus, popovers, selects, dialogs and sheets, on the one floating shadow.",
+        "scheme": "light",
+        "dark": "#16171c",
+        "darkToken": "popover-dark"
+      },
+      "popover-dark": {
+        "role": "neutral",
+        "displayName": "Raised surface, floating, dark",
+        "description": "The raised surface as what floats takes it: menus, popovers, selects, dialogs and sheets, on the one floating shadow. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#ffffff",
+        "lightToken": "popover"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Tone step",
+        "description": "Hover, group headers, code, the on-air readout, a segmented track, the current rail item, and the default chip.",
+        "scheme": "light",
+        "dark": "#1d1f25",
+        "darkToken": "muted-dark"
+      },
+      "muted-dark": {
+        "role": "neutral",
+        "displayName": "Tone step, dark",
+        "description": "Hover, group headers, code, the on-air readout, a segmented track, the current rail item, and the default chip. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#efeff3",
+        "lightToken": "muted"
+      },
+      "accent": {
+        "role": "neutral",
+        "displayName": "Tone step (shadcn accent)",
+        "description": "shadcn's hover wash, the same value as --muted, not the signal.",
+        "scheme": "light",
+        "dark": "#1d1f25",
+        "darkToken": "accent-dark"
+      },
+      "accent-dark": {
+        "role": "neutral",
+        "displayName": "Tone step (shadcn accent), dark",
+        "description": "shadcn's hover wash, the same value as --muted, not the signal. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#efeff3",
+        "lightToken": "accent"
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "description": "Running text in full ink, and the card, popover, accent and secondary foregrounds.",
+        "scheme": "light",
+        "dark": "#ececf1",
+        "darkToken": "foreground-dark"
+      },
+      "foreground-dark": {
+        "role": "neutral",
+        "displayName": "Ink, dark",
+        "description": "Running text in full ink, and the card, popover, accent and secondary foregrounds. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#121318",
+        "lightToken": "foreground"
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Secondary text",
+        "description": "Captions, help lines, timestamps, unchosen segmented items, and a call number at rest.",
+        "scheme": "light",
+        "dark": "#9a9daa",
+        "darkToken": "muted-foreground-dark"
+      },
+      "muted-foreground-dark": {
+        "role": "neutral",
+        "displayName": "Secondary text, dark",
+        "description": "Captions, help lines, timestamps, unchosen segmented items, and a call number at rest. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#5f626d",
+        "lightToken": "muted-foreground"
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Rules in tables",
+        "description": "The 1px rules inside real tables and the landing page’s interface fragments (data-ui), nowhere else.",
+        "scheme": "light",
+        "dark": "#26282f",
+        "darkToken": "border-dark"
+      },
+      "border-dark": {
+        "role": "neutral",
+        "displayName": "Rules in tables, dark",
+        "description": "The 1px rules inside real tables and the landing page’s interface fragments (data-ui), nowhere else. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#e3e4ea",
+        "lightToken": "border"
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Control outlines",
+        "description": "Inputs, checkboxes, radios, outlined chips and the chosen segmented item: 3:1 on the tone step too.",
+        "scheme": "light",
+        "dark": "#6c6f7c",
+        "darkToken": "input-dark"
+      },
+      "input-dark": {
+        "role": "neutral",
+        "displayName": "Control outlines, dark",
+        "description": "Inputs, checkboxes, radios, outlined chips and the chosen segmented item: 3:1 on the tone step too. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#868995",
+        "lightToken": "input"
+      },
       "primary": {
         "role": "primary",
-        "displayName": "Press Black",
-        "canonical": "#111111",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
+        "displayName": "Primary action",
+        "description": "The ink fill of a screen's one primary button, and an open call number.",
+        "scheme": "light",
+        "dark": "#ececf1",
+        "darkToken": "primary-dark"
       },
-      "chart-red": {
+      "primary-dark": {
         "role": "primary",
-        "displayName": "Chart Red",
-        "canonical": "#e3262e",
-        "tonalRamp": ["#1f0001", "#4d0105", "#80010e", "#b60b1c", "#e92e33", "#ff736a", "#feb3ab", "#ffe9e6"]
+        "displayName": "Primary action, dark",
+        "description": "The ink fill of a screen's one primary button, and an open call number. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#121318",
+        "lightToken": "primary"
       },
-      "chart-white": {
+      "primary-foreground": {
+        "role": "primary",
+        "displayName": "On primary",
+        "description": "Text on the primary action and on an open call number.",
+        "scheme": "light",
+        "dark": "#0e0f12",
+        "darkToken": "primary-foreground-dark"
+      },
+      "primary-foreground-dark": {
+        "role": "primary",
+        "displayName": "On primary, dark",
+        "description": "Text on the primary action and on an open call number. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#ffffff",
+        "lightToken": "primary-foreground"
+      },
+      "secondary": {
+        "role": "secondary",
+        "displayName": "Secondary action",
+        "description": "The tone fill of a secondary button, and inline code on the reading pages.",
+        "scheme": "light",
+        "dark": "#24262d",
+        "darkToken": "secondary-dark"
+      },
+      "secondary-dark": {
+        "role": "secondary",
+        "displayName": "Secondary action, dark",
+        "description": "The tone fill of a secondary button, and inline code on the reading pages. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#e8e9ee",
+        "lightToken": "secondary"
+      },
+      "secondary-foreground": {
+        "role": "secondary",
+        "displayName": "On secondary",
+        "description": "Text on a secondary button.",
+        "scheme": "light",
+        "dark": "#ececf1",
+        "darkToken": "secondary-foreground-dark"
+      },
+      "secondary-foreground-dark": {
+        "role": "secondary",
+        "displayName": "On secondary, dark",
+        "description": "Text on a secondary button. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#121318",
+        "lightToken": "secondary-foreground"
+      },
+      "signal": {
+        "role": "accent",
+        "displayName": "Signal orange",
+        "description": "What the agent puts forward, and that it's live: finalist marks and meters, the plan's lines, the on-air dot while a run is live. Never on chrome, never a whole button in the app, never success or approval. The landing page's closing band is the one colour field.",
+        "scheme": "light",
+        "dark": "#ff8a3d",
+        "darkToken": "signal-dark"
+      },
+      "signal-dark": {
+        "role": "accent",
+        "displayName": "Signal orange, dark",
+        "description": "What the agent puts forward, and that it's live: finalist marks and meters, the plan's lines, the on-air dot while a run is live. Never on chrome, never a whole button in the app, never success or approval. The landing page's closing band is the one colour field. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#e4630c",
+        "lightToken": "signal"
+      },
+      "signal-foreground": {
+        "role": "accent",
+        "displayName": "On signal",
+        "description": "Text on signal orange.",
+        "scheme": "light",
+        "dark": "#0e0f12",
+        "darkToken": "signal-foreground-dark"
+      },
+      "signal-foreground-dark": {
+        "role": "accent",
+        "displayName": "On signal, dark",
+        "description": "Text on signal orange. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#121318",
+        "lightToken": "signal-foreground"
+      },
+      "signal-ink": {
+        "role": "accent",
+        "displayName": "Signal as text",
+        "description": "A climber's ▲ in the Move column, at 600.",
+        "scheme": "light",
+        "dark": "#ffa266",
+        "darkToken": "signal-ink-dark"
+      },
+      "signal-ink-dark": {
+        "role": "accent",
+        "displayName": "Signal as text, dark",
+        "description": "A climber's ▲ in the Move column, at 600. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#a24a00",
+        "lightToken": "signal-ink"
+      },
+      "signal-tint": {
+        "role": "accent",
+        "displayName": "Signal tint",
+        "description": "A finalist row's wash.",
+        "scheme": "light",
+        "dark": "#2a1a0e",
+        "darkToken": "signal-tint-dark"
+      },
+      "signal-tint-dark": {
+        "role": "accent",
+        "displayName": "Signal tint, dark",
+        "description": "A finalist row's wash. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#fdeee2",
+        "lightToken": "signal-tint"
+      },
+      "destructive": {
+        "role": "destructive",
+        "displayName": "Crimson",
+        "description": "A failure's word and square ✕, a destructive button's outline, an invalid field's outline, and the verb's fill inside its confirm.",
+        "scheme": "light",
+        "dark": "#ff5c7a",
+        "darkToken": "destructive-dark"
+      },
+      "destructive-dark": {
+        "role": "destructive",
+        "displayName": "Crimson, dark",
+        "description": "A failure's word and square ✕, a destructive button's outline, an invalid field's outline, and the verb's fill inside its confirm. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#c8153e",
+        "lightToken": "destructive"
+      },
+      "destructive-foreground": {
+        "role": "destructive",
+        "displayName": "On crimson",
+        "description": "Text on the destructive-solid button.",
+        "scheme": "light",
+        "dark": "#0e0f12",
+        "darkToken": "destructive-foreground-dark"
+      },
+      "destructive-foreground-dark": {
+        "role": "destructive",
+        "displayName": "On crimson, dark",
+        "description": "Text on the destructive-solid button. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#ffffff",
+        "lightToken": "destructive-foreground"
+      },
+      "ring": {
         "role": "neutral",
-        "displayName": "Chart White",
-        "canonical": "#ffffff",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
+        "displayName": "Focus ring",
+        "description": "One focus ring for every control: 2px, 2px off.",
+        "scheme": "light",
+        "dark": "#ececf1",
+        "darkToken": "ring-dark"
       },
-      "ink-hover": {
+      "ring-dark": {
         "role": "neutral",
-        "displayName": "Ink Hover",
-        "canonical": "#333333",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
+        "displayName": "Focus ring, dark",
+        "description": "One focus ring for every control: 2px, 2px off. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "#121318",
+        "lightToken": "ring"
       },
-      "column-grey": {
+      "scrim": {
         "role": "neutral",
-        "displayName": "Column Grey",
-        "canonical": "#555555",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
+        "displayName": "Scrim",
+        "description": "Under a modal dialog, alert dialog or modal sheet; the inspector’s sheet is non-modal and has none.",
+        "scheme": "light",
+        "dark": "rgb(0 0 0 / 0.6)",
+        "darkToken": "scrim-dark"
       },
-      "caption-grey": {
+      "scrim-dark": {
         "role": "neutral",
-        "displayName": "Caption Grey",
-        "canonical": "#6b6b6b",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
-      },
-      "last-week-grey": {
-        "role": "neutral",
-        "displayName": "Last-Week Grey",
-        "canonical": "#8a8a8a",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
-      },
-      "panel-grey": {
-        "role": "neutral",
-        "displayName": "Panel Grey",
-        "canonical": "#f2f2f2",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
-      },
-      "hairline": {
-        "role": "neutral",
-        "displayName": "Hairline",
-        "canonical": "#e6e6e6",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
-      },
-      "control-edge": {
-        "role": "neutral",
-        "displayName": "Control Edge",
-        "canonical": "#d4d4d4",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
-      },
-      "empty-segment": {
-        "role": "neutral",
-        "displayName": "Empty Segment",
-        "canonical": "#dcdcdc",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
-      },
-      "top-bar-nav": {
-        "role": "neutral",
-        "displayName": "Top Bar Nav",
-        "canonical": "#a3a3a3",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
-      },
-      "top-bar-meta": {
-        "role": "neutral",
-        "displayName": "Top Bar Meta",
-        "canonical": "#b5b5b5",
-        "tonalRamp": ["#0b0b0b", "#252525", "#424242", "#616161", "#828282", "#a5a5a5", "#c9c9c9", "#eeeeee"]
-      },
-      "slow-amber": {
-        "role": "state",
-        "displayName": "Slow Amber",
-        "canonical": "#8a6100",
-        "tonalRamp": ["#120900", "#332101", "#573c02", "#7f5901", "#a47a2a", "#c99d50", "#eec175", "#ffeccd"]
-      },
-      "fault-rust": {
-        "role": "state",
-        "displayName": "Fault Rust",
-        "canonical": "#a34700",
-        "tonalRamp": ["#190500", "#3f1800", "#6c2d01", "#9a4507", "#c3642d", "#ea8852", "#feb692", "#ffeadf"]
-      },
-      "missed-slate": {
-        "role": "state",
-        "displayName": "Missed Slate",
-        "canonical": "#2f5d8a",
-        "tonalRamp": ["#000c1c", "#002647", "#15446f", "#366492", "#5786b6", "#79aadb", "#9fcefe", "#e3f0ff"]
+        "displayName": "Scrim, dark",
+        "description": "Under a modal dialog, alert dialog or modal sheet; the inspector’s sheet is non-modal and has none. The value under prefers-color-scheme: dark.",
+        "scheme": "dark",
+        "light": "rgb(18 19 24 / 0.4)",
+        "lightToken": "scrim"
       }
     },
     "typographyMeta": {
-      "hero-position": {
-        "displayName": "Hero position",
-        "purpose": "Fit rank in the landing page's illustrative chart, the page's largest type."
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Table meta lines, field help, timestamps, chips (12px). Takes its weight from the element: 400, 500 or 600."
       },
-      "hero-last-week": {
-        "displayName": "Hero last week",
-        "purpose": "Topic rank in the landing page's illustrative chart."
-      },
-      "position": {
-        "displayName": "Position",
-        "purpose": "Fit rank in the chart's first column."
-      },
-      "last-week": {
-        "displayName": "Last week",
-        "purpose": "Topic rank in the chart's second column, in Last-Week Grey."
-      },
-      "wordmark": {
-        "displayName": "Wordmark",
-        "purpose": "\"Crossfeed\" in the top bar, uppercase."
-      },
-      "display": {
-        "displayName": "Display",
-        "purpose": "The landing page's one headline."
-      },
-      "page-title": {
-        "displayName": "Page title",
-        "purpose": "The h1 of the docs pages, the privacy page, and the beta terms."
-      },
-      "section-heading": {
-        "displayName": "Section heading",
-        "purpose": "Each landing page section's h2."
-      },
-      "headline": {
-        "displayName": "Headline",
-        "purpose": "Every app page's h1, such as the launch title or the network's name, and the docs' h2."
-      },
-      "lede": {
-        "displayName": "Lede",
-        "purpose": "The sentence under the landing headline, and the close's."
-      },
-      "reading": {
-        "displayName": "Reading",
-        "purpose": "Prose in the docs, the privacy page, the terms, and the landing page's sections, kept to a measure."
-      },
-      "title": {
-        "displayName": "Title",
-        "purpose": "The agent's open question."
-      },
-      "row-name": {
-        "displayName": "Row name",
-        "purpose": "Show names in the chart and a launch's name in the dashboard's table."
+      "ui": {
+        "displayName": "UI",
+        "purpose": "The app's body: app text, controls, table cells, nav (14px). Takes its weight from the element."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Default text and table cells, in tabular figures."
+        "purpose": "Marketing and docs text (16px). Takes its weight from the element."
       },
-      "caption": {
-        "displayName": "Caption",
-        "purpose": "Tags under show names, evidence values, help lines, and table captions."
+      "title": {
+        "displayName": "Title",
+        "purpose": "The question's legend, fit chart ranks, docs h2, and a page's h1 in the app."
       },
-      "column-heading": {
-        "displayName": "Column heading",
-        "purpose": "Table column headings, uppercase."
+      "display": {
+        "displayName": "Display",
+        "purpose": "Marketing headings, auth and docs h1."
       },
-      "label": {
-        "displayName": "Label",
-        "purpose": "Module headings, chips, and state words, uppercase."
+      "poster": {
+        "displayName": "Poster",
+        "purpose": "The landing h1 only, a two-line statement across the page. Under 768px it is 17vw at 0.9 leading."
       },
-      "call-number": {
-        "displayName": "Call number",
-        "purpose": "A cited Qloo call such as C-21, and request strings in evidence."
+      "index": {
+        "displayName": "Index",
+        "purpose": "The landing re-rank's show names only."
       },
-      "code": {
-        "displayName": "Code",
-        "purpose": "Code and paths in the docs and the privacy page, on Panel Grey in a block."
+      "show-name": {
+        "displayName": "Show name",
+        "purpose": "A show's name in a ranked list: the fit chart, the roster, the inbox's pitch lists and the launches table (text-[15px] leading-snug font-semibold)."
       },
-      "recovery-code": {
-        "displayName": "Recovery code",
-        "purpose": "The recovery code, shown once on Panel Grey, uppercase."
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "The platform stack, for real code and codes only: code blocks, API keys and their prefixes, call numbers (C-21), insertion order IDs (IO-0001), entity IDs, recovery codes."
       }
     },
-    "shadows": [],
+    "shadows": [
+      {
+        "name": "float",
+        "token": "--float-shadow (shadow-float; shadow-md to shadow-2xl all resolve to it)",
+        "value": "0 0 0 1px rgb(18 19 24 / 0.06), 0 8px 24px -8px rgb(0 0 0 / 0.16)",
+        "dark": "0 0 0 1px rgb(255 255 255 / 0.1), 0 16px 40px -8px rgb(0 0 0 / 0.72)",
+        "purpose": "The one shadow, on what floats: menus, popovers, selects, dialogs, sheets. A faint ring and one shadow; in dark, a light ring and a deeper shadow, so what floats stands off the dark ground. Nothing at rest casts a shadow: shadow-2xs, shadow-xs and shadow-sm are zeroed."
+      }
+    ],
     "motion": [
       {
-        "name": "t-quick",
-        "value": "120ms",
-        "purpose": "Color changes on hover and press, on buttons, nav links, call numbers, and link buttons, with the ease-out keyword."
+        "name": "ease-swap",
+        "value": "cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "The default easing (--default-transition-timing-function), at 150ms: presses, hovers, menus, dialogs and sheets."
       },
       {
-        "name": "t-state",
-        "value": "200ms",
-        "purpose": "A state changing: a chart row taking Panel Grey, last week's figures and the moves fading in, and the why line fading in."
+        "name": "ease-lift",
+        "value": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "Entrances: the masked headline, rise-in, and the landing page’s section entrances."
       },
       {
-        "name": "t-arrive",
-        "value": "320ms",
-        "purpose": "The gainer bullet landing: scale 2.4 to 1 while fading in."
+        "name": "ease-plate",
+        "value": "cubic-bezier(0.215, 0.61, 0.355, 1)",
+        "purpose": "The re-rank."
       },
       {
-        "name": "ease-out",
-        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
-        "purpose": "Every curve eases out; nothing bounces or loops."
+        "name": "default-duration",
+        "value": "150ms",
+        "purpose": "--default-transition-duration: every transition-colors in the app."
       },
       {
-        "name": "bullet-stagger",
-        "value": "calc(200ms + n * 60ms)",
-        "purpose": "Each climber's bullet lands 60ms after the one above it, n capped at 6."
+        "name": "re-rank",
+        "value": "450ms ease-plate, staggered 20ms by new place",
+        "purpose": "Rows travel to their new places: a FLIP on the fit chart's rows, CSS translate on the landing page (whole rows, which share one height)."
+      },
+      {
+        "name": "live",
+        "value": "live 1.6s ease-in-out infinite (opacity 1 to 0.35 and back)",
+        "purpose": "The on-air dot while a run is running or waiting on a person; never its size."
+      },
+      {
+        "name": "line-up",
+        "value": "900ms ease-lift, 150ms delay; the second line 260ms",
+        "purpose": "The landing hero's masked headline: each line rises from behind its baseline (translateY 105%), only with motion allowed."
+      },
+      {
+        "name": "rise-in",
+        "value": "500ms ease-lift, 480ms delay",
+        "purpose": "What follows the headline rises into place from 12px down and opacity 0."
+      },
+      {
+        "name": "section-entrance",
+        "value": "opacity 700ms and translate 900ms on ease-lift, from 32px down; a second part 80ms behind",
+        "purpose": "client/reveal.ts holds a landing page part until it is in view. Without the script every part is in place."
+      },
+      {
+        "name": "does-names",
+        "value": "scroll timeline, cover 30% to cover 70%",
+        "purpose": "From 1280px, the name of the 'What it does' block crossing the middle of the window is in ink, the others in secondary text."
+      },
+      {
+        "name": "floating",
+        "value": "dialogs, alert dialogs and menus: fade and scale from 0.98 over 150ms on ease-swap; selects: fade and zoom from 0.95 over 100ms; sheets: fade and slide 40px over 200ms, the scrim fading over 150ms",
+        "purpose": "What floats opens and closes as feedback, never as a show."
+      },
+      {
+        "name": "spinner",
+        "value": "spin 1s linear infinite",
+        "purpose": "A running step shows a small spinner, never shimmering text; a skeleton is a still block with no pulse."
       },
       {
         "name": "reduced-motion",
-        "value": "fade-in 200ms, 0s delay",
-        "purpose": "Under prefers-reduced-motion: reduce, bullets fade in with the figures, with no scale and no stagger."
+        "value": "animation-duration and transition-duration 0.01ms, one iteration",
+        "purpose": "With prefers-reduced-motion: reduce, every animation and transition ends at once on its final state, and every piece of content is visible without JavaScript."
       }
     ],
     "breakpoints": [
       {
-        "name": "one-column",
-        "value": "960px"
+        "name": "sm",
+        "value": "640px",
+        "purpose": "Tailwind's sm, for local adjustments (dialog footers, the docs' pages, the guide, the recovery code); under 640px a reference table folds into blocks (table-fold)."
       },
       {
-        "name": "phone",
-        "value": "600px"
+        "name": "md",
+        "value": "768px",
+        "purpose": "Under it, the phone layout: the rail is a bottom bar, controls are 44px tall, wide tables scroll inside themselves, and the marketing nav folds into a Menu."
       },
       {
-        "name": "chart-slot-value",
-        "value": "680px",
-        "purpose": "Container query on the chart column: narrower, the slot value moves under the show's name."
+        "name": "lg",
+        "value": "1024px",
+        "purpose": "24px gutters; two-column auth, new-network and settings layouts; the dashboard's 320px column; the docs' nav beside the article."
+      },
+      {
+        "name": "xl",
+        "value": "1280px",
+        "purpose": "The landing page's 'What it does' holds its names at the left while the blocks pass."
+      },
+      {
+        "name": "inspector",
+        "value": "1360px",
+        "purpose": "min-[85rem]: the inspector sits beside the canvas, a 360px column, instead of in a sheet. At 1440, 56 (rail) + 24 + 976 (canvas) + 24 + 360 (inspector) = 1440."
+      },
+      {
+        "name": "docs-toc",
+        "value": "1440px",
+        "purpose": "min-[90rem]: the docs' On this page column."
       }
     ]
   },
@@ -237,160 +493,198 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The decision on a module, such as Answer or Approve; the only black fill besides the top bar.",
-      "html": "<button class=\"ds-btn-pri\">Approve order</button>",
-      "css": ".ds-btn-pri { height: 32px; padding: 0 12px; border: 1px solid var(--ink, #111); border-radius: 4px; background: var(--ink, #111); color: #fff; font: 600 13px var(--body, 'Libre Franklin', sans-serif); cursor: pointer; transition: background-color var(--t-quick, 120ms) ease-out, border-color var(--t-quick, 120ms) ease-out; } .ds-btn-pri:hover { background: #333; border-color: #333; } .ds-btn-pri:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; } .ds-btn-pri:disabled { opacity: 0.6; cursor: default; }"
+      "description": "Flat, one ink fill, 6px: a screen's one primary action, such as Answer, Approve or New launch. Never signal orange.",
+      "html": "<button class=\"ds-btn-primary\">Approve</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; user-select: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); background: var(--primary, #121318); color: var(--primary-foreground, #ffffff); } .ds-btn-primary:active { translate: 0 1px; } .ds-btn-primary:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; pointer-events: none; } @media (width < 48rem) { .ds-btn-primary { height: 44px; } } .ds-btn-primary:hover { background: color-mix(in oklab, var(--primary, #121318) 85%, transparent); }"
     },
     {
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Every other action: white with a Control Edge border.",
-      "html": "<button class=\"ds-btn\">Edit order</button>",
-      "css": ".ds-btn { height: 32px; padding: 0 12px; border: 1px solid var(--edge, #d4d4d4); border-radius: 4px; background: #fff; color: var(--ink, #111); font: 500 13px var(--body, 'Libre Franklin', sans-serif); cursor: pointer; transition: border-color var(--t-quick, 120ms) ease-out; } .ds-btn:hover { border-color: var(--grey, #6b6b6b); } .ds-btn:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.6; cursor: default; }"
+      "description": "The tone fill, for every other action beside the primary, such as Export CSV. There's no outline variant: where shadcn asks for one, use secondary or ghost.",
+      "html": "<button class=\"ds-btn-secondary\">Export CSV</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; user-select: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); background: var(--secondary, #e8e9ee); color: var(--secondary-foreground, #121318); } .ds-btn-secondary:active { translate: 0 1px; } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } .ds-btn-secondary:disabled { opacity: 0.5; pointer-events: none; } @media (width < 48rem) { .ds-btn-secondary { height: 44px; } } .ds-btn-secondary:hover, .ds-btn-secondary[aria-expanded=\"true\"] { background: color-mix(in oklab, var(--secondary, #e8e9ee), var(--foreground, #121318) 7%); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "No fill until hovered, then the tone step: Edit lines, Dismiss, Run log, a row menu.",
+      "html": "<button class=\"ds-btn-ghost\">Edit lines</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; user-select: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); background: transparent; color: var(--foreground, #121318); } .ds-btn-ghost:active { translate: 0 1px; } .ds-btn-ghost:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } .ds-btn-ghost:disabled { opacity: 0.5; pointer-events: none; } @media (width < 48rem) { .ds-btn-ghost { height: 44px; } } .ds-btn-ghost:hover, .ds-btn-ghost[aria-expanded=\"true\"] { background: var(--muted, #efeff3); }"
+    },
+    {
+      "name": "Link Button",
+      "kind": "button",
+      "refersTo": "button-link",
+      "description": "A button that reads as a link in a line of text: ink at 500, underlined at 1px, 2px on hover, at the line's own height.",
+      "html": "<button class=\"ds-btn-link\">Use a recovery code</button>",
+      "css": ".ds-btn-link { display: inline-flex; align-items: center; height: auto; padding: 0; border: 0; background: transparent; color: var(--foreground, #121318); font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; cursor: pointer; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); } .ds-btn-link:hover { text-decoration-thickness: 2px; } .ds-btn-link:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } @media (width < 48rem) { .ds-btn-link { padding: 12px 0; margin: -12px 0; } }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "A crimson outline for a destructive action outside its confirm, such as Remove key or Delete network; it always opens the one confirm.",
+      "html": "<button class=\"ds-btn-destructive\">Remove key</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; user-select: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); border-color: var(--destructive, #c8153e); background: transparent; color: var(--destructive, #c8153e); } .ds-btn-destructive:active { translate: 0 1px; } .ds-btn-destructive:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } .ds-btn-destructive:disabled { opacity: 0.5; pointer-events: none; } @media (width < 48rem) { .ds-btn-destructive { height: 44px; } } .ds-btn-destructive:hover { background: color-mix(in oklab, var(--destructive, #c8153e) 10%, transparent); }"
+    },
+    {
+      "name": "Destructive Solid Button",
+      "kind": "button",
+      "refersTo": "button-destructive-solid",
+      "description": "The crimson fill, only for the verb inside its confirm, beside Keep.",
+      "html": "<button class=\"ds-btn-destructive-solid\">Delete launch</button>",
+      "css": ".ds-btn-destructive-solid { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; user-select: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); background: var(--destructive, #c8153e); color: var(--destructive-foreground, #ffffff); } .ds-btn-destructive-solid:active { translate: 0 1px; } .ds-btn-destructive-solid:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } .ds-btn-destructive-solid:disabled { opacity: 0.5; pointer-events: none; } @media (width < 48rem) { .ds-btn-destructive-solid { height: 44px; } } .ds-btn-destructive-solid:hover { background: color-mix(in oklab, var(--destructive, #c8153e) 90%, transparent); }"
+    },
+    {
+      "name": "Chips",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "20px chips at caption size: tone-filled (default), outlined at the controls' 3:1 (outline), and crimson (destructive), as a pitched work's match chip uses them (Inbox.tsx).",
+      "html": "<span class=\"ds-chip\">Matched</span> <span class=\"ds-chip ds-chip-outline\">Not in Qloo</span> <span class=\"ds-chip ds-chip-destructive\">Lookup failed</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: fit-content; height: 20px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: var(--muted, #efeff3); color: var(--foreground, #121318); font: 500 12px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; overflow: hidden; } .ds-chip-outline { background: transparent; border-color: var(--input, #868995); } .ds-chip-destructive { background: transparent; border-color: var(--destructive, #c8153e); color: var(--destructive, #c8153e); }"
     },
     {
       "name": "Source Chips",
       "kind": "chip",
-      "refersTo": "chip",
-      "description": "Where a line came from: Qloo data in a solid chip, agent text in a dashed one.",
-      "html": "<span class=\"ds-chip\">Qloo data</span> <span class=\"ds-chip ds-chip-agent\">Agent</span>",
-      "css": ".ds-chip { display: inline-block; font: 600 11px/1.4 var(--body, 'Libre Franklin', sans-serif); letter-spacing: 0.08em; text-transform: uppercase; color: var(--mid, #555); border: 1px solid var(--edge, #d4d4d4); border-radius: 3px; padding: 2px 6px; background: #fff; white-space: nowrap; } .ds-chip-agent { border-style: dashed; border-color: var(--grey, #6b6b6b); }"
-    },
-    {
-      "name": "Call Number",
-      "kind": "button",
-      "refersTo": "call-number",
-      "description": "A cited Qloo call that opens its evidence in the rail.",
-      "html": "<button class=\"ds-call\">C-21</button>",
-      "css": ".ds-call { min-height: 24px; padding: 0 4px; background: none; border: 0; color: var(--ink, #111); font: 600 12px var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); text-decoration: underline; text-decoration-color: var(--edge, #d4d4d4); text-underline-offset: 3px; cursor: pointer; transition: text-decoration-color var(--t-quick, 120ms) ease-out; } .ds-call:hover, .ds-call[aria-pressed='true'] { text-decoration-color: var(--ink, #111); } .ds-call:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; }"
+      "refersTo": "chip-outline",
+      "description": "Where a figure or line came from, never alike: Qloo data is an outlined chip with an ink square, Agent a tone-filled chip with a circle (Source.tsx). Finalist carries the signal dot. The glyphs are CSS, so screen readers don't read them.",
+      "html": "<span class=\"ds-src ds-src-qloo\">Qloo data</span> <span class=\"ds-src ds-src-agent\">Agent</span> <span class=\"ds-src ds-src-finalist\">Finalist</span>",
+      "css": ".ds-src { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; color: var(--foreground, #121318); font: 500 12px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; } .ds-src::before { content: ''; flex-shrink: 0; } .ds-src-qloo { border-color: var(--input, #868995); } .ds-src-qloo::before { width: 6px; height: 6px; border-radius: 1px; background: var(--foreground, #121318); } .ds-src-agent { background: var(--muted, #efeff3); } .ds-src-agent::before { width: 6px; height: 6px; border-radius: 9999px; background: var(--foreground, #121318); } .ds-src-finalist { background: var(--muted, #efeff3); } .ds-src-finalist::before { width: 8px; height: 8px; border-radius: 9999px; background: var(--signal, #e4630c); }"
     },
     {
       "name": "Text Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "A 32px bordered field at button height.",
-      "html": "<input class=\"ds-input\" placeholder=\"Launch name\" />",
-      "css": ".ds-input { height: 32px; width: 272px; padding: 0 10px; border: 1px solid var(--edge, #d4d4d4); border-radius: 4px; background: #fff; color: var(--ink, #111); caret-color: var(--ink, #111); font: 400 13px var(--body, 'Libre Franklin', sans-serif); } .ds-input::placeholder { color: var(--grey, #6b6b6b); } .ds-input:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; } .ds-input[aria-invalid] { border: 2px solid var(--ink, #111); }"
+      "description": "On the card whatever it sits on, outlined at --input's 3:1, 32px tall (44px under 768px, with 16px text so iOS doesn't zoom), crimson once aria-invalid.",
+      "html": "<input class=\"ds-input\" aria-label=\"Released launch\" placeholder=\"The Big Picture\" />",
+      "css": ".ds-input { width: 272px; min-width: 0; height: 32px; padding: 4px 10px; border: 1px solid var(--input, #868995); border-radius: 6px; background: var(--card, #ffffff); color: var(--foreground, #121318); font: 400 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; outline: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); } .ds-input::placeholder { color: var(--muted-foreground, #5f626d); } .ds-input:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } .ds-input[aria-invalid=\"true\"] { border-color: var(--destructive, #c8153e); } .ds-input:disabled { opacity: 0.5; cursor: not-allowed; } @media (width < 48rem) { .ds-input { height: 44px; font-size: 16px; } }"
     },
     {
-      "name": "Top Bar",
-      "kind": "nav",
-      "refersTo": "top-bar",
-      "description": "The black shell: wordmark, nav links filling the bar's height, and the network's name.",
-      "html": "<header class=\"ds-top\"><span class=\"ds-wm\">Crossfeed</span><nav class=\"ds-nav\"><a href=\"#\" class=\"ds-on\">Roster</a><a href=\"#\">Inbox</a></nav><span class=\"ds-net\">Sample network</span></header>",
-      "css": ".ds-top { height: 48px; display: flex; align-items: center; padding: 0 32px; background: var(--ink, #111); color: #fff; font: 400 13px var(--body, 'Libre Franklin', sans-serif); } .ds-wm { font: 800 22px/1 var(--cond, 'Barlow Condensed', sans-serif); letter-spacing: 0.02em; text-transform: uppercase; } .ds-nav { display: flex; align-self: stretch; margin-left: 28px; } .ds-nav a { display: flex; align-items: center; padding: 2px 12px 0; color: #a3a3a3; font-weight: 500; text-decoration: none; border-bottom: 2px solid transparent; transition: color var(--t-quick, 120ms) ease-out; } .ds-nav a:hover { color: #fff; } .ds-nav a.ds-on { color: #fff; border-bottom-color: #fff; } .ds-nav a:focus-visible { outline: 2px solid #fff; outline-offset: -6px; } .ds-net { margin-left: 16px; padding-left: 16px; border-left: 1px solid #333; color: #b5b5b5; font-size: 12px; line-height: 20px; }"
-    },
-    {
-      "name": "Weekly Chart Row",
+      "name": "Segmented Control",
       "kind": "custom",
-      "refersTo": "chart-row",
-      "description": "The signature: position with a climber's bullet, last week, move, show with a Finalist chip and shared tags, band meter, and slot value. A climber's name is a button; its selected row (ds-hot) turns Panel Grey. Rows never highlight on hover.",
-      "html": "<table class=\"ds-chart\"><thead><tr><th>This week</th><th>Last week</th><th>Move</th><th>Show</th><th>Fit band</th><th class=\"ds-r\">Slot value</th></tr></thead><tbody><tr><td class=\"ds-pos\">2<i class=\"ds-bul\" aria-hidden=\"true\"></i></td><td class=\"ds-lw\">7</td><td class=\"ds-mv\">&#9650;5</td><td><button class=\"ds-row-open\" aria-expanded=\"false\"><span class=\"ds-nm\">Night Shift Stories</span></button> <span class=\"ds-chip\">Finalist</span><div class=\"ds-tg\">true crime &middot; late night</div></td><td><span class=\"ds-band\"><i class=\"ds-on\"></i><i class=\"ds-on\"></i><i></i>Good</span></td><td class=\"ds-r ds-val\">$8,000<small>400,000 downloads</small></td></tr></tbody></table>",
-      "css": ".ds-chart { width: 100%; border-collapse: collapse; font: 400 13px/1.4 var(--body, 'Libre Franklin', sans-serif); font-variant-numeric: tabular-nums; color: var(--ink, #111); } .ds-chart th { text-align: left; padding: 8px; border-bottom: 1px solid var(--ink, #111); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mid, #555); white-space: nowrap; } .ds-chart td { height: 64px; padding: 8px; border-bottom: 1px solid var(--line, #e6e6e6); vertical-align: middle; transition: background-color var(--t-state, 200ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-chart tr.ds-hot td { background: var(--panel, #f2f2f2); border-bottom: 0; } .ds-row-open { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; } .ds-row-open:hover .ds-nm { text-decoration: underline; text-underline-offset: 2px; } .ds-row-open:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; } .ds-chart .ds-r { text-align: right; } .ds-pos { font: 800 40px/1 var(--cond, 'Barlow Condensed', sans-serif); white-space: nowrap; } .ds-bul { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--red, #e3262e); vertical-align: top; margin: 2px 0 0 5px; animation: ds-land var(--t-arrive, 320ms) var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) var(--t-state, 200ms) backwards; } @keyframes ds-land { from { transform: scale(2.4); opacity: 0; } } @media (prefers-reduced-motion: reduce) { .ds-bul { animation: ds-fade var(--t-state, 200ms) ease-out backwards; } } @keyframes ds-fade { from { opacity: 0; } } .ds-lw { font: 600 24px/1 var(--cond, 'Barlow Condensed', sans-serif); color: var(--topic, #8a8a8a); } .ds-mv { font-weight: 700; white-space: nowrap; } .ds-nm { font-size: 14px; font-weight: 600; } .ds-chip { display: inline-block; font: 600 11px/1.4 var(--body, 'Libre Franklin', sans-serif); letter-spacing: 0.08em; text-transform: uppercase; color: var(--mid, #555); border: 1px solid var(--edge, #d4d4d4); border-radius: 3px; padding: 2px 6px; background: #fff; white-space: nowrap; } .ds-tg { font-size: 12px; color: var(--mid, #555); } .ds-band { display: inline-flex; align-items: center; gap: 2px; font-weight: 500; } .ds-band i { width: 5px; height: 12px; background: var(--empty, #dcdcdc); } .ds-band i.ds-on { background: var(--ink, #111); } .ds-band i:nth-of-type(3) { margin-right: 7px; } .ds-val { font-weight: 600; } .ds-val small { display: block; font-size: 12px; line-height: 16px; font-weight: 400; color: var(--grey, #6b6b6b); }"
+      "refersTo": "segmented-track",
+      "description": "Options side by side on a tone-step track, the chosen one raised onto the card with the 3:1 outline, so it reads apart without colour: the fit chart's lens, the inspector's tabs, the budget's unit.",
+      "html": "<fieldset class=\"ds-seg-field\"><legend class=\"ds-seg-legend\">Rank the roster</legend><div class=\"ds-seg\"><label class=\"ds-seg-item\"><input type=\"radio\" name=\"ds-lens\" checked /> By who listens</label><label class=\"ds-seg-item\"><input type=\"radio\" name=\"ds-lens\" /> By topic</label></div></fieldset>",
+      "css": ".ds-seg-field { margin: 0; padding: 0; border: 0; min-width: 0; } .ds-seg-legend { margin-bottom: 8px; padding: 0; color: var(--muted-foreground, #5f626d); font: 400 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; } .ds-seg { display: inline-flex; align-items: center; gap: 2px; height: 32px; max-width: 100%; padding: 2px; border-radius: 6px; background: var(--muted, #efeff3); } .ds-seg-item { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; min-width: 0; padding: 0 10px; border: 1px solid transparent; border-radius: 4px; color: var(--muted-foreground, #5f626d); font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; user-select: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); } .ds-seg-item:hover { color: var(--foreground, #121318); } .ds-seg-item:has(:checked) { border-color: var(--input, #868995); background: var(--card, #ffffff); color: var(--foreground, #121318); } .ds-seg-item input { position: absolute; width: 1px; height: 1px; opacity: 0; } .ds-seg-item:has(:focus-visible) { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } @media (width < 48rem) { .ds-seg { height: 44px; } .ds-seg-item { height: 40px; } }"
     },
     {
-      "name": "Open Question",
-      "kind": "card",
-      "refersTo": "open-question",
-      "description": "The agent's one voice on the page: a Panel Grey module with its question, options, answer field, and Answer.",
-      "html": "<section class=\"ds-ask\"><p class=\"ds-q\">How many slots should the order buy?</p><p class=\"ds-help\">Pick a count or a budget.</p><label class=\"ds-opt\"><input type=\"radio\" name=\"ds-u\" checked /> Slots</label><label class=\"ds-opt\"><input type=\"radio\" name=\"ds-u\" /> Dollars</label><div class=\"ds-bar\"><input class=\"ds-field\" placeholder=\"6\" /><button class=\"ds-answer\">Answer</button></div></section>",
-      "css": ".ds-ask { background: var(--panel, #f2f2f2); padding: 16px 32px 16px 24px; font: 400 13px/1.4 var(--body, 'Libre Franklin', sans-serif); color: var(--ink, #111); } .ds-q { font-size: 15px; font-weight: 600; line-height: 20px; margin: 0; } .ds-help { font-size: 12px; color: var(--mid, #555); margin: 2px 0 8px; } .ds-opt { display: flex; align-items: center; gap: 8px; min-height: 26px; cursor: pointer; } .ds-opt input { accent-color: var(--ink, #111); width: 14px; height: 14px; margin: 0; } .ds-bar { display: flex; gap: 8px; margin-top: 12px; } .ds-field { flex: 1; height: 32px; padding: 0 10px; border: 1px solid var(--edge, #d4d4d4); border-radius: 4px; background: #fff; font: inherit; } .ds-field:focus-visible, .ds-answer:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; } .ds-answer { height: 32px; padding: 0 12px; border: 1px solid var(--ink, #111); border-radius: 4px; background: var(--ink, #111); color: #fff; font: 600 13px var(--body, 'Libre Franklin', sans-serif); cursor: pointer; transition: background-color var(--t-quick, 120ms) ease-out; } .ds-answer:hover { background: #333; border-color: #333; }"
+      "name": "Call Number",
+      "kind": "button",
+      "refersTo": "call-number",
+      "description": "Every Qloo figure cites its call: a mono button with a dotted underline that opens the inspector's Evidence tab, in ink while its evidence is open (aria-pressed).",
+      "html": "<button class=\"ds-call\" aria-pressed=\"false\" aria-label=\"Evidence for the fit ranking: call C-21\">C-21</button> <button class=\"ds-call\" aria-pressed=\"true\" aria-label=\"Evidence for the demographic check: call C-22\">C-22</button>",
+      "css": ".ds-call { position: relative; display: inline-flex; align-items: center; height: 20px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted-foreground, #5f626d); font: 400 12px/1.333 ui-monospace, SFMono-Regular, Menlo, monospace; text-decoration-line: underline; text-decoration-style: dotted; text-underline-offset: 2px; cursor: pointer; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); } .ds-call:hover { background: var(--muted, #efeff3); color: var(--foreground, #121318); } .ds-call[aria-pressed=\"true\"] { background: var(--primary, #121318); color: var(--primary-foreground, #ffffff); text-decoration-line: none; } .ds-call:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; }"
     },
     {
-      "name": "State Lines",
-      "kind": "custom",
-      "refersTo": "state-slow",
-      "description": "A state's square marker and word in its color, then the sentence in ink.",
-      "html": "<p class=\"ds-state\" data-state=\"slow\"><b class=\"ds-state-w\">Slow Qloo</b> C-07 has waited over 8 s for Qloo. Still trying.</p><p class=\"ds-state\" data-state=\"failed\"><b class=\"ds-state-w\">Failed</b> C-09 failed after two retries.</p><p class=\"ds-state\" data-state=\"missed\"><b class=\"ds-state-w\">Missed</b> Qloo has no match for this show.</p>",
-      "css": ".ds-state { --tone: var(--mid, #555); margin: 8px 0 0; font: 400 12px/1.4 var(--body, 'Libre Franklin', sans-serif); color: var(--ink, #111); } .ds-state[data-state='slow'] { --tone: var(--slow, #8a6100); } .ds-state[data-state='failed'] { --tone: var(--fault, #a34700); } .ds-state[data-state='missed'] { --tone: var(--missed, #2f5d8a); } .ds-state-w { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; color: var(--tone); } .ds-state-w::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 5px; background: var(--tone); }"
-    },
-    {
-      "name": "Menu Sheet",
-      "kind": "nav",
-      "refersTo": "menu-panel",
-      "description": "The app shell's network switcher and account menu: a flat white sheet hung from the black bar, ruled in ink, never shadowed.",
-      "html": "<div class=\"ds-bar\"><details class=\"ds-menu\" open><summary>Night Shift Audio</summary><ul class=\"ds-sheet\"><li><a href=\"#\" aria-current=\"true\">Night Shift Audio</a></li><li><a href=\"#\">Cold Open Media</a></li><li class=\"ds-new\"><a href=\"#\">New network</a></li></ul></details></div>",
-      "css": ".ds-bar { background: var(--ink, #111); height: 48px; padding: 0 16px; display: flex; align-items: stretch; } .ds-menu { position: relative; display: flex; } .ds-menu summary { display: flex; align-items: center; padding: 0 12px; font: 400 12px var(--body, 'Libre Franklin', sans-serif); color: #b5b5b5; cursor: pointer; list-style: none; transition: color var(--t-quick, 120ms) ease-out; } .ds-menu[open] summary, .ds-menu summary:hover { color: #fff; } .ds-menu summary:focus-visible { outline: 2px solid #fff; outline-offset: -6px; } .ds-sheet { position: absolute; top: 100%; left: 0; min-width: 264px; margin: 0; padding: 8px 0; list-style: none; background: #fff; border: 1px solid var(--ink, #111); border-top: 0; border-radius: 0 0 4px 4px; font: 400 13px var(--body, 'Libre Franklin', sans-serif); } .ds-sheet a { display: block; padding: 8px 16px; color: var(--ink, #111); text-decoration: none; transition: background-color var(--t-quick, 120ms) ease-out; } .ds-sheet a:hover, .ds-sheet a[aria-current] { background: var(--panel, #f2f2f2); } .ds-sheet a[aria-current] { font-weight: 600; } .ds-sheet a:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: -2px; } .ds-new { margin-top: 8px; border-top: 1px solid var(--line, #e6e6e6); } .ds-new a { font-size: 12px; font-weight: 500; text-decoration: underline; }"
-    },
-    {
-      "name": "Shown Once",
-      "kind": "custom",
-      "refersTo": "recovery-code",
-      "description": "Something to keep or copy, shown once on Panel Grey in the monospace stack: here the recovery code, as sign-up shows it.",
-      "html": "<div class=\"ds-once\"><p class=\"ds-code\">7KQ2-M4XD-9RTB-H3VN-P6WC</p><div class=\"ds-acts\"><button class=\"ds-sec\">Copy code</button><button class=\"ds-pri\">I've saved it</button></div></div>",
-      "css": ".ds-once { display: grid; gap: 12px; justify-items: start; } .ds-code { margin: 0; padding: 16px 24px; background: var(--panel, #f2f2f2); font: 600 20px/1.3 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); letter-spacing: 0.06em; user-select: all; } .ds-acts { display: flex; gap: 8px; } .ds-sec, .ds-pri { height: 32px; padding: 0 12px; border-radius: 4px; font: 600 13px var(--body, 'Libre Franklin', sans-serif); cursor: pointer; } .ds-sec { background: #fff; color: var(--ink, #111); border: 1px solid var(--edge, #d4d4d4); font-weight: 500; } .ds-sec:hover { border-color: var(--grey, #6b6b6b); } .ds-pri { background: var(--ink, #111); color: #fff; border: 1px solid var(--ink, #111); } .ds-pri:hover { background: #333; border-color: #333; } .ds-sec:focus-visible, .ds-pri:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; }"
-    },
-    {
-      "name": "Setup Checklist",
+      "name": "State Line",
       "kind": "custom",
       "refersTo": "caption",
-      "description": "The dashboard's setup steps, read like the guide: each still to do in ink 600 with how under it, each done in Column Grey.",
-      "html": "<section class=\"ds-setup\"><div class=\"ds-mh\"><span class=\"ds-lbl\">Setup</span><span class=\"ds-chip\">2 of 5 done</span></div><ol><li class=\"ds-done\">Import the roster <span>Done</span></li><li class=\"ds-done\">Set the CPM <span>Done</span></li><li>Plan a launch<small>Name a launch, or up to three comps, under New launch.</small></li></ol></section>",
-      "css": ".ds-setup { font: 400 12px/1.4 var(--body, 'Libre Franklin', sans-serif); color: var(--ink, #111); max-width: 360px; } .ds-mh { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; } .ds-lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; } .ds-chip { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mid, #555); border: 1px solid var(--edge, #d4d4d4); border-radius: 3px; padding: 2px 6px; } .ds-setup ol { margin: 0; padding: 0; list-style: decimal inside; } .ds-setup li { padding: 6px 0; border-top: 1px solid var(--line, #e6e6e6); font-weight: 600; } .ds-setup li small { display: block; font-weight: 400; color: var(--mid, #555); } .ds-setup li.ds-done { color: var(--mid, #555); font-weight: 400; } .ds-setup li span { float: right; }"
+      "description": "StateLine (states.tsx): a glyph, the state's word in bold, then what it's about, the same everywhere. Working has the spinner, Slow Qloo a clock, Failed and Error a crimson square ✕, Missed a muted dashed circle; empty is muted text alone. A state never relies on its colour.",
+      "html": "<p class=\"ds-state\" data-state=\"loading\"><svg class=\"ds-glyph ds-spin\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 12a9 9 0 1 1-6.219-8.56\"/></svg><b>Working</b> Connecting to the network…</p><p class=\"ds-state\" data-state=\"slow\"><svg class=\"ds-glyph\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/></svg><b>Slow Qloo</b> C-07 has waited over 8 s for Qloo. Still trying.</p><p class=\"ds-state\" data-state=\"failed\"><svg class=\"ds-glyph\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\"/><path d=\"m15 9-6 6\"/><path d=\"m9 9 6 6\"/></svg><b>Failed</b> 1 show couldn’t be looked up in Qloo, so it can’t be scored.</p><p class=\"ds-state\" data-state=\"error\"><svg class=\"ds-glyph\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\"/><path d=\"m15 9-6 6\"/><path d=\"m9 9 6 6\"/></svg><b>Error</b> This page lost its connection. Reload to try again.</p><p class=\"ds-state\" data-state=\"empty\">No roster yet.</p>",
+      "css": ".ds-state { margin: 0 0 8px; color: var(--foreground, #121318); font: 400 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; } .ds-state b { font-weight: 600; } .ds-glyph { display: inline-block; width: 1em; height: 1em; margin-right: 6px; vertical-align: -0.15em; } .ds-state[data-state=\"failed\"] .ds-glyph, .ds-state[data-state=\"failed\"] b, .ds-state[data-state=\"error\"] .ds-glyph, .ds-state[data-state=\"error\"] b { color: var(--destructive, #c8153e); } .ds-state[data-state=\"empty\"] { color: var(--muted-foreground, #5f626d); } .ds-spin { animation: ds-spin 1s linear infinite; } @keyframes ds-spin { to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { .ds-spin { animation: none; } }"
+    },
+    {
+      "name": "On-air Readout",
+      "kind": "custom",
+      "refersTo": "readout",
+      "description": "Every run's on-air readout (Frame.tsx), read like a studio's on-air light: a strip on the tone step with the dot, the run's word, the current step, and while it runs the time since it started, outside the live region. The dot is signal orange and breathes while running or waiting, ink once ended; a failure shows the square ✕ and its word instead.",
+      "html": "<div class=\"ds-readout\"><div class=\"ds-readout-status\" role=\"status\"><span class=\"ds-onair\"><span class=\"ds-dot ds-dot-live\" aria-hidden=\"true\"></span><b>Running</b></span><span>Scoring 15 shows against The Watch · step 2</span></div><span class=\"ds-elapsed\" aria-hidden=\"true\"><span>1</span>:<span>05</span></span><button class=\"ds-runlog\">Run log</button></div><div class=\"ds-readout\"><div class=\"ds-readout-status\" role=\"status\"><span class=\"ds-onair\"><span class=\"ds-dot\" aria-hidden=\"true\"></span><b>Completed</b></span></div></div><div class=\"ds-readout\"><div class=\"ds-readout-status\" role=\"status\"><span class=\"ds-fail\"><svg class=\"ds-glyph\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\"/><path d=\"m15 9-6 6\"/><path d=\"m9 9 6 6\"/></svg><b>Stopped at a limit</b></span></div></div>",
+      "css": ".ds-readout { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; min-height: 40px; margin-bottom: 8px; padding: 8px 12px; border-radius: 6px; background: var(--muted, #efeff3); color: var(--foreground, #121318); font: 400 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; } .ds-readout-status { display: flex; flex: 1; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; min-width: 0; } .ds-onair { display: inline-flex; align-items: center; gap: 8px; } .ds-onair b, .ds-fail b { font-weight: 600; } .ds-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 9999px; background: var(--foreground, #121318); } .ds-dot-live { background: var(--signal, #e4630c); animation: ds-live 1.6s ease-in-out infinite; } @keyframes ds-live { 50% { opacity: 0.35; } } @media (prefers-reduced-motion: reduce) { .ds-dot-live { animation: none; } } .ds-fail { color: var(--destructive, #c8153e); } .ds-glyph { display: inline-block; width: 1em; height: 1em; margin-right: 6px; vertical-align: -0.15em; } .ds-elapsed { color: var(--muted-foreground, #5f626d); } .ds-elapsed span { font-variant-numeric: tabular-nums; } .ds-runlog { height: 28px; margin: -4px -6px -4px 0; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--foreground, #121318); font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; cursor: pointer; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); } .ds-runlog:hover { background: var(--muted, #efeff3); } .ds-runlog:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; }"
     }
   ],
   "narrative": {
-    "northStar": "The Weekly Chart",
-    "overview": "Crossfeed sets a network's roster as this week's chart. Fit rank is the new position, the rank a topic-only planner would give is last week's, and the moves Qloo caused are the news. A programmer reads the chart the way the music and podcast industries already read Billboard and the podcast rankers: position first, then movement, then why. The world lends four things only: type, palette, density, and one signature move. Layout, navigation, and controls stay standard web components, because this is a working screen and the programmer should know where everything is before they notice the world.\n\nThe screen is light, because its scene is a head of programming at a desk in a daylit office, planning one launch between meetings, so there is no dark theme: the screen is light only, and tells the browser so with `color-scheme: light`. It is dense but not cramped: tall chart rows give the position numerals room, while everything around them stays small, quiet, and set in tabular figures. Agent text and Qloo data never blend; each is labelled where it appears, and every claim cites the Qloo call behind it.\n\nThe signature move is **chart movement**: a show that climbs three or more places over its topic rank gets a red bullet beside its position, and the selected climber opens an inline \"why it moved\" line that cites its Qloo call. This is the demo's decisive moment drawn as chart notation, not as a tile or a chat message. In motion, the move lands like a mark made on the printed chart: when the topic column arrives, last week's figures and the moves fade in over 200ms, then each climber's bullet lands beside its position, shrinking from 2.4 times its size as it fades in, over 320ms and 60ms after the climber above it, with the stagger capped at six steps. The why line fades in over 200ms. Everything else moves only to acknowledge: 120ms color changes on hover and press, and 200ms for a row taking Panel Grey. Every curve eases out, the bullet's on `cubic-bezier(0.16, 1, 0.3, 1)`; nothing bounces or loops. With reduced motion, the bullets fade in with the figures, with no scale and no stagger.\n\nOne world serves three kinds of page. The landing page persuades at a larger scale, with an illustrative chart as its hero and its climbers' bullets landing as it loads. The developer docs, the privacy page, and the beta terms are read, in one measured column. Every other page operates: the demo, sign-in, and a network's dashboard, roster, inbox, launches, settings, and account page all keep the launch workspace's grammar, tables under a black rule, hairline modules, Panel Grey for what's selected or waiting on a yes, and one black button for the page's decision.",
+    "northStar": "The data is the design",
+    "overview": "Crossfeed's output is a ranked list: a network's own shows, ranked by who listens instead of by topic. So on each screen the biggest block answers the screen's one question, and on the screens about a launch that answer is the roster ranked by listener overlap. The agent, its questions and the plan serve that ranking. The data is the design, after mkdir.directory's ranked index, where the names are set larger than the headline.\n\nThe signature is the re-rank: one list switching between \"By topic\", what a topic-only plan picks (Claude ranks it from names and descriptions, with no Qloo data), and \"By who listens\", Qloo's listener overlap, with the rows travelling to their new places and the climbers marked ▲ in the Move column. It's the landing page's one live thing, a made-up roster labelled an illustration, and the fit chart's lens in the app, on the real ranking.\n\nEvery run (a launch run or a pitch run) has an on-air readout, read like a studio's on-air light: a strip on the tone step with a dot, the run's word (Running, Waiting on you, Completed, Stopped at a limit, Failed), the current step (\"Scoring 15 shows against The Watch · step 2\"), and while it runs the time since it started. The dot is signal orange and breathes while the run is running or waiting on a person, ink once it has ended, an empty ring before the first run; a failure shows the square ✕ and its word instead.\n\nThe identity carries past the launch page: the dashboard's rows carry the on-air dot and a finalist meter, and the roster and the inbox's ranked lists use the fit chart's row anatomy.",
     "keyCharacteristics": [
-      "Heavy condensed position numerals carry the hierarchy; everything else is one plain grotesque.",
-      "White ground, near-black ink, a black top bar, and one red with one job.",
-      "Rank and band before raw score; raw affinity lives only in the evidence record.",
-      "Hairline row rules under a solid black header rule; no cards, tiles, or shadows.",
-      "Every agent line and every Qloo figure says which it is, and cites a call number such as `C-07`.",
-      "Something to keep or copy, a recovery code, a new key, a link, or code, sits on Panel Grey in the monospace stack where it's data."
+      "On each screen the biggest block answers the screen's one question, and on the screens about a launch that answer is the roster ranked by listener overlap.",
+      "The signature is the re-rank: one list switching between \"By topic\" and \"By who listens\", with the rows travelling to their new places and the climbers marked ▲ in the Move column.",
+      "Every run has an on-air readout, read like a studio's on-air light.",
+      "One family, Schibsted Grotesk (variable, OFL); mono only for real code and codes.",
+      "Signal orange means \"what the agent puts forward, and that it's live\".",
+      "Nothing at rest casts a shadow; only what floats gets shadow-float.",
+      "The app follows the system's light or dark setting; there's no .dark class and no toggle."
     ],
     "rules": [
       {
-        "name": "The One Bullet Rule",
-        "body": "Chart Red marks a climb of three or more places, and the legend that explains it, and nothing else: not errors, links, buttons, falls, or emphasis. If a screen has no climbers, it shows neither the bullet nor its legend. The docs, settings, and account pages rank nothing, so they never show it.",
-        "section": "colors"
-      },
-      {
-        "name": "The Word First Rule",
-        "body": "A state always shows its word, so no state is told by color alone, and no state color is Chart Red or a red.",
-        "section": "colors"
-      },
-      {
-        "name": "The Black Shell Rule",
-        "body": "Press Black fills only the top bar and primary action buttons, such as answering the agent, approving the order, creating an account, or opening the sample network. No other region is filled black, so the bar reads as the shell and a black button reads as a decision.",
-        "section": "colors"
-      },
-      {
-        "name": "The Numerals Speak Rule",
-        "body": "Barlow Condensed sets rank numerals and the wordmark only. Headings, names, buttons, and step numbers stay in Libre Franklin, so big type always means a position on the chart, on the landing page as in the app.",
-        "section": "typography"
-      },
-      {
-        "name": "The Data Is Mono Rule",
-        "body": "The monospace stack sets what a person copies or a machine reads: call numbers, request strings, codes, keys, and paths. Prose never takes it for effect.",
-        "section": "typography"
-      },
-      {
-        "name": "The Flat Chart Rule",
-        "body": "Nothing floats. A thing that needs attention gets Panel Grey, an ink rule, or the black primary button, never a shadow, glow, or raised card.",
+        "name": "No decoration",
+        "body": "No gradients, glows, glass, backdrop blur, emoji, decorative icons, icons in tinted squares, eyebrows, tiny uppercase letter-spaced labels, KPI tiles or rows of identical icon cards. Only what floats (menus, popovers, selects, dialogs, sheets) casts a shadow.",
         "section": "elevation"
+      },
+      {
+        "name": "Mono only for codes",
+        "body": "Mono only for real code and codes: code blocks, API keys and their prefixes, call numbers (C-21), insertion order IDs (IO-0001), entity IDs, recovery codes. Ranks, scores, money and counts are in the text face, with tabular-nums only on bare integers that align in a column (ranks, counts, slots).",
+        "section": "typography"
+      },
+      {
+        "name": "Rank numbers are data",
+        "body": "Rank numbers are data, so ranked lists show them; nothing else is numbered (\"Step 2 of 5\" only beside a real <ol>).",
+        "section": "typography"
+      },
+      {
+        "name": "Rules only in tables",
+        "body": "1px rules only inside real tables, forms and their control outlines, and the landing page's interface fragments (data-ui). Elsewhere blocks are separated by space or a tone step.",
+        "section": "layout"
+      },
+      {
+        "name": "Sentence case",
+        "body": "Sentence case everywhere, one h1 a page, headlines at most two lines.",
+        "section": "typography"
+      },
+      {
+        "name": "Full ink",
+        "body": "Running text is in full ink: 16px on marketing and docs pages, 14px in the app, nothing under 12px.",
+        "section": "typography"
+      },
+      {
+        "name": "Icons with a function",
+        "body": "Icons only where they carry function: chevrons, close, copy, upload, check, a state's glyph, and one 18px icon for each rail destination.",
+        "section": "shapes"
+      },
+      {
+        "name": "Signal orange",
+        "body": "Signal orange means \"what the agent puts forward, and that it's live\": finalist marks and meters, the plan's lines, climbers' moves, the on-air dot while a run is live. It's never on chrome, never a whole button in the app, and never success or approval, which is an ink check and the word. The landing page's closing band is the one colour field.",
+        "section": "colors"
+      },
+      {
+        "name": "Failure leads with its word",
+        "body": "A failure never relies on colour: it leads with its word, and its glyph is a square ✕ where the live dot is a circle.",
+        "section": "colors"
+      },
+      {
+        "name": "Radius by role",
+        "body": "rounded-lg (6px) is for controls: buttons, inputs, chips, segmented controls. rounded-xl (8px) is for panels, menus, popovers, dialogs and sheets. rounded-sm and rounded-md (4px) are for items inside a menu and inline code. Only the live dot and avatars are rounded-full. Edit a component's recipe rather than overriding a radius per use.",
+        "section": "shapes"
+      },
+      {
+        "name": "Flat panels",
+        "body": "Panels are --card on --background, or the tone step on the card, with no border and no shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The phone target is in the recipes",
+        "body": "Under 768px every button size, the input, the input group and the select trigger are 44px tall, and a segmented track is 44px with 40px items. Don't add max-md:h-11 per use; change the recipe.",
+        "section": "layout"
       }
     ],
     "dos": [
-      "**Do** lead every ranking with its position and band, and keep raw affinity in the evidence record ([PRODUCT.md](PRODUCT.md#constraints)).",
-      "**Do** mark agent text and Qloo data with a small Label-style tag where they appear, and set the cited Qloo call number beside any claim.",
-      "**Do** label sample figures in place, in Caption type beside the figure, and illustrations with the Illustration chip.",
-      "**Do** set every number in tabular figures, right-aligned in money and download columns.",
-      "**Do** use standard controls: tabs, sortable table headers, radios, text inputs, buttons, and `<details>` menus, with visible keyboard focus.",
-      "**Do** put what must be kept or copied on Panel Grey, in the monospace stack where it's data, shown once.",
-      "**Do** let a wide table scroll in its own frame on a phone, never the page."
+      "Edit a component's recipe rather than overriding a radius per use.",
+      "Every figure says where it came from, and the two never look alike: \"Qloo data\" is an outlined chip with an ink square, \"Agent\" a tone-filled chip with a circle (Source.tsx).",
+      "Every block has its loading, empty, error, pending and disabled states.",
+      "Loading uses a Skeleton in the block's real shape beside its state line.",
+      "Read the shadcn rules for a component before adding one, add only what a surface needs, and set a floating one's radius to 8px when you do.",
+      "Any floating component (menu, popover, dialog, sheet, select, tooltip, toast) is checked under the production policy before it ships.",
+      "Every animation has a reduced-motion state, and nothing is hidden without JavaScript."
     ],
     "donts": [
-      "**Don't** build a generic AI chat app: no transcript-and-sidebar layout. The agent speaks through the open-question module and short labelled lines.",
-      "**Don't** build a BI dashboard: no KPI tile row, donut charts, or chart cards, on the dashboard or anywhere else.",
-      "**Don't** clone a spreadsheet: no gridlines on every cell and no cell-editing look.",
-      "**Don't** use Chart Red for anything but the gainer bullet.",
-      "**Don't** show a bare affinity decimal in the chart or rail.",
-      "**Don't** put Qloo data, invented customers, quotes, figures, or prices on the marketing pages.",
-      "**Don't** use purple gradients, frosted glass, emoji icons, cards inside cards, pill buttons, or shadowed menus.",
-      "**Don't** remove focus outlines."
+      "No gradients, glows, glass, backdrop blur, emoji, decorative icons, icons in tinted squares, eyebrows, tiny uppercase letter-spaced labels, KPI tiles or rows of identical icon cards.",
+      "There's no outline variant: where shadcn asks for one, use secondary or ghost.",
+      "Don't add max-md:h-11 per use; change the recipe.",
+      "Don't re-add one with shadcn add <name> --overwrite: edit the fork, or its recipe in variants.ts.",
+      "No sonner, which injects a <style>; use Base UI's toast if a toast is ever needed. Don't turn on Base UI's renderBeforeHydration.",
+      "No style=\"…\" in server HTML.",
+      "A running step shows a small spinner, never shimmering text, and a skeleton is a still block with no pulse."
     ]
   }
 }
