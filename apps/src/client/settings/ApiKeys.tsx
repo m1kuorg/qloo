@@ -84,14 +84,14 @@ function OwnerKeys({
           <div className="flex flex-wrap gap-2">
             <Input
               id="key-name"
-              className="max-w-sm flex-1 basis-56 max-md:h-11"
+              className="max-w-sm flex-1 basis-56"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={MAX_NAME}
               placeholder="Such as Nightly roster sync"
               required
             />
-            <Button type="submit" variant="secondary" className="max-md:h-11" disabled={busy || !name.trim()}>
+            <Button type="submit" variant="secondary" disabled={busy || !name.trim()}>
               {busy && <Spinner data-icon="inline-start" />}
               {busy ? 'Working…' : 'Create API key'}
             </Button>
@@ -146,7 +146,7 @@ function OwnerKeys({
                     {k.lastUsed === null ? 'Never' : day(k.lastUsed)}
                   </td>
                   <td className={`${cell} pr-0 text-right`}>
-                    <Button variant="ghost" size="sm" className="max-md:h-11" onClick={() => askRevoke(k)}>
+                    <Button variant="ghost" size="sm" onClick={() => askRevoke(k)}>
                       Revoke
                     </Button>
                   </td>

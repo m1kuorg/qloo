@@ -103,7 +103,7 @@ export function useCodeAsk(id: string) {
             <FieldLabel htmlFor={id}>Your recovery code</FieldLabel>
             <Input
               id={id}
-              className="font-mono max-md:h-11"
+              className="font-mono"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
@@ -170,7 +170,7 @@ export function RecoveryCode({ code, next, frame }: { code: string; next: string
           </span>
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" className="max-md:h-11" onClick={() => void copy()}>
+          <Button variant="secondary" onClick={() => void copy()}>
             {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
             {copied ? 'Copied' : 'Copy code'}
           </Button>
@@ -178,9 +178,7 @@ export function RecoveryCode({ code, next, frame }: { code: string; next: string
           <span role="status" className="vh">
             {copied ? 'Copied' : ''}
           </span>
-          <Button className="max-md:h-11" onClick={() => window.location.assign(next)}>
-            I’ve saved it
-          </Button>
+          <Button onClick={() => window.location.assign(next)}>I’ve saved it</Button>
         </div>
         {copied === false && (
           <StateLine kind="error" role="alert">

@@ -31,10 +31,10 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
           value={unreleased ? 'unreleased' : 'released'}
           onValueChange={(kind) => setUnreleased(kind === 'unreleased')}
           disabled={disabled}
-          className={segmentedTrackVariants({ className: 'flex shrink-0 max-md:h-11' })}
+          className={segmentedTrackVariants({ className: 'flex shrink-0' })}
         >
           {['released', 'unreleased'].map((kind) => (
-            <RadioGroupSegment key={kind} value={kind} className={segmentedItemVariants({ className: 'max-md:h-10' })}>
+            <RadioGroupSegment key={kind} value={kind} className={segmentedItemVariants()}>
               {kind === 'unreleased' ? 'Unreleased, from comps' : 'Released'}
             </RadioGroupSegment>
           ))}
@@ -49,7 +49,7 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
               placeholder={['Blank Check', 'Filmspotting', 'You Must Remember This'][i]}
               maxLength={MAX_TITLE}
               disabled={disabled}
-              className={stacked ? 'max-md:h-11' : 'sm:w-48 max-md:h-11'}
+              className={stacked ? undefined : 'sm:w-48'}
             />
           ))
         ) : (
@@ -60,7 +60,7 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
             placeholder="The Big Picture"
             maxLength={MAX_TITLE}
             disabled={disabled}
-            className={stacked ? 'max-md:h-11' : 'sm:w-72 max-md:h-11'}
+            className={stacked ? undefined : 'sm:w-72'}
           />
         )}
       </>

@@ -99,9 +99,9 @@ export function Inspector({
       {/* The tabs stay at the top of the inspector while what's in it scrolls under them. */}
       {/* It sticks at the scroller's padding edge, so beside the canvas it's pulled up over the aside's 16px. */}
       <div className={cn('sticky z-10 -mx-4 bg-card px-4 pb-1', wide ? '-top-4 -mt-4 pt-4' : 'top-0 pt-1')}>
-        <TabsList className="max-md:h-11">
+        <TabsList>
           {tabs.map((t) => (
-            <TabsTrigger key={t} value={t} className="max-md:h-10">
+            <TabsTrigger key={t} value={t}>
               {tabName[t]}
             </TabsTrigger>
           ))}
@@ -220,7 +220,7 @@ export function Readout({
         </span>
       )}
       {runLog && (
-        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5 max-md:h-11" onClick={runLog}>
+        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={runLog}>
           Run log
         </Button>
       )}

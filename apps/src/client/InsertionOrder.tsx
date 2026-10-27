@@ -74,12 +74,7 @@ export function InsertionOrderPanel({
   const sample = (line: OrderLine) =>
     sampleCpm || !!roster.find((s) => s.name === line.show)?.sample?.includes('downloads')
   const exported = approved && exportHref && (
-    <a
-      ref={exportLink}
-      className={buttonVariants({ variant: 'secondary', className: 'max-md:h-11' })}
-      href={exportHref}
-      download
-    >
+    <a ref={exportLink} className={buttonVariants({ variant: 'secondary' })} href={exportHref} download>
       Export CSV
     </a>
   )
@@ -165,12 +160,12 @@ export function InsertionOrderPanel({
                 {approved ? (
                   exported
                 ) : (
-                  <Button disabled={busy} onClick={() => void approve()} className="max-md:h-11">
+                  <Button disabled={busy} onClick={() => void approve()}>
                     {busy && <Spinner data-icon="inline-start" />}
                     Approve
                   </Button>
                 )}
-                <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)} className="max-md:h-11">
+                <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>
                   Edit lines
                 </Button>
                 <p className="type-caption text-muted-foreground">
@@ -411,7 +406,7 @@ function EditLines({
                   inputMode="numeric"
                   value={lines[i].slots}
                   onChange={(e) => change(i, 'slots', e.target.value)}
-                  className="w-14 text-right normal-nums max-md:h-11"
+                  className="w-14 text-right normal-nums"
                 />
               </Field>
             ),
@@ -425,7 +420,7 @@ function EditLines({
                   size="sm"
                   aria-label={`Drop ${line.show}`}
                   onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
-                  className="-mr-2.5 max-md:h-11"
+                  className="-mr-2.5"
                 >
                   Drop
                 </Button>
@@ -435,11 +430,11 @@ function EditLines({
         </Lines>
         <Checks priced={priced} budget={budget} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <Button type="submit" disabled={invalid} className="max-md:h-11">
+          <Button type="submit" disabled={invalid}>
             {busy && <Spinner data-icon="inline-start" />}
             Save
           </Button>
-          <Button type="button" variant="ghost" onClick={cancel} className="max-md:h-11">
+          <Button type="button" variant="ghost" onClick={cancel}>
             Cancel
           </Button>
           {/* Why Save is off, told as it changes; the fields it's about point here. */}

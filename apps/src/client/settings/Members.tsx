@@ -128,13 +128,7 @@ export function MembersModule({
                   <td className={`${cell} pr-0 text-right`}>
                     <span className="inline-flex flex-wrap justify-end gap-1">
                       {canSetRole && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="max-md:h-11"
-                          disabled={busy}
-                          onClick={() => setRole(m)}
-                        >
+                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRole(m)}>
                           {m.role === 'owner' ? 'Make member' : 'Make owner'}
                         </Button>
                       )}
@@ -142,7 +136,6 @@ export function MembersModule({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="max-md:h-11"
                           disabled={busy || (self && lastOwner)}
                           onClick={() => askOut(m)}
                         >
@@ -211,7 +204,7 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
         </p>
       </div>
       <div>
-        <Button variant="secondary" className="max-md:h-11" disabled={busy} onClick={() => void create()}>
+        <Button variant="secondary" disabled={busy} onClick={() => void create()}>
           {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Working…' : 'Create invite link'}
         </Button>
@@ -238,7 +231,7 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
                 {made?.id === i.id && <Badge variant="outline">New</Badge>}
                 <span className="type-caption text-muted-foreground">Expires {day(i.expires)}</span>
               </span>
-              <Button variant="ghost" size="sm" className="max-md:h-11" onClick={() => askRevoke(i)}>
+              <Button variant="ghost" size="sm" onClick={() => askRevoke(i)}>
                 Revoke
               </Button>
             </li>

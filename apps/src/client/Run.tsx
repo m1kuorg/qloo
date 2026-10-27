@@ -213,7 +213,7 @@ export function RunList({
                       disabled={busy}
                       aria-label={`View run ${r.n}`}
                       onClick={() => void open(r.id === latest ? null : r.id)}
-                      className="-mr-1 max-md:h-11"
+                      className="-mr-1"
                     >
                       View
                     </Button>
@@ -344,16 +344,16 @@ export function OpenQuestion({
                     value={unit}
                     onValueChange={(next) => setUnit(next as 'slots' | 'dollars')}
                     disabled={busy}
-                    className={segmentedTrackVariants({ className: 'flex max-md:h-11' })}
+                    className={segmentedTrackVariants({ className: 'flex' })}
                   >
-                    <RadioGroupSegment value="slots" className={segmentedItemVariants({ className: 'max-md:h-10' })}>
+                    <RadioGroupSegment value="slots" className={segmentedItemVariants()}>
                       Promo slots
                     </RadioGroupSegment>
-                    <RadioGroupSegment value="dollars" className={segmentedItemVariants({ className: 'max-md:h-10' })}>
+                    <RadioGroupSegment value="dollars" className={segmentedItemVariants()}>
                       A dollar budget
                     </RadioGroupSegment>
                   </RadioGroup>
-                  <InputGroup className="w-48 max-md:h-11">
+                  <InputGroup className="w-48">
                     {unit === 'dollars' && <InputGroupAddon aria-hidden="true">$</InputGroupAddon>}
                     <InputGroupInput
                       aria-label={unit === 'slots' ? 'Promo slots' : 'Dollar budget'}
@@ -420,7 +420,7 @@ export function OpenQuestion({
                         value={comp}
                         onChange={(e) => setComps(comps.map((c, j) => (j === i ? e.target.value : c)))}
                         maxLength={MAX_TITLE}
-                        className="sm:w-48 max-md:h-11"
+                        className="sm:w-48"
                       />
                     ))}
                   </div>
@@ -476,12 +476,12 @@ export function OpenQuestion({
                   }}
                   // A launch's name, or the programmer's own answer.
                   maxLength={question.kind === 'launch' || question.kind === 'comps' ? MAX_TITLE : MAX_ANSWER}
-                  className="sm:max-w-md max-md:h-11"
+                  className="sm:max-w-md"
                 />
               </Field>
             )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Button type="submit" disabled={unpicked} className="max-md:h-11">
+              <Button type="submit" disabled={unpicked}>
                 {busy && <Spinner data-icon="inline-start" />}
                 Answer
               </Button>

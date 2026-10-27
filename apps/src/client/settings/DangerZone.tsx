@@ -48,7 +48,7 @@ function DeleteNetwork({ network }: { network: NetworkPage }) {
         </FieldLabel>
         <Input
           id="delete-name"
-          className="max-w-sm max-md:h-11"
+          className="max-w-sm"
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           autoComplete="off"
@@ -56,12 +56,7 @@ function DeleteNetwork({ network }: { network: NetworkPage }) {
         />
       </Field>
       <div>
-        <Button
-          type="submit"
-          variant="destructive"
-          className="max-md:h-11"
-          disabled={busy || typed.trim() !== network.name}
-        >
+        <Button type="submit" variant="destructive" disabled={busy || typed.trim() !== network.name}>
           {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Deleting…' : 'Delete network'}
         </Button>

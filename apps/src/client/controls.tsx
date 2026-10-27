@@ -312,13 +312,13 @@ export function ShownOnce({
       <div className="flex gap-2">
         <Input
           id={id}
-          className={cn('min-w-0 flex-1 max-md:h-11', mono && 'font-mono')}
+          className={cn('min-w-0 flex-1', mono && 'font-mono')}
           value={value}
           readOnly
           onFocus={(e) => e.target.select()}
           spellCheck={false}
         />
-        <Button variant="secondary" className="max-md:h-11" onClick={() => void copy()}>
+        <Button variant="secondary" onClick={() => void copy()}>
           {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
           {copied ? 'Copied' : `Copy ${noun}`}
         </Button>

@@ -448,7 +448,7 @@ function LaunchHead({
           </div>
         </div>
         {/* On a phone the primary leads, on a line of its own, and the rest share the line under it. */}
-        <div className="flex flex-wrap items-center gap-2 max-sm:w-full [&>*]:max-md:h-11">
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
           {order && (
             <a href="#plan" className={buttonVariants({ variant: 'ghost' })}>
               Review the plan
@@ -646,7 +646,7 @@ function SampleNotice({ sample, clear }: { sample: Sample; clear: () => void }) 
         <b className="font-semibold">{sample.network}.</b> {sample.notice}
       </p>
       <div className="flex flex-col items-start gap-1.5 md:w-60 md:shrink-0">
-        <Button variant="secondary" onClick={clear} className="max-md:h-11">
+        <Button variant="secondary" onClick={clear}>
           Clear sample network
         </Button>
         <small className="type-caption text-muted-foreground">

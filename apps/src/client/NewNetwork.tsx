@@ -46,7 +46,7 @@ export function NewNetworkPage({ cap }: { cap: number }) {
             required
           />
         </Field>
-        <Button type="submit" disabled={busy || !name.trim()} className="self-start max-md:h-11">
+        <Button type="submit" disabled={busy || !name.trim()} className="self-start">
           {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Creating…' : 'Create network'}
         </Button>
