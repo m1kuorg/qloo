@@ -229,12 +229,12 @@ function Docs({ page, accounts }: { page: Page; accounts: boolean }) {
         <h1 id="dk-h1" class="type-display text-balance">
           {at === 0 ? 'Developer docs' : PAGES[at].title}
         </h1>
-        <div class="mt-6 space-y-4">
+        <div class="mt-6 flex flex-col gap-4">
           <p>{page.lede}</p>
           {!accounts && <Closed />}
         </div>
         {page.sections.map((s) => (
-          <section aria-labelledby={s.id} class="mt-16 space-y-4">
+          <section aria-labelledby={s.id} class="mt-16 flex flex-col gap-4">
             <h2 id={s.id} class="scroll-mt-8 type-title text-balance">
               {s.title}
             </h2>
@@ -596,7 +596,7 @@ function RouteEntry({ route }: { route: Route }) {
   const refusals = answers.filter(([status]) => Number(status) >= 400).map(([status]) => status)
   const body = op.requestBody && Object.entries(op.requestBody.content)
   return (
-    <div class="space-y-3 pt-8 first-of-type:pt-0">
+    <div class="flex flex-col gap-3 pt-8 first-of-type:pt-0">
       <h3 id={route.id} class="scroll-mt-8 font-semibold">
         {op.summary}
       </h3>
@@ -1066,7 +1066,7 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
             Asked to plan promos for a launch, the assistant creates it, starts a run, and reads it until the run waits.
             Then it asks you the run&apos;s question as it is, and answers with your words:
           </p>
-          <figure class="space-y-3">
+          <figure class="flex flex-col gap-3">
             <figcaption class="flex flex-wrap items-center gap-2 type-ui text-muted-foreground">
               A launch through the MCP server
               <span class={badgeVariants()}>Illustration</span>

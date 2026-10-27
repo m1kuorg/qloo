@@ -1101,7 +1101,7 @@ const Part = ({ id, title, children }: { id: string; title: string; children: Ch
       <h2 id={id} class="type-title text-balance">
         {title}
       </h2>
-      <div class="prose-doc max-w-[64ch] space-y-4">{children}</div>
+      <div class="prose-doc flex max-w-[64ch] flex-col gap-4">{children}</div>
     </div>
   </section>
 )
@@ -1162,7 +1162,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
 
       <Part id="keeps" title="What Crossfeed keeps">
         {/* Each kind of storage, led by where it is. */}
-        <ul class="list-none space-y-4 pl-0 [&>li]:space-y-4">
+        <ul class="flex list-none flex-col gap-4 pl-0 [&>li]:mt-0 [&>li]:flex [&>li]:flex-col [&>li]:gap-4">
           <li>
             <p>
               <b>In your browser:</b> one cookie, <code>crossfeed_session</code>, a random ID that names your session.
