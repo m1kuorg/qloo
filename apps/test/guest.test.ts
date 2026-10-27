@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { JoinAs } from '../src/client/Account'
 import { NewNetworkPage } from '../src/client/NewNetwork'
-import { fakeClaude, fakeQloo, text, turn } from './fake'
+import { fakeClaude, fakeQloo, text, toolUse, turn } from './fake'
 import { guestSignIn, hooked, openGuest, openMember, type Guest, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -359,7 +359,8 @@ describe("the guest network's daily budget", () => {
   const saved = {
     GUEST_PITCHES: env.GUEST_PITCHES,
     RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
-    FREE_START_DAILY_CAP: env.FREE_START_DAILY_CAP
+    FREE_START_DAILY_CAP: env.FREE_START_DAILY_CAP,
+    QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP
   }
   const open: Omit<Session, 'cookie'>[] = []
   afterEach(() => {
@@ -449,5 +450,34 @@ describe("the guest network's daily budget", () => {
     for (const launch of [adas, dots])
       await expect(launch.call('startLaunch', { name: 'The Night Watch' })).rejects.toThrow(used)
     expect(dots.state()!.runs.map((r) => r.status)).toEqual(['completed', 'stopped', 'stopped'])
+  })
+
+  it('counts every guest’s Qloo calls together, from any address or none, then refuses every guest the next', async () => {
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '3'
+    fakeQloo({ search })
+    fakeClaude([
+      turn(toolUse('resolve_entities', { names: ['Night Shift Cinema'], type: 'urn:entity:podcast' })),
+      turn(text('Night Shift Cinema is resolved.'))
+    ])
+    // Ada imports a show, one search; Grace searches for a comp for it, another.
+    const ada = await connect(await openGuest({ ip: adaIp }), adaIp)
+    await ada.importRoster('Night Shift Cinema')
+    const grace = await connect(await openGuest({ ip: graceIp }), graceIp)
+    await grace.searchComps('Night Shift Cinema', 'Night Ferry')
+    // A launch run of a guest with no address resolves its launch: the third.
+    const someone = await openGuest()
+    const { id } = await (await connect(someone)).call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const launch = await connect(someone, undefined, id)
+    const { runId } = await launch.call<{ runId: string }>('startLaunch', { name: 'Night Shift Cinema' })
+    expect((await ended(launch, runId)).run?.status).toBe('completed')
+
+    const used =
+      'This would take guests past 3 Qloo calls today, the most the guest network can make in a UTC day, shared by everyone who signs in as a guest, cache hits included; they reset at 00:00 UTC.'
+    const dot = await connect(await openGuest({ ip: dotIp }), dotIp)
+    for (const guest of [ada, grace, dot]) {
+      await expect(guest.call('importRoster', 'Night Shift Cinema\nNight Ferry')).rejects.toThrow(used)
+      await expect(guest.call('searchComps', 'Night Shift Cinema', 'Night Ferry')).rejects.toThrow(used)
+    }
+    expect(dot.state()!.roster.map((show) => show.name)).toEqual(['Night Shift Cinema'])
   })
 })
