@@ -6,7 +6,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { JoinAs } from '../src/client/Account'
 import { NewNetworkPage } from '../src/client/NewNetwork'
-import { guestSignIn, hooked, openGuest, openMember, type Guest } from './session'
+import { fakeClaude, fakeQloo, text, turn } from './fake'
+import { guestSignIn, hooked, openGuest, openMember, type Guest, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
 const accounts = env.ACCOUNTS
@@ -340,5 +341,86 @@ describe('the guest sign-in limit', () => {
     for (let i = 0; i < 29; i++) expect((await guestSignIn()).status).toBe(200)
     const both = await Promise.all([guestSignIn({ ip: '203.0.113.7' }), guestSignIn({ ip: '198.51.100.4' })])
     expect(both.map((res) => res.status).sort()).toEqual([200, 429])
+  })
+})
+
+describe("the guest network's daily budget", () => {
+  // Guests' addresses, as Cloudflare's edge sends them.
+  const adaIp = '203.0.113.7'
+  const graceIp = '2001:db8::1'
+  const dotIp = '192.0.2.1'
+  const pitch = {
+    text: 'From: Pat <pat@example.com>\nSubject: A guest\n\nAda Quill would love to talk about Night Ferry.'
+  }
+  const search = {
+    'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.8 }],
+    'Night Ferry': [{ entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.81, disambiguation: '2019, Ada Quill' }]
+  }
+  const saved = {
+    GUEST_PITCHES: env.GUEST_PITCHES,
+    RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
+  }
+  const open: Omit<Session, 'cookie'>[] = []
+  afterEach(() => {
+    Object.assign(env, saved)
+    open.splice(0).forEach((agent) => agent.close())
+  })
+
+  // A guest's connection to one of the guest network's agents, from address `ip` if given, as its page
+  // opens it: the network's own, or with `launch`, that launch's.
+  async function connect(guest: Guest, ip?: string, launch?: string) {
+    const path = launch ? `/agents/launch/guest-network/${launch}` : '/agents/network/guest-network'
+    const agent = await guest.connect(path, ip ? { 'CF-Connecting-IP': ip } : {})
+    open.push(agent)
+    return agent
+  }
+  const ended = (agent: Omit<Session, 'cookie'>, runId: string) =>
+    agent.until((s) => s.run?.id === runId && s.run.status !== 'running')
+
+  it('counts every guest’s model runs together, from any address or none, then refuses every guest the next', async () => {
+    env.GUEST_PITCHES = 'on'
+    env.RUN_VISITOR_DAILY_CAP = '3'
+    fakeQloo({ search })
+    fakeClaude([
+      // Ada's inbox load reads its one pitch.
+      turn(text(JSON.stringify({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } }))),
+      // Grace's pitch run, and the launch run of a guest with no address, end at their first turn.
+      turn(text('Nothing to rank.')),
+      turn(text('Nothing to rank.'))
+    ])
+    const ada = await connect(await openGuest({ ip: adaIp }), adaIp)
+    await ada.importRoster('Night Shift Cinema')
+    await ada.call('loadInbox', pitch)
+    await ada.until((s) => s.inbox?.status === 'done')
+
+    const grace = await connect(await openGuest({ ip: graceIp }), graceIp)
+    const pitches = { show: 'Night Shift Cinema', pastGuests: [] }
+    await ended(grace, (await grace.call<{ runId: string }>('startPitches', pitches)).runId)
+
+    const someone = await openGuest()
+    const { id } = await (await connect(someone)).call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    const launch = await connect(someone, undefined, id)
+    const run = await ended(
+      launch,
+      (await launch.call<{ runId: string }>('startLaunch', { name: 'The Night Watch' })).runId
+    )
+    expect(run.run?.status).toBe('completed')
+
+    // Every guest is refused the next, those who spent the budget and one who signs in from a new address.
+    const used =
+      'Guests have started 3 model runs today, the most the guest network can start in a UTC day, shared by everyone who signs in as a guest; they reset at 00:00 UTC'
+    const dot = await connect(await openGuest({ ip: dotIp }), dotIp)
+    for (const guest of [ada, grace, dot]) {
+      await expect(guest.call('loadInbox', pitch)).rejects.toThrow(`${used}.`)
+      await expect(guest.call('startPitches', pitches)).rejects.toThrow(`${used}.`)
+    }
+    const stopped = await ended(
+      launch,
+      (await launch.call<{ runId: string }>('startLaunch', { name: 'The Night Watch' })).runId
+    )
+    expect(stopped.run).toMatchObject({
+      status: 'stopped',
+      error: `${used}, so runs on your own data wait until then. Only the sample launch, on the unchanged sample network, replays its stored run.`
+    })
   })
 })

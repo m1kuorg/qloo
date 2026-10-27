@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
+import { GUEST_NETWORK } from './directory'
 import type { CallEvidence } from './evidence'
 import { isQlooHost } from './qloo-hosts'
 import { sha256 } from './text'
@@ -247,7 +248,7 @@ export class QlooGateway extends DurableObject<Env> {
     // A limit that isn't a number refuses every call, rather than none.
     const limit = Number(this.env.QLOO_VISITOR_DAILY_CALL_CAP) || 0
     if (this.used('visitor_calls', key, day) + n > limit)
-      return `This would take you past ${limit} Qloo calls today, the most ${whoCounts(visitor)} can make in a UTC day, cache hits included; they reset at 00:00 UTC`
+      return `This would take you past ${limit} Qloo calls today, the most ${whoCounts(visitor).one} can make in a UTC day, cache hits included; they reset at 00:00 UTC`
     this.add('visitor_calls', key, day, n)
     return null
   }
@@ -286,7 +287,7 @@ export class QlooGateway extends DurableObject<Env> {
       return {
         down,
         limited,
-        refused: `You've started ${limit === 1 ? '1 run' : `${limit} runs`} today that replayed or stopped at once, the most ${whoCounts(visitor)} can start in a UTC day; they reset at 00:00 UTC`,
+        refused: `You've started ${limit === 1 ? '1 run' : `${limit} runs`} today that replayed or stopped at once, the most ${whoCounts(visitor).one} can start in a UTC day; they reset at 00:00 UTC`,
         stored: null
       }
     this.add('free_starts', key, day)
@@ -311,7 +312,7 @@ export class QlooGateway extends DurableObject<Env> {
   }
 
   // Counts a model run under `key` (a visitor and a day, hashed), or says which limit refuses `who`.
-  private countModelRun(key: string, day: string, who: string): ModelRuns {
+  private countModelRun(key: string, day: string, who: Who): ModelRuns {
     const used = this.used('model_runs', key, day)
     const [all] = this.sql.exec<{ count: number }>('SELECT COALESCE(SUM(count), 0) AS count FROM model_runs').toArray()
     // A limit that isn't a number refuses every run, rather than none.
@@ -321,7 +322,7 @@ export class QlooGateway extends DurableObject<Env> {
       return {
         used,
         limit,
-        refused: `You've started ${modelRuns(limit)} today, the most ${who} can start in a UTC day; they reset at 00:00 UTC`
+        refused: `${who.you} started ${modelRuns(limit)} today, the most ${who.one} can start in a UTC day${who.shared}; they reset at 00:00 UTC`
       }
     if (all.count >= cap)
       return {
@@ -728,8 +729,15 @@ function list<T>(data: unknown, ...path: string[]): T[] {
 
 const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n} model runs`)
 
-// Who a per-visitor limit counts, in its refusal: a signed-in network's agents count as their network.
-const whoCounts = (visitor: string) => (visitor.startsWith('network:') ? 'one network' : 'one visitor')
+// Who a per-visitor limit counts, in its refusal: whose use it is (`you`), and who the limit is for
+// (`one`), one visitor or one network, as a signed-in network's agents count as their network. The guest
+// network's limits are shared by everyone who signs in as a guest (ADR 0005), so its refusals say that
+// too (`shared`).
+type Who = { you: string; one: string; shared: string }
+const whoCounts = (visitor: string): Who =>
+  visitor === `network:${GUEST_NETWORK}`
+    ? { you: 'Guests have', one: 'the guest network', shared: ', shared by everyone who signs in as a guest' }
+    : { you: "You've", one: visitor.startsWith('network:') ? 'one network' : 'one visitor', shared: '' }
 
 // Today in UTC, such as "2026-10-18": the day the caps count in.
 const utcDay = () => new Date().toISOString().slice(0, 10)
