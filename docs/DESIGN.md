@@ -300,6 +300,7 @@ The identity carries past the launch page: the dashboard's rows carry the on-air
 
 - No gradients, glows, glass, backdrop blur, emoji, decorative icons, icons in tinted squares, eyebrows, tiny uppercase letter-spaced labels, KPI tiles or rows of identical icon cards. Only what floats (menus, popovers, selects, dialogs, sheets) casts a shadow.
 - Mono only for real code and codes: code blocks, API keys and their prefixes, call numbers (`C-21`), insertion order IDs (`IO-0001`), entity IDs, recovery codes. Ranks, scores, money and counts are in the text face, with `tabular-nums` only on bare integers that align in a column (ranks, counts, slots). The face's tabular comma and full stop are a digit wide, so money, downloads and percentiles stay proportional, right-aligned in a column.
+- One sanctioned exception, on the landing page alone: the ASCII field behind it, mono glyphs on a canvas, is the one exception to the mono rule and to the landing page's type-led direction with no imagery. It's a picture of the subject, sound ripples crossing, drawn on a canvas: not text, not ornament, and never in the DOM. Nothing else is set in mono for its look, and no other page gets a field.
 - Rank numbers are data, so ranked lists show them; nothing else is numbered ("Step 2 of 5" only beside a real `<ol>`).
 - 1px rules only inside real tables, forms and their control outlines, and the landing page's interface fragments (`data-ui`). Elsewhere blocks are separated by space or a tone step.
 - Sentence case everywhere, one h1 a page, headlines at most two lines.
@@ -329,9 +330,10 @@ Signal orange means "what the agent puts forward, and that it's live": finalist 
 | Signal as text: a climber's ▲                       | `--signal-ink`                               | `#a24a00`             | `#ffa266`             |
 | Signal tint: a finalist row's wash                  | `--signal-tint`                              | `#fdeee2`             | `#2a1a0e`             |
 | Destructive: crimson                                | `--destructive` / `--destructive-foreground` | `#c8153e` / `#ffffff` | `#ff5c7a` / `#0e0f12` |
+| The landing page's ASCII field: its densest glyph   | `--ascii`                                    | `#dfdfe1`             | `#343538`             |
 | Focus ring                                          | `--ring`                                     | `#121318`             | `#ececf1`             |
 
-`--accent` is shadcn's hover wash, the same value as `--muted`, not the signal. Text pairs hold 4.5:1 and large text and control outlines 3:1; `--input` holds 3:1 on the tone step too. A failure never relies on colour: it leads with its word, and its glyph is a square ✕ where the live dot is a circle. The landing page's closing band (`data-band='signal'`) is signal orange with the light scheme's ink, secondary and ring in both schemes.
+`--accent` is shadcn's hover wash, the same value as `--muted`, not the signal. Text pairs hold 4.5:1 and large text and control outlines 3:1; `--input` holds 3:1 on the tone step too. `--ascii` is ink over the ground, as dark as it can be while `--muted-foreground` holds 4.5:1 against it (4.57:1 light, 4.54:1 dark), so every word on the landing page keeps 4.5:1 wherever it sits over the field. A failure never relies on colour: it leads with its word, and its glyph is a square ✕ where the live dot is a circle. The landing page's closing band (`data-band='signal'`) is signal orange with the light scheme's ink, secondary and ring in both schemes.
 
 ### Type
 
@@ -381,6 +383,7 @@ The app moves only as feedback: a press, a hover, a menu or sheet opening, a row
 | The live dot      | opacity 1 to 0.35 and back over 1.6s (`animate-live`), never its size                                                                                       |
 | Masked headline   | each line rises from behind its baseline over 900ms on `--ease-lift` (`animate-line-up`); what follows rises in over 500ms, 480ms after (`animate-rise-in`) |
 | Section entrances | `client/reveal.ts` holds a part 32px down until it's in view, then it rises over 700 to 900ms, a second part 80ms behind                                    |
+| The ASCII field   | ripples spread 15 to 26px a second from the shows, 40 from the pointer, at most 24 frames a second; held while hidden; still with reduced motion            |
 | Menus and dialogs | fade and scale from 0.95 to 0.98, 100 to 200ms                                                                                                              |
 
 A running step shows a small spinner, never shimmering text, and a skeleton is a still block with no pulse.
@@ -480,6 +483,7 @@ Forks worth knowing:
 | `client/Source.tsx`                   | the "Qloo data" and "Agent" chips                                                                                                                                                                    |
 | `client/settings/Module.tsx`          | the settings grammar, which the account page shares                                                                                                                                                  |
 | `client/menus.ts`, `client/reveal.ts` | the shells' menus, and the landing page's section entrances                                                                                                                                          |
+| `client/ascii.ts`                     | the landing page's ASCII field                                                                                                                                                                       |
 
 ## Patterns
 
@@ -566,7 +570,7 @@ At 390px: the rail is the bottom bar, the inspector a sheet, every control 44px 
 
 ### Marketing and reading pages
 
-- **Landing page** (`routes/marketing.tsx`): a type-led page. The hero's two-line statement at `type-poster` with the masked headline, one sentence, and "Open the sample network", the first link in `<main>`. The re-rank is CSS only: `:has()` on the checked radio sets each row's offset from its two ranks (`data-l`, `data-t`), rows share one height so they move by whole rows, and both ranks are in each row's text. Its pictures are true-size fragments of the app (`data-ui`) built from the same recipes, with made-up shows and no decimals. The closing band is the page's one colour field. Each section is a screen at least: the hero is `100svh` less the header, so the two fill the first screen, and every section after it is `min-h-svh`, taller only where its content needs it, as on phones, and never clipped. A section fills its screen with its own content, set larger or placed (the run's bar at `40svh`, the never-claims at `type-title`, the close's question at its top and foot with the ways in between), never with blank space. Sections meet with no margin between them: their own padding (48px, 80px from 768px, 96px from 1024px) keeps their content 96, 160 or 192px apart, and any height left over centres it. In-page links land on their target below the header.
+- **Landing page** (`routes/marketing.tsx`): a type-led page. The hero's two-line statement at `type-poster` with the masked headline, one sentence, and "Open the sample network", the first link in `<main>`. The re-rank is CSS only: `:has()` on the checked radio sets each row's offset from its two ranks (`data-l`, `data-t`), rows share one height so they move by whole rows, and both ranks are in each row's text. Its pictures are true-size fragments of the app (`data-ui`) built from the same recipes, with made-up shows and no decimals. The closing band is the page's one colour field. Behind the page is the ASCII field, its one picture of the subject (`client/ascii.ts`, which the marketing shell's `ascii` loads with its canvas): ripples spread from five fixed sources, the roster's shows, and from the pointer, the launch, each a thin crest every 120px; where they cross they add up, and each 14px cell (12px under 768px) takes the character for its sum from the ramp `" .:-=+*#%@"`, sparse to dense, in `--ascii`. The canvas is fixed to the window under everything, `aria-hidden` and deaf to the pointer, and the glyphs are copied from an atlas drawn once per size and scheme, at no more than twice the CSS pixel; the re-rank's rows, the fragments, the closing band and the footer sit on it as opaque grounds. Without JavaScript the canvas is empty and the page is the flat ground. Each section is a screen at least: the hero is `100svh` less the header, so the two fill the first screen, and every section after it is `min-h-svh`, taller only where its content needs it, as on phones, and never clipped. A section fills its screen with its own content, set larger or placed (the run's bar at `40svh`, the never-claims at `type-title`, the close's question at its top and foot with the ways in between), never with blank space. Sections meet with no margin between them: their own padding (48px, 80px from 768px, 96px from 1024px) keeps their content 96, 160 or 192px apart, and any height left over centres it. In-page links land on their target below the header.
 - **Privacy and terms:** each section a row of heading and text on a 1fr/2fr grid, alternate rows on the tone step, text in `prose-doc`.
 - **Developer docs:** the nav (220px from 1024px, a `<details>` above the article below), the article at 72ch, "On this page" from 1440px. `prose-doc` sets inline links, lists, bold and code; `table-doc` sets real tables, and `table-fold` folds a reference table into blocks under 640px.
 
@@ -577,7 +581,7 @@ Every page is served under a Content-Security-Policy of the app's own origin alo
 - The island renders inside Base UI's `<CSPProvider disableStyleElements>` (`client/main.tsx`), and `style.css` carries the one rule Base UI would inject, `.base-ui-disable-scrollbar`.
 - No sonner, which injects a `<style>`; use Base UI's toast if a toast is ever needed. Don't turn on Base UI's `renderBeforeHydration`.
 - No `style="…"` in server HTML. The island may set styles through React's `style` prop, which the browser applies through the DOM, not as an inline attribute.
-- Marketing pages' scripts are same-origin module scripts (`menus.ts`, `reveal.ts`), never inline.
+- Marketing pages' scripts are same-origin module scripts (`menus.ts`, `reveal.ts`, `ascii.ts`), never inline. The field's canvas takes its size from its classes and its own `width` and `height`, which the script sets; a script may set `el.style`, which the policy allows, but server HTML has no `style` attribute.
 - Any floating component (menu, popover, dialog, sheet, select, tooltip, toast) is checked under the production policy before it ships.
 
 ## How to verify

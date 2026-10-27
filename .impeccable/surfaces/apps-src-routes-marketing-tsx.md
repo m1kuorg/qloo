@@ -20,7 +20,7 @@ related_targets: ["apps/src/shell.tsx", "apps/src/style.css", "apps/src/client/r
 
 THESIS: Type and nothing else: the first screen is one statement, "Rank by / who listens", across the page, and the proof is the re-rank right under it, in CSS alone. It refuses the category default: a headline over a screenshot, then a row of feature cards.
 
-OWN-WORLD: Ink on the cool grey ground in one family: the poster h1 up to 200px, the re-rank's show names at index size, display headings, 16px body; true-size app fragments (the on-air readout, the question card, the plan, the evidence, the replies) as the only pictures; signal orange for marks and moves, and the closing band as the one colour field; no imagery, no shadow at rest.
+OWN-WORLD: Ink on the cool grey ground in one family: the poster h1 up to 200px, the re-rank's show names at index size, display headings, 16px body; true-size app fragments (the on-air readout, the question card, the plan, the evidence, the replies) as the only pictures; signal orange for marks and moves, and the closing band as the one colour field; no imagery but the ASCII field behind the page (DESIGN.md's one sanctioned exception), no shadow at rest.
 
 STORY: The visitor reads the statement and the sentence and opens the sample network, or scrolls to see a topic plan miss the shows a true-crime launch's listeners share; then a run as one bar, what Crossfeed does with its fragments, what it never does, the developers' four ways in, and the closing question, "Try the sample, or your roster?".
 
