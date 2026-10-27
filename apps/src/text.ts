@@ -12,6 +12,10 @@ export const moveWords = (move: number) =>
     ? 'Same as topic rank'
     : `${move > 0 ? 'Up' : 'Down'} ${Math.abs(move)} place${Math.abs(move) === 1 ? '' : 's'}`
 
+// A rank as words: "2nd".
+export const nth = (n: number) =>
+  `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`
+
 // The longest name a member or a network can have.
 export const MAX_NAME = 64
 
