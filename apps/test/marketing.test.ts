@@ -162,6 +162,26 @@ describe('the landing page', () => {
     ])
   })
 
+  it('draws a field behind the page on a canvas hidden from assistive technology, with a script no other marketing page loads', async () => {
+    const canvas = /<canvas\b[^>]*>/g
+    const script = /<script\b[^>]*\bsrc="\/src\/client\/ascii\.ts"/
+    const html = await page('/')
+    const canvases = [...html.matchAll(canvas)].map(([tag]) => tag)
+    expect(canvases).toHaveLength(1)
+    expect(canvases[0]).toMatch(/\baria-hidden="true"/)
+    expect(html).toMatch(script)
+    const browser = { headers: { Accept: 'text/html' } }
+    const others = await Promise.all([
+      ...pages.slice(1).map(async (path) => [path, await page(path)]),
+      ['/no-such-page', await (await exports.default.fetch(`${origin}/no-such-page`, browser)).text()]
+    ])
+    for (const [path, other] of others) {
+      expect(other, path).toContain('</footer>')
+      expect(other, path).not.toMatch(canvas)
+      expect(other, path).not.toMatch(script)
+    }
+  })
+
   it('lands every in-page link on an element of the page', async () => {
     const html = await page('/')
     const anchors = hrefs(html).filter((href) => href.startsWith('#'))

@@ -463,7 +463,8 @@ const Footer = () => (
 // A marketing page: server-rendered with no island, at 16px, under the marketing header and over the
 // footer, which a short page keeps at the window's foot. `title` names the page before the product; the 404 handler renders it too (routes/marketing).
 // menus.ts closes the phone's Menu on a click outside and on Escape; `reveal` adds reveal.ts, the
-// landing page's section entrances. The face's Latin file is preloaded, so the landing page's poster
+// landing page's section entrances, and `ascii` its ASCII field: a canvas fixed behind the page, which
+// ascii.ts draws, sized by its classes and its own width and height, never a style attribute. The face's Latin file is preloaded, so the landing page's poster
 // type is set in it from the first paint rather than re-wrapping when it swaps in for the size-adjusted
 // fallback (style.css).
 export const MarketingPage = ({
@@ -472,6 +473,7 @@ export const MarketingPage = ({
   path,
   accounts,
   reveal = false,
+  ascii = false,
   children
 }: {
   title: string | null
@@ -479,6 +481,7 @@ export const MarketingPage = ({
   path: string
   accounts: boolean
   reveal?: boolean
+  ascii?: boolean
   children: Child
 }) => (
   <html lang="en">
@@ -488,9 +491,17 @@ export const MarketingPage = ({
       {/* A literal: vite-ssr-components finds the client build's entries by reading these. */}
       <Script src="/src/client/menus.ts" />
       {reveal && <Script src="/src/client/reveal.ts" />}
+      {ascii && <Script src="/src/client/ascii.ts" />}
     </Head>
     <body class="flex min-h-svh flex-col type-body">
       <SkipLink />
+      {ascii && (
+        <canvas
+          data-ascii
+          aria-hidden="true"
+          class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-lvh w-full forced-colors:hidden"
+        />
+      )}
       <MarketingHeader path={path} accounts={accounts} />
       <div class="flex-1">
         <SkipTarget />
@@ -502,7 +513,7 @@ export const MarketingPage = ({
 )
 
 // The marketing shell, for a route group's pages: MarketingPage, with the request's path and flags.
-export const marketingShell = (title: string | null, description?: string, { reveal = false } = {}) =>
+export const marketingShell = (title: string | null, description?: string, { reveal = false, ascii = false } = {}) =>
   jsxRenderer(({ children }, c) => (
     <MarketingPage
       title={title}
@@ -510,6 +521,7 @@ export const marketingShell = (title: string | null, description?: string, { rev
       path={c.req.path}
       accounts={c.env.ACCOUNTS === 'on'}
       reveal={reveal}
+      ascii={ascii}
     >
       {children}
     </MarketingPage>
