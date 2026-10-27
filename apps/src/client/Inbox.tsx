@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Spinner } from '@/components/ui/spinner'
 import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { linkVariants } from '@/components/ui/variants'
 import type { Run, RunSnapshot, RunSummary, Show, SlowCall } from '../agent'
 import { NO_ANGLE, tagged, type PitchList, type SharedTags } from '../fit'
 import {
@@ -32,6 +33,7 @@ import type { Links, Session } from './App'
 import { useConfirm } from './Confirm'
 import {
   Alert,
+  Code,
   DropCue,
   FitBand,
   KeyValue,
@@ -48,7 +50,6 @@ import {
 } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
 import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
-import { Code, textLink } from './RosterModules'
 import type { NetworkPage } from './NetworkPage'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
@@ -658,7 +659,7 @@ function PitchSetup({
       {shows.length === 0 ? (
         <p className="max-w-[72ch] rounded-xl bg-muted px-4 py-3">
           No roster show is matched in Qloo yet.{' '}
-          <a className={textLink} href={rosterHref}>
+          <a className={linkVariants()} href={rosterHref}>
             Import the roster
           </a>{' '}
           first: the pitches are ranked against one of its shows.

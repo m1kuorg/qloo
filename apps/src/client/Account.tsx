@@ -1,12 +1,13 @@
 import { browserSupportsWebAuthn, startAuthentication, startRegistration } from '@simplewebauthn/browser'
+import { cn } from 'cn'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { linkVariants, marketingFrame } from '@/components/ui/variants'
 import { Alert, send, useAction } from './controls'
 import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
-import { textLink } from './RosterModules'
 import { StateLine } from './states'
 
 // The accounts pages of the island: signing in or up with a passkey, or back in with a recovery
@@ -15,8 +16,7 @@ import { StateLine } from './states'
 // The sign-in and invite pages' frame, on the marketing pages' measure so it lines up with the
 // wordmark over it: from 1024px, two columns, what the page is for at display size on the left, and
 // the ways in on the right, flush with the page's right edge, each a panel on the card.
-const frame =
-  'mx-auto grid w-full max-w-[1456px] items-start gap-10 px-6 pt-6 pb-16 md:px-10 md:pt-10 lg:grid-cols-2 lg:gap-16 lg:pt-16'
+const frame = cn(marketingFrame, 'grid items-start gap-10 pt-6 pb-16 md:pt-10 lg:grid-cols-2 lg:gap-16 lg:pt-16')
 const panel = 'flex w-full max-w-[32rem] flex-col gap-4 rounded-xl bg-card p-4 sm:p-6 lg:justify-self-end'
 const ways = 'flex w-full max-w-[32rem] flex-col gap-4 lg:justify-self-end'
 
@@ -137,7 +137,7 @@ function PasskeySignIn({
       ) : (
         <p className="text-muted-foreground">
           Lost every passkey?{' '}
-          <a className={textLink} href="/sign-in">
+          <a className={linkVariants()} href="/sign-in">
             Sign in with a recovery code
           </a>
           , then open this link again.
@@ -316,7 +316,7 @@ export function InvitePage({ memberName }: { memberName: string | null }) {
           </p>
           {invite && (
             <p className="type-body">
-              <a className={textLink} href={memberName ? '/app' : '/sign-in'}>
+              <a className={linkVariants()} href={memberName ? '/app' : '/sign-in'}>
                 {memberName ? 'Open your networks' : 'Sign in to Crossfeed'}
               </a>
             </p>

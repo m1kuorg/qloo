@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { TabsContent } from '@/components/ui/tabs'
+import { linkVariants } from '@/components/ui/variants'
 import type { Show } from '../agent'
 import { dollars } from '../order'
 import { sample as sampleNetwork, sampleRoster, type Sample } from '../sample'
@@ -13,7 +14,7 @@ import { Alert, useAction } from './controls'
 import { EvidencePanel, useEvidence } from './Evidence'
 import { canvas, frame, Inspector, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
-import { RosterCounts, RosterFailures, RosterImport, RosterTable, ShowEditor, textLink } from './RosterModules'
+import { RosterCounts, RosterFailures, RosterImport, RosterTable, ShowEditor } from './RosterModules'
 import { connectionOf, ConnectionState, StateLine, type Connection } from './states'
 
 // The network's roster page, connected to the network's agent.
@@ -244,7 +245,7 @@ function CpmLine({ cpm, network }: { cpm: number | null; network: NetworkPage })
       )}
       <span aria-hidden="true">·</span>
       {network.role === 'owner' ? (
-        <a className={textLink} href={network.links.settings}>
+        <a className={linkVariants()} href={network.links.settings}>
           {cpm === null ? 'Set it in settings' : 'Change it in settings'}
         </a>
       ) : (

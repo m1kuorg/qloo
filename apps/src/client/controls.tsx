@@ -248,6 +248,14 @@ export const KeyValue = ({ label, children }: { label: string; children: ReactNo
   </div>
 )
 
+// A name as a file spells it, such as a CSV column or a file type: a code, a touch smaller than the
+// text around it, as mono runs large, but never under 12px.
+export const Code = ({ children }: { children: string }) => (
+  <code className="rounded-sm bg-muted px-1 font-mono text-[length:max(0.75rem,0.92em)] text-foreground">
+    {children}
+  </code>
+)
+
 // A wide table on a narrow screen scrolls sideways inside this, never the page. `className` places it,
 // such as a table whose rules bleed past the text.
 export const ScrollTable = ({

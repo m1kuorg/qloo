@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { TabsContent } from '@/components/ui/tabs'
-import { buttonVariants } from '@/components/ui/variants'
+import { buttonVariants, linkVariants } from '@/components/ui/variants'
 import type { Comp, GuideMark, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall } from '../agent'
 import { inProgress } from '../limits'
 import type { Sample } from '../sample'
@@ -25,8 +25,7 @@ import {
   RosterFailures,
   RosterImport,
   RosterTable,
-  ShowEditor,
-  textLink
+  ShowEditor
 } from './RosterModules'
 import { OpenQuestion, ORDER_CHANGED, runLabel, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
@@ -118,7 +117,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
                   </>
                 )}
                 Edit its shows on{' '}
-                <a className={textLink} href={links.roster}>
+                <a className={linkVariants()} href={links.roster}>
                   the roster page
                 </a>
                 .

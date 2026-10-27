@@ -3,7 +3,7 @@ import { cn } from 'cn'
 import type { Child } from 'hono/jsx'
 import { jsxRenderer, useRequestContext } from 'hono/jsx-renderer'
 import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
-import { buttonVariants } from './components/ui/variants'
+import { buttonVariants, linkVariants, marketingFrame } from './components/ui/variants'
 import type { Member, Network } from './directory'
 import { Check, ChevronDown, ChevronsUpDown, Inbox, Podcast, Rocket, Settings } from './icons'
 import { Mark } from './mark'
@@ -122,10 +122,6 @@ const IslandHead = () => {
     </Head>
   )
 }
-
-// The width every marketing page sets its blocks in: 24px margins, 40px from 768px, and content up to
-// 1376px wide.
-export const marketingFrame = 'mx-auto w-full max-w-[1456px] px-6 md:px-10'
 
 // "Skip to content", first in every shell: off the screen until it's focused, it jumps past the shell's
 // links to the page. Its target, #content, is an empty element at the head of the page that takes
@@ -405,8 +401,7 @@ const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }
 // The marketing pages' footer, per the page sheet's: the name set across the full content width
 // first, then the legal pages and the docs, and what Crossfeed was made for, on a tone step from the
 // page. The name is 4.48em wide in Schibsted Grotesk at 600, so the content's width over 4.5 sets it.
-const footerLink =
-  'inline-flex min-h-11 items-center underline decoration-1 underline-offset-4 hover:decoration-2 md:min-h-0'
+const footerLink = linkVariants({ tone: 'text', className: 'inline-flex min-h-11 items-center md:min-h-0' })
 const Footer = () => (
   <footer class="mt-24 overflow-hidden bg-muted md:mt-40">
     <div class={cn(marketingFrame, 'pt-8 pb-8 md:pt-12 md:pb-12')}>

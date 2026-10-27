@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { linkVariants } from '@/components/ui/variants'
 import type { LaunchInput, LaunchSummary, Show, State } from '../agent'
 import type { Inbox } from '../inbox'
 import { dollars } from '../order'
@@ -37,7 +38,6 @@ import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { OnAir } from './Frame'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
-import { textLink } from './RosterModules'
 import { connectionOf, ConnectionState, stateLabel, StateLine, type Connection } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
@@ -505,7 +505,7 @@ function NetworkLines({ state, network }: { state: State; network: NetworkPage }
             <dd className="min-w-0">{line}</dd>
             <dd>
               <a
-                className={textLink}
+                className={linkVariants()}
                 href={href}
                 aria-label={`${go} ${label === 'CPM' ? 'the CPM' : `the ${label.toLowerCase()}`}`}
               >
@@ -638,11 +638,11 @@ function Checklist({
             {item.done || !item.go ? (
               <span className={item.done ? 'text-muted-foreground' : 'font-medium'}>{item.title}</span>
             ) : typeof item.go === 'string' ? (
-              <a className={textLink} href={item.go}>
+              <a className={linkVariants()} href={item.go}>
                 {item.title}
               </a>
             ) : (
-              <button type="button" className={cn(textLink, 'cursor-pointer')} onClick={item.go}>
+              <button type="button" className={linkVariants({ className: 'cursor-pointer' })} onClick={item.go}>
                 {item.title}
               </button>
             )}

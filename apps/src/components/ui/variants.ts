@@ -11,6 +11,20 @@ const merged =
   (props?: P) =>
     cn(recipe(props))
 
+// The width every marketing page sets its blocks in, which the sign-in and invite pages share so they
+// line up with the wordmark over them: 24px margins, 40px from 768px, and content up to 1376px wide.
+export const marketingFrame = 'mx-auto w-full max-w-[1456px] px-6 md:px-10'
+
+// A link in a line of text: underlined at 1px, 2px under the pointer, at the line's own size. In the
+// app it's ink at 500 (the default), so it stands out of a muted caption; on the reading pages it
+// keeps the text's colour and weight (`tone: 'text'`), as the articles' own links do (style.css,
+// prose-doc). The button's link variant wears the app's.
+const link = cva('underline decoration-1 underline-offset-4 hover:decoration-2', {
+  variants: { tone: { ink: 'font-medium text-foreground', text: '' } },
+  defaultVariants: { tone: 'ink' }
+})
+export const linkVariants = merged(link)
+
 // Flat, one fill, 6px corners. App controls are 32px tall (sm, row actions, 28px); marketing pages
 // use lg, 44px. Destructive is a crimson outline; destructive-solid, its fill, is only for the verb
 // inside its confirm dialog. There's no outline variant: a shadcn component that asks for one gets
@@ -24,7 +38,7 @@ const button = cva(
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_7%)] aria-expanded:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_7%)]',
         ghost: 'text-foreground hover:bg-muted aria-expanded:bg-muted',
-        link: 'text-foreground underline decoration-1 underline-offset-4 hover:decoration-2',
+        link: linkVariants(),
         destructive: 'border-destructive bg-transparent text-destructive hover:bg-destructive/10',
         'destructive-solid': 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
       },
@@ -43,6 +57,14 @@ const button = cva(
   }
 )
 export const buttonVariants = merged(button)
+
+// A text field: on the card whatever it sits on, outlined at --input's 3:1, 32px tall, with the
+// stylesheet's focus ring, crimson once invalid. Its text is 16px on a phone, so iOS
+// doesn't zoom in on focus. The landing page's fragments set it on a span.
+const input = cva(
+  'h-8 w-full min-w-0 rounded-lg border border-input bg-card px-2.5 py-1 text-base text-foreground transition-colors outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm'
+)
+export const inputVariants = merged(input)
 
 // Chips: tone-filled (default), outlined at the controls' 3:1 (outline), and crimson (destructive).
 // `mark` sets a small glyph before the words, drawn in CSS so screen readers don't read it: the

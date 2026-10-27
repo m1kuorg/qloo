@@ -10,6 +10,9 @@ import {
   badgeVariants,
   buttonVariants,
   callVariants,
+  inputVariants,
+  linkVariants,
+  marketingFrame,
   segmentedItemVariants,
   segmentedTrackVariants
 } from '../components/ui/variants'
@@ -18,9 +21,9 @@ import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
-import { marketingFrame, MarketingPage, marketingShell } from '../shell'
+import { MarketingPage, marketingShell } from '../shell'
 import { moveGlyph, moveWords, nth } from '../text'
-import { CLIMB } from '../topic'
+import { CLIMB, topicFinding } from '../topic'
 import { SESSION_DAYS } from './demo'
 
 export const marketing = new Hono<{ Bindings: Env }>()
@@ -45,10 +48,12 @@ const roster: { show: string; topic: number; band: Third; tags: string[] }[] = [
 ]
 const ranked = roster.map((r, i) => ({ ...r, rank: i + 1, move: r.topic - (i + 1), finalist: i < FINALISTS }))
 const finalists = ranked.filter((r) => r.finalist)
-// The fit chart's finding, worded as the app's (FitChart.tsx): the finalists, then the highest-placed
-// climber and how many more climb.
-const [climber, ...climbers] = ranked.filter((r) => r.move >= CLIMB)
-const finding = `${finalists.length} finalists. ${climber.show} climbs ${climber.move} places over a topic-only plan, and ${climbers.length} more ${climbers.length === 1 ? 'show climbs' : 'shows climb'} ${CLIMB} or more.`
+// The fit chart's finding, worded as the app's: the finalists, then the highest-placed climber and how
+// many more climb.
+const finding = topicFinding(
+  finalists.length,
+  ranked.filter((r) => r.move >= CLIMB)
+)
 // The finalists a topic-only plan's top five would leave out.
 const missed = finalists.filter((r) => r.topic > FINALISTS).length
 const count = ['no', 'one', 'two', 'three', 'four', 'five'] as const
@@ -81,8 +86,6 @@ const section = cn(marketingFrame, 'mt-24 md:mt-40 lg:mt-48')
 // The rules inside the re-rank and the interface fragments (data-ui), as the app draws its tables'.
 const ruleTop = 'border-t' // taste-skill-ignore
 const ruleBottom = 'border-b' // taste-skill-ignore
-// The app's text field (components/ui/input.tsx), outlined at the controls' 3:1.
-const field = 'h-8 rounded-lg border border-input bg-card px-2.5 py-1 text-foreground' // taste-skill-ignore
 
 // The fit band's meter, three bars filled from the left, signal for a finalist, then its word, as the
 // app's FitBand sets it, at the re-rank's scale.
@@ -424,7 +427,7 @@ const QuestionFragment = () => (
           </span>
           <span class={segmentedItemVariants()}>A dollar budget</span>
         </span>
-        <span class={cn(field, 'flex w-48 items-center')}>{BUDGET}</span>
+        <span class={inputVariants({ className: 'flex w-48 items-center' })}>{BUDGET}</span>
       </div>
       <p>
         <span class={buttonVariants()}>Answer</span>
@@ -726,7 +729,7 @@ function Capabilities({ inbox }: { inbox: boolean }) {
         <>
           Programs and assistants start runs, relay the agent&apos;s questions, and edit drafts through the REST API,
           the TypeScript SDK, the MCP server, and Agent Skills. None of them can approve.{' '}
-          <a class="underline decoration-1 underline-offset-4 hover:decoration-2" href="#developers">
+          <a class={linkVariants({ tone: 'text' })} href="#developers">
             For developers
           </a>
         </>

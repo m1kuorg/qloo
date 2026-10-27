@@ -12,7 +12,7 @@ import { FINALISTS, type FitRow, type Ranking } from '../fit'
 import { dollars, slotPrice } from '../order'
 import { sameName } from '../resolve'
 import { moveGlyph, moveWords, nth } from '../text'
-import { CLIMB, type Move, type Topic } from '../topic'
+import { topicFinding, type Move, type Topic } from '../topic'
 import { FitBand, listOf, NotScored } from './controls'
 import { CallButton } from './Evidence'
 import { Source } from './Source'
@@ -48,19 +48,9 @@ const whoShares = (names: string[]) =>
       ? `Who shares the listeners of ${listOf(names)}`
       : "Who shares the launch's listeners"
 
-// The chart's finding, from the ranking and the topic moves: how many finalists, and what a
-// topic-only plan would have missed, led by the highest-placed climber (the one the guide names).
-function finding(ranking: Ranking, moves: Move[] | null) {
-  const finalists = ranking.rows.filter((r) => r.finalist).length
-  const lead = `${finalists} finalist${finalists === 1 ? '' : 's'}.`
-  if (!moves) return lead
-  const [top, ...more] = moves.filter((m) => m.climber)
-  if (!top) return `${lead} No show climbs ${CLIMB} or more places over a topic-only plan.`
-  const others = more.length
-    ? `, and ${more.length} more ${more.length === 1 ? 'show climbs' : 'shows climb'} ${CLIMB} or more`
-    : ''
-  return `${lead} ${top.show} climbs ${top.move} places over a topic-only plan${others}.`
-}
+// The chart's finding, from the ranking and the topic moves.
+const finding = (ranking: Ranking, moves: Move[] | null) =>
+  topicFinding(ranking.rows.filter((r) => r.finalist).length, moves && moves.filter((m) => m.climber))
 
 // The fit chart: the roster ranked by listener overlap with the launch, its finding first. Fit shows as
 // rank and band; raw affinities stay in the ranking call's evidence. Once the topic column is in, the
