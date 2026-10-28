@@ -13,7 +13,7 @@ Crossfeed is an agent that tells a podcast network which of its own shows should
 5. When the run completes, read **The plan**, the insertion order the agent drafted and code priced, then select **Approve** and **Export CSV**.
 6. Select **Inbox** in the rail, **Load sample inbox** (40 pitches), and **Rank pitches**. It ranks the guests' public works against The Big Picture, one list per type of work, and drafts a reply to every pitch for you to approve, edit, or discard. You can also drop your own `.eml`, `.mbox`, or text pitches on it.
 
-All guests share one set of daily limits. While no guest has changed the guest network's roster or The Watch, a run of The Watch that Qloo or a daily limit refuses replays its stored run. A guest can do anything a member can, and keeps the account by adding a passkey on the account page; otherwise it's removed a day after signing in. [docs/SUBMISSION.md](docs/SUBMISSION.md) explains what Qloo does at each step, the endpoints it calls, and the known limitations.
+All guests share one set of daily limits. While no guest has changed the guest network's roster or The Watch, a run of The Watch that Qloo or a daily limit refuses replays its stored run. Every guest signs in as the one guest member, Guest, and can do anything an owner can in a network, but not change the account every guest shares; what guests make, the networks they create too, is cleared every day at 12:00 UTC, and "Sign out and create an account" leads to a network of one's own. [docs/SUBMISSION.md](docs/SUBMISSION.md) explains what Qloo does at each step, the endpoints it calls, and the known limitations.
 
 ## The product
 
