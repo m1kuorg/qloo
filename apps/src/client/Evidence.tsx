@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { callVariants } from '@/components/ui/variants'
 import type { Evidence } from '../evidence'
 import type { Session } from './App'
-import { day, KeyValue, KeyValues } from './controls'
+import { KeyValue, KeyValues } from './controls'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
 
@@ -143,7 +143,7 @@ function EvidenceRecord({ record }: { record: Evidence }) {
         )}
         {record.sample && (
           <KeyValue label="Sample">
-            From the sample data, as Qloo answered it on {day(record.at)}, when the sample was captured; no new request
+            From the sample data, as Qloo answered it when it was captured; no new request
           </KeyValue>
         )}
         {record.copiedFrom && (
