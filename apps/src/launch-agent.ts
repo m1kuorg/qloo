@@ -19,7 +19,6 @@ import { keepOwnKey, MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimit
 const ROSTER =
   "A launch ranks its network's roster, which members edit on the network's roster page. Each run copies the roster as it starts."
 const INBOX = "A launch has no inbox: guest pitches go to the network's inbox, on its own page."
-const NO_GUIDE = 'A launch has no guide.'
 // Who a deleted member's runs and approvals say they were by (forgetMember).
 const FORMER_MEMBER = 'Former member'
 
@@ -30,8 +29,6 @@ const REPORT_ATTEMPTS = 3
 // class keeps its namespace apart from the demo's sessions and the networks'. It holds the launch, its
 // runs, and their rankings and insertion orders; the roster and the inbox are its network's.
 export class LaunchAgent extends CrossfeedAgent {
-  initialState: State = { ...this.initialState, guide: { seen: [], dismissed: true } }
-
   protected opensOnSample = false
 
   // A launch's Qloo calls and model runs count among its network's (TRD agent limits).
@@ -194,11 +191,6 @@ export class LaunchAgent extends CrossfeedAgent {
   }
 
   @callable()
-  clearSample(): never {
-    throw new Error(ROSTER)
-  }
-
-  @callable()
   searchComps(): never {
     throw new Error(ROSTER)
   }
@@ -241,17 +233,6 @@ export class LaunchAgent extends CrossfeedAgent {
   @callable()
   discardReply(): never {
     throw new Error(INBOX)
-  }
-
-  // The guide walks a visitor through the demo's sample launch, so a launch has none.
-  @callable()
-  markGuide(): never {
-    throw new Error(NO_GUIDE)
-  }
-
-  @callable()
-  dismissGuide(): never {
-    throw new Error(NO_GUIDE)
   }
 }
 

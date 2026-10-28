@@ -369,7 +369,6 @@ describe("a launch's agent", () => {
     const inbox = "A launch has no inbox: guest pitches go to the network's inbox, on its own page."
     for (const [method, args, error] of [
       ['importRoster', ['Deep Cuts'], roster],
-      ['clearSample', [], roster],
       ['searchComps', ['Deep Cuts', 'Deep Cuts'], roster],
       ['updateShow', ['Deep Cuts', { excluded: true }], roster],
       ['setCpm', [20], "A launch's runs take the network's CPM, which an owner changes in its settings."],
@@ -378,9 +377,7 @@ describe("a launch's agent", () => {
       ['startPitches', [{ show: 'Deep Cuts', pastGuests: [] }], inbox],
       ['editReply', ['pitch-01', 'Thanks!'], inbox],
       ['approveReply', ['pitch-01'], inbox],
-      ['discardReply', ['pitch-01'], inbox],
-      ['markGuide', ['why'], 'A launch has no guide.'],
-      ['dismissGuide', [], 'A launch has no guide.']
+      ['discardReply', ['pitch-01'], inbox]
     ] as const)
       await expect(page.call(method, ...args), method).rejects.toThrow(error)
     // The same methods refuse the Worker's RPC, as the API will call them.

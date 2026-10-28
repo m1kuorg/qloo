@@ -84,7 +84,6 @@ export const GUEST_NETWORK_RESET = `The guest network was cleared, as it is ever
 
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."
-const NO_GUIDE = 'A network has no guide.'
 // Where a network's agent keeps the roster it last told its launches (rosterKey).
 const ANNOUNCED = 'crossfeed_roster_announced'
 // Where the guest network's agent keeps that it has loaded the sample network, and its sample launch's ID
@@ -101,15 +100,10 @@ const unnamed = ({ approvedBy: _, ...reply }: PitchReply): PitchReply => reply
 
 // One instance per signed-in network, named by the network's ID (ADR 0001). Its own class keeps its
 // namespace apart from the demo's sessions, so no session cookie can name it. It opens empty, but for
-// the guest network, which loads the sample network (loadSample), and with no guide, and every
-// connection to it carries its member.
+// the guest network, which loads the sample network (loadSample), and every connection to it carries
+// its member.
 export class NetworkAgent extends CrossfeedAgent {
-  initialState: State = {
-    ...this.initialState,
-    guide: { seen: [], dismissed: true },
-    launches: [],
-    checklistDismissed: []
-  }
+  initialState: State = { ...this.initialState, launches: [], checklistDismissed: [] }
 
   protected opensOnSample = false
   protected keepsSettledShows = true
@@ -408,25 +402,6 @@ export class NetworkAgent extends CrossfeedAgent {
   @callable()
   approveInsertionOrder(): never {
     throw new Error(LAUNCHES)
-  }
-
-  // A network that started from the sample roster leaves it by importing its own.
-  @callable()
-  clearSample(): never {
-    throw new Error(
-      "A network's roster isn't cleared. Import your own over it; shows already on it keep their matches."
-    )
-  }
-
-  // The guide walks a visitor through the demo's sample launch, so a network has none.
-  @callable()
-  markGuide(): never {
-    throw new Error(NO_GUIDE)
-  }
-
-  @callable()
-  dismissGuide(): never {
-    throw new Error(NO_GUIDE)
   }
 
   // The CPM is an owner's to change, in settings: the Worker checks the role and calls this over RPC.
