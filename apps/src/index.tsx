@@ -72,9 +72,7 @@ export default {
       tasks.push(
         checkHealth(env),
         retried.catch(() => {}).then(() => resetGuestNetwork(env)),
-        removeTemporaryGuests(env).then((counts) =>
-          console.log(JSON.stringify({ event: 'guests_removed', ...counts }))
-        ),
+        removeTemporaryGuests(env),
         clearGuests(env)
       )
     for (const result of await Promise.allSettled(tasks)) if (result.status === 'rejected') throw result.reason

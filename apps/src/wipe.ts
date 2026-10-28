@@ -174,8 +174,11 @@ export async function deleteAccount(env: Env, memberId: string, networks: string
 
 // The daily cron's removal of the temporary guest members ADR 0006 made, a member per guest sign-in (ADR
 // 0008): the directory deletes them and the networks only they own, noting a wipe of each network's agent,
-// which a later run's retry makes.
-export const removeTemporaryGuests = (env: Env) => dropTemporaryGuests(env.DB, NETWORK)
+// which a later run's retry makes. Logs how many members and networks it removed.
+export async function removeTemporaryGuests(env: Env) {
+  const removed = await dropTemporaryGuests(env.DB, NETWORK)
+  console.log(JSON.stringify({ event: 'guests_removed', ...removed }))
+}
 
 // The daily cron's clearing of what the guest member made beyond the guest network (ADR 0008), so each day
 // starts from the sample alone. Each network only it owns, at most NETWORKS_PER_MEMBER of them, lets go
