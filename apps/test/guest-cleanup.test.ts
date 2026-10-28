@@ -112,6 +112,7 @@ describe('the hourly cron', () => {
 
     later(DAY + HOUR)
     await runCron()
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guests_removed', members: 1, networks: 1 }))
     for (const path of [`/app/${hers}`, `/app/${hers}/settings`, `/app/${hers}/launches/${launch}`])
       expect((await lin.fetch(path)).status, path).toBe(404)
     await expect(lin.connect(`/agents/network/${hers}`)).rejects.toThrow('did not upgrade: 404')
