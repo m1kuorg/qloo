@@ -382,8 +382,9 @@ const orderOf = ({ approvedById: _, edited, ...order }: InsertionOrder): OrderIn
 })
 
 // The network's inbox as a program reads it: `empty` until pitches are loaded, `reading` while the
-// agent reads each for its guest and public work and looks the work up in Qloo, then `done`; the
-// uploaded pitches left out, each named and why; and the sample inbox's notice while it's loaded.
+// agent reads each for its guest and public work and looks the work up in Qloo, or for the sample inbox,
+// which comes already read, only looks the works up, then `done`; the uploaded pitches left out, each
+// named and why; and the sample inbox's notice while it's loaded.
 export type InboxInfo = {
   status: 'empty' | Inbox['status']
   sample: { notice: string } | null
