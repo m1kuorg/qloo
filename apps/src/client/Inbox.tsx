@@ -427,15 +427,7 @@ function InboxHead({
       <PageHeader
         title="Inbox"
         heading={heading}
-        summary={
-          viewing ? (
-            <span className="inline-flex flex-wrap items-center gap-1.5">
-              <Badge>Run {viewing}</Badge> An earlier run, read-only.
-            </span>
-          ) : (
-            inbox && inboxSummary(inbox, show)
-          )
-        }
+        summary={viewing ? `Run ${viewing} · earlier, read-only` : inbox && inboxSummary(inbox, show)}
         status={readout ? undefined : <ConnectionState connection={connection} />}
         actions={
           viewing ? (
