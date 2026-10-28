@@ -552,7 +552,7 @@ The launch, inbox and network pages show a connecting skeleton (`Connecting`) un
 
 ### Source labels and call numbers
 
-Every figure says where it came from, and the two never look alike: "Qloo data" is an outlined chip with an ink square, "Agent" a tone-filled chip with a circle (`Source.tsx`). Every Qloo figure cites its call number, a mono button (`callVariants`) with `aria-pressed`, `aria-controls="evidence"` and an `aria-label` naming what it evidences, which opens the inspector's Evidence tab. Sample figures carry a "sample" chip until edited.
+Every figure says where it came from, and the two never look alike: "Qloo data" is an outlined chip with an ink square, "Agent" a tone-filled chip with a circle (`Source.tsx`). Every Qloo figure cites its call number, a mono button (`callVariants`) with `aria-pressed`, `aria-controls="evidence"` and an `aria-label` naming what it evidences, which opens the inspector's Evidence tab. Sample figures carry a "sample" chip until edited: in the roster table one a row, beside the show's name, while any of its figures is the sample's, and in the Show tab one beside each.
 
 ### Phones
 
