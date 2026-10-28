@@ -582,9 +582,9 @@ describe("the inbox page's words", () => {
 
     await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
     const read = inboxPage(await loaded(agent), network)
-    // The header: the title, the pitches counted, and Load pitches. The readout says how much of the
-    // inbox is read, right before the show to rank against.
-    expect(read).toMatch(/^Inbox 1 pitch · 1 set aside Load pitches Read · 1 pitch Rank against a show /)
+    // The header: the title, the pitches counted, and Load pitches. The readout says the inbox is read,
+    // without counting it again, right before the show to rank against.
+    expect(read).toMatch(/^Inbox 1 pitch · 1 set aside Load pitches Read Rank against a show /)
     // The privacy promise is by the pitches' table.
     expect(read).toContain(
       'Matches from Qloo search, one call per work. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'

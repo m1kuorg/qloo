@@ -228,7 +228,7 @@ describe('the sample inbox, as the guest network loads it', () => {
       createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
     expect(words(page)).toMatch(
-      /^Inbox 40 pitches for The Big Picture · 34 matched, 1 ambiguous, 1 not in Qloo, 4 set aside Load pitches Read · 40 pitches /
+      /^Inbox 40 pitches for The Big Picture · 34 matched, 1 ambiguous, 1 not in Qloo, 4 set aside Load pitches Read Rank against /
     )
     expect(words(page)).toContain(
       'sample Guest and work as the sample gives them for each pitch. Qloo data Matches from Qloo search, one call per work. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'

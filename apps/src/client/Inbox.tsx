@@ -366,14 +366,13 @@ const QLOO_PRIVACY = 'Only the work’s title and type are looked up in Qloo; na
 
 // The inbox in the header's summary, with the show it's for once one is known, the sample's or the
 // latest run's: "40 pitches for The Big Picture · 31 matched, 1 ambiguous, 4 not in Qloo, 4 set aside",
-// the pitches counted by their words, as the inbox check counts them.
+// the pitches counted by their words, as the inbox check counts them. Pitches still being read or
+// looked up aren't counted here: the readout says how far that's got.
 function inboxSummary(inbox: Inbox, show: string | null) {
   const n = (label: string) => inbox.pitches.filter((p) => stateLabel(p) === label).length
   const counted = (label: string, one: string, many = one) =>
     n(label) > 0 && `${n(label)} ${n(label) === 1 ? one : many}`
   return summaryLine(`${pitchCount(inbox.pitches.length)}${show ? ` for ${show}` : ''}`, [
-    counted('Reading', 'reading'),
-    counted('Looking up', 'looking up'),
     counted('Matched', 'matched'),
     counted('Ambiguous', 'ambiguous'),
     counted('Not in Qloo', 'not in Qloo'),
@@ -465,9 +464,7 @@ function InboxHead({
                     · {done} of {pitchCount(inbox.pitches.length)} read
                   </StateLine>
                 ) : (
-                  <span>
-                    <b className="font-semibold">Read</b> · {pitchCount(inbox.pitches.length)}
-                  </span>
+                  <b className="font-semibold">Read</b>
                 )}
                 {slowCalls.length > 0 && (
                   <span className="basis-full type-caption">
