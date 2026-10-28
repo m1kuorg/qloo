@@ -436,10 +436,11 @@ const words = (html: string) =>
     .trim()
 
 describe('the app, as a guest sees it', () => {
-  const NOTICE =
-    'You’re signed in as Guest, the one account every guest shares. Every guest works together in the guest network and the networks guests create, so put nothing private in them; they’re cleared every day at 12:00 UTC. All guests share one set of daily limits. Sign out and create an account'
+  // The account menu at the top bar's end, its button and its panel, the one shell menu that says who's
+  // signed in.
+  const accountMenu = (html: string) => hooked(html, 'data-menu').filter((menu) => menu.includes('data-signed-in'))
 
-  it('says on every page that every guest shares one account and the guest network, and offers signing out to create an account', async () => {
+  it('says in the account menu that every guest shares one account, its networks and its limits, and offers signing out to create an account', async () => {
     const guest = await openGuest()
     const network = await guest.connect('/agents/network/guest-network')
     const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
@@ -452,18 +453,26 @@ describe('the app, as a guest sees it', () => {
       '/app/new'
     ]) {
       const html = await (await guest.fetch(path)).text()
-      const [notice] = hooked(html, 'data-guest-notice')
-      expect(words(notice), path).toBe(NOTICE)
-      // A button main.tsx wires as it does the account menu's Sign out, then the sign-in page, to create an
-      // account.
-      expect(notice, path).toMatch(/<button\b[^>]*\sdata-sign-out[^>]*>Sign out and create an account<\/button>/)
-      expect(hooked(notice, 'data-sign-out-status'), path).toHaveLength(1)
+      const [menu, ...more] = accountMenu(html)
+      expect(more, path).toEqual([])
+      // No notice under the top bar: the account menu alone says it, and offers it.
+      expect(html.replace(menu, ''), path).not.toMatch(/every guest shares|daily limits|create an account/)
+      expect(words(menu), path).toBe(
+        'G Account: Guest Signed in as Guest It’s the one account every guest shares. Guests’ networks are cleared every day at 12:00 UTC, so put nothing private in them. All guests share one set of daily limits. Your account Sign out and create an account'
+      )
+      // A button main.tsx wires as it does a member's Sign out, then the sign-in page, to create an account.
+      expect(menu, path).toMatch(/<button\b[^>]*\sdata-sign-out[^>]*>Sign out and create an account<\/button>/)
+      expect(hooked(menu, 'data-sign-out'), path).toHaveLength(1)
+      expect(hooked(menu, 'data-sign-out-status'), path).toHaveLength(1)
       expect(html, path).toContain('New network')
     }
+    // A member's account menu says nothing about guests.
     const ada = await openMember()
     for (const path of ['/app/new', '/app/account']) {
       const html = await (await ada.fetch(path)).text()
-      expect(hooked(html, 'data-guest-notice'), path).toEqual([])
+      const [menu] = accountMenu(html)
+      expect(words(menu), path).toBe('AP Account: Ada Programmer Signed in as Ada Programmer Your account Sign out')
+      expect(menu, path).toMatch(/<button\b[^>]*\sdata-sign-out[^>]*>Sign out<\/button>/)
       expect(html, path).toContain('New network')
     }
   })

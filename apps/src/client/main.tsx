@@ -92,9 +92,9 @@ void pages[d.page!]()
 
 document.querySelectorAll<HTMLButtonElement>('[data-sign-out]').forEach(wireSignOut)
 
-// The app shell's sign-out buttons, the account menu's Sign out and, for a guest, the guest notice's "Sign
-// out and create an account": each ends this browser's session, then goes to the sign-in page. The shell
-// is server-rendered, so the island finds the buttons rather than rendering them.
+// The account menu's sign-out button, Sign out or, for a guest, "Sign out and create an account": it ends
+// this browser's session, then goes to the sign-in page. The shell is server-rendered, so the island finds
+// the button rather than rendering it.
 function wireSignOut(button: HTMLButtonElement) {
   button.addEventListener('click', async () => {
     button.disabled = true
