@@ -100,6 +100,14 @@ describe('signing in as a guest', () => {
     expect(logged.mock.calls.filter(([line]) => line === JSON.stringify({ event: 'guest_sign_in' }))).toHaveLength(2)
   })
 
+  it('opens the guest network at /app, whichever network any guest opened last', async () => {
+    const ada = await openGuest()
+    const { id } = await (await post(ada, '/app/new', { name: 'Night Shift Audio' })).json<{ id: string }>()
+    expect((await ada.fetch(`/app/${id}`)).status).toBe(200)
+    for (const guest of [ada, await openGuest()])
+      expect(await dashboard(guest)).toMatchObject({ path: '/app/guest-network', network: 'Guest network' })
+  })
+
   it('makes the guest member’s row again, and the guest network’s, if they’re gone', async () => {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM members WHERE id = 'guest-member'"),
@@ -322,10 +330,11 @@ describe('what a guest can change, as an owner', () => {
     expect(created.status).toBe(200)
     const { id } = await created.json<{ id: string }>()
     expect(id).toMatch(/^guest-[0-9a-f-]{36}$/)
-    expect(await dashboard(ada)).toMatchObject({ path: `/app/${id}`, network: 'Night Shift Audio', role: 'owner' })
-    const grace = await openGuest()
-    expect((await grace.fetch(`/app/${id}`)).status).toBe(200)
-    expect(await (await grace.fetch(`/app/${id}`)).text()).toContain('data-role="owner"')
+    for (const guest of [ada, await openGuest()]) {
+      const page = await guest.fetch(`/app/${id}`)
+      expect(page.status).toBe(200)
+      expect(await page.text()).toMatch(/data-network-name="Night Shift Audio" data-role="owner"/)
+    }
     // A member's network has no such start.
     const dot = await openMember()
     const theirs = await (

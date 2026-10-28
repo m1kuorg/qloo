@@ -60,7 +60,7 @@ import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
 import { isQlooHost } from '../qloo-hosts'
 import { appShell, Island, networkLinks, type AppVariables } from '../shell'
-import { listOf, readName } from '../text'
+import { GUEST_MEMBER, GUEST_NETWORK, listOf, readName } from '../text'
 import { deleteAccount, deleteLaunch, deleteNetwork } from '../wipe'
 
 type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
@@ -87,11 +87,14 @@ appPages.use(
 )
 appPages.use('/app/*', appShell)
 
-// /app opens the network the member opened last, or asks them to create their first. A guest always has
-// the guest network to open: the guest member is an owner of it again if anyone demoted or removed it, or
-// deleted it (ADR 0008).
+// /app opens the network the member opened last, or asks them to create their first. A guest opens the
+// guest network, since the network the guest member opened last is any guest's, and always has it to open:
+// the guest member is an owner of it again if anyone demoted or removed it, or deleted it (ADR 0008).
 appPages.get('/app', async (c) => {
-  if (isGuestMember(c.var.member)) await restoreGuestOwner(c.env.DB)
+  if (c.var.member.id === GUEST_MEMBER) {
+    await restoreGuestOwner(c.env.DB)
+    return c.redirect(`/app/${GUEST_NETWORK}`, 302)
+  }
   const last = await lastNetwork(c.env.DB, c.var.member.id)
   return c.redirect(last ? `/app/${last}` : '/app/new', 302)
 })
