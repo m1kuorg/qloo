@@ -83,10 +83,12 @@ export const kickMember = async (env: Env, networkId: string, memberId: string, 
 export const CLEARING = { clearing: true }
 
 // What a deleted launch's open pages say as they close, and a deleted network's, and its launches'; and
-// the guest network's, and its launches', as the daily cron clears it.
+// the guest network's, and its launches', as the daily cron clears it, or as a guest resets its sample
+// data from its settings.
 export const LAUNCH_DELETED = 'This launch was deleted.'
 export const NETWORK_DELETED = 'This network was deleted.'
 export const GUEST_NETWORK_RESET = `The guest network was cleared, as it is every day at ${GUEST_NETWORK_CLEARS}.`
+export const SAMPLE_DATA_RESET = 'A guest reset the guest network to the sample data.'
 
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."

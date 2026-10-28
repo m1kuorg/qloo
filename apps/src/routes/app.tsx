@@ -44,6 +44,7 @@ import {
   setRole,
   setupProgress,
   signOutEverywhere,
+  takeSampleReset,
   type Member,
   type Network
 } from '../directory'
@@ -54,14 +55,15 @@ import {
   MEMBER_NAME_HEADER,
   networkLimitKey,
   onGuestBudget,
-  ownGateway
+  ownGateway,
+  SAMPLE_DATA_RESET
 } from '../network-agent'
 import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
 import { isQlooHost } from '../qloo-hosts'
 import { appShell, Island, networkLinks, type AppVariables } from '../shell'
 import { GUEST_MEMBER, GUEST_NETWORK, listOf, readName } from '../text'
-import { deleteAccount, deleteLaunch, deleteNetwork } from '../wipe'
+import { deleteAccount, deleteLaunch, deleteNetwork, resetGuestNetwork, WipesFailed } from '../wipe'
 
 type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
 
@@ -560,6 +562,41 @@ appPages.post('/app/:networkId/settings/delete', async (c) => {
   if (typeof typed !== 'string' || typed.trim() !== name)
     return c.json({ error: `Type the network’s name, ${name}, exactly as it’s shown, to delete it.` }, 400)
   if (!(await deleteNetwork(c.env, id, c.var.member.id))) return c.json({ error: ownersOnly }, 403)
+  return c.json({})
+})
+
+// The settings' sample data module, in the guest network alone, where the sample lives (ADR 0007), for its
+// owners, as every guest is (ADR 0008): resets the guest network to the sample data now, for every guest,
+// as the daily clearing does (resetGuestNetwork in wipe.ts), its open pages told a guest reset it. Any
+// other network has no sample data, so it's the same 404 as a page that doesn't exist.
+appPages.post('/app/:networkId/settings/sample-data/reset', async (c) => {
+  const id = c.req.param('networkId')
+  if (id !== GUEST_NETWORK) return c.notFound()
+  const refused = await refuseNonOwner(c, id, 'Only an owner can reset the sample data.')
+  if (refused) return refused
+  const wait = await takeSampleReset(c.env.DB)
+  if (wait !== null) {
+    const seconds = Math.ceil(wait / 1000)
+    c.header('Retry-After', String(seconds))
+    return c.json(
+      {
+        error: `The sample data was just reset, and it resets at most once a minute for everyone. Try again in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`
+      },
+      429
+    )
+  }
+  try {
+    await resetGuestNetwork(c.env, SAMPLE_DATA_RESET)
+  } catch (e) {
+    if (!(e instanceof WipesFailed)) throw e
+    return c.json(
+      {
+        message:
+          'The reset may take a moment to finish: part of it failed, and Crossfeed tries it again within the hour.'
+      },
+      202
+    )
+  }
   return c.json({})
 })
 
