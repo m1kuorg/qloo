@@ -536,7 +536,7 @@ describe('settings', () => {
     const html = await settings(guest, 'guest-network', await (await connect(guest, 'guest-network')).until(() => true))
     const read = words(html)
     expect(read).toContain(
-      'Sample data The guest network starts from the sample data every day at 12:00 UTC: The Ringer’s shows, the sample CPM, The Watch and the sample launches. Reset it to start over from the sample data now, for every guest. Reset the sample data It closes every guest’s open pages of the guest network, and it resets at most once a minute for everyone. Danger zone'
+      'Sample data The guest network starts every day at 12:00 UTC from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches. Reset it to start over now, for every guest. Reset the sample data Resetting closes every guest’s open pages of the guest network. The sample data resets at most once a minute, for everyone. Danger zone'
     )
     expect(html).toMatch(/<button[^>]*>Reset the sample data<\/button>/)
 
@@ -544,7 +544,7 @@ describe('settings', () => {
     const invited = await guest.fetch('/app/guest-network/settings/members/invites', { method: 'POST' })
     const dot = await openMember({ name: 'Dot Pruitt', invite: (await invited.json<{ link: string }>()).link })
     const theirs = await settings(dot, 'guest-network', await (await connect(dot, 'guest-network')).until(() => true))
-    expect(words(theirs)).toContain('Sample data The guest network starts from the sample data')
+    expect(words(theirs)).toContain('Sample data The guest network starts every day at 12:00 UTC from the sample data')
     expect(words(theirs)).toContain('Only an owner can reset the sample data.')
     expect(theirs).not.toMatch(/>Reset the sample data</)
 
