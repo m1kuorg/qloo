@@ -582,7 +582,7 @@ type Route = ReturnType<typeof routesOf>[number]
 
 // A route's method, as a mono chip as wide as the widest, so the paths after them line up. It's in
 // capitals and the mono face, so it's centred on its cap height rather than the chip's x-height: with
-// SF Mono, ui-monospace on Apple's systems, 1.40625px over the words and none under them puts its
+// SF Mono, the mono face on Apple's systems, 1.40625px over the words and none under them puts its
 // baseline on whole pixel 14, so it's never rounded a pixel either way, and its capitals (8.75px)
 // within 0.4px of the middle.
 const Method = ({ method }: { method: string }) => (

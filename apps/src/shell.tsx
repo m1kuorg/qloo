@@ -205,8 +205,9 @@ const AccountMenu = ({ member, path }: { member: Member; path: string }) => {
         </p>
         {guest && (
           <p class="px-2 pb-2 type-caption text-pretty text-muted-foreground">
-            It’s the one account every guest shares. Guests’ networks are cleared every day at {GUEST_NETWORK_CLEARS},
-            so put nothing private in them. All guests share one set of daily limits.
+            It’s the one account every guest shares. Guests’ networks are cleared every day at{' '}
+            <span class="whitespace-nowrap">{GUEST_NETWORK_CLEARS},</span> so put nothing private in them. All guests
+            share one set of daily limits.
           </p>
         )}
         <a class={menuItem} href="/app/account" aria-current={path === '/app/account' ? 'page' : undefined}>
