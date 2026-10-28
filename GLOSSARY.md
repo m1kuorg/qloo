@@ -47,7 +47,7 @@ _Avoid_: Guest workspace, demo account
 The daily caps everyone who signs in as a guest uses up together, in the guest network and in every network the guest member creates.
 
 **Sample network**:
-The Ringer's public show names with labelled sample figures, a sample CPM, and the sample launch: the data the guest network starts with each day, and a roster any network can start from.
+The Ringer's public show names with labelled sample figures, a sample CPM, and the sample launch: the data the guest network starts with each day, beside the sample inbox.
 _Avoid_: Demo, demo account
 
 ## Launch promos

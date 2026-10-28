@@ -68,7 +68,7 @@ The dashboard lists the network's launches with each one's status, finalists, sl
 
 ### The roster and the inbox, with uploads
 
-The roster and the booking inbox belong to the network, each on its own page. Members drop or pick a roster CSV, or a text file of names, paste names, or start from the sample roster; re-importing keeps every show already settled and looks up only new ones. Members drop or pick pitch emails as `.eml` files, an `.mbox` export, or a text file of pitches separated by lines of `---`; each pitch keeps its sender and subject inside Crossfeed. An upload that can't be read is refused with why; an email too long to read is skipped and named.
+The roster and the booking inbox belong to the network, each on its own page. Members drop or pick a roster CSV, or a text file of names, or paste names; re-importing keeps every show already settled and looks up only new ones. Members drop or pick pitch emails as `.eml` files, an `.mbox` export, or a text file of pitches separated by lines of `---`; each pitch keeps its sender and subject inside Crossfeed. An upload that can't be read is refused with why; an email too long to read is skipped and named.
 
 ### Settings and the account page
 
@@ -129,7 +129,7 @@ The programmer is the head of programming or audience; the booker, the network's
 
 ### Guest pitch stories
 
-30. As a booker, I want to load my booking inbox, the sample inbox, pitches I paste, or the emails I upload, so that every pitch is in one place.
+30. As a booker, I want to load my booking inbox, pitches I paste or the emails I upload, or find the sample inbox already loaded as a guest, so that every pitch is in one place.
 31. As a booker, I want to pick which roster show the pitches are for, so that they're ranked against the right listeners.
 32. As a booker, I want to name the public works of my show's best past guests, so that the ranking reflects what has worked before.
 33. As a booker, I want each pitch's guest and public work extracted for me, so that I don't retype them.
