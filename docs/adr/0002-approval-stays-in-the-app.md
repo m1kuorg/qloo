@@ -1,3 +1,5 @@
 # Approval stays in the app
 
 Only a signed-in member, in the app, can approve an insertion order or a reply. The API, the SDK, and the MCP server, which all act through an API key, can import a roster, start runs, answer the agent's questions, and edit drafts, but they have no approve action, and they can export an insertion order only once a member has approved it. An API key is held by a program that may run unattended, so giving it approval would let a plan or an email ship without a person, which [PRODUCT.md](/docs/PRODUCT.md#product-principles) rules out.
+
+A sample launch seeded approved into the guest network ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md), [#289](https://github.com/m1kuorg/qloo/issues/289)) was approved by the guest member, in the app, as the sample was captured in development. In the guest network it's sample data, not a sign-off anyone there gave: the order says so, any change returns it to draft without the mark, and it exports as an approved order does, since it shows what an approved order looks like.
