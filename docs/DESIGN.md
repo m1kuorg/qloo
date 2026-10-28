@@ -539,7 +539,7 @@ The roster table (`RosterTable`), the inbox's pitch lists and the launches table
 
 ### Settings grammar
 
-`settings/Module.tsx`, shared by settings and the account page: a centred column about 1152px wide; each module a row of its heading and what it's for, beside its panel on the tone step, side by side at 2:3 from 1024px and stacked below. Owner-only modules show members read-only text, never nothing. One-time secrets (an API key, an invite link) show once in a read-only mono field with "Copy".
+`settings/Module.tsx`, shared by settings and the account page: a centred column about 1152px wide; each module a row of its heading and what it's for, beside its panel on the tone step, side by side at 2:3 from 1024px and stacked below. Owner-only modules show members read-only text, never nothing. One-time secrets (an API key, an invite link) show once in a read-only mono field with "Copy". The guest network's settings alone add Sample data (`settings/SampleData.tsx`), just before the Danger zone, so the two modules that undo the network's state end the page: its help says what the guest network starts from each day, and its panel holds "Reset the sample data", the `destructive` outline button, over a muted line saying it closes every guest's open pages and resets at most once a minute. Its confirm names what goes and what stays; a refusal inside the minute shows in the dialog with the seconds to wait. The page that resets keeps what it shows while the reset closes its own connection, then opens the dashboard; every other open page of the guest network closes on the reset's reason.
 
 ### Forms
 
@@ -547,7 +547,7 @@ Forms are built from `FieldGroup` and `Field`, per shadcn's forms rule: `FieldLa
 
 ### Confirmations
 
-Every destructive action (delete a launch, remove a member, leave, revoke an invite or API key, remove the Qloo key or a passkey, sign out everywhere, delete the account) confirms through `useConfirm` in one AlertDialog: the consequence spelled out, the verb on the destructive button, "Keep" on the other. A step-up prompt never stacks on a confirm: the AlertDialog closes, then the step-up dialog opens. Deleting a network keeps typing its name.
+Every destructive action (delete a launch, remove a member, leave, revoke an invite or API key, remove the Qloo key or a passkey, reset the sample data, sign out everywhere, delete the account) confirms through `useConfirm` in one AlertDialog: the consequence spelled out, the verb on the destructive button, "Keep" on the other. A step-up prompt never stacks on a confirm: the AlertDialog closes, then the step-up dialog opens. Deleting a network keeps typing its name.
 
 ### States
 
