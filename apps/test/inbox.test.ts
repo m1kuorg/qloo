@@ -1,4 +1,4 @@
-import { env, exports } from 'cloudflare:workers'
+import { env } from 'cloudflare:workers'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -40,7 +40,6 @@ const pitchText = (request: ModelRequest): string =>
 const fakeReader = (count: number, answer: (pitch: string) => ScriptedTurn) =>
   fakeClaude(Array.from({ length: count }, () => (request: ModelRequest) => answer(pitchText(request))))
 
-const origin = 'https://crossfeed.test'
 const qlooRequests = () => requests.filter((r) => r.url.origin === new URL(env.QLOO_BASE_URL).origin)
 
 const open: Session[] = []
@@ -652,23 +651,12 @@ describe('matching a podcast named with its hosts', () => {
 })
 
 describe('with GUEST_PITCHES off', () => {
-  it('has no inbox page or link, and refuses inbox actions', async () => {
+  it('refuses inbox actions', async () => {
     env.GUEST_PITCHES = 'off'
-    const page = await exports.default.fetch(`${origin}/demo`)
-    expect(await page.text()).not.toContain('/inbox')
-    expect((await exports.default.fetch(`${origin}/demo/inbox`)).status).toBe(404)
     const s = await session()
     await expect(s.call('loadInbox', { sample: true })).rejects.toThrow("Guest pitches aren't switched on.")
     await expect(s.call('confirmWork', 'pitch-01', 'x')).rejects.toThrow("Guest pitches aren't switched on.")
     expect(requests).toEqual([])
-  })
-
-  it('with it on, links the inbox page from the top bar', async () => {
-    const page = await exports.default.fetch(`${origin}/demo`)
-    expect(await page.text()).toContain('href="/demo/inbox"')
-    const inbox = await exports.default.fetch(`${origin}/demo/inbox`)
-    expect(inbox.status).toBe(200)
-    expect(await inbox.text()).toContain('data-page="inbox"')
   })
 })
 

@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { linkVariants } from '@/components/ui/variants'
@@ -697,45 +696,6 @@ function CpmHead({ cpm }: { cpm: number | null | undefined }) {
   )
 }
 const PRICES = 'Prices each promo slot: downloads per episode × CPM ÷ 1,000.'
-
-// The demo's CPM, which the visitor sets: a dollar field labelled by its heading, saved with Save,
-// and labelled sample while it's still the sample network's.
-export function NetworkCpm({ cpm, sample, agent }: { cpm: number | null; sample: boolean; agent: Session }) {
-  const [value, setValue] = useState(cpm == null ? '' : String(cpm))
-  const { busy, error, run } = useAction()
-  const save = (e: React.FormEvent) => {
-    e.preventDefault()
-    void run(() => agent.stub.setCpm(Number(value)))
-  }
-  return (
-    <section className="flex flex-col gap-2" aria-labelledby="cpm-h">
-      <CpmHead cpm={cpm} />
-      <p className="text-muted-foreground">{PRICES}</p>
-      <form className="flex flex-wrap items-center gap-x-3 gap-y-2" onSubmit={save}>
-        <InputGroup className="w-52">
-          <InputGroupAddon aria-hidden="true">$</InputGroupAddon>
-          <InputGroupInput
-            aria-labelledby="cpm-h"
-            inputMode="decimal"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="CPM in dollars, e.g. 20"
-          />
-        </InputGroup>
-        <Button type="submit" variant="secondary" disabled={busy || !value.trim() || Number(value) === cpm}>
-          {busy && <Spinner data-icon="inline-start" />}
-          Save
-        </Button>
-        {sample && (
-          <small className="flex items-center gap-1.5 type-caption text-muted-foreground">
-            <SampleChip /> Arbitrary sample figure, not the network’s. Enter your own.
-          </small>
-        )}
-      </form>
-      <Alert error={error} />
-    </section>
-  )
-}
 
 // The CPM that prices every launch's slots, read-only, which an owner changes in the network's
 // settings: on the network's roster page, and as a launch's run took it. `cpm` is undefined until the

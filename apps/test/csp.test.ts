@@ -47,7 +47,7 @@ function refusedBy(policy: Record<string, string[]>, html: string) {
 const styleAttributes = (html: string) => [...html.matchAll(/<[a-z][^>]*\sstyle="[^"]*"/g)].map(([a]) => a.slice(0, 80))
 
 // Every page as a browser loads it, by path: the signed-out pages, the 404 page for an address that
-// has none (`missing`), the demo's, and a member's pages of a network (`id`) with a launch (`launch`).
+// has none (`missing`), and a member's pages of a network (`id`) with a launch (`launch`).
 async function everyPage() {
   env.GUEST_PITCHES = 'on'
   fakeQloo({ search: {} })
@@ -64,7 +64,7 @@ async function everyPage() {
   network.close()
 
   const signedOut = ['/', '/privacy', '/terms', '/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
-  const pages = [...signedOut, missing, '/sign-in', '/invite', '/demo', '/demo/inbox']
+  const pages = [...signedOut, missing, '/sign-in', '/invite']
   const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/roster`, `/app/${id}/inbox`]
   app.push(`/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
   const loaded = await Promise.all([
@@ -105,8 +105,6 @@ describe('every page', () => {
     const modules: Record<string, string> = {
       '/sign-in': 'Account',
       '/invite': 'Account',
-      '/demo': 'App',
-      '/demo/inbox': 'DemoInbox',
       '/app/new': 'NewNetwork',
       '/app/account': 'AccountPage',
       [`/app/${id}`]: 'Dashboard',

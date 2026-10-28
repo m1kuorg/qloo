@@ -16,6 +16,7 @@ import {
   segmentedItemVariants,
   segmentedTrackVariants
 } from '../components/ui/variants'
+import { SESSION_MS } from '../directory'
 import { bandMeter, FINALISTS, type Band } from '../fit'
 import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
@@ -24,7 +25,6 @@ import { CSV_HEADER, dollars, slotPrice } from '../order'
 import { MarketingPage, marketingShell } from '../shell'
 import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
 import { CLIMB, topicFinding } from '../topic'
-import { SESSION_DAYS } from './demo'
 
 export const marketing = new Hono<{ Bindings: Env }>()
 
@@ -1176,7 +1176,8 @@ function Privacy({ accounts }: { accounts: boolean }) {
           <li>
             <p>
               <b>In your browser:</b> one cookie, <code>crossfeed_session</code>, a random ID that names your session.
-              It’s HttpOnly and lasts {SESSION_DAYS} days. There are no analytics, ads, or third-party scripts.
+              It’s HttpOnly and lasts {SESSION_MS / 86_400_000} days. There are no analytics, ads, or third-party
+              scripts.
             </p>
           </li>
           <li>

@@ -20,7 +20,8 @@ export default defineConfig({
       // The run limits, the sign-up, network, and invite caps, and the guest sign-ins a minute and a day are
       // wrangler.jsonc's, whatever .dev.vars says; a test lowers them itself. Passkeys belong to the
       // origin tests send from.
-      // Accounts are on, as the product's tests need; a test of the demo without them turns them off.
+      // Accounts are on, as the product's tests need; a test without them turns them off. The engine's
+      // sessions answer at /agents/session (routes/demo.ts) only here, where TEST_SESSIONS is on.
       miniflare: {
         bindings: {
           QLOO_BASE_URL: 'https://qloo.test',
@@ -48,6 +49,7 @@ export default defineConfig({
           INVITED_SIGNUP_DAILY_CAP: '20',
           GUEST_SIGNINS_PER_MINUTE: '30',
           GUEST_SIGNINS_PER_DAY: '1000',
+          TEST_SESSIONS: 'on',
           TEST_MIGRATIONS: migrations
         }
       }

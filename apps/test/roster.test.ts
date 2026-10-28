@@ -4,11 +4,13 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
-import { Workspace, type Session as Agent } from '../src/client/App'
+import type { Session as Agent } from '../src/client/App'
+import type { NetworkConnection } from '../src/client/NetworkPage'
+import { NetworkRoster } from '../src/client/Roster'
 import { ShowEditor } from '../src/client/RosterModules'
 import type { Evidence } from '../src/evidence'
 import { fakeQloo, network, requests } from './fake'
-import { links, openSession, type Session } from './session'
+import { launchPage, openSession, type Session } from './session'
 
 // Synthetic shows: one exact match, one name shared by two spin-off feeds, one Qloo doesn't have.
 const search = {
@@ -256,8 +258,8 @@ describe('importing a pasted roster', () => {
   })
 })
 
-describe('the roster as the demo shows it', () => {
-  // The page's words, as a visitor reads them, and its HTML, from the session's synced state.
+describe('the roster as its page shows it', () => {
+  // The page's words, as a member reads them, and its HTML, from the session's synced state.
   const words = (html: string) =>
     html
       .replace(/<[^>]+>/g, ' ')
@@ -267,7 +269,13 @@ describe('the roster as the demo shows it', () => {
       .replace(/\s+/g, ' ')
       .trim()
   const agentOf = (state: State) => ({ state, stub: {} }) as unknown as Agent
-  const workspace = (state: State) => renderToStaticMarkup(createElement(Workspace, { agent: agentOf(state), links }))
+  const workspace = (state: State) =>
+    renderToStaticMarkup(
+      createElement(NetworkRoster, {
+        agent: agentOf(state) as unknown as NetworkConnection,
+        network: launchPage.network
+      })
+    )
   // The inspector's Show tab for one of the roster's shows, as selecting its row opens it.
   const editor = (state: State, name: string) =>
     renderToStaticMarkup(
@@ -286,7 +294,7 @@ describe('the roster as the demo shows it', () => {
     const html = workspace(await s.importRoster(roster))
 
     const read = words(html)
-    expect(read).toContain('Roster 3 shows: 1 resolved, 1 ambiguous, 1 missed')
+    expect(read).toContain('3 shows: 1 resolved, 1 ambiguous, 1 missed')
     expect(read).toContain(
       'Show Match Qloo entity · popularity percentile Downloads per episode Status Call Night Shift Cinema Resolved Night Shift Cinema 91.0 – – C-01'
     )
@@ -331,7 +339,7 @@ describe('the roster as the demo shows it', () => {
     )
     await s.call('updateShow', 'The Ghost Signal Show', { compId: 'e-0201' })
     const read = words(workspace(s.state()!))
-    expect(read).toContain('Roster 3 shows: 1 resolved, 1 mapped to a comp, 1 ambiguous')
+    expect(read).toContain('3 shows: 1 resolved, 1 mapped to a comp, 1 ambiguous')
     expect(read).toContain('The Ghost Signal Show Mapped Mapped to The Ghost Hour Show 88.0 – – C-04')
   })
 
@@ -363,7 +371,7 @@ describe('the roster as the demo shows it', () => {
     await s.call('updateShow', 'The Ghost Signal Show', { excluded: true })
 
     const html = workspace(s.state()!)
-    expect(words(html)).toContain('Roster 3 shows: 1 resolved, 1 ambiguous, 1 excluded')
+    expect(words(html)).toContain('3 shows: 1 resolved, 1 ambiguous, 1 excluded')
     // Left out, it needs nothing settled.
     expect(words(html)).toContain('The Ghost Signal Show Missed Excluded No show by this name in Qloo. – – C-03')
     expect(html).toMatch(/<tr\b(?=[^>]*\sdata-excluded="true")[^>]*>\s*<th\b[^>]*>[\s\S]*?The Ghost Signal Show/)

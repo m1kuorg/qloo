@@ -44,8 +44,8 @@ const manifest: Record<string, ManifestChunk> =
     ? Object.assign({}, ...Object.values(inlinedManifest).map((file: { default?: object }) => file.default))
     : {}
 
-// The module that renders each island page, by its root's data-page, as main.tsx's pages import it;
-// any other page, "roster", is the demo's roster. A new page goes in both.
+// The module that renders each island page, by its root's data-page, as main.tsx's pages import it. A
+// new page goes in both.
 const pageModules = {
   'sign-in': 'Account',
   invite: 'Account',
@@ -55,10 +55,9 @@ const pageModules = {
   launch: 'Launch',
   'network-roster': 'Roster',
   'network-inbox': 'NetworkInbox',
-  settings: 'Settings',
-  inbox: 'DemoInbox'
+  settings: 'Settings'
 }
-type Page = keyof typeof pageModules | 'roster'
+type Page = keyof typeof pageModules
 // The island's script, which IslandHead loads.
 const ENTRY = 'src/client/main.tsx'
 
@@ -67,7 +66,7 @@ const ENTRY = 'src/client/main.tsx'
 // module the build has no chunk for, as when pageModules names one main.tsx doesn't import, is logged
 // and preloads nothing: the page still loads it from main.js.
 function pageCode(page: Page) {
-  const module = `src/client/${page === 'roster' ? 'App' : pageModules[page]}.tsx`
+  const module = `src/client/${pageModules[page]}.tsx`
   if (import.meta.env.DEV) return [`/${module}`]
   if (!manifest[module]) {
     console.error(JSON.stringify({ event: 'preload_missing', page, module }))
@@ -291,7 +290,7 @@ type Destination = {
   utility?: boolean
 }
 
-// The app's and the demo's rail: the mark, then the destinations, each an 18px icon on a 44px pitch,
+// The app's rail: the mark, then the destinations, each an 18px icon on a 44px pitch,
 // the current one on a tone-step square. Under 768px the same nav is the bottom bar, each icon over its
 // name, and the mark moves to the top bar, so there's one nav and one current item at every width.
 // Without destinations, as on the pages outside a network, it's the mark alone.
@@ -341,10 +340,9 @@ function Rail({ label, home, destinations }: { label: string; home: string; dest
   )
 }
 
-// The app's and the demo's frame: the rail beside a column of the top bar over the page, the React
-// island in #root. Under 768px the rail is a bottom bar, which the page leaves room for.
-// The page scrolls what Tab reaches clear of the 48px top bar, which sticks in the app and from 768px
-// in the demo, and of the phone's bottom bar.
+// The app's frame: the rail beside a column of the top bar over the page, the React island in #root.
+// Under 768px the rail is a bottom bar, which the page leaves room for. The page scrolls what Tab
+// reaches clear of the 48px top bar, which sticks, and of the phone's bottom bar.
 const AppFrame = ({
   rail,
   bar,
@@ -570,45 +568,6 @@ export const marketingShell = (title: string | null, description?: string, { rev
       {children}
     </MarketingPage>
   ))
-
-// The demo shell: the app's rail, with the demo's pages, and a top bar whose left holds the sample
-// network's name and its not-affiliated notice, which the island fills (Demo.tsx), and whose right
-// holds, while ACCOUNTS is on, Sign in and "Create your network". The mark leads home.
-export const demoShell = jsxRenderer(({ children }, c) => {
-  const destinations: Destination[] = [{ href: '/demo', label: 'Launch', icon: Rocket }]
-  if (c.env.GUEST_PITCHES === 'on') destinations.push({ href: '/demo/inbox', label: 'Inbox', icon: Inbox })
-  for (const d of destinations) if (c.req.path === d.href) d.current = 'page'
-  return (
-    <AppFrame
-      rail={<Rail label="Sample network" home="/" destinations={destinations} />}
-      bottomBar
-      bar={
-        <header class="z-30 flex flex-wrap items-center gap-x-3 bg-background px-4 max-md:pb-2 md:sticky md:top-0 md:h-12 md:flex-nowrap lg:px-6">
-          <MarkLink href="/" class="-ml-2.5 shrink-0 md:hidden" />
-          {/* The island fills these while the session is on the sample network. They keep their height
-              while they're empty, so the late fill doesn't move the page: the name over the notice, on a
-              row of their own under 768px, and side by side from 1024px. */}
-          <div class="flex h-[2.375rem] min-w-0 flex-1 flex-col justify-center max-md:order-last max-md:basis-full md:h-12 lg:flex-row lg:items-center lg:justify-start lg:gap-3">
-            <span id="shell-network" class="truncate font-medium lg:shrink-0" />
-            <span id="shell-notice" class="truncate type-caption text-muted-foreground" />
-          </div>
-          {c.env.ACCOUNTS === 'on' && (
-            <div class="ml-auto flex h-12 shrink-0 items-center gap-1">
-              <a class={buttonVariants({ variant: 'ghost' })} href="/sign-in">
-                Sign in
-              </a>
-              <a class={buttonVariants()} href="/app/new">
-                Create your network
-              </a>
-            </div>
-          )}
-        </header>
-      }
-    >
-      {children}
-    </AppFrame>
-  )
-})
 
 // What the app shell shows besides the mark, as a page's handler sets it: the signed-in member, with
 // their account menu; their networks, in the switcher; and the network the page belongs to, with its

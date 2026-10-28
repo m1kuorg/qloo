@@ -4,9 +4,10 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
-import { Workspace, type Session as Agent } from '../src/client/App'
+import type { Session as Agent } from '../src/client/App'
+import { LaunchWorkspace } from '../src/client/Launch'
 import { fakeClaude, fakeInsights, fakeQloo, fakeTopic, text, toolUse, turn } from './fake'
-import { hooked, links, openSession, type Session } from './session'
+import { hooked, launchPage, openSession, type Session } from './session'
 
 // A made-up launch and eight made-up shows, one exact match each. Fit order is the shows' order.
 const launch = 'Night Shift Cinema'
@@ -74,7 +75,7 @@ const words = (html: string) =>
     .trim()
 const chart = (state: State) =>
   hooked(
-    renderToStaticMarkup(<Workspace agent={{ state, stub: {} } as unknown as Agent} links={links} />),
+    renderToStaticMarkup(<LaunchWorkspace agent={{ state, stub: {} } as unknown as Agent} {...launchPage} />),
     'aria-label="Fit chart"'
   )[0]
 // The chart's rows, by show, in the order they're listed.

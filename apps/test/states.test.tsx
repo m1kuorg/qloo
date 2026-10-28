@@ -1,15 +1,18 @@
-// What the workspace says when it isn't showing a result. Each test drives a session through the
-// fakes into a state, then renders the real workspace from the session's synced state and reads
-// its words, which every state shows, so none is told by color alone.
+// What the launch, roster, and inbox pages say when they aren't showing a result. Each test drives a
+// session through the fakes into a state, then renders the real page from the session's synced state
+// and reads its words, which every state shows, so none is told by color alone.
 import { env } from 'cloudflare:workers'
 import { http } from 'msw'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
-import { Workspace, type Session as Agent } from '../src/client/App'
+import type { Session as Agent } from '../src/client/App'
+import { LaunchWorkspace } from '../src/client/Launch'
 import { InboxWorkspace } from '../src/client/Inbox'
+import type { NetworkConnection } from '../src/client/NetworkPage'
+import { NetworkRoster } from '../src/client/Roster'
 import { fakeClaude, fakeInsights, fakeQloo, network, refusal, text, toolUse, turn } from './fake'
-import { links, openSession, type Session } from './session'
+import { launchPage, links, openSession, type Session } from './session'
 
 // Synthetic shows, one exact match each.
 const names = ['Night Shift Cinema', 'Deep Cuts', 'Signal Boost', 'Paper Trail', 'Field Notes']
@@ -51,16 +54,23 @@ afterEach(() => {
   saved.clear()
 })
 
-// The workspace's text as a visitor reads it, from the session's synced state. `connection` is what
-// the page knows of its socket besides the state: whether it's identified, and why it closed for good.
+// A page's text as a member reads it, from the session's synced state: a launch's page, the network's
+// roster page, or its inbox. `connection` is what the page knows of its socket besides the state:
+// whether it's identified, and why it closed for good.
 const page = (
   state: State | undefined,
-  name = 'roster',
+  name: 'launch' | 'roster' | 'inbox' = 'launch',
   connection: { identified?: boolean; connectionError?: { code: number; reason: string } } = {}
 ) => {
   const agent = { state, stub: {}, ...connection } as unknown as Agent
   const html = renderToStaticMarkup(
-    name === 'inbox' ? <InboxWorkspace agent={agent} links={links} /> : <Workspace agent={agent} links={links} />
+    name === 'inbox' ? (
+      <InboxWorkspace agent={agent} links={links} />
+    ) : name === 'roster' ? (
+      <NetworkRoster agent={agent as unknown as NetworkConnection} network={launchPage.network} />
+    ) : (
+      <LaunchWorkspace agent={agent} {...launchPage} />
+    )
   )
   return html
     .replace(/<[^>]+>/g, ' ')
@@ -75,9 +85,12 @@ describe('an empty workspace', () => {
     const s = await session()
 
     const text = page(s.state())
-    expect(text).toContain('No roster yet. Paste show names above to import one.')
     expect(text).toContain('No launch yet Import a roster first, then name a released launch to rank it.')
-    expect(text).toContain('Not run yet. A run looks the launch up in Qloo and ranks the roster against it.')
+    expect(text).toContain('Not run yet. A run looks it up in Qloo.')
+    const roster = page(s.state(), 'roster')
+    expect(roster).toContain('ranks this roster, as it stands when its run starts. No roster yet.')
+    expect(roster).toContain('Import shows Show names Import roster')
+    expect(roster).toContain('Start from the sample roster')
   })
 
   it('asks for the launch once a roster is in', async () => {
@@ -92,9 +105,9 @@ describe('an empty workspace', () => {
 describe("the workspace's connection", () => {
   it('says it is connecting until the first state arrives, and shows nothing it would have to take back', () => {
     const text = page(undefined)
-    expect(text).toContain('Working Connecting to your demo session…')
-    expect(text).not.toContain('No roster yet')
+    expect(text).toContain('Working Connecting to the launch…')
     expect(text).not.toContain('No launch yet')
+    expect(text).not.toContain('Not run yet')
   })
 
   it('says it is reconnecting while the socket is down, keeping what it showed', async () => {
@@ -102,14 +115,14 @@ describe("the workspace's connection", () => {
     const state = s.state()
     expect(page(state)).not.toContain('Reconnecting…')
 
-    const text = page(state, 'roster', { identified: false })
+    const text = page(state, 'launch', { identified: false })
     expect(text).toContain('Reconnecting…')
-    expect(text).toContain('No roster yet. Paste show names above to import one.')
+    expect(text).toContain('No launch yet Import a roster first, then name a released launch to rank it.')
   })
 
   it('says it lost its connection when the socket closed for good', async () => {
     const s = await session()
-    const text = page(s.state(), 'roster', { connectionError: { code: 1008, reason: '' } })
+    const text = page(s.state(), 'launch', { connectionError: { code: 1008, reason: '' } })
     expect(text).toContain('Error This page lost its connection. Reload to try again.')
     expect(text).not.toContain('Reconnecting…')
   })
@@ -131,7 +144,7 @@ describe("the inbox's connection", () => {
 })
 
 describe('a roster being looked up', () => {
-  it('marks each pending show busy, with its call not yet openable, and the import counting', async () => {
+  it('marks each pending show busy, with its call not yet openable, and counts them', async () => {
     fakeQloo({ search })
     const nightShift = hold('Night Shift Cinema')
     const deepCuts = hold('Deep Cuts')
@@ -140,12 +153,15 @@ describe('a roster being looked up', () => {
     await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
     const pending = s.state()!
     const html = renderToStaticMarkup(
-      <Workspace agent={{ state: pending, stub: {} } as unknown as Agent} links={links} />
+      <NetworkRoster
+        agent={{ state: pending, stub: {} } as unknown as NetworkConnection}
+        network={launchPage.network}
+      />
     )
-    const text = page(pending)
+    const text = page(pending, 'roster')
     expect(text).toContain('Night Shift Cinema Looking up Looking it up in Qloo… – – C-01')
     expect(text).toContain('Deep Cuts Looking up Looking it up in Qloo… – – C-02')
-    expect(text).toContain('Looked up 0 of 2…')
+    expect(text).toContain('2 shows: 2 looking up')
     expect(html.match(/<tr\b[^>]*\saria-busy="true"/g)).toHaveLength(2)
     // A pending call has no record to open yet.
     expect(html).not.toContain('call C-01"')
@@ -153,8 +169,8 @@ describe('a roster being looked up', () => {
     nightShift.resolve()
     deepCuts.resolve()
     const settled = await s.until((st) => st.roster.every((show) => show.resolution === 'resolved'))
-    expect(page(settled)).toContain('Roster 2 shows: 2 resolved')
-    expect(page(settled)).toContain('Import roster')
+    expect(page(settled, 'roster')).toContain('2 shows: 2 resolved')
+    expect(page(settled, 'roster')).toContain('Import shows')
   })
 })
 
@@ -276,7 +292,7 @@ describe('a failing Qloo', () => {
     const s = await session()
     const state = await s.importRoster('Night Shift Cinema\nDeep Cuts')
 
-    const text = page(state)
+    const text = page(state, 'roster')
     expect(text).toContain(
       'Failed 1 show couldn’t be looked up in Qloo, so it can’t be scored: Deep Cuts. Import the roster again to retry it; shows already found come from the cache.'
     )
@@ -289,7 +305,7 @@ describe('a failing Qloo', () => {
     const s = await session()
     const state = await s.importRoster('Night Shift Cinema\nDeep Cuts')
 
-    const text = page(state)
+    const text = page(state, 'roster')
     expect(text).toContain('Failed 1 show couldn’t be looked up in Qloo, so it can’t be scored: Deep Cuts.')
     expect(text).toContain(
       'Deep Cuts Lookup failed The daily cap of 1 Qloo calls is reached; it resets at 00:00 UTC. Not scored.'
@@ -353,7 +369,7 @@ describe('a missed match', () => {
     const s = await session()
     const state = await s.importRoster('Night Shift Cinema\nGhost Signal')
 
-    expect(page(state)).toContain('Ghost Signal Missed No show by this name in Qloo. Map a comp or leave out')
+    expect(page(state, 'roster')).toContain('Ghost Signal Missed No show by this name in Qloo. Map a comp or leave out')
   })
 
   it("says so when the launch isn't in Qloo", async () => {

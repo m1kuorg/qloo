@@ -454,10 +454,10 @@ describe('headers', () => {
     expect((await post('/auth/recover', { code: 'nope' })).headers.get('cache-control')).toBe('no-store')
   })
 
-  it('sends the secure headers, with no referrer, on every page, the demo too', async () => {
+  it('sends the secure headers, with no referrer, on every page', async () => {
     const { cookie } = await openMember()
     for (const [path, headers] of [
-      ['/demo', {}],
+      ['/', {}],
       ['/sign-in', {}],
       ['/app/new', { Cookie: cookie }]
     ] as const) {
