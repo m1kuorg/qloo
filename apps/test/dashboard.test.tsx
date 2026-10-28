@@ -550,7 +550,7 @@ describe('settings', () => {
     const html = await settings(guest, 'guest-network', await (await connect(guest, 'guest-network')).until(() => true))
     const read = words(html)
     expect(read).toContain(
-      'Sample data The guest network starts every day at 12:00 UTC from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches. Reset it to start over now, for every guest. Reset the sample data Resetting closes every guest’s open pages of the guest network. The sample data resets at most once a minute, for everyone. Danger zone'
+      'Sample data The guest network starts every day at 12:00 UTC from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches. Reset it to start over now, for every guest. Reset the sample data Resetting closes every guest’s open pages of the guest network. Every guest shares a few resets a day, and after one, the next may wait up to an hour. Danger zone'
     )
     expect(html).toMatch(/<button[^>]*>Reset the sample data<\/button>/)
 
