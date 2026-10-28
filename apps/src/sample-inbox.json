@@ -1,6 +1,6 @@
 {
   "sample": true,
-  "notice": "Sample data for Crossfeed's guest pitches. Every pitch is synthetic: the senders and their firms are fictional, every address is at example.com, and no real person wrote or sent these emails. The works pitched are real public works, named with their public creators. The pitches without a public work are about fictional people. The past guests come from the show's public episode list. Crossfeed isn't affiliated with The Ringer. Each pitch's expected field is the answer key for checking extraction, not an input to it.",
+  "notice": "Sample data for Crossfeed's guest pitches. Every pitch is synthetic: the senders and their firms are fictional, every address is at example.com, and no real person wrote or sent these emails. The works pitched are real public works, named with their public creators. The pitches without a public work are about fictional people. The past guests come from the show's public episode list. Crossfeed isn't affiliated with The Ringer. Each pitch comes already read, with its guest and public work from the sample, so no model reads it.",
   "show": {
     "name": "The Big Picture",
     "network": "The Ringer",

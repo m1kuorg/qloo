@@ -215,6 +215,7 @@ export function InboxPage({
             booking={booking}
             lists={booking.lists}
             pitches={inbox?.pitches ?? []}
+            sample={inbox?.sample ?? false}
             selected={pitch?.id ?? null}
             select={select}
             openCall={showCall}
@@ -252,13 +253,9 @@ export function InboxPage({
               <SkippedPitches skipped={inbox.skipped} />
             </p>
           )}
-          {inbox?.sample && inbox.notice && (
-            <p className="max-w-[80ch] rounded-xl bg-card p-4" data-sample-notice>
-              {inbox.notice}
-            </p>
-          )}
           <PitchTable
             pitches={inbox?.pitches ?? []}
+            sample={inbox?.sample ?? false}
             selected={pitch?.id ?? null}
             select={select}
             openCall={showCall}
@@ -304,6 +301,7 @@ export function InboxPage({
             <PitchDetail
               key={pitch.id}
               pitch={pitch}
+              sample={inbox?.sample ?? false}
               confirmWork={viewing ? null : actions.confirmWork}
               close={() => close(pitch.id)}
               openCall={showCall}
@@ -320,9 +318,9 @@ const inboxName = (inbox: Inbox | null) =>
   inbox ? (inbox.sample ? 'Sample inbox' : inbox.uploaded ? 'Uploaded pitches' : 'Pasted pitches') : 'None yet'
 
 // The title row: the inbox's name, with the sample label, and what Claude and Qloo are given of each
-// pitch; while an earlier pitch run is viewed, its number and the way back to the latest. Then the
-// on-air readout, which follows a pitch run, or while there's none, the inbox's reading and its slow
-// calls.
+// pitch, or for the sample, which comes already read, what Qloo is; while an earlier pitch run is
+// viewed, its number and the way back to the latest. Then the on-air readout, which follows a pitch run,
+// or while there's none, the inbox's reading and its slow calls.
 function InboxHead({
   inbox,
   pitchRun,
@@ -363,8 +361,10 @@ function InboxHead({
               {inbox?.sample && <Badge>Sample data</Badge>}
             </p>
             <p className="max-w-[72ch]">
-              Claude reads each pitch for its guest and public work. Only the work’s title and type are looked up in
-              Qloo; names, addresses, and pitch text never are.
+              {inbox?.sample
+                ? 'The sample’s pitches come already read for their guest and public work.'
+                : 'Claude reads each pitch for its guest and public work.'}{' '}
+              Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.
             </p>
           </div>
         </div>
@@ -819,6 +819,7 @@ function PitchLists({
   booking,
   lists,
   pitches,
+  sample,
   selected,
   select,
   openCall,
@@ -827,6 +828,7 @@ function PitchLists({
   booking: Booking
   lists: PitchList[]
   pitches: Pitch[]
+  sample: boolean // the sample inbox's pitches, which come already read
   selected: string | null
   select: (id: string, from: HTMLElement) => void
   openCall: (call: string) => void
@@ -853,6 +855,7 @@ function PitchLists({
           key={list.type}
           list={list}
           pitches={pitches}
+          sample={sample}
           selected={selected}
           select={select}
           openCall={openCall}
@@ -864,11 +867,13 @@ function PitchLists({
 }
 
 // One work type's list in the fit chart's anatomy, as a compact real table: the rank, the work as
-// Qloo matched it, which opens its pitch, with the guest as Claude read them and the tags it shares
-// with the show, then its band. Its rules bleed 8px past the text, as the chart's do.
+// Qloo matched it, which opens its pitch, with the guest as Claude read them, or as the sample gives
+// them, and the tags it shares with the show, then its band. Its rules bleed 8px past the text, as the
+// chart's do.
 function RankedPitches({
   list,
   pitches,
+  sample,
   selected,
   select,
   openCall,
@@ -876,6 +881,7 @@ function RankedPitches({
 }: {
   list: PitchList
   pitches: Pitch[]
+  sample: boolean
   selected: string | null
   select: (id: string, from: HTMLElement) => void
   openCall: (call: string) => void
@@ -928,9 +934,9 @@ function RankedPitches({
                     Rank
                   </th>
                   <th scope="col" className="border-b pb-2 pl-3 text-left align-bottom font-normal">
-                    {/* The guest is Claude's reading of the pitch, not Qloo data. */}
+                    {/* The guest is Claude's reading of the pitch, or the sample's, not Qloo data. */}
                     <span className="inline-flex flex-wrap items-center gap-1.5">
-                      Public work · guest <Source of="agent" />
+                      Public work · guest <ReadBy sample={sample} />
                     </span>
                   </th>
                   <th scope="col" className="w-24 border-b pr-2 pb-2 pl-3 text-left align-bottom font-normal">
@@ -1455,21 +1461,27 @@ function AnchorMatch({ match }: { match: WorkMatch | null }) {
 // A pitch's subject, or the first line of a pasted one.
 const title = (p: Pitch) => p.subject ?? p.body.split('\n').find((l) => l.trim()) ?? p.id
 
+// Where a pitch's guest and work came from: Claude's reading, or the sample inbox, which comes already
+// read, labelled sample as the sample roster's figures are.
+const ReadBy = ({ sample }: { sample: boolean }) => (sample ? <Badge>sample</Badge> : <Source of="agent" />)
+
 // Every pitch as read, in the roster table's anatomy: a real table whose rules bleed 8px past the
 // text, the pitch's name a button that opens it in the inspector's Pitch tab, with its sender under
-// it; the guest and work as Claude read them; the work's Qloo match, or why it has none and the way
-// to settle it; and the search's call. A set-aside pitch's guest and work cells look empty, and say
-// "None" to screen readers rather than "blank". The pitch open in the inspector, or whose evidence
-// is, holds the tone step. Narrower than the table, it scrolls sideways in its region with the pitch's
-// column held at the left.
+// it; the guest and work as Claude read them, or as the sample gives them; the work's Qloo match, or
+// why it has none and the way to settle it; and the search's call. A set-aside pitch's guest and work
+// cells look empty, and say "None" to screen readers rather than "blank". The pitch open in the
+// inspector, or whose evidence is, holds the tone step. Narrower than the table, it scrolls sideways in
+// its region with the pitch's column held at the left.
 function PitchTable({
   pitches,
+  sample,
   selected,
   select,
   openCall,
   opened
 }: {
   pitches: Pitch[]
+  sample: boolean
   selected: string | null
   select: (id: string, from: HTMLElement) => void
   openCall: (call: string) => void
@@ -1490,8 +1502,12 @@ function PitchTable({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground" id="pitches-cap">
-        <Source of="agent" /> Guest and work as Claude read them from each pitch. <Source of="qloo" /> Matches from Qloo
-        search, one call per work. Select a pitch to read it or confirm its match.
+        <ReadBy sample={sample} />{' '}
+        {sample
+          ? 'Guest and work as the sample gives them for each pitch.'
+          : 'Guest and work as Claude read them from each pitch.'}{' '}
+        <Source of="qloo" /> Matches from Qloo search, one call per work. Select a pitch to read it or confirm its
+        match.
       </p>
       <ScrollTable label="Pitch table" className="-mx-2 max-w-none">
         <table className="w-full min-w-[46rem] border-separate border-spacing-0" aria-describedby="pitches-cap">
@@ -1649,16 +1665,18 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElem
 }
 
 // The pitch opened from a list or the table, in the inspector's Pitch tab: its subject as the
-// heading, which takes focus as it opens, with Close; what Claude read from it; its work's
-// candidates to confirm, unless it's an earlier run's (`confirmWork` null); and its text.
+// heading, which takes focus as it opens, with Close; what Claude read from it, or the sample gives;
+// its work's candidates to confirm, unless it's an earlier run's (`confirmWork` null); and its text.
 function PitchDetail({
   pitch: p,
+  sample,
   confirmWork,
   close,
   openCall,
   opened
 }: {
   pitch: Pitch
+  sample: boolean
   confirmWork: Actions['confirmWork'] | null
   close: () => void
   openCall: (call: string) => void
@@ -1696,8 +1714,8 @@ function PitchDetail({
         <KeyValue label="Public work">
           {p.work ? `${p.work.title} · ${typeLabel[p.work.type]}${p.work.year ? ` · ${p.work.year}` : ''}` : '–'}
         </KeyValue>
-        <KeyValue label="Read by">
-          <Source of="agent" />
+        <KeyValue label={sample ? 'Source' : 'Read by'}>
+          <ReadBy sample={sample} />
         </KeyValue>
       </KeyValues>
       {confirmWork && match && match.candidates.length > 0 && p.work && (

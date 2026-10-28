@@ -635,7 +635,7 @@
               "string",
               "null"
             ],
-            "description": "The pitched guest's name, as the agent read it. It never reaches Qloo."
+            "description": "The pitched guest's name, as the agent read it, or as the sample inbox gives it. It never reaches Qloo."
           },
           "work": {
             "anyOf": [
