@@ -1,7 +1,8 @@
 // Wiping agents once the directory or their network has let go of them: a launch's, when it's deleted,
 // and a network's with all of its launches' and its own Qloo gateway instance, when the network is; the
-// guest network's launches' and its own, when the daily cron clears it; a deleted member's name from
-// their networks' launches; and the daily cron's retry of a wipe that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
+// guest network's launches', its own, and its gateway instance, when the daily cron clears it; the
+// networks only expired guest members own, as the hourly cron removes them; a deleted member's name from
+// their networks' launches; and the hourly cron's retry of a wipe that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
 import {
   clearGuestNetwork,
@@ -155,7 +156,7 @@ async function guestLaunches(env: Env) {
 // `networks`, theirs, and each network they left or were removed from before, forget them. The forgets
 // are noted in the batch that deletes the account; then their open pages close, so they start no run
 // and approve no order after; then each network forgets them. A run started or an order approved just
-// before its page closed can land the name after that, so each forget stays noted for the daily cron
+// before its page closed can land the name after that, so each forget stays noted for the hourly cron
 // to make again and cross off; one that fails now is logged. False when it's refused, and nothing
 // changed.
 export async function deleteAccount(env: Env, memberId: string, networks: string[]) {
