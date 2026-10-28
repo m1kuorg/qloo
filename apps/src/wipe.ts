@@ -19,6 +19,7 @@ import {
   wipeDone,
   wipeReason,
   wipesDue,
+  wipesWaiting,
   type Instance
 } from './directory'
 import {
@@ -227,6 +228,20 @@ export async function retryWipes(env: Env) {
     throw new Error(
       `${done.failed} agent ${done.failed === 1 ? 'wipe' : 'wipes'} failed; the next hourly run tries again.`
     )
+}
+
+// Whether more of the guest network's launches wait for the hourly retry's wipe, as its clearing and its
+// resets leave them (resetGuestNetwork), than one run wipes, so another reset would pile them up.
+export const guestLaunchWipesBehind = async (env: Env) =>
+  (await wipesWaiting(env.DB, LAUNCH, launchAgentName(GUEST_NETWORK, ''))) > WIPES_PER_RUN
+
+// When the hourly cron next retries wipes, after `now`: the next hour's start, but for 12:00 UTC, whose
+// daily cron leaves them to 13:00 (src/index.tsx).
+export function nextRetry(now: number) {
+  const next = new Date(now)
+  next.setUTCHours(next.getUTCHours() + 1, 0, 0, 0)
+  if (next.getUTCHours() === 12) next.setUTCHours(13)
+  return next
 }
 
 // Wipes a network's agent, as the cron's retry does, when its launches' wipes may never have been noted, as
