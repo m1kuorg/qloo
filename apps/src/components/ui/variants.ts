@@ -71,16 +71,20 @@ export const inputVariants = merged(input)
 // `mark` sets a small glyph before the words, drawn in CSS so screen readers don't read it: the
 // "Qloo data" chip's ink square, the "Agent" chip's circle, a finalist's signal dot. Source chips
 // never look alike: Qloo data is outline + square, Agent is default + circle.
-// The words are centred on their x-height, the middle of the lowercase letters they're mostly made of,
-// which the marks and icons are centred on too. Centring the box would set them low: Schibsted
-// Grotesk's ascent (11.72px at 12px) is far taller than its descent (3.09px), which puts the baseline
-// 4.31px below the box's middle. 2.625px under the words raises it to 13px from the chip's top, a whole
-// pixel, so the browser never rounds it a pixel lower in one chip than another, with the x-height
-// (6.33px) centred within 0.2px; the marks and icons take the same 2.625px above them to stay centred
-// on the chip. A mark is a ::before only where there is one: an empty one would still take the gap.
-const badgeMark = 'before:mt-[2.625px] before:shrink-0'
+// The words sit between two centres, as no one height centres both kinds of label: in Schibsted
+// Grotesk at 12px a capital (8.44px) is centred with its baseline 14.2px from the chip's top, and the
+// x-height (6.33px) with it at 13.2px. --badge-lift, under the words, raises the baseline by half
+// itself from where centring the line box puts it, which Chrome works out from the face's ascent and
+// descent rounded to the screen's own pixels: 14.3px on a 1x screen, 13.8px on a 2x one. So 0.6px
+// sets it on a whole device pixel on both, which the browser rounds alike in every chip, wherever
+// the chip sits: 14px at 1x, where the space above and below capitals differs by 0.4px and around the
+// x-height by 1.7px, and 13.5px at 2x, where they differ by 1.4px and 0.7px. Safari lays it out as
+// Chrome does at 1x on every screen, so 14px there. The marks and icons take the same lift above them,
+// so they stay on the chip's middle. A mark is a ::before only where there is one: an empty one would
+// take the gap.
+const markOffset = 'before:mt-(--badge-lift)'
 const badge = cva(
-  'group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-lg border border-transparent px-1.5 pb-[2.625px] type-caption font-medium whitespace-nowrap [&>svg]:pointer-events-none [&>svg]:mt-[2.625px] [&>svg]:size-3!',
+  'group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-lg border border-transparent px-1.5 pb-(--badge-lift) type-caption font-medium whitespace-nowrap [--badge-lift:0.6px] [&>svg]:pointer-events-none [&>svg]:mt-(--badge-lift) [&>svg]:size-3!',
   {
     variants: {
       variant: {
@@ -90,9 +94,9 @@ const badge = cva(
       },
       mark: {
         none: '',
-        square: `${badgeMark} before:size-1.5 before:rounded-[1px] before:bg-foreground`,
-        circle: `${badgeMark} before:size-1.5 before:rounded-full before:bg-foreground`,
-        signal: `${badgeMark} before:size-2 before:rounded-full before:bg-signal`
+        square: `${markOffset} before:size-1.5 before:shrink-0 before:rounded-[1px] before:bg-foreground`,
+        circle: `${markOffset} before:size-1.5 before:shrink-0 before:rounded-full before:bg-foreground`,
+        signal: `${markOffset} before:size-2 before:shrink-0 before:rounded-full before:bg-signal`
       }
     },
     defaultVariants: { variant: 'default', mark: 'none' }
