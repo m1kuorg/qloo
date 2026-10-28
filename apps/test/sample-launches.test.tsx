@@ -400,6 +400,37 @@ describe("the guest network's sample launches", () => {
     expect(await usage()).toBe(before + 1)
   })
 
+  it('take no more work from a page still open once the next clearing has let go of them, changing nothing', async () => {
+    const guest = await openGuest()
+    await captureSampleLaunches(guest)
+    const fresh = await nextDay(guest, 5)
+    const page = async (name: string) => {
+      const { id } = fresh.launches!.find((l) => l.name === name)!
+      const launch = await connect(guest, `/agents/launch/guest-network/${id}`)
+      const held = async () => (await getAgentByName(env.LaunchAgent, `guest-network:${id}`)).state
+      return { launch, held, before: await held() }
+    }
+    const approved = await page('Night Shift Cinema')
+    const drafted = await page('Paper Moons')
+    const ranked = await page('Slow Burn')
+    await runCron()
+    const models = modelRequests().length
+
+    // Each call closes its launch's pages, saying why, and leaves the launch as it was.
+    const cleared = { code: 4410, reason: 'The guest network was cleared, as it is every day at 12:00 UTC.' }
+    const order = approved.before.insertionOrder!
+    void approved.launch.call('editInsertionOrder', order.id, [{ show: 'The Big Picture', slots: 2, angle: 'Film.' }])
+    expect(await approved.launch.closed()).toEqual(cleared)
+    expect((await approved.held()).insertionOrder).toEqual(order)
+    void drafted.launch.call('approveInsertionOrder', drafted.before.insertionOrder!.id)
+    expect(await drafted.launch.closed()).toEqual(cleared)
+    expect((await drafted.held()).insertionOrder).toEqual(drafted.before.insertionOrder)
+    void ranked.launch.call('startLaunch', { name: 'Slow Burn' })
+    expect(await ranked.launch.closed()).toEqual(cleared)
+    expect((await ranked.held()).runs).toEqual(ranked.before.runs)
+    expect(modelRequests()).toHaveLength(models)
+  })
+
   it('keep the API’s evidence shape, as Qloo answered, without the sample’s mark', async () => {
     const guest = await openGuest()
     await captureSampleLaunches(guest)
