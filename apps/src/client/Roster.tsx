@@ -70,6 +70,7 @@ export function NetworkRoster({
       network={network}
       roster={state ? roster : null}
       cpm={state ? state.cpm : undefined}
+      sampleCpm={state?.sample?.cpm ?? false}
       connection={connection}
       action={roster.length > 0 && <Button onClick={() => setImporting(true)}>Import shows</Button>}
     />
@@ -164,12 +165,14 @@ function RosterHead({
   network,
   roster,
   cpm,
+  sampleCpm,
   connection,
   action
 }: {
   network: NetworkPage
   roster: Show[] | null // null until the agent is connected
   cpm: number | null | undefined
+  sampleCpm: boolean // the CPM is still the sample network's, as the guest network's starts (ADR 0007)
   connection: Connection
   action: React.ReactNode
 }) {
@@ -191,7 +194,7 @@ function RosterHead({
               <StateLine kind="empty">No roster yet.</StateLine>
             </p>
           ))}
-        {cpm !== undefined && <CpmLine cpm={cpm} network={network} />}
+        {cpm !== undefined && <CpmLine cpm={cpm} sample={sampleCpm} network={network} />}
         {/* Always there, so a screen reader hears the line as it appears. */}
         <span role="status" className="type-caption">
           {roster ? (
@@ -225,8 +228,9 @@ function Readiness({ roster }: { roster: Show[] }) {
   )
 }
 
-// The CPM that prices every launch's slots, read-only here: an owner changes it in settings.
-function CpmLine({ cpm, network }: { cpm: number | null; network: NetworkPage }) {
+// The CPM that prices every launch's slots, read-only here: an owner changes it in settings. Labelled
+// sample while it's still the sample network's.
+function CpmLine({ cpm, sample, network }: { cpm: number | null; sample: boolean; network: NetworkPage }) {
   return (
     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground">
       <span>CPM</span>
@@ -237,6 +241,7 @@ function CpmLine({ cpm, network }: { cpm: number | null; network: NetworkPage })
           <span className="text-foreground">{dollars(cpm)}</span> per 1,000 downloads
         </span>
       )}
+      {sample && <Badge>sample</Badge>}
       <span aria-hidden="true">·</span>
       {network.role === 'owner' ? (
         <a className={linkVariants()} href={network.links.settings}>
