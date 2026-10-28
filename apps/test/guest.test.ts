@@ -932,6 +932,30 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       )
     })
 
+    it('looks up nothing again once a pitch run has started on it, so the run’s results keep naming its pitches as they were', async () => {
+      // Qloo fails the first pitch's work, Hollywood, Ending.
+      fakeQloo({ search: { ...search, ...workSearch, 'Hollywood, Ending': 503 } })
+      fakeClaude([turn(text('Nothing to rank.'))])
+      const guest = await openGuest()
+      const network = await connect(guest)
+      const failed = await network.until(loaded)
+      expect(failed.inbox!.pitches[0]).toMatchObject({ id: 'pitch-01', match: { resolution: 'failed' } })
+      const { runId } = await network.call<{ runId: string }>('startPitches', {
+        show: 'The Big Picture',
+        pastGuests: []
+      })
+      const ran = await network.until((s) => s.run?.id === runId && s.run.status !== 'running')
+      expect(ran.booking).toMatchObject({ run: runId, show: { name: 'The Big Picture' } })
+
+      fakeQloo({ search: { ...search, ...workSearch } })
+      const sent = requests.length
+      await evictAllDurableObjects({ webSockets: 'close' })
+      const after = (await connect(guest)).state()!
+      expect(after.inbox).toEqual(ran.inbox)
+      expect(after.booking).toEqual(ran.booking)
+      expect(requests).toHaveLength(sent)
+    })
+
     // A guest's own pitch, read by the scripted model, and its work's made-up match.
     const own = 'Ada Quill on her novel Night Ferry.'
     const ownSearch = { 'Night Ferry': [{ entity_id: 'w-own', name: 'Night Ferry', popularity: 0.4 }] }
