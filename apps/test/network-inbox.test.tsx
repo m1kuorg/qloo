@@ -30,6 +30,8 @@ import {
 import {
   connect as connectVia,
   currentLinks,
+  detailsToggle,
+  inspectorClosed,
   links,
   networkWithKey,
   openMember,
@@ -523,10 +525,6 @@ const inboxMarkup = (state: State | undefined, network: string) =>
     />
   )
 const inboxPage = (state: State | undefined, network: string) => words(inboxMarkup(state, network))
-// The inspector closed, its panels there for what opens it, and the header's toggle saying so.
-const inspectorClosed = /<aside\b(?=[^>]*\sid="inspector")(?=[^>]*\shidden="")/
-const detailsToggle =
-  /<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="inspector")[^>]*>Details<\/button>/
 
 describe("the inbox's members", () => {
   it("see the pitches another uploads as they're read, and the dashboard's inbox line with them", async () => {

@@ -67,6 +67,12 @@ export const currentLinks = (html: string) =>
     ])
     .filter(([, , current]) => current)
 
+// A rendered run page's inspector, closed as every page opens it, its panels there for what opens it,
+// and the header's Details toggle saying so.
+export const inspectorClosed = /<aside\b(?=[^>]*\sid="inspector")(?=[^>]*\shidden="")/
+export const detailsToggle =
+  /<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="inspector")[^>]*>Details<\/button>/
+
 // Each element on a rendered page that carries a `data-*` hook, such as `data-ask` or
 // `data-line="Corner Booth"`, from its start tag through its matching end tag. Tests find a block by
 // its hook, never by its classes, element type or attribute order, which a restyle changes.

@@ -38,7 +38,9 @@ import {
   readAfterReset,
   connect as connectVia,
   currentLinks,
+  detailsToggle,
   hooked,
+  inspectorClosed,
   openGuest,
   openMember,
   openSession,
@@ -1445,10 +1447,8 @@ describe('the pages, as a member reads them', () => {
     expect(words(before)).toMatch(
       /^The Night Watch Details Start run Not run yet\. A run looks it up in Qloo\. Run log /
     )
-    expect(before).toMatch(/<aside\b(?=[^>]*\sid="inspector")(?=[^>]*\shidden="")/)
-    expect(before).toMatch(
-      /<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="inspector")[^>]*>Details<\/button>/
-    )
+    expect(before).toMatch(inspectorClosed)
+    expect(before).toMatch(detailsToggle)
     expect(before).toMatch(/<input\b(?=[^>]*\saria-label="Released launch")(?=[^>]*\svalue="The Night Watch")/)
     expect(words(before)).toContain(
       'Roster Each run ranks Night Shift Audio’s roster as it stands when the run starts. Edit its shows on the roster page .'
