@@ -448,9 +448,25 @@ const IndexRow = ({ caption, children }: { caption: Child; children: Child }) =>
   </li>
 )
 const DOCS = [
-  { href: '/docs/api', label: 'REST API', caption: 'Every resource of a network, under /api/v1, for any language.' },
+  {
+    href: '/docs/api',
+    label: 'REST API',
+    caption: (
+      <>
+        Every resource of a network, under <span translate="no">/api/v1</span>, for any language.
+      </>
+    )
+  },
   { href: '/docs/sdk', label: 'TypeScript SDK', caption: 'Typed methods for every route, and helpers for long work.' },
-  { href: '/docs/mcp', label: 'MCP server', caption: 'Tools for assistants such as Claude Code, at /mcp.' },
+  {
+    href: '/docs/mcp',
+    label: 'MCP server',
+    caption: (
+      <>
+        Tools for assistants such as Claude Code, at <span translate="no">/mcp</span>.
+      </>
+    )
+  },
   {
     href: '/docs/agents',
     label: 'Skills and plugin',
