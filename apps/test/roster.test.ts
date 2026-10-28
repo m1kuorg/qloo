@@ -270,12 +270,7 @@ describe('the roster as its page shows it', () => {
       .trim()
   const agentOf = (state: State) => ({ state, stub: {} }) as unknown as Agent
   const workspace = (state: State) =>
-    renderToStaticMarkup(
-      createElement(NetworkRoster, {
-        agent: agentOf(state) as unknown as NetworkConnection,
-        network: launchPage.network
-      })
-    )
+    renderToStaticMarkup(createElement(NetworkRoster, { agent: agentOf(state) as unknown as NetworkConnection }))
   // The inspector's Show tab for one of the roster's shows, as selecting its row opens it.
   const editor = (state: State, name: string) =>
     renderToStaticMarkup(
@@ -294,7 +289,7 @@ describe('the roster as its page shows it', () => {
     const html = workspace(await s.importRoster(roster))
 
     const read = words(html)
-    expect(read).toContain('3 shows: 1 resolved, 1 ambiguous, 1 missed')
+    expect(read).toContain('3 shows · 1 resolved, 1 ambiguous, 1 missed')
     expect(read).toContain(
       'Show Match Qloo entity · popularity percentile Downloads per episode Status Call Night Shift Cinema Resolved Night Shift Cinema 91.0 – – C-01'
     )
@@ -339,7 +334,7 @@ describe('the roster as its page shows it', () => {
     )
     await s.call('updateShow', 'The Ghost Signal Show', { compId: 'e-0201' })
     const read = words(workspace(s.state()!))
-    expect(read).toContain('3 shows: 1 resolved, 1 mapped to a comp, 1 ambiguous')
+    expect(read).toContain('3 shows · 1 resolved, 1 mapped to a comp, 1 ambiguous')
     expect(read).toContain('The Ghost Signal Show Mapped Mapped to The Ghost Hour Show 88.0 – – C-04')
   })
 
@@ -371,7 +366,7 @@ describe('the roster as its page shows it', () => {
     await s.call('updateShow', 'The Ghost Signal Show', { excluded: true })
 
     const html = workspace(s.state()!)
-    expect(words(html)).toContain('3 shows: 1 resolved, 1 ambiguous, 1 excluded')
+    expect(words(html)).toContain('3 shows · 1 resolved, 1 ambiguous, 1 excluded')
     // Left out, it needs nothing settled.
     expect(words(html)).toContain('The Ghost Signal Show Missed Excluded No show by this name in Qloo. – – C-03')
     expect(html).toMatch(/<tr\b(?=[^>]*\sdata-excluded="true")[^>]*>\s*<th\b[^>]*>[\s\S]*?The Ghost Signal Show/)

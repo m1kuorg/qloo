@@ -30,30 +30,28 @@ import {
 } from './controls'
 import { CallButton } from './Evidence'
 import type { NetworkPage } from './NetworkPage'
+import { summaryLine } from './PageHeader'
 import { Source } from './Source'
 import { sentence, SlowCalls, slowText, StateLine } from './states'
 
 // The roster's modules, shared by a network's roster page and a launch's page: its import, its counts,
 // its table, the show editor, the roster check, and the CPM its slots are priced at.
 
-// The import answers at once, and each show fills in through synced state as its search settles. A
-// file can come from the picker or be dropped anywhere on the page, so one dropped beside the form
-// imports too, rather than opening in the browser. From 768px the box and what it takes sit side by
-// side, so the form stays short above the table, unless it's `stacked`, as in the roster page's
-// sheet. `dropped` hears of a dropped file it imports, so a page can show the form it imports in.
+// The import, in the roster page's sheet, answers at once, and each show fills in through synced state
+// as its search settles. A file can come from the picker or be dropped anywhere on the page, so one
+// dropped beside the form imports too, rather than opening in the browser. `dropped` hears of a
+// dropped file it imports, so the page can show the form it imports in.
 export function RosterImport({
   roster,
   draft,
   importRoster,
   keepsSettledShows,
-  stacked = false,
   dropped
 }: {
   roster: Show[]
   draft: { current: string } // what's typed, kept by the page across a remount
   importRoster: (text: string, format: RosterFormat) => Promise<void>
   keepsSettledShows: boolean // whether an import keeps the shows already on the roster, as a network's does
-  stacked?: boolean
   dropped?: () => void
 }) {
   const [text, setTyped] = useState(() => draft.current)
@@ -102,7 +100,7 @@ export function RosterImport({
       )}
       <Field>
         <FieldLabel htmlFor="roster-names">Show names</FieldLabel>
-        <div className={stacked ? 'flex flex-col gap-2' : 'grid gap-x-6 gap-y-2 md:grid-cols-2'}>
+        <div className="flex flex-col gap-2">
           <Textarea
             id="roster-names"
             rows={4}
@@ -174,7 +172,7 @@ export function RosterFailures({ roster }: { roster: Show[] }) {
 }
 
 // The roster's shows counted by how Qloo matched them, the shows left out counted apart, so the
-// counts add up to the roster: the roster check lists them, and the counts line says them.
+// counts add up to the roster: the roster check lists them, and the page header's summary says them.
 function rosterCounts(roster: Show[]) {
   const count = (r: Show['resolution']) => roster.filter((s) => s.resolution === r && !s.excluded).length
   return [
@@ -188,19 +186,13 @@ function rosterCounts(roster: Show[]) {
   ]
 }
 
-// The roster in a line, such as "19 shows: 16 resolved, 1 ambiguous, 2 missed": the counts that
-// aren't 0, which say what's left to settle before a run can score every show.
-export function RosterCounts({ roster }: { roster: Show[] }) {
-  if (roster.length === 0) return null
-  const parts = rosterCounts(roster)
-    .filter((c) => c.n > 0)
-    .map(({ n, words: [one, many = one] }) => `${n} ${n === 1 ? one : many}`)
-  return (
-    <p data-roster-counts>
-      {roster.length} {roster.length === 1 ? 'show' : 'shows'}: {parts.join(', ')}
-    </p>
+// The roster in the page header's summary, such as "19 shows · 16 resolved, 1 ambiguous, 2 missed":
+// the counts that aren't 0, which say what's left to settle before a run can score every show.
+export const rosterSummary = (roster: Show[]) =>
+  summaryLine(
+    `${roster.length} ${roster.length === 1 ? 'show' : 'shows'}`,
+    rosterCounts(roster).map(({ n, words: [one, many = one] }) => n > 0 && `${n} ${n === 1 ? one : many}`)
   )
-}
 
 // A show's match chip, marked when its match is in trouble: slow, failed, or missed in Qloo. One that
 // needs a person, ambiguous or missed, is outlined; a failure is crimson with its square ✕.
