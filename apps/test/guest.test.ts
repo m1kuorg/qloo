@@ -18,7 +18,7 @@ import type { Evidence } from '../src/evidence'
 import { Invite, SignInPage } from '../src/client/Account'
 import type { Session as AppSession } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
-import { InboxWorkspace } from '../src/client/Inbox'
+import { InboxLoad, InboxWorkspace } from '../src/client/Inbox'
 import { globalGateway } from '../src/gateway'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
@@ -899,10 +899,20 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
         )
 
       const looking = page(await network.until((s) => s.inbox?.status === 'reading'))
-      expect(looking).toContain('The sample’s pitches come already read for their guest and public work.')
-      expect(looking).toContain('Looking up · 0 of 36 works looked up')
+      // The header counts the pitches as their works are looked up; the table says they came already read.
+      expect(looking).toMatch(
+        /^Inbox 40 pitches for The Big Picture · 36 looking up, 4 set aside Load pitches Looking up · 0 of 36 works looked up /
+      )
+      expect(looking).toContain('sample Guest and work as the sample gives them for each pitch.')
       expect(looking).toContain('Rank them once every work is looked up.')
-      expect(looking).toContain('Looking up the sample’s works…')
+      // The sheet's form, which loads another inbox in its place, waits for the lookups.
+      expect(
+        words(
+          renderToStaticMarkup(
+            createElement(InboxLoad, { loadInbox: async () => {}, reading: true, sample: true, wipes: false })
+          )
+        )
+      ).toContain('Looking up the sample’s works…')
       expect(looking).toContain('36 still looking up')
       expect(looking).not.toContain('Reading')
       expect(looking).not.toContain('pitch is read')

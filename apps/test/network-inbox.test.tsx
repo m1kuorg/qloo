@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
-import { InboxWorkspace } from '../src/client/Inbox'
+import { InboxLoad, InboxWorkspace } from '../src/client/Inbox'
 import type { Pitch } from '../src/inbox'
 import { networkLinks } from '../src/shell'
 import { readPitchUpload, type Upload } from '../src/upload'
@@ -162,9 +162,8 @@ describe('uploading pitch files', () => {
     const page = words(
       renderToStaticMarkup(<InboxWorkspace agent={{ state, stub: {} } as unknown as Agent} links={links} />)
     )
-    // The title row: the page's name, then the inbox's.
-    expect(page).toContain('Inbox Uploaded pitches')
-    expect(page).toContain('Read pitches Upload files')
+    // The header: the page's title, its pitches counted, and Load pitches.
+    expect(page).toMatch(/^Inbox 3 pitches · 3 set aside Load pitches /)
   })
 
   it("reads an email's own charset, odd HTML, and an mbox's unescaped body lines without breaking an email", async () => {
@@ -567,16 +566,26 @@ describe("the inbox page's words", () => {
     const ada = await openMember()
     const network = await created(ada)
     const agent = await connect(ada, network)
-    expect(inboxPage(agent.state(), network)).toContain('Inbox None yet')
+    // The header is the title alone, and the empty state says what's missing with Load pitches, which
+    // opens the form in its sheet. Nothing says "Not loaded" too.
+    const empty = inboxPage(agent.state(), network)
+    expect(empty).toMatch(/^Inbox No pitches yet\. Load pitches Run Evidence /)
+    expect(empty).not.toContain('Not loaded')
+    // The sheet's form takes pasted pitches or email files, and says what reaches Qloo.
+    expect(
+      words(renderToStaticMarkup(<InboxLoad loadInbox={async () => {}} reading={false} sample={false} wipes={false} />))
+    ).toBe(
+      'Pitch emails Read pitches Upload files Replaces the current inbox, up to 50 pitches. Drop email files anywhere on the page, or upload them: .eml files, an .mbox export, or a .txt with a line of three dashes between pitches.'
+    )
 
     await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
     const read = inboxPage(await loaded(agent), network)
-    expect(read).toContain('Inbox Uploaded pitches')
-    // The readout says how much of the inbox is read, right before the show to rank against.
-    expect(read).toContain('Read · 1 pitch Rank against a show')
-    expect(read).toContain('Read pitches Upload files Replaces the current inbox, up to 50 pitches.')
+    // The header: the title, the pitches counted, and Load pitches. The readout says how much of the
+    // inbox is read, right before the show to rank against.
+    expect(read).toMatch(/^Inbox 1 pitch · 1 set aside Load pitches Read · 1 pitch Rank against a show /)
+    // The privacy promise is by the pitches' table.
     expect(read).toContain(
-      'Drop email files anywhere on the page, or upload them: .eml files, an .mbox export, or a .txt with a line of three dashes between pitches.'
+      'Matches from Qloo search, one call per work. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'
     )
     expect(
       renderToStaticMarkup(
