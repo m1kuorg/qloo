@@ -128,6 +128,10 @@ describe("the workspace's connection", () => {
 })
 
 describe("the inbox's connection", () => {
+  afterEach(() => {
+    env.GUEST_PITCHES = 'off'
+  })
+
   it('says it is connecting until the first state arrives, then reconnecting while the socket is down', async () => {
     // The page header, with its title, says so, as the network's other pages do.
     const connecting = page(undefined, 'inbox')
@@ -140,6 +144,24 @@ describe("the inbox's connection", () => {
     // With no pitches and no readout, the header says it.
     const text = page(state, 'inbox', { identified: false })
     expect(text).toMatch(/^ Inbox Reconnecting… No pitches yet\. Only the work’s title and type .+ Load pitches /)
+  })
+
+  it('says it in the header once the inbox has pitches too, as the network’s other pages do, not in the readout', async () => {
+    env.GUEST_PITCHES = 'on'
+    fakeQloo({ search: { 'Night Ferry': [{ entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.8 }] } })
+    fakeClaude([
+      turn(text(JSON.stringify({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } })))
+    ])
+    const s = await session()
+    await s.call('loadInbox', { text: 'Ada Quill, author of the novel Night Ferry, would love to come on.' })
+    const read = await s.until((st) => st.inbox?.status === 'done')
+
+    expect(page(read, 'inbox', { identified: false })).toMatch(
+      /^ Inbox 1 pitch · 1 matched Reconnecting… Load pitches Read Rank against /
+    )
+    expect(page(read, 'inbox', { connectionError: { code: 1008, reason: '' } })).toMatch(
+      /^ Inbox 1 pitch · 1 matched Error This page lost its connection\. Reload to try again\. Load pitches Read Rank /
+    )
   })
 })
 

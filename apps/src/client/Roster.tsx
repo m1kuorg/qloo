@@ -10,7 +10,7 @@ import { canvas, frame, Inspector, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
 import { PageEmpty, PageHeader } from './PageHeader'
 import { RosterFailures, RosterImport, rosterSummary, RosterTable, ShowEditor } from './RosterModules'
-import { connectionOf, ConnectionState, StateLine, type Connection } from './states'
+import { connectionOf, type Connection } from './states'
 
 // The network's roster page, connected to the network's agent.
 export function RosterPage({ agentPath, network }: { agentPath: string; network: NetworkPage }) {
@@ -56,14 +56,8 @@ export function NetworkRoster({
   const head = (
     <PageHeader
       title="Roster"
+      connection={state ? connection : null}
       summary={roster.length > 0 && rosterSummary(roster)}
-      status={
-        state ? (
-          <ConnectionState connection={connection} />
-        ) : (
-          <StateLine kind="loading">Connecting to the network…</StateLine>
-        )
-      }
       actions={
         roster.length > 0 && (
           <Button ref={importButton} onClick={openImport}>

@@ -145,7 +145,7 @@ export function Connecting({ label, title }: { label: string; title?: string }) 
     <div className={frame}>
       <main className={canvas} aria-busy="true">
         {title ? (
-          <PageHeader title={title} status={<StateLine kind="loading">{label}</StateLine>} />
+          <PageHeader title={title} connection={null} connecting={label} />
         ) : (
           <>
             <div className="flex flex-col gap-2">
@@ -193,16 +193,17 @@ function useMedia(query: string) {
 // The on-air readout's strip: one line on the tone step, which wraps when it has more to say.
 const readout = 'flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2'
 
-// The on-air readout (role="status"): the connection's state, then what the page's run or work is
-// doing (`children`); while a run is running, the time since `since`, outside the live region; and
-// where the inspector is a sheet, "Run log", which opens it on the Run tab.
+// The on-air readout (role="status"): the connection's state on a launch's page, whose title row
+// doesn't say it as the page header does on the inbox, then what the page's run or work is doing
+// (`children`); while a run is running, the time since `since`, outside the live region; and where the
+// inspector is a sheet, "Run log", which opens it on the Run tab.
 export function Readout({
   connection,
   since,
   runLog,
   children
 }: {
-  connection: Connection
+  connection?: Connection
   since: string | null
   runLog: (() => void) | null
   children: ReactNode
@@ -211,7 +212,7 @@ export function Readout({
   return (
     <div className={readout}>
       <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-        <ConnectionState connection={connection} />
+        {connection && <ConnectionState connection={connection} />}
         {children}
       </div>
       {/* Outside the live region, so screen readers aren't told the time every second. */}

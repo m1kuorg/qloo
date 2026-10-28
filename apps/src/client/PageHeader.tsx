@@ -1,26 +1,30 @@
 import type { ReactNode, Ref } from 'react'
-import { StateLine } from './states'
+import { ConnectionState, StateLine, type Connection } from './states'
 
 // The header and the empty state the network's pages share: the Launches dashboard, the roster, and
 // the inbox.
 
 // The page's header: its title, the page's one h1, with its actions at the right on the title's line;
-// then one short muted line, the page's summary in counts and the connection's state after it. What
-// explains the page, or a fact about something on it, goes by what it's about, never here. The title's
-// line is as tall as a control, 44px on a phone, so an action arriving with the agent's state doesn't
-// move the line under it. On a phone it's laid out the same: the actions stay on the title's line.
+// then one short muted line, the page's summary in counts and the connection's state after it, the
+// only place the page says it, even beside the inbox's readout. What explains the page, or a fact
+// about something on it, goes by what it's about, never here. The title's line is as tall as a
+// control, 44px on a phone, so an action arriving with the agent's state doesn't move the line under
+// it. On a phone it's laid out the same: the actions stay on the title's line.
 export function PageHeader({
   title,
+  connection,
+  connecting = 'Connecting to the network…',
   summary,
-  status,
   actions,
   heading
 }: {
   title: string
+  // The agent's connection, or null until its first state arrives, while the header says it's
+  // connecting, in `connecting`'s words. It's in a live region that's always there, so a screen reader
+  // hears it as it changes.
+  connection: Connection | null
+  connecting?: string
   summary?: ReactNode // see `summaryLine`
-  // The connection's state, in a live region that's always there, so a screen reader hears it as it
-  // appears; left out on a page whose readout says it.
-  status?: ReactNode
   actions?: ReactNode // the page's primary action, and whatever else acts on the page as a whole
   heading?: Ref<HTMLHeadingElement> // where focus goes once what it was on is gone
 }) {
@@ -34,12 +38,16 @@ export function PageHeader({
         {title}
       </h1>
       {/* Spaced from the title only while something in it shows: an empty live region takes no room. */}
-      {(summary || status !== undefined) && (
-        <p className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground has-[>:not(:empty)]:mt-1.5">
-          {summary && <span>{summary}</span>}
-          {status !== undefined && <span role="status">{status}</span>}
-        </p>
-      )}
+      <p className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground has-[>:not(:empty)]:mt-1.5">
+        {summary && <span>{summary}</span>}
+        <span role="status">
+          {connection ? (
+            <ConnectionState connection={connection} />
+          ) : (
+            <StateLine kind="loading">{connecting}</StateLine>
+          )}
+        </span>
+      </p>
       {actions && (
         <div className="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2">{actions}</div>
       )}
