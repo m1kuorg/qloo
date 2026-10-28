@@ -135,7 +135,7 @@ The guest flow runs the same way ([live check]):
 
 A judge opens the URL on a type-led landing page whose one live thing is the re-rank: a made-up roster, labelled as an illustration, that switches between "By topic" and "By who listens", its shows travelling to their new places. True-size fragments of the app show a run, then what Crossfeed never does and the ways in. Its first button signs the judge in as a guest, in one click and with no passkey, and opens the sample network in the guest network every guest shares, on a working screen, not a chat:
 
-- **Sample data, labelled:** the network opens ready, its sample inbox too, and the landing page says Crossfeed isn't affiliated with The Ringer. Every download, status, description, and CPM figure is labelled "sample" until the visitor edits it, and the inbox is labelled sample data.
+- **Sample data, labelled:** the network opens ready, its sample inbox too, and the landing page says Crossfeed isn't affiliated with The Ringer. Every download, status, description, and CPM figure is labelled "sample" until the visitor edits it, and the sample inbox's guests and works are labelled "sample".
 - **The re-rank:** the fit chart leads with the roster ranked by listener overlap:
   - Its Topic column is each show's rank in the topic-only plan, and its Move column the difference, marked ▲ in signal orange for a show that climbed three or more places.
   - Its lens switches the rows between "By who listens" and "By topic", each row travelling to its new place.

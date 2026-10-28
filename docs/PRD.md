@@ -154,7 +154,7 @@ The programmer is the head of programming or audience; the booker, the network's
 
 47. As a judge, I want to try the live product as a guest, in one click and without an account, and find the sample network ready, so that I can evaluate it in minutes.
 48. As a judge, I want the sample launch to answer quickly from a warm cache, so that the sample works even when Qloo is slow.
-49. As a judge, I want sample data, such as the synthetic inbox and sample downloads, labelled as sample data, so that I know no real person's email or real network's figures are shown.
+49. As a judge, I want sample data, such as the synthetic inbox's guests and works and the sample downloads, labelled "sample", so that I know no real person's email or real network's figures are shown.
 50. As a judge, I want a short guided path through the sample launch, so that I see the decisive moment without knowing the product. The guide went with the demo ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)); the guest network's dashboard opens on the sample launch, planned, instead.
 51. As the operator, I want a daily cap on Qloo calls and daily limits on model runs, per network, for all guests together, and overall, so that open guest sign-in can't exhaust the quota or the budget.
 52. As the operator, I want the sample run replayed from storage when a cap is hit or Qloo fails, so that judges still see a working product.
