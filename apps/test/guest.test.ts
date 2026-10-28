@@ -1058,7 +1058,7 @@ describe('the guest budget', () => {
     expect((await usageOf(ada, 'guest-network')).qlooCalls.used).toBe(1)
   })
 
-  it('counts invited sign-ups through every guest’s links together, even once a link’s guest is gone', async () => {
+  it('counts invited sign-ups through every guest’s links together, even once a link’s guest or network is gone', async () => {
     const cap = env.INVITED_SIGNUP_DAILY_CAP
     env.INVITED_SIGNUP_DAILY_CAP = '2'
     try {
@@ -1075,12 +1075,13 @@ describe('the guest budget', () => {
       const ada = await openGuest()
       await openMember({ name: 'Dot Pruitt', invite: await invite(ada, 'guest-network') })
       expect((await post(ada, '/app/account/delete')).status).toBe(200)
-      // Grace's link to a network of her own brings in the second.
+      // Grace's link to a network of her own brings in the second, then she deletes the network.
       const grace = await openGuest()
       const hers = await created(grace, 'Night Shift Audio')
       await openMember({ name: 'Eve Booker', invite: await invite(grace, hers) })
+      expect((await post(grace, `/app/${hers}/settings/delete`, { name: 'Night Shift Audio' })).status).toBe(200)
 
-      const capped = await signUp(await invite(grace, hers), 'Fay Editor')
+      const capped = await signUp(await invite(grace, 'guest-network'), 'Fay Editor')
       expect([capped.status, await capped.json()]).toEqual([
         429,
         {

@@ -102,7 +102,17 @@ export async function signUp(
     // The passkey and the session follow the member's row, which an invite that can't be used leaves out.
     insertPasskey(db, member.id, passkey, label, now),
     insertSession(db, await sha256(secrets.token), member.id, now),
-    ...(hash ? joinThrough(db, hash, member.id, now) : [])
+    ...(hash
+      ? [
+          ...joinThrough(db, hash, member.id, now),
+          // A guest's link that this sign-up used is logged for guests' links' daily count (invitedSince).
+          db
+            .prepare(
+              'INSERT INTO guest_invited_signups (created) SELECT ?1 FROM invites WHERE token_hash = ?2 AND guest = 1 AND used = ?1 AND used_by = ?3'
+            )
+            .bind(now, hash, member.id)
+        ]
+      : [])
   ])
   if (!written.meta.changes) return null
   return { ...secrets, network: (used?.results[0] as { network_id: string } | undefined)?.network_id ?? null }
@@ -666,9 +676,10 @@ export async function invitedCapped(db: D1Database, token: string, cap: number) 
 // How many new accounts the invite links of whoever made the invite with token hash `hash` have
 // brought in since `since`, both SQL parameters: the uses whose member was written at the same time,
 // as only a sign-up through a link writes its member and uses the link in one batch, at one time. A
-// guest's link counts with every guest's link, made by guests who are gone too (ADR 0006).
+// guest's link counts with every guest's link, from the log of sign-ups through them, which outlasts
+// the guests who made them and their networks (ADR 0006). Null when no invite has that token.
 const invitedSince = (hash: string, since: string) =>
-  `(SELECT count(*) FROM invites i JOIN invites u ON (i.guest = 1 AND u.guest = 1) OR (i.guest = 0 AND u.created_by = i.created_by) JOIN members m ON m.id = u.used_by AND m.created = u.used WHERE i.token_hash = ${hash} AND u.used >= ${since})`
+  `(SELECT CASE WHEN i.guest = 1 THEN (SELECT count(*) FROM guest_invited_signups WHERE created >= ${since}) ELSE (SELECT count(*) FROM invites u JOIN members m ON m.id = u.used_by AND m.created = u.used WHERE u.created_by = i.created_by AND u.used >= ${since}) END FROM invites i WHERE i.token_hash = ${hash})`
 
 // The start of the UTC day time `now` (epoch ms) falls in.
 const utcDayStart = (now: number) => new Date(now).setUTCHours(0, 0, 0, 0)
@@ -867,16 +878,27 @@ export async function wipesDue(db: D1Database, before: number, limit: number) {
   return results
 }
 
-// What the hourly cron clears: sessions, challenges, and invites that have expired. Returns how many of
+// What the hourly cron clears: sessions, challenges, and invites that have expired, and the logs of guest
+// sign-ins and of sign-ups through guests' invite links from before the UTC day, which no limit counts,
+// keeping the last minute's guest sign-ins, which the minute's limit still counts. Returns how many of
 // each it deleted.
 export async function purgeExpired(db: D1Database) {
   const now = Date.now()
-  const [sessions, challenges, invites] = await db.batch([
+  const day = utcDayStart(now)
+  const [sessions, challenges, invites, guestSignIns, guestInvitedSignUps] = await db.batch([
     db.prepare('DELETE FROM sessions WHERE expires <= ?').bind(now),
     db.prepare('DELETE FROM challenges WHERE expires <= ?').bind(now),
-    db.prepare('DELETE FROM invites WHERE expires <= ?').bind(now)
+    db.prepare('DELETE FROM invites WHERE expires <= ?').bind(now),
+    db.prepare('DELETE FROM guest_signins WHERE created < ?').bind(Math.min(day, now - GUEST_SIGNINS_MS)),
+    db.prepare('DELETE FROM guest_invited_signups WHERE created < ?').bind(day)
   ])
-  return { sessions: sessions.meta.changes, challenges: challenges.meta.changes, invites: invites.meta.changes }
+  return {
+    sessions: sessions.meta.changes,
+    challenges: challenges.meta.changes,
+    invites: invites.meta.changes,
+    guestSignIns: guestSignIns.meta.changes,
+    guestInvitedSignUps: guestInvitedSignUps.meta.changes
+  }
 }
 
 // The guest members who have expired as of ?2 (epoch ms), by ID: each signed in at ?1, a guest session's

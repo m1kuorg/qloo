@@ -8,7 +8,7 @@ import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import worker from '../src/index'
 import { softwareAuthenticator } from './authenticator'
-import { api, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
+import { api, guestSignIn, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
 
 const HOUR = 60 * 60_000
 const DAY = 24 * HOUR
@@ -268,5 +268,45 @@ describe('the hourly cron', () => {
       expect(await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, id)).state)).toMatchObject({
         cpm: null
       })
+  })
+
+  it('prunes the guest sign-in log to the UTC day and the last minute, and the log of sign-ups through guests’ links to the day', async () => {
+    const perMinute = env.GUEST_SIGNINS_PER_MINUTE
+    env.GUEST_SIGNINS_PER_MINUTE = '2'
+    try {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-10-28T23:59:30Z'))
+      const ada = await openGuest()
+      await openMember({
+        name: 'Dot Pruitt',
+        invite: `https://crossfeed.test/invite#${await invite(ada, 'guest-network')}`
+      })
+      vi.setSystemTime(new Date('2026-10-29T00:00:10Z'))
+      await openGuest()
+      const logged = vi.spyOn(console, 'log')
+      // What's left is the storage itself, so this reads the tables.
+      const count = (table: string) => env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n')
+
+      await runCron()
+      expect(logged).toHaveBeenCalledWith(
+        JSON.stringify({
+          event: 'directory_purged',
+          sessions: 0,
+          challenges: 0,
+          invites: 0,
+          guestSignIns: 0,
+          guestInvitedSignUps: 1
+        })
+      )
+      expect(await count('guest_invited_signups')).toBe(0)
+      // Yesterday's last sign-in still counts toward this minute's.
+      expect((await guestSignIn()).status).toBe(429)
+
+      vi.setSystemTime(new Date('2026-10-29T00:01:00Z'))
+      await runCron()
+      expect(await count('guest_signins')).toBe(1)
+    } finally {
+      env.GUEST_SIGNINS_PER_MINUTE = perMinute
+    }
   })
 })
