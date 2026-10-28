@@ -13,7 +13,7 @@ import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent } from '../src/network-agent'
 import { softwareAuthenticator } from './authenticator'
-import { fakeClaude, fakeQloo, text, toolUse, turn } from './fake'
+import { fakeClaude, fakeQloo, requests, text, toolUse, turn } from './fake'
 import {
   api,
   guestSignIn,
@@ -623,7 +623,7 @@ describe('the guest sign-in limit', () => {
   })
 })
 
-describe("the guest network's daily budget", () => {
+describe('the guest budget', () => {
   // Guests' addresses, as Cloudflare's edge sends them.
   const adaIp = '203.0.113.7'
   const graceIp = '2001:db8::1'
@@ -691,7 +691,7 @@ describe("the guest network's daily budget", () => {
 
     // Every guest is refused the next, those who spent the budget and one who signs in from a new address.
     const used =
-      'Guests have started 3 model runs today, the most the guest network can start in a UTC day, shared by everyone who signs in as a guest; they reset at 00:00 UTC'
+      'Guests have started 3 model runs today, the most all guests together can start in a UTC day, in the guest network and the networks guests create; they reset at 00:00 UTC'
     const dot = await connect(await openGuest({ ip: dotIp }), dotIp)
     for (const guest of [ada, grace, dot]) {
       await expect(guest.call('loadInbox', pitch)).rejects.toThrow(`${used}.`)
@@ -726,7 +726,7 @@ describe("the guest network's daily budget", () => {
     expect(await start(await connect(await openGuest(), undefined, id))).toMatchObject({ status: 'stopped' })
 
     const used =
-      'Guests have started 2 runs today that replayed or stopped at once, the most the guest network can start in a UTC day, shared by everyone who signs in as a guest; they reset at 00:00 UTC.'
+      'Guests have started 2 runs today that replayed or stopped at once, the most all guests together can start in a UTC day, in the guest network and the networks guests create; they reset at 00:00 UTC.'
     const dots = await connect(await openGuest({ ip: dotIp }), dotIp, id)
     for (const launch of [adas, dots])
       await expect(launch.call('startLaunch', { name: 'The Night Watch' })).rejects.toThrow(used)
@@ -753,13 +753,149 @@ describe("the guest network's daily budget", () => {
     expect((await ended(launch, runId)).run?.status).toBe('completed')
 
     const used =
-      'This would take guests past 3 Qloo calls today, the most the guest network can make in a UTC day, shared by everyone who signs in as a guest, cache hits included; they reset at 00:00 UTC.'
+      'This would take guests past 3 Qloo calls today, the most all guests together can make in a UTC day, in the guest network and the networks guests create, cache hits included; they reset at 00:00 UTC.'
     const dot = await connect(await openGuest({ ip: dotIp }), dotIp)
     for (const guest of [ada, grace, dot]) {
       await expect(guest.call('importRoster', 'Night Shift Cinema\nNight Ferry')).rejects.toThrow(used)
       await expect(guest.call('searchComps', 'Night Shift Cinema', 'Night Ferry')).rejects.toThrow(used)
     }
     expect(dot.state()!.roster.map((show) => show.name)).toEqual(['Night Shift Cinema'])
+  })
+
+  // A network guest member `guest` creates, as /app/new does.
+  const created = async (guest: Guest, name: string) =>
+    (await (await post(guest, '/app/new', { name })).json<{ id: string }>()).id
+  // The usage a network's settings page gives its island.
+  const usageOf = async (who: Pick<Guest, 'fetch'>, id: string) =>
+    JSON.parse(
+      (await (await who.fetch(`/app/${id}/settings`)).text()).match(/data-usage="([^"]*)"/)![1].replace(/&quot;/g, '"')
+    ) as { modelRuns: { used: number }; qlooCalls: { used: number } }
+
+  it('counts a guest’s own networks with the guest network, then refuses every guest in each, and leaves a member’s network apart', async () => {
+    env.RUN_VISITOR_DAILY_CAP = '2'
+    fakeClaude([turn(text('Nothing to rank.')), turn(text('Nothing to rank.')), turn(text('Nothing to rank.'))])
+    const runIn = async (who: Pick<Guest, 'connect'>, network: string, ip?: string) => {
+      const agent = await who.connect(`/agents/network/${network}`, ip ? { 'CF-Connecting-IP': ip } : {})
+      open.push(agent)
+      const { id } = await agent.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+      const launch = await who.connect(`/agents/launch/${network}/${id}`, ip ? { 'CF-Connecting-IP': ip } : {})
+      open.push(launch)
+      return (
+        await ended(launch, (await launch.call<{ runId: string }>('startLaunch', { name: 'The Night Watch' })).runId)
+      ).run
+    }
+    // Ada runs one in a network of her own, and Grace one in the guest network, each from an address of
+    // their own: the guest budget's two.
+    const ada = await openGuest({ ip: adaIp })
+    const hers = await created(ada, 'Night Shift Audio')
+    expect(await runIn(ada, hers, adaIp)).toMatchObject({ status: 'completed' })
+    const grace = await openGuest({ ip: graceIp })
+    expect(await runIn(grace, 'guest-network', graceIp)).toMatchObject({ status: 'completed' })
+
+    // Every guest network's usage says so, and each refuses the next run, as does a third guest's own.
+    for (const network of [hers, 'guest-network']) expect((await usageOf(ada, network)).modelRuns.used).toBe(2)
+    const used =
+      'Guests have started 2 model runs today, the most all guests together can start in a UTC day, in the guest network and the networks guests create; they reset at 00:00 UTC, so runs on your own data wait until then.'
+    const dot = await openGuest({ ip: dotIp })
+    for (const [who, network, ip] of [
+      [ada, hers, adaIp],
+      [grace, 'guest-network', graceIp],
+      [dot, await created(dot, 'Paper Route'), dotIp]
+    ] as const)
+      expect((await runIn(who, network, ip))?.error).toContain(used)
+
+    // A member's network counts on its own.
+    const member = await openMember()
+    const theirs = await (
+      await member.fetch('/app/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Paper Route' })
+      })
+    ).json<{ id: string }>()
+    expect(await runIn(member, theirs.id)).toMatchObject({ status: 'completed' })
+    expect((await usageOf(member, theirs.id)).modelRuns.used).toBe(1)
+  })
+
+  it('keeps a Qloo key a guest adds to their network that network’s own, apart from every other guest’s', async () => {
+    // Made-up keys, which the fake Qloo takes.
+    const [adas, graces] = ['qk-made-up-7f3a', 'qk-made-up-9c1b']
+    const host = 'https://hackathon.api.qloo.com'
+    fakeQloo({ search, keys: [adas, graces] })
+    const ada = await openGuest()
+    const grace = await openGuest()
+    const hers = await created(ada, 'Night Shift Audio')
+    const his = await created(grace, 'Paper Route')
+    for (const [who, network, key] of [
+      [ada, hers, adas],
+      [grace, his, graces]
+    ] as const) {
+      const added = await post(who, `/app/${network}/settings/qloo-key`, { host, key })
+      expect(added.status).toBe(200)
+      // The key's test search counts in the network's own usage.
+      expect((await added.json<{ usage: { qlooCalls: { used: number } } }>()).usage.qlooCalls.used).toBe(1)
+    }
+    // Each network's lookups go with its own key, and the guest network's with Crossfeed's.
+    for (const [who, network, key] of [
+      [ada, hers, adas],
+      [grace, his, graces],
+      [ada, 'guest-network', env.QLOO_API_KEY]
+    ] as const) {
+      const opened = await who.connect(`/agents/network/${network}`)
+      open.push(opened)
+      const before = requests.length
+      await opened.importRoster('Night Shift Cinema')
+      expect(requests.slice(before).map((r) => r.headers.get('X-Api-Key'))).toEqual([key])
+    }
+    // Each own key's calls count on that network alone: its test search and its lookup.
+    expect((await usageOf(ada, hers)).qlooCalls.used).toBe(2)
+    expect((await usageOf(grace, his)).qlooCalls.used).toBe(2)
+    expect((await usageOf(ada, 'guest-network')).qlooCalls.used).toBe(1)
+  })
+
+  it('counts invited sign-ups through every guest’s links together, even once a link’s guest is gone', async () => {
+    const cap = env.INVITED_SIGNUP_DAILY_CAP
+    env.INVITED_SIGNUP_DAILY_CAP = '2'
+    try {
+      // An invite link, as an owner makes it in the network's settings.
+      const invite = async (who: Pick<Guest, 'fetch'>, network: string) =>
+        (await (await post(who as Guest, `/app/${network}/settings/members/invites`)).json<{ link: string }>()).link
+      const signUp = (link: string, name: string) =>
+        exports.default.fetch(`${origin}/auth/sign-up/options`, {
+          method: 'POST',
+          headers: { Origin: origin, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, invite: new URL(link).hash.slice(1) })
+        })
+      // Ada's link to the guest network brings in Dot, then Ada deletes her account.
+      const ada = await openGuest()
+      await openMember({ name: 'Dot Pruitt', invite: await invite(ada, 'guest-network') })
+      expect((await post(ada, '/app/account/delete')).status).toBe(200)
+      // Grace's link to a network of her own brings in the second.
+      const grace = await openGuest()
+      const hers = await created(grace, 'Night Shift Audio')
+      await openMember({ name: 'Eve Booker', invite: await invite(grace, hers) })
+
+      const capped = await signUp(await invite(grace, hers), 'Fay Editor')
+      expect([capped.status, await capped.json()]).toEqual([
+        429,
+        {
+          error:
+            'Guests’ invite links have brought in 2 new accounts today, the most all guests’ links together can in a UTC day; it resets at 00:00 UTC. To join now, sign in with an account you have, then open the link again.'
+        }
+      ])
+      // A member's links count on their own.
+      const lin = await openMember({ name: 'Lin Editor' })
+      const theirs = await (
+        await lin.fetch('/app/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Paper Route' })
+        })
+      ).json<{ id: string }>()
+      expect((await signUp(await lin.invite(theirs.id), 'Fay Editor')).status).toBe(200)
+    } finally {
+      env.INVITED_SIGNUP_DAILY_CAP = cap
+    }
   })
 
   it('counts guests’ model runs and Qloo calls toward Crossfeed’s caps across every network too', async () => {

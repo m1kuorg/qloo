@@ -47,7 +47,14 @@ import {
   type Member,
   type Network
 } from '../directory'
-import { kickMember, launchAgentName, MEMBER_HEADER, MEMBER_NAME_HEADER, ownGateway } from '../network-agent'
+import {
+  kickMember,
+  launchAgentName,
+  MEMBER_HEADER,
+  MEMBER_NAME_HEADER,
+  networkLimitKey,
+  ownGateway
+} from '../network-agent'
 import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
 import { isQlooHost } from '../qloo-hosts'
@@ -480,7 +487,7 @@ appPages.post('/app/:networkId/settings/qloo-key', async (c) => {
   // emptied it, which leaves nothing to remove.
   if ((await networkAgent.hasOwnKey()) && (await gateway.ownKey()).set)
     return c.json({ error: 'The network has its own Qloo key already. Remove it, then add the new one.' }, 409)
-  const failed = await gateway.setKey(host, pasted)
+  const failed = await gateway.setKey(host, pasted, networkLimitKey(id))
   if (failed) return c.json({ error: failed }, 400)
   // From here on the network's and its launches' calls go through its instance.
   await networkAgent.noteOwnKey(true)

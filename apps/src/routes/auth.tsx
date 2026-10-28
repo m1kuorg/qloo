@@ -209,13 +209,13 @@ auth.post('/auth/join', async (c) => {
   return (await openInvite(c, token)).refused!
 })
 
-// The new accounts one member's invite links can bring in a UTC day (INVITED_SIGNUP_DAILY_CAP), and
-// why an invite link refuses another past them.
+// The new accounts one member's invite links can bring in a UTC day (INVITED_SIGNUP_DAILY_CAP), or every
+// guest's together (ADR 0006), and why an invite link refuses another past them, a `guest`'s or not.
 const invitedCap = (env: Env) => Number(env.INVITED_SIGNUP_DAILY_CAP) || 0
-const invitedRefused = (c: Context<{ Bindings: Env }>) =>
+const invitedRefused = (c: Context<{ Bindings: Env }>, guest: boolean) =>
   refuse(
     c,
-    `The member who made this invite link has brought in ${invitedCap(c.env)} new accounts through their links today, the most one member can in a UTC day; it resets at 00:00 UTC. To join now, sign in with an account you have, then open the link again.`,
+    `${guest ? 'Guests’ invite links have' : 'The member who made this invite link has'} brought in ${invitedCap(c.env)} new accounts ${guest ? 'today, the most all guests’ links together can' : 'through their links today, the most one member can'} in a UTC day; it resets at 00:00 UTC. To join now, sign in with an account you have, then open the link again.`,
     429
   )
 
@@ -236,9 +236,9 @@ auth.post('/auth/sign-up/options', async (c) => {
   if ('error' in read) return refuse(c, read.error)
   const named = read.name
   if (invite !== undefined) {
-    const { refused } = await openInvite(c, invite)
+    const { invite: open, refused } = await openInvite(c, invite)
     if (refused) return refused
-    if (await invitedCapped(c.env.DB, invite as string, invitedCap(c.env))) return invitedRefused(c)
+    if (await invitedCapped(c.env.DB, invite as string, invitedCap(c.env))) return invitedRefused(c, open.guest)
   } else {
     const capped = await signupRefused(c, false)
     if (capped) return refuse(c, capped, 429)
@@ -271,8 +271,11 @@ auth.post('/auth/sign-up', async (c) => {
       invite === undefined ? undefined : { token: invite as string, invitedCap: invitedCap(c.env) }
     )
     // An invite that couldn't be used can never be used again, so it's refused here with why; one
-    // still open was refused by its maker's cap for the day.
-    if (!signedUp) return (await openInvite(c, invite)).refused ?? invitedRefused(c)
+    // still open was refused by its maker's cap for the day, or guests'.
+    if (!signedUp) {
+      const again = await openInvite(c, invite)
+      return again.refused ?? invitedRefused(c, again.invite.guest)
+    }
     setSession(c, signedUp.token)
     const { recoveryCode, network } = signedUp
     return c.json(network ? { recoveryCode, network } : { recoveryCode })
