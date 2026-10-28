@@ -19,7 +19,6 @@ import {
   endSession,
   formPost,
   fromAppForm,
-  GUEST_ACCOUNT,
   guestRefused,
   jsonBody,
   jsonLimit,
@@ -344,9 +343,7 @@ auth.post('/auth/passkeys', async (c) => {
   const passkey = await registered(c, 'add-passkey', started, response)
   if (!passkey) return refuse(c, UNVERIFIED)
   try {
-    // The directory refuses a guest too (guestRefused).
-    if (!(await addPasskey(c.env.DB, member.id, passkey, browserLabel(c.req.header('User-Agent') ?? ''))))
-      return c.json({ error: GUEST_ACCOUNT }, 403)
+    await addPasskey(c.env.DB, member.id, passkey, browserLabel(c.req.header('User-Agent') ?? ''))
   } catch (err) {
     if (!taken(err)) throw err
     return refuse(c, 'This passkey already belongs to a Crossfeed account. Add one from another device.', 409)

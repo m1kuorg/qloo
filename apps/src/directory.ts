@@ -163,10 +163,10 @@ export async function memberPasskeys(db: D1Database, memberId: string): Promise<
   return results
 }
 
-// Adds a passkey to member `memberId`'s account, once its registration has verified. False when they're
-// marked a guest, whose one shared account takes none (ADR 0008), and nothing was written.
+// Adds a passkey to member `memberId`'s account, once its registration has verified, unless they're marked a
+// guest, whose one shared account takes none (ADR 0008).
 export async function addPasskey(db: D1Database, memberId: string, passkey: Omit<Passkey, 'memberId'>, label: string) {
-  return (await insertPasskey(db, memberId, passkey, label, Date.now()).run()).meta.changes > 0
+  await insertPasskey(db, memberId, passkey, label, Date.now()).run()
 }
 
 // Removes member `memberId`'s passkey `credentialId` unless it's their last, in one statement, so two
@@ -295,15 +295,15 @@ export async function recover(db: D1Database, code: string): Promise<Secrets | n
   return replaced.results.length ? secrets : null
 }
 
-// Gives member `memberId` a new recovery code, which replaces their last one, and hands it out once. Null
-// when they're marked a guest, whose one shared account has none (ADR 0008), and nothing was written.
+// Gives member `memberId` a new recovery code, which replaces their last one, and hands it out once, unless
+// they're marked a guest, whose one shared account has none (ADR 0008).
 export async function newRecoveryCode(db: D1Database, memberId: string) {
   const code = recoveryCode()
-  const { meta } = await db
+  await db
     .prepare('UPDATE members SET recovery_code_hash = ? WHERE id = ? AND guest = 0')
     .bind(await sha256(normalCode(code)), memberId)
     .run()
-  return meta.changes ? code : null
+  return code
 }
 
 // The member a session token belongs to, while the session lasts. A use more than a minute after the
@@ -373,18 +373,13 @@ export async function signOut(db: D1Database, token: string) {
     .run()
 }
 
-// Ends every one of member `memberId`'s sessions, on every browser. False when they're marked a guest,
-// whose sessions are every guest's (ADR 0008), and none ended.
+// Ends every one of member `memberId`'s sessions, on every browser, unless they're marked a guest, whose
+// sessions are every guest's (ADR 0008).
 export async function signOutEverywhere(db: D1Database, memberId: string) {
-  const [, member] = await db.batch([
-    db
-      .prepare(
-        'DELETE FROM sessions WHERE member_id = ?1 AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND guest = 0)'
-      )
-      .bind(memberId),
-    db.prepare('SELECT 1 FROM members WHERE id = ? AND guest = 0').bind(memberId)
-  ])
-  return member.results.length > 0
+  await db
+    .prepare('DELETE FROM sessions WHERE member_id = ?1 AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND guest = 0)')
+    .bind(memberId)
+    .run()
 }
 
 // How many browsers member `memberId` is signed in on: their sessions that haven't expired.
@@ -397,11 +392,10 @@ export async function openSessions(db: D1Database, memberId: string) {
   )
 }
 
-// Renames member `memberId`, as their teammates see them from then on. False when they're marked a guest,
-// whose one shared account keeps its name (ADR 0008), and nothing was written.
+// Renames member `memberId`, as their teammates see them from then on, unless they're marked a guest, whose
+// one shared account keeps its name (ADR 0008).
 export async function renameMember(db: D1Database, memberId: string, name: string) {
-  const { meta } = await db.prepare('UPDATE members SET name = ? WHERE id = ? AND guest = 0').bind(name, memberId).run()
-  return meta.changes > 0
+  await db.prepare('UPDATE members SET name = ? WHERE id = ? AND guest = 0').bind(name, memberId).run()
 }
 
 // What a member is in a network: its `owner` can change it and manage its members, and a `member`
