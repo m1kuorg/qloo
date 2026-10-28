@@ -689,7 +689,7 @@ describe("a network page's connection", () => {
   })
 
   it('keeps the page, saying its connection is lost, while it leaves for another, having sent the change that closed it, as a reset of the sample data does', async () => {
-    const reason = 'A guest reset the guest network to the sample data.'
+    const reason = 'The guest network was reset to the sample data.'
     const read = await gated({ connectionError: { code: 4410, reason } }, true)
     expect(read).toMatch(
       /^Launches Error This page lost its connection\. Reload to try again\. No launches yet\. New launch /
