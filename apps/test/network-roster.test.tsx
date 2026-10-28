@@ -548,10 +548,13 @@ describe("the roster page's words", () => {
     const watch = editor(state, 'The Watch')
     expect(watch).toContain('Sample: Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
     expect(watch).toContain('Downloads per episode sample Status sample Save')
-    // The header: the title, its counts, and the import, in a sheet; then, by the table, whether it's
-    // ready to rank. No notice, explanation, or CPM is above the table.
+    // The header: the title, its counts, and the import, in a sheet; then the table, whose caption, which
+    // describes it, starts with whether it's ready to rank. No notice, explanation, or CPM is above it.
     expect(read).toMatch(
       /^Roster 19 shows · 19 missed Import shows 19 shows aren’t scored until you settle or leave them out\. Qloo data Matches from Qloo search, one call per show\. /
+    )
+    expect(markup(state)).toMatch(
+      /\sid="roster-cap"[^>]*>(<[^>]+>)*19 shows aren’t scored until you settle or leave them out\./
     )
     for (const gone of ['Sample roster', 'Crossfeed isn’t affiliated', 'Start from the sample roster', 'CPM'])
       expect(read).not.toContain(gone)

@@ -240,6 +240,7 @@ const SampleChip = () => <Badge>sample</Badge>
 // Narrower than the table, it scrolls sideways in its region with the show's column held at the left.
 export function RosterTable({
   roster,
+  readiness,
   selected,
   select,
   slowCalls,
@@ -247,6 +248,7 @@ export function RosterTable({
   opened
 }: {
   roster: Show[]
+  readiness?: string | null // whether a run can score every show yet, the caption's first line
   selected: string | null
   select: ((name: string) => void) | null // null where the roster is read-only, as on a launch's page
   slowCalls: SlowCall[]
@@ -268,6 +270,7 @@ export function RosterTable({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground" id="roster-cap">
+        {readiness && <span className="basis-full text-foreground">{readiness}</span>}
         <Source of="qloo" /> Matches from Qloo search, one call per show.{' '}
         {select
           ? 'Select a show to settle or edit it, or open a call for its evidence.'
