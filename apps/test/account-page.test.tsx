@@ -136,6 +136,10 @@ describe('the account page', () => {
       'Your account is temporary: as a guest’s, it lasts a day from when you signed in. Add a passkey to keep it, with the networks you own; you get a recovery code with it. No passkeys yet. Add a passkey'
     )
     expect(html).not.toContain('Passkeys table')
+    // A guest's first passkey asks for no step-up.
+    expect(read).toContain(
+      'Your browser asks where to keep it: on this device, a phone nearby, or your password manager. Recovery code'
+    )
     expect(read).toContain('You get your recovery code with your first passkey.')
     expect(read).not.toContain('Get a new recovery code')
     expect(read).toContain(
