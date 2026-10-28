@@ -76,14 +76,8 @@ describe('the landing page', () => {
     expect(words(html)).not.toMatch(/No sign-in|needs no sign-in/)
   })
 
-  it('links no page to the retired demo, and offers its sample as guest sign-in from the header and the close', async () => {
-    for (const path of pages) {
-      const html = await page(path)
-      expect(hrefs(html), path).not.toContain('/demo')
-      const header = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ''
-      expect(header, path).toMatch(/<button\b[^>]*>Sample network<\/button>/)
-      expect(ways(header, html), path).toContain(GUEST)
-    }
+  it('links no page to the retired demo, and offers its sample as guest sign-in from the close', async () => {
+    for (const path of pages) expect(hrefs(await page(path)), path).not.toContain('/demo')
     const close = (await page('/')).match(/<section\b[^>]*\bdata-band="signal"[\s\S]*?<\/section>/)?.[0] ?? ''
     expect(ways(close, await page('/'))).toEqual([GUEST, '/app/new'])
     expect(words(close)).toContain(
@@ -354,17 +348,49 @@ describe('the privacy page and the beta terms', () => {
   })
 })
 
-describe('the footer', () => {
-  // Every marketing page, the 404 page's too, by its path.
-  const shown = async () => {
-    const missing = await exports.default.fetch(`${origin}/no-such-page`, { headers: { Accept: 'text/html' } })
-    return [
-      ...(await Promise.all(pages.map(async (path) => [path, await page(path)]))),
-      ['/no-such-page', await missing.text()]
-    ]
+// Every marketing page, the 404 page's too, by its path.
+const shown = async () => {
+  const missing = await exports.default.fetch(`${origin}/no-such-page`, { headers: { Accept: 'text/html' } })
+  return [
+    ...(await Promise.all(pages.map(async (path) => [path, await page(path)]))),
+    ['/no-such-page', await missing.text()]
+  ]
+}
+// A navigation's links and buttons: each one's words and where it goes, and the one that's the page on view.
+const named = (nav: string, page: string) => {
+  const to = ways(nav, page)
+  const links = [...nav.matchAll(/<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>/g)].map(([, , attributes, text], i) => ({
+    link: `${words(text).trim()} ${to[i]}`,
+    current: /\baria-current="page"/.test(attributes)
+  }))
+  return { links: links.map((l) => l.link), current: links.filter((l) => l.current).map((l) => l.link) }
+}
+
+describe('the header', () => {
+  // The header's one navigation, the phone's Menu and the row from 768px alike.
+  const site = (html: string, path: string) => {
+    const header = html.match(/<header\b[\s\S]*?<\/header>/)?.[0] ?? ''
+    const navs = header.match(/<nav\b[^>]*>[\s\S]*?<\/nav>/g) ?? []
+    expect(navs, path).toHaveLength(1)
+    const nav = navs[0] ?? ''
+    expect(nav, path).toMatch(/^<nav\b[^>]*\baria-label="Site"/)
+    return named(nav, html).links
   }
-  // The footer's one navigation, which holds every link in it: each link's words and where it goes,
-  // and the one that's the page on view.
+
+  it('links the developer docs, signing in, and a network of your own while accounts are on, and no guest button', async () => {
+    env.ACCOUNTS = 'on'
+    for (const [path, html] of await shown())
+      expect(site(html, path), path).toEqual(['Developers /docs', 'Sign in /sign-in', 'Create your network /app/new'])
+  })
+
+  it('links only the developer docs while accounts are off', async () => {
+    env.ACCOUNTS = 'off'
+    for (const [path, html] of await shown()) expect(site(html, path), path).toEqual(['Developers /docs'])
+  })
+})
+
+describe('the footer', () => {
+  // The footer's one navigation, which holds every link in it.
   const index = (html: string, path: string) => {
     const footer = html.match(/<footer\b[\s\S]*<\/footer>/)?.[0] ?? ''
     const navs = footer.match(/<nav\b[^>]*>[\s\S]*?<\/nav>/g) ?? []
@@ -372,12 +398,7 @@ describe('the footer', () => {
     const nav = navs[0] ?? ''
     expect(nav, path).toMatch(/^<nav\b[^>]*\baria-label="Footer"/)
     expect(hrefs(nav), path).toEqual(hrefs(footer))
-    const to = ways(nav, html)
-    const links = [...nav.matchAll(/<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>/g)].map(([, , attributes, text], i) => ({
-      link: `${words(text).trim()} ${to[i]}`,
-      current: /\baria-current="page"/.test(attributes)
-    }))
-    return { links: links.map((l) => l.link), current: links.filter((l) => l.current).map((l) => l.link) }
+    return named(nav, html)
   }
 
   it('indexes the ways in while accounts are on: as a guest, a network of your own, signing in, then the developer docs, privacy, and the beta terms', async () => {
