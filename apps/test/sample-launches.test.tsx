@@ -4,7 +4,12 @@
 // the runs are made on the guest network against the fakes, captured through the launches' own agents with
 // src/sample-launch.ts, loaded with its SQL, and the guest network cleared by the daily cron, as each day.
 import { getAgentByName } from 'agents'
-import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
+import {
+  createExecutionContext,
+  createScheduledController,
+  evictAllDurableObjects,
+  waitOnExecutionContext
+} from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +20,7 @@ import { EvidencePanel } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
 import worker from '../src/index'
+import { LaunchAgent } from '../src/launch-agent'
 import { sampleLaunchOf, sampleLaunchesSql } from '../src/sample-launch'
 import { networkLinks } from '../src/shell'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
@@ -66,7 +72,11 @@ const connect = async (guest: Guest, path: string) => {
   open.push(agent)
   return agent
 }
-const saved = { SAMPLE_NETWORK: env.SAMPLE_NETWORK, RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP }
+const saved = {
+  SAMPLE_NETWORK: env.SAMPLE_NETWORK,
+  RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
+  LAUNCHES_PER_NETWORK: env.LAUNCHES_PER_NETWORK
+}
 beforeEach(() => {
   env.SAMPLE_NETWORK = 'on'
 })
@@ -335,5 +345,39 @@ describe("the guest network's sample launches", () => {
     const { evidence } = await res.json<{ evidence: Record<string, unknown>[] }>()
     expect(evidence.length).toBeGreaterThanOrEqual(19)
     for (const record of evidence) expect(Object.keys(record)).not.toContain('sample')
+  })
+
+  it('that fail to seed, or that the launch cap refuses, are seeded as the guest network next starts, each once, and one deleted stays deleted', async () => {
+    const guest = await openGuest()
+    await captureSampleLaunches(guest)
+    const failed = vi.spyOn(console, 'error')
+    vi.spyOn(LaunchAgent.prototype, 'seed').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    env.LAUNCHES_PER_NETWORK = '3'
+    const names = (s: State) => s.launches!.map((l) => l.name).sort()
+
+    // One fails, and with The Watch and two seeded, the cap refuses the last.
+    const first = await nextDay(guest, 3)
+    expect(names(first)).toContain('The Watch')
+    const logged = failed.mock.calls.flat().filter((line) => String(line).includes('"event":"sample_launches_load"'))
+    expect(logged).toHaveLength(2)
+    expect(logged.join()).toContain('The agent is overloaded.')
+    expect(logged.join()).toContain('A network keeps at most 3 launches at once.')
+
+    env.LAUNCHES_PER_NETWORK = saved.LAUNCHES_PER_NETWORK
+    const restart = async (n: number) => {
+      await evictAllDurableObjects({ webSockets: 'close' })
+      return (await connect(guest, '/agents/network/guest-network')).until((s) => s.launches?.length === n)
+    }
+    const all = await restart(5)
+    expect(names(all)).toEqual(['Ghost Signal', 'Night Shift Cinema', 'Paper Moons', 'Slow Burn', 'The Watch'])
+    // Each listed once, under the ID the first start gave it.
+    for (const { id, name } of first.launches!) expect(all.launches!.find((l) => l.name === name)!.id).toBe(id)
+
+    const ranked = all.launches!.find((l) => l.name === 'Slow Burn')!
+    expect((await guest.fetch(`/app/guest-network/launches/${ranked.id}/delete`, { method: 'POST' })).status).toBe(200)
+    // Once its wiped agent has reset.
+    await readAfterReset(async () => (await getAgentByName(env.LaunchAgent, `guest-network:${ranked.id}`)).state)
+    await restart(4)
+    expect(names(await restart(4))).toEqual(['Ghost Signal', 'Night Shift Cinema', 'Paper Moons', 'The Watch'])
   })
 })
