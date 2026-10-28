@@ -899,9 +899,10 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
         )
 
       const looking = page(await network.until((s) => s.inbox?.status === 'reading'))
-      // The header counts the pitches as their works are looked up; the table says they came already read.
+      // The header counts the pitches settled so far, and the readout how many works are looked up, so
+      // neither says the other's count; the table says they came already read.
       expect(looking).toMatch(
-        /^Inbox 40 pitches for The Big Picture · 36 looking up, 4 set aside Load pitches Looking up · 0 of 36 works looked up /
+        /^Inbox 40 pitches for The Big Picture · 4 set aside Load pitches Looking up · 0 of 36 works looked up /
       )
       expect(looking).toContain('sample Guest and work as the sample gives them for each pitch.')
       expect(looking).toContain('Rank them once every work is looked up.')
@@ -918,7 +919,9 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       expect(looking).not.toContain('pitch is read')
 
       held.resolve()
-      expect(page(await network.until(loaded))).toContain('Read · 40 pitches')
+      expect(page(await network.until(loaded))).toMatch(
+        /^Inbox 40 pitches for The Big Picture · 36 matched, 4 set aside Load pitches Read Rank against /
+      )
     })
 
     it('tries again as it next starts the lookups the guest budget refused, then those Qloo failed, then loads nothing again', async () => {
