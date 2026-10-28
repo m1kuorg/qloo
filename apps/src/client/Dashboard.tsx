@@ -87,21 +87,27 @@ export function Dashboard({
   // New launch's dialog, which the header, the empty state and the checklist open.
   const [planning, setPlanning] = useState(false)
   const plan = () => setPlanning(true)
+  // The page's one action, in the header once there are launches, and until then in the empty state.
+  const newLaunch = <Button onClick={plan}>New launch</Button>
   // Where focus goes once a launch it was on is deleted.
   const heading = useRef<HTMLHeadingElement>(null)
   return (
     <main className="flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6" aria-busy={!state || undefined}>
-      {/* New launch is here once there are launches; until then, the empty state has it. */}
       <PageHeader
         title="Launches"
         heading={heading}
         connection={state ? connection : null}
-        summary={launches.length > 0 && countsLine(launches)}
-        actions={launches.length > 0 && <Button onClick={plan}>New launch</Button>}
+        empty={launches.length === 0}
+        summary={countsLine(launches)}
+        actions={newLaunch}
       />
       <NewLaunch network={network} create={createLaunch} open={planning} setOpen={setPlanning} />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        {state ? <Launches launches={launches} network={network} plan={plan} heading={heading} /> : <LaunchesLoading />}
+        {state ? (
+          <Launches launches={launches} network={network} newLaunch={newLaunch} heading={heading} />
+        ) : (
+          <LaunchesLoading />
+        )}
         <div className="flex min-w-0 flex-col gap-6">
           {state ? (
             <>
@@ -265,12 +271,12 @@ function Finalists({ n }: { n: number }) {
 function Launches({
   launches,
   network,
-  plan,
+  newLaunch,
   heading
 }: {
   launches: LaunchSummary[]
   network: NetworkPage
-  plan: () => void
+  newLaunch: ReactNode // the page's New launch, for the empty state
   heading: RefObject<HTMLHeadingElement | null>
 }) {
   // The launch the confirm dialog asks about, kept while it closes so its words don't empty.
@@ -293,7 +299,7 @@ function Launches({
   return (
     <>
       {launches.length === 0 ? (
-        <PageEmpty action={<Button onClick={plan}>New launch</Button>}>No launches yet.</PageEmpty>
+        <PageEmpty action={newLaunch}>No launches yet.</PageEmpty>
       ) : (
         <LaunchesTable>
           {grouped(launches).map((group) => (
