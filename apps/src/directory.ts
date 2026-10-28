@@ -30,7 +30,8 @@ const GUEST_RECOVERY_HASH = 'none: the guest member has no recovery code'
 export type GuestLimit = 'minute' | 'day'
 
 // Whether `member` is marked a guest, as the guest member is, whom every guest is signed in as (ADR 0008),
-// and the temporary guest members ADR 0006 made, until the daily clearing removes them.
+// and the temporary guest members ADR 0006 made, until the daily clearing removes them; its ID, GUEST_MEMBER
+// (text.ts), names the guest member alone.
 export const isGuestMember = (member: { guest: boolean } | null | undefined) => member?.guest === true
 
 // A member, and whether they're marked a guest, as the members table marks them.
