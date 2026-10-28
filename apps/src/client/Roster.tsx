@@ -50,6 +50,9 @@ export function NetworkRoster({
   const [importing, setImporting] = useState(false)
   const importDraft = useRef('')
   const openImport = () => setImporting(true)
+  // The header's Import shows, which focus goes back to as the sheet closes once the first import has
+  // taken the empty state, and the button that opened it, away.
+  const importButton = useRef<HTMLButtonElement>(null)
   const head = (
     <PageHeader
       title="Roster"
@@ -61,7 +64,13 @@ export function NetworkRoster({
           <StateLine kind="loading">Connecting to the network…</StateLine>
         )
       }
-      actions={roster.length > 0 && <Button onClick={openImport}>Import shows</Button>}
+      actions={
+        roster.length > 0 && (
+          <Button ref={importButton} onClick={openImport}>
+            Import shows
+          </Button>
+        )
+      }
     />
   )
 
@@ -129,7 +138,7 @@ export function NetworkRoster({
       )}
       {/* Kept mounted while closed, so a file dropped anywhere on the page imports, opening it. */}
       <Sheet open={importing} onOpenChange={setImporting}>
-        <SheetContent keepMounted className="gap-0">
+        <SheetContent keepMounted className="gap-0" finalFocus={() => importButton.current ?? true}>
           <SheetHeader className="pr-14">
             <SheetTitle>Import shows</SheetTitle>
             <SheetDescription>

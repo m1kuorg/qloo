@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon, CircleDashedIcon, CopyIcon, SquareXIcon, UploadIcon } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
@@ -203,6 +203,9 @@ export function InboxPage({
   // stays open as the first load takes the page from its empty state to the pitches.
   const [loading, setLoading] = useState(false)
   const load = () => setLoading(true)
+  // The header's Load pitches, which focus goes back to as the sheet closes once the first load has
+  // taken the empty state, and the button that opened it, away.
+  const loadButton = useRef<HTMLButtonElement>(null)
   return (
     <div className={frame}>
       <main className={canvas} data-canvas>
@@ -210,6 +213,7 @@ export function InboxPage({
           inbox={inbox}
           show={booking?.show.name ?? inbox?.show?.name ?? null}
           load={load}
+          loadButton={loadButton}
           pitchRun={pitchRun}
           startedAt={startedAt}
           slowCalls={slowCalls}
@@ -331,7 +335,7 @@ export function InboxPage({
           run, viewed, loads nothing. */}
       {!viewing && (
         <Sheet open={loading} onOpenChange={setLoading}>
-          <SheetContent keepMounted className="gap-0">
+          <SheetContent keepMounted className="gap-0" finalFocus={() => loadButton.current ?? true}>
             <SheetHeader className="pr-14">
               <SheetTitle>Load pitches</SheetTitle>
               <SheetDescription>
@@ -386,6 +390,7 @@ function InboxHead({
   inbox,
   show,
   load,
+  loadButton,
   pitchRun,
   startedAt,
   slowCalls,
@@ -397,6 +402,7 @@ function InboxHead({
   inbox: Inbox | null
   show: string | null // the show the pitches are for, once one is known
   load: () => void // opens the load form's sheet
+  loadButton: RefObject<HTMLButtonElement | null>
   pitchRun: Run | null
   startedAt: string | null
   slowCalls: SlowCall[]
@@ -441,7 +447,7 @@ function InboxHead({
             </Button>
           ) : (
             inbox && (
-              <Button variant="secondary" onClick={load}>
+              <Button ref={loadButton} variant="secondary" onClick={load}>
                 Load pitches
               </Button>
             )
