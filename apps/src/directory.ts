@@ -411,6 +411,10 @@ export type Role = 'owner' | 'member'
 // A network as one of its members sees it.
 export type Network = { id: string; name: string; role: Role }
 
+// The most networks one member can create, NETWORKS_PER_MEMBER, which createNetwork caps, and the most of the
+// guest member's the daily clearing deletes (guestOwnedNetworks).
+export const networksPerMember = (env: Env) => Number(env.NETWORKS_PER_MEMBER) || 0
+
 // Creates a network named `name`, owned by `member`, who creates it, unless they've already created
 // `cap` networks, whoever owns them now. The cap and both rows are one batch, so two creations at once
 // can't both pass it. A guest member's network has an ID that starts with `guest-`, as the guest
@@ -956,16 +960,16 @@ export async function dropTemporaryGuests(db: D1Database, binding: string) {
   return { members: members.results.length, networks: networks.results.length }
 }
 
-// The networks the guest member is in besides the guest network, at most `limit`, by ID, each saying
-// whether it's their only owner, as the daily cron clears what guests made (wipe.ts).
-export async function guestMemberNetworks(db: D1Database, limit: number) {
+// The networks only the guest member owns besides the guest network, at most `limit`, by ID, as the daily
+// cron clears what guests made (wipe.ts).
+export async function guestOwnedNetworks(db: D1Database, limit: number) {
   const { results } = await db
     .prepare(
-      `SELECT m.network_id AS id, ${ONLY_OWNER} AS onlyOwner FROM memberships m WHERE m.member_id = ?1 AND m.network_id != ?2 ORDER BY m.joined, m.network_id LIMIT ?3`
+      `SELECT m.network_id AS id FROM memberships m WHERE m.member_id = ?1 AND m.network_id != ?2 AND ${ONLY_OWNER} ORDER BY m.joined, m.network_id LIMIT ?3`
     )
     .bind(GUEST_MEMBER, GUEST_NETWORK, limit)
-    .all<{ id: string; onlyOwner: number }>()
-  return results.map((n) => ({ id: n.id, onlyOwner: n.onlyOwner === 1 }))
+    .all<{ id: string }>()
+  return results.map((n) => n.id)
 }
 
 // Clears what the guest member made beyond the guest network (ADR 0008), as the daily cron does, in one
