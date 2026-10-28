@@ -10,11 +10,11 @@ import {
   fromAppOrigin,
   jsonBody,
   jsonLimit,
-  notGuestMember,
   sameOrigin,
   session,
   signedIn,
-  stepUpRefused
+  stepUpRefused,
+  stepUpRefusedButGuest
 } from '../auth'
 import {
   accountNetworks,
@@ -34,6 +34,7 @@ import {
   openInvites,
   openNetwork,
   openSessions,
+  rejoinGuestNetwork,
   removeMember,
   removePasskey,
   renameMember,
@@ -78,8 +79,10 @@ appPages.use(
 )
 appPages.use('/app/*', appShell)
 
-// /app opens the network the member opened last, or asks them to create their first.
+// /app opens the network the member opened last, or asks them to create their first. A guest member
+// always has the guest network to open: one who isn't in it is an owner of it again (ADR 0006).
 appPages.get('/app', async (c) => {
+  if (isGuestMember(c.var.member)) await rejoinGuestNetwork(c.env.DB, c.var.member.id)
   const last = await lastNetwork(c.env.DB, c.var.member.id)
   return c.redirect(last ? `/app/${last}` : '/app/new', 302)
 })
@@ -98,11 +101,11 @@ appPages.get('/app/new', async (c) => {
 })
 
 // Creates the network, with the member as its owner, unless they've created NETWORKS_PER_MEMBER.
-appPages.post('/app/new', notGuestMember, async (c) => {
+appPages.post('/app/new', async (c) => {
   const read = readName((await jsonBody(c)).name, 'Name the network.')
   if ('error' in read) return c.json({ error: read.error }, 400)
   const cap = Number(c.env.NETWORKS_PER_MEMBER) || 0
-  const id = await createNetwork(c.env.DB, c.var.member.id, read.name, cap)
+  const id = await createNetwork(c.env.DB, c.var.member, read.name, cap)
   if (!id)
     return c.json(
       {
@@ -135,7 +138,7 @@ appPages.get('/app/account', async (c) => {
 })
 
 // Renames the member, as their teammates see them from then on.
-appPages.post('/app/account/name', notGuestMember, async (c) => {
+appPages.post('/app/account/name', async (c) => {
   const read = readName((await jsonBody(c)).name, 'Enter your name.')
   if ('error' in read) return c.json({ error: read.error }, 400)
   await renameMember(c.env.DB, c.var.member.id, read.name)
@@ -166,7 +169,7 @@ appPages.post('/app/account/recovery-code', async (c) => {
 
 // Signs the member out on every browser, as when a device is lost: every session ends, this one's
 // cookie goes, and their open pages close on every network and launch.
-appPages.post('/app/account/sign-out-everywhere', notGuestMember, async (c) => {
+appPages.post('/app/account/sign-out-everywhere', async (c) => {
   const { id } = c.var.member
   await signOutEverywhere(c.env.DB, id)
   endSession(c)
@@ -179,10 +182,10 @@ appPages.post('/app/account/sign-out-everywhere', notGuestMember, async (c) => {
 
 // Deletes the member's account: them, their passkeys, sessions, and memberships, unless they're any
 // network's only owner, which would leave it with no one to run it, once they've proved it's them in
-// the last five minutes. What they made in each network stays with it, but each launch forgets their
-// name (wipe.ts). Their open pages close.
+// the last five minutes, or, as a guest member, with no step-up (ADR 0006). What they made in each network
+// stays with it, but each launch forgets their name (wipe.ts). Their open pages close.
 appPages.post('/app/account/delete', async (c) => {
-  const unproved = await stepUpRefused(c, c.var.member)
+  const unproved = await stepUpRefusedButGuest(c, c.var.member)
   if (unproved) return unproved
   const { id } = c.var.member
   const networks = await accountNetworks(c.env.DB, id)
@@ -417,7 +420,7 @@ appPages.post('/app/:networkId/settings/members/:memberId/remove', async (c) => 
 })
 
 // Leaves the network, unless the member is its last owner. Their other open pages close too.
-appPages.post('/app/:networkId/settings/members/leave', notGuestMember, async (c) => {
+appPages.post('/app/:networkId/settings/members/leave', async (c) => {
   const id = c.req.param('networkId')
   if (!(await memberRole(c.env.DB, id, c.var.member.id))) return c.notFound()
   if (!(await removeMember(c.env.DB, id, c.var.member.id, c.var.member.id)))

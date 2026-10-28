@@ -12,8 +12,19 @@ import { NewNetworkPage } from '../src/client/NewNetwork'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent } from '../src/network-agent'
+import { softwareAuthenticator } from './authenticator'
 import { fakeClaude, fakeQloo, text, toolUse, turn } from './fake'
-import { api, guestSignIn, hooked, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
+import {
+  api,
+  guestSignIn,
+  hooked,
+  openGuest,
+  openMember,
+  readAfterReset,
+  untilRefused,
+  type Guest,
+  type Session
+} from './session'
 
 const origin = 'https://crossfeed.test'
 const accounts = env.ACCOUNTS
@@ -133,63 +144,189 @@ describe('signing in as a guest', () => {
   })
 })
 
-describe('what a guest can’t change yet', () => {
-  const REFUSED = { error: 'A guest can’t do this. Sign out and create an account to do it.' }
-  const challenges = () => env.DB.prepare('SELECT count(*) AS n FROM challenges').first<number>('n')
-
-  it('refuses a guest member’s passkeys, recovery code, name, sessions, and account, even just signed in, and asks for no step-up', async () => {
-    const guest = await openGuest()
-    const other = await openGuest()
-    const [mine, theirs] = await guestMembers(other)
-    for (const [path, body] of [
-      ['/auth/passkeys/options', {}],
-      ['/auth/passkeys', { challenge: 'none', response: {} }],
-      ['/app/account/recovery-code', {}],
-      ['/app/account/name', { name: 'Mallory' }],
-      ['/app/account/sign-out-everywhere', {}],
-      ['/app/account/delete', {}]
-    ] as const) {
-      const refused = await post(guest, path, body)
-      expect(refused.status, path).toBe(403)
-      expect(await refused.json(), path).toEqual(REFUSED)
-    }
-    // No ceremony was started for a step-up a guest member has no passkey or code to answer.
-    expect(await challenges()).toBe(0)
-    // Both guests are still signed in, each by their own name.
-    for (const [g, { name }] of [
-      [guest, mine],
-      [other, theirs]
-    ] as const) {
-      const page = await g.fetch('/app/account')
-      expect(page.status).toBe(200)
-      expect(await page.text()).toContain(`data-member-name="${name}"`)
-    }
+describe('what a guest changes of their own account, as any member does', () => {
+  it('renames themselves, as every other guest sees them', async () => {
+    const ada = await openGuest()
+    const grace = await openGuest()
+    const renamed = await post(ada, '/app/account/name', { name: 'Ada Programmer' })
+    expect(renamed.status).toBe(200)
+    expect(await renamed.json()).toEqual({ name: 'Ada Programmer' })
+    expect((await guestMembers(grace)).map((m) => m.name)).toContain('Ada Programmer')
   })
 
-  it('refuses creating a network, joining one by invite, and leaving the guest network', async () => {
-    const ada = await openMember()
-    const created = await ada.fetch('/app/new', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Night Shift Audio' })
-    })
+  it('creates a network of their own, with an ID that starts with guest-, and owns it', async () => {
+    const guest = await openGuest()
+    const created = await post(guest, '/app/new', { name: 'Night Shift Audio' })
+    expect(created.status).toBe(200)
     const { id } = await created.json<{ id: string }>()
+    expect(id).toMatch(/^guest-[0-9a-f-]{36}$/)
+    expect(await dashboard(guest)).toMatchObject({ path: `/app/${id}`, network: 'Night Shift Audio', role: 'owner' })
+    // A member's network has no such start.
+    const ada = await openMember()
+    const theirs = await (
+      await ada.fetch('/app/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Paper Route' })
+      })
+    ).json<{ id: string }>()
+    expect(theirs.id).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('joins a network by invite, and leaves the guest network, even as its only owner', async () => {
+    const ada = await openMember()
+    const { id } = await (
+      await ada.fetch('/app/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Night Shift Audio' })
+      })
+    ).json<{ id: string }>()
     const token = new URL(await ada.invite(id)).hash.slice(1)
     const guest = await openGuest()
 
-    for (const [path, body] of [
-      ['/app/new', { name: 'Guest Audio' }],
-      ['/auth/join', { token }],
-      ['/app/guest-network/settings/members/leave', {}]
-    ] as const) {
-      const refused = await post(guest, path, body)
-      expect(refused.status, path).toBe(403)
-      expect(await refused.json(), path).toEqual(REFUSED)
+    const joined = await post(guest, '/auth/join', { token })
+    expect(joined.status).toBe(200)
+    expect(await joined.json()).toEqual({ id })
+    expect((await guest.fetch(`/app/${id}`)).status).toBe(200)
+
+    // The guest network's last owner can leave it: sign-in keeps adding owners (ADR 0006).
+    const left = await post(guest, '/app/guest-network/settings/members/leave')
+    expect(left.status).toBe(200)
+    expect((await guest.fetch('/app/guest-network')).status).toBe(404)
+  })
+
+  it('signs out everywhere, for that guest alone', async () => {
+    const ada = await openGuest()
+    const grace = await openGuest()
+    const out = await post(ada, '/app/account/sign-out-everywhere')
+    expect(out.status).toBe(200)
+    expect((await ada.fetch('/app/guest-network', { redirect: 'manual' })).headers.get('location')).toBe(
+      '/sign-in?next=/app/guest-network'
+    )
+    expect((await grace.fetch('/app/guest-network')).status).toBe(200)
+  })
+
+  it('deletes their account with no step-up, as the guest network’s only owner too, and the guest network stays', async () => {
+    const ada = await openGuest()
+    const deleted = await post(ada, '/app/account/delete')
+    expect(deleted.status).toBe(200)
+    expect((await ada.fetch('/app/account', { redirect: 'manual' })).status).toBe(302)
+    const grace = await openGuest()
+    expect(await guestMembers(grace)).toHaveLength(1)
+    expect(await dashboard(grace)).toMatchObject({ path: '/app/guest-network', role: 'owner' })
+  })
+})
+
+describe('keeping a guest account', () => {
+  const DAY = 24 * 60 * 60_000
+  // A write from the guest's page, from address `ip` if given, as Cloudflare's edge sends it.
+  const from = (guest: Guest, path: string, body: object, ip?: string) =>
+    guest.fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(ip && { 'CF-Connecting-IP': ip }) },
+      body: JSON.stringify(body)
+    })
+  // Both steps of adding a passkey made by `device`, as the account page does, with no step-up asked.
+  async function keep(guest: Guest, device = softwareAuthenticator(), ip?: string) {
+    const started = await from(guest, '/auth/passkeys/options', {}, ip)
+    if (started.status !== 200) return started
+    const { challenge, options } = await started.json<{ challenge: string; options: never }>()
+    return from(guest, '/auth/passkeys', { challenge, response: await device.register(options) }, ip)
+  }
+
+  it('keeps it with a first passkey and no step-up: a recovery code shown once, and a member’s session and cookie', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.now()
+    const guest = await openGuest()
+    const [{ id, name }] = await guestMembers(guest)
+    const device = softwareAuthenticator()
+
+    const kept = await keep(guest, device)
+    expect(kept.status).toBe(200)
+    const { passkeys, recoveryCode } = await kept.json<{ passkeys: object[]; recoveryCode: string }>()
+    expect(passkeys).toHaveLength(1)
+    expect(recoveryCode).toMatch(/^[0-9A-Z]{4}(-[0-9A-Z]{4}){4}$/)
+    // The same session, for a member's 30 days now, as its cookie says.
+    expect(kept.headers.get('set-cookie')).toBe(
+      `${guest.cookie}; Max-Age=2592000; Path=/; HttpOnly; Secure; SameSite=Lax`
+    )
+    // It's a member's account now: the app tells them nothing of a guest's, and their name and the
+    // guest network stay as they were.
+    const account = await (await guest.fetch('/app/account')).text()
+    expect(account).toContain(`data-member-name="${name}"`)
+    expect(account).not.toContain('data-guest')
+    expect(hooked(account, 'data-guest-notice')).toEqual([])
+    expect(await guestMembers(guest)).toMatchObject([{ id, role: 'owner' }])
+
+    // Past a guest's day, the session lasts, and it's extended as a member's is.
+    vi.setSystemTime(start + 2 * DAY)
+    const later = await guest.fetch('/app/guest-network')
+    expect(later.status).toBe(200)
+    expect(later.headers.get('set-cookie')).toMatch(/; Max-Age=2592000;/)
+    // From then on its changes ask for a step-up, answered with the new passkey.
+    const unproved = await from(guest, '/app/account/recovery-code', {})
+    expect(unproved.status).toBe(403)
+    expect(await unproved.json()).toMatchObject({ stepUp: 'passkey' })
+    // And the recovery code signs them in, once.
+    const recovered = await exports.default.fetch(`${origin}/auth/recover`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: recoveryCode })
+    })
+    expect(recovered.status).toBe(200)
+  })
+
+  it('refuses a guest a new recovery code before a passkey, writing no challenge', async () => {
+    const guest = await openGuest()
+    const refused = await from(guest, '/app/account/recovery-code', {})
+    expect(refused.status).toBe(403)
+    expect(await refused.json()).toEqual({
+      error: 'Add a passkey first, to keep your account: you get a recovery code with your first passkey.'
+    })
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM challenges').first('n')).toBe(0)
+  })
+
+  it('counts as a sign-up against the visitor’s accounts a day, as it starts and as it keeps the account', async () => {
+    const cap = env.SIGNUP_VISITOR_DAILY_CAP
+    env.SIGNUP_VISITOR_DAILY_CAP = '1'
+    try {
+      const ip = '203.0.113.7'
+      expect((await keep(await openGuest({ ip }), undefined, ip)).status).toBe(200)
+      const CAPPED = {
+        error: "You've created 1 account today, the most one visitor can create in a UTC day; it resets at 00:00 UTC."
+      }
+      // The visitor's next account is refused, whether a sign-up or another guest's keeping.
+      const signUp = await exports.default.fetch(`${origin}/auth/sign-up/options`, {
+        method: 'POST',
+        headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
+        body: JSON.stringify({ name: 'Grace Booker' })
+      })
+      expect(await signUp.json()).toEqual(CAPPED)
+      const again = await keep(await openGuest({ ip }), undefined, ip)
+      expect(again.status).toBe(429)
+      expect(await again.json()).toEqual(CAPPED)
+      // Another address isn't counted with it.
+      expect((await keep(await openGuest({ ip: '198.51.100.4' }), undefined, '198.51.100.4')).status).toBe(200)
+    } finally {
+      env.SIGNUP_VISITOR_DAILY_CAP = cap
     }
-    // The guest is still in the guest network, and the invite is still there for a person to use.
-    expect((await guest.fetch('/app/guest-network')).status).toBe(200)
-    expect((await guest.fetch(`/app/${id}`)).status).toBe(404)
-    await openMember({ name: 'Grace Booker', invite: `https://crossfeed.test/invite#${token}` })
+  })
+
+  it('is limited per visitor a minute, as a sign-up is, while a member’s new passkey isn’t', async () => {
+    const ip = '192.0.2.41'
+    const guest = await openGuest({ ip })
+    const { res } = await untilRefused(() => from(guest, '/auth/passkeys/options', {}, ip), 20)
+    expect(res.status).toBe(429)
+    expect(await res.json()).toEqual({
+      error: 'Too many sign-in requests from your address in the last minute. Wait a minute, then try again.'
+    })
+    const ada = await openMember({ ip: '192.0.2.42' })
+    for (let i = 0; i < 25; i++)
+      expect(
+        (await ada.fetch('/auth/passkeys/options', { method: 'POST', headers: { 'CF-Connecting-IP': '192.0.2.42' } }))
+          .status
+      ).toBe(200)
   })
 })
 
@@ -214,7 +351,8 @@ describe('what a guest can change, as an owner of the guest network', () => {
     const dot = await openMember({ name: 'Dot Pruitt', invite: (await invited.json<{ link: string }>()).link })
     expect(dot.network).toBe('guest-network')
 
-    const [, theirs] = await guestMembers(ada)
+    // Guests who sign in in the same millisecond are listed by name, so Grace is found by her ID.
+    const theirs = { id: (await dashboard(grace)).member }
     expect((await post(ada, `${settings}/members/${theirs.id}/role`, { role: 'member' })).status).toBe(200)
     expect(await dashboard(grace)).toMatchObject({ role: 'member' })
     expect(await (await post(grace, `${settings}/members/invites`)).json()).toEqual({
@@ -243,7 +381,6 @@ describe('what a guest can change, as an owner of the guest network', () => {
     const deleted = await post(ada, `${settings}/delete`, { name: 'Guest network' })
     expect(deleted.status).toBe(200)
     expect((await ada.fetch('/app/guest-network')).status).toBe(404)
-    expect((await ada.fetch('/app', { redirect: 'manual' })).headers.get('location')).toBe('/app/new')
 
     const grace = await openGuest()
     expect(await dashboard(grace)).toMatchObject({
@@ -254,6 +391,24 @@ describe('what a guest can change, as an owner of the guest network', () => {
     })
     expect(await guestMembers(grace)).toHaveLength(1)
     expect((await grace.connect('/agents/network/guest-network')).state()).toMatchObject({ roster: [], launches: [] })
+  })
+
+  it('takes a guest who isn’t in it back in as an owner, as /app opens, making it again if it’s gone', async () => {
+    const ada = await openGuest()
+    expect((await post(ada, `${settings}/delete`, { name: 'Guest network' })).status).toBe(200)
+    expect(await dashboard(ada)).toMatchObject({ path: '/app/guest-network', network: 'Guest network', role: 'owner' })
+
+    // A guest who left it, or was removed, is in it again too.
+    const grace = await openGuest()
+    expect((await post(grace, `${settings}/members/leave`)).status).toBe(200)
+    expect(await dashboard(grace)).toMatchObject({ path: '/app/guest-network', role: 'owner' })
+    // One a guest owner made a member stays one; a member's /app takes no one in.
+    const graceId = (await dashboard(grace)).member
+    expect((await post(ada, `${settings}/members/${graceId}/role`, { role: 'member' })).status).toBe(200)
+    expect(await dashboard(grace)).toMatchObject({ path: '/app/guest-network', role: 'member' })
+    const dot = await openMember()
+    expect((await dot.fetch('/app', { redirect: 'manual' })).headers.get('location')).toBe('/app/new')
+    expect(await guestMembers(ada)).toHaveLength(2)
   })
 })
 
