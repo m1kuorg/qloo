@@ -788,9 +788,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return JSON.parse(row.snapshot)
   }
 
-  // Replaces the inbox with the sample inbox or pasted pitches and returns at once. Claude reads each
-  // pitch for its guest and public work, and each work's title and type are searched in Qloo; the
-  // pitches fill in through synced state.
+  // Replaces the inbox with pasted or uploaded pitches and returns at once. Claude reads each pitch for
+  // its guest and public work, and each work's title and type are searched in Qloo; the pitches fill in
+  // through synced state.
   @callable()
   async loadInbox(source: unknown) {
     this.guestPitches()

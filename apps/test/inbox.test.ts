@@ -20,7 +20,7 @@ import {
   type QlooEntity,
   type ScriptedTurn
 } from './fake'
-import { hooked, links, openSession, type Session } from './session'
+import { hooked, links, openGuest, openSession, type Session } from './session'
 
 type Extracted = { guest: string; work: { title: string; type: string; year: number | null } | null }
 
@@ -176,20 +176,19 @@ const sampleSearch: Record<string, QlooEntity[]> = {
   Scriptnotes: [{ entity_id: 'w-pitch-26', name: 'Scriptnotes Podcast', popularity: 0.95, disambiguation: null }]
 }
 
-const readSample = () =>
-  fakeReader(sample.pitches.length, (text) => {
-    const p = sample.pitches.find((p) => text.includes(p.body))!
-    return extraction({ guest: p.expected.guest, work: p.expected.work })
+// The sample inbox comes only with the guest network, already read (network-agent.ts).
+describe('the sample inbox, as the guest network loads it', () => {
+  const sampleNetwork = env.SAMPLE_NETWORK
+  afterEach(() => {
+    env.SAMPLE_NETWORK = sampleNetwork
   })
 
-describe('loading the sample inbox', () => {
-  it('lists every pitch with its extracted guest, work, type, and match state, labelled as sample data', async () => {
+  it('lists every pitch with its guest, work, type, and match state, labelled as sample data', async () => {
+    env.SAMPLE_NETWORK = 'on'
     fakeQloo({ search: sampleSearch })
-    readSample()
-    const s = await session()
-
-    await s.call('loadInbox', { sample: true })
-    const state = await loaded(s)
+    const network = await (await openGuest()).connect('/agents/network/guest-network')
+    const state = await network.until((s: State) => s.inbox?.status === 'done')
+    network.close()
     const { inbox } = state
 
     expect(inbox).toMatchObject({ sample: true, notice: sample.notice, status: 'done' })
@@ -235,42 +234,6 @@ describe('loading the sample inbox', () => {
     expect(row('pitch-30')).toContain('Ambiguous 2 with this title Confirm the match')
     expect(row('pitch-01')).toMatch(/Not in Qloo No \w+ with this title.* in Qloo\./)
   })
-
-  it('sets aside pitches with no public work, and searches only the works', async () => {
-    fakeQloo({ search: sampleSearch })
-    readSample()
-    const s = await session()
-
-    await s.call('loadInbox', { sample: true })
-    const { inbox } = await loaded(s)
-
-    const setAside = inbox!.pitches.filter((p) => p.status === 'no_work').map((p) => p.id)
-    expect(setAside).toEqual(sample.pitches.filter((p) => !p.expected.work).map((p) => p.id))
-    expect(setAside).toHaveLength(4)
-    const searched = qlooRequests().map((r) => r.url.searchParams.get('query'))
-    expect(searched.toSorted()).toEqual(sampleWorks.map((w) => w.title).toSorted())
-  })
-
-  it('never sends Qloo a guest name, an email address, or any sender detail', async () => {
-    fakeQloo({ search: sampleSearch })
-    readSample()
-    const s = await session()
-
-    await s.call('loadInbox', { sample: true })
-    await loaded(s)
-
-    // Each request as Qloo reads it: the path, every decoded parameter, and the body.
-    const sent = qlooRequests().map((r) =>
-      [r.url.pathname, ...[...r.url.searchParams].map(([k, v]) => `${k}=${v}`), r.body].join('\n').toLowerCase()
-    )
-    expect(sent).toHaveLength(sampleWorks.length)
-    const personal = sample.pitches.flatMap((p) => [p.expected.guest, p.senderName, p.senderEmail, '@'])
-    for (const detail of personal)
-      expect(
-        sent.filter((r) => r.includes(detail.toLowerCase())),
-        detail
-      ).toEqual([])
-  })
 })
 
 describe("a pitched work's title", () => {
@@ -289,7 +252,14 @@ describe("a pitched work's title", () => {
     })
     const s = await session()
 
-    await s.call('loadInbox', { sample: true })
+    // The sample's pitches as an upload gives them, each with its sender.
+    await s.call('loadInbox', {
+      pitches: sample.pitches.map((p) => ({
+        from: `${p.senderName} <${p.senderEmail}>`,
+        subject: p.subject,
+        body: p.body
+      }))
+    })
     const { inbox } = await loaded(s)
 
     expect(inbox!.pitches.filter((p) => p.id in titled)).toMatchObject(
@@ -411,6 +381,13 @@ describe('loading pasted pitches', () => {
     const s = await session()
     await expect(s.call('loadInbox', { text: ' \n---\n ' })).rejects.toThrow('Paste at least one pitch.')
     expect(s.state()?.inbox).toBeNull()
+  })
+
+  it('refuses the sample inbox, which only the guest network loads, already read, so no model reads it', async () => {
+    const s = await session()
+    await expect(s.call('loadInbox', { sample: true })).rejects.toThrow('Paste pitches or upload them.')
+    expect(s.state()?.inbox).toBeNull()
+    expect(requests).toEqual([])
   })
 })
 
@@ -654,7 +631,7 @@ describe('with GUEST_PITCHES off', () => {
   it('refuses inbox actions', async () => {
     env.GUEST_PITCHES = 'off'
     const s = await session()
-    await expect(s.call('loadInbox', { sample: true })).rejects.toThrow("Guest pitches aren't switched on.")
+    await expect(s.call('loadInbox', { text: pasted })).rejects.toThrow("Guest pitches aren't switched on.")
     await expect(s.call('confirmWork', 'pitch-01', 'x')).rejects.toThrow("Guest pitches aren't switched on.")
     expect(requests).toEqual([])
   })

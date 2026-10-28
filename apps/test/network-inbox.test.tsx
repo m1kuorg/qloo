@@ -164,7 +164,7 @@ describe('uploading pitch files', () => {
     )
     // The title row: the page's name, then the inbox's.
     expect(page).toContain('Inbox Uploaded pitches')
-    expect(page).toContain('Read pitches Load sample inbox Upload files')
+    expect(page).toContain('Read pitches Upload files')
   })
 
   it("reads an email's own charset, odd HTML, and an mbox's unescaped body lines without breaking an email", async () => {
@@ -561,7 +561,7 @@ describe("the inbox's members", () => {
 })
 
 describe("the inbox page's words", () => {
-  it('offers uploads beside pasting and the sample, and links the network roster when no show is matched', async () => {
+  it('offers uploads beside pasting, and links the network roster when no show is matched', async () => {
     fakeQloo({ search: {} })
     fakeReader(1, () => ({ guest: 'Ada Quill', work: null }))
     const ada = await openMember()
@@ -574,7 +574,7 @@ describe("the inbox page's words", () => {
     expect(read).toContain('Inbox Uploaded pitches')
     // The readout says how much of the inbox is read, right before the show to rank against.
     expect(read).toContain('Read · 1 pitch Rank against a show')
-    expect(read).toContain('Read pitches Load sample inbox Upload files Replaces the current inbox, up to 50 pitches.')
+    expect(read).toContain('Read pitches Upload files Replaces the current inbox, up to 50 pitches.')
     expect(read).toContain(
       'Drop email files anywhere on the page, or upload them: .eml files, an .mbox export, or a .txt with a line of three dashes between pitches.'
     )
