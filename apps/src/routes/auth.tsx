@@ -17,7 +17,6 @@ import {
   accountsOn,
   appOrigins,
   endSession,
-  guestRefused,
   jsonBody,
   jsonLimit,
   nextPath,
@@ -37,6 +36,7 @@ import {
   isGuestMember,
   isRecoveryCode,
   joinByInvite,
+  keepAccount,
   memberPasskeys,
   proveSession,
   recover,
@@ -75,19 +75,19 @@ const refuse = (c: Context, error: string, status: 400 | 401 | 404 | 409 | 410 |
 
 // The requests that write a challenge, an account, or a session before anyone is signed in are
 // limited per visitor per minute (AUTH_LIMITER in wrangler.jsonc), so a script can't spend the
-// directory's writes. A request with no visitor address, as in local tests, isn't limited.
-const perMinute: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+// directory's writes, and so is a guest member's keeping their account, a sign-up too. The 429 for a
+// request past it; null for one within it, or with no visitor address, as in local tests.
+async function perMinuteRefused(c: Context<{ Bindings: Env }>) {
   const visitor = await visitorTag(c.req.raw, c.env.VISITOR_SALT)
-  if (visitor && !(await c.env.AUTH_LIMITER.limit({ key: visitor })).success) {
-    c.header('Retry-After', '60')
-    return refuse(
-      c,
-      'Too many sign-in requests from your address in the last minute. Wait a minute, then try again.',
-      429
-    )
-  }
-  await next()
+  if (!visitor || (await c.env.AUTH_LIMITER.limit({ key: visitor })).success) return null
+  c.header('Retry-After', '60')
+  return refuse(
+    c,
+    'Too many sign-in requests from your address in the last minute. Wait a minute, then try again.',
+    429
+  )
 }
+const perMinute: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => (await perMinuteRefused(c)) ?? next()
 for (const path of ['/auth/sign-up/options', '/auth/sign-up', '/auth/sign-in/options', '/auth/recover'])
   auth.use(path, perMinute)
 
@@ -202,8 +202,6 @@ auth.post('/auth/invite', async (c) => {
 auth.post('/auth/join', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, 'Sign in, or create an account, to join.', 401)
-  const guest = guestRefused(c, member)
-  if (guest) return guest
   const { token } = await jsonBody(c)
   const id = typeof token === 'string' && token ? await joinByInvite(c.env.DB, token, member.id) : null
   if (id) return c.json({ id })
@@ -288,12 +286,14 @@ auth.post('/auth/sign-up', async (c) => {
 // manager, so losing one doesn't lock them out, or from a new device after signing in with their
 // recovery code. The options name the member's own user handle and the passkeys they have, so a
 // device that holds one of them adds no second. It needs a proof that it's them from the last five
-// minutes, which signing in with the recovery code is, for the device's first passkey.
+// minutes, which signing in with the recovery code is, for the device's first passkey. A guest
+// member's first passkey keeps their account (ADR 0006): it asks no step-up, since their session is the
+// only proof they have, and it's a sign-up, limited and capped per visitor as one.
 auth.post('/auth/passkeys/options', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
   // Asked here, so the page asks at once, and again as the new passkey arrives.
-  const unproved = await stepUpRefused(c, member)
+  const unproved = isGuestMember(member) ? await keepingRefused(c) : await stepUpRefused(c, member)
   if (unproved) return unproved
   const has = await memberPasskeys(c.env.DB, member.id)
   const options = await registrationOptions(c.env, member, has)
@@ -303,25 +303,45 @@ auth.post('/auth/passkeys/options', async (c) => {
 
 // Adding a passkey, second step: the browser's new passkey, added once it verifies, for the member
 // whose request it answers, while their proof that it's them is still within five minutes. The answer
-// is their passkeys.
+// is their passkeys. A guest member's keeps their account, counted as a sign-up once it verifies: the
+// answer has their recovery code too, shown once, and their session's cookie a member's lifetime.
 auth.post('/auth/passkeys', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
-  const unproved = await stepUpRefused(c, member)
+  const guest = isGuestMember(member)
+  const unproved = guest ? await perMinuteRefused(c) : await stepUpRefused(c, member)
   if (unproved) return unproved
   const { challenge, response } = await jsonBody(c)
   const started = await takeStarted(c, 'add-passkey', challenge)
   if (!started || started.memberId !== member.id) return refuse(c, STALE)
   const passkey = await registered(c, 'add-passkey', started, response)
   if (!passkey) return refuse(c, UNVERIFIED)
+  const capped = guest && (await signupRefused(c, true))
+  if (capped) return refuse(c, capped, 429)
+  const label = browserLabel(c.req.header('User-Agent') ?? '')
   try {
-    await addPasskey(c.env.DB, member.id, passkey, browserLabel(c.req.header('User-Agent') ?? ''))
+    if (guest) {
+      const recoveryCode = await keepAccount(c.env.DB, member.id, passkey, label, sessionToken(c)!)
+      if (!recoveryCode) return refuse(c, 'Your account was kept already, with another passkey. Reload to see it.', 409)
+      setSession(c, sessionToken(c)!)
+      return c.json({ passkeys: await memberPasskeys(c.env.DB, member.id), recoveryCode })
+    }
+    await addPasskey(c.env.DB, member.id, passkey, label)
   } catch (err) {
     if (!taken(err)) throw err
     return refuse(c, 'This passkey already belongs to a Crossfeed account. Add one from another device.', 409)
   }
   return c.json({ passkeys: await memberPasskeys(c.env.DB, member.id) })
 })
+
+// Why a guest member can't start keeping their account, as a sign-up's first step is refused: past their
+// address's sign-in requests a minute, or its accounts a day. Null when they can.
+async function keepingRefused(c: Context<{ Bindings: Env }>) {
+  const limited = await perMinuteRefused(c)
+  if (limited) return limited
+  const capped = await signupRefused(c, false)
+  return capped ? refuse(c, capped, 429) : null
+}
 
 // Sign-in, first step: options for any passkey the browser holds for Crossfeed, so the page asks
 // for nothing else.
