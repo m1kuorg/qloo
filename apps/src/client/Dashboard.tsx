@@ -64,9 +64,8 @@ export function DashboardPage(props: { agentPath: string; network: NetworkPage; 
 // The network's home, which answers "Which launches need me?": the header with the launches' counts
 // and New launch, the launches grouped by who's blocked, or until there's one, the empty state, and
 // beside them (under them below 1024px) a line each for the roster, the inbox and the CPM, and the
-// setup checklist. Tests render
-// it from a network agent's synced state; `state` is undefined until it arrives. At 1440 the grid is
-// 56 (rail) + 24 + 992 (table) + 24 + 320 + 24 = 1440.
+// setup checklist. Tests render it from a network agent's synced state; `state` is undefined until it
+// arrives. At 1440 the grid is 56 (rail) + 24 + 992 (table) + 24 + 320 + 24 = 1440.
 export function Dashboard({
   state,
   connection = { lost: null, reconnecting: false },
