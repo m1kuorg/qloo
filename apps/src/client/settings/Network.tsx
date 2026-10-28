@@ -40,7 +40,7 @@ export function NetworkModule({
             <KeyValue label="Name">{network.name}</KeyValue>
             <KeyValue label="CPM">
               {cpm === undefined ? 'Connecting…' : cpm === null ? 'Not set' : dollars(cpm)}{' '}
-              {sampleCpm && <Badge>sample</Badge>}
+              {sampleCpm && <Badge variant="outline">sample</Badge>}
             </KeyValue>
           </KeyValues>
           <p className="text-muted-foreground">Only an owner can change these.</p>
@@ -135,7 +135,8 @@ function NetworkForm({
             {sampleCpm && (
               <>
                 {' '}
-                <Badge>sample</Badge> An arbitrary sample figure until an owner sets the network’s own.
+                <Badge variant="outline">sample</Badge> An arbitrary sample figure until an owner sets the network’s
+                own.
               </>
             )}
           </FieldDescription>
