@@ -12,7 +12,7 @@ export type Sample = {
   network: string
   notice: string // says the figures are arbitrary and that Crossfeed isn't affiliated with the network
   launch: LaunchInput // prefilled for the visitor to start, never started for them
-  // Suggested for the run's questions, for the guide, the replay, and the warm-up; never filled in.
+  // Suggested for the run's questions, for the replay and the warm-up; never filled in.
   answers: { budget: { slots: number }; exclusions: string[] }
   cpm: boolean // whether the session's CPM is still the sample's
 }

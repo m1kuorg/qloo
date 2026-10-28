@@ -179,13 +179,12 @@ describe('opening a network', () => {
 })
 
 describe("a network's agent", () => {
-  it('opens on an empty network: no roster, CPM, inbox, or launches, no sample network, and no guide', async () => {
+  it('opens on an empty network: no roster, CPM, inbox, or launches, and no sample network', async () => {
     env.SAMPLE_NETWORK = 'on'
     const ada = await openMember()
     const network = await created(ada, 'Night Shift Audio')
     const state = (await connect(ada, network)).state()!
     expect(state).toMatchObject({ roster: [], cpm: null, inbox: null, sample: null, launches: [] })
-    expect(state.guide.dismissed).toBe(true)
     expect(requests).toEqual([])
   })
 

@@ -81,7 +81,7 @@ const words = (html: string) =>
     .trim()
 
 describe("a network's agent", () => {
-  it('refuses what only a launch or the demo does, and changes nothing', async () => {
+  it('refuses what only a launch does, and changes nothing', async () => {
     const ada = await openMember()
     const network = await created(ada)
     const agent = await connect(ada, network)
@@ -92,14 +92,7 @@ describe("a network's agent", () => {
       ['startLaunch', [{ name: 'Deep Cuts' }], launches],
       ['startLaunch', [{ comps: ['Deep Cuts'] }], launches],
       ['editInsertionOrder', ['IO-0001', []], launches],
-      ['approveInsertionOrder', ['IO-0001'], launches],
-      [
-        'clearSample',
-        [],
-        "A network's roster isn't cleared. Import your own over it; shows already on it keep their matches."
-      ],
-      ['markGuide', ['why'], 'A network has no guide.'],
-      ['dismissGuide', [], 'A network has no guide.']
+      ['approveInsertionOrder', ['IO-0001'], launches]
     ] as const)
       await expect(agent.call(method, ...args), method).rejects.toThrow(error)
     expect(agent.state()).toEqual(before)

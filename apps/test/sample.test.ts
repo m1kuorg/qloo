@@ -1,11 +1,10 @@
 import { evictAllDurableObjects } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
-import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
 import type { Evidence } from '../src/evidence'
 import sample from '../src/sample-network.json'
-import { fakeQloo, network, requests } from './fake'
+import { fakeQloo, requests } from './fake'
 import { openSession, type Session } from './session'
 
 // Made-up IDs and scores for two of the sample's public show names; every other name finds nothing.
@@ -137,27 +136,6 @@ describe('editing the sample network', () => {
     expect(s.state()).toMatchObject({ cpm: 25, sample: { cpm: false } })
   })
 
-  it('clears the sample network to an empty roster ready for an import', async () => {
-    fakeQloo({
-      search: {
-        ...search,
-        'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.9 }]
-      }
-    })
-    const s = await session()
-    await s.until(settled)
-
-    await s.call('clearSample')
-    expect(s.state()).toMatchObject({ roster: [], cpm: null, sample: null, launch: null, run: null })
-
-    const state = await s.importRoster('Night Shift Cinema')
-    expect(state.roster.map((r) => [r.name, r.resolution, r.sample])).toEqual([
-      ['Night Shift Cinema', 'resolved', undefined]
-    ])
-    await expect(s.call('clearSample')).rejects.toThrow("The roster isn't the sample network")
-    expect(s.state()?.roster).toHaveLength(1)
-  })
-
   it('replaces the sample network with an imported roster, keeping only a CPM the visitor set', async () => {
     fakeQloo({ search })
     const sampleCpm = await session()
@@ -168,25 +146,7 @@ describe('editing the sample network', () => {
     const ownCpm = await session()
     await ownCpm.until(settled)
     await ownCpm.call('setCpm', 25)
-    await ownCpm.call('clearSample')
-    expect(ownCpm.state()).toMatchObject({ roster: [], cpm: 25, sample: null })
-  })
-
-  it('refuses to clear the sample network while its shows are still being looked up', async () => {
-    fakeQloo({ search })
-    const held = Promise.withResolvers<undefined>()
-    network.use(
-      http.get(`${env.QLOO_BASE_URL}/search`, ({ request }) =>
-        new URL(request.url).searchParams.get('query') === 'The Watch' ? held.promise : undefined
-      )
-    )
-    const s = await session()
-    await s.until((st) => st.roster.filter((r) => r.resolution === 'pending').length === 1)
-
-    await expect(s.call('clearSample')).rejects.toThrow('still being looked up')
-    expect(s.state()?.roster).toHaveLength(19)
-    held.resolve(undefined)
-    await s.until(settled)
+    expect(await ownCpm.importRoster('Deep Cuts')).toMatchObject({ cpm: 25, sample: null })
   })
 })
 
