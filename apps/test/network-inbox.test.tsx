@@ -588,6 +588,30 @@ describe("the inbox page's words", () => {
     ).toMatch(new RegExp(`<a\\b[^>]*\\shref="/app/${network}/roster"[^>]*>Import the roster</a>`))
   })
 
+  it("leaves a set-aside pitch's guest and work cells empty", async () => {
+    fakeQloo({ search: {} })
+    fakeReader(1, () => ({ guest: 'G'.repeat(201), work: null }))
+    const ada = await openMember()
+    const network = await created(ada)
+    const agent = await connect(ada, network)
+
+    await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
+    const state = await loaded(agent)
+    expect(state.inbox!.pitches.map((p) => [p.status, p.guest, p.work])).toEqual([['unreadable', null, null]])
+    const [rows] = renderToStaticMarkup(
+      <InboxWorkspace
+        agent={{ state, stub: {} } as unknown as Agent}
+        links={{ roster: networkLinks(env, network).roster }}
+        network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
+      />
+    ).match(/<tbody>.*?<\/tbody>/s)!
+    expect(words(rows)).toBe(
+      "Ada Quill on Night Ferry Pat Lindqvist <pat.lindqvist@example.com> Unreadable The guest's name is over 200 characters, so the pitch is set aside."
+    )
+    // Its guest and work cells are there, with nothing in them, so the columns keep their places.
+    expect(rows).toMatch(/<\/th><td\b[^>]*><\/td><td\b[^>]*><\/td><td\b/)
+  })
+
   it('names each skipped pitch and why, apart from the ones that loaded', async () => {
     fakeQloo({ search: {} })
     fakeReader(1, () => ({ guest: 'Ada Quill', work: null }))
