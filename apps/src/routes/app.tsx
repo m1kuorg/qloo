@@ -89,7 +89,9 @@ appPages.use('/app/*', appShell)
 
 // /app opens the network the member opened last, or asks them to create their first. A guest opens the
 // guest network, since the network the guest member opened last is any guest's, and always has it to open:
-// the guest member is an owner of it again if anyone demoted or removed it, or deleted it (ADR 0008).
+// the guest member is an owner of it again if anyone demoted or removed it, or deleted it (ADR 0008). It
+// asks by the ID, not the guest mark, so a temporary guest member ADR 0006 made, left until the 12:00
+// clearing, still opens the network it opened last, as its own.
 appPages.get('/app', async (c) => {
   if (c.var.member.id === GUEST_MEMBER) {
     await restoreGuestOwner(c.env.DB)

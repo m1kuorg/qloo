@@ -23,7 +23,10 @@ export const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n.toLocale
 // The guest member's ID (ADR 0008), as migration 0009 wrote it, whom everyone who signs in as a guest is
 // signed in as, and the guest network's, as migration 0005 wrote it, which the guest member owns; here, so
 // the app's pages know them too. And when the daily cron (wrangler.jsonc) clears it, as every guest is
-// told it.
+// told it. Asking by this ID finds the guest member alone, while the guest mark (isGuestMember) also finds
+// the temporary guest members ADR 0006 made, left until the 12:00 clearing removes them: the Worker's
+// refusals and guest pages ask by the mark, and the app's pages, which know only the member's ID, and /app,
+// which opens the guest network for the guest member alone, by the ID.
 export const GUEST_MEMBER = 'guest-member'
 export const GUEST_NETWORK = 'guest-network'
 // What the ID of every network on the guest budget starts with: the guest network's, and each a guest
