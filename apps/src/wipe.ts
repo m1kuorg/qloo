@@ -65,20 +65,13 @@ const WIPES_PER_RUN = 7
 const networkToWipe = (env: Env, networkId: string) => getAgentByName(env.NetworkAgent, networkId, { props: CLEARING })
 
 // Deletes a launch the network lists: noted for the wipe first, then let go of by the network's list,
-// so its page and agent answer 404 from then on, then wiped, its open pages closing with `reason` if
-// given. A wipe that fails is logged and left for the cron, since the launch is gone from the network
-// either way, and the answer is false.
-export async function deleteLaunch(env: Env, networkId: string, launchId: string, reason?: string) {
+// so its page and agent answer 404 from then on, then wiped. A wipe that fails is logged and left for
+// the cron, since the launch is gone from the network either way.
+export async function deleteLaunch(env: Env, networkId: string, launchId: string) {
   const launch = { binding: LAUNCH, name: launchAgentName(networkId, launchId) }
   await noteWipe(env.DB, launch)
   await (await getAgentByName(env.NetworkAgent, networkId)).dropLaunch(launchId)
-  return wipe(env, launch, reason).then(
-    () => true,
-    (e) => {
-      wipeFailed(launch, e)
-      return false
-    }
-  )
+  await wipe(env, launch).catch((e) => wipeFailed(launch, e))
 }
 
 // Every instance network `networkId` has, from the launches it lists: each launch's agent, then its own,
@@ -113,16 +106,16 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
 }
 
 // The daily cron's clearing of the guest network (ADR 0006), so each day's guests start afresh, keeping
-// their sessions and the guest network's directory rows. Its agent lets go first, closing every guest's open
-// pages of it with why, and names the launches it lists; then one batch restores its name and notes a wipe
-// of each of those launches, of its agent, and of its own Qloo gateway instance; then its agent is wiped,
-// which takes the launches off its list, so their pages and agents answer 404, then its gateway instance,
-// with any key a guest added. The launches' own agents are left to the hourly retry, so the clearing's
-// subrequests stay the same however many launches it lists (#275); until then a page of one still open
-// can't start a run (NetworkAgent.rosterForLaunch). The agent's next start loads the sample network again
-// (ADR 0007). It's started, if it isn't running, to be wiped, so it loads none now (networkToWipe). Logs how
-// many launches it noted and how many wipes failed; one that failed stays noted for the next hour's retry,
-// and fails this run.
+// their sessions and the guest network's directory rows. Its agent lets go first, closing every guest's
+// open pages of it with why, and names the launches it lists; then one batch restores its name and notes
+// a wipe of each of those launches, of its agent, and of its own Qloo gateway instance; then its agent is
+// wiped, which takes the launches off its list, so their pages and agents answer 404, then its gateway
+// instance, with any key a guest added. The launches' own agents are left to the hourly retry, so the
+// clearing's subrequests stay the same however many launches it lists (#275); until then a page of one
+// still open can't start a run (NetworkAgent.rosterForLaunch). The agent's next start loads the sample
+// network again (ADR 0007). It's started, if it isn't running, to be wiped, so it loads none now
+// (networkToWipe). Logs how many launches it noted and how many wipes failed; one that failed stays noted
+// for the next hour's retry, and fails this run.
 export async function resetGuestNetwork(env: Env) {
   const launches = await letGoOfGuestNetwork(env)
   const instances = networkInstances(GUEST_NETWORK, launches)
@@ -193,12 +186,12 @@ export async function clearGuests(env: Env) {
   console.log(JSON.stringify({ event: 'guest_member_cleared', networks, left: left.length }))
 }
 
-// The hourly cron's retry of the oldest wipes noted over a minute ago and not done, at most WIPES_PER_RUN,
-// logging how many it wiped, kept, and failed: the wipes that failed, and those the daily clearing left to
-// it. A launch its network still lists, while the network is still in the directory, was never let go of,
-// as when its deletion stopped before the list let go, so it's kept and its wipe crossed off. A network's agent is wiped as wipeNetwork says. Every wipe is
-// tried, and then any that failed, or that names a binding nothing here wipes, fails the cron's run;
-// they stay noted for the next.
+// The hourly cron's retry of the oldest wipes noted over a minute ago and not done, at most
+// WIPES_PER_RUN, logging how many it wiped, kept, and failed: the wipes that failed, and those the daily
+// clearing left to it. A launch its network still lists, while the network is still in the directory, was
+// never let go of, as when its deletion stopped before the list let go, so it's kept and its wipe crossed
+// off. A network's agent is wiped as wipeNetwork says. Every wipe is tried, and then any that failed, or
+// that names a binding nothing here wipes, fails the cron's run; they stay noted for the next.
 export async function retryWipes(env: Env) {
   const done = { wiped: 0, kept: 0, failed: 0 }
   for (const instance of await wipesDue(env.DB, Date.now() - RETRY_AFTER_MS, WIPES_PER_RUN)) {
