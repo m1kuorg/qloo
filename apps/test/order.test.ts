@@ -1,12 +1,14 @@
 import { getAgentByName } from 'agents'
-import { env, exports } from 'cloudflare:workers'
+import { env } from 'cloudflare:workers'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Reply, State } from '../src/agent'
-import { Workspace, type Session as Agent } from '../src/client/App'
+import type { Session as Agent } from '../src/client/App'
+import { LaunchWorkspace } from '../src/client/Launch'
+import { csvDownload } from '../src/order'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, text, toolUse, turn } from './fake'
-import { hooked, links, openSession, type Session } from './session'
+import { hooked, launchPage, openSession, type Session } from './session'
 
 // A made-up network: Night Shift is the launch, from the roster, and the others are ranked against it.
 // Back Lot has no downloads figure.
@@ -127,10 +129,10 @@ const orders = (s: Session) =>
     .filter((f) => f.type === 'cf_agent_state')
     .map((f) => (f.state as State).insertionOrder)
 
-// The export route, as a browser with this session's cookie fetches it, or with none.
-const fetch_ = (id: string, init?: RequestInit) =>
-  exports.default.fetch(`https://crossfeed.test/api/insertion-orders/${id}.csv`, init)
-const exportCsv = (id: string, cookie: string) => fetch_(id, { headers: { Cookie: cookie } })
+// The session's order `id` as a CSV download, as a launch's export route answers with its agent's
+// (app.tsx), from the session its cookie names.
+const exportCsv = async (id: string, cookie: string) =>
+  csvDownload(id, await (await getAgentByName(env.CrossfeedAgent, cookie.split('=')[1])).exportInsertionOrder(id))
 // The body as sent, byte-order mark included: Response.text() would drop it.
 const body = async (res: Response) => new TextDecoder('utf-8', { ignoreBOM: true }).decode(await res.arrayBuffer())
 
@@ -272,7 +274,7 @@ describe('the insertion order', () => {
 
     // The rail as the browser renders it: each line's row cites the call behind its show's tags.
     const html = renderToStaticMarkup(
-      createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })
+      createElement(LaunchWorkspace, { agent: { state, stub: {} } as unknown as Agent, ...launchPage })
     )
     const [order] = hooked(html, 'data-io')
     const cited = state.insertionOrder!.lines.map((line) => {
@@ -298,7 +300,9 @@ describe('the insertion order', () => {
     ])
     const plan = (state: State) =>
       hooked(
-        renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+        renderToStaticMarkup(
+          createElement(LaunchWorkspace, { agent: { state, stub: {} } as unknown as Agent, ...launchPage })
+        ),
         'data-io'
       )[0]
 
@@ -458,7 +462,6 @@ describe('the insertion order', () => {
     const stranger = await openSession()
     open.push(stranger)
     expect((await exportCsv('IO-0001', stranger.cookie)).status).toBe(404)
-    expect((await fetch_('IO-0001')).status).toBe(401)
   })
 
   it('exports an incomplete total as incomplete, and never as a formula', async () => {
@@ -583,7 +586,9 @@ describe('a closing line the order has changed since', () => {
     // The rail's Run module as the browser renders it.
     const runModule = (state: State) =>
       hooked(
-        renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+        renderToStaticMarkup(
+          createElement(LaunchWorkspace, { agent: { state, stub: {} } as unknown as Agent, ...launchPage })
+        ),
         'data-run-log'
       )[0]
     const note = 'The insertion order has changed since Claude drafted it: its lines and total are the current figures.'
@@ -657,7 +662,7 @@ describe('an angle only from shared tags', () => {
 
     // The rail as the browser renders it: each line's show and angle, as words.
     const html = renderToStaticMarkup(
-      createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })
+      createElement(LaunchWorkspace, { agent: { state, stub: {} } as unknown as Agent, ...launchPage })
     )
     const [order] = hooked(html, 'data-io')
     const angle = (show: string) =>

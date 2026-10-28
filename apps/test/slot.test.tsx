@@ -2,9 +2,10 @@ import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
-import { Workspace, type Session as Agent } from '../src/client/App'
+import type { Session as Agent } from '../src/client/App'
+import { LaunchWorkspace } from '../src/client/Launch'
 import { fakeClaude, fakeInsights, fakeQloo, fakeTopic, text, toolUse, turn } from './fake'
-import { hooked, links, openSession, type Session } from './session'
+import { hooked, launchPage, openSession, type Session } from './session'
 
 // Made-up IDs and scores for four of the sample's public show names; every other name misses.
 const ids: Record<string, string> = {
@@ -63,7 +64,7 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 const page = (state: State) =>
-  renderToStaticMarkup(<Workspace agent={{ state, stub: {} } as unknown as Agent} links={links} />)
+  renderToStaticMarkup(<LaunchWorkspace agent={{ state, stub: {} } as unknown as Agent} {...launchPage} />)
 // A fit chart row's slot value cell, as read: the value, the downloads it's priced from, any sample label.
 const slot = (state: State, show: string) => {
   const [chart] = hooked(page(state), 'data-fit-chart')

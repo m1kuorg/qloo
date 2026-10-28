@@ -18,9 +18,8 @@ const network = () => ({
   links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink!, launches: d.launchesLink! }
 })
 // Each page's code is a chunk of its own, loaded before the island renders the page, so a page fetches
-// only what it shows; what pages share, such as React and the controls, is in shared chunks. "inbox" is
-// the demo's inbox, and any other page the demo's roster, "roster". It isn't React.lazy: its Suspense
-// holds back the page's first render by about 300 ms.
+// only what it shows; what pages share, such as React and the controls, is in shared chunks. It isn't
+// React.lazy: its Suspense holds back the page's first render by about 300 ms.
 const pages: Record<string, () => Promise<ReactNode>> = {
   'sign-in': () =>
     import('./Account').then(({ SignInPage }) => (
@@ -70,14 +69,9 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         usage={JSON.parse(d.usage!)}
         qlooKey={JSON.parse(d.qlooKey!)}
       />
-    )),
-  inbox: () =>
-    import('./DemoInbox').then(({ DemoInboxPage }) => (
-      <DemoInboxPage agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />
     ))
 }
-const demo = () => import('./App').then(({ App }) => <App agentPath={d.agentPath!} links={{ roster: d.rosterLink! }} />)
-void (pages[d.page ?? ''] ?? demo)()
+void pages[d.page!]()
   // A page whose code didn't load, as when the connection drops, says so instead of staying blank.
   .catch((err: unknown) => (
     <main className="lost">

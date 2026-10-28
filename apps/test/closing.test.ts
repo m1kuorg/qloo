@@ -2,9 +2,10 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { RunSnapshot } from '../src/agent'
-import { Workspace, type Session as Agent } from '../src/client/App'
+import type { Session as Agent } from '../src/client/App'
+import { LaunchWorkspace } from '../src/client/Launch'
 import { fakeClaude, fakeQloo, modelRequests, refusal, requests, text, turn } from './fake'
-import { hooked, links, openSession, type Session } from './session'
+import { hooked, launchPage, openSession, type Session } from './session'
 
 // A synthetic roster with one show in each state: resolved, mapped to a comp, ambiguous, missed,
 // failed, and left out.
@@ -103,7 +104,9 @@ describe("a run's closing line", () => {
 
     // The run log says why under its trace, in the run's own words, where a closing line would be.
     const [log] = hooked(
-      renderToStaticMarkup(createElement(Workspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+      renderToStaticMarkup(
+        createElement(LaunchWorkspace, { agent: { state, stub: {} } as unknown as Agent, ...launchPage })
+      ),
       'data-run-log'
     )
     const [why] = hooked(log, 'data-run-error')

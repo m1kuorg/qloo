@@ -1,12 +1,13 @@
-// A visitor session driven the way the UI drives it: load the page for a session cookie, then
-// talk to the session's agent over the same WebSocket and JSON protocol `useAgent` uses. And a
-// member, signed up the way the sign-in page does it, with the software authenticator.
+// A session of the engine driven the way the UI drives an agent: a session cookie of its own, then the
+// session's agent over the same WebSocket and JSON protocol `useAgent` uses. And a member, signed up
+// the way the sign-in page does it, with the software authenticator.
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { applyD1Migrations, reset, type D1Migration } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, beforeEach, onTestFailed } from 'vitest'
 import type { State } from '../src/agent'
 import type { Links } from '../src/client/App'
+import type { NetworkPage } from '../src/client/NetworkPage'
 import { WIPED } from '../src/gateway'
 import type { RosterFormat } from '../src/roster'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
@@ -26,8 +27,24 @@ beforeEach(() => {
 
 const origin = 'https://crossfeed.test'
 
-// The links the demo gives its island pages, for tests that render a page from a session's state.
-export const links: Links = { roster: '/demo' }
+// A launch's page as the server describes it to the island, for tests that render a launch's workspace
+// from an engine session's synced state: its network, and where its approved orders export. And the
+// links a network's inbox page gets.
+export const launchPage: { network: NetworkPage; orders: string } = {
+  network: {
+    id: 'n-1',
+    name: 'Night Shift Audio',
+    role: 'owner',
+    links: {
+      roster: '/app/n-1/roster',
+      inbox: '/app/n-1/inbox',
+      settings: '/app/n-1/settings',
+      launches: '/app/n-1/launches'
+    }
+  },
+  orders: '/app/n-1/launches/l-1/insertion-orders'
+}
+export const links: Links = { roster: launchPage.network.links.roster }
 
 // The name of each region a screen reader lists on a rendered page: its label, or its heading's
 // words. The shell's top bar is the page's one banner, so a page renders no <header> of its own.
@@ -86,15 +103,11 @@ export type Session = {
   closed: () => Promise<{ code: number; reason: string }>
 }
 
-// Opens a session. Without a cookie it loads `/demo` first, like a new browser would. `ip` is the
-// visitor's address, as Cloudflare's edge sends it in CF-Connecting-IP; without it there's none.
-export async function openSession(cookie?: string, ip?: string): Promise<Session> {
-  if (!cookie) {
-    const page = await exports.default.fetch(`${origin}/demo`)
-    if (page.status !== 200) throw new Error(`GET /demo returned ${page.status}`)
-    cookie = page.headers.get('set-cookie')?.split(';')[0]
-    if (!cookie) throw new Error('GET /demo set no session cookie')
-  }
+// Opens a session of the engine, CrossfeedAgent, at /agents/session, the route tests alone reach
+// (routes/demo.ts). Without a cookie it makes a new one, a random UUID, as the retired demo gave each
+// new browser. `ip` is the visitor's address, as Cloudflare's edge sends it in CF-Connecting-IP; without
+// it there's none.
+export async function openSession(cookie = `crossfeed_session=${crypto.randomUUID()}`, ip?: string): Promise<Session> {
   return { cookie, ...(await connect('/agents/session', { Cookie: cookie, ...(ip && { 'CF-Connecting-IP': ip }) })) }
 }
 

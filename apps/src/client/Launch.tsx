@@ -30,14 +30,14 @@ export function LaunchPage({
   )
 }
 
-// The demo's launch workspace for one of the network's launches: its runs, chart, questions, and order,
-// ranked against the network's roster, which this page shows read-only and links to. Tests render it
-// from a launch agent's synced state.
+// The launch workspace for one of the network's launches: its runs, chart, questions, and order, ranked
+// against the network's roster, which this page shows read-only and links to. Tests render it from a
+// launch agent's synced state.
 export function LaunchWorkspace({ agent, network, orders }: { agent: Session; network: NetworkPage; orders: string }) {
   return (
     <>
       <LaunchCrumb launch={agent.state?.launch ?? null} />
-      <Workspace agent={agent} links={{ roster: network.links.roster, orders }} network={network} />
+      <Workspace agent={agent} network={network} orders={orders} />
     </>
   )
 }

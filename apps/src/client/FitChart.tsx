@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupSegment } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
-import type { GuideMark, Launch, Show } from '../agent'
+import type { Launch, Show } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
 import { FINALISTS, type FitRow, type Ranking } from '../fit'
 import { dollars, slotPrice } from '../order'
@@ -67,7 +67,6 @@ export function FitChart({
   running,
   openCall,
   opened,
-  markSeen,
   roster,
   cpm,
   sampleCpm
@@ -81,7 +80,6 @@ export function FitChart({
   running: boolean
   openCall: (call: string) => void
   opened: string | null
-  markSeen: (mark: GuideMark) => void // tells the guide its step was done
   roster: Show[] // for each show's downloads and its sample labels
   cpm: number | null
   sampleCpm: boolean // the CPM is still the sample network's
@@ -278,17 +276,8 @@ export function FitChart({
                   ranking.anchors.length > 1 &&
                     (r.leadingComp ? `Led by ${r.leadingComp.name}` : 'Comps contributed evenly')
                 ].filter(Boolean)
-                // `cited`: the "Why it moved" row cites it, which is a step of the guide.
-                const callButton = (call: string, label: string, cited = false) => (
-                  <CallButton
-                    call={call}
-                    label={label}
-                    opened={opened}
-                    openCall={(c) => {
-                      openCall(c)
-                      if (cited) markSeen('evidence')
-                    }}
-                  />
+                const callButton = (call: string, label: string) => (
+                  <CallButton call={call} label={label} opened={opened} openCall={openCall} />
                 )
                 const tint = r.finalist ? 'bg-signal-tint' : 'bg-background'
                 return (
@@ -348,10 +337,7 @@ export function FitChart({
                               className="group/why inline-block cursor-pointer text-left text-[15px] leading-snug font-semibold underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11"
                               aria-expanded={open}
                               aria-controls={`why-${r.rank}`}
-                              onClick={() => {
-                                setWhy(open ? null : r.show)
-                                if (!open) markSeen('why')
-                              }}
+                              onClick={() => setWhy(open ? null : r.show)}
                             >
                               {r.show.includes(' ') && `${r.show.slice(0, r.show.lastIndexOf(' '))} `}
                               <span className="whitespace-nowrap">
@@ -427,13 +413,13 @@ export function FitChart({
                           </p>
                           <p>
                             <Source of="qloo" /> Listener overlap with {anchors} ranks it{'\u00a0'}
-                            {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}’s fit`, true)}
+                            {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}’s fit`)}
                           </p>
                           {r.leadingComp && <p>Led by {r.leadingComp.name}.</p>}
                           {shared && !shared.error && shared.tags.length > 0 && (
                             <p>
                               Shared tags: {listOf(shared.tags)}.{' '}
-                              {callButton(shared.call, `Evidence for the tags ${r.show} shares`, true)}
+                              {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
                             </p>
                           )}
                         </div>
