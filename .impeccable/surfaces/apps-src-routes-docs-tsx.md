@@ -24,7 +24,7 @@ OWN-WORLD: The marketing shell's world: ink on the cool grey ground, the wordmar
 
 STORY: The reader lands on the overview, sees the four ways in and what a program can't do (approve), goes to the reference for their way in, finds the route or tool, and reads its entry; "Next" carries them through the five pages.
 
-FIRST VIEWPORT: The marketing header (the mark and wordmark; Sample network, Developers, and while accounts are on Sign in and Create your network). From 1024px the 220px nav at the left (the five pages, the current one on the tone step, then the spec list) beside the article: its h1 at display size ("Developer docs" on the overview), a one-paragraph lede, its first section 64px below at title size; from 1440px "On this page" at the right. Under 1024px the nav is a disclosure on the tone step above the article.
+FIRST VIEWPORT: The marketing header (the mark and wordmark; Developers, and while accounts are on Sign in and Create your network). From 1024px the 220px nav at the left (the five pages, the current one on the tone step, then the spec list) beside the article: its h1 at display size ("Developer docs" on the overview), a one-paragraph lede, its first section 64px below at title size; from 1440px "On this page" at the right. Under 1024px the nav is a disclosure on the tone step above the article.
 
 FORM: the redesign brief's reading layout for the docs on the marketing shell, under design-taste-frontend's page rules and the landing direction "Type and nothing else" it shares the shell with, in the redesign's one family and palette; the design-taste skill dealt no direction of its own for the docs, and no impeccable roll ran. seed: none (unavailable)
 
