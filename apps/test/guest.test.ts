@@ -902,7 +902,7 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       // The header counts the pitches settled so far, and the readout how many works are looked up, so
       // neither says the other's count; the table says they came already read.
       expect(looking).toMatch(
-        /^Inbox 40 pitches for The Big Picture · 4 set aside Load pitches Looking up · 0 of 36 works looked up /
+        /^Inbox 40 pitches for The Big Picture · 4 set aside Details Load pitches Looking up · 0 of 36 works looked up Run log /
       )
       expect(looking).toContain('sample Guest and work as the sample gives them for each pitch.')
       expect(looking).toContain('Rank them once every work is looked up.')
@@ -920,7 +920,7 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
 
       held.resolve()
       expect(page(await network.until(loaded))).toMatch(
-        /^Inbox 40 pitches for The Big Picture · 36 matched, 4 set aside Load pitches Read Rank against /
+        /^Inbox 40 pitches for The Big Picture · 36 matched, 4 set aside Details Load pitches Read Run log Rank against /
       )
     })
 

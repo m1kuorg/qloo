@@ -49,7 +49,7 @@ import {
   useLeaveGuard
 } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
-import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
+import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
 import { FormSheet, PageEmpty, PageHeader, summaryLine, useFormSheet } from './PageHeader'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
@@ -153,8 +153,9 @@ export function InboxWorkspace({ agent, links, network }: { agent: Session; link
 // reply. It's a loop, so every section stays on the canvas once it has something to show, in the
 // order the loop asks: the header and its readout, the run's question, the show to rank against, the
 // ranked lists, the replies, then the pitches; with no pitches, the empty state instead. Load pitches,
-// in the header or the empty state, opens the form in a sheet. The inspector holds the run and the
-// earlier pitch runs, a call's evidence, and the pitch opened from a list or the table. An earlier
+// in the header or the empty state, opens the form in a sheet. The inspector, closed until something
+// opens it, holds the run and the earlier pitch runs, a call's evidence, and the pitch opened from a
+// list or the table; the header's Details opens it while there are pitches. An earlier
 // pitch run, viewed from Runs, shows read-only as it ended: its lists, replies and pitches, with
 // nothing to start, load, confirm or change.
 export function InboxPage({
@@ -183,8 +184,9 @@ export function InboxPage({
   }
   const close = (id: string) => {
     setSelected(null)
-    // The sheet was opened for the pitch, and would cover what focus returns to.
-    inspector.setSheet(false)
+    // The inspector was opened for the pitch, so it closes with it, and as a sheet would cover what
+    // focus returns to.
+    inspector.setOpen(false)
     // A settled match's "Confirm the match" is gone by then; the pitch's row is still there.
     const back = opener.current?.isConnected ? opener.current : document.getElementById(`open-${id}`)
     back?.focus()
@@ -219,19 +221,22 @@ export function InboxPage({
               : inbox && inboxSummary(inbox, booking?.show.name ?? inbox.show?.name ?? null)
           }
           actions={
-            viewing ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  void history?.view(null)
-                  heading.current?.focus()
-                }}
-              >
-                Back to the latest run
-              </Button>
-            ) : (
-              loading.button('secondary')
-            )
+            <>
+              <InspectorToggle inspector={inspector} />
+              {viewing ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    void history?.view(null)
+                    heading.current?.focus()
+                  }}
+                >
+                  Back to the latest run
+                </Button>
+              ) : (
+                loading.button('secondary')
+              )}
+            </>
           }
         />
         <InboxReadout
@@ -239,7 +244,7 @@ export function InboxPage({
           pitchRun={pitchRun}
           startedAt={startedAt}
           slowCalls={slowCalls}
-          runLog={inspector.wide ? null : () => inspector.inspect('run')}
+          runLog={() => inspector.inspect('run')}
         />
         {/* Before the lists, so the question is what a person reaches first. */}
         {question}
@@ -408,7 +413,7 @@ function InboxReadout({
   pitchRun: Run | null
   startedAt: string | null
   slowCalls: SlowCall[]
-  runLog: (() => void) | null // opens the inspector's Run tab, where it's a sheet
+  runLog: () => void // opens the inspector on its Run tab
 }) {
   if (!inbox && !pitchRun) return null
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0

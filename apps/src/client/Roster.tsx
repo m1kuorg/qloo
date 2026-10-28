@@ -1,10 +1,9 @@
-import { cn } from 'cn'
 import { useRef, useState } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TabsContent } from '@/components/ui/tabs'
 import type { Show } from '../agent'
 import { EvidencePanel, useEvidence } from './Evidence'
-import { canvas, frame, Inspector, useInspector } from './Frame'
+import { canvas, frame, Inspector, InspectorToggle, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
 import { FormSheet, PageEmpty, PageHeader, useFormSheet } from './PageHeader'
 import { RosterFailures, RosterImport, rosterSummary, RosterTable, ShowEditor } from './RosterModules'
@@ -20,14 +19,12 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
   )
 }
 
-// A page without the inspector beside it takes its gutter on both sides.
-const alone = cn(canvas, 'min-[85rem]:pr-6')
-
 // The roster every launch on the network ranks, kept by its agent, which answers "Is my roster ready
-// to rank?": the header with the roster's counts and Import shows, the shows Qloo failed on, and the
-// roster table, whose caption says whether it's ready to rank, and whose shows open in the inspector's
-// Show tab beside it (a sheet under 1360px) and whose calls open in its Evidence tab. An empty roster has the empty state
-// instead, with Import shows; either opens the import in a sheet. Every member's edits reach the
+// to rank?": the header with the roster's counts, the inspector's toggle and Import shows, the shows
+// Qloo failed on, and the roster table, whose caption says whether it's ready to rank, and whose shows
+// open in the inspector's Show tab beside it (a sheet under 1360px), closed until then, and whose calls
+// open in its Evidence tab. An empty roster has the empty state instead, with Import shows and no
+// inspector; either opens the import in a sheet. Every member's edits reach the
 // others through synced state. Tests render it from a network agent's synced state.
 export function NetworkRoster({
   agent,
@@ -52,13 +49,18 @@ export function NetworkRoster({
       connection={state ? connection : null}
       empty={roster.length === 0}
       summary={rosterSummary(roster)}
-      actions={importing.button()}
+      actions={
+        <>
+          <InspectorToggle inspector={inspector} />
+          {importing.button()}
+        </>
+      }
     />
   )
 
   if (!state)
     return (
-      <main className={alone} aria-busy="true">
+      <main className={canvas} aria-busy="true">
         {head}
         <div className="flex flex-col gap-3">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -71,7 +73,7 @@ export function NetworkRoster({
   return (
     <>
       {roster.length === 0 ? (
-        <main className={alone}>
+        <main className={canvas}>
           {head}
           <PageEmpty action={importing.button()}>No shows yet.</PageEmpty>
         </main>
@@ -102,7 +104,11 @@ export function NetworkRoster({
                   key={show.name}
                   show={show}
                   agent={agent}
-                  close={() => setSelected(null)}
+                  // The inspector was opened for the show, so it closes with it.
+                  close={() => {
+                    setSelected(null)
+                    inspector.close()
+                  }}
                   openCall={inspector.showCall}
                   opened={evidence.opened?.call ?? null}
                 />

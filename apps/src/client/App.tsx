@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -10,7 +10,7 @@ import { inProgress } from '../limits'
 import { Alert, percentile, useAction } from './controls'
 import { CallButton, EvidencePanel, useEvidence } from './Evidence'
 import { FitChart } from './FitChart'
-import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
+import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import { InsertionOrderPanel } from './InsertionOrder'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import type { NetworkPage } from './NetworkPage'
@@ -30,8 +30,8 @@ export type Links = { roster: string }
 // synced state. It ranks the network's roster, read-only here, and its approved insertion orders
 // export under `orders`, as `<orders>/<id>.csv`. The canvas reads in the order a run asks for
 // attention: the launch and its readout, the launch form, the agent's question, then the fit chart, the
-// plan and the roster. The inspector beside it holds what a person checks: the run's trace and a call's
-// evidence.
+// plan and the roster. The inspector beside it, closed until something opens it, holds what a person
+// checks: the run's trace and a call's evidence.
 export function Workspace({ agent, network, orders }: { agent: Session; network: NetworkPage; orders: string }) {
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
@@ -157,7 +157,8 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
           openCall={showCall}
           opened={opened?.call ?? null}
           connection={connection}
-          runLog={inspector.wide ? null : () => inspect('run')}
+          details={<InspectorToggle inspector={inspector} />}
+          runLog={() => inspect('run')}
         />
         {/* Before the chart, so the question is what a person reaches first. */}
         {run?.status === 'waiting' && run.question && (
@@ -228,9 +229,9 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
 }
 
 // The head of the canvas: the title row, the on-air readout, and the launch form. The title row names
-// the launch, with its Qloo match and comps, and holds the run's actions: Start run for the form, or
-// once a run has ended, Run again and Change launch, which opens the form; Back to the latest run while
-// an earlier one is viewed; and Review the plan once there's one. The form keeps the launch's name or
+// the launch, with its Qloo match and comps, and holds the inspector's toggle and the run's actions:
+// Start run for the form, or once a run has ended, Run again and Change launch, which opens the form;
+// Back to the latest run while an earlier one is viewed; and Review the plan once there's one. The form keeps the launch's name or
 // comps, to run again as they are or changed: from a released launch's name, or from up to three comps
 // for an unreleased one.
 function LaunchHead({
@@ -248,6 +249,7 @@ function LaunchHead({
   openCall,
   opened,
   connection,
+  details,
   runLog
 }: {
   sample: string | null // the guest network's sample launch, by name, badged while the form names it
@@ -264,7 +266,8 @@ function LaunchHead({
   openCall: (call: string) => void
   opened: string | null
   connection: Connection
-  runLog: (() => void) | null // opens the inspector's Run tab, where it's a sheet
+  details: ReactNode // the inspector's toggle
+  runLog: () => void // opens the inspector on its Run tab
 }) {
   const form = useLaunchFields(launch ? { name: launch.name, comps: launch.comps.map((c) => c.name) } : null)
   const action = useAction()
@@ -323,6 +326,7 @@ function LaunchHead({
         </div>
         {/* On a phone the primary leads, on a line of its own, and the rest share the line under it. */}
         <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
+          {details}
           {order && (
             <a href="#plan" className={buttonVariants({ variant: 'ghost' })}>
               Review the plan

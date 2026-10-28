@@ -438,6 +438,10 @@ describe("the roster page's words", () => {
   const markup = (state: State | undefined) =>
     renderToStaticMarkup(<NetworkRoster agent={{ state, stub: {} } as unknown as NetworkConnection} />)
   const page = (state: State | undefined) => words(markup(state))
+  // The inspector closed, its panels there for what opens it, and the header's toggle saying so.
+  const inspectorClosed = /<aside\b(?=[^>]*\sid="inspector")(?=[^>]*\shidden="")/
+  const detailsToggle =
+    /<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="inspector")[^>]*>Details<\/button>/
   // The inspector's Show tab for one of the roster's shows, as selecting its row opens it.
   const editor = (state: State, name: string) =>
     words(
@@ -548,11 +552,15 @@ describe("the roster page's words", () => {
     const watch = editor(state, 'The Watch')
     expect(watch).toContain('Sample: Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
     expect(watch).toContain('Downloads per episode sample Status sample Save')
-    // The header: the title, its counts, and the import, in a sheet; then the table, whose caption, which
-    // describes it, starts with whether it's ready to rank. No notice, explanation, or CPM is above it.
+    // The header: the title, its counts, the inspector's toggle, and the import, in a sheet; then the
+    // table, whose caption, which describes it, starts with whether it's ready to rank. No notice,
+    // explanation, or CPM is above it.
     expect(read).toMatch(
-      /^Roster 19 shows · 19 missed Import shows 19 shows aren’t scored until you settle or leave them out\. Qloo data Matches from Qloo search, one call per show\. /
+      /^Roster 19 shows · 19 missed Details Import shows 19 shows aren’t scored until you settle or leave them out\. Qloo data Matches from Qloo search, one call per show\. /
     )
+    // The inspector is closed as the page opens, so the table takes the width; Details opens it.
+    expect(markup(state)).toMatch(inspectorClosed)
+    expect(markup(state)).toMatch(detailsToggle)
     expect(markup(state)).toMatch(
       /\sid="roster-cap"[^>]*>(<[^>]+>)*19 shows aren’t scored until you settle or leave them out\./
     )
