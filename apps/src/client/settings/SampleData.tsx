@@ -53,8 +53,8 @@ export function SampleDataModule({
             </Button>
           </div>
           <p className="text-muted-foreground">
-            Resetting closes every guest’s open pages of the guest network. The sample data resets at most once a
-            minute, for everyone.
+            Resetting closes every guest’s open pages of the guest network. Every guest shares a few resets a day, and
+            after one, the next may wait up to an hour.
           </p>
           {dialog}
         </>
