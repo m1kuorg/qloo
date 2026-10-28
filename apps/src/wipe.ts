@@ -1,9 +1,10 @@
 // Wiping agents once the directory or their network has let go of them: a launch's, when it's deleted,
 // and a network's with all of its launches' and its own Qloo gateway instance, when the network is; the
-// guest network's launches', its own, and its gateway instance, when the daily cron clears it; the
-// networks only the guest member, or only temporary guest members, own, as the daily cron clears what
-// guests made; a deleted member's name from their networks' launches; and the hourly cron's retry of a wipe
-// that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
+// guest network's launches', its own, and its gateway instance, when the daily cron clears it and when an
+// owner resets its sample data from its settings; the networks only the guest member, or only temporary
+// guest members, own, as the daily cron clears what guests made; a deleted member's name from their
+// networks' launches; and the hourly cron's retry of a wipe that failed. The directory notes each wipe
+// before it starts and crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
 import {
   clearGuestMember,
@@ -121,7 +122,7 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
 // more work, saying the guest network was cleared, as its wipe was noted (LaunchAgent.gone). The agent's
 // next start loads the sample network again (ADR 0007). It's started, if it isn't running, to be wiped,
 // so it loads none now (networkToWipe). Logs how many launches it noted and how many wipes failed; one
-// that failed stays noted for the next hour's retry, and fails this run. A guest's reset of the sample
+// that failed stays noted for the next hour's retry, and fails this run. An owner's reset of the sample
 // data, from the guest network's settings, clears it the same way, telling its pages `reason`.
 export async function resetGuestNetwork(env: Env, reason = GUEST_NETWORK_RESET) {
   const launches = await letGoOfGuestNetwork(env, reason)
@@ -141,7 +142,7 @@ export async function resetGuestNetwork(env: Env, reason = GUEST_NETWORK_RESET) 
 }
 
 // What clearing the guest network throws once every wipe is noted and some failed, which the hourly retry
-// makes, so a guest's reset can say it may take a moment to finish rather than that it failed.
+// makes, so a reset of the sample data can say it's still finishing rather than that it failed.
 export class WipesFailed extends Error {}
 
 // Has the guest network's agent let go (NetworkAgent.letGo), and returns the launches it lists, once any
