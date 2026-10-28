@@ -4,5 +4,5 @@ Crossfeed's Qloo key is a personal hackathon key: it works only on the hackathon
 
 ## Consequences
 
-- When the hackathon key is switched off, networks without a key of their own can't run Qloo; the sample network replays its stored run.
+- When the hackathon key is switched off, networks without a key of their own can't run Qloo; the guest network's sample launch, while its roster and launch are still the sample's, replays its stored run ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)), as the retired demo's sample network did.
 - Selling Crossfeed, or opening it beyond the beta, needs a commercial Qloo agreement or each network's own key.
