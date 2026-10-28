@@ -272,7 +272,8 @@ export function RosterTable({
           : 'Open a call for its evidence.'}
       </p>
       <ScrollTable label="Roster table" className="-mx-2 max-w-none">
-        <table className="w-full min-w-[42rem] border-separate border-spacing-0" aria-describedby="roster-cap">
+        {/* Positioned, so the visually hidden "sample" scrolls and clips with the table, not the page. */}
+        <table className="relative w-full min-w-[42rem] border-separate border-spacing-0" aria-describedby="roster-cap">
           <thead className="type-caption text-muted-foreground">
             <tr>
               <th scope="col" className={cn(head, held)}>
