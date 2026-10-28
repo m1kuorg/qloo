@@ -16,7 +16,7 @@ import {
   segmentedItemVariants,
   segmentedTrackVariants
 } from '../components/ui/variants'
-import { SESSION_MS } from '../directory'
+import { GUEST_SESSION_MS, SESSION_MS } from '../directory'
 import { bandMeter, FINALISTS, type Band } from '../fit'
 import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
@@ -1061,7 +1061,7 @@ marketing.get(
 )
 
 // The day the privacy page and the beta terms last changed.
-const UPDATED = '27 October 2026'
+const UPDATED = '28 October 2026'
 
 // The reading pages' grid: a heading in the narrow column, its text in the wide one.
 const ledger = 'grid items-baseline gap-x-10 gap-y-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
@@ -1180,15 +1180,17 @@ function Privacy({ accounts }: { accounts: boolean }) {
         <ul class="flex list-none flex-col gap-4 pl-0 [&>li]:mt-0 [&>li]:flex [&>li]:flex-col [&>li]:gap-4">
           <li>
             <p>
-              <b>In your browser:</b> one cookie, <code>crossfeed_session</code>, a random ID that names your session.
-              It’s HttpOnly and lasts {SESSION_MS / 86_400_000} days. There are no analytics, ads, or third-party
-              scripts.
-            </p>
-          </li>
-          <li>
-            <p>
-              <b>In your session:</b> the roster and your edits, launches, every run with its conversation with Claude,
-              insertion orders, the pitches you load, draft replies, and the evidence record of every Qloo call.
+              <b>In your browser:</b>{' '}
+              {accounts ? (
+                <>
+                  one cookie, <code>__Host-crossfeed_member</code>, which holds your session’s token and is sent only to
+                  Crossfeed, over HTTPS. It’s HttpOnly and lasts {days(SESSION_MS)}, renewed while you use Crossfeed, or{' '}
+                  {days(GUEST_SESSION_MS)} for a guest.
+                </>
+              ) : (
+                'no cookie.'
+              )}{' '}
+              There are no analytics, ads, or third-party scripts.
             </p>
           </li>
           {accounts && (
@@ -1233,20 +1235,20 @@ function Privacy({ accounts }: { accounts: boolean }) {
               attachments or other headers. The files themselves aren’t kept.
             </p>
           </li>
-          <li>
-            <p>
-              <b>Shared by every session:</b> Qloo’s responses with the requests they answered, cached with no expiry in
-              one cache that every visitor{accounts && <> and every network without its own Qloo key</>} shares. A call
-              someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show
-              that another visitor{accounts && <> or network</>} looked up the same name; nothing else of theirs is
-              shown, and the cache is never published.
-            </p>
-            <p>
-              Also shared: the sample launch’s stored run, which replays when Qloo can’t be called; and each visitor’s
-              {accounts && <> and each network’s</>} counts for the day against the limits in the{' '}
-              <a href="/terms">beta terms</a>.
-            </p>
-          </li>
+          {accounts && (
+            <li>
+              <p>
+                <b>Shared by every network:</b> Qloo’s responses with the requests they answered, cached with no expiry
+                in one cache that every network without its own Qloo key shares. A call another network made first is
+                answered from it, and its evidence says the cache was hit, so a hit can show that another network looked
+                up the same name; nothing else of theirs is shown, and the cache is never published.
+              </p>
+              <p>
+                Also shared: the sample launch’s stored run, which the guest network’s replays when Qloo can’t be
+                called; and each network’s counts for the day against the limits in the <a href="/terms">beta terms</a>.
+              </p>
+            </li>
+          )}
           <li>
             <p>
               <b>In the logs:</b> one line per Qloo call and per model call, with its timing and counts, and one per
@@ -1274,10 +1276,9 @@ function Privacy({ accounts }: { accounts: boolean }) {
 
       <Part id="deletion" title="How deletion works">
         <p>
-          Crossfeed can’t delete a session yet, and doesn’t delete old sessions on a schedule. When the cookie expires
-          or you clear it, your next visit starts a new session, and no browser can reach the old one again, but its
-          storage stays. So load nothing into the sample network that you’d want deleted later. Earlier days’ counts are
-          deleted; cached Qloo responses are kept, and never published.
+          Earlier days’ counts are deleted; cached Qloo responses are kept, and never published. The standalone demo,
+          retired on 28 October 2026, kept each visitor’s session in storage of its own: no browser can reach those
+          sessions now, but their storage stays.
         </p>
         {accounts && (
           <>
@@ -1304,6 +1305,11 @@ function Privacy({ accounts }: { accounts: boolean }) {
               It’s refused while you’re a network’s only owner.
             </p>
             <p>&ldquo;Sign out everywhere&rdquo; deletes every session of yours.</p>
+            <p>
+              A guest account that no passkey keeps is removed a day after its sign-in, at the next hourly cleanup, with
+              the networks only it owns, wiped as a deleted network is; the API keys and invite links it made are
+              revoked.
+            </p>
           </>
         )}
       </Part>
@@ -1320,6 +1326,9 @@ function Privacy({ accounts }: { accounts: boolean }) {
     </Doc>
   )
 }
+
+// A session's lifetime in days, as the privacy page says it: "a day", "30 days".
+const days = (ms: number) => (ms === 86_400_000 ? 'a day' : `${ms / 86_400_000} days`)
 
 // A daily limit from wrangler.jsonc, formatted; a value that isn't a number shows as 0.
 export const cap = (value: string) => (Number(value) || 0).toLocaleString('en-US')
@@ -1451,7 +1460,9 @@ function Terms({ env }: { env: Env }) {
             load pitches, rosters, or anything else you aren’t allowed to share with Crossfeed, Qloo, and Anthropic;
           </li>
           <li>use its rankings to judge, profile, or decide anything about an individual person;</li>
-          <li>try to get around the limits, reach another visitor’s session, or overload the service;</li>
+          <li>
+            try to get around the limits, reach a network or an account that isn’t yours, or overload the service;
+          </li>
           <li>copy, scrape, or republish the Qloo data it shows you.</li>
         </ul>
       </Part>
