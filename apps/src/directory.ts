@@ -877,27 +877,36 @@ export async function clearGuestNetwork(db: D1Database, instances: Instance[]) {
 const SAMPLE_RESET_MS = 60_000
 
 // Takes a reset of the guest network's sample data, for everyone, in the statement that notes it
-// (migration 0012), only while none was taken in the last minute and fewer than `perDay` were taken in the
-// UTC day, so two at once leave one refused, the last of the day's included. 'taken' once it's taken;
-// otherwise which limit refused it, the day's before the minute's, with how long until the minute's
-// lets the next start, in ms, and nothing was written.
+// (migration 0012), only while none was taken in the last minute, fewer than `perDay` were in the UTC day,
+// and no more than `wipes.most` wipes of `wipes.binding`'s instances named from `wipes.prefix` wait, so two
+// at once leave one refused, the day's last included. 'taken' once it's taken; otherwise which limit
+// refused it, the one that holds longest first: the day's, the wipes', then the minute's, with how long
+// until it lets the next start, in ms. Nothing was written.
 export async function takeSampleReset(
   db: D1Database,
-  perDay: number
-): Promise<'taken' | { spent: 'day' } | { spent: 'minute'; waitMs: number }> {
+  perDay: number,
+  wipes: { binding: string; prefix: string; most: number }
+): Promise<'taken' | { spent: 'day' } | { spent: 'wipes' } | { spent: 'minute'; waitMs: number }> {
   const now = Date.now()
   const day = utcDayStart(now)
+  const waiting = (n: number) =>
+    `(SELECT count(*) FROM wipes WHERE binding = ?${n} AND substr(name, 1, ?${n + 1}) = ?${n + 2})`
   const [taken, last] = await db.batch([
     db
       .prepare(
-        'INSERT INTO sample_resets (id, at, day, count) SELECT 1, ?1, ?2, 1 WHERE ?4 > 0 ON CONFLICT (id) DO UPDATE SET at = excluded.at, day = excluded.day, count = CASE WHEN sample_resets.day = excluded.day THEN sample_resets.count + 1 ELSE 1 END WHERE sample_resets.at <= ?1 - ?3 AND (sample_resets.day <> excluded.day OR sample_resets.count < ?4)'
+        `INSERT INTO sample_resets (id, at, day, count) SELECT 1, ?1, ?2, 1 WHERE ?4 > 0 AND ${waiting(5)} <= ?8 ON CONFLICT (id) DO UPDATE SET at = excluded.at, day = excluded.day, count = CASE WHEN sample_resets.day = excluded.day THEN sample_resets.count + 1 ELSE 1 END WHERE sample_resets.at <= ?1 - ?3 AND (sample_resets.day <> excluded.day OR sample_resets.count < ?4)`
       )
-      .bind(now, day, SAMPLE_RESET_MS, perDay),
-    db.prepare('SELECT at, day, count FROM sample_resets')
+      .bind(now, day, SAMPLE_RESET_MS, perDay, wipes.binding, wipes.prefix.length, wipes.prefix, wipes.most),
+    db
+      .prepare(
+        `SELECT r.at, r.day, r.count, ${waiting(1)} AS waiting FROM (SELECT 1) LEFT JOIN sample_resets r ON true`
+      )
+      .bind(wipes.binding, wipes.prefix.length, wipes.prefix)
   ])
   if (taken.meta.changes > 0) return 'taken'
-  const row = last.results[0] as { at: number; day: number; count: number } | undefined
-  if (!row || (row.day === day && row.count >= perDay)) return { spent: 'day' }
+  const row = last.results[0] as { at: number; day: number | null; count: number; waiting: number }
+  if (perDay <= 0 || (row.day === day && row.count >= perDay)) return { spent: 'day' }
+  if (row.waiting > wipes.most) return { spent: 'wipes' }
   return { spent: 'minute', waitMs: row.at + SAMPLE_RESET_MS - now }
 }
 
@@ -937,15 +946,6 @@ export async function wipesDue(db: D1Database, before: number, limit: number) {
     .bind(before, limit)
     .all<Instance>()
   return results
-}
-
-// How many wipes of `binding`'s instances whose names start with `prefix` are still noted, due or not.
-export async function wipesWaiting(db: D1Database, binding: string, prefix: string) {
-  const n = await db
-    .prepare('SELECT count(*) AS n FROM wipes WHERE binding = ?1 AND substr(name, 1, ?2) = ?3')
-    .bind(binding, prefix.length, prefix)
-    .first<number>('n')
-  return n ?? 0
 }
 
 // What the hourly cron clears: sessions, challenges, and invites that have expired, and the logs of guest

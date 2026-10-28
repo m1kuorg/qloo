@@ -69,7 +69,7 @@ import {
   deleteAccount,
   deleteLaunch,
   deleteNetwork,
-  guestLaunchWipesBehind,
+  GUEST_LAUNCH_WIPES,
   nextRetry,
   resetGuestNetwork,
   WipesFailed
@@ -582,12 +582,14 @@ appPages.post('/app/:networkId/settings/delete', async (c) => {
 // The settings' sample data module, in the guest network alone, where the sample lives (ADR 0007), for its
 // owners, as every guest is (ADR 0008): resets the guest network to the sample data now, for every guest,
 // as the daily clearing does (resetGuestNetwork in wipe.ts), its open pages told it was reset. It's refused
-// with a 429 saying why, and Retry-After, closing nothing: while the guest budget has fewer Qloo calls left
-// today than the sample's next load reserves, while more of the guest network's launches wait for the
-// hourly retry's wipe than a run wipes, and past one reset a minute and SAMPLE_RESETS_PER_DAY a UTC day
-// for everyone, from any guest or address (takeSampleReset). A wipe that fails is left to the hourly
-// retry, as the clearing leaves it, and the answer is a 202, `{ pending: true }`. Any other network has no
-// sample data, so it's the same 404 as a page that doesn't exist.
+// with a 429 saying why, and Retry-After, closing nothing, for everyone, from any guest or address, by the
+// limit that holds it longest: until 00:00 UTC while the guest budget has fewer Qloo calls left today than
+// the sample's next load reserves, or past SAMPLE_RESETS_PER_DAY resets a UTC day; until the hourly retry
+// next runs while more of the guest network's launches wait for its wipe than a run wipes; and inside a
+// minute of the last reset. The last three are counted in the statement that takes it (takeSampleReset).
+// A wipe that fails is left to the hourly retry, as the clearing leaves it, and the answer is a 202,
+// `{ pending: true }`. Any other network has no sample data, so it's the same 404 as a page that doesn't
+// exist.
 const SAMPLE_DATA_OWNERS_ONLY = 'Only an owner can reset the sample data.'
 // What the dashboard says once a reset whose wipe failed opens it (`{ pending: true }`).
 const RESET_PENDING =
@@ -612,21 +614,21 @@ appPages.post('/app/:networkId/settings/sample-data/reset', async (c) => {
       `Loading the sample data again takes ${lookups} Qloo calls, and the guest network has ${Math.max(0, qlooCalls.limit - qlooCalls.used)} left today. Try again after 00:00 UTC, when they reset.`,
       tomorrow()
     )
-  if (await guestLaunchWipesBehind(c.env)) {
-    const retry = nextRetry(Date.now())
-    return tooMany(
-      `The last resets left more of the guest network’s launches to wipe than Crossfeed wipes in an hour. Try again after ${String(retry.getUTCHours()).padStart(2, '0')}:00 UTC.`,
-      Math.ceil((retry.getTime() - Date.now()) / 1000)
-    )
-  }
   const perDay = Number(c.env.SAMPLE_RESETS_PER_DAY) || 0
-  const taken = await takeSampleReset(c.env.DB, perDay)
+  const taken = await takeSampleReset(c.env.DB, perDay, GUEST_LAUNCH_WIPES)
   if (taken !== 'taken') {
     if (taken.spent === 'day')
       return tooMany(
         `The sample data has been reset ${perDay === 1 ? 'once' : `${perDay} times`} today, the most it can be in a UTC day, for everyone. Try again after 00:00 UTC.`,
         tomorrow()
       )
+    if (taken.spent === 'wipes') {
+      const retry = nextRetry(Date.now())
+      return tooMany(
+        `The last resets left more of the guest network’s launches to wipe than Crossfeed wipes in an hour. Try again after ${String(retry.getUTCHours()).padStart(2, '0')}:00 UTC.`,
+        Math.ceil((retry.getTime() - Date.now()) / 1000)
+      )
+    }
     const seconds = Math.ceil(taken.waitMs / 1000)
     return tooMany(
       `The sample data was just reset, and it resets at most once a minute for everyone. Try again in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`,
