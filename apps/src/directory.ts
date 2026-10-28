@@ -934,12 +934,13 @@ export async function dropExpiredGuests(db: D1Database, binding: string) {
       `INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?3, id, ?2 FROM networks WHERE ${OWNED_BY_EXPIRED}`,
       binding
     ),
-    statement(`DELETE FROM networks WHERE ${OWNED_BY_EXPIRED}`),
+    statement(`DELETE FROM networks WHERE ${OWNED_BY_EXPIRED} RETURNING id`),
     // Revoked before the members go, while their keys and invites still name them.
     ...revokeMade(`IN ${EXPIRED_GUESTS}`).map((revoke) => statement(revoke)),
-    statement(`DELETE FROM members WHERE id IN ${EXPIRED_GUESTS}`)
+    statement(`DELETE FROM members WHERE id IN ${EXPIRED_GUESTS} RETURNING id`)
   ])
-  return { members: members.meta.changes, networks: networks.meta.changes }
+  // Counted by the rows each statement returns, as D1's count of changes takes in what they cascade to.
+  return { members: members.results.length, networks: networks.results.length }
 }
 
 // A new passkey for member `memberId`, added only if they exist, as a sign-up's member may not, and with
