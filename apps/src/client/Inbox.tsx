@@ -946,7 +946,6 @@ function RankedPitches({
         : null
   const cell = 'border-b py-2.5 align-baseline group-data-selected/row:bg-muted'
   return (
-    // Three columns at most 768px wide, so a short work's name isn't left far from its band.
     <div className="flex min-w-0 flex-col gap-2" role="group" aria-labelledby={id}>
       <div className="flex flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -1543,7 +1542,11 @@ function PitchTable({
         confirm its match.
       </p>
       <ScrollTable label="Pitch table" className="-mx-2 max-w-none">
-        <table className="w-full min-w-[46rem] border-separate border-spacing-0" aria-describedby="pitches-cap">
+        {/* Positioned, so the visually hidden "None" scrolls and clips with the table, not the page. */}
+        <table
+          className="relative w-full min-w-[46rem] border-separate border-spacing-0"
+          aria-describedby="pitches-cap"
+        >
           <thead className="type-caption text-muted-foreground">
             <tr>
               <th scope="col" className={cn(head, held)}>
