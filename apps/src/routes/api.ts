@@ -572,10 +572,10 @@ const Pitch = z
       description:
         "`reading` while the agent reads it, `looking_up` while its work is searched in Qloo, then `read`. A pitch with no public work (`no_work`) or that the agent can't read (`unreadable`) is set aside and never reaches Qloo; `failed` says why in `error`."
     }),
-    guest: z
-      .string()
-      .nullable()
-      .openapi({ description: "The pitched guest's name, as the agent read it. It never reaches Qloo." }),
+    guest: z.string().nullable().openapi({
+      description:
+        "The pitched guest's name, as the agent read it, or as the sample inbox gives it. It never reaches Qloo."
+    }),
     work: orNull(Work),
     match: orNull(WorkMatch).openapi({ description: 'Null until its work has been searched.' }),
     error: z.string().nullable()

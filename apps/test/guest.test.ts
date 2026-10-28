@@ -973,6 +973,32 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       expect((await usage()).qlooCalls.used).toBe(before + 19 + 36)
     })
 
+    it('gives a program the sample’s notice through the API, saying its pitches came already read, and loads over it only to replace it', async () => {
+      fakeQloo({ search: { ...search, ...workSearch } })
+      const guest = await openGuest()
+      await (await connect(guest)).until(loaded)
+      const made = await post(guest, '/app/guest-network/settings/api-keys', { name: 'Nightly sync' })
+      const call = api((await made.json<{ secret: string }>()).secret)
+
+      const inbox = await (await call('/api/v1/networks/guest-network/inbox')).json<{ sample: { notice: string } }>()
+      expect(inbox).toMatchObject({ status: 'done', sample: { notice: sampleInbox.notice } })
+      expect(inbox.sample.notice).toMatch(/Each pitch comes already read, .*so no model reads it\.$/)
+      expect(inbox.sample.notice).not.toContain('extraction')
+      const over = await call('/api/v1/networks/guest-network/inbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pitches: [{ body: 'Ada Quill on her novel Night Ferry.' }] })
+      })
+      expect(over.status).toBe(409)
+      expect(await over.json()).toEqual({
+        error: {
+          code: 'conflict',
+          message:
+            "The inbox already has pitches. Load with replace=true to load over them: they go, with the last pitch run's lists and replies."
+        }
+      })
+    })
+
     it("never replaces a guest's own pitches, loaded while the guest budget refused its lookups, nor looks them up again", async () => {
       // Qloo fails the guest's own lookup, which isn't the sample's to try again.
       fakeQloo({ search: { ...search, ...workSearch, 'Night Ferry': 503 } })
