@@ -374,11 +374,12 @@ async function launchRunOf(launch: LaunchStub, state: State, id: string): Promis
   }
 }
 
-// An insertion order as a program reads it: who approved it by name, never by their member ID, and
-// whether it has been edited since the agent drafted it, so its run's closing line may quote figures
-// it no longer has.
-export type OrderInfo = Omit<InsertionOrder, 'approvedById' | 'edited' | 'fromSample'> & { edited: boolean }
-const orderOf = ({ approvedById: _, edited, fromSample: __, ...order }: InsertionOrder): OrderInfo => ({
+// An insertion order as a program reads it: who approved it by name, never by their member ID; whether
+// it has been edited since the agent drafted it, so its run's closing line may quote figures it no longer
+// has; and, for one of the guest network's sample launches, whether its approval is the sample data's
+// (`fromSample`, ADR 0002).
+export type OrderInfo = Omit<InsertionOrder, 'approvedById' | 'edited'> & { edited: boolean }
+const orderOf = ({ approvedById: _, edited, ...order }: InsertionOrder): OrderInfo => ({
   ...order,
   edited: edited ?? false
 })

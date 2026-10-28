@@ -10,7 +10,7 @@ import {
   evictAllDurableObjects,
   waitOnExecutionContext
 } from 'cloudflare:test'
-import { env } from 'cloudflare:workers'
+import { env, exports } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LaunchSummary, RunSnapshot, State } from '../src/agent'
@@ -431,7 +431,7 @@ describe("the guest network's sample launches", () => {
     expect(modelRequests()).toHaveLength(models)
   })
 
-  it('keep the API’s evidence shape, as Qloo answered, without the sample’s mark', async () => {
+  it('keep the API’s evidence shape, as Qloo answered, and say through the API and the MCP server that the approved order is the sample data’s', async () => {
     const guest = await openGuest()
     await captureSampleLaunches(guest)
     const fresh = await nextDay(guest, 5)
@@ -440,13 +440,50 @@ describe("the guest network's sample launches", () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Nightly sync' })
     })
-    const call = api((await made.json<{ secret: string }>()).secret)
-    const { id } = fresh.launches!.find((l) => l.name === 'Paper Moons')!
-    const res = await call(`/api/v1/networks/guest-network/launches/${id}/evidence`)
+    const { secret } = await made.json<{ secret: string }>()
+    const call = api(secret)
+    const listed = (name: string) => fresh.launches!.find((l) => l.name === name)!.id
+    const res = await call(`/api/v1/networks/guest-network/launches/${listed('Paper Moons')}/evidence`)
     expect(res.status).toBe(200)
     const { evidence } = await res.json<{ evidence: Record<string, unknown>[] }>()
     expect(evidence.length).toBeGreaterThanOrEqual(19)
     for (const record of evidence) expect(Object.keys(record)).not.toContain('fromSample')
+
+    const approved = listed('Night Shift Cinema')
+    const launch = await (
+      await call(`/api/v1/networks/guest-network/launches/${approved}`)
+    ).json<{
+      latestRun: { insertionOrder: object }
+    }>()
+    expect(launch.latestRun.insertionOrder).toMatchObject({ status: 'approved', approvedBy: 'Guest', fromSample: true })
+    // The MCP server's get_launch, as an assistant calls it with the same key.
+    const mcp = await exports.default.fetch('https://crossfeed.test/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${secret}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'get_launch', arguments: { launchId: approved } }
+      })
+    })
+    const body = await mcp.text()
+    const said = body.includes('data:')
+      ? body
+          .split('\n')
+          .find((line) => line.startsWith('data:'))!
+          .slice(5)
+      : body
+    const { result } = JSON.parse(said) as { result: { content: { text: string }[] } }
+    const text = result.content.map((c) => c.text).join('\n')
+    expect(text).toContain(
+      "Approved in the guest network's sample data, by Guest as its run was captured, not by a member of this network."
+    )
+    expect(text).not.toContain('Approved by Guest in the app')
   })
 
   it('that fail to seed, or that the launch cap refuses, are seeded as the guest network next starts, each once, and one deleted stays deleted', async () => {

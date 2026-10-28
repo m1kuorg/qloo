@@ -2318,6 +2318,10 @@
           },
           "approvedAt": {
             "type": "string"
+          },
+          "fromSample": {
+            "type": "boolean",
+            "description": "`true` on an approved order of one of the guest network's sample launches: approved in the sample data as its run was captured, by `approvedBy`, not by a member of this network. Editing it returns it to `draft` without it."
           }
         },
         "required": [

@@ -516,7 +516,8 @@ function howToAnswer(question: Question, run?: LaunchRun) {
   }
 }
 
-// An insertion order as the assistant reads it, and where a member approves it.
+// An insertion order as the assistant reads it, and where a member approves it. An approval in one of the
+// guest network's sample launches is the sample data's, not a member's (ADR 0002).
 const orderText = (order: OrderInfo, page: string) =>
   [
     `Insertion order ${order.id}, ${order.status}, as it stands: ${order.slots} slots, ${dollars(order.total)}${order.complete ? '' : ' over the lines that have a value'}${order.cpm === null ? '' : ` at a ${dollars(order.cpm)} CPM`}.`,
@@ -525,7 +526,9 @@ const orderText = (order: OrderInfo, page: string) =>
         `- ${l.show}: ${l.slots} slots${l.slotValue === null ? `, no value (${l.gap})` : ` at ${dollars(l.slotValue)}, ${dollars(l.value!)}`}. ${l.angle ?? NO_ANGLE}`
     ),
     order.status === 'approved'
-      ? `Approved by ${order.approvedBy} in the app. Editing it returns it to draft: ${page}`
+      ? order.fromSample
+        ? `Approved in the guest network's sample data, by ${order.approvedBy} as its run was captured, not by a member of this network. Editing it returns it to draft: ${page}`
+        : `Approved by ${order.approvedBy} in the app. Editing it returns it to draft: ${page}`
       : `Change its lines with edit_order. Only a member of the network approves it, in the app: ${page}`
   ].join('\n')
 

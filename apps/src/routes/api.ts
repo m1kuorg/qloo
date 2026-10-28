@@ -1226,7 +1226,11 @@ const InsertionOrder = z
         "An edit has changed it since the agent drafted it, so its run's `closing` may quote figures it no longer has: its own lines and totals are the current ones."
     }),
     approvedBy: z.string().optional().openapi({ description: 'The member who approved it, by name.' }),
-    approvedAt: z.string().optional()
+    approvedAt: z.string().optional(),
+    fromSample: z.boolean().optional().openapi({
+      description:
+        "`true` on an approved order of one of the guest network's sample launches: approved in the sample data as its run was captured, by `approvedBy`, not by a member of this network. Editing it returns it to `draft` without it."
+    })
   })
   .openapi('InsertionOrder', {
     description:
