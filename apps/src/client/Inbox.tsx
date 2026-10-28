@@ -281,7 +281,9 @@ export function InboxPage({
             />
           </section>
         ) : (
-          <PageEmpty action={<Button onClick={load}>Load pitches</Button>}>No pitches yet.</PageEmpty>
+          <PageEmpty action={<Button onClick={load}>Load pitches</Button>} detail={QLOO_PRIVACY}>
+            No pitches yet.
+          </PageEmpty>
         )}
       </main>
       {/* Opened for a pitch, the sheet gives its heading focus, as the inspector beside the canvas does. */}
@@ -339,7 +341,7 @@ export function InboxPage({
             <SheetHeader className="pr-14">
               <SheetTitle>Load pitches</SheetTitle>
               <SheetDescription>
-                Paste pitch emails or upload them. Claude reads each one for its guest and public work. {PRIVATE}
+                Paste pitch emails or upload them. Claude reads each one for its guest and public work. {QLOO_PRIVACY}
               </SheetDescription>
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
@@ -358,8 +360,9 @@ export function InboxPage({
   )
 }
 
-// What the pitches' table and the load form say reaches Qloo of a pitch: PRODUCT.md's promise.
-const PRIVATE = 'Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'
+// What reaches Qloo of a pitch, PRODUCT.md's promise, said by the pitches' table, the load form, and
+// the empty state.
+const QLOO_PRIVACY = 'Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'
 
 // The inbox in the header's summary, with the show it's for once one is known, the sample's or the
 // latest run's: "40 pitches for The Big Picture · 31 matched, 1 ambiguous, 4 not in Qloo, 4 set aside",
@@ -1592,8 +1595,8 @@ function PitchTable({
         {sample
           ? 'Guest and work as the sample gives them for each pitch.'
           : 'Guest and work as Claude read them from each pitch.'}{' '}
-        <Source of="qloo" /> Matches from Qloo search, one call per work. {PRIVATE} Select a pitch to read it or confirm
-        its match.
+        <Source of="qloo" /> Matches from Qloo search, one call per work. {QLOO_PRIVACY} Select a pitch to read it or
+        confirm its match.
       </p>
       <ScrollTable label="Pitch table" className="-mx-2 max-w-none">
         <table className="w-full min-w-[46rem] border-separate border-spacing-0" aria-describedby="pitches-cap">
