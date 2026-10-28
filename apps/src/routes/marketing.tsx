@@ -1286,7 +1286,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
               can do, wipes its Qloo storage at once: the key, its cached answers, and its counts. Deleting a network,
               which only an owner can do, deletes its memberships, invite links, and API keys at once, then wipes its
               own storage, each of its launches’, and its Qloo storage. A wipe that fails is tried again by the next
-              day’s cleanup, which also deletes expired sessions, sign-in challenges, and invite links.
+              hourly cleanup, which also deletes expired sessions, sign-in challenges, and invite links.
             </p>
             <p>
               Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code,
@@ -1294,7 +1294,7 @@ function Privacy({ accounts }: { accounts: boolean }) {
               launches of the networks you’re in, or were in before, say &ldquo;Former member&rdquo; on the runs you
               started and the orders you approved, and the replies you approved no longer say who did. The API keys and
               invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or
-              is made a member. A network that can’t be reached at once forgets your name at the next day’s cleanup.
+              is made a member. A network that can’t be reached at once forgets your name at the next hourly cleanup.
               It’s refused while you’re a network’s only owner.
             </p>
             <p>&ldquo;Sign out everywhere&rdquo; deletes every session of yours.</p>
