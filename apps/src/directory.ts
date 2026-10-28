@@ -841,13 +841,15 @@ export async function dropNetwork(db: D1Database, networkId: string, by: string,
 
 // The agent instances to wipe (`destroy`) once the directory or their network has let go of them, by
 // binding, such as LaunchAgent, and name, and the networks to forget a deleted member (wipe.ts). Each
-// is noted before its wipe and crossed off once the wipe succeeds, so the daily cron can retry any
-// that failed.
-export async function noteWipe(db: D1Database, binding: string, name: string) {
-  await db
-    .prepare('INSERT OR IGNORE INTO wipes (binding, name, created) VALUES (?, ?, ?)')
-    .bind(binding, name, Date.now())
-    .run()
+// is noted before its wipe, those noted together in one batch, and crossed off once the wipe succeeds, so
+// the cron can retry any that failed.
+export async function noteWipe(db: D1Database, ...instances: Instance[]) {
+  const now = Date.now()
+  await db.batch(
+    instances.map(({ binding, name }) =>
+      db.prepare('INSERT OR IGNORE INTO wipes (binding, name, created) VALUES (?, ?, ?)').bind(binding, name, now)
+    )
+  )
 }
 
 export async function wipeDone(db: D1Database, binding: string, name: string) {
@@ -863,7 +865,7 @@ export async function wipesDue(db: D1Database, before: number) {
   return results
 }
 
-// What the daily cron clears: sessions, challenges, and invites that have expired. Returns how many of
+// What the hourly cron clears: sessions, challenges, and invites that have expired. Returns how many of
 // each it deleted.
 export async function purgeExpired(db: D1Database) {
   const now = Date.now()
@@ -873,6 +875,33 @@ export async function purgeExpired(db: D1Database) {
     db.prepare('DELETE FROM invites WHERE expires <= ?').bind(now)
   ])
   return { sessions: sessions.meta.changes, challenges: challenges.meta.changes, invites: invites.meta.changes }
+}
+
+// The guest members who have expired as of ?2 (epoch ms), by ID: each signed in at ?1, a guest session's
+// length earlier, or before, and has no session left, so no one is signed in as them or can keep the account.
+const EXPIRED_GUESTS = `(SELECT id FROM members WHERE guest = 1 AND created <= ?1 AND NOT EXISTS (SELECT 1 FROM sessions WHERE member_id = members.id AND expires > ?2))`
+
+// Whether a networks row is a network only expired guest members own, which goes with them: it has an owner
+// among them and none who isn't one. Never the guest network, which stays for the next guest (ADR 0006).
+const OWNED_BY_EXPIRED = `id != '${GUEST_NETWORK}' AND EXISTS (SELECT 1 FROM memberships WHERE network_id = networks.id AND role = 'owner' AND member_id IN ${EXPIRED_GUESTS}) AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = networks.id AND role = 'owner' AND member_id NOT IN ${EXPIRED_GUESTS})`
+
+// Removes the expired guest members (ADR 0006) in one batch of bulk statements. The networks only they own
+// are deleted as a deleted network is (dropNetwork), each with a wipe of its agent, under `binding`, noted
+// in the batch (wipe.ts). Then the members go, their passkeys, sessions, memberships, and past memberships
+// with them. Returns how many of each it removed.
+export async function dropExpiredGuests(db: D1Database, binding: string) {
+  const now = Date.now()
+  const statement = (sql: string, ...values: unknown[]) => db.prepare(sql).bind(now - GUEST_SESSION_MS, now, ...values)
+  const [, networks, members] = await db.batch([
+    // Noted before the networks go, while their owners' memberships are still there to check.
+    statement(
+      `INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?3, id, ?2 FROM networks WHERE ${OWNED_BY_EXPIRED}`,
+      binding
+    ),
+    statement(`DELETE FROM networks WHERE ${OWNED_BY_EXPIRED}`),
+    statement(`DELETE FROM members WHERE id IN ${EXPIRED_GUESTS}`)
+  ])
+  return { members: members.meta.changes, networks: networks.meta.changes }
 }
 
 // A new passkey for member `memberId`, added only if they exist, as a sign-up's member may not, and with
