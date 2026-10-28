@@ -16,7 +16,7 @@ import { GUEST_NETWORK } from './directory'
 import { globalGateway } from './gateway'
 import type { Booking, PitchReply } from './inbox'
 import { Refusal } from './refusal'
-import { sample, sampleCpm, sampleRoster } from './sample'
+import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
 import { GUEST_NETWORK_CLEARS } from './text'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
@@ -82,6 +82,10 @@ const LAUNCHES =
 const NO_GUIDE = "A network has no guide: it's the sample network's, at /demo."
 // Where a network's agent keeps the roster it last told its launches (rosterKey).
 const ANNOUNCED = 'crossfeed_roster_announced'
+// Where the guest network's agent keeps that it has loaded the sample network, and its sample launch's ID
+// once it has planned it (loadSample).
+const SAMPLE_LOADED = 'crossfeed_sample_loaded'
+const SAMPLE_LAUNCH = 'crossfeed_sample_launch'
 
 // A pitch run's booking with no reply naming member `memberId` as its approver; each stays approved.
 const withoutApprover = (booking: Booking | null, memberId: string): Booking | null =>
@@ -124,8 +128,40 @@ export class NetworkAgent extends CrossfeedAgent {
           .then(({ set }) => keepOwnKey(storage, set))
           .catch((e) => console.error(JSON.stringify({ event: 'own_key_lookup', error: String(e) })))
     await super.onStart(props)
-    // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006).
-    if (this.name === GUEST_NETWORK && this.state.cpm === null) this.setState({ ...this.state, cpm: sampleCpm })
+    if (this.name !== GUEST_NETWORK) return
+    if (this.env.SAMPLE_NETWORK === 'on') await this.loadSample()
+    // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006),
+    // even when the sample roster couldn't load. One that left the sample by importing over it lost the
+    // CPM with it, as the sample's, so it stays unset.
+    if (this.state.cpm === null && this.state.roster.length === 0) this.setState({ ...this.state, cpm: sampleCpm })
+  }
+
+  // Loads the sample network into the guest network on its first start, each day after the daily cron
+  // clears it (ADR 0007): the sample roster with its labels, looked up like an import, the sample CPM
+  // labelled as a sample figure, and the sample launch planned. Its lookups count on the guest budget;
+  // refused, the roster stays empty, with the sample to start from. Until it's noted as loaded, each
+  // start tries again what didn't land: a roster still empty, the lookups that failed, the launch if it
+  // wasn't planned. It's noted once a start finds the roster settled and the launch planned, or finds the
+  // sample replaced by a guest's import. It runs before any page connects, so it reserves the calls and
+  // plans the launch here, and leaves the lookups to run in the background.
+  private async loadSample() {
+    const { kv } = this.ctx.storage
+    if (kv.get(SAMPLE_LOADED)) return
+    const { roster } = this.state
+    if (roster.length > 0 && !this.state.sample) return kv.put(SAMPLE_LOADED, true)
+    const missing = roster.length === 0 ? sampleRoster.length : roster.filter((s) => s.resolution === 'failed').length
+    try {
+      if (missing > 0) {
+        const gateway = await this.reserveCalls(this.limitKey(), missing)
+        if (roster.length === 0) this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample }, gateway)
+        else this.lookUpRoster(roster, {}, gateway, [])
+      }
+      if (kv.get(SAMPLE_LAUNCH) === undefined)
+        kv.put(SAMPLE_LAUNCH, (await this.planLaunch(sample.launch, this.state.sample)).id)
+      if (missing === 0) kv.put(SAMPLE_LOADED, true)
+    } catch (e) {
+      console.error(JSON.stringify({ event: 'sample_load', error: String(e) }))
+    }
   }
 
   // Its Qloo calls go through its own gateway instance while it has a Qloo key of its own (ADR 0004).
@@ -265,6 +301,11 @@ export class NetworkAgent extends CrossfeedAgent {
   // planned count, since several can be planned at once while their agents take them.
   @callable()
   async createLaunch(input: LaunchInput) {
+    return this.planLaunch(input, null)
+  }
+
+  // Plans a launch as createLaunch does, carrying `sample` for the guest network's sample launch.
+  private async planLaunch(input: LaunchInput, sample: Sample | null) {
     const { name, comps } = readLaunch(input, 'to plan it')
     const cap = Number(this.env.LAUNCHES_PER_NETWORK) || 0
     if ((this.state.launches ?? []).length + this.planning >= cap)
@@ -276,7 +317,7 @@ export class NetworkAgent extends CrossfeedAgent {
     try {
       const id = crypto.randomUUID()
       const launch = await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))
-      const summary: LaunchSummary = { id, ...(await launch.plan({ name, comps: comps ?? [] })) }
+      const summary: LaunchSummary = { id, ...(await launch.plan({ name, comps: comps ?? [], sample })) }
       this.setState({ ...this.state, launches: [summary, ...(this.state.launches ?? [])] })
       return { id }
     } finally {

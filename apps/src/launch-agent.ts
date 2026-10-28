@@ -13,6 +13,7 @@ import {
 } from './agent'
 import { finalistsOf } from './fit'
 import type { InsertionOrder } from './order'
+import type { Sample } from './sample'
 import { keepOwnKey, MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimitKey } from './network-agent'
 
 const ROSTER =
@@ -176,9 +177,11 @@ export class LaunchAgent extends CrossfeedAgent {
   }
 
   // Sets the launch it plans, named or from comps, as its network creates it, and returns the row the
-  // network lists for it. Over RPC only: a page starts a run instead, which may name it anew.
-  plan({ name, comps }: { name: string | null; comps: string[] }) {
-    this.setState({ ...this.state, launch: { name, match: null, comps: comps.map(newComp) } })
+  // network lists for it; the guest network's sample launch comes with the sample, which each run's copy
+  // of the roster carries from then on (NetworkAgent.rosterForLaunch). Over RPC only: a page starts a run
+  // instead, which may name it anew.
+  plan({ name, comps, sample = null }: { name: string | null; comps: string[]; sample?: Sample | null }) {
+    this.setState({ ...this.state, launch: { name, match: null, comps: comps.map(newComp) }, sample })
     return summaryOf(this.state)
   }
 

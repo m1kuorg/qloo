@@ -2,17 +2,27 @@
 // the guest network, through the accounts routes and the app's pages, as the sign-in page's "Sign in as
 // a guest" does.
 import { getAgentByName } from 'agents'
-import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
+import {
+  createExecutionContext,
+  createScheduledController,
+  evictAllDurableObjects,
+  waitOnExecutionContext
+} from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { State } from '../src/agent'
 import { Invite } from '../src/client/Account'
+import type { NetworkConnection } from '../src/client/NetworkPage'
+import { NetworkRoster } from '../src/client/Roster'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent } from '../src/network-agent'
+import sampleFile from '../src/sample-network.json'
+import { networkLinks } from '../src/shell'
 import { softwareAuthenticator } from './authenticator'
-import { fakeClaude, fakeQloo, requests, text, toolUse, turn } from './fake'
+import { fakeClaude, fakeQloo, fakeQlooDown, requests, text, toolUse, turn } from './fake'
 import {
   api,
   guestSignIn,
@@ -55,6 +65,13 @@ async function guestMembers(guest: Guest) {
     name: string
     role: string
   }[]
+}
+
+// Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
+async function runCron() {
+  const ctx = createExecutionContext()
+  await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+  await waitOnExecutionContext(ctx)
 }
 
 describe('signing in as a guest', () => {
@@ -504,6 +521,164 @@ describe('the guest network', () => {
   })
 })
 
+describe('the guest network, with the sample network on (ADR 0007)', () => {
+  // Made-up IDs for three of the sample's public show names; every other name finds nothing.
+  const search = {
+    'The Watch': [{ entity_id: 'e-0601', name: 'The Watch', popularity: 0.5 }],
+    'The Big Picture': [{ entity_id: 'e-0301', name: 'The Big Picture', popularity: 0.6 }],
+    'The Rewatchables': [{ entity_id: 'e-0201', name: 'The Rewatchables', popularity: 0.7 }]
+  }
+  const names = sampleFile.shows.map((s) => s.name)
+  const saved = { SAMPLE_NETWORK: env.SAMPLE_NETWORK, QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP }
+  const open: Omit<Session, 'cookie'>[] = []
+  beforeEach(() => {
+    env.SAMPLE_NETWORK = 'on'
+  })
+  afterEach(() => {
+    Object.assign(env, saved)
+    open.splice(0).forEach((agent) => agent.close())
+  })
+  const connect = async (guest: Guest, path = '/agents/network/guest-network') => {
+    const agent = await guest.connect(path)
+    open.push(agent)
+    return agent
+  }
+  const settled = (s: State) => s.roster.length > 0 && s.roster.every((show) => show.resolution !== 'pending')
+  // The Qloo calls the guest budget has spent today, as the guest network's settings page says.
+  const qlooCalls = async (guest: Guest) =>
+    (
+      JSON.parse(
+        (await (await guest.fetch('/app/guest-network/settings')).text())
+          .match(/data-usage="([^"]*)"/)![1]
+          .replace(/&quot;/g, '"')
+      ) as { qlooCalls: { used: number } }
+    ).qlooCalls.used
+
+  it('opens on its first start with the sample roster and its labels, the sample CPM labelled, and The Watch planned', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+    const state = await (await connect(guest)).until(settled)
+
+    expect(state.roster.map((r) => [r.name, r.downloads, r.status, r.description, r.sample])).toEqual(
+      sampleFile.shows.map((r) => [
+        r.name,
+        r.downloadsPerEpisode.value,
+        r.status.value,
+        r.description.value,
+        ['downloads', 'status', 'description']
+      ])
+    )
+    expect(state.roster.find((r) => r.name === 'The Watch')).toMatchObject({
+      resolution: 'resolved',
+      entity: { id: 'e-0601' }
+    })
+    expect(state.cpm).toBe(20)
+    expect(state.sample).toEqual({
+      network: 'The Ringer',
+      notice: sampleFile.notice,
+      launch: { name: 'The Watch' },
+      answers: { budget: { slots: 20 }, exclusions: [] },
+      cpm: true
+    })
+    expect(state.launches).toEqual([
+      {
+        id: expect.any(String),
+        name: 'The Watch',
+        comps: [],
+        status: 'new',
+        finalists: 0,
+        slots: null,
+        slotValue: null,
+        startedBy: null,
+        lastRun: null
+      }
+    ])
+    // One search a show, counted on the guest budget; planning The Watch calls nothing.
+    expect(requests.map((r) => r.url.searchParams.get('query')).sort()).toEqual([...names].sort())
+    expect(await qlooCalls(guest)).toBe(19)
+  })
+
+  it('opens empty, with the sample roster to start from, when the guest budget refuses its lookups, and tries again as it next starts', async () => {
+    fakeQloo({ search })
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '18'
+    const guest = await openGuest()
+    const refused = (await connect(guest)).state()!
+    expect(refused).toMatchObject({ roster: [], cpm: 20, sample: null, launches: [] })
+    expect(requests).toEqual([])
+    const page = renderToStaticMarkup(
+      createElement(NetworkRoster, {
+        agent: { state: refused, stub: {} } as unknown as NetworkConnection,
+        network: {
+          id: 'guest-network',
+          name: 'Guest network',
+          role: 'owner',
+          links: networkLinks(env, 'guest-network')
+        }
+      })
+    )
+    expect(page).toContain('Start from the sample roster')
+
+    // As after an idle eviction or a deploy: the agent starts again, with its storage.
+    env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const loaded = await (await connect(guest)).until(settled)
+    expect(loaded).toMatchObject({ cpm: 20, sample: { cpm: true }, launches: [{ name: 'The Watch' }] })
+    expect(loaded.roster).toHaveLength(19)
+  })
+
+  it('looks up the shows that failed and plans The Watch if planning failed, as it next starts, then loads nothing again', async () => {
+    fakeQlooDown()
+    vi.spyOn(LaunchAgent.prototype, 'plan').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    const guest = await openGuest()
+    const failed = await (await connect(guest)).until(settled)
+    expect(failed.roster.map((s) => s.resolution)).toEqual(names.map(() => 'failed'))
+    expect(failed.launches).toEqual([])
+
+    fakeQloo({ search })
+    const restart = async () => {
+      await evictAllDurableObjects({ webSockets: 'close' })
+      return connect(guest)
+    }
+    const network = await restart()
+    const retried = await network.until((s) => s.roster.every((r) => !['pending', 'failed'].includes(r.resolution)))
+    expect(retried.roster.find((r) => r.name === 'The Watch')).toMatchObject({ resolution: 'resolved' })
+    expect(retried.roster.map((r) => r.sample)).toEqual(names.map(() => ['downloads', 'status', 'description']))
+    expect(retried.launches).toMatchObject([{ name: 'The Watch' }])
+
+    // A guest's change stays, start after start, and nothing is looked up or planned again.
+    await network.call('updateShow', 'The Watch', { downloads: 12_345 })
+    const sent = requests.length
+    await restart()
+    const again = (await restart()).state()!
+    expect(again.roster.find((r) => r.name === 'The Watch')).toMatchObject({
+      downloads: 12_345,
+      sample: ['status', 'description']
+    })
+    expect(again.launches).toHaveLength(1)
+    expect(requests).toHaveLength(sent)
+  })
+
+  it('loads the sample again as it next starts after the daily cron clears it', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+    const network = await connect(guest)
+    await network.until(settled)
+    await network.call('updateShow', 'The Watch', { downloads: 12_345 })
+    const [cleared] = network.state()!.launches!
+
+    await runCron()
+    await network.closed()
+    await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+    const fresh = await (await connect(guest)).until(settled)
+    expect(fresh.roster.find((r) => r.name === 'The Watch')).toMatchObject({
+      downloads: 340_000,
+      sample: ['downloads', 'status', 'description']
+    })
+    expect(fresh).toMatchObject({ cpm: 20, sample: { cpm: true }, launches: [{ name: 'The Watch', status: 'new' }] })
+    expect(fresh.launches![0].id).not.toBe(cleared.id)
+  })
+})
+
 describe('a guest session', () => {
   const HOUR = 60 * 60_000
 
@@ -934,12 +1109,6 @@ describe("the guest network's daily reset", () => {
     const agent = await who.connect(path)
     open.push(agent)
     return agent
-  }
-  // Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
-  async function runCron() {
-    const ctx = createExecutionContext()
-    await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
-    await waitOnExecutionContext(ctx)
   }
   // What launch `id`'s agent holds, once a wipe has reset it: null when it's empty.
   const launchHeld = (id: string) =>
