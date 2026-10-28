@@ -103,9 +103,9 @@ function GuestSignIn({ next, runs, refused }: { next: string; runs: number; refu
           Look around as a guest
         </h2>
         <p className="text-muted-foreground">
-          You’re signed in for a day as Guest, the one account every guest shares, and work in the guest network with
-          every other guest, so put nothing private in it; it’s cleared every day at {GUEST_NETWORK_CLEARS}. All guests
-          share one set of daily limits, {modelRuns(runs)} a day between them.
+          You sign in for a day as Guest, the one account every guest shares, and work in the guest network with every
+          other guest, so put nothing private in it; it’s cleared every day at {GUEST_NETWORK_CLEARS}. All guests share
+          one set of daily limits, {modelRuns(runs)} a day between them.
         </p>
       </div>
       <Button variant="secondary" className="w-full" disabled={busy} onClick={() => void signIn()}>
