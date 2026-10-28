@@ -139,7 +139,7 @@ describe("the inbox's connection", () => {
     expect(page(state, 'inbox')).not.toContain('Reconnecting…')
     const text = page(state, 'inbox', { identified: false })
     expect(text).toContain('Reconnecting…')
-    expect(text).toContain('No pitches yet. Paste or upload pitches above, or load the sample inbox.')
+    expect(text).toContain('No pitches yet. Paste or upload pitches above.')
   })
 })
 

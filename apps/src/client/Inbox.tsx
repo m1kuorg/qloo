@@ -413,9 +413,9 @@ function InboxHead({
 }
 
 // Pitches pasted, uploaded as email files, or dropped anywhere on the page, read in the browser by the
-// upload module and sent as pitches; or the sample inbox. Each replaces the inbox; over one with ranked
-// lists or replies (`wipes`), which go with it, a load confirms first. From 768px the box and what it
-// takes sit side by side, as the roster's import does.
+// upload module and sent as pitches. Each replaces the inbox; over one with ranked lists or replies
+// (`wipes`), which go with it, a load confirms first. From 768px the box and what it takes sit side by
+// side, as the roster's import does.
 function InboxLoad({
   loadInbox,
   reading,
@@ -482,14 +482,6 @@ function InboxLoad({
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={locked || !text.trim()}>
               Read pitches
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={locked}
-              onClick={() => void load(() => loadInbox({ sample: true }))}
-            >
-              Load sample inbox
             </Button>
             <Button type="button" variant="secondary" disabled={locked} onClick={() => file.current?.click()}>
               <UploadIcon data-icon="inline-start" aria-hidden="true" />
@@ -1486,7 +1478,7 @@ function PitchTable({
   if (pitches.length === 0)
     return (
       <p className="rounded-xl bg-muted px-4 py-3 text-muted-foreground">
-        No pitches yet. Paste or upload pitches above, or load the sample inbox.
+        No pitches yet. Paste or upload pitches above.
       </p>
     )
   // One shaded row: the pitch open in the inspector or, with none open, the one whose evidence is.

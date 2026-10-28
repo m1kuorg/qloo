@@ -19,7 +19,7 @@ import {
   type ModelRequest,
   type QlooEntity
 } from './fake'
-import { hooked, links, openSession, type Session } from './session'
+import { hooked, links, openGuest, openSession, type Session } from './session'
 
 // The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
 const pitchText = (request: ModelRequest): string =>
@@ -49,7 +49,7 @@ const rankingBody = (type: string) =>
     .map((r) => JSON.parse(r.body))
     .filter((b) => b['filter.type'] === type)
 
-const open: Session[] = []
+const open: Omit<Session, 'cookie'>[] = []
 const session = async () => {
   const s = await openSession()
   open.push(s)
@@ -79,7 +79,8 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-const finished = (s: Session) => s.until((state: State) => state.run !== null && state.run.status !== 'running')
+const finished = (s: Omit<Session, 'cookie'>) =>
+  s.until((state: State) => state.run !== null && state.run.status !== 'running')
 
 // A synthetic show, its past guests' works, and pitches of three types: made-up names, IDs, and scores.
 const work = (entity_id: string, name: string, disambiguation: string): QlooEntity[] => [
@@ -437,10 +438,17 @@ describe('starting a pitch run', () => {
   })
 })
 
-// The sample inbox end to end: every Qloo request the pitch flow makes, searches and rankings,
-// checked for each guest, past guest, sender, and address in the sample.
+// The sample inbox end to end, as the guest network loads it and a guest ranks it against The Big
+// Picture: every Qloo request the pitch flow makes, searches and rankings, checked for each guest, past
+// guest, sender, and address in the sample.
 describe('the sample inbox', () => {
-  it('never sends Qloo a guest name, a past guest name, or a sender detail', async () => {
+  const sampleNetwork = env.SAMPLE_NETWORK
+  afterEach(() => {
+    env.SAMPLE_NETWORK = sampleNetwork
+  })
+
+  it('ranks against The Big Picture, with no model reading a pitch, and never sends Qloo a guest name, a past guest name, or a sender detail', async () => {
+    env.SAMPLE_NETWORK = 'on'
     const works = sample.pitches.flatMap((p) => (p.expected.work ? [{ pitch: p.id, ...p.expected.work }] : []))
     const past = sample.show.pastGuests.map((g, i) => ({ ...g.work, id: `pg-${i + 1}` }))
     fakeQloo({
@@ -459,14 +467,10 @@ describe('the sample inbox', () => {
         .split(',')
         .map((id, i) => ({ entity_id: id, name: id, affinity: 0.9 - i / 100 }))
     )
-    fakeReader(sample.pitches.length, (t) => {
-      const p = sample.pitches.find((p) => t.includes(p.body))!
-      return { guest: p.expected.guest, work: p.expected.work }
-    })
-    const s = await session()
-    await s.importRoster('The Big Picture')
-    await s.call('loadInbox', { sample: true })
-    await s.until((state) => state.inbox?.status === 'done')
+    // The guest network opens with the sample network's roster and the sample inbox, already read.
+    const s = await (await openGuest()).connect('/agents/network/guest-network')
+    open.push(s)
+    await s.until((state) => state.inbox?.status === 'done' && state.roster.every((r) => r.resolution !== 'pending'))
     fakeClaude([
       turn(
         toolUse('rank_pitches', {
@@ -487,6 +491,9 @@ describe('the sample inbox', () => {
     const state = await finished(s)
 
     expect(state.run?.status).toBe('completed')
+    expect(state.booking?.show).toEqual({ name: 'The Big Picture', entity: expect.objectContaining({ id: 'e-bp' }) })
+    // The pitch run's two turns are the only model requests: no model read a pitch.
+    expect(modelRequests()).toHaveLength(2)
     expect(state.booking?.lists?.map((l) => [l.type, l.path])).toEqual([
       ['book', 'show'],
       ['film', 'show'],

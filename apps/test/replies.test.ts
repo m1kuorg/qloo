@@ -563,7 +563,7 @@ describe('the booker clearing the inbox', () => {
     expect(words(html)).toContain('Pitches As they were when run 1 ended.')
     expect(words(html)).not.toContain('Rank against a show')
     const named = buttons(html).map(([, name]) => name)
-    for (const absent of ['Rank pitches', 'Read pitches', 'Load sample inbox', 'Approve', 'Edit', 'Discard', 'Restore'])
+    for (const absent of ['Rank pitches', 'Read pitches', 'Approve', 'Edit', 'Discard', 'Restore'])
       expect(
         named.filter((name) => name === absent || name.startsWith(`${absent} reply about`)),
         absent

@@ -1,5 +1,5 @@
-// The booker's inbox of guest pitches: the sample inbox, pitches pasted in, or the pitches of
-// uploaded email files, read into one row per pitch. Anything it can't take is refused with a
+// The booker's inbox of guest pitches: pitches pasted in, or the pitches of uploaded email files,
+// read into one row per pitch, or the sample inbox, which comes already read. Anything it can't take is refused with a
 // message, so an inbox never loads in part, but for an uploaded pitch too long to read, which is
 // skipped and named.
 import type { PitchList, SharedTags } from './fit'
@@ -108,9 +108,9 @@ export type PitchInput = Pick<Pitch, 'from' | 'subject' | 'body'>
 // upload, and why, in words that follow the name: "has no text".
 export type Skipped = { pitch: string; why: string }
 
-// The sample inbox, pasted text with pitches separated by lines of three or more dashes, or the
-// pitches of uploaded files.
-export type InboxSource = { sample: true } | { text: string } | { pitches: PitchInput[] }
+// Pasted text with pitches separated by lines of three or more dashes, or the pitches of uploaded
+// files.
+export type InboxSource = { text: string } | { pitches: PitchInput[] }
 
 // Each pitch costs one model call and one Qloo search, and one ranking takes at most 50 works.
 export const MAX_PITCHES = 50
@@ -120,23 +120,8 @@ export function readInbox(
   source: unknown
 ): Pick<Inbox, 'sample' | 'uploaded' | 'skipped' | 'notice' | 'show' | 'pitches'> {
   const given = (typeof source === 'object' && source !== null ? source : {}) as Record<string, unknown>
-  if (given.sample === true)
-    return {
-      sample: true,
-      notice: sampleInbox.notice,
-      show: {
-        name: sampleInbox.show.name,
-        pastGuests: sampleInbox.show.pastGuests.map(({ guest, work }) => ({
-          guest,
-          work: { ...work, type: work.type as WorkType }
-        }))
-      },
-      // The answer key in each pitch's `expected` is for checking extraction, so it's left out.
-      pitches: sampleInbox.pitches.map((p) => pitch(p.id, p.body, `${p.senderName} <${p.senderEmail}>`, p.subject))
-    }
   if (Array.isArray(given.pitches)) return readUploaded(given.pitches)
-  if (typeof given.text !== 'string')
-    throw new Refusal('invalid', 'Load the sample inbox, paste pitches, or upload them.')
+  if (typeof given.text !== 'string') throw new Refusal('invalid', 'Paste pitches or upload them.')
   const texts = splitPitches(given.text)
   if (texts.length === 0) throw new Refusal('unreadable', 'Paste at least one pitch.')
   if (texts.length > MAX_PITCHES)
