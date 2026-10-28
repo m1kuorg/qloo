@@ -1466,9 +1466,10 @@ const title = (p: Pitch) => p.subject ?? p.body.split('\n').find((l) => l.trim()
 // Every pitch as read, in the roster table's anatomy: a real table whose rules bleed 8px past the
 // text, the pitch's name a button that opens it in the inspector's Pitch tab, with its sender under
 // it; the guest and work as Claude read them; the work's Qloo match, or why it has none and the way
-// to settle it; and the search's call. The pitch open in the inspector, or whose evidence is, holds
-// the tone step. Narrower than the table, it scrolls sideways in its region with the pitch's column
-// held at the left.
+// to settle it; and the search's call. A set-aside pitch's guest and work cells look empty, and say
+// "None" to screen readers rather than "blank". The pitch open in the inspector, or whose evidence
+// is, holds the tone step. Narrower than the table, it scrolls sideways in its region with the pitch's
+// column held at the left.
 function PitchTable({
   pitches,
   selected,
@@ -1549,7 +1550,7 @@ function PitchTable({
                     )}
                   </span>
                 </th>
-                <td className={cell}>{p.guest}</td>
+                <td className={cell}>{p.guest ?? <span className="vh">None</span>}</td>
                 <td className={cell}>
                   <WorkCell pitch={p} />
                 </td>
@@ -1577,7 +1578,7 @@ function PitchTable({
 
 function WorkCell({ pitch: { work, status } }: { pitch: Pitch }) {
   if (status === 'reading') return <span className="text-muted-foreground">Reading…</span>
-  if (!work) return null
+  if (!work) return <span className="vh">None</span>
   return (
     <span className="flex flex-col gap-1">
       <span className="font-medium">{work.title}</span>

@@ -1279,7 +1279,11 @@ describe('the pages, as a member reads them', () => {
     const html = dashboard(network, agent.state())
     expect(words(html)).toMatch(/^Launches 2 launches New launch /)
     expect(words(html)).toContain(
-      'Not run yet 2 Blank Check · Filmspotting Unreleased, from comps New The Night Watch New'
+      'Not run yet 2 Blank Check · Filmspotting Unreleased, from comps New None None None Not run yet The Night Watch New None None None Not run yet'
+    )
+    // An unrun launch's finalists, slots, slot value and last run look empty, and say so to screen readers.
+    expect(html).toContain(
+      '<td class="border-b py-3 pl-3 align-top text-right"><span class="vh">None</span></td><td class="border-b py-3 pl-3 align-top text-right tabular-nums"><span class="vh">None</span></td><td class="border-b py-3 pl-3 align-top text-right"><span class="vh">None</span></td><td class="border-b py-3 pl-3 align-top text-muted-foreground"><span class="vh">Not run yet</span></td>'
     )
     expect(html).toContain(`href="/app/${network}/launches/${id}"`)
     expect(html).toContain(`href="/app/${network}/launches/${fromComps}"`)
