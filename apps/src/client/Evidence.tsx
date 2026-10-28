@@ -75,7 +75,7 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <Source of="qloo" />
           {record?.replayed && <Badge variant="outline">Replayed</Badge>}
-          {record?.sample && <Badge variant="outline">Sample data</Badge>}
+          {record?.fromSample && <Badge variant="outline">Sample data</Badge>}
           {record?.copiedFrom && <Badge variant="outline">From the roster</Badge>}
         </div>
       </div>
@@ -141,7 +141,7 @@ function EvidenceRecord({ record }: { record: Evidence }) {
         {record.replayed && (
           <KeyValue label="Replayed">From the stored sample run, as Qloo answered it then; no new request</KeyValue>
         )}
-        {record.sample && (
+        {record.fromSample && (
           <KeyValue label="Sample">
             From the sample data, as Qloo answered it when it was captured; no new request
           </KeyValue>

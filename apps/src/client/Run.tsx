@@ -97,7 +97,7 @@ export function RunLog({
         </h2>
         <span className="flex flex-wrap items-center gap-1.5">
           {run.replayed && <Badge variant="outline">Replayed</Badge>}
-          {run.sample && <Badge variant="outline">Sample data</Badge>}
+          {run.capturedAt && <Badge variant="outline">Sample data</Badge>}
           <Badge mark={live ? 'signal' : 'none'}>{runLabel[run.status]}</Badge>
         </span>
       </div>
@@ -195,7 +195,7 @@ export function RunList({
                   {new Date(r.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   {r.startedBy && ` by ${r.startedBy}`} · {runLabel[r.status]}
                   {r.replayed && ' · Replayed'}
-                  {r.sample && ' · Sample data'}
+                  {r.fromSample && ' · Sample data'}
                 </span>
                 <span className="col-start-2 row-span-2 row-start-1 justify-self-end">
                   {shown ? (

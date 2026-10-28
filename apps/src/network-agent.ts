@@ -18,7 +18,7 @@ import { readSampleInbox, type Booking, type Inbox, type Pitch, type PitchReply 
 import type { LaunchAgent } from './launch-agent'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
-import { readSampleLaunches } from './sample-launch'
+import { readSampleLaunches } from './sample-launches'
 import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX } from './text'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
@@ -98,10 +98,10 @@ const SAMPLE_LOADED = 'crossfeed_sample_loaded'
 const SAMPLE_LAUNCH = 'crossfeed_sample_launch'
 // And that it has loaded the sample inbox (loadSampleInbox).
 const SAMPLE_INBOX_LOADED = 'crossfeed_sample_inbox_loaded'
-// And that it has listed every sample launch in D1 (loadSampleLaunches), and until then each one's launch
-// ID, by its key, and whether it's listed yet.
+// And that it has listed every one of the sample launches in D1 (loadSampleLaunches), and until then each
+// one's launch ID, by its key, and whether it's listed yet.
 const SAMPLE_LAUNCHES_LOADED = 'crossfeed_sample_launches_loaded'
-const SAMPLE_LAUNCHES = 'crossfeed_sample_launches'
+const SAMPLE_LAUNCHES_PROGRESS = 'crossfeed_sample_launches_progress'
 type SampleLaunchesProgress = Record<string, { id: string; listed: boolean }>
 
 // A sample pitch whose work's lookup failed, or was interrupted, so it's looked up again.
@@ -203,7 +203,7 @@ export class NetworkAgent extends CrossfeedAgent {
     }
   }
 
-  // Lists the sample launches beside The Watch (sample-launch.ts, ADR 0007), each seeded in its own
+  // Lists the sample launches beside The Watch (sample-launches.ts, ADR 0007), each seeded in its own
   // agent from the rows D1 holds, read in one query, calling neither Qloo nor Claude, and listed as a
   // planned launch is (listLaunch), under an ID kept from the first try, so one tried again seeds and lists
   // it once. Until every row is noted as listed, each start tries again those that weren't: refused by the
@@ -221,15 +221,15 @@ export class NetworkAgent extends CrossfeedAgent {
     } catch (e) {
       return failed(e)
     }
-    const progress = kv.get<SampleLaunchesProgress>(SAMPLE_LAUNCHES) ?? {}
-    for (const { key, launch } of launches) {
+    const progress = kv.get<SampleLaunchesProgress>(SAMPLE_LAUNCHES_PROGRESS) ?? {}
+    for (const { key, run } of launches) {
       if (progress[key]?.listed) continue
       progress[key] = { id: progress[key]?.id ?? crypto.randomUUID(), listed: false }
-      kv.put(SAMPLE_LAUNCHES, progress)
+      kv.put(SAMPLE_LAUNCHES_PROGRESS, progress)
       try {
-        await this.listLaunch(progress[key].id, (agent) => agent.seed(launch))
+        await this.listLaunch(progress[key].id, (agent) => agent.seed(run))
         progress[key].listed = true
-        kv.put(SAMPLE_LAUNCHES, progress)
+        kv.put(SAMPLE_LAUNCHES_PROGRESS, progress)
       } catch (e) {
         failed(e, key)
       }
@@ -398,7 +398,7 @@ export class NetworkAgent extends CrossfeedAgent {
   }
 
   // Lists launch `id` once its own agent has taken it, with `take`, which returns its row: planned, or
-  // seeded with a sample launch. A launch already listed stays as it is.
+  // seeded as one of the sample launches. A launch already listed stays as it is.
   private async listLaunch(
     id: string,
     take: (launch: DurableObjectStub<LaunchAgent>) => Promise<Omit<LaunchSummary, 'id'>>

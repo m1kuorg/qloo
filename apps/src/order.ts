@@ -37,10 +37,10 @@ export type InsertionOrder = Priced & {
   approvedBy?: string
   approvedById?: string
   approvedAt?: string
-  // Approved in one of the guest network's sample launches as it was captured, and seeded approved:
+  // Approved in one of the guest network's sample launches as its run was captured, and seeded approved:
   // sample data, not a sign-off anyone gave in this network (ADR 0002). Any change returns it to draft
   // without it.
-  sample?: true
+  fromSample?: true
 }
 
 // Why `cpm` can't be the network's CPM in dollars, or null when it can.

@@ -22,9 +22,9 @@ export type Evidence = {
     explainability: { id: string; score: number }[]
   }[]
   replayed?: true // copied from the stored sample run by a replay: no request was made for it
-  // Copied from one of the guest network's sample launches as it was seeded (sample-launch.ts): Qloo
-  // answered it at `at`, as the sample was captured, and no request was made for it since.
-  sample?: true
+  // Copied from the run one of the guest network's sample launches was seeded with (sample-launches.ts):
+  // Qloo answered it at `at`, as the run was captured, and no request was made for it since.
+  fromSample?: true
   // The network's call this record copies, as a launch's run started: the network's agent made the
   // request when its roster was looked up, and the launch's run made none.
   copiedFrom?: string

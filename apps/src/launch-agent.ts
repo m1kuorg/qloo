@@ -14,7 +14,7 @@ import {
 import { finalistsOf } from './fit'
 import type { InsertionOrder } from './order'
 import type { Sample } from './sample'
-import type { SampleLaunch } from './sample-launch'
+import type { CapturedRun } from './sample-launches'
 import {
   keepOwnKey,
   LAUNCH_DELETED,
@@ -200,12 +200,12 @@ export class LaunchAgent extends CrossfeedAgent {
     return summaryOf(this.state)
   }
 
-  // Seeds the launch with one of the guest network's sample launches (sample-launch.ts) as the network
-  // lists it, calling neither Qloo nor Claude (CrossfeedAgent.seedRun), and returns the row the network
-  // lists for it. Its `sample` stays null: only the sample launch, The Watch, replays. A launch already
-  // planned or seeded stays as it is, so a load the network tries again seeds nothing twice. Over RPC only.
-  seed(launch: SampleLaunch) {
-    if (!this.state.launch) this.seedRun(launch)
+  // Seeds the launch with `run`, as the network lists it as one of its sample launches (sample-launches.ts),
+  // calling neither Qloo nor Claude (CrossfeedAgent.seedRun), and returns the row the network lists for it.
+  // Its `sample` stays null: only the sample launch, The Watch, replays. A launch already planned or seeded
+  // stays as it is, so a load the network tries again seeds nothing twice. Over RPC only.
+  seed(run: CapturedRun) {
+    if (!this.state.launch) this.seedRun(run)
     return summaryOf(this.state)
   }
 
