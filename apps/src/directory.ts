@@ -857,11 +857,12 @@ export async function wipeDone(db: D1Database, binding: string, name: string) {
   await db.prepare('DELETE FROM wipes WHERE binding = ? AND name = ?').bind(binding, name).run()
 }
 
-// The wipes noted before `before` (epoch ms) and not yet done, oldest first.
-export async function wipesDue(db: D1Database, before: number) {
+// The first `limit` wipes noted before `before` (epoch ms) and not yet done, oldest first, and of those
+// noted together, a launch's before its network's own Qloo gateway instance's, as the binding's name sorts.
+export async function wipesDue(db: D1Database, before: number, limit: number) {
   const { results } = await db
-    .prepare('SELECT binding, name FROM wipes WHERE created < ? ORDER BY created')
-    .bind(before)
+    .prepare('SELECT binding, name FROM wipes WHERE created < ? ORDER BY created, binding, name LIMIT ?')
+    .bind(before, limit)
     .all<Instance>()
   return results
 }
