@@ -1225,11 +1225,11 @@ describe('the pages, as a member reads them', () => {
       />
     )
 
-  it('puts New launch atop the dashboard, and lists each launch by name or comps, linked to its page', async () => {
+  it('offers New launch in the empty state, then atop the dashboard, and lists each launch by name or comps, linked to its page', async () => {
     const ada = await openMember()
     const network = await created(ada)
     const agent = await connect(ada, `/agents/network/${network}`)
-    expect(words(dashboard(network, agent.state()))).toMatch(/^Launches 0 launches New launch /)
+    expect(words(dashboard(network, agent.state()))).toMatch(/^Launches No launches yet\. New launch /)
     const { id } = await agent.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
     const { id: fromComps } = await agent.call<{ id: string }>('createLaunch', {
       comps: ['Blank Check', 'Filmspotting']
@@ -1278,7 +1278,8 @@ describe('the pages, as a member reads them', () => {
       'Ranked 1',
       'Approved 1'
     ])
-    expect(words(html)).toMatch(/^Launches 4 need you · 1 running · 7 launches New launch /)
+    // The summary: the launches, then who they wait on, in the one form every page's header counts in.
+    expect(words(html)).toMatch(/^Launches 7 launches · 4 need you, 1 running New launch /)
     expect(words(html).match(/The Night Watch [A-Z][a-z]+( [a-z]+)?/g)).toEqual([
       'The Night Watch Waiting',
       'The Night Watch Order drafted',

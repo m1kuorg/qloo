@@ -39,6 +39,7 @@ import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { OnAir } from './Frame'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
+import { PageEmpty, PageHeader, summaryLine } from './PageHeader'
 import { connectionOf, ConnectionState, endedBadly, isLive, stateLabel, StateLine, type Connection } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
@@ -60,9 +61,10 @@ export function DashboardPage(props: { agentPath: string; network: NetworkPage; 
   )
 }
 
-// The network's home, which answers "Which launches need me?": the title row with the launches'
-// counts and New launch, the launches grouped by who's blocked, and beside them (under them below
-// 1024px) a line each for the roster, the inbox and the CPM, and the setup checklist. Tests render
+// The network's home, which answers "Which launches need me?": the header with the launches' counts
+// and New launch, the launches grouped by who's blocked, or until there's one, the empty state, and
+// beside them (under them below 1024px) a line each for the roster, the inbox and the CPM, and the
+// setup checklist. Tests render
 // it from a network agent's synced state; `state` is undefined until it arrives. At 1440 the grid is
 // 56 (rail) + 24 + 992 (table) + 24 + 320 + 24 = 1440.
 export function Dashboard({
@@ -83,34 +85,27 @@ export function Dashboard({
   createLaunch: (input: LaunchInput) => Promise<{ id: string }>
 }) {
   const launches = state?.launches ?? []
-  // New launch's dialog, which the title row, the empty table and the checklist open.
+  // New launch's dialog, which the header, the empty state and the checklist open.
   const [planning, setPlanning] = useState(false)
   const plan = () => setPlanning(true)
   // Where focus goes once a launch it was on is deleted.
   const heading = useRef<HTMLHeadingElement>(null)
   return (
     <main className="flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6" aria-busy={!state || undefined}>
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <h1 className="type-title" id="launches-h" ref={heading} tabIndex={-1}>
-            Launches
-          </h1>
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-muted-foreground">
-            {state && <span>{countsLine(launches)}</span>}
-            {/* Always there, so a screen reader hears the line as it appears. */}
-            <span role="status">
-              {state ? (
-                <ConnectionState connection={connection} />
-              ) : (
-                <StateLine kind="loading">Connecting to the network…</StateLine>
-              )}
-            </span>
-          </p>
-        </div>
-        <Button onClick={plan} disabled={!state}>
-          New launch
-        </Button>
-      </div>
+      {/* New launch is here once there are launches; until then, the empty state has it. */}
+      <PageHeader
+        title="Launches"
+        heading={heading}
+        summary={launches.length > 0 && countsLine(launches)}
+        status={
+          state ? (
+            <ConnectionState connection={connection} />
+          ) : (
+            <StateLine kind="loading">Connecting to the network…</StateLine>
+          )
+        }
+        actions={launches.length > 0 && <Button onClick={plan}>New launch</Button>}
+      />
       <NewLaunch network={network} create={createLaunch} open={planning} setOpen={setPlanning} />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         {state ? <Launches launches={launches} network={network} plan={plan} heading={heading} /> : <LaunchesLoading />}
@@ -156,17 +151,14 @@ function grouped(launches: LaunchSummary[]) {
   })).filter((g) => g.rows.length > 0)
 }
 
-// The title row's counts: "2 need you · 1 running · 4 launches".
+// The header's summary: "7 launches · 4 need you, 1 running".
 function countsLine(launches: LaunchSummary[]) {
   const needs = launches.filter((l) => GROUPS[0].statuses.includes(l.status)).length
   const running = launches.filter((l) => l.status === 'running').length
-  return [
+  return summaryLine(count(launches.length, 'launch', 'launches'), [
     needs > 0 && `${needs} ${needs === 1 ? 'needs' : 'need'} you`,
-    running > 0 && `${running} running`,
-    count(launches.length, 'launch', 'launches')
-  ]
-    .filter(Boolean)
-    .join(' · ')
+    running > 0 && `${running} running`
+  ])
 }
 
 // The dashboard's decision: a new launch, named or from comps, in a dialog; created, it opens on its
@@ -274,7 +266,7 @@ function Finalists({ n }: { n: number }) {
 }
 
 // Every launch with its status and plan, grouped by who's blocked, each opening its page; until
-// there's one, the table's frame with a sentence saying so. An unreleased launch goes by its comps.
+// there's one, the empty state, with New launch. An unreleased launch goes by its comps.
 // Any member can delete one from its row's menu, after a yes in the confirm dialog; it then leaves
 // every member's list as the network's agent drops it.
 function Launches({
@@ -307,25 +299,11 @@ function Launches({
   const askingTitle = asking && launchTitle(asking.name, asking.comps)
   return (
     <>
-      <LaunchesTable>
-        {launches.length === 0 ? (
-          <tbody>
-            <tr>
-              <td colSpan={7} className="border-b py-4 pl-2">
-                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-                  <p className="max-w-[60ch] text-muted-foreground">
-                    No launches yet. Each launch you plan is listed here with its status, finalists, promo slots, and
-                    their slot value.
-                  </p>
-                  <Button variant="secondary" onClick={plan}>
-                    New launch
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        ) : (
-          grouped(launches).map((group) => (
+      {launches.length === 0 ? (
+        <PageEmpty action={<Button onClick={plan}>New launch</Button>}>No launches yet.</PageEmpty>
+      ) : (
+        <LaunchesTable>
+          {grouped(launches).map((group) => (
             <tbody key={group.name}>
               <tr>
                 <th colSpan={7} scope="rowgroup" className="rounded-lg bg-muted py-1.5 pl-2 text-left font-normal">
@@ -339,9 +317,9 @@ function Launches({
                 <LaunchRow key={l.id} launch={l} href={`${network.links.launches}/${l.id}`} ask={() => ask(l)} />
               ))}
             </tbody>
-          ))
-        )}
-      </LaunchesTable>
+          ))}
+        </LaunchesTable>
+      )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         {/* Deleted, its row and menu are gone, so focus goes to the page's heading. */}
         <AlertDialogContent finalFocus={() => (deleted.current ? heading.current : true)}>
