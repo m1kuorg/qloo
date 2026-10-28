@@ -379,8 +379,15 @@ const AppFrame = ({
 // empty form a page carries while ACCOUNTS is on, which each button names with its `form` attribute, so
 // a button sits wherever a link would, and signing in as a guest opens the guest network, the sample in
 // it. /auth/guest answers with a redirect there, or back to the sign-in page saying why it can't.
-export const GUEST_FORM = 'guest-sign-in'
+const GUEST_FORM = 'guest-sign-in'
 const GuestForm = () => <form id={GUEST_FORM} method="post" action="/auth/guest" hidden />
+
+// A guest button, styled by `class` as the link or button where it sits would be, with a link's pointer.
+export const GuestButton = ({ class: className, children }: { class: string; children: Child }) => (
+  <button type="submit" form={GUEST_FORM} class={cn(className, 'cursor-pointer')}>
+    {children}
+  </button>
+)
 
 // The marketing pages' head of the page, with no bar: the wordmark top left and the links top right:
 // the developer docs, current on every docs page, and while ACCOUNTS is on, the sample network, a
@@ -400,11 +407,7 @@ const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }
           <ChevronDown class="size-4 text-muted-foreground" />
         </summary>
         <div class="max-md:absolute max-md:top-full max-md:right-0 max-md:z-50 max-md:mt-1 max-md:flex max-md:min-w-56 max-md:origin-top-right max-md:flex-col max-md:rounded-xl max-md:bg-popover max-md:p-1 max-md:text-popover-foreground max-md:animate-in max-md:duration-100 max-md:fade-in-0 max-md:zoom-in-95 max-md:group-open/menu:shadow-float md:flex md:items-center md:gap-6">
-          {accounts && (
-            <button type="submit" form={GUEST_FORM} class={cn(siteLink, 'cursor-pointer')}>
-              Sample network
-            </button>
-          )}
+          {accounts && <GuestButton class={siteLink}>Sample network</GuestButton>}
           <a class={siteLink} href="/docs" aria-current={path.startsWith('/docs') ? 'page' : undefined}>
             Developers
           </a>
@@ -474,9 +477,7 @@ const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
                   </>
                 }
               >
-                <button type="submit" form={GUEST_FORM} class={cn(indexLink, 'cursor-pointer text-left')}>
-                  Sign in as a guest
-                </button>
+                <GuestButton class={cn(indexLink, 'text-left')}>Sign in as a guest</GuestButton>
               </IndexRow>
               <IndexRow caption="Your own roster and launches, with the members you invite.">
                 <a class={indexLink} href="/app/new">
