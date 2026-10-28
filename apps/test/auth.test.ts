@@ -9,7 +9,6 @@ import { SignInPage } from '../src/client/Account'
 import { RecoveryCode } from '../src/client/Passkeys'
 import worker from '../src/index'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
-import { fakeQloo } from './fake'
 import { openMember } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -472,10 +471,8 @@ describe('headers', () => {
   })
 })
 
-describe('the daily cron', () => {
+describe('the hourly cron', () => {
   it('purges expired sessions and challenges from the directory, and logs how many', async () => {
-    // The cron's health check searches Qloo too.
-    fakeQloo({ search: { 'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }] } })
     await openMember({ name: 'Gone Away' })
     await post('/auth/sign-in/options', {})
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -486,7 +483,7 @@ describe('the daily cron', () => {
 
     const handler: ExportedHandler<Env> = worker
     const ctx = createExecutionContext()
-    await handler.scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+    await handler.scheduled!(createScheduledController({ cron: '0 0-11,13-23 * * *' }), env, ctx)
     await waitOnExecutionContext(ctx)
 
     // What's left is the storage itself, so this reads the tables.
@@ -495,7 +492,14 @@ describe('the daily cron', () => {
     expect(await count('challenges')).toBe(1)
     expect(await appFor(kept.cookie)).toBe('Still Here')
     expect(logged).toHaveBeenCalledWith(
-      JSON.stringify({ event: 'directory_purged', sessions: 1, challenges: 1, invites: 0 })
+      JSON.stringify({
+        event: 'directory_purged',
+        sessions: 1,
+        challenges: 1,
+        invites: 0,
+        guestSignIns: 0,
+        guestInvitedSignUps: 0
+      })
     )
   })
 })

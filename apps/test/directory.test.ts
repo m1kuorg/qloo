@@ -5,7 +5,7 @@
 import type { D1Migration } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { api, networkWithKey, openMember, type Member } from './session'
+import { api, networkWithKey, openGuest, openMember, type Member } from './session'
 
 const tables = async () =>
   (
@@ -29,6 +29,7 @@ describe('the directory', () => {
       'api_keys',
       'challenges',
       'd1_migrations',
+      'guest_invited_signups',
       'guest_signins',
       'invites',
       'members',
@@ -43,7 +44,16 @@ describe('the directory', () => {
     expect(await all('SELECT id, name, created_by FROM networks')).toEqual([
       { id: 'guest-network', name: 'Guest network', created_by: null }
     ])
-    for (const table of ['members', 'memberships', 'guest_signins', 'passkeys', 'sessions', 'invites', 'api_keys'])
+    for (const table of [
+      'members',
+      'memberships',
+      'guest_signins',
+      'guest_invited_signups',
+      'passkeys',
+      'sessions',
+      'invites',
+      'api_keys'
+    ])
       expect(await env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n'), table).toBe(0)
   })
 })
@@ -98,5 +108,45 @@ describe('migration 0003', () => {
       [401, 410],
       [401, 410]
     ])
+  })
+})
+
+describe('migration 0008', () => {
+  it('counts the sign-ups through guests’ links made before it, and deleting their network leaves the count', async () => {
+    const cap = env.INVITED_SIGNUP_DAILY_CAP
+    env.INVITED_SIGNUP_DAILY_CAP = '1'
+    try {
+      const guest = await openGuest()
+      const post = (path: string, body: object = {}) =>
+        guest.fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+      const link = async (network: string) =>
+        (await (await post(`/app/${network}/settings/members/invites`)).json<{ link: string }>()).link
+      const { id } = await (await post('/app/new', { name: 'Night Shift Audio' })).json<{ id: string }>()
+      await openMember({ name: 'Dot Pruitt', invite: await link(id) })
+      const token = new URL(await link('guest-network')).hash.slice(1)
+      // As before the migration, with no log of that sign-up.
+      await env.DB.batch([
+        env.DB.prepare('DROP TABLE guest_invited_signups'),
+        env.DB.prepare('DROP INDEX members_guest_created')
+      ])
+
+      const { TEST_MIGRATIONS } = env as unknown as { TEST_MIGRATIONS: D1Migration[] }
+      const migration = TEST_MIGRATIONS.find((m) => m.name.startsWith('0008_'))!
+      for (const query of migration.queries) await env.DB.prepare(query).run()
+      expect((await post(`/app/${id}/settings/delete`, { name: 'Night Shift Audio' })).status).toBe(200)
+
+      const signUp = await exports.default.fetch('https://crossfeed.test/auth/sign-up/options', {
+        method: 'POST',
+        headers: { Origin: 'https://crossfeed.test', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Eve Booker', invite: token })
+      })
+      expect(signUp.status).toBe(429)
+    } finally {
+      env.INVITED_SIGNUP_DAILY_CAP = cap
+    }
   })
 })
