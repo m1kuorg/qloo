@@ -549,7 +549,8 @@ describe('the booker clearing the inbox', () => {
     const ended = await s.call<State>('getRun', state.run!.id)
     const html = inboxPage(ended, { runs: s.state()!.runs, id: state.run!.id })
 
-    expect(words(html)).toMatch(/^Inbox Run 1 An earlier run, read-only\. Pasted pitches .* Back to the latest run/)
+    // The header says which run it is, in place of the inbox's counts, and the way back.
+    expect(words(html)).toMatch(/^Inbox Run 1 An earlier run, read-only\. Back to the latest run Read /)
     expect(words(html)).toContain(
       'shares with Night Shift Cinema in Qloo. Run 1’s replies, read-only; an approved one can still be copied.'
     )

@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Run, SlowCall } from '../agent'
 import type { Opened } from './Evidence'
+import { PageHeader } from './PageHeader'
 import { runLabel } from './Run'
 import { ConnectionState, endedBadly, isLive, SlowCalls, StateLine, type Connection } from './states'
 
@@ -136,21 +137,28 @@ export function Inspector({
 }
 
 // Until the agent's first state arrives: the frame in the shapes it will fill, and the readout saying
-// it's connecting.
-export function Connecting({ label }: { label: string }) {
+// it's connecting; or, on a page whose title is known before its state, as the inbox's, the page
+// header, saying it under the title, as the network's other pages do.
+export function Connecting({ label, title }: { label: string; title?: string }) {
   const wide = useMedia(WIDE)
   return (
     <div className={frame}>
       <main className={canvas} aria-busy="true">
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-7 w-72 max-w-full" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <div className={readout}>
-          <span role="status">
-            <StateLine kind="loading">{label}</StateLine>
-          </span>
-        </div>
+        {title ? (
+          <PageHeader title={title} status={<StateLine kind="loading">{label}</StateLine>} />
+        ) : (
+          <>
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-7 w-72 max-w-full" />
+              <Skeleton className="h-4 w-96 max-w-full" />
+            </div>
+            <div className={readout}>
+              <span role="status">
+                <StateLine kind="loading">{label}</StateLine>
+              </span>
+            </div>
+          </>
+        )}
         <div className="flex flex-col gap-3">
           <Skeleton className="h-5 w-56" />
           {[0, 1, 2, 3, 4].map((i) => (

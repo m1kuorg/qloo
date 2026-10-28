@@ -129,16 +129,17 @@ describe("the workspace's connection", () => {
 
 describe("the inbox's connection", () => {
   it('says it is connecting until the first state arrives, then reconnecting while the socket is down', async () => {
+    // The page header, with its title, says so, as the network's other pages do.
     const connecting = page(undefined, 'inbox')
-    expect(connecting).toContain('Working Connecting to the inbox…')
+    expect(connecting).toMatch(/^ Inbox Working Connecting to the inbox… /)
     expect(connecting).not.toContain('No pitches yet')
 
     const s = await session()
     const state = s.state()
     expect(page(state, 'inbox')).not.toContain('Reconnecting…')
+    // With no pitches and no readout, the header says it.
     const text = page(state, 'inbox', { identified: false })
-    expect(text).toContain('Reconnecting…')
-    expect(text).toContain('No pitches yet. Paste or upload pitches above.')
+    expect(text).toMatch(/^ Inbox Reconnecting… No pitches yet\. Load pitches /)
   })
 })
 

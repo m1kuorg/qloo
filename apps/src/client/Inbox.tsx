@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
 import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -49,11 +50,22 @@ import {
   useLeaveGuard
 } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
-import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
+import { canvas, Connecting, frame, Inspector, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
+import { PageEmpty, PageHeader, summaryLine } from './PageHeader'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
-import { connectionOf, isLive, matchLabel, sentence, SlowCalls, stateLabel, StateLine, type Connection } from './states'
+import {
+  connectionOf,
+  ConnectionState,
+  isLive,
+  matchLabel,
+  sentence,
+  SlowCalls,
+  stateLabel,
+  StateLine,
+  type Connection
+} from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
@@ -95,7 +107,7 @@ type Page = {
 export function InboxWorkspace({ agent, links, network }: { agent: Session; links: Links; network?: NetworkPage }) {
   const { opened, openCall } = useEvidence(agent)
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
-  if (!agent.state) return <Connecting label="Connecting to the inbox…" />
+  if (!agent.state) return <Connecting label="Connecting to the inbox…" title="Inbox" />
   const shown = viewing?.state ?? agent.state
   const lastRun = shown.run
   const pitchRun = lastRun && shown.booking?.run === lastRun.id ? lastRun : null
@@ -140,11 +152,12 @@ export function InboxWorkspace({ agent, links, network }: { agent: Session; link
 // pitches, see what Claude read from each and how Qloo matched its work, confirm ambiguous matches,
 // rank the pitched works against a roster show and its past guests, then clear the inbox reply by
 // reply. It's a loop, so every section stays on the canvas once it has something to show, in the
-// order the loop asks: the title row and its readout, the run's question, the show to rank against,
-// the ranked lists, the replies, then the pitches. The inspector holds the run and the earlier pitch
-// runs, a call's evidence, and the pitch opened from a list or the table. An earlier pitch run, viewed
-// from Runs, shows read-only as it ended: its lists, replies and pitches, with nothing to start, load,
-// confirm or change.
+// order the loop asks: the header and its readout, the run's question, the show to rank against, the
+// ranked lists, the replies, then the pitches; with no pitches, the empty state instead. Load pitches,
+// in the header or the empty state, opens the form in a sheet. The inspector holds the run and the
+// earlier pitch runs, a call's evidence, and the pitch opened from a list or the table. An earlier
+// pitch run, viewed from Runs, shows read-only as it ended: its lists, replies and pitches, with
+// nothing to start, load, confirm or change.
 export function InboxPage({
   inbox,
   roster,
@@ -186,11 +199,17 @@ export function InboxPage({
   const opened = actions.opened?.call ?? null
   // The number of the earlier pitch run shown, read-only.
   const viewing = history?.viewing ? runNumber(history.runs, history.viewing) : null
+  // The load form's sheet, which stays open after a load so a refusal shows where it was asked, and
+  // stays open as the first load takes the page from its empty state to the pitches.
+  const [loading, setLoading] = useState(false)
+  const load = () => setLoading(true)
   return (
     <div className={frame}>
       <main className={canvas} data-canvas>
         <InboxHead
           inbox={inbox}
+          show={booking?.show.name ?? inbox?.show?.name ?? null}
+          load={load}
           pitchRun={pitchRun}
           startedAt={startedAt}
           slowCalls={slowCalls}
@@ -235,36 +254,31 @@ export function InboxPage({
             opened={opened}
           />
         )}
-        <section className="flex min-w-0 flex-col gap-6" aria-labelledby="pitches-h">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-base font-semibold" id="pitches-h">
-              Pitches
-            </h2>
-            {viewing ? (
-              <p className="text-muted-foreground">As they were when run {viewing} ended.</p>
-            ) : (
-              <InboxLoad
-                loadInbox={actions.loadInbox}
-                reading={reading}
-                sample={sample}
-                wipes={Boolean(booking?.lists?.length || booking?.replies?.length)}
-              />
+        {inbox ? (
+          <section className="flex min-w-0 flex-col gap-6" aria-labelledby="pitches-h">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-base font-semibold" id="pitches-h">
+                Pitches
+              </h2>
+              {viewing && <p className="text-muted-foreground">As they were when run {viewing} ended.</p>}
+            </div>
+            {inbox.skipped && (
+              <p className="max-w-[72ch]">
+                <SkippedPitches skipped={inbox.skipped} />
+              </p>
             )}
-          </div>
-          {inbox?.skipped && (
-            <p className="max-w-[72ch]">
-              <SkippedPitches skipped={inbox.skipped} />
-            </p>
-          )}
-          <PitchTable
-            pitches={inbox?.pitches ?? []}
-            sample={sample}
-            selected={pitch?.id ?? null}
-            select={select}
-            openCall={showCall}
-            opened={opened}
-          />
-        </section>
+            <PitchTable
+              pitches={inbox.pitches}
+              sample={sample}
+              selected={pitch?.id ?? null}
+              select={select}
+              openCall={showCall}
+              opened={opened}
+            />
+          </section>
+        ) : (
+          <PageEmpty action={<Button onClick={load}>Load pitches</Button>}>No pitches yet.</PageEmpty>
+        )}
       </main>
       {/* Opened for a pitch, the sheet gives its heading focus, as the inspector beside the canvas does. */}
       <Inspector
@@ -313,19 +327,65 @@ export function InboxPage({
           </TabsContent>
         )}
       </Inspector>
+      {/* Kept mounted while closed, so files dropped anywhere on the page load, opening it. An earlier
+          run, viewed, loads nothing. */}
+      {!viewing && (
+        <Sheet open={loading} onOpenChange={setLoading}>
+          <SheetContent keepMounted className="gap-0">
+            <SheetHeader className="pr-14">
+              <SheetTitle>Load pitches</SheetTitle>
+              <SheetDescription>
+                Paste pitch emails or upload them. Claude reads each one for its guest and public work. {PRIVATE}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+              <InboxLoad
+                loadInbox={actions.loadInbox}
+                reading={reading}
+                sample={sample}
+                wipes={Boolean(booking?.lists?.length || booking?.replies?.length)}
+                dropped={load}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   )
 }
 
-const inboxName = (inbox: Inbox | null) =>
-  inbox ? (inbox.sample ? 'Sample inbox' : inbox.uploaded ? 'Uploaded pitches' : 'Pasted pitches') : 'None yet'
+// What the pitches' table and the load form say reaches Qloo of a pitch: PRODUCT.md's promise.
+const PRIVATE = 'Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'
 
-// The title row: the inbox's name, with the sample label, and what Claude and Qloo are given of each
-// pitch, or for the sample, which comes already read, what Qloo is; while an earlier pitch run is
-// viewed, its number and the way back to the latest. Then the on-air readout, which follows a pitch run,
-// or while there's none, the inbox's reading, or the sample's lookups, and its slow calls.
+// The inbox in the header's summary, with the show it's for once one is known, the sample's or the
+// latest run's: "40 pitches for The Big Picture · 31 matched, 1 ambiguous, 4 not in Qloo, 4 set aside",
+// the pitches counted by their words, as the inbox check counts them.
+function inboxSummary(inbox: Inbox, show: string | null) {
+  const n = (label: string) => inbox.pitches.filter((p) => stateLabel(p) === label).length
+  const counted = (label: string, one: string, many = one) =>
+    n(label) > 0 && `${n(label)} ${n(label) === 1 ? one : many}`
+  return summaryLine(`${pitchCount(inbox.pitches.length)}${show ? ` for ${show}` : ''}`, [
+    counted('Reading', 'reading'),
+    counted('Looking up', 'looking up'),
+    counted('Matched', 'matched'),
+    counted('Ambiguous', 'ambiguous'),
+    counted('Not in Qloo', 'not in Qloo'),
+    counted('Lookup failed', 'lookup failed', 'lookups failed'),
+    counted('Set aside', 'set aside'),
+    counted('Unreadable', 'unreadable'),
+    counted('Failed', 'failed')
+  ])
+}
+
+// The head of the canvas: the page header, with the inbox counted and Load pitches, or while an earlier
+// pitch run is viewed, its number and the way back to the latest. Then the on-air readout, which
+// follows a pitch run, or while there's none, the inbox's reading, or the sample's lookups, and its
+// slow calls. With no inbox and no run there's no readout: the empty state says what's missing, and
+// the header the connection's state.
 function InboxHead({
   inbox,
+  show,
+  load,
   pitchRun,
   startedAt,
   slowCalls,
@@ -335,6 +395,8 @@ function InboxHead({
   runLog
 }: {
   inbox: Inbox | null
+  show: string | null // the show the pitches are for, once one is known
+  load: () => void // opens the load form's sheet
   pitchRun: Run | null
   startedAt: string | null
   slowCalls: SlowCall[]
@@ -349,93 +411,93 @@ function InboxHead({
   const looked = inbox?.pitches.filter((p) => p.work && p.status !== 'looking_up').length ?? 0
   // Back to the latest run, its button goes, and focus goes to the page's heading.
   const heading = useRef<HTMLHeadingElement>(null)
+  const readout = Boolean(inbox || pitchRun)
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="flex min-w-0 flex-1 basis-md flex-col gap-1.5">
-          <h1 className="type-title" ref={heading} tabIndex={-1}>
-            Inbox
-          </h1>
-          <div className="flex flex-col gap-1 type-caption text-muted-foreground">
-            {viewing && (
-              <p className="flex flex-wrap items-center gap-1.5">
-                <Badge>Run {viewing}</Badge> An earlier run, read-only.
-              </p>
-            )}
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="font-medium text-foreground">{inboxName(inbox)}</span>
-              {inbox?.sample && <Badge>Sample data</Badge>}
-            </p>
-            <p className="max-w-[72ch]">
-              {inbox?.sample
-                ? 'The sample’s pitches come already read for their guest and public work.'
-                : 'Claude reads each pitch for its guest and public work.'}{' '}
-              Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.
-            </p>
-          </div>
-        </div>
-        {viewing && (
-          <Button
-            variant="secondary"
-            onClick={() => {
-              back()
-              heading.current?.focus()
-            }}
-          >
-            Back to the latest run
-          </Button>
-        )}
-      </div>
-      <Readout connection={connection} since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
-        {pitchRun ? (
-          <RunState run={pitchRun} slowCalls={slowCalls} />
-        ) : inbox ? (
-          <>
-            {inbox.status === 'reading' && inbox.sample ? (
-              <StateLine kind="loading" word="Looking up">
-                · {looked} of {works} {works === 1 ? 'work' : 'works'} looked up
-              </StateLine>
-            ) : inbox.status === 'reading' ? (
-              <StateLine kind="loading" word="Reading">
-                · {done} of {pitchCount(inbox.pitches.length)} read
-              </StateLine>
-            ) : (
-              <span>
-                <b className="font-semibold">Read</b> · {pitchCount(inbox.pitches.length)}
-              </span>
-            )}
-            {slowCalls.length > 0 && (
-              <span className="basis-full type-caption">
-                <SlowCalls calls={slowCalls} />
-              </span>
-            )}
-          </>
-        ) : (
-          // The state word alone: the pitches' section says what to do.
-          <span className="inline-flex items-center gap-2">
-            <OnAir live={false} idle />
-            <b className="font-semibold">Not loaded</b>
-          </span>
-        )}
-      </Readout>
+      {/* Load pitches is secondary here: once pitches are in, ranking them is the page's primary. */}
+      <PageHeader
+        title="Inbox"
+        heading={heading}
+        summary={
+          viewing ? (
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              <Badge>Run {viewing}</Badge> An earlier run, read-only.
+            </span>
+          ) : (
+            inbox && inboxSummary(inbox, show)
+          )
+        }
+        status={readout ? undefined : <ConnectionState connection={connection} />}
+        actions={
+          viewing ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                back()
+                heading.current?.focus()
+              }}
+            >
+              Back to the latest run
+            </Button>
+          ) : (
+            inbox && (
+              <Button variant="secondary" onClick={load}>
+                Load pitches
+              </Button>
+            )
+          )
+        }
+      />
+      {readout && (
+        <Readout connection={connection} since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
+          {pitchRun ? (
+            <RunState run={pitchRun} slowCalls={slowCalls} />
+          ) : (
+            inbox && (
+              <>
+                {inbox.status === 'reading' && inbox.sample ? (
+                  <StateLine kind="loading" word="Looking up">
+                    · {looked} of {works} {works === 1 ? 'work' : 'works'} looked up
+                  </StateLine>
+                ) : inbox.status === 'reading' ? (
+                  <StateLine kind="loading" word="Reading">
+                    · {done} of {pitchCount(inbox.pitches.length)} read
+                  </StateLine>
+                ) : (
+                  <span>
+                    <b className="font-semibold">Read</b> · {pitchCount(inbox.pitches.length)}
+                  </span>
+                )}
+                {slowCalls.length > 0 && (
+                  <span className="basis-full type-caption">
+                    <SlowCalls calls={slowCalls} />
+                  </span>
+                )}
+              </>
+            )
+          )}
+        </Readout>
+      )}
     </>
   )
 }
 
-// Pitches pasted, uploaded as email files, or dropped anywhere on the page, read in the browser by the
-// upload module and sent as pitches. Each replaces the inbox; over one with ranked lists or replies
-// (`wipes`), which go with it, a load confirms first. From 768px the box and what it takes sit side by
-// side, as the roster's import does.
-function InboxLoad({
+// The load form, in the inbox page's sheet, as the roster's import is: pitches pasted, uploaded as
+// email files, or dropped anywhere on the page, read in the browser by the upload module and sent as
+// pitches. Each replaces the inbox; over one with ranked lists or replies (`wipes`), which go with it,
+// a load confirms first. `dropped` hears of dropped files it loads, so the page can show the form.
+export function InboxLoad({
   loadInbox,
   reading,
   sample,
-  wipes
+  wipes,
+  dropped
 }: {
   loadInbox: Actions['loadInbox']
   reading: boolean
   sample: boolean // the inbox is the sample, whose works are looked up as it loads
   wipes: boolean
+  dropped?: () => void
 }) {
   const [text, setText] = useState('')
   const { busy, error, run } = useAction()
@@ -469,7 +531,11 @@ function InboxLoad({
     if (files.length) void upload(files)
   }
   // Files dropped while the inbox is still loading aren't read; the cue says to wait.
-  const dragging = useFileDrop((files) => (locked ? null : upload(files)))
+  const dragging = useFileDrop((files) => {
+    if (locked) return null
+    dropped?.()
+    return upload(files)
+  })
   return (
     <form className="flex flex-col gap-2" onSubmit={paste}>
       {dragging && (
@@ -481,10 +547,10 @@ function InboxLoad({
             : 'Drop the files to load their pitches: .eml files, an .mbox export, or a .txt of pitches.'}
         </DropCue>
       )}
-      {/* The section's "Pitches" heading, right above it, names the field. */}
-      <Field className="grid gap-x-6 gap-y-2 md:grid-cols-2">
+      <Field>
+        <FieldLabel htmlFor="inbox-pitches">Pitch emails</FieldLabel>
         <Textarea
-          aria-labelledby="pitches-h"
+          id="inbox-pitches"
           rows={4}
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -1488,7 +1554,7 @@ const ReadBy = ({ sample }: { sample: boolean }) => (sample ? <Badge>sample</Bad
 // Every pitch as read, in the roster table's anatomy: a real table whose rules bleed 8px past the
 // text, the pitch's name a button that opens it in the inspector's Pitch tab, with its sender under
 // it; the guest and work as Claude read them, or as the sample gives them; the work's Qloo match, or
-// why it has none and the way to settle it; and the search's call. A set-aside pitch's guest and work
+// why it has none and the way to settle it; and the search's call. Its caption says what reaches Qloo. A set-aside pitch's guest and work
 // cells look empty, and say "None" to screen readers rather than "blank". The pitch open in the
 // inspector, or whose evidence is, holds the tone step. Narrower than the table, it scrolls sideways in
 // its region with the pitch's column held at the left.
@@ -1507,12 +1573,6 @@ function PitchTable({
   openCall: (call: string) => void
   opened: string | null
 }) {
-  if (pitches.length === 0)
-    return (
-      <p className="rounded-xl bg-muted px-4 py-3 text-muted-foreground">
-        No pitches yet. Paste or upload pitches above.
-      </p>
-    )
   // One shaded row: the pitch open in the inspector or, with none open, the one whose evidence is.
   const hot = selected ?? pitches.find((p) => p.match && p.match.evidence === opened)?.id
   const cell = 'border-b py-3 pl-3 align-top group-data-selected/row:bg-muted'
@@ -1526,8 +1586,8 @@ function PitchTable({
         {sample
           ? 'Guest and work as the sample gives them for each pitch.'
           : 'Guest and work as Claude read them from each pitch.'}{' '}
-        <Source of="qloo" /> Matches from Qloo search, one call per work. Select a pitch to read it or confirm its
-        match.
+        <Source of="qloo" /> Matches from Qloo search, one call per work. {PRIVATE} Select a pitch to read it or confirm
+        its match.
       </p>
       <ScrollTable label="Pitch table" className="-mx-2 max-w-none">
         <table className="w-full min-w-[46rem] border-separate border-spacing-0" aria-describedby="pitches-cap">

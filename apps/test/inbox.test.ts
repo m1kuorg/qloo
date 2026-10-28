@@ -221,19 +221,21 @@ describe('the sample inbox, as the guest network loads it', () => {
           special[p.id] ?? { resolution: 'resolved', entity: { id: `w-${p.id}` }, error: null }
         )
     }
-    // The page labels it sample data in its title row, says its pitches come already read, with no
-    // notice, and its table has a row per pitch saying how its work matched and, where one is needed,
-    // how to settle it.
+    // The page's header counts the pitches for the show the sample was written for, with no sample label
+    // or notice; its table says its pitches come already read and what reaches Qloo, and has a row per
+    // pitch saying how its work matched and, where one is needed, how to settle it.
     const page = renderToStaticMarkup(
       createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
-    expect(words(page)).toContain(
-      'Inbox Sample inbox Sample data The sample’s pitches come already read for their guest and public work. Only the work’s title and type are looked up in Qloo'
+    expect(words(page)).toMatch(
+      /^Inbox 40 pitches for The Big Picture · 34 matched, 1 ambiguous, 1 not in Qloo, 4 set aside Load pitches Read · 40 pitches /
     )
     expect(words(page)).toContain(
-      'sample Guest and work as the sample gives them for each pitch. Qloo data Matches from Qloo search, one call per work.'
+      'sample Guest and work as the sample gives them for each pitch. Qloo data Matches from Qloo search, one call per work. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'
     )
     for (const gone of [
+      'Sample inbox',
+      'Sample data',
       'Sample data for Crossfeed’s guest pitches',
       "Sample data for Crossfeed's guest pitches",
       'Claude read'
