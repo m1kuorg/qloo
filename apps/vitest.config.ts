@@ -17,9 +17,9 @@ export default defineConfig({
       // test that needs a short timeout or pacing sets it for itself. New sessions start empty
       // instead of looking up the sample network; test/sample.test.ts turns it on. Guest pitches
       // are off whatever wrangler.jsonc or .dev.vars says; a test of the flow turns them on itself.
-      // The run limits, the sign-up, network, and invite caps, and the guest sign-ins a minute and a day are
-      // wrangler.jsonc's, whatever .dev.vars says; a test lowers them itself. Passkeys belong to the
-      // origin tests send from.
+      // The run limits, the sign-up, network, and invite caps, the guest sign-ins a minute and a day, and the
+      // sample data's resets a day are wrangler.jsonc's, whatever .dev.vars says; a test lowers them itself.
+      // Passkeys belong to the origin tests send from.
       // Accounts are on, as the product's tests need; a test without them turns them off. The engine's
       // sessions answer at /agents/session (routes/demo.ts) only here, where TEST_SESSIONS is on.
       miniflare: {
@@ -49,6 +49,7 @@ export default defineConfig({
           INVITED_SIGNUP_DAILY_CAP: '20',
           GUEST_SIGNINS_PER_MINUTE: '30',
           GUEST_SIGNINS_PER_DAY: '1000',
+          SAMPLE_RESETS_PER_DAY: '20',
           TEST_SESSIONS: 'on',
           TEST_MIGRATIONS: migrations
         }
