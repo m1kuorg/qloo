@@ -55,6 +55,7 @@ describe('the directory', () => {
       'passkeys',
       'past_memberships',
       'sample_launches',
+      'sample_resets',
       'sessions',
       'wipes'
     ])
@@ -76,7 +77,8 @@ describe('the directory', () => {
       'sessions',
       'invites',
       'api_keys',
-      'sample_launches'
+      'sample_launches',
+      'sample_resets'
     ])
       expect(await env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n'), table).toBe(0)
   })
