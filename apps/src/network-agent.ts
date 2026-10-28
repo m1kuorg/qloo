@@ -154,8 +154,10 @@ export class NetworkAgent extends CrossfeedAgent {
     try {
       if (missing > 0) {
         const gateway = await this.reserveCalls(this.limitKey(), missing)
-        if (roster.length === 0) this.lookUpRoster(sampleRoster, { cpm: sampleCpm, sample }, gateway)
-        else this.lookUpRoster(roster, {}, gateway, [])
+        // A CPM a guest set while the roster stayed empty is theirs, so it stays, unlabelled.
+        const cpm = this.state.cpm ?? sampleCpm
+        if (roster.length > 0) this.lookUpRoster(roster, {}, gateway, [])
+        else this.lookUpRoster(sampleRoster, { cpm, sample: { ...sample, cpm: cpm === sampleCpm } }, gateway)
       }
       if (kv.get(SAMPLE_LAUNCH) === undefined)
         kv.put(SAMPLE_LAUNCH, (await this.planLaunch(sample.launch, this.state.sample)).id)
