@@ -1,13 +1,13 @@
 import { cn } from 'cn'
 import { XIcon } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Run, SlowCall } from '../agent'
-import type { Opened } from './Evidence'
+import type { OpenCall, Opened } from './Evidence'
 import { PageHeader } from './PageHeader'
 import { runLabel } from './Run'
 import { ConnectionState, endedBadly, isLive, SlowCalls, StateLine, type Connection } from './states'
@@ -34,13 +34,17 @@ const aside =
 // canvas, a show on the roster page or a pitch in the inbox.
 export type InspectorTab = 'run' | 'evidence' | 'show' | 'pitch'
 const tabName: Record<InspectorTab, string> = { run: 'Run', evidence: 'Evidence', show: 'Show', pitch: 'Pitch' }
+// The inspector's id, beside the canvas or as a sheet, which the header's toggle controls.
+const INSPECTOR_ID = 'inspector'
 
 // Which of `tabs` the inspector shows, falling back to the first, Run on a run page, when the one
-// asked for has gone (its show or pitch closed); whether it's beside the canvas or a sheet; and
-// whether it's open, which it isn't as the page opens, at any width, and needn't be after it. `inspect`
-// opens it on a tab, `showCall` opens a call's evidence there, or closes the evidence when it's
-// already shown, and `toggle`, the header's Details, opens it on the tab it last showed, or closes it.
-// Closing it keeps what the page has selected, so it opens on the same again.
+// asked for has gone; whether it's beside the canvas or a sheet; and whether it's open, which it isn't
+// as the page opens, at any width, and needn't be after it. `inspect` opens it on a tab, `showCall`
+// opens a call's evidence there, or closes the evidence when it's already shown, and `toggle`, the
+// header's Details, opens it on the tab it last showed, or closes it. Each is passed the control that
+// asked, where focus goes back to as it closes: a click passes itself, since Safari and Firefox on a
+// Mac don't focus a clicked button. Closing it keeps what the page has selected, so it opens on the
+// same again.
 export function useInspector(
   tabs: InspectorTab[],
   { opened, openCall }: { opened: Opened | null; openCall: (call: string) => unknown }
@@ -48,36 +52,46 @@ export function useInspector(
   const wide = useMedia(WIDE)
   const [tab, setTab] = useState<InspectorTab>('run')
   const [open, setOpen] = useState(false)
-  // The inspector, beside the canvas or its sheet; the header's toggle; and what opened it last, from
-  // outside it, where focus goes back to as it closes.
-  const panel = useRef<HTMLDivElement>(null)
+  // The inspector's element, beside the canvas or its sheet; the header's toggle; what opened it last,
+  // from outside it, where focus goes back to as it closes; and whether focus stays where it is instead,
+  // as it does once the toggle has closed it or focus has left the sheet.
+  const element = useRef<HTMLDivElement>(null)
   const toggleButton = useRef<HTMLButtonElement>(null)
   const opener = useRef<HTMLElement | null>(null)
+  const focusStays = useRef(false)
   const current = tabs.includes(tab) ? tab : tabs[0]
-  const inspect = (next: InspectorTab) => {
-    const from = document.activeElement
-    if (from instanceof HTMLElement && from !== document.body && !panel.current?.contains(from)) opener.current = from
+  const inspect = (next: InspectorTab, from: HTMLElement) => {
+    if (!element.current?.contains(from)) opener.current = from
+    focusStays.current = false
     setTab(next)
     setOpen(true)
   }
-  const showCall = (call: string) => {
+  const showCall: OpenCall = (call, from) => {
     if (opened?.call === call && current === 'evidence' && open) return void openCall(call)
-    inspect('evidence')
+    inspect('evidence', from)
     if (opened?.call !== call) void openCall(call)
   }
-  // Where focus goes as it closes: back to what opened it, while that's still there, or else to the
-  // header's toggle; only from inside it, though, or from nowhere, so focus that has left it stays.
-  const returnFocus = () => {
-    const at = document.activeElement
-    if (at && at !== document.body && !panel.current?.contains(at)) return null
-    return opener.current?.isConnected ? opener.current : toggleButton.current
-  }
+  // Where focus is to go as it closes: back to what opened it, while that's still there, or else to the
+  // header's toggle; or nowhere, when it's to stay where it is. Not wherever focus is as it closes, which
+  // in Safari and Firefox on a Mac is still what had it before the click.
+  const returnTarget = () =>
+    focusStays.current ? null : opener.current?.isConnected ? opener.current : toggleButton.current
   const close = () => {
-    const back = returnFocus()
+    const back = returnTarget()
     setOpen(false)
     back?.focus()
   }
-  const toggle = () => (open ? close() : inspect(current))
+  // Closed as focus left the sheet for something it covers: focus stays there.
+  const leave = useCallback(() => {
+    focusStays.current = true
+    setOpen(false)
+  }, [])
+  // Closed from the toggle, focus goes to the toggle, not back to what opened it.
+  const toggle = (from: HTMLElement) => {
+    if (!open) return inspect(current, from)
+    leave()
+    from.focus()
+  }
   return {
     tabs,
     current,
@@ -88,23 +102,33 @@ export function useInspector(
     inspect,
     showCall,
     close,
+    leave,
     toggle,
-    panel,
+    element,
     toggleButton,
-    returnFocus
+    returnTarget
   }
 }
 
 // The header's toggle for the inspector, "Details", which says whether it's open (aria-expanded) and
-// which it opens (aria-controls): on the tab it last showed, or the first.
-export function InspectorToggle({ inspector }: { inspector: ReturnType<typeof useInspector> }) {
+// which it opens (aria-controls): on the tab it last showed, or the first. `ref` is the hook's
+// `toggleButton`, where focus goes as the inspector closes once what opened it has gone.
+export function InspectorToggle({
+  open,
+  toggle,
+  ref
+}: {
+  open: boolean
+  toggle: (from: HTMLElement) => void
+  ref: Ref<HTMLButtonElement>
+}) {
   return (
     <Button
-      ref={inspector.toggleButton}
+      ref={ref}
       variant="ghost"
-      aria-expanded={inspector.open}
-      aria-controls="inspector"
-      onClick={inspector.toggle}
+      aria-expanded={open}
+      aria-controls={INSPECTOR_ID}
+      onClick={(e) => toggle(e.currentTarget)}
     >
       Details
     </Button>
@@ -123,7 +147,7 @@ export function InspectorToggle({ inspector }: { inspector: ReturnType<typeof us
 // `initialFocus` is what the sheet focuses as it opens, when the page asks for more than Base UI's
 // default, such as an opened object's heading.
 export function Inspector({
-  inspector: { tabs, current, setTab, wide, open, setOpen, close, panel, returnFocus },
+  inspector: { tabs, current, setTab, wide, open, setOpen, close, leave, element, returnTarget },
   initialFocus,
   children
 }: {
@@ -135,16 +159,16 @@ export function Inspector({
     if (wide || !open) return
     const moved = (e: FocusEvent) => {
       const to = e.target
-      const from = panel.current
+      const from = element.current
       // Inside the sheet, or anything floating over it, such as its own focus guards.
       if (!from || !(to instanceof Element) || from.contains(to) || to.closest('[data-base-ui-portal]')) return
       const a = from.getBoundingClientRect()
       const b = to.getBoundingClientRect()
-      if (b.right > a.left && b.left < a.right && b.bottom > a.top && b.top < a.bottom) setOpen(false)
+      if (b.right > a.left && b.left < a.right && b.bottom > a.top && b.top < a.bottom) leave()
     }
     document.addEventListener('focusin', moved)
     return () => document.removeEventListener('focusin', moved)
-  }, [wide, open, setOpen, panel])
+  }, [wide, open, leave, element])
   const panels = (
     <Tabs value={current} onValueChange={(next) => setTab(next as InspectorTab)}>
       {/* The tabs stay at the top of the inspector while what's in it scrolls under them. */}
@@ -175,8 +199,8 @@ export function Inspector({
   )
   return wide ? (
     <aside
-      ref={panel}
-      id="inspector"
+      ref={element}
+      id={INSPECTOR_ID}
       className={aside}
       aria-label="Details"
       hidden={!open}
@@ -194,12 +218,12 @@ export function Inspector({
     // and the calls' aria-controls="evidence" always finds its panel.
     <Sheet open={open} onOpenChange={setOpen} modal={false} disablePointerDismissal>
       <SheetContent
-        ref={panel}
-        id="inspector"
+        ref={element}
+        id={INSPECTOR_ID}
         overlay={false}
         keepMounted
         className="gap-0"
-        finalFocus={() => returnFocus() ?? false}
+        finalFocus={() => returnTarget() ?? false}
         {...(initialFocus && { initialFocus })}
       >
         <SheetHeader className="pr-14">
@@ -273,7 +297,7 @@ export function Readout({
 }: {
   connection?: Connection
   since: string | null
-  runLog: () => void
+  runLog: (from: HTMLElement) => void
   children: ReactNode
 }) {
   const elapsed = useElapsed(since)
@@ -296,7 +320,7 @@ export function Readout({
           ))}
         </span>
       )}
-      <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={runLog}>
+      <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={(e) => runLog(e.currentTarget)}>
         Run log
       </Button>
     </div>

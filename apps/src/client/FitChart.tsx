@@ -14,7 +14,7 @@ import { sameName } from '../resolve'
 import { moveGlyph, moveWords, nth } from '../text'
 import { topicFinding, type Move, type Topic } from '../topic'
 import { FitBand, listOf, NotScored } from './controls'
-import { CallButton } from './Evidence'
+import { CallButton, type OpenCall } from './Evidence'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
 
@@ -78,7 +78,7 @@ export function FitChart({
   topic: Topic | null
   failed: string[] // roster shows whose Qloo lookup failed
   running: boolean
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
   roster: Show[] // for each show's downloads and its sample labels
   cpm: number | null
@@ -519,7 +519,7 @@ function DemographicSummary({
 }: {
   check: DemographicCheck
   ranking: Ranking
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   const cite = (

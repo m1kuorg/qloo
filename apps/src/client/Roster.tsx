@@ -22,10 +22,10 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
 // The roster every launch on the network ranks, kept by its agent, which answers "Is my roster ready
 // to rank?": the header with the roster's counts, the inspector's toggle and Import shows, the shows
 // Qloo failed on, and the roster table, whose caption says whether it's ready to rank, and whose shows
-// open in the inspector's Show tab beside it (a sheet under 1360px), closed until then, and whose calls
-// open in its Evidence tab. An empty roster has the empty state instead, with Import shows and no
-// inspector; either opens the import in a sheet. Every member's edits reach the
-// others through synced state. Tests render it from a network agent's synced state.
+// open in the inspector's Show tab beside it (a sheet under 1360px), closed until then, and whose
+// calls open in its Evidence tab. An empty roster has the empty state instead, with Import shows and
+// no inspector; either opens the import in a sheet. Every member's edits reach the others through
+// synced state. Tests render it from a network agent's synced state.
 export function NetworkRoster({
   agent,
   connection = { lost: null, reconnecting: false }
@@ -51,7 +51,7 @@ export function NetworkRoster({
       summary={rosterSummary(roster)}
       actions={
         <>
-          <InspectorToggle inspector={inspector} />
+          <InspectorToggle open={inspector.open} toggle={inspector.toggle} ref={inspector.toggleButton} />
           {importing.button()}
         </>
       }
@@ -86,9 +86,9 @@ export function NetworkRoster({
               roster={roster}
               readiness={readiness(roster)}
               selected={show?.name ?? null}
-              select={(name) => {
+              select={(name, from) => {
                 setSelected(name)
-                inspector.inspect('show')
+                inspector.inspect('show', from)
               }}
               slowCalls={state.slowCalls ?? []}
               openCall={inspector.showCall}
