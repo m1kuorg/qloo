@@ -479,7 +479,7 @@
       {
         "name": "inspector",
         "value": "1360px",
-        "purpose": "min-[85rem]: the inspector, open, sits beside the canvas, a 360px column, instead of in a sheet. At 1440, 56 (rail) + 24 + 976 (canvas) + 24 + 360 (inspector) = 1440; closed, as every page opens, the canvas takes the width up to its cap, 1024px with its gutters (max-w-5xl), so a 976px column, as wide as it is open."
+        "purpose": "min-[85rem]: the inspector, open, sits beside the canvas, a 360px column, instead of in a sheet. At 1440, 56 (rail) + 24 + 976 (canvas) + 24 + 360 (inspector) = 1440; closed, as every page opens, the canvas takes the width beside the rail."
       },
       {
         "name": "docs-toc",
