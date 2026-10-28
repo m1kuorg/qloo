@@ -172,11 +172,12 @@ export async function deleteAccount(env: Env, memberId: string, networks: string
 // networks only they own, noting a wipe of each network's agent, which a later run's retry makes.
 export const removeExpiredGuests = (env: Env) => dropExpiredGuests(env.DB, NETWORK)
 
-// The cron's retry of the oldest wipes noted over a minute ago and not done, at most WIPES_PER_RUN, logging
-// how many it wiped, kept, and failed. A launch its network still lists, while the network is still in the directory, was never let go
-// of, as when its deletion stopped before the list let go, so it's kept and its wipe crossed off. A
-// network's agent is wiped as wipeNetwork says. Every wipe is tried, and then any that failed, or that
-// names a binding nothing here wipes, fails the cron's run; they stay noted for the next.
+// The cron's retry of the oldest wipes noted over a minute ago and not done, at most WIPES_PER_RUN,
+// logging how many it wiped, kept, and failed. A launch its network still lists, while the network is
+// still in the directory, was never let go of, as when its deletion stopped before the list let go, so
+// it's kept and its wipe crossed off. A network's agent is wiped as wipeNetwork says. Every wipe is
+// tried, and then any that failed, or that names a binding nothing here wipes, fails the cron's run;
+// they stay noted for the next.
 export async function retryWipes(env: Env) {
   const done = { wiped: 0, kept: 0, failed: 0 }
   for (const instance of await wipesDue(env.DB, Date.now() - RETRY_AFTER_MS, WIPES_PER_RUN)) {
