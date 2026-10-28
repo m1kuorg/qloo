@@ -90,6 +90,15 @@ export const NETWORK_DELETED = 'This network was deleted.'
 export const GUEST_NETWORK_RESET = `The guest network was cleared, as it is every day at ${GUEST_NETWORK_CLEARS}.`
 export const SAMPLE_DATA_RESET = 'The guest network was reset to the sample data.'
 
+// The Qloo calls the guest network's start reserves on the guest budget to load the sample again, as after
+// its clearing or a reset, while the sample network is on: the sample roster's lookups (loadSample), and
+// with guest pitches on, the sample inbox's works' (loadSampleInbox).
+export const sampleLookups = (env: Env) =>
+  env.SAMPLE_NETWORK !== 'on'
+    ? 0
+    : sampleRoster.length +
+      (env.GUEST_PITCHES === 'on' ? readSampleInbox().pitches.filter((p) => p.status === 'looking_up').length : 0)
+
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."
 // Where a network's agent keeps the roster it last told its launches (rosterKey).
