@@ -143,32 +143,44 @@ export class NetworkAgent extends CrossfeedAgent {
   }
 
   // Loads the sample network into the guest network on its first start, each day after the daily cron
-  // clears it (ADR 0007): the sample roster with its labels, looked up like an import, the sample CPM
-  // labelled as a sample figure, and the sample launch planned. Its lookups count on the guest budget;
-  // refused, the roster stays empty, with the sample to start from. Until it's noted as loaded, each
-  // start tries again what didn't land: a roster still empty, the lookups that failed, the launch if it
-  // wasn't planned. It's noted once a start finds the roster settled and the launch planned, or finds the
-  // sample replaced by a guest's import. It runs before any page connects, so it reserves the calls and
-  // plans the launch here, and leaves the lookups to run in the background.
+  // clears it (ADR 0007): the sample CPM labelled as a sample figure, the sample launch planned, and the
+  // sample roster with its labels, looked up like an import. The CPM and the plan call nothing, so they
+  // land whatever the lookups do; the lookups count on the guest budget, and refused, the roster stays
+  // empty, with the sample to start from. Until it's noted as loaded, each start tries again what didn't
+  // land: a roster still empty, the lookups that failed, the launch if it wasn't planned. It's noted once
+  // a start finds the roster settled and the launch planned, or finds the sample replaced by a guest's
+  // import. It runs before any page connects, so it plans the launch and reserves the calls here, and
+  // leaves the lookups to run in the background.
   private async loadSample() {
     const { kv } = this.ctx.storage
     if (kv.get(SAMPLE_LOADED)) return
     const { roster } = this.state
     if (roster.length > 0 && !this.state.sample) return kv.put(SAMPLE_LOADED, true)
-    const missing = roster.length === 0 ? sampleRoster.length : roster.filter((s) => s.resolution === 'failed').length
-    try {
-      if (missing > 0) {
-        const gateway = await this.reserveCalls(this.limitKey(), missing)
-        // A CPM a guest set while the roster stayed empty is theirs, so it stays, unlabelled.
-        const cpm = this.state.cpm ?? sampleCpm
-        if (roster.length > 0) this.lookUpRoster(roster, {}, gateway, [])
-        else this.lookUpRoster(sampleRoster, { cpm, sample: { ...sample, cpm: cpm === sampleCpm } }, gateway)
-      }
-      if (kv.get(SAMPLE_LAUNCH) === undefined)
+    const failed = (e: unknown) => console.error(JSON.stringify({ event: 'sample_load', error: String(e) }))
+    if (!this.state.sample) {
+      // A CPM a guest set before the sample loaded is theirs, so it stays, unlabelled.
+      const cpm = this.state.cpm ?? sampleCpm
+      this.setState({ ...this.state, cpm, sample: { ...sample, cpm: cpm === sampleCpm } })
+    }
+    let planned = kv.get(SAMPLE_LAUNCH) !== undefined
+    if (!planned)
+      try {
         kv.put(SAMPLE_LAUNCH, (await this.planLaunch(sample.launch, this.state.sample)).id)
-      if (missing === 0) kv.put(SAMPLE_LOADED, true)
+        planned = true
+      } catch (e) {
+        failed(e)
+      }
+    const missing = roster.length === 0 ? sampleRoster.length : roster.filter((s) => s.resolution === 'failed').length
+    if (missing === 0) {
+      if (planned) kv.put(SAMPLE_LOADED, true)
+      return
+    }
+    try {
+      const gateway = await this.reserveCalls(this.limitKey(), missing)
+      if (roster.length > 0) this.lookUpRoster(roster, {}, gateway, [])
+      else this.lookUpRoster(sampleRoster, {}, gateway)
     } catch (e) {
-      console.error(JSON.stringify({ event: 'sample_load', error: String(e) }))
+      failed(e)
     }
   }
 
@@ -288,7 +300,8 @@ export class NetworkAgent extends CrossfeedAgent {
 
   // Starts the network's roster from the sample network's shows, each figure labelled sample until a
   // member changes it, looked up like an import. The sample's notice comes with its show names; its CPM
-  // doesn't, since the network's is an owner's to set.
+  // doesn't, since the network's is an owner's to set, but for the guest network's, still labelled the
+  // sample's as its lookups were refused (loadSample).
   @callable()
   async startFromSample() {
     const empty = () => {
@@ -300,7 +313,7 @@ export class NetworkAgent extends CrossfeedAgent {
     empty()
     const gateway = await this.reserveCalls(this.limitKey(), sampleRoster.length)
     empty() // again, since an import may have started meanwhile
-    this.lookUpRoster(sampleRoster, { sample: { ...sample, cpm: false } }, gateway)
+    this.lookUpRoster(sampleRoster, { sample: { ...sample, cpm: this.state.sample?.cpm ?? false } }, gateway)
   }
 
   // Plans a new launch, named or from up to three comps: its own agent takes it, then it joins the
