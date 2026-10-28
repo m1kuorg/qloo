@@ -430,11 +430,11 @@ const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }
 // The marketing pages' footer, a screen at least, on a tone step from the page: one navigation, an
 // index of where to go next set as the landing re-rank sets its show names, each with a line on what's
 // there, beside it from 1024px and under it below, then the legal pages; what Crossfeed was made for;
-// and the name across the foot. With accounts off the index is the docs alone. The index sits in the
-// middle of whatever height the screen leaves, so the footer fills it with no stretch of nothing. Each
-// row's link covers the row (indexLink's ::after over its relative <li>), and so does the guest row's
-// button, which posts the guest form. The name is 4.48em wide in Schibsted Grotesk at 600, so the
-// content's width over 4.5 sets it.
+// and the name across the foot. With accounts off the index is what exists, the developer docs, a row
+// for each of their pages (DOCS), each current on its own page. The index sits in the middle of whatever
+// height the screen leaves, so the footer fills it with no stretch of nothing. Each row's link covers the
+// row (indexLink's ::after over its relative <li>), and so does the guest row's button, which posts the
+// guest form. The name is 4.48em wide in Schibsted Grotesk at 600, so the content's width over 4.5 sets it.
 const footerLink = linkVariants({ tone: 'text', className: 'inline-flex min-h-11 items-center md:min-h-0' })
 const indexLink =
   'justify-self-start rounded-sm type-index decoration-2 underline-offset-[0.12em] after:absolute after:inset-0 hover:underline aria-[current]:underline lg:col-span-7'
@@ -444,6 +444,16 @@ const IndexRow = ({ caption, children }: { caption: Child; children: Child }) =>
     <p class="max-w-[46ch] text-pretty text-muted-foreground lg:col-span-5 lg:col-start-8 lg:max-w-none">{caption}</p>
   </li>
 )
+const DOCS = [
+  { href: '/docs/api', label: 'REST API', caption: 'Every resource of a network, under /api/v1, for any language.' },
+  { href: '/docs/sdk', label: 'TypeScript SDK', caption: 'Typed methods for every route, and helpers for long work.' },
+  { href: '/docs/mcp', label: 'MCP server', caption: 'Tools for assistants such as Claude Code, at /mcp.' },
+  {
+    href: '/docs/agents',
+    label: 'Skills and plugin',
+    caption: 'Two Agent Skills, and a Claude Code plugin to install them.'
+  }
+]
 const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
   <footer class="mt-24 overflow-hidden bg-muted md:mt-40">
     <div
@@ -480,11 +490,29 @@ const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
               </IndexRow>
             </>
           )}
-          <IndexRow caption="The REST API, the SDK, the MCP server, and agent skills.">
-            <a class={indexLink} href="/docs" aria-current={path.startsWith('/docs') ? 'page' : undefined}>
+          <IndexRow
+            caption={
+              accounts
+                ? 'The REST API, the SDK, the MCP server, and agent skills.'
+                : 'What a program can and can’t do, API keys, limits, and errors.'
+            }
+          >
+            <a
+              class={indexLink}
+              href="/docs"
+              aria-current={(accounts ? path.startsWith('/docs') : path === '/docs') ? 'page' : undefined}
+            >
               Developers
             </a>
           </IndexRow>
+          {!accounts &&
+            DOCS.map(({ href, label, caption }) => (
+              <IndexRow caption={caption}>
+                <a class={indexLink} href={href} aria-current={path === href ? 'page' : undefined}>
+                  {label}
+                </a>
+              </IndexRow>
+            ))}
         </ul>
         <ul class="flex flex-wrap gap-x-6">
           <li>
