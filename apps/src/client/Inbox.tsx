@@ -342,7 +342,7 @@ export function InboxPage({
                 Paste pitch emails or upload them. Claude reads each one for its guest and public work. {PRIVATE}
               </SheetDescription>
             </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
               <InboxLoad
                 loadInbox={actions.loadInbox}
                 reading={reading}
@@ -1560,10 +1560,10 @@ const ReadBy = ({ sample }: { sample: boolean }) => (sample ? <Badge>sample</Bad
 // Every pitch as read, in the roster table's anatomy: a real table whose rules bleed 8px past the
 // text, the pitch's name a button that opens it in the inspector's Pitch tab, with its sender under
 // it; the guest and work as Claude read them, or as the sample gives them; the work's Qloo match, or
-// why it has none and the way to settle it; and the search's call. Its caption says what reaches Qloo. A set-aside pitch's guest and work
-// cells look empty, and say "None" to screen readers rather than "blank". The pitch open in the
-// inspector, or whose evidence is, holds the tone step. Narrower than the table, it scrolls sideways in
-// its region with the pitch's column held at the left.
+// why it has none and the way to settle it; and the search's call. Its caption says what reaches
+// Qloo. A set-aside pitch's guest and work cells look empty, and say "None" to screen readers rather
+// than "blank". The pitch open in the inspector, or whose evidence is, holds the tone step. Narrower
+// than the table, it scrolls sideways in its region with the pitch's column held at the left.
 function PitchTable({
   pitches,
   sample,
