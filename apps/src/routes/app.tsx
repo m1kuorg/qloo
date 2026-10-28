@@ -132,7 +132,7 @@ appPages.get('/app/account', async (c) => {
       // Signing in with a recovery code lands here, to add a passkey.
       data-recovered={String(c.req.query('recovered') !== undefined)}
       // A guest member's page says their account is temporary until a passkey keeps it (ADR 0006).
-      data-guest={isGuestMember(c.var.member) ? 'true' : undefined}
+      data-guest-member={isGuestMember(c.var.member) ? 'true' : undefined}
     />
   )
 })
@@ -542,7 +542,7 @@ const island = (c: Context<AppEnv>, network: Network) => {
     'data-network-id': network.id,
     'data-network-name': network.name,
     'data-role': network.role,
-    'data-guest': onGuestBudget(network.id) ? 'true' : undefined,
+    'data-guest-budget': onGuestBudget(network.id) ? 'true' : undefined,
     'data-roster-link': links.roster,
     'data-inbox-link': links.inbox ?? undefined,
     'data-settings-link': links.settings,

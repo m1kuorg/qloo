@@ -31,7 +31,7 @@ async function page(member: Pick<Member, 'fetch'>, path = '/app/account') {
       sessions={Number(d.sessions)}
       networks={JSON.parse(d.networks)}
       recovered={d.recovered === 'true'}
-      guest={d.guest === 'true'}
+      guestMember={d['guest-member'] === 'true'}
     />
   )
 }

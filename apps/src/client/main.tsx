@@ -14,7 +14,7 @@ const network = () => ({
   id: d.networkId!,
   name: d.networkName!,
   role: d.role as Role,
-  guest: d.guest === 'true',
+  guestBudget: d.guestBudget === 'true',
   links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink!, launches: d.launchesLink! }
 })
 // Each page's code is a chunk of its own, loaded before the island renders the page, so a page fetches
@@ -34,7 +34,7 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         sessions={Number(d.sessions)}
         networks={JSON.parse(d.networks!)}
         recovered={d.recovered === 'true'}
-        guest={d.guest === 'true'}
+        guestMember={d.guestMember === 'true'}
       />
     )),
   'new-network': () => import('./NewNetwork').then(({ NewNetworkPage }) => <NewNetworkPage cap={Number(d.cap)} />),

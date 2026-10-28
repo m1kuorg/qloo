@@ -14,7 +14,7 @@ export type NetworkPage = {
   id: string
   name: string
   role: Role
-  guest?: boolean
+  guestBudget?: boolean
   links: { roster: string; inbox: string | null; settings: string; launches: string }
 }
 

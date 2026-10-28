@@ -18,23 +18,23 @@ import { StateLine } from './states'
 // sessions, their networks, and deleting the account, one module per job in the settings' grammar.
 // A recovery code signs a member in here (`recovered`), to add a passkey for the device they're on.
 // Every destructive change confirms first; one that needs the member to confirm it's them (step-up)
-// asks once the confirm has closed, never over it. A guest member's page (`guest`) says their account is
-// temporary until their first passkey keeps it, which shows its recovery code once, as a sign-up does
-// (ADR 0006).
+// asks once the confirm has closed, never over it. A guest member's page (`guestMember`) says their
+// account is temporary until their first passkey keeps it, which shows its recovery code once, as a
+// sign-up does (ADR 0006).
 export function AccountPage({
   name,
   passkeys,
   sessions,
   networks,
   recovered,
-  guest = false
+  guestMember = false
 }: {
   name: string
   passkeys: AccountPasskey[]
   sessions: number
   networks: AccountNetwork[]
   recovered: boolean
-  guest?: boolean
+  guestMember?: boolean
 }) {
   // A new recovery code to show once, until the member says they've saved it.
   const [code, setCode] = useState<string | null>(null)
@@ -45,9 +45,9 @@ export function AccountPage({
       <h1 className="type-title">Account</h1>
       <div className="flex flex-col gap-12">
         <NameModule name={name} />
-        <PasskeysModule listed={passkeys} recovered={recovered} guest={guest} onKept={setCode} />
-        <RecoveryModule onCode={setCode} guest={guest} />
-        <SessionsModule sessions={sessions} guest={guest} />
+        <PasskeysModule listed={passkeys} recovered={recovered} guest={guestMember} onKept={setCode} />
+        <RecoveryModule onCode={setCode} guest={guestMember} />
+        <SessionsModule sessions={sessions} guest={guestMember} />
         <NetworksModule networks={networks} onlyOwner={onlyOwner} />
         <DeleteModule onlyOwner={onlyOwner} />
       </div>
