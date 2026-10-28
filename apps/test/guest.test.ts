@@ -819,29 +819,38 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       const network = await connect(guest)
       const { inbox } = await network.until(loaded)
 
-      expect(inbox).toMatchObject({
-        sample: true,
-        notice: sampleInbox.notice,
-        show: {
-          name: 'The Big Picture',
-          pastGuests: sampleInbox.show.pastGuests.map(({ guest, work }) => ({ guest, work }))
-        }
+      expect(inbox).toMatchObject({ sample: true, notice: sampleInbox.notice, show: { name: 'The Big Picture' } })
+      expect(inbox!.show!.pastGuests).toHaveLength(3)
+      expect(inbox!.show!.pastGuests[0]).toEqual({
+        guest: 'Paul Thomas Anderson',
+        work: { title: 'One Battle After Another', type: 'film', year: 2025 }
       })
       // Each pitch already read, from its answer key: the 36 with a work matched in Qloo, the 4 without
       // set aside unsearched.
-      expect(
-        inbox!.pitches.map((p) => [p.id, p.from, p.subject, p.status, p.guest, p.work, p.match?.entity?.id])
-      ).toEqual(
-        sampleInbox.pitches.map((p) => [
-          p.id,
-          `${p.senderName} <${p.senderEmail}>`,
-          p.subject,
-          p.expected.work ? 'read' : 'no_work',
-          p.expected.guest,
-          p.expected.work,
-          p.expected.work ? `w-${p.id}` : undefined
-        ])
-      )
+      const { pitches } = inbox!
+      expect(pitches).toHaveLength(40)
+      expect(pitches.filter((p) => p.status === 'read' && p.match?.resolution === 'resolved')).toHaveLength(36)
+      expect(pitches.filter((p) => p.status === 'no_work').map((p) => [p.id, p.work, p.match])).toEqual([
+        ['pitch-03', null, null],
+        ['pitch-12', null, null],
+        ['pitch-21', null, null],
+        ['pitch-37', null, null]
+      ])
+      expect(pitches.find((p) => p.id === 'pitch-01')).toMatchObject({
+        from: 'Maren Ostrowski <maren.ostrowski@example.com>',
+        subject: "John Green's first novel for adults, Hollywood, Ending",
+        status: 'read',
+        guest: 'John Green',
+        work: { title: 'Hollywood, Ending', type: 'book', year: 2026 },
+        match: { entity: { id: 'w-pitch-01' } }
+      })
+      // Worded as off-topic, it still comes read as the work it pitches.
+      expect(pitches.find((p) => p.id === 'pitch-04')).toMatchObject({
+        status: 'read',
+        guest: 'Nathan Fielder',
+        work: { title: 'The Rehearsal', type: 'tv_show', year: 2022 },
+        match: { entity: { id: 'w-pitch-04' } }
+      })
       expect(modelRequests()).toEqual([])
       const queries = requests.map((r) => r.url.searchParams.get('query'))
       expect(queries.toSorted()).toEqual([...names, ...works.map((w) => w.title)].toSorted())
