@@ -161,9 +161,19 @@ export function InsertionOrderPanel({
             {approved && order.approvedBy && order.approvedAt && (
               <p className="flex items-start gap-1.5" ref={approvedLine} tabIndex={-1}>
                 <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                {/* A sample launch's approval is the sample data's, not a sign-off anyone gave here (ADR 0002). */}
                 <span>
-                  Approved by {order.approvedBy} on {day(order.approvedAt)} at{' '}
-                  {new Date(order.approvedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
+                  {order.sample ? (
+                    <>
+                      Approved in the sample data, by {order.approvedBy} as it was captured, not by anyone in this
+                      network. Edit it to make it a draft of your own.
+                    </>
+                  ) : (
+                    <>
+                      Approved by {order.approvedBy} on {day(order.approvedAt)} at{' '}
+                      {new Date(order.approvedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
+                    </>
+                  )}
                 </span>
               </p>
             )}
