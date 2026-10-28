@@ -79,7 +79,7 @@ export const GUEST_NETWORK_RESET = `The guest network was cleared, as it is ever
 
 const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."
-const NO_GUIDE = "A network has no guide: it's the sample network's, at /demo."
+const NO_GUIDE = 'A network has no guide.'
 // Where a network's agent keeps the roster it last told its launches (rosterKey).
 const ANNOUNCED = 'crossfeed_roster_announced'
 // Where the guest network's agent keeps that it has loaded the sample network, and its sample launch's ID
@@ -95,8 +95,9 @@ const withoutApprover = (booking: Booking | null, memberId: string): Booking | n
 const unnamed = ({ approvedBy: _, ...reply }: PitchReply): PitchReply => reply
 
 // One instance per signed-in network, named by the network's ID (ADR 0001). Its own class keeps its
-// namespace apart from the demo's sessions, so no session cookie can name it. It opens empty, with no
-// sample network and no guide, and every connection to it carries its member.
+// namespace apart from the demo's sessions, so no session cookie can name it. It opens empty, but for
+// the guest network, which loads the sample network (loadSample), and with no guide, and every
+// connection to it carries its member.
 export class NetworkAgent extends CrossfeedAgent {
   initialState: State = {
     ...this.initialState,
@@ -328,11 +329,12 @@ export class NetworkAgent extends CrossfeedAgent {
   // How many launches createLaunch is planning right now, not yet on the list.
   private planning = 0
 
-  // The roster and CPM a launch's run starts from, with the evidence records the roster cites, and
-  // whether the network has a Qloo key of its own, for the launch's agent to copy (launch-agent.ts). Over
-  // RPC only. Comp searches stay here, since a launch never edits a show. Refused while a show is still
-  // being looked up, so no run ranks a roster half looked up.
-  rosterForLaunch(): RosterCopy {
+  // The roster and CPM a run of launch `id` starts from, with the evidence records the roster cites,
+  // whether the network has a Qloo key of its own, and the sample for the guest network's sample launch,
+  // for the launch's agent to copy (launch-agent.ts). Over RPC only. Comp searches stay here, since a
+  // launch never edits a show. Refused while a show is still being looked up, so no run ranks a roster
+  // half looked up.
+  rosterForLaunch(id: string): RosterCopy {
     const pending = this.state.roster.filter((s) => s.resolution === 'pending').length
     if (pending > 0)
       throw new Refusal(
@@ -345,7 +347,8 @@ export class NetworkAgent extends CrossfeedAgent {
       roster,
       cpm: this.state.cpm,
       evidence: this.getEvidence().filter((e) => cited.has(e.call)),
-      ownKey: hasOwnKey(this.ctx.storage)
+      ownKey: hasOwnKey(this.ctx.storage),
+      sample: id === this.ctx.storage.kv.get(SAMPLE_LAUNCH) ? this.state.sample : null
     }
   }
 

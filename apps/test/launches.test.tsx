@@ -24,6 +24,7 @@ import {
   fakeCompare,
   fakeInsights,
   fakeQloo,
+  fakeQlooDown,
   modelRequests,
   network as outbound,
   refusal,
@@ -38,6 +39,7 @@ import {
   connect as connectVia,
   currentLinks,
   hooked,
+  openGuest,
   openMember,
   openSession,
   type Member,
@@ -131,7 +133,7 @@ async function created(member: Member, name = 'Night Shift Audio') {
   return (await res.json<{ id: string }>()).id
 }
 // An agent opened from one of the network's pages, such as its own at `/agents/network/<id>`.
-async function connect(member: Member, path: string, headers?: Record<string, string>) {
+async function connect(member: Pick<Member, 'connect'>, path: string, headers?: Record<string, string>) {
   const agent = await member.connect(path, headers)
   open.push(agent)
   return agent
@@ -375,8 +377,8 @@ describe("a launch's agent", () => {
       ['editReply', ['pitch-01', 'Thanks!'], inbox],
       ['approveReply', ['pitch-01'], inbox],
       ['discardReply', ['pitch-01'], inbox],
-      ['markGuide', ['why'], "A launch has no guide: it's the sample network's, at /demo."],
-      ['dismissGuide', [], "A launch has no guide: it's the sample network's, at /demo."]
+      ['markGuide', ['why'], 'A launch has no guide.'],
+      ['dismissGuide', [], 'A launch has no guide.']
     ] as const)
       await expect(page.call(method, ...args), method).rejects.toThrow(error)
     // The same methods refuse the Worker's RPC, as the API will call them.
@@ -1041,7 +1043,7 @@ describe('a launch on a network started from the sample roster', () => {
     return { roster, agent }
   }
 
-  it('keeps its figures labelled sample, but never the sample marker, and never stores its run as the sample run', async () => {
+  it("keeps its figures labelled sample on a member's network, but not the sample, which only the guest network's sample launch carries, and never stores its run as the sample run", async () => {
     env.SAMPLE_NETWORK = 'on'
     fakes()
     const logged = vi.spyOn(console, 'log')
@@ -1066,7 +1068,7 @@ describe('a launch on a network started from the sample roster', () => {
     })
   })
 
-  it("never replays the demo's stored sample run, and stops instead while Qloo can't be called", async () => {
+  it("never replays the stored sample run on a member's network, and stops instead while Qloo can't be called", async () => {
     env.SAMPLE_NETWORK = 'on'
     fakes()
     const logged = vi.spyOn(console, 'log')
@@ -1092,6 +1094,124 @@ describe('a launch on a network started from the sample roster', () => {
     expect(state.run?.replayed).toBeUndefined()
     expect(state.ranking).toBeNull()
     expect((await agent.call<Evidence[]>('getEvidence')).some((e) => e.replayed)).toBe(false)
+  })
+
+  // The guest network as it loads the sample (ADR 0007), and its sample launch's page agent.
+  async function guestSampleLaunch() {
+    env.SAMPLE_NETWORK = 'on'
+    fakes()
+    const guest = await openGuest()
+    const network = await connect(guest, '/agents/network/guest-network')
+    const loaded = await network.until(
+      (s) => s.roster.length > 0 && s.roster.every((r) => r.resolution !== 'pending') && s.launches?.length === 1
+    )
+    const [{ id }] = loaded.launches!
+    return { guest, network, id, agent: await connect(guest, `/agents/launch/guest-network/${id}`) }
+  }
+  // The sample launch run live to the end with the sample's answers, which keeps it as the sample run.
+  async function storeSampleRun(agent: Omit<Session, 'cookie'>) {
+    const logged = vi.spyOn(console, 'log')
+    fakeClaude(theWatch())
+    await agent.call('startLaunch', { name: 'The Watch' })
+    const state = await answerSample(agent)
+    expect(state.run?.status).toBe('completed')
+    expect(state.run?.replayed).toBeUndefined()
+    await vi.waitFor(() =>
+      expect(logged.mock.calls.flat().some((line) => String(line).includes('"event":"sample_run"'))).toBe(true)
+    )
+    return state
+  }
+  const capped = 'The daily cap of 0 Qloo calls is reached; it resets at 00:00 UTC'
+
+  it("carries the sample on the guest network's sample launch, which replays its stored run while Qloo is capped or down", async () => {
+    const { network, id, agent } = await guestSampleLaunch()
+    const { sample } = network.state()!
+    expect(agent.state()!.sample).toEqual(sample)
+    const page = renderToStaticMarkup(
+      <LaunchWorkspace
+        agent={{ state: agent.state(), stub: {} } as unknown as Agent}
+        network={{
+          id: 'guest-network',
+          name: 'Guest network',
+          role: 'owner',
+          links: networkLinks(env, 'guest-network')
+        }}
+        orders={`/app/guest-network/launches/${id}/insertion-orders`}
+      />
+    )
+    expect(page).toContain('Sample launch')
+    expect(page).not.toContain('Clear sample network')
+    const live = await storeSampleRun(agent)
+    expect(live.sample).toEqual(sample)
+
+    env.QLOO_DAILY_CALL_CAP = '0'
+    const sent = requests.length
+    await agent.call('startLaunch', { name: 'The Watch' })
+    expect((await agent.until(ended)).run).toMatchObject({
+      status: 'completed',
+      replayed: capped,
+      budget: { slots: 20 }
+    })
+    expect(agent.state()!.ranking?.rows).toEqual(live.ranking?.rows)
+    expect(agent.state()!.sample).toEqual(sample)
+    expect(requests).toHaveLength(sent)
+
+    env.QLOO_DAILY_CALL_CAP = saved.QLOO_DAILY_CALL_CAP
+    fakeQlooDown()
+    await network.searchComps('The Zach Lowe Show', 'The Lowe Post')
+    await agent.call('startLaunch', { name: 'The Watch' })
+    expect((await agent.until(ended)).run).toMatchObject({
+      status: 'completed',
+      replayed: expect.stringContaining('Qloo returned 503: fake failure, after 2 retries')
+    })
+  })
+
+  const own = 'so runs on your own data wait until Qloo answers again'
+
+  it("doesn't replay the guest network's sample launch once a guest changes its roster or runs it as another launch, nor carry the sample on another launch", async () => {
+    const { guest, network, agent } = await guestSampleLaunch()
+    await storeSampleRun(agent)
+    env.QLOO_DAILY_CALL_CAP = '0'
+
+    await agent.call('startLaunch', { name: 'The Big Picture' })
+    expect((await agent.until(ended)).run).toMatchObject({ status: 'stopped', error: expect.stringContaining(own) })
+    // The Watch planned again by a guest isn't the sample launch.
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Watch' })
+    const other = await connect(guest, `/agents/launch/guest-network/${id}`)
+    expect(other.state()!.sample).toBeNull()
+    await other.call('startLaunch', { name: 'The Watch' })
+    const stopped = await other.until(ended)
+    expect(stopped.run).toMatchObject({ status: 'stopped', error: expect.stringContaining(own) })
+    expect(stopped.sample).toBeNull()
+
+    await network.call('updateShow', 'The Watch', { downloads: 12_345 })
+    await agent.call('startLaunch', { name: 'The Watch' })
+    expect((await agent.until(ended)).run).toMatchObject({ status: 'stopped', error: expect.stringContaining(own) })
+  })
+
+  it("doesn't replay the guest network's sample launch once a guest changes the CPM, until the daily clearing loads the sample again", async () => {
+    const { guest, agent } = await guestSampleLaunch()
+    await storeSampleRun(agent)
+    const set = await guest.fetch('/app/guest-network/settings/network', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Guest network', cpm: 25 })
+    })
+    expect(set.status).toBe(200)
+    env.QLOO_DAILY_CALL_CAP = '0'
+    await agent.call('startLaunch', { name: 'The Watch' })
+    const stopped = await agent.until(ended)
+    expect(stopped.run).toMatchObject({ status: 'stopped', error: expect.stringContaining(own) })
+    // The run copied the network's CPM, no longer the sample's.
+    expect(stopped).toMatchObject({ cpm: 25, sample: { cpm: false } })
+
+    env.QLOO_DAILY_CALL_CAP = saved.QLOO_DAILY_CALL_CAP
+    await runCron()
+    await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+    const { agent: fresh } = await guestSampleLaunch()
+    env.QLOO_DAILY_CALL_CAP = '0'
+    await fresh.call('startLaunch', { name: 'The Watch' })
+    expect((await fresh.until(ended)).run).toMatchObject({ status: 'completed', replayed: capped })
   })
 })
 

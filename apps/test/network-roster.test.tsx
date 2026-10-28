@@ -98,8 +98,8 @@ describe("a network's agent", () => {
         [],
         "A network's roster isn't cleared. Import your own over it; shows already on it keep their matches."
       ],
-      ['markGuide', ['why'], "A network has no guide: it's the sample network's, at /demo."],
-      ['dismissGuide', [], "A network has no guide: it's the sample network's, at /demo."]
+      ['markGuide', ['why'], 'A network has no guide.'],
+      ['dismissGuide', [], 'A network has no guide.']
     ] as const)
       await expect(agent.call(method, ...args), method).rejects.toThrow(error)
     expect(agent.state()).toEqual(before)

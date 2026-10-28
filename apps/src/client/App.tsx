@@ -88,7 +88,8 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
   if (!agent.state)
     return <Connecting label={network ? 'Connecting to the launch…' : 'Connecting to your demo session…'} />
 
-  const shell = sample && <SampleShell sample={sample} />
+  // The demo's: a launch's page carries the guest network's sample (ADR 0007) for its badge and labels alone.
+  const shell = sample && !network && <SampleShell sample={sample} />
   const order = shown?.insertionOrder ?? null
   // The roster the run ranks: on the demo, its counts, the sample's notice, the import and the table,
   // whose shows open in the inspector's Show tab; on a launch's page, the copy its latest run took,
@@ -128,7 +129,7 @@ export function Workspace({ agent, links, network }: { agent: Session; links: Li
           </p>
         )}
       </div>
-      {sample && !viewing && (
+      {sample && !viewing && !network && (
         <SampleNotice
           sample={sample}
           clear={() =>
