@@ -481,6 +481,14 @@ describe('settings', () => {
     expect(read).not.toContain('has no owner')
   })
 
+  it('let the guest network’s only owner leave it or become a member, as every guest sign-in adds an owner', async () => {
+    const guest = await openGuest()
+    const html = await settings(guest, 'guest-network', await (await connect(guest, 'guest-network')).until(() => true))
+    expect(words(html)).toMatch(/Guest [0-9A-F]{6} You Owner \w{3} \d{1,2} Make member Leave Invite links/)
+    expect(html).not.toMatch(/disabled=""[^>]*>(Leave|Make member)</)
+    expect(words(html)).not.toContain('needs an owner')
+  })
+
   it('show every guest the guest budget’s usage today, in the guest network and a guest’s own, from any address or none', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))

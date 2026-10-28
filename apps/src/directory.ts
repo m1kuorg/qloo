@@ -3,7 +3,7 @@
 // and stored only as SHA-256 hashes. D1 has no interactive transactions, so each change that must
 // hold together is one statement or one batch.
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
-import { sha256 } from './text'
+import { GUEST_NETWORK, sha256 } from './text'
 
 // A session lasts 30 days from its last use; a use extends it at most once a minute. A guest member's
 // session lasts a day from sign-in, and isn't extended while they're a guest (ADR 0006).
@@ -19,8 +19,8 @@ const CHALLENGE_MS = 5 * 60_000
 // recovery code, and deleting the account need.
 export const STEP_UP_MS = 5 * 60_000
 
-// The guest network (ADR 0006), as migration 0005 wrote it, which every guest member owns together.
-export const GUEST_NETWORK = 'guest-network'
+// The guest network (ADR 0006), which every guest member owns together, and the name it's made with.
+export { GUEST_NETWORK }
 const GUEST_NETWORK_NAME = 'Guest network'
 
 // Whether `member` is a guest member still: one "Sign in as a guest" made, who hasn't kept the account.
