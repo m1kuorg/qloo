@@ -246,20 +246,28 @@ describe('the privacy page and the beta terms', () => {
       expect(text).toContain(heading)
     expect(text).toContain('Never a pitch’s text, a guest’s name, an email address, or a sender’s details.')
     expect(text).toContain('Crossfeed never stores your IP address or writes it to its own logs.')
-    expect(text).toContain('Crossfeed can’t delete a session yet')
+    expect(text).toContain(
+      'In your browser: one cookie, __Host-crossfeed_member , which holds your session’s token and is sent only to Crossfeed, over HTTPS. It’s HttpOnly and lasts 30 days, renewed while you use Crossfeed, or a day for a guest. There are no analytics, ads, or third-party scripts.'
+    )
+    expect(text).toContain(
+      'The standalone demo, retired on 28 October 2026, kept each visitor’s session in storage of its own: no browser can reach those sessions now, but their storage stays.'
+    )
+    expect(text).not.toMatch(/crossfeed_session|In your session|load nothing into the sample network/)
     expect(text).toContain(
       'Uploads: a file you upload is read in your browser, or by Crossfeed when a program sends it to the API. A roster file’s text is sent and imported like pasted names; of pitch emails, only each one’s sender, subject, and text are sent, never its attachments or other headers. The files themselves aren’t kept.'
     )
   })
 
   it('says the Qloo cache is shared, and that a cache hit can show someone else looked up the same name', async () => {
-    const shared = (who: string, someone: string) =>
-      `Qloo’s responses with the requests they answered, cached with no expiry in one cache that ${who} shares. A call someone else made first is answered from it, and its evidence says the cache was hit, so a hit can show that ${someone} looked up the same name; nothing else of theirs is shown, and the cache is never published.`
-    expect(words(await page('/privacy'))).toContain(
-      shared('every visitor and every network without its own Qloo key', 'another visitor or network')
-    )
+    const shared =
+      'Shared by every network: Qloo’s responses with the requests they answered, cached with no expiry in one cache that every network without its own Qloo key shares. A call another network made first is answered from it, and its evidence says the cache was hit, so a hit can show that another network looked up the same name; nothing else of theirs is shown, and the cache is never published.'
+    expect(words(await page('/privacy'))).toContain(shared)
+    // With accounts off there's no network, and no way in to make a call.
     env.ACCOUNTS = 'off'
-    expect(words(await page('/privacy'))).toContain(shared('every visitor', 'another visitor'))
+    expect(words(await page('/privacy'))).not.toContain('Shared by every network')
+    expect(words(await page('/privacy'))).toContain(
+      'In your browser: no cookie. There are no analytics, ads, or third-party scripts.'
+    )
     for (const path of ['/', '/privacy'])
       expect(words(await page(path)), path).not.toMatch(/privately|private to Crossfeed/)
   })
@@ -268,6 +276,9 @@ describe('the privacy page and the beta terms', () => {
     env.RUN_VISITOR_DAILY_CAP = '7'
     const text = words(await page('/terms'))
     for (const heading of ['Free', 'No warranty', 'Daily limits', 'Acceptable use']) expect(text).toContain(heading)
+    expect(text).toContain(
+      'try to get around the limits, reach a network or an account that isn’t yours, or overload the service;'
+    )
     expect(text).toContain('Model runs a launch run, an inbox load, or a pitch run 7 200')
     expect(text).toContain('Qloo calls cache hits count for a visitor, not for everyone 2,000 1,000')
     expect(text).toContain('A run makes at most 12 model turns and 60 Qloo calls')
@@ -280,7 +291,7 @@ describe('the privacy page and the beta terms', () => {
     env.INVITED_SIGNUP_DAILY_CAP = '12'
     const kept = 'With an account: your name'
     const approvals = 'with the member who approved each reply'
-    const counts = 'each visitor’s and each network’s counts for the day'
+    const counts = 'each network’s counts for the day'
     const cap =
       'A member can create at most 2 networks, and a network can keep at most 40 launches and 15 open invite links at once. One member’s invite links can bring in at most 12 new accounts a UTC day.'
     const network =
@@ -300,6 +311,8 @@ describe('the privacy page and the beta terms', () => {
     const guest =
       'Signing in as a guest asks for nothing. It makes a temporary account with a generated name, such as Guest 4F2A9C, and keeps a hash of its session, for a day, and the time of each guest sign-in, with nothing else, to count them. Adding a passkey keeps the account, as any member’s, with a recovery code. Every guest owns the one guest network together: everything in it, its roster, launches, runs, inbox, and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them deletes or replaces it, or until it’s cleared, every day at 12:00 UTC.'
     const guestCount = 'Guest sign-ins are counted for everyone together, with no address.'
+    const guestGone =
+      'A guest account that no passkey keeps is removed a day after its sign-in, at the next hourly cleanup, with the networks only it owns, wiped as a deleted network is; the API keys and invite links it made are revoked.'
     const ownKey =
       'A network’s own Qloo key, if an owner adds one, is kept encrypted in the network’s own Qloo storage, with the host it’s for and its last four characters, the only part of it anyone is shown.'
     const ownKeySent =
@@ -319,7 +332,7 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).toContain(launchGone)
     expect(words(await page('/privacy'))).toContain(networkGone)
     expect(words(await page('/privacy'))).toContain(accountGone)
-    for (const line of [ownKey, ownKeySent, keyGone, guest, guestCount])
+    for (const line of [ownKey, ownKeySent, keyGone, guest, guestCount, guestGone])
       expect(words(await page('/privacy'))).toContain(line)
     for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).toContain(line)
     expect(words(await page('/terms'))).toContain(cap)
@@ -332,10 +345,9 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).not.toContain(left)
     expect(words(await page('/privacy'))).not.toContain(launchGone)
     expect(words(await page('/privacy'))).not.toContain(accountGone)
-    for (const line of [ownKey, ownKeySent, keyGone, guest, guestCount])
+    for (const line of [ownKey, ownKeySent, keyGone, guest, guestCount, guestGone, counts])
       expect(words(await page('/privacy'))).not.toContain(line)
     for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).not.toContain(line)
-    expect(words(await page('/privacy'))).toContain('each visitor’s counts for the day')
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)
     expect(words(await page('/terms'))).not.toContain(perMinute)
