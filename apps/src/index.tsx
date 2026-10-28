@@ -11,7 +11,7 @@ import { demo } from './routes/demo'
 import { docs } from './routes/docs'
 import { marketing, notFound } from './routes/marketing'
 import { mcp } from './routes/mcp'
-import { resetGuestNetwork, retryWipes } from './wipe'
+import { removeExpiredGuests, resetGuestNetwork, retryWipes } from './wipe'
 
 export { CrossfeedAgent } from './agent'
 export { QlooGateway } from './gateway'
@@ -51,19 +51,30 @@ app.route('/', mcp)
 // A page that isn't there, for every route above and none.
 app.notFound(notFound)
 
+// The hourly cron in wrangler.jsonc: every hour but 12:00 UTC, when the daily cron runs in its place.
+const HOURLY = '0 0-11,13-23 * * *'
+
 export default {
   fetch: app.fetch,
-  // The daily cron in wrangler.jsonc: the Qloo health check, the directory's expired sessions,
-  // challenges, and invites cleared, any agent wipe that failed tried again, and then the guest network
-  // cleared, after the retry so the two never wipe one instance at once, each logging what it did. Each
+  // The crons in wrangler.jsonc. Every hour: the directory's expired sessions, challenges, and invites
+  // cleared, expired guest members removed, and any agent wipe that failed tried again. At 12:00 UTC,
+  // the daily cron's, and any other schedule's, also the Qloo health check and then the guest network's
+  // clearing, after the retry so the two never wipe one instance at once. Each logs what it did, and
   // runs to its end whether or not the others fail, and then a failure fails the run.
-  async scheduled(_controller, env) {
+  async scheduled(controller, env) {
     const purged = purgeExpired(env.DB).then((counts) =>
       console.log(JSON.stringify({ event: 'directory_purged', ...counts }))
     )
+    const removed = removeExpiredGuests(env).then((counts) =>
+      console.log(JSON.stringify({ event: 'guests_removed', ...counts }))
+    )
     const retried = retryWipes(env)
-    const cleared = retried.catch(() => {}).then(() => resetGuestNetwork(env))
-    for (const result of await Promise.allSettled([checkHealth(env), purged, retried, cleared]))
-      if (result.status === 'rejected') throw result.reason
+    const tasks = [purged, removed, retried]
+    if (controller.cron !== HOURLY)
+      tasks.push(
+        checkHealth(env),
+        retried.catch(() => {}).then(() => resetGuestNetwork(env))
+      )
+    for (const result of await Promise.allSettled(tasks)) if (result.status === 'rejected') throw result.reason
   }
 } satisfies ExportedHandler<Env>

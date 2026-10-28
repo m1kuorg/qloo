@@ -72,6 +72,11 @@ export const networkGateway = (env: Env, name: string, storage: DurableObjectSto
 export const kickMember = async (env: Env, networkId: string, memberId: string, reason?: string) =>
   (await getAgentByName(env.NetworkAgent, networkId)).kick(memberId, reason)
 
+// What the Worker passes a network's agent as it starts it to wipe it (wipe.ts): it's about to be thrown
+// away, so the guest network's loads no sample, which would reserve Qloo calls on the guest budget for
+// nothing.
+export const CLEARING = { clearing: true }
+
 // What a deleted network's open pages, and its launches', say as they close; and the guest network's,
 // as the daily cron clears it.
 export const NETWORK_DELETED = 'This network was deleted.'
@@ -119,7 +124,7 @@ export class NetworkAgent extends CrossfeedAgent {
   // saved then is kept in the network's gateway instance: it asks that instance once, as it next starts.
   // A new network's agent knows it has none until its settings say otherwise, so it asks nothing. One
   // that can't ask goes on without, and asks again as it next starts.
-  async onStart(props?: SessionProps) {
+  async onStart(props?: SessionProps & Partial<typeof CLEARING>) {
     const { storage } = this.ctx
     if (storage.kv.get(OWN_KEY) === undefined)
       if (!this.startedBefore()) keepOwnKey(storage, false)
@@ -130,7 +135,7 @@ export class NetworkAgent extends CrossfeedAgent {
           .catch((e) => console.error(JSON.stringify({ event: 'own_key_lookup', error: String(e) })))
     await super.onStart(props)
     if (this.name !== GUEST_NETWORK) return
-    if (this.env.SAMPLE_NETWORK === 'on') await this.loadSample()
+    if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) await this.loadSample()
     // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006),
     // even when the sample roster couldn't load. One that left the sample by importing over it lost the
     // CPM with it, as the sample's, so it stays unset.

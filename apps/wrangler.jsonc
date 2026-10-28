@@ -6,7 +6,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "./src/index.tsx",
   "observability": { "enabled": true },
-  "triggers": { "crons": ["0 12 * * *"] },
+  // The hourly cron, every hour but 12:00 UTC, and the daily one, which runs the hourly cron's work too
+  // (src/index.tsx). The preview inherits both.
+  "triggers": { "crons": ["0 0-11,13-23 * * *", "0 12 * * *"] },
   "vars": {
     "QLOO_BASE_URL": "https://hackathon.api.qloo.com",
     "QLOO_DAILY_CALL_CAP": "1000",
