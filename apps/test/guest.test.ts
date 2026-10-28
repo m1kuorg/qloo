@@ -1860,7 +1860,7 @@ describe("the guest network's daily reset", () => {
 })
 
 describe('resetting the sample data, from the guest network’s settings (#283)', () => {
-  const RESET = { code: 4410, reason: 'A guest reset the guest network to the sample data.' }
+  const RESET = { code: 4410, reason: 'The guest network was reset to the sample data.' }
   const open: Omit<Session, 'cookie'>[] = []
   afterEach(() => open.splice(0).forEach((agent) => agent.close()))
   const connect = async (who: { connect: Guest['connect'] }, path = '/agents/network/guest-network') => {
@@ -1872,7 +1872,7 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
   // What the guest network's agent holds, once its wipe has reset it.
   const fresh = () => readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
 
-  it('clears the guest network as the daily cron does, closing every guest’s pages saying a guest reset it, and leaves its launches to the hourly retry', async () => {
+  it('clears the guest network as the daily cron does, closing every guest’s pages saying it was reset to the sample data, and leaves its launches to the hourly retry', async () => {
     fakeQloo({
       search: { 'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.8 }] }
     })
