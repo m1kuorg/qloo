@@ -81,7 +81,12 @@ export function Settings({
         </p>
       </div>
       <div className="flex flex-col gap-12">
-        <NetworkModule network={named} cpm={state ? state.cpm : undefined} onRenamed={setName} />
+        <NetworkModule
+          network={named}
+          cpm={state ? state.cpm : undefined}
+          sampleCpm={state?.sample?.cpm ?? false}
+          onRenamed={setName}
+        />
         <MembersModule network={named} memberId={memberId} members={members} invites={invites} />
         <ApiKeysModule network={named} keys={apiKeys} />
         <QlooKeyModule network={named} qlooKey={qlooKey} onChange={setKeyAndUsage} />

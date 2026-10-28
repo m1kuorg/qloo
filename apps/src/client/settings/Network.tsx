@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -11,15 +12,18 @@ import type { NetworkPage } from '../NetworkPage'
 import { Done, Module } from './Module'
 
 // The settings' network module: the network's name and its CPM. An owner changes them here; a member
-// reads them. `cpm` is the agent's, live, and undefined until it's connected; `onRenamed` hears a saved
+// reads them. `cpm` is the agent's, live, and undefined until it's connected, labelled while it's still
+// the sample network's, `sampleCpm`, as the guest network's starts (ADR 0007); `onRenamed` hears a saved
 // new name.
 export function NetworkModule({
   network,
   cpm,
+  sampleCpm,
   onRenamed
 }: {
   network: NetworkPage
   cpm: number | null | undefined
+  sampleCpm: boolean
   onRenamed: (name: string) => void
 }) {
   return (
@@ -29,13 +33,14 @@ export function NetworkModule({
       help="The name your members see, and the CPM that prices every promo slot: downloads per episode × CPM ÷ 1,000."
     >
       {network.role === 'owner' ? (
-        <NetworkForm network={network} cpm={cpm} onRenamed={onRenamed} />
+        <NetworkForm network={network} cpm={cpm} sampleCpm={sampleCpm} onRenamed={onRenamed} />
       ) : (
         <>
           <KeyValues>
             <KeyValue label="Name">{network.name}</KeyValue>
             <KeyValue label="CPM">
-              {cpm === undefined ? 'Connecting…' : cpm === null ? 'Not set' : dollars(cpm)}
+              {cpm === undefined ? 'Connecting…' : cpm === null ? 'Not set' : dollars(cpm)}{' '}
+              {sampleCpm && <Badge>sample</Badge>}
             </KeyValue>
           </KeyValues>
           <p className="text-muted-foreground">Only an owner can change these.</p>
@@ -48,10 +53,12 @@ export function NetworkModule({
 function NetworkForm({
   network,
   cpm,
+  sampleCpm,
   onRenamed
 }: {
   network: NetworkPage
   cpm: number | null | undefined
+  sampleCpm: boolean
   onRenamed: (name: string) => void
 }) {
   const [name, setName] = useState(network.name)
@@ -123,7 +130,15 @@ function NetworkForm({
               placeholder={cpm === undefined ? 'Connecting…' : 'Not set'}
             />
           </InputGroup>
-          <FieldDescription>Dollars per 1,000 downloads.</FieldDescription>
+          <FieldDescription>
+            Dollars per 1,000 downloads.
+            {sampleCpm && (
+              <>
+                {' '}
+                <Badge>sample</Badge> An arbitrary sample figure until an owner sets the network’s own.
+              </>
+            )}
+          </FieldDescription>
         </Field>
       </FieldGroup>
       <div className="flex flex-wrap items-center gap-3">

@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon, EllipsisIcon } from 'lucide-react'
-import { useRef, useState, type RefObject } from 'react'
+import { useRef, useState, type ReactNode, type RefObject } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -480,13 +481,22 @@ function LaunchesLoading() {
   )
 }
 
-// One line each for the roster, the inbox, and the CPM, with where to change them.
+// One line each for the roster, the inbox, and the CPM, with where to change them. The CPM is labelled
+// sample while it's still the sample network's, as the guest network's starts (ADR 0007).
 function NetworkLines({ state, network }: { state: State; network: NetworkPage }) {
-  const rows: [string, string, string, string][] = [['Roster', rosterLine(state.roster), network.links.roster, 'Open']]
+  const rows: [string, ReactNode, string, string][] = [
+    ['Roster', rosterLine(state.roster), network.links.roster, 'Open']
+  ]
   if (network.links.inbox) rows.push(['Inbox', inboxLine(state.inbox), network.links.inbox, 'Open'])
   rows.push([
     'CPM',
-    state.cpm === null ? 'Not set' : `${dollars(state.cpm)} per 1,000 downloads`,
+    state.cpm === null ? (
+      'Not set'
+    ) : (
+      <>
+        {dollars(state.cpm)} per 1,000 downloads {state.sample?.cpm && <Badge>sample</Badge>}
+      </>
+    ),
     network.links.settings,
     network.role === 'owner' ? (state.cpm === null ? 'Set' : 'Change') : 'View'
   ])

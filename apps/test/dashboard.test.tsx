@@ -13,7 +13,11 @@ import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
 import { api, openGuest, openMember, regions, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
-const saved = { GUEST_PITCHES: env.GUEST_PITCHES, QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP }
+const saved = {
+  GUEST_PITCHES: env.GUEST_PITCHES,
+  QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP,
+  SAMPLE_NETWORK: env.SAMPLE_NETWORK
+}
 afterEach(() => {
   vi.useRealTimers()
   open.splice(0).forEach((agent) => agent.close())
@@ -243,6 +247,30 @@ describe('settings', () => {
       />
     )
   }
+
+  it("label the guest network's sample CPM as a sample figure, as its dashboard does, until an owner sets one (ADR 0007)", async () => {
+    env.SAMPLE_NETWORK = 'on'
+    fakeQloo({ search: {} })
+    const guest = await openGuest()
+    const agent = await connect(guest, 'guest-network')
+    const loaded = await agent.until((s) => s.sample !== null && s.roster.every((r) => r.resolution !== 'pending'))
+    expect(words(await dashboard(guest, 'guest-network', loaded))).toContain(
+      'CPM $20 per 1,000 downloads sample Change'
+    )
+    expect(words(await settings(guest, 'guest-network', loaded))).toContain(
+      'Dollars per 1,000 downloads. sample An arbitrary sample figure until an owner sets the network’s own.'
+    )
+
+    const res = await guest.fetch('/app/guest-network/settings/network', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Guest network', cpm: 25 })
+    })
+    expect(res.status).toBe(200)
+    const set = await agent.until((s) => s.cpm === 25)
+    expect(words(await dashboard(guest, 'guest-network', set))).toContain('CPM $25 per 1,000 downloads Change')
+    expect(words(await settings(guest, 'guest-network', set))).not.toContain('sample')
+  })
 
   it("give an owner the network's name and CPM to change", async () => {
     const ada = await openMember()
