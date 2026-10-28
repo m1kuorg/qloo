@@ -694,13 +694,17 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
   it('starts no sample load as the daily cron clears it, before it has loaded one, and loads it on the next start', async () => {
     fakeQloo({ search })
     const guest = await openGuest()
+    // The guest budget's Qloo calls today. An earlier test's can outlast the storage reset after it, so
+    // this counts from what it finds.
+    const used = async () => (await globalGateway(env).usage('network:guest-network')).qlooCalls.used
+    const before = await used()
 
     await runCron()
     // Reserved for the sample's lookups, the guest budget would have spent them.
-    expect((await globalGateway(env).usage('network:guest-network')).qlooCalls.used).toBe(0)
+    expect(await used()).toBe(before)
     const loaded = await (await connect(guest)).until(settled)
     expect(loaded.launches).toMatchObject([{ name: 'The Watch' }])
-    expect(await qlooCalls(guest)).toBe(19)
+    expect(await used()).toBe(before + 19)
   })
 
   it('loads the sample again as it next starts after the daily cron clears it', async () => {
