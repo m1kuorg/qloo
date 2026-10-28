@@ -580,13 +580,15 @@ const routesOf = (doc: Doc) =>
   )
 type Route = ReturnType<typeof routesOf>[number]
 
-// A route's method, as a mono chip as wide as the widest, so the paths after them line up. It's in
-// capitals and the mono face, so it's centred on its cap height rather than the chip's x-height: with
-// SF Mono, the mono face on Apple's systems, 1.40625px over the words and none under them puts its
-// baseline on whole pixel 14, so it's never rounded a pixel either way, and its capitals (8.75px)
-// within 0.4px of the middle.
+// A route's method, as a mono chip as wide as the widest, so the paths after them line up. It's all
+// capitals, in whichever mono face the platform has, so it's centred on its capitals rather than lifted
+// as the chip's words are: its line is trimmed to the capitals' top and the baseline (text-box), and
+// the chip centres what's left, with no padding over or under it. A browser without text-box (before
+// Chrome 133, Safari 18.2, Firefox 154) centres the whole line instead, a pixel or two high.
 const Method = ({ method }: { method: string }) => (
-  <code class={badgeVariants({ className: 'min-w-14 justify-center pt-[1.40625px] pb-0 align-top' })}>{method}</code>
+  <code class={badgeVariants({ className: 'min-w-14 justify-center py-0 align-top' })}>
+    <span class="[text-box:trim-both_cap_alphabetic]">{method}</span>
+  </code>
 )
 
 // One route as the reference sets it: what it does, then a compact table of what it takes and what it
