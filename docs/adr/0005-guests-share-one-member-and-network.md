@@ -1,5 +1,7 @@
 # Guests share one member and one network
 
+Superseded by [ADR 0006](/docs/adr/0006-each-guest-is-a-member.md).
+
 Anyone can sign in as a guest, without a passkey, and lands in the guest network, a real network they can import a roster into, plan launches in, and approve in. Every guest signs in as the same guest member, who belongs to the guest network as a member and owns nothing. Every daily cap a network has is counted for the guest network as a whole, so all guests together share one budget of model runs, free starts, and Qloo calls a UTC day, whoever they are and wherever they sign in from. Guest sign-ins have one limit a minute for everyone, counted exactly in the D1 directory, rather than one per visitor or a Cloudflare rate limit, whose counts are kept per location.
 
 We chose one shared member over a new member for each guest because a member per guest would add rows on every click that nothing removes, and each would get the caps a member gets, such as networks of their own, so a guest could multiply them by signing in again. With one member and one network there is no per-guest count to multiply. We kept the guest network's caps at the values every network has.

@@ -32,20 +32,23 @@ A secret that lets a program act for one network through the API, the SDK, or th
 _Avoid_: Token, access token
 
 **Visitor**:
-Someone using the sample network without signing in.
-_Avoid_: Guest, which means a pitched guest, or someone signed in to the guest network
-
-**Guest network**:
-The one network anyone can open with "Sign in as a guest", without a passkey: everyone who does shares it, everything in it, and its daily caps.
-_Avoid_: Guest workspace, demo account
+Someone reading Crossfeed's public pages without signing in.
+_Avoid_: Guest, which means a pitched guest, or a guest member
 
 **Guest member**:
-The one member everyone who signs in as a guest is signed in as; it belongs to the guest network, owns nothing, and has no passkey or recovery code.
+A temporary member that "Sign in as a guest" makes, without a passkey: an owner of the guest network who can do anything a member can, kept by adding a passkey and otherwise removed a day after signing in.
 _Avoid_: Guest user, guest account
 
+**Guest network**:
+The one network every guest member owns together, loaded with the sample network's data and cleared every day.
+_Avoid_: Guest workspace, demo account
+
+**Guest budget**:
+The daily caps every guest member's use counts against together, in the guest network and in every network a guest member creates.
+
 **Sample network**:
-The demo network built from The Ringer's public show names with labelled sample figures, open to any visitor.
-_Avoid_: Demo account
+The Ringer's public show names with labelled sample figures, a sample CPM, and the sample launch: the data the guest network starts with each day, and a roster any network can start from.
+_Avoid_: Demo, demo account
 
 ## Launch promos
 
