@@ -871,6 +871,15 @@ export async function clearGuestNetwork(db: D1Database, instances: Instance[]) {
   ])
 }
 
+// The rows of the guest network's sample launches (src/sample-launch.ts), in the order their JSON reads,
+// as each environment's database was loaded with them by hand (migration 0010).
+export async function sampleLaunchRows(db: D1Database) {
+  const { results } = await db
+    .prepare('SELECT key, chunk FROM sample_launches ORDER BY key, seq')
+    .all<{ key: string; chunk: string }>()
+  return results
+}
+
 // The note of a wipe of `instance` at time `now`, kept as it was if it's noted already.
 const noting = (db: D1Database, { binding, name }: Instance, now: number) =>
   db.prepare('INSERT OR IGNORE INTO wipes (binding, name, created) VALUES (?, ?, ?)').bind(binding, name, now)

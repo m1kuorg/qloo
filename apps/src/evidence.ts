@@ -22,6 +22,9 @@ export type Evidence = {
     explainability: { id: string; score: number }[]
   }[]
   replayed?: true // copied from the stored sample run by a replay: no request was made for it
+  // Copied from one of the guest network's sample launches as it was seeded (sample-launch.ts): Qloo
+  // answered it at `at`, as the sample was captured, and no request was made for it since.
+  sample?: true
   // The network's call this record copies, as a launch's run started: the network's agent made the
   // request when its roster was looked up, and the launch's run made none.
   copiedFrom?: string
@@ -30,3 +33,6 @@ export type Evidence = {
 export type CallEvidence = Omit<Evidence, 'call' | 'run'>
 
 export const callNumber = (n: number) => `C-${String(n).padStart(2, '0')}`
+
+// A call number wherever it appears in state, such as "C-07".
+export const CALL = /\bC-\d+\b/g
