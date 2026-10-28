@@ -25,7 +25,7 @@ export function PageHeader({
   heading?: Ref<HTMLHeadingElement> // where focus goes once what it was on is gone
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1.5">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6">
       <h1
         className="flex min-h-8 items-center type-title max-md:min-h-11"
         ref={heading}
@@ -33,8 +33,9 @@ export function PageHeader({
       >
         {title}
       </h1>
+      {/* Spaced from the title only while something in it shows: an empty live region takes no room. */}
       {(summary || status !== undefined) && (
-        <p className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+        <p className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground has-[>:not(:empty)]:mt-1.5">
           {summary && <span>{summary}</span>}
           {status !== undefined && <span role="status">{status}</span>}
         </p>
