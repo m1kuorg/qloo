@@ -158,6 +158,32 @@ export function readInbox(
   }
 }
 
+// The sample inbox as the guest network loads it (network-agent.ts): its show and past guests, and its
+// pitches already read from each one's `expected` guest and work, so no model reads them. A pitch with a
+// work waits on its search; one without is set aside.
+export function readSampleInbox(): Pick<Inbox, 'sample' | 'notice' | 'show' | 'pitches'> {
+  return {
+    sample: true,
+    notice: sampleInbox.notice,
+    show: {
+      name: sampleInbox.show.name,
+      pastGuests: sampleInbox.show.pastGuests.map(({ guest, work }) => ({
+        guest,
+        work: { ...work, type: work.type as WorkType }
+      }))
+    },
+    pitches: sampleInbox.pitches.map(({ id, body, senderName, senderEmail, subject, expected }) => {
+      const work = expected.work && { ...expected.work, type: expected.work.type as WorkType }
+      return {
+        ...pitch(id, body, `${senderName} <${senderEmail}>`, subject),
+        status: work ? 'looking_up' : 'no_work',
+        guest: expected.guest,
+        work
+      }
+    })
+  }
+}
+
 // Pitches pasted or kept in a text file, separated by lines of three or more dashes.
 export const splitPitches = (text: string) =>
   text

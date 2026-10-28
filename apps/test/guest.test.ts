@@ -13,6 +13,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
+import type { Evidence } from '../src/evidence'
 import { Invite, SignInPage } from '../src/client/Account'
 import { globalGateway } from '../src/gateway'
 import type { NetworkConnection } from '../src/client/NetworkPage'
@@ -20,9 +21,10 @@ import { NetworkRoster } from '../src/client/Roster'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent, ownGateway } from '../src/network-agent'
+import sampleInbox from '../src/sample-inbox.json'
 import sampleFile from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
-import { fakeClaude, fakeQloo, fakeQlooDown, requests, text, toolUse, turn } from './fake'
+import { fakeClaude, fakeQloo, fakeQlooDown, modelRequests, requests, text, toolUse, turn } from './fake'
 import {
   api,
   guestFormSignIn,
@@ -798,6 +800,77 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     })
     expect(fresh).toMatchObject({ cpm: 20, sample: { cpm: true }, launches: [{ name: 'The Watch', status: 'new' }] })
     expect(fresh.launches![0].id).not.toBe(cleared.id)
+  })
+
+  describe('and guest pitches on', () => {
+    // Made-up IDs for each work the sample inbox pitches, matched by its title and year.
+    const works = sampleInbox.pitches.flatMap((p) => (p.expected.work ? [{ pitch: p.id, ...p.expected.work }] : []))
+    const workSearch = Object.fromEntries(
+      works.map((w) => [
+        w.title,
+        [{ entity_id: `w-${w.pitch}`, name: w.title, popularity: 0.5, disambiguation: String(w.year) }]
+      ])
+    )
+    beforeEach(() => {
+      env.GUEST_PITCHES = 'on'
+    })
+    afterEach(() => {
+      env.GUEST_PITCHES = 'off'
+    })
+    const loaded = (s: State) => settled(s) && s.inbox?.status === 'done'
+    const usage = () => globalGateway(env).usage('network:guest-network')
+
+    it('opens with the sample inbox: The Big Picture and its past guests, 36 works looked up and 4 set aside, calling no model', async () => {
+      fakeQloo({ search: { ...search, ...workSearch } })
+      fakeClaude([])
+      // The guest budget's use today. An earlier test's can outlast the storage reset after it, so this
+      // counts from what it finds.
+      const before = await usage()
+      const guest = await openGuest()
+      const network = await connect(guest)
+      const { inbox } = await network.until(loaded)
+
+      expect(inbox).toMatchObject({
+        sample: true,
+        notice: sampleInbox.notice,
+        show: {
+          name: 'The Big Picture',
+          pastGuests: sampleInbox.show.pastGuests.map(({ guest, work }) => ({ guest, work }))
+        }
+      })
+      // Each pitch already read, from its answer key: the 36 with a work matched in Qloo, the 4 without
+      // set aside unsearched.
+      expect(
+        inbox!.pitches.map((p) => [p.id, p.from, p.subject, p.status, p.guest, p.work, p.match?.entity?.id])
+      ).toEqual(
+        sampleInbox.pitches.map((p) => [
+          p.id,
+          `${p.senderName} <${p.senderEmail}>`,
+          p.subject,
+          p.expected.work ? 'read' : 'no_work',
+          p.expected.guest,
+          p.expected.work,
+          p.expected.work ? `w-${p.id}` : undefined
+        ])
+      )
+      expect(modelRequests()).toEqual([])
+      const queries = requests.map((r) => r.url.searchParams.get('query'))
+      expect(queries.toSorted()).toEqual([...names, ...works.map((w) => w.title)].toSorted())
+      // Reserved on the guest budget, a call a show and a work, and no model run counted.
+      const after = await usage()
+      expect(after.qlooCalls.used - before.qlooCalls.used).toBe(19 + 36)
+      expect(after.modelRuns.used).toBe(before.modelRuns.used)
+      // Each lookup keeps its evidence, numbered after the roster's, in the inbox's order.
+      const evidence = await network.call<Evidence[]>('getEvidence')
+      const searched = inbox!.pitches.filter((p) => p.work)
+      expect(searched.map((p) => p.match!.evidence)).toEqual(searched.map((_, i) => `C-${20 + i}`))
+      for (const p of searched)
+        expect(evidence.find((e) => e.call === p.match!.evidence)).toMatchObject({
+          endpoint: '/search',
+          params: { query: p.work!.title },
+          error: null
+        })
+    })
   })
 })
 

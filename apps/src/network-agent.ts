@@ -13,7 +13,7 @@ import {
   type State
 } from './agent'
 import { globalGateway } from './gateway'
-import type { Booking, PitchReply } from './inbox'
+import { readSampleInbox, type Booking, type Inbox, type Pitch, type PitchReply } from './inbox'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
 import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX } from './text'
@@ -88,6 +88,11 @@ const ANNOUNCED = 'crossfeed_roster_announced'
 // once it has planned it (loadSample).
 const SAMPLE_LOADED = 'crossfeed_sample_loaded'
 const SAMPLE_LAUNCH = 'crossfeed_sample_launch'
+// And that it has loaded the sample inbox (loadSampleInbox).
+const SAMPLE_INBOX_LOADED = 'crossfeed_sample_inbox_loaded'
+
+// A sample pitch whose work's lookup failed, or was interrupted, so it's looked up again.
+const unsettled = (p: Pitch) => p.work !== null && (p.status === 'failed' || p.match?.resolution === 'failed')
 
 // A pitch run's booking with no reply naming member `memberId` as its approver; each stays approved.
 const withoutApprover = (booking: Booking | null, memberId: string): Booking | null =>
@@ -127,7 +132,10 @@ export class NetworkAgent extends CrossfeedAgent {
           .catch((e) => console.error(JSON.stringify({ event: 'own_key_lookup', error: String(e) })))
     await super.onStart(props)
     if (this.name !== GUEST_NETWORK) return
-    if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) await this.loadSample()
+    if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) {
+      await this.loadSample()
+      await this.loadSampleInbox()
+    }
     // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006),
     // even when the sample roster couldn't load. One that left the sample by importing over it lost the
     // CPM with it, as the sample's, so it stays unset.
@@ -173,6 +181,36 @@ export class NetworkAgent extends CrossfeedAgent {
       else this.lookUpRoster(sampleRoster, {}, gateway)
     } catch (e) {
       failed(e)
+    }
+  }
+
+  // Loads the sample inbox into the guest network beside the sample network, while guest pitches are on
+  // (ADR 0007): its show and past guests, and its pitches already read from their answer key, so no
+  // model is called and no model run counted. The works are looked up as the roster is, their calls
+  // reserved on the guest budget; the pitches with no work are set aside. Refused, the inbox stays empty.
+  // Until it's noted as loaded, each start tries again what didn't land: an inbox still empty, or the
+  // lookups that failed or were interrupted. It's noted once a start finds every lookup settled, or finds
+  // a guest's own pitches, which it never replaces.
+  private async loadSampleInbox() {
+    const { kv } = this.ctx.storage
+    if (kv.get(SAMPLE_INBOX_LOADED) || this.env.GUEST_PITCHES !== 'on') return
+    const current = this.state.inbox
+    if (current && !current.sample) return kv.put(SAMPLE_INBOX_LOADED, true)
+    const inbox: Inbox = current
+      ? {
+          ...current,
+          status: 'reading',
+          pitches: current.pitches.map((p) =>
+            unsettled(p) ? { ...p, status: 'looking_up', match: null, error: null } : p
+          )
+        }
+      : { id: crypto.randomUUID(), status: 'reading', ...readSampleInbox() }
+    const missing = inbox.pitches.filter((p) => p.status === 'looking_up').length
+    if (missing === 0) return kv.put(SAMPLE_INBOX_LOADED, true)
+    try {
+      this.lookUpInbox(inbox, await this.reserveCalls(this.limitKey(), missing))
+    } catch (e) {
+      console.error(JSON.stringify({ event: 'sample_inbox_load', error: String(e) }))
     }
   }
 
