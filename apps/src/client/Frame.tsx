@@ -23,11 +23,10 @@ import { ConnectionState, endedBadly, isLive, SlowCalls, StateLine, type Connect
 // + 24 (gutter) + 976 (canvas) + 24 (gutter) + 360 (inspector) = 1440, and at 1360, a 896px canvas.
 // Its column is as wide as it is, so closed (hidden) it takes none. Under 1360 it's a sheet over the
 // canvas. 1360px is written 85rem, so Tailwind orders it after lg's 64rem. The canvas, its header with
-// it, is at most 1024px with its gutters (`max-w-5xl`, lg's 64rem), so a 976px column, as wide closed
-// as it is open at 1440, and a table's figures stay near its names on a wide window.
+// it, has no cap, so its tables take the window's width beside the rail and the inspector.
 const WIDE = '(min-width: 85rem)'
 export const frame = 'min-[85rem]:grid min-[85rem]:grid-cols-[minmax(0,1fr)_auto]'
-export const canvas = 'flex w-full max-w-5xl min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6'
+export const canvas = 'flex w-full min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6'
 // Its own scroller, which keeps a scroll at its ends from moving the page, and keeps what Tab reaches
 // clear of its sticky tabs.
 const aside =

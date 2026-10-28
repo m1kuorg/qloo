@@ -142,7 +142,7 @@ export function FitBand({ band, finalist, quiet = false }: { band: Band; finalis
 // What a ranking left out, and why: the fit chart's shows and a pitch list's pitches, as a compact
 // table under the ranked rows.
 export const NotScored = ({ noun, rows }: { noun: string; rows: { key: string; name: string; reason: string }[] }) => (
-  <table className="max-w-3xl type-caption">
+  <table className="type-caption">
     <caption className="pb-1.5 text-left type-ui font-semibold">Not scored · {rows.length}</caption>
     <thead className="text-muted-foreground">
       <tr className="border-b">
