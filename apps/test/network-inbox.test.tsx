@@ -566,10 +566,12 @@ describe("the inbox page's words", () => {
     const ada = await openMember()
     const network = await created(ada)
     const agent = await connect(ada, network)
-    // The header is the title alone, and the empty state says what's missing with Load pitches, which
-    // opens the form in its sheet. Nothing says "Not loaded" too.
+    // The header is the title alone, and the empty state says what's missing and what reaches Qloo of a
+    // pitch, with Load pitches, which opens the form in its sheet. Nothing says "Not loaded" too.
     const empty = inboxPage(agent.state(), network)
-    expect(empty).toMatch(/^Inbox No pitches yet\. Load pitches Run Evidence /)
+    expect(empty).toMatch(
+      /^Inbox No pitches yet\. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are\. Load pitches Run Evidence /
+    )
     expect(empty).not.toContain('Not loaded')
     // The sheet's form takes pasted pitches or email files, and says what reaches Qloo.
     expect(

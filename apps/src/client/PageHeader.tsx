@@ -55,13 +55,25 @@ export const summaryLine = (total: string, parts: (string | false)[]) =>
 // What a page shows in place of its body while it has nothing yet: one short line saying what's
 // missing, in the empty state's words, and the page's one primary action, which brings in the first.
 // The header has no action then, so there's one way in. An action that takes a form opens it in the
-// page's sheet.
-export function PageEmpty({ action, children }: { action: ReactNode; children: ReactNode }) {
+// page's sheet. `detail`, under the line, is what the page promises of what the action brings in, as
+// the inbox's privacy promise.
+export function PageEmpty({
+  action,
+  detail,
+  children
+}: {
+  action: ReactNode
+  detail?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="flex flex-col items-start gap-3">
-      <p>
-        <StateLine kind="empty">{children}</StateLine>
-      </p>
+      <div className="flex max-w-[72ch] flex-col gap-1">
+        <p>
+          <StateLine kind="empty">{children}</StateLine>
+        </p>
+        {detail && <p className="type-caption text-muted-foreground">{detail}</p>}
+      </div>
       {action}
     </div>
   )
