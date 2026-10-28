@@ -152,13 +152,10 @@ export function readSampleInbox(): Pick<Inbox, 'sample' | 'notice' | 'show' | 'p
     notice: sampleInbox.notice,
     show: {
       name: sampleInbox.show.name,
-      pastGuests: sampleInbox.show.pastGuests.map(({ guest, work }) => ({
-        guest,
-        work: { ...work, type: work.type as WorkType }
-      }))
+      pastGuests: sampleInbox.show.pastGuests.map(({ guest, work }) => ({ guest, work: sampleWork(work) }))
     },
     pitches: sampleInbox.pitches.map(({ id, body, senderName, senderEmail, subject, expected }) => {
-      const work = expected.work && { ...expected.work, type: expected.work.type as WorkType }
+      const work = expected.work && sampleWork(expected.work)
       return {
         ...pitch(id, body, `${senderName} <${senderEmail}>`, subject),
         status: work ? 'looking_up' : 'no_work',
@@ -168,6 +165,12 @@ export function readSampleInbox(): Pick<Inbox, 'sample' | 'notice' | 'show' | 'p
     })
   }
 }
+
+// A work as the sample file gives it, whose type JSON leaves a string.
+const sampleWork = (work: { title: string; type: string; year: number | null }): Work => ({
+  ...work,
+  type: work.type as WorkType
+})
 
 // Pitches pasted or kept in a text file, separated by lines of three or more dashes.
 export const splitPitches = (text: string) =>
