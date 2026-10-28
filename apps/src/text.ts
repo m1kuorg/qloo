@@ -24,6 +24,9 @@ export const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n.toLocale
 // here, so the app's pages know it too. And when the daily cron (wrangler.jsonc) clears it, as every
 // guest is told it.
 export const GUEST_NETWORK = 'guest-network'
+// What every guest member's ID starts with, and the ID of every network on the guest budget: the guest
+// network's, and each a guest member creates (ADR 0006).
+export const GUEST_PREFIX = 'guest-'
 export const GUEST_NETWORK_CLEARS = '12:00 UTC'
 
 // The longest name a member or a network can have.

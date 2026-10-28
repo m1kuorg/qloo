@@ -1,8 +1,7 @@
 import { DurableObject } from 'cloudflare:workers'
-import { GUEST_NETWORK } from './directory'
 import type { CallEvidence } from './evidence'
 import { isQlooHost } from './qloo-hosts'
-import { modelRuns, sha256 } from './text'
+import { GUEST_NETWORK, modelRuns, sha256 } from './text'
 
 export type QlooEntity = {
   id: string

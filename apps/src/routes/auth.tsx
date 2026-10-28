@@ -49,6 +49,7 @@ import {
   signUp,
   takeChallenge,
   type Challenge,
+  type GuestLimit,
   type Member,
   type Passkey
 } from '../directory'
@@ -156,7 +157,7 @@ async function registered(c: Context<{ Bindings: Env }>, ceremony: string, start
 const taken = (err: unknown) => String(err).includes('passkeys.credential_id')
 
 // Why guest sign-in is refused once everyone's guest sign-ins for the minute or the UTC day are spent.
-const whyGuestRefused = (env: Env, spent: 'minute' | 'day') =>
+const whyGuestRefused = (env: Env, spent: GuestLimit) =>
   spent === 'minute'
     ? 'Guest sign-ins are busy for everyone right now. Try again in a minute.'
     : `Guests have signed in ${Number(env.GUEST_SIGNINS_PER_DAY) || 0} times today, the most Crossfeed takes in a UTC day; it resets at 00:00 UTC. Create an account to sign in now.`
