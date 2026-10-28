@@ -32,7 +32,7 @@
     "ACCOUNTS": "on",
     // "on" shows the guest pitch flow; "off" hides it. #57 switched it on after its live check.
     "GUEST_PITCHES": "on",
-    // A new session opens on the sample network (TRD demo data); tests turn it off.
+    // The guest network loads the sample network each day (ADR 0007, TRD demo data); tests turn it off.
     "SAMPLE_NETWORK": "on",
     // The passkey relying party's ID, and the origins (comma-separated) a member's browser may send
     // from: each environment's own host, never read from the request.
