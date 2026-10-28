@@ -11,7 +11,8 @@ import {
   deleteMember,
   dropNetwork,
   dropTemporaryGuests,
-  guestMemberNetworks,
+  guestOwnedNetworks,
+  networksPerMember,
   networkName,
   noteWipe,
   pastNetworks,
@@ -184,8 +185,8 @@ export const removeTemporaryGuests = (env: Env) => dropTemporaryGuests(env.DB, N
 // made. Then guests' open pages of the networks it left close. Logs how many networks it deleted and left.
 export async function clearGuests(env: Env) {
   const deleting: { id: string; instances: Instance[] }[] = []
-  for (const { id, onlyOwner } of await guestMemberNetworks(env.DB, Number(env.NETWORKS_PER_MEMBER) || 0))
-    if (onlyOwner) deleting.push({ id, instances: networkInstances(id, await (await networkToWipe(env, id)).letGo()) })
+  for (const id of await guestOwnedNetworks(env.DB, networksPerMember(env)))
+    deleting.push({ id, instances: networkInstances(id, await (await networkToWipe(env, id)).letGo()) })
   const { networks, left } = await clearGuestMember(env.DB, deleting)
   await Promise.all(left.map((id) => kickMember(env, id, GUEST_MEMBER)))
   console.log(JSON.stringify({ event: 'guest_member_cleared', networks, left: left.length }))

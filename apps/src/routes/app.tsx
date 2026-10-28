@@ -30,6 +30,7 @@ import {
   memberRole,
   networkMembers,
   networkName,
+  networksPerMember,
   newRecoveryCode,
   openInvites,
   openNetwork,
@@ -102,14 +103,14 @@ appPages.get('/app', async (c) => {
 // Naming a new network. The landing page's "Create your network" leads here.
 appPages.get('/app/new', async (c) => {
   c.set('networks', await memberNetworks(c.env.DB, c.var.member.id))
-  return c.render(<Island page="new-network" data-cap={c.env.NETWORKS_PER_MEMBER} />)
+  return c.render(<Island page="new-network" data-cap={networksPerMember(c.env)} />)
 })
 
 // Creates the network, with the member as its owner, unless they've created NETWORKS_PER_MEMBER.
 appPages.post('/app/new', async (c) => {
   const read = readName((await jsonBody(c)).name, 'Name the network.')
   if ('error' in read) return c.json({ error: read.error }, 400)
-  const cap = Number(c.env.NETWORKS_PER_MEMBER) || 0
+  const cap = networksPerMember(c.env)
   const id = await createNetwork(c.env.DB, c.var.member, read.name, cap)
   if (!id)
     return c.json(

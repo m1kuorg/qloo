@@ -224,6 +224,25 @@ describe('the daily clearing', () => {
     expect((await lin.fetch(`/app/${kept}`)).status).toBe(200)
   })
 
+  it('deletes up to NETWORKS_PER_MEMBER networks only the guest member owns, however many it shares', async () => {
+    const guest = await openGuest()
+    const shared = await created(guest, 'Night Shift Audio')
+    const lin = await openMember({ name: 'Lin Editor', invite: await invite(guest, shared) })
+    await makeOwner(guest, shared, lin.id)
+    const only = [await created(guest, 'Paper Route'), await created(guest, 'Corner Booth')]
+    const cap = env.NETWORKS_PER_MEMBER
+    env.NETWORKS_PER_MEMBER = '2'
+    try {
+      const logged = vi.spyOn(console, 'log')
+      await clearing()
+      expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_member_cleared', networks: 2, left: 1 }))
+      for (const id of [...only, shared]) expect((await guest.fetch(`/app/${id}`)).status, id).toBe(404)
+      expect((await lin.fetch(`/app/${shared}`)).status).toBe(200)
+    } finally {
+      env.NETWORKS_PER_MEMBER = cap
+    }
+  })
+
   it('leaves the guest network’s members as they are, the guest member its owner', async () => {
     const guest = await openGuest()
     const dot = await openMember({ name: 'Dot Pruitt', invite: await invite(guest, 'guest-network') })
