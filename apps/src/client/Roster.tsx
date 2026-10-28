@@ -26,9 +26,9 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
 const alone = cn(canvas, 'min-[85rem]:pr-6')
 
 // The roster every launch on the network ranks, kept by its agent, which answers "Is my roster ready
-// to rank?": the header with the roster's counts and Import shows, the shows Qloo failed on, whether
-// it's ready to rank, and the roster table, whose shows open in the inspector's Show tab beside it (a
-// sheet under 1360px) and whose calls open in its Evidence tab. An empty roster has the empty state
+// to rank?": the header with the roster's counts and Import shows, the shows Qloo failed on, and the
+// roster table, whose caption says whether it's ready to rank, and whose shows open in the inspector's
+// Show tab beside it (a sheet under 1360px) and whose calls open in its Evidence tab. An empty roster has the empty state
 // instead, with Import shows; either opens the import in a sheet. Every member's edits reach the
 // others through synced state. Tests render it from a network agent's synced state.
 export function NetworkRoster({
@@ -92,9 +92,9 @@ export function NetworkRoster({
           <main className={canvas}>
             {head}
             <RosterFailures roster={roster} />
-            <Readiness roster={roster} />
             <RosterTable
               roster={roster}
+              readiness={readiness(roster)}
               selected={show?.name ?? null}
               select={(name) => {
                 setSelected(name)
@@ -154,21 +154,18 @@ export function NetworkRoster({
   )
 }
 
-// Whether a run can score every show yet, by the table, which settles them: shows still looked up,
-// ambiguous, missed or failed in Qloo are listed as not scored until they're settled or left out.
-function Readiness({ roster }: { roster: Show[] }) {
+// Whether a run can score every show yet, said in the table's caption, as the table settles them:
+// shows ambiguous, missed or failed in Qloo aren't scored until they're settled or left out. Nothing
+// while shows are still being looked up.
+function readiness(roster: Show[]) {
   if (roster.some((s) => s.resolution === 'pending')) return null
   const unsettled = roster.filter(
     (s) => !s.excluded && (s.resolution === 'ambiguous' || s.resolution === 'missed' || s.resolution === 'failed')
   ).length
   const scorable = roster.filter((s) => !s.excluded && (s.resolution === 'resolved' || s.resolution === 'mapped'))
-  return (
-    <p className="max-w-[72ch]">
-      {unsettled > 0
-        ? `${unsettled} ${unsettled === 1 ? 'show isn’t' : 'shows aren’t'} scored until you settle or leave ${unsettled === 1 ? 'it' : 'them'} out.`
-        : scorable.length > 0
-          ? 'Ready to rank: every show can be scored.'
-          : 'Every show is left out, so a run has nothing to rank.'}
-    </p>
-  )
+  return unsettled > 0
+    ? `${unsettled} ${unsettled === 1 ? 'show isn’t' : 'shows aren’t'} scored until you settle or leave ${unsettled === 1 ? 'it' : 'them'} out.`
+    : scorable.length > 0
+      ? 'Ready to rank: every show can be scored.'
+      : 'Every show is left out, so a run has nothing to rank.'
 }
