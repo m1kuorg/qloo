@@ -137,13 +137,13 @@ export function InspectorToggle({
 
 // The inspector, a Base UI Tabs panel, closed until something opens it: beside the canvas from 1360px,
 // on the card at rest, with no shadow, and below it a non-modal right sheet, which floats, with the
-// floating shadow. Each has a close button, and Escape closes it while focus is in it, focus going back
-// to what opened it. `children` are its TabsContent panels, each kept mounted, closed too, so the ids
-// calls point at (aria-controls="evidence") are always there, and what a panel holds, such as a show's
-// figures being typed, is there as it was when it opens again; Base UI hides and inerts the panels not
-// shown, and nothing else. The sheet leaves the page usable, so focus may leave it; when Tab takes
-// focus to something the sheet covers (all of the canvas on a phone, where it's full width), the sheet
-// closes and focus stays where it went.
+// floating shadow. Each has a close button, and Escape closes it while focus is in it, never from the
+// canvas, focus going back to what opened it. `children` are its TabsContent panels, each kept
+// mounted, closed too, so the ids calls point at (aria-controls="evidence") are always there, and what
+// a panel holds, such as a show's figures being typed, is there as it was when it opens again; Base UI
+// hides and inerts the panels not shown, and nothing else. The sheet leaves the page usable, so focus
+// may leave it; when Tab takes focus to something the sheet covers (all of the canvas on a phone, where
+// it's full width), the sheet closes and focus stays where it went.
 // `initialFocus` is what the sheet focuses as it opens, when the page asks for more than Base UI's
 // default, such as an opened object's heading.
 export function Inspector({
@@ -215,8 +215,22 @@ export function Inspector({
     </aside>
   ) : (
     // Non-modal and kept mounted while closed: the canvas stays usable beside it, its guide included,
-    // and the calls' aria-controls="evidence" always finds its panel.
-    <Sheet open={open} onOpenChange={setOpen} modal={false} disablePointerDismissal>
+    // and the calls' aria-controls="evidence" always finds its panel. Base UI hears Escape anywhere on
+    // the page, so it closes the sheet only from inside it, as beside the canvas, and Escape on the
+    // canvas goes on to whatever it was for there.
+    <Sheet
+      open={open}
+      onOpenChange={(next, details) => {
+        if (!next && details.reason === 'escape-key' && !element.current?.contains(details.event.target as Node)) {
+          details.cancel()
+          details.allowPropagation()
+          return
+        }
+        setOpen(next)
+      }}
+      modal={false}
+      disablePointerDismissal
+    >
       <SheetContent
         ref={element}
         id={INSPECTOR_ID}
