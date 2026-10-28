@@ -94,16 +94,17 @@ describe('signing in as a guest', () => {
         member: expect.stringMatching(/^guest-[0-9a-f-]{36}$/)
       })
     expect(his.member).not.toBe(hers.member)
+    // Listed in the order they joined, which two sign-ins in one millisecond leave to their names.
     const members = await guestMembers(grace)
-    expect(members).toMatchObject([
-      { id: hers.member, name: expect.stringMatching(/^Guest [0-9A-F]{6}$/), role: 'owner' },
-      { id: his.member, name: expect.stringMatching(/^Guest [0-9A-F]{6}$/), role: 'owner' }
-    ])
-    expect(members[1].name).not.toBe(members[0].name)
+    const [herRow, hisRow] = [hers.member, his.member].map((id) => members.find((m) => m.id === id))
+    expect(members).toHaveLength(2)
+    for (const row of [herRow, hisRow])
+      expect(row).toMatchObject({ name: expect.stringMatching(/^Guest [0-9A-F]{6}$/), role: 'owner' })
+    expect(hisRow!.name).not.toBe(herRow!.name)
     // Each is signed in as themselves: their account page names them.
     for (const [guest, { name }] of [
-      [ada, members[0]],
-      [grace, members[1]]
+      [ada, herRow!],
+      [grace, hisRow!]
     ] as const)
       expect(await (await guest.fetch('/app/account')).text()).toContain(`data-member-name="${name}"`)
     expect(logged.mock.calls.filter(([line]) => line === JSON.stringify({ event: 'guest_sign_in' }))).toHaveLength(2)
