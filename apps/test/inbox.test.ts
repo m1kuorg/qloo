@@ -183,7 +183,7 @@ describe('the sample inbox, as the guest network loads it', () => {
     env.SAMPLE_NETWORK = sampleNetwork
   })
 
-  it('lists every pitch with its guest, work, type, and match state, labelled as sample data', async () => {
+  it('lists every pitch with its guest, work, type, and match state, its guests and works labelled sample', async () => {
     env.SAMPLE_NETWORK = 'on'
     fakeQloo({ search: sampleSearch })
     const network = await (await openGuest()).connect('/agents/network/guest-network')

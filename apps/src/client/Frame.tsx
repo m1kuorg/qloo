@@ -12,7 +12,8 @@ import { runLabel } from './Run'
 import { ConnectionState, endedBadly, isLive, SlowCalls, StateLine, type Connection } from './states'
 
 // The frame the run pages share, the launch workspace (App.tsx) and the inbox (Inbox.tsx): a canvas
-// beside an inspector, the on-air readout at the head of the canvas, and the connecting state.
+// beside an inspector, the on-air readout at the head of the canvas, and the connecting state, which
+// on the inbox, given its title, is its page header saying it.
 
 // From 1360px, the canvas beside the inspector, a 360px column on the card, sticky under the 48px top
 // bar for the window's height. At 1440 that's 56 (rail) + 24 (gutter) + 976 (canvas) + 24 (gap) + 360
