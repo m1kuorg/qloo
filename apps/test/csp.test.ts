@@ -25,8 +25,9 @@ const policyOf = (res: Response) =>
       .map(([name, ...sources]) => [name, sources])
   ) as Record<string, string[]>
 
-// What a page loads that its policy must allow, as a browser would refuse it: each inline script, which
-// needs the policy's nonce, and each script and stylesheet by its address, which must be the app's own.
+// What a page loads or sends that its policy must allow, as a browser would refuse it: each inline
+// script, which needs the policy's nonce, each script and stylesheet by its address, and each form's
+// action, such as the guest buttons' (shell.tsx), which must be the app's own.
 function refusedBy(policy: Record<string, string[]>, html: string) {
   const scripts = policy['script-src'] ?? policy['default-src'] ?? []
   const refused: string[] = []
@@ -39,6 +40,8 @@ function refusedBy(policy: Record<string, string[]>, html: string) {
   }
   for (const [, href] of html.matchAll(/<link\b[^>]*\bhref="([^"]*)"/g))
     if (new URL(href, origin).origin !== origin) refused.push(href)
+  for (const [, action] of html.matchAll(/<form\b[^>]*\baction="([^"]*)"/g))
+    if (new URL(action, origin).origin !== origin) refused.push(action)
   return refused
 }
 
@@ -87,6 +90,7 @@ describe('every page', () => {
         ["'none'"],
         ["'none'"]
       ])
+      expect(policy['form-action'], path).toEqual(["'self'"])
       const html = await res.text()
       expect(refusedBy(policy, html), path).toEqual([])
       expect(styleAttributes(html), path).toEqual([])

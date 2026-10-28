@@ -19,6 +19,16 @@ const page = async (path: string) => {
 const main = (html: string) => html.match(/<main[^>]*>([\s\S]*)<\/main>/)?.[1] ?? ''
 // Every link's href, in document order.
 const hrefs = (html: string) => [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1])
+// Every way on, in document order: each link's href, and each button that posts a form, as its form's
+// method and action, such as "POST /auth/guest", which the page's own <form> sets.
+const ways = (html: string, page = html) =>
+  [...html.matchAll(/<a [^>]*href="([^"]*)"|<button\b[^>]*\sform="([^"]*)"/g)].map(([, href, form]) => {
+    if (href !== undefined) return href
+    const tag = page.match(new RegExp(`<form\\b[^>]*\\sid="${form}"[^>]*>`))?.[0] ?? ''
+    return `${tag.match(/\smethod="([^"]*)"/)?.[1]?.toUpperCase()} ${tag.match(/\saction="([^"]*)"/)?.[1]}`
+  })
+// Guest sign-in, as the public pages' guest buttons post it.
+const GUEST = 'POST /auth/guest'
 // The page's text, without its markup.
 const words = (html: string) =>
   html
@@ -54,12 +64,31 @@ const looked = [
 ]
 
 describe('the landing page', () => {
-  it('serves / with no React island, and its first call to action opens the sample network', async () => {
+  it('serves / with no React island, and its first call to action signs in as a guest, to the sample, with no script', async () => {
     const html = await page('/')
     expect(html).not.toContain('id="root"')
     expect(html).not.toContain('client/main.tsx')
-    expect(hrefs(main(html))[0]).toBe('/demo')
-    expect(main(html)).toMatch(/<a [^>]*href="\/demo"[^>]*>Open the sample network<\/a>/)
+    expect(ways(main(html), html)[0]).toBe(GUEST)
+    expect(main(html)).toMatch(/<button\b(?=[^>]*\stype="submit")[^>]*>Open the sample network<\/button>/)
+    expect(words(main(html))).toContain(
+      'Signs you in as a guest, for a day. Every guest shares the network, which opens on 19 public show names from The Ringer, with sample figures. Crossfeed isn’t affiliated with The Ringer.'
+    )
+    expect(words(html)).not.toMatch(/No sign-in|needs no sign-in/)
+  })
+
+  it('links no page to the retired demo, and offers its sample as guest sign-in from the header and the close', async () => {
+    for (const path of pages) {
+      const html = await page(path)
+      expect(hrefs(html), path).not.toContain('/demo')
+      const header = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ''
+      expect(header, path).toMatch(/<button\b[^>]*>Sample network<\/button>/)
+      expect(ways(header, html), path).toContain(GUEST)
+    }
+    const close = (await page('/')).match(/<section\b[^>]*\bdata-band="signal"[\s\S]*?<\/section>/)?.[0] ?? ''
+    expect(ways(close, await page('/'))).toEqual([GUEST, '/app/new'])
+    expect(words(close)).toContain(
+      'The sample signs you in as a guest, in the network every guest shares, which is cleared every day. A network of your own keeps its roster, launches, and members, and its members sign in with passkeys.'
+    )
   })
 
   it('labels its re-rank an illustration of made-up shows, and no marketing page shows Qloo data', async () => {
@@ -81,6 +110,10 @@ describe('the landing page', () => {
       for (const href of hrefs(html)) expect(href, path).not.toMatch(/^\/(app|sign-in|invite|api|mcp)\b/)
       expect(html).not.toContain('Create your network')
       expect(html).not.toContain('Sign in')
+      // No way in at all: trying Crossfeed is signing in as a guest (ADR 0007).
+      expect(html, path).not.toMatch(/<form\b|<button\b[^>]*\sform=/)
+      expect(html, path).not.toContain('Sample network')
+      expect(words(html), path).not.toContain('Open the sample network')
     }
   })
 
@@ -89,7 +122,7 @@ describe('the landing page', () => {
     const html = await page('/')
     expect(main(html)).toMatch(/<a [^>]*href="\/app\/new"[^>]*>Create your network<\/a>/)
     expect(html).toMatch(/<a [^>]*href="\/sign-in"[^>]*>Sign in<\/a>/)
-    expect(hrefs(main(html))[0]).toBe('/demo')
+    expect(ways(main(html), html)[0]).toBe(GUEST)
   })
 
   it('re-ranks a made-up roster by topic with two radios and no script, each row in listener order with both its ranks', async () => {
@@ -327,8 +360,9 @@ describe('the footer', () => {
     const nav = navs[0] ?? ''
     expect(nav, path).toMatch(/^<nav\b[^>]*\baria-label="Footer"/)
     expect(hrefs(nav), path).toEqual(hrefs(footer))
-    const links = [...nav.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map(([, attributes, text]) => ({
-      link: `${words(text).trim()} ${attributes.match(/\bhref="([^"]*)"/)?.[1]}`,
+    const to = ways(nav, html)
+    const links = [...nav.matchAll(/<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>/g)].map(([, , attributes, text], i) => ({
+      link: `${words(text).trim()} ${to[i]}`,
       current: /\baria-current="page"/.test(attributes)
     }))
     return { links: links.map((l) => l.link), current: links.filter((l) => l.current).map((l) => l.link) }
@@ -339,7 +373,7 @@ describe('the footer', () => {
     for (const [path, html] of await shown()) {
       const { links, current } = index(html, path)
       expect(links, path).toEqual([
-        'Sign in as a guest /sign-in',
+        `Sign in as a guest ${GUEST}`,
         'Create your network /app/new',
         'Sign in /sign-in',
         'Developers /docs',
@@ -536,13 +570,13 @@ describe('a page that is not there', () => {
 
   it('shows a browser the 404 page in the marketing shell, with ways back', async () => {
     env.GUEST_PITCHES = 'off'
-    // A path nothing serves, and pages that refuse: the demo's inbox while guest pitches are off.
-    for (const path of ['/no-such-page', '/docs/nothing-here', '/demo/inbox']) {
+    // A path nothing serves, and a docs page that isn't there.
+    for (const path of ['/no-such-page', '/docs/nothing-here']) {
       const res = await answer(path, browser)
       expect([res.status, res.type], path).toEqual([404, expect.stringMatching(/^text\/html/)])
       expect(res.body, path).toContain('<title>Not found · Crossfeed</title>')
       expect(words(main(res.body)), path).toContain('Not on the roster.')
-      expect(hrefs(main(res.body)), path).toEqual(['/', '/demo', '/app'])
+      expect(ways(main(res.body), res.body), path).toEqual(['/', GUEST, '/app'])
       // The marketing shell's links, and no island.
       expect(res.body.match(/<header[\s\S]*?<\/header>/)?.[0], path).toMatch(
         /<a [^>]*href="\/docs"[^>]*>Developers<\/a>/
@@ -558,7 +592,7 @@ describe('a page that is not there', () => {
       const res = await answer(path, browser)
       expect(res.status, path).toBe(404)
       expect(words(main(res.body)), path).toContain('Not on the roster.')
-      expect(hrefs(main(res.body)), path).toEqual(['/', '/demo'])
+      expect(ways(main(res.body), res.body), path).toEqual(['/'])
       for (const href of hrefs(res.body)) expect(href, path).not.toMatch(/^\/(app|sign-in|invite|api|mcp)\b/)
     }
   })
