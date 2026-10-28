@@ -450,12 +450,6 @@ function GuestCantJoin({ network }: { network: string }) {
 // A signed-in member joins as themselves, in one step, or signs out to join with another account.
 function JoinAs({ name, network, join }: { name: string; network: string; join: () => Promise<void> }) {
   const { busy, error, run } = useAction()
-  const signOut = () =>
-    run(async () => {
-      await send('/auth/sign-out')
-      // The link's fragment stays in the address, so the page opens on the invite again, signed out.
-      window.location.reload()
-    })
   return (
     <section className={panel} aria-label={`Join ${network}`}>
       <p>
@@ -468,9 +462,13 @@ function JoinAs({ name, network, join }: { name: string; network: string; join: 
       <Alert error={error} />
       <p className="text-muted-foreground">
         Not {name}?{' '}
-        <Button variant="link" disabled={busy} onClick={() => void signOut()}>
+        <SignOut
+          variant="link"
+          // The link's fragment stays in the address, so the page opens on the invite again, signed out.
+          then={() => window.location.reload()}
+        >
           Sign out
-        </Button>{' '}
+        </SignOut>{' '}
         to join with another account.
       </p>
     </section>
