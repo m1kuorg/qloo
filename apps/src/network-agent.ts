@@ -189,13 +189,14 @@ export class NetworkAgent extends CrossfeedAgent {
   // model is called and no model run counted. The works are looked up as the roster is, their calls
   // reserved on the guest budget; the pitches with no work are set aside. Refused, the inbox stays empty.
   // Until it's noted as loaded, each start tries again what didn't land: an inbox still empty, or the
-  // lookups that failed or were interrupted. It's noted once a start finds every lookup settled, or finds
-  // a guest's own pitches, which it never replaces.
+  // lookups that failed or were interrupted. It's noted once a start finds every lookup settled, a pitch
+  // run started on it, whose lists and replies name its pitches as they were then, or a guest's own
+  // pitches, which it never replaces.
   private async loadSampleInbox() {
     const { kv } = this.ctx.storage
     if (kv.get(SAMPLE_INBOX_LOADED) || this.env.GUEST_PITCHES !== 'on') return
     const current = this.state.inbox
-    if (current && !current.sample) return kv.put(SAMPLE_INBOX_LOADED, true)
+    if (current && (!current.sample || this.state.booking)) return kv.put(SAMPLE_INBOX_LOADED, true)
     const inbox: Inbox = current
       ? {
           ...current,
