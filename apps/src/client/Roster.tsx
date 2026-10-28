@@ -104,11 +104,6 @@ export function NetworkRoster({
                   key={show.name}
                   show={show}
                   agent={agent}
-                  // The inspector was opened for the show, so it closes with it.
-                  close={() => {
-                    setSelected(null)
-                    inspector.close()
-                  }}
                   openCall={inspector.showCall}
                   opened={evidence.opened?.call ?? null}
                 />

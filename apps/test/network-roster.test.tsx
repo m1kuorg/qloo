@@ -455,7 +455,6 @@ describe("the roster page's words", () => {
         <ShowEditor
           show={state.roster.find((show) => show.name === name)!}
           agent={{ state, stub: {} } as unknown as NetworkConnection}
-          close={() => {}}
           openCall={() => {}}
           opened={null}
         />
@@ -558,6 +557,8 @@ describe("the roster page's words", () => {
     const watch = editor(state, 'The Watch')
     expect(watch).toContain('Sample: Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
     expect(watch).toContain('Downloads per episode sample Status sample Save')
+    // The inspector's close button closes it, so the show has no Close of its own.
+    expect(watch).not.toContain('Close')
     // The header: the title, its counts, the inspector's toggle, and the import, in a sheet; then the
     // table, whose caption, which describes it, starts with whether it's ready to rank. No notice,
     // explanation, or CPM is above it.

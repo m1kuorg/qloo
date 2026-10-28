@@ -175,21 +175,9 @@ export function InboxPage({
   const pitch = inbox?.pitches.find((p) => p.id === selected)
   const inspector = useInspector(pitch ? ['run', 'evidence', 'pitch'] : ['run', 'evidence'], actions)
   const { showCall } = inspector
-  // The control a pitch was opened from, so closing it returns the booker to their place.
-  const opener = useRef<HTMLElement | null>(null)
-  const select = (id: string, from: HTMLElement) => {
-    opener.current = from
+  const select = (id: string) => {
     setSelected(id)
     inspector.inspect('pitch')
-  }
-  const close = (id: string) => {
-    setSelected(null)
-    // The inspector was opened for the pitch, so it closes with it, and as a sheet would cover what
-    // focus returns to.
-    inspector.setOpen(false)
-    // A settled match's "Confirm the match" is gone by then; the pitch's row is still there.
-    const back = opener.current?.isConnected ? opener.current : document.getElementById(`open-${id}`)
-    back?.focus()
   }
   const reading = inbox?.status === 'reading'
   // The sample inbox's pitches come already read, so only their works are looked up.
@@ -350,7 +338,6 @@ export function InboxPage({
               pitch={pitch}
               sample={sample}
               confirmWork={viewing ? null : actions.confirmWork}
-              close={() => close(pitch.id)}
               openCall={showCall}
               opened={opened}
             />
@@ -1717,20 +1704,19 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElem
 }
 
 // The pitch opened from a list or the table, in the inspector's Pitch tab: its subject as the
-// heading, which takes focus as it opens, with Close; what Claude read from it, or the sample gives;
-// its work's candidates to confirm, unless it's an earlier run's (`confirmWork` null); and its text.
+// heading, which takes focus as it opens; what Claude read from it, or the sample gives; its work's
+// candidates to confirm, unless it's an earlier run's (`confirmWork` null); and its text. It has no
+// Close of its own: the inspector's closes it, and selecting another pitch changes it.
 function PitchDetail({
   pitch: p,
   sample,
   confirmWork,
-  close,
   openCall,
   opened
 }: {
   pitch: Pitch
   sample: boolean
   confirmWork: Actions['confirmWork'] | null
-  close: () => void
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -1748,14 +1734,9 @@ function PitchDetail({
       data-pitch-detail
     >
       <div className="flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base leading-snug font-semibold text-balance" id="pitch-ed" ref={heading} tabIndex={-1}>
-            {title(p)}
-          </h2>
-          <Button variant="ghost" size="sm" aria-label={`Close ${title(p)}`} onClick={close} className="-my-1 -mr-1.5">
-            Close
-          </Button>
-        </div>
+        <h2 className="text-base leading-snug font-semibold text-balance" id="pitch-ed" ref={heading} tabIndex={-1}>
+          {title(p)}
+        </h2>
         <span className="flex flex-wrap gap-1">
           <PitchChip pitch={p} />
         </span>

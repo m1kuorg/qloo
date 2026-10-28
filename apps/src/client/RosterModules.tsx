@@ -417,17 +417,16 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
 }
 
 // The selected show, in the inspector's Show tab: settle its match, edit its figures, or leave it
-// out. Each part is its own form, so a search or a pick doesn't send the figures being typed.
+// out. Each part is its own form, so a search or a pick doesn't send the figures being typed. It has
+// no Close of its own: the inspector's closes it, and selecting another row changes the show.
 export function ShowEditor({
   show,
   agent,
-  close,
   openCall,
   opened
 }: {
   show: Show
   agent: Session
-  close: () => void
   openCall: (call: string) => void
   opened: string | null
 }) {
@@ -438,14 +437,9 @@ export function ShowEditor({
     // Scrolled to, it stops clear of the inspector's sticky tabs.
     <section className="flex min-w-0 scroll-mt-16 flex-col gap-6" ref={ref} aria-labelledby="show-ed" data-show-editor>
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base leading-snug font-semibold text-balance" id="show-ed">
-            {show.name}
-          </h2>
-          <Button variant="ghost" size="sm" aria-label={`Close ${show.name}`} onClick={close} className="-my-1 -mr-1.5">
-            Close
-          </Button>
-        </div>
+        <h2 className="text-base leading-snug font-semibold text-balance" id="show-ed">
+          {show.name}
+        </h2>
         <span className="flex flex-wrap gap-1">
           <MatchChip show={show} slow={false} />
           {show.excluded && <Badge>Excluded</Badge>}
