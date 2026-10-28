@@ -570,7 +570,7 @@ const Pitch = z
     body: z.string(),
     status: z.enum(['reading', 'looking_up', 'read', 'no_work', 'unreadable', 'failed']).openapi({
       description:
-        "`reading` while the agent reads it, `looking_up` while its work is searched in Qloo, then `read`. A pitch with no public work (`no_work`) or that the agent can't read (`unreadable`) is set aside and never reaches Qloo; `failed` says why in `error`."
+        "`reading` while the agent reads it, `looking_up` while its work is searched in Qloo, then `read`. The sample inbox's pitches come already read, so they start at `looking_up`. A pitch with no public work (`no_work`) or that the agent can't read (`unreadable`) is set aside and never reaches Qloo; `failed` says why in `error`."
     }),
     guest: z.string().nullable().openapi({
       description:
@@ -585,7 +585,8 @@ const Pitch = z
 const Inbox = z
   .object({
     status: z.enum(['empty', 'reading', 'done']).openapi({
-      description: '`empty` until pitches are loaded, `reading` while any is still being read; poll until `done`.'
+      description:
+        '`empty` until pitches are loaded, `reading` while any is still being read or its work looked up; poll until `done`.'
     }),
     sample: z
       .object({ notice: z.string() })

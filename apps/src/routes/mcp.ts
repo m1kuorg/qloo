@@ -303,7 +303,7 @@ function serverFor(ctx: OperationContext) {
 
   tool(
     'get_inbox',
-    "Read the network's inbox: each pitch, the guest and public work the agent read in it, and how the work matched in Qloo. It's `reading` while any pitch is being read; read it again until it's `done`.",
+    "Read the network's inbox: each pitch, the guest and public work the agent read in it, and how the work matched in Qloo. It's `reading` while any pitch is being read or its work looked up; read it again until it's `done`.",
     none,
     READ,
     async () => {
