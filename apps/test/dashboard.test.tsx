@@ -67,7 +67,7 @@ async function island(member: Pick<Member, 'fetch'>, path: string) {
       id: d.networkId,
       name: d.networkName,
       role: d.role as 'owner' | 'member',
-      guest: d.guest === 'true',
+      guestBudget: d.guestBudget === 'true',
       links: { roster: d.rosterLink, inbox: d.inboxLink ?? null, settings: d.settingsLink, launches: d.launchesLink }
     }
   }

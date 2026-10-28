@@ -537,7 +537,7 @@ describe("the roster page's words", () => {
               id: 'guest-network',
               name: 'Guest network',
               role,
-              guest: true,
+              guestBudget: true,
               links: networkLinks(env, 'guest-network')
             }}
           />

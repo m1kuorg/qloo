@@ -28,7 +28,7 @@ export function UsageModule({ network, usage, hasOwnKey }: { network: NetworkPag
     }
   ]
   const local = localTime(usage.resets)
-  const what = network.guest
+  const what = network.guestBudget
     ? 'What all guests together can use each UTC day, in the guest network and the networks guests create'
     : `What ${network.name} can use each UTC day, whichever member or API key uses it`
   return (
