@@ -1,6 +1,6 @@
-// Signing in as a guest (ADR 0006): one click, no passkey, to a guest member of one's own, an owner of
-// the guest network, through the accounts routes and the app's pages, as the sign-in page's "Sign in as
-// a guest" does.
+// Signing in as a guest (ADR 0008): one click, no passkey, as the one guest member, an owner of the guest
+// network, with a session of one's own, through the accounts routes and the app's pages, as the sign-in
+// page's "Sign in as a guest" does.
 import { getAgentByName } from 'agents'
 import {
   createExecutionContext,
@@ -31,7 +31,6 @@ import {
   openGuest,
   openMember,
   readAfterReset,
-  untilRefused,
   type Guest,
   type Session
 } from './session'
@@ -53,6 +52,10 @@ async function dashboard(guest: Guest) {
   const attr = (name: string) => html.match(new RegExp(`data-${name}="([^"]*)"`))?.[1]
   return { path, page: attr('page'), member: attr('member-id'), network: attr('network-name'), role: attr('role') }
 }
+
+// Who the app's account menu says is signed in, on the account page.
+const signedInAs = async (who: Pick<Guest, 'fetch'>) =>
+  (await (await who.fetch('/app/account')).text()).match(/Signed in as <b\b[^>]*>([^<]*)<\/b>/)?.[1]
 
 // A write from a guest's page, as its islands send them.
 const post = (guest: Guest, path: string, body: object = {}) =>
@@ -92,7 +95,7 @@ describe('signing in as a guest', () => {
         role: 'owner',
         member: 'guest-member'
       })
-      expect(await (await guest.fetch('/app/account')).text()).toContain('data-member-name="Guest"')
+      expect(await signedInAs(guest)).toBe('Guest')
     }
     expect(await guestMembers(grace)).toEqual([
       { id: 'guest-member', name: 'Guest', role: 'owner', joined: expect.any(Number) }
@@ -157,8 +160,8 @@ describe('signing in as a guest', () => {
       }
       // Each is still signed in as before, and none of it counted as a guest sign-in: the minute's second
       // is still there for a new guest, and the third is refused.
-      expect(await (await ada.fetch('/app/account')).text()).toContain('data-member-name="Ada Programmer"')
-      expect(await (await guest.fetch('/app/account')).text()).toContain('data-member-name="Guest"')
+      expect(await signedInAs(ada)).toBe('Ada Programmer')
+      expect(await signedInAs(guest)).toBe('Guest')
       expect((await guestSignIn()).status).toBe(200)
       expect((await guestSignIn()).status).toBe(429)
     } finally {
@@ -233,8 +236,7 @@ describe('what no guest can change: the one guest account every guest shares', (
       ['/app/account/delete', {}]
     ] as const)
       expect(await refusal(await post(ada, path, body)), path).toEqual([403, SHARED])
-    for (const guest of [ada, grace])
-      expect(await (await guest.fetch('/app/account')).text()).toContain('data-member-name="Guest"')
+    for (const guest of [ada, grace]) expect(await signedInAs(guest)).toBe('Guest')
     expect(await guestMembers(grace)).toMatchObject([{ id: 'guest-member', name: 'Guest', role: 'owner' }])
   })
 
@@ -452,7 +454,8 @@ describe('the app, as a guest sees it', () => {
       const html = await (await guest.fetch(path)).text()
       const [notice] = hooked(html, 'data-guest-notice')
       expect(words(notice), path).toBe(NOTICE)
-      // The account menu's Sign out, which main.tsx wires, then the sign-in page, to create an account.
+      // A button main.tsx wires as it does the account menu's Sign out, then the sign-in page, to create an
+      // account.
       expect(notice, path).toMatch(/<button\b[^>]*\sdata-sign-out[^>]*>Sign out and create an account<\/button>/)
       expect(hooked(notice, 'data-sign-out-status'), path).toHaveLength(1)
       expect(html, path).toContain('New network')
