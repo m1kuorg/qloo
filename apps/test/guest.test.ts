@@ -2073,7 +2073,7 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
     expect((await reset(guest)).status).toBe(200)
   })
 
-  it('says the reset may take a moment to finish when a wipe fails, and the hourly retry finishes it', async () => {
+  it('answers that the reset is pending when a wipe fails, and the hourly retry finishes it', async () => {
     const guest = await openGuest()
     const page = await connect(guest)
     await page.call('createLaunch', { name: 'The Night Watch' })
@@ -2082,9 +2082,7 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
 
     const res = await reset(guest)
     expect(res.status).toBe(202)
-    expect(await res.json()).toEqual({
-      message: 'The reset may take a moment to finish: part of it failed, and Crossfeed tries it again within the hour.'
-    })
+    expect(await res.json()).toEqual({ pending: true })
     expect(await page.closed()).toEqual(RESET)
     expect(failed.mock.calls.flat().filter((line) => String(line).includes('"event":"wipe_failed"'))).toHaveLength(1)
 

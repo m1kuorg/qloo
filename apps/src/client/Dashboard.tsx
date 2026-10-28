@@ -46,7 +46,13 @@ import { connectionOf, endedBadly, isLive, pitchTally, StateLine, type Connectio
 // invited or has joined, and whether an API key was ever created.
 export type Setup = { invited: boolean; apiKey: boolean }
 
-export function DashboardPage(props: { agentPath: string; network: NetworkPage; memberId: string; setup: Setup }) {
+export function DashboardPage(props: {
+  agentPath: string
+  network: NetworkPage
+  memberId: string
+  setup: Setup
+  notice?: string
+}) {
   const agent = useNetwork(props.agentPath)
   return (
     <NetworkGate agent={agent} network={props.network}>
@@ -65,13 +71,16 @@ export function DashboardPage(props: { agentPath: string; network: NetworkPage; 
 // and New launch, the launches grouped by who's blocked, or until there's one, the empty state, and
 // beside them (under them below 1024px) a line each for the roster, the inbox and the CPM, and the
 // setup checklist. Tests render it from a network agent's synced state; `state` is undefined until it
-// arrives. At 1440 the grid is 56 (rail) + 24 + 992 (table) + 24 + 320 + 24 = 1440.
+// arrives. Under the header, a `notice` the server gave the page, as a reset of the guest network's sample
+// data that's still finishing opens it with. At 1440 the grid is 56 (rail) + 24 + 992 (table) + 24 + 320 +
+// 24 = 1440.
 export function Dashboard({
   state,
   connection = { lost: null, reconnecting: false },
   network,
   memberId,
   setup,
+  notice,
   dismiss,
   createLaunch
 }: {
@@ -80,6 +89,7 @@ export function Dashboard({
   network: NetworkPage
   memberId: string
   setup: Setup
+  notice?: string
   dismiss: () => Promise<unknown>
   createLaunch: (input: LaunchInput) => Promise<{ id: string }>
 }) {
@@ -101,6 +111,13 @@ export function Dashboard({
         summary={countsLine(launches)}
         actions={newLaunch}
       />
+      {notice && (
+        <p className="max-w-[72ch]">
+          <StateLine kind="slow" word={null}>
+            {notice}
+          </StateLine>
+        </p>
+      )}
       <NewLaunch network={network} create={createLaunch} open={planning} setOpen={setPlanning} />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         {state ? (
