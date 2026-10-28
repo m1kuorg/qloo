@@ -49,7 +49,7 @@ import {
   useLeaveGuard
 } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
-import { canvas, Connecting, frame, Inspector, Readout, RunState, useInspector } from './Frame'
+import { canvas, Connecting, frame, Inspector, OnAir, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
 import { FormSheet, PageEmpty, PageHeader, summaryLine, useFormSheet } from './PageHeader'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
@@ -431,7 +431,11 @@ function InboxReadout({
                 · {done} of {pitchCount(inbox.pitches.length)} read
               </StateLine>
             ) : (
-              <b className="font-semibold">Read</b>
+              // At rest, the on-air light's empty ring, as before a launch's first run.
+              <span className="inline-flex items-center gap-2">
+                <OnAir live={false} idle />
+                <b className="font-semibold">Read</b>
+              </span>
             )}
             {slowCalls.length > 0 && (
               <span className="basis-full type-caption">
