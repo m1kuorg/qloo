@@ -341,15 +341,15 @@ One family, Schibsted Grotesk (variable, OFL), self-hosted through `@fontsource-
 
 The scale is a set of `type-*` utilities in `style.css` rather than `text-*` theme keys, which class merging would read as colours. Caption, ui and body take their weight from the element.
 
-| Utility        | Size                                      | Leading | Tracking | Weight | Use                                             |
-| -------------- | ----------------------------------------- | ------- | -------- | ------ | ----------------------------------------------- |
-| `type-caption` | 12px                                      | 1.45    | 0        | any    | table meta lines, field help, timestamps, chips |
-| `type-ui`      | 14px                                      | 1.45    | 0        | any    | app text, controls, table cells, nav            |
-| `type-body`    | 16px                                      | 1.55    | 0        | any    | marketing and docs text                         |
-| `type-title`   | 24px                                      | 1.2     | -0.01em  | 600    | the question's legend, fit chart ranks, docs h2 |
-| `type-display` | clamp(36px, 2rem + 2vw, 56px)             | 1.04    | -0.025em | 600    | marketing headings, auth and docs h1            |
-| `type-poster`  | clamp(96px, 12.5vw, 200px); 17vw on phone | 0.86    | -0.05em  | 600    | the landing h1 only                             |
-| `type-index`   | clamp(28px, 1rem + 3.6vw, 72px)           | 1.0     | -0.03em  | 500    | the landing re-rank's show names only           |
+| Utility        | Size                                      | Leading | Tracking | Weight | Use                                                               |
+| -------------- | ----------------------------------------- | ------- | -------- | ------ | ----------------------------------------------------------------- |
+| `type-caption` | 12px                                      | 1.45    | 0        | any    | table meta lines, field help, timestamps, chips                   |
+| `type-ui`      | 14px                                      | 1.45    | 0        | any    | app text, controls, table cells, nav                              |
+| `type-body`    | 16px                                      | 1.55    | 0        | any    | marketing and docs text                                           |
+| `type-title`   | 24px                                      | 1.2     | -0.01em  | 600    | the question's legend, fit chart ranks, docs h2                   |
+| `type-display` | clamp(36px, 2rem + 2vw, 56px)             | 1.04    | -0.025em | 600    | marketing headings, auth and docs h1                              |
+| `type-poster`  | clamp(96px, 12.5vw, 200px); 17vw on phone | 0.86    | -0.05em  | 600    | the landing h1 only                                               |
+| `type-index`   | clamp(28px, 1rem + 3.6vw, 72px)           | 1.0     | -0.03em  | 500    | the landing re-rank's show names and the marketing footer's index |
 
 The app's body is `type-ui`; a show's name in a ranked list is 15px at 600 (`text-[15px] leading-snug font-semibold`); a page's h1 in the app is `type-title`.
 
@@ -415,7 +415,7 @@ Every `/app` page: a 56px icon rail beside a column of a 48px top bar over the p
 
 ### Marketing shell
 
-The landing page, privacy, terms, the docs and the 404 page (`MarketingPage`). No bar: the mark and the wordmark "Crossfeed" top left, and top right one `<nav aria-label="Site">`: "Sample network", "Developers" (current on docs pages), and while `ACCOUNTS` is on "Sign in" and "Create your network" (secondary, so the page's own primary stays the only one). Under 768px the links fold into a `<details>` "Menu"; from 768px its summary hides and the same links sit in a row (`::details-content` in `style.css`), so it's one nav at every width. The footer opens with the name set across the full content width, then Privacy, Beta terms, Developers, and "Made for the Qloo Agentic Hackathon.", on the tone step.
+The landing page, privacy, terms, the docs and the 404 page (`MarketingPage`). No bar: the mark and the wordmark "Crossfeed" top left, and top right one `<nav aria-label="Site">`: "Sample network", "Developers" (current on docs pages), and while `ACCOUNTS` is on "Sign in" and "Create your network" (secondary, so the page's own primary stays the only one). Under 768px the links fold into a `<details>` "Menu"; from 768px its summary hides and the same links sit in a row (`::details-content` in `style.css`), so it's one nav at every width. The footer is a screen at least (`min-h-svh`) on the tone step, filled with its content, never with blank space. One `<nav aria-label="Footer">` holds an index of where to go next, set as the re-rank sets its show names: each name at `type-index`, with a line in muted body text on what's there, beside it from the eighth of twelve columns from 1024px and under it below. While `ACCOUNTS` is on the rows are "Sign in as a guest" (a link to `/sign-in` for now, its row's line saying the guest network is shared and cleared daily), "Create your network", "Sign in" and "Developers"; while it's off, "Developers" alone. Each row is its link (the link's `::after` covers the row), and hover and `aria-current` (Developers on docs pages) take the 2px underline. Under the index, Privacy and Beta terms at body size, with "Made for the Qloo Agentic Hackathon." at the row's right from 768px, then the name across the full content width along the foot. The index sits in the middle of the height the screen leaves, so a taller window adds room around it rather than a gap in one place.
 
 Sign-in and invite use the marketing shell's top-left mark with no links; the invite page shows the account menu when the visitor is signed in. The 404 page is the marketing shell around "Not on the roster.", for `GET` requests that accept HTML outside `/api`, `/agents`, `/mcp`, `/auth` and `.csv` downloads; everything else keeps the plain `404 Not Found`.
 
