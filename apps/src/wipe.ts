@@ -2,7 +2,8 @@
 // and a network's with all of its launches' and its own Qloo gateway instance, when the network is; the
 // guest network's launches', its own, and its gateway instance, when the daily cron clears it; the
 // networks only expired guest members own, as the hourly cron removes them; a deleted member's name from
-// their networks' launches; and the hourly cron's retry of a wipe that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
+// their networks' launches; and the hourly cron's retry of a wipe that failed. The directory notes each
+// wipe before it starts and crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
 import {
   clearGuestNetwork,

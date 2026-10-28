@@ -98,7 +98,7 @@ export type PitchReply = {
   sharedTags: SharedTags | null // a top pitch's compare, which the angle is built from, or which found none
   draft: string
   status: 'draft' | 'approved' | 'discarded'
-  approvedBy?: string // the member who approved it, on a network's agent; the demo's visitors aren't named
+  approvedBy?: string // the member who approved it, on a network's agent; absent on an engine session's
 }
 
 // A pitch as an uploaded email gives it (upload.ts): its sender and subject, apart from its text.

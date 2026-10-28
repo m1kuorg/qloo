@@ -61,8 +61,7 @@ export const hasOwnKey = (storage: DurableObjectStorage) => storage.kv.get(OWN_K
 export const keepOwnKey = (storage: DurableObjectStorage, set: boolean) => storage.kv.put(OWN_KEY, set)
 
 // The gateway a network's Qloo calls go through, and its launches': its own instance while it has a key
-// of its own, as the agent in `storage` knows, else the global one, as every other network's and the
-// demo's do.
+// of its own, as the agent in `storage` knows, else the global one, as every other network's does.
 export const networkGateway = (env: Env, name: string, storage: DurableObjectStorage) =>
   hasOwnKey(storage) ? ownGateway(env, name) : globalGateway(env)
 
@@ -99,7 +98,7 @@ const withoutApprover = (booking: Booking | null, memberId: string): Booking | n
 const unnamed = ({ approvedBy: _, ...reply }: PitchReply): PitchReply => reply
 
 // One instance per signed-in network, named by the network's ID (ADR 0001). Its own class keeps its
-// namespace apart from the demo's sessions, so no session cookie can name it. It opens empty, but for
+// namespace apart from engine sessions, so no session cookie can name it. It opens empty, but for
 // the guest network, which loads the sample network (loadSample), and every connection to it carries
 // its member.
 export class NetworkAgent extends CrossfeedAgent {
