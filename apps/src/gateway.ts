@@ -104,8 +104,8 @@ export const blankEvidence = ({ method, endpoint }: QlooRequest, params: Params)
   affinities: []
 })
 
-// The global instance: the demo's and every network's without a Qloo key of its own, and where model
-// runs and the stored sample run are counted and kept for everyone (ADR 0004).
+// The global instance: every network's without a Qloo key of its own, and where model runs and the
+// stored sample run are counted and kept for everyone (ADR 0004).
 export const globalGateway = (env: Env) => env.QlooGateway.getByName(GLOBAL)
 const GLOBAL = 'global'
 

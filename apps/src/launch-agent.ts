@@ -26,7 +26,7 @@ const FORMER_MEMBER = 'Former member'
 const REPORT_ATTEMPTS = 3
 
 // One instance per launch of a signed-in network, named `<networkId>:<launchId>` (ADR 0001). Its own
-// class keeps its namespace apart from the demo's sessions and the networks'. It holds the launch, its
+// class keeps its namespace apart from engine sessions and the networks'. It holds the launch, its
 // runs, and their rankings and insertion orders; the roster and the inbox are its network's.
 export class LaunchAgent extends CrossfeedAgent {
   protected opensOnSample = false

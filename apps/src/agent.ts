@@ -158,7 +158,7 @@ export type RunSummary = {
   pitchesFor?: string // a guest pitch run's show
   status: Run['status']
   startedAt: string // ISO time
-  startedBy?: string // who started it, on a launch's agent: a member by name, or `API key “<name>”`; absent on the demo's
+  startedBy?: string // who started it, on a launch's agent: a member by name, or `API key “<name>”`; absent on an engine session's
   startedById?: string // the member's ID, so their name can be forgotten with their account (forgetMember)
   replayed?: true // the stored sample run, replayed
 }
@@ -251,7 +251,9 @@ export const MEMBER_TAG = 'member:'
 // What the Worker passes a session when it starts: its visitor (visitor.ts), if the request had an address.
 export type SessionProps = { visitor: string | null }
 
-// One instance per visitor session, named by the session cookie.
+// The engine a network's and a launch's agents extend (network-agent.ts, launch-agent.ts). Its own
+// instances, engine sessions, each named by a session cookie, were the retired demo's visitor sessions,
+// and now serve the engine's tests alone (ADR 0007).
 export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   initialState: State = {
     roster: [],
@@ -269,11 +271,11 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     slowCalls: []
   }
 
-  // Whether a new instance opens on the sample network, as a demo session does.
+  // Whether a new instance opens on the sample network, as an engine session does.
   protected opensOnSample = true
 
   // Whether a roster import keeps the shows already on the roster as they were settled, as a signed-in
-  // network's does, rather than looking every show up again, as a demo session's does.
+  // network's does, rather than looking every show up again, as an engine session's does.
   protected keepsSettledShows = false
 
   // Whether a launch is asking the gateway if it may start (see admit).
@@ -327,8 +329,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
     // Calls are timed in memory, so none is still waiting after a restart.
     if (this.state.slowCalls?.length) this.setState({ ...this.state, slowCalls: [] })
-    // A new session opens on the sample network, looked up like an import, so its calls count among the
-    // visitor's; past their limit, it opens empty. Tests turn this off.
+    // A new engine session opens on the sample network, looked up like an import, so its calls count among
+    // the visitor's; past their limit, it opens empty. Tests turn this off.
     if (firstStart && this.opensOnSample && this.env.SAMPLE_NETWORK === 'on') {
       const visitor = this.limitKey(props?.visitor)
       const gateway = await this.gateway()
@@ -558,21 +560,21 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return { runId: run }
   }
 
-  // Where a launch run's roster comes from: a demo session ranks its own, and a launch's agent copies
+  // Where a launch run's roster comes from: an engine session ranks its own, and a launch's agent copies
   // its network's as the run starts (launch-agent.ts), before anything else, so a refusal keeps nothing.
   protected async networkRoster(): Promise<RosterCopy | null> {
     return null
   }
 
   // Whether a network's roster has changed since the copy a launch's run takes of it, as far as the
-  // launch has heard (launch-agent.ts): a change can land while the copy is on its way. A demo session
+  // launch has heard (launch-agent.ts): a change can land while the copy is on its way. An engine session
   // copies no roster.
   protected rosterChangedSince(_copy: Show[]) {
     return false
   }
 
   // The name of the member on the current call's connection, to say who started a run or approved an
-  // order: a launch's member (launch-agent.ts). A demo session names no one. Read it before the call's
+  // order: a launch's member (launch-agent.ts). An engine session names no one. Read it before the call's
   // first await. A program's run is named by the Worker instead (`LaunchAgent.startLaunchAs`).
   protected memberName(): string | null {
     return null
@@ -1014,7 +1016,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // The member on this call's connection, from the tag a network's agent gives it (network-agent.ts);
-  // null on the demo's connections and with no connection at all.
+  // null on an engine session's connections and with no connection at all.
   protected member() {
     const tag = getCurrentAgent().connection?.tags.find((t) => t.startsWith(MEMBER_TAG))
     return tag ? tag.slice(MEMBER_TAG.length) : null
@@ -1029,14 +1031,14 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // The gateway this agent's Qloo calls go through, and its Qloo limits count in: the global one, which
-  // the demo and every network without a Qloo key of its own share, with its cache. A network's agents
+  // every network without a Qloo key of its own shares, with its cache. A network's agents
   // use the network's own instance while it has a key (network-agent.ts, ADR 0004).
   protected async gateway(): Promise<DurableObjectStub<QlooGateway>> {
     return globalGateway(this.env)
   }
 
   // Who every Qloo call and model run of this agent counts against, for the per-visitor limits (TRD
-  // agent limits). A demo session counts the visitor of the latest call on any of its connections,
+  // agent limits). An engine session counts the visitor of the latest call on any of its connections,
   // kept for its background work, such as a run's Qloo calls, which may outlive the connection that
   // started it; before any call, `started`, the visitor the Worker passed as the session started.
   // Without an address, as in local tests, the session stands in. A signed-in network's agents count
@@ -1461,7 +1463,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.storeSampleRun(run, { state, evidence })
   }
 
-  // The sample run is the demo's, kept in the global gateway, which any session's start replays it from.
+  // The sample run is the guest network's sample launch's (ADR 0007), kept in the global gateway, which its
+  // start replays it from, as an engine session's does in tests.
   private storeSampleRun(run: string, sampleRun: SampleRun) {
     void this.keepAliveWhile(() => globalGateway(this.env).keepSampleRun(JSON.stringify(sampleRun)))
       .then(() => log({ event: 'sample_run', run, calls: sampleRun.evidence.length }))
