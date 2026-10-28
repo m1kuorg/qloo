@@ -39,7 +39,7 @@ export async function signedIn<E extends { Bindings: Env }>(c: Context<E>): Prom
   const member = await session(c)
   if (!member) return null
   if (member.extended) setSession(c, sessionToken(c)!)
-  return { id: member.id, name: member.name }
+  return { id: member.id, name: member.name, guest: member.guest }
 }
 
 // The signed-in member, or null, leaving the cookie as it is: for an answer that can't take a header,
@@ -52,22 +52,16 @@ export async function session<E extends { Bindings: Env }>(c: Context<E>) {
 // The session's token, as the cookie holds it, for the directory to look it up; undefined without one.
 export const sessionToken = (c: Context) => getCookie(c, COOKIE, 'host')
 
-// The 403 for the guest member (ADR 0005), whom every guest is signed in as, for a change to the member
-// or to which networks it's in: its passkeys, recovery code, name, sessions, and account, creating a
-// network, joining one, or leaving the guest network. Null for any other member.
+// The 403 for a guest member (ADR 0006), as the members table marks them, for a change to their account
+// or to which networks they're in: its passkeys, recovery code, name, sessions, and deleting it,
+// creating a network, joining one, or leaving the guest network. Null for any other member.
 export const guestRefused = (c: Context, member: Member) =>
   isGuestMember(member)
-    ? c.json(
-        {
-          error:
-            'Everyone who signs in as a guest shares the guest network and its one guest member, so no guest can do this. Sign out and create an account to do it.'
-        },
-        403
-      )
+    ? c.json({ error: 'A guest can’t do this. Sign out and create an account to do it.' }, 403)
     : null
 
-// The guard on a route that changes the signed-in member, or which networks they're in: the guest
-// member is refused (guestRefused) before it runs. `member` is who the app's gate signed in.
+// The guard on a route that changes the signed-in member, or which networks they're in: a guest member
+// is refused (guestRefused) before it runs. `member` is who the app's gate signed in.
 export const notGuestMember: MiddlewareHandler<{ Variables: { member: Member } }> = async (c, next) => {
   const refused = guestRefused(c, c.var.member)
   if (refused) return refused
@@ -78,7 +72,7 @@ export const notGuestMember: MiddlewareHandler<{ Variables: { member: Member } }
 // adding a passkey, a new recovery code, and deleting the account need. Otherwise the 403 that asks
 // them to, so the page asks at once: for a passkey of theirs, user-verified, with the ceremony's
 // challenge and options, or, in a browser signed in with the recovery code, for that code (`/auth/verify`).
-// The guest member, who has neither, is refused first, before any challenge is written.
+// A guest member, who has neither, is refused first, before any challenge is written.
 export async function stepUpRefused<E extends { Bindings: Env }>(c: Context<E>, member: Member) {
   const guest = guestRefused(c, member)
   if (guest) return guest

@@ -5,11 +5,11 @@
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { sha256 } from './text'
 
-// A session lasts 30 days from its last use; a use extends it at most once a minute. A guest session
-// lasts a day from sign-in, and isn't extended (ADR 0005).
+// A session lasts 30 days from its last use; a use extends it at most once a minute. A guest member's
+// session lasts a day from sign-in, and isn't extended while they're a guest (ADR 0006).
 export const SESSION_MS = 30 * 24 * 60 * 60_000
 export const GUEST_SESSION_MS = 24 * 60 * 60_000
-// Guest sign-ins are limited per minute: the guest sessions created in the last minute count.
+// Guest sign-ins are limited per minute and per UTC day: the guest sign-ins logged in each count.
 const GUEST_SIGNINS_MS = 60_000
 const SEEN_EVERY_MS = 60_000
 // A passkey ceremony's challenge is good for five minutes.
@@ -19,15 +19,15 @@ const CHALLENGE_MS = 5 * 60_000
 // recovery code, and deleting the account need.
 export const STEP_UP_MS = 5 * 60_000
 
-// The guest member and the guest network (ADR 0005), as migration 0005 wrote them: everyone who signs
-// in as a guest is the guest member, in the guest network.
-export const GUEST_MEMBER = 'guest-member'
+// The guest network (ADR 0006), as migration 0005 wrote it, which every guest member owns together.
 export const GUEST_NETWORK = 'guest-network'
+const GUEST_NETWORK_NAME = 'Guest network'
 
-// Whether `member` is the guest member, as everyone signed in as a guest is.
-export const isGuestMember = (member: { id: string } | null | undefined) => member?.id === GUEST_MEMBER
+// Whether `member` is a guest member still: one "Sign in as a guest" made, who hasn't kept the account.
+export const isGuestMember = (member: { guest: boolean } | null | undefined) => member?.guest === true
 
-export type Member = { id: string; name: string }
+// A member, and whether they're a guest member still, as the members table marks them.
+export type Member = { id: string; name: string; guest: boolean }
 
 // A passkey as the directory keeps it: base64url credential ID and public key, the signature
 // counter, and the transports the browser gave, if any.
@@ -79,7 +79,7 @@ export async function takeChallenge(db: D1Database, id: string, kind: string): P
 // the invite can't be used, and nothing was written.
 export async function signUp(
   db: D1Database,
-  member: Member,
+  member: Pick<Member, 'id' | 'name'>,
   passkey: Omit<Passkey, 'memberId'>,
   label: string,
   invite?: { token: string; invitedCap: number }
@@ -180,37 +180,54 @@ export async function signIn(db: D1Database, passkey: Passkey, counter: number) 
   return secret
 }
 
-// Signs in as the guest member: a new session of its own, for a day, which never proves it's the
-// member, written only while fewer than `perMinute` guest sessions were created in the last minute. The
-// count is in the same statement, so it holds for every request at once, from anywhere. The session
-// the browser held, with token `held`, ends in the same batch, once the guest's is written. Null when
-// the minute's guest sign-ins are spent, and nothing was written.
-export async function guestSignIn(db: D1Database, perMinute: number, held?: string) {
+// Signs in as a guest (ADR 0006): a new guest member, "Guest" and six random hex digits, with an ID
+// that starts with `guest-`, no passkey, and a recovery code hash that no SHA-256 output is, so no code
+// names them; an owner of the guest network, whose row is made again if it's gone; and a session for a
+// day, which never proves it's them. All of it, and the sign-in's row in the log, is one batch, written
+// only while fewer than `perMinute` guest sign-ins were logged in the last minute and fewer than `perDay`
+// in the UTC day. The counts are in the statement that writes the member, so they hold for every request
+// at once, from anywhere. Returns the session's token, or which limit is spent, and nothing was written.
+export async function guestSignIn(
+  db: D1Database,
+  { perMinute, perDay }: { perMinute: number; perDay: number }
+): Promise<{ token: string } | { spent: 'minute' | 'day' }> {
+  const id = `guest-${crypto.randomUUID()}`
+  const hex = [...crypto.getRandomValues(new Uint8Array(3))].map((b) => b.toString(16).padStart(2, '0')).join('')
   const secret = token()
-  const hash = await sha256(secret)
   const now = Date.now()
-  const [written] = await db.batch([
+  const day = utcDayStart(now)
+  const forMember = (sql: string, ...values: unknown[]) =>
+    db.prepare(`${sql} FROM members WHERE id = ?1`).bind(id, ...values)
+  const results = await db.batch([
     db
       .prepare(
-        'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?1, ?2, ?3, ?4, ?3 WHERE (SELECT count(*) FROM sessions WHERE member_id = ?2 AND created > ?5) < ?6'
+        'INSERT INTO members (id, name, recovery_code_hash, created, guest) SELECT ?1, ?2, ?3, ?4, 1 WHERE (SELECT count(*) FROM guest_signins WHERE created > ?5) < ?6 AND (SELECT count(*) FROM guest_signins WHERE created >= ?7) < ?8'
       )
-      .bind(hash, GUEST_MEMBER, now, now + GUEST_SESSION_MS, now - GUEST_SIGNINS_MS, perMinute),
-    ...(held ? endSessionStatements(db, await sha256(held), hash) : [])
+      .bind(id, `Guest ${hex.toUpperCase()}`, `none: guest ${id}`, now, now - GUEST_SIGNINS_MS, perMinute, day, perDay),
+    // The rest follow the member's row, which a spent limit leaves out.
+    forMember('INSERT INTO guest_signins (created) SELECT ?2', now),
+    forMember(
+      'INSERT OR IGNORE INTO networks (id, name, created_by, created) SELECT ?2, ?3, NULL, ?4',
+      GUEST_NETWORK,
+      GUEST_NETWORK_NAME,
+      now
+    ),
+    forMember(
+      "INSERT INTO memberships (network_id, member_id, role, joined, last_opened) SELECT ?2, id, 'owner', ?3, NULL",
+      GUEST_NETWORK,
+      now
+    ),
+    forMember(
+      'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?2, id, ?3, ?4, ?3',
+      await sha256(secret),
+      now,
+      now + GUEST_SESSION_MS
+    ),
+    // Which limit refused it, if one did, as the batch found them.
+    db.prepare('SELECT (SELECT count(*) FROM guest_signins WHERE created >= ?1) >= ?2 AS day').bind(day, perDay)
   ])
-  return written.meta.changes ? secret : null
-}
-
-// The statements that end the session whose token hash is `hash`: a member's is deleted, and a guest's
-// expires now, so it still counts toward the minute's guest sign-ins until the daily cleanup deletes it.
-// With `replacement`, the hash of the session that replaces it, only once that session is written.
-function endSessionStatements(db: D1Database, hash: string, replacement?: string) {
-  const whenReplaced = replacement ? ' AND EXISTS (SELECT 1 FROM sessions WHERE token_hash = ?4)' : ''
-  const statement = (sql: string) =>
-    db.prepare(sql + whenReplaced).bind(hash, Date.now(), GUEST_MEMBER, ...(replacement ? [replacement] : []))
-  return [
-    statement('UPDATE sessions SET expires = ?2 WHERE token_hash = ?1 AND member_id = ?3'),
-    statement('DELETE FROM sessions WHERE token_hash = ?1 AND member_id <> ?3')
-  ]
+  if (results[0].meta.changes) return { token: secret }
+  return { spent: (results.at(-1)!.results[0] as { day: number }).day ? 'day' : 'minute' }
 }
 
 // Signs in the member whose recovery code `code` is, and replaces it with a new one in the same
@@ -243,24 +260,26 @@ export async function newRecoveryCode(db: D1Database, memberId: string) {
 }
 
 // The member a session token belongs to, while the session lasts. A use more than a minute after the
-// last extends it, unless it's a guest session, and `extended` says so, for the cookie to be extended too.
+// last extends it, unless its member is a guest member, and `extended` says so, for the cookie to be
+// extended too.
 export async function sessionMember(db: D1Database, token: string): Promise<(Member & { extended: boolean }) | null> {
   const hash = await sha256(token)
   const now = Date.now()
   const row = await db
     .prepare(
-      'SELECT m.id, m.name, s.last_seen FROM sessions s JOIN members m ON m.id = s.member_id WHERE s.token_hash = ? AND s.expires > ?'
+      'SELECT m.id, m.name, m.guest, s.last_seen FROM sessions s JOIN members m ON m.id = s.member_id WHERE s.token_hash = ? AND s.expires > ?'
     )
     .bind(hash, now)
-    .first<{ id: string; name: string; last_seen: number }>()
+    .first<{ id: string; name: string; guest: number; last_seen: number }>()
   if (!row) return null
-  const extended = !isGuestMember(row) && now - row.last_seen >= SEEN_EVERY_MS
+  const guest = row.guest === 1
+  const extended = !guest && now - row.last_seen >= SEEN_EVERY_MS
   if (extended)
     await db
       .prepare('UPDATE sessions SET last_seen = ?, expires = ? WHERE token_hash = ?')
       .bind(now, now + SESSION_MS, hash)
       .run()
-  return { id: row.id, name: row.name, extended }
+  return { id: row.id, name: row.name, guest, extended }
 }
 
 // How the session with token `token` last proved its member was there: when, null for a session from
@@ -301,7 +320,10 @@ export async function isRecoveryCode(db: D1Database, memberId: string, code: str
 
 // Ends the session with token `token`, if there is one.
 export async function signOut(db: D1Database, token: string) {
-  await db.batch(endSessionStatements(db, await sha256(token)))
+  await db
+    .prepare('DELETE FROM sessions WHERE token_hash = ?')
+    .bind(await sha256(token))
+    .run()
 }
 
 // Ends every one of member `memberId`'s sessions, on every browser.
@@ -787,14 +809,11 @@ export async function wipesDue(db: D1Database, before: number) {
 }
 
 // What the daily cron clears: sessions, challenges, and invites that have expired. Returns how many of
-// each it deleted. A guest session created in the last minute is kept, ended or not, as it still counts
-// toward the minute's guest sign-ins (guestSignIn).
+// each it deleted.
 export async function purgeExpired(db: D1Database) {
   const now = Date.now()
   const [sessions, challenges, invites] = await db.batch([
-    db
-      .prepare('DELETE FROM sessions WHERE expires <= ?1 AND NOT (member_id = ?2 AND created > ?3)')
-      .bind(now, GUEST_MEMBER, now - GUEST_SIGNINS_MS),
+    db.prepare('DELETE FROM sessions WHERE expires <= ?').bind(now),
     db.prepare('DELETE FROM challenges WHERE expires <= ?').bind(now),
     db.prepare('DELETE FROM invites WHERE expires <= ?').bind(now)
   ])

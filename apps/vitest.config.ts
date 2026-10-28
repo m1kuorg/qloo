@@ -17,7 +17,7 @@ export default defineConfig({
       // test that needs a short timeout or pacing sets it for itself. New sessions start empty
       // instead of looking up the sample network; test/sample.test.ts turns it on. Guest pitches
       // are off whatever wrangler.jsonc or .dev.vars says; a test of the flow turns them on itself.
-      // The run limits, the sign-up, network, and invite caps, and the guest sign-ins a minute are
+      // The run limits, the sign-up, network, and invite caps, and the guest sign-ins a minute and a day are
       // wrangler.jsonc's, whatever .dev.vars says; a test lowers them itself. Passkeys belong to the
       // origin tests send from.
       // Accounts are on, as the product's tests need; a test of the demo without them turns them off.
@@ -47,6 +47,7 @@ export default defineConfig({
           INVITES_PER_NETWORK: '20',
           INVITED_SIGNUP_DAILY_CAP: '20',
           GUEST_SIGNINS_PER_MINUTE: '30',
+          GUEST_SIGNINS_PER_DAY: '1000',
           TEST_MIGRATIONS: migrations
         }
       }
