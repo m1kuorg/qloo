@@ -71,8 +71,16 @@ export const inputVariants = merged(input)
 // `mark` sets a small glyph before the words, drawn in CSS so screen readers don't read it: the
 // "Qloo data" chip's ink square, the "Agent" chip's circle, a finalist's signal dot. Source chips
 // never look alike: Qloo data is outline + square, Agent is default + circle.
+// The words are centred on their x-height, the middle of the lowercase letters they're mostly made of,
+// which the marks and icons are centred on too. Centring the box would set them low: Schibsted
+// Grotesk's ascent (11.72px at 12px) is far taller than its descent (3.09px), which puts the baseline
+// 4.31px below the box's middle. 2.625px under the words raises it to 13px from the chip's top, a whole
+// pixel, so the browser never rounds it a pixel lower in one chip than another, with the x-height
+// (6.33px) centred within 0.2px; the marks and icons take the same 2.625px above them to stay centred
+// on the chip. A mark is a ::before only where there is one: an empty one would still take the gap.
+const badgeMark = 'before:mt-[2.625px] before:shrink-0'
 const badge = cva(
-  'group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-lg border border-transparent px-1.5 type-caption font-medium whitespace-nowrap before:shrink-0 [&>svg]:pointer-events-none [&>svg]:size-3!',
+  'group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-lg border border-transparent px-1.5 pb-[2.625px] type-caption font-medium whitespace-nowrap [&>svg]:pointer-events-none [&>svg]:mt-[2.625px] [&>svg]:size-3!',
   {
     variants: {
       variant: {
@@ -82,9 +90,9 @@ const badge = cva(
       },
       mark: {
         none: '',
-        square: 'before:size-1.5 before:rounded-[1px] before:bg-foreground',
-        circle: 'before:size-1.5 before:rounded-full before:bg-foreground',
-        signal: 'before:size-2 before:rounded-full before:bg-signal'
+        square: `${badgeMark} before:size-1.5 before:rounded-[1px] before:bg-foreground`,
+        circle: `${badgeMark} before:size-1.5 before:rounded-full before:bg-foreground`,
+        signal: `${badgeMark} before:size-2 before:rounded-full before:bg-signal`
       }
     },
     defaultVariants: { variant: 'default', mark: 'none' }

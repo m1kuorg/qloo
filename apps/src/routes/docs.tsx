@@ -580,9 +580,13 @@ const routesOf = (doc: Doc) =>
   )
 type Route = ReturnType<typeof routesOf>[number]
 
-// A route's method, as a mono chip as wide as the widest, so the paths after them line up.
+// A route's method, as a mono chip as wide as the widest, so the paths after them line up. It's in
+// capitals and the mono face, so it's centred on its cap height rather than the chip's x-height: with
+// SF Mono, ui-monospace on Apple's systems, 1.40625px over the words and none under them puts its
+// baseline on whole pixel 14, so it's never rounded a pixel either way, and its capitals (8.75px)
+// within 0.4px of the middle.
 const Method = ({ method }: { method: string }) => (
-  <code class={badgeVariants({ className: 'min-w-14 justify-center align-top' })}>{method}</code>
+  <code class={badgeVariants({ className: 'min-w-14 justify-center pt-[1.40625px] pb-0 align-top' })}>{method}</code>
 )
 
 // One route as the reference sets it: what it does, then a compact table of what it takes and what it
