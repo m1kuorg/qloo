@@ -106,7 +106,7 @@ The run made 27 Qloo calls. Every ranking, tag, and flag on screen cites its cal
 
 The guest flow runs the same way ([live check]):
 
-- **Reading:** the 40-pitch sample inbox was read in 11.5 seconds.
+- **Reading:** the guest network opens with the 40-pitch sample inbox already read, so only its 36 works are looked up as it loads. Read by Claude, before it came pre-loaded, it took 11.5 seconds.
 - **Ranking:** the pitch run made 18 Qloo calls: 3 searches for past guests' works, 4 rankings, and 11 compares ([pitch run check]).
 - **Replies:** it drafted 40 replies, and the run completed in 30.8 seconds.
 
@@ -135,7 +135,7 @@ The guest flow runs the same way ([live check]):
 
 A judge opens the URL on a type-led landing page whose one live thing is the re-rank: a made-up roster, labelled as an illustration, that switches between "By topic" and "By who listens", its shows travelling to their new places. True-size fragments of the app show a run, then what Crossfeed never does and the ways in. Its first button signs the judge in as a guest, in one click and with no passkey, and opens the sample network in the guest network every guest shares, on a working screen, not a chat:
 
-- **Sample data, labelled:** the network opens ready, with a notice that Crossfeed isn't affiliated with The Ringer. Every download, status, description, and CPM figure is labelled "sample" until the visitor edits it.
+- **Sample data, labelled:** the network opens ready, its sample inbox too, and the landing page says Crossfeed isn't affiliated with The Ringer. Every download, status, description, and CPM figure is labelled "sample" until the visitor edits it, and the inbox is labelled sample data.
 - **The re-rank:** the fit chart leads with the roster ranked by listener overlap:
   - Its Topic column is each show's rank in the topic-only plan, and its Move column the difference, marked ▲ in signal orange for a show that climbed three or more places.
   - Its lens switches the rows between "By who listens" and "By topic", each row travelling to its new place.
@@ -210,7 +210,7 @@ A judge opens the URL on a type-led landing page whose one live thing is the re-
 - **Insertion order totals vary by run.** Haiku spreads the 20 slots across the finalists differently each time, so the same sample launch came to $167,200 in one live check ([live check]) and $162,800 in another ([#126 check]).
 - **A podcast named after its guest is set aside.** A work title holding the guest's or sender's whole name never reaches Qloo, so a pitch for "Conan O'Brien Needs a Friend" is set aside as unreadable rather than ranked ([#117 check]).
 - **Guest pitches are live.** They were switched on in production after their live check ([#57]). Drafted replies name no guest, because the model never sees names; the booker adds them before sending.
-- **No integrations.** Nothing is emailed or pushed to an ad server. Downloads are typed in or uploaded as CSV, and pitches are pasted, uploaded as `.eml`, `.mbox`, or text files, or loaded from the sample.
+- **No integrations.** Nothing is emailed or pushed to an ad server. Downloads are typed in or uploaded as CSV, and pitches are pasted or uploaded as `.eml`, `.mbox`, or text files, or come with the guest network's sample inbox.
 - **One guest network, one guest budget.** Every guest shares the guest network, cleared every day, and its daily limits: all guests together start at most 10 model runs a day, and everyone together 200. Past either, or if Qloo can't be called, only the guest network's sample launch replays, while no guest has changed the sample; other runs stop and say why. A signed-in network counts as a visitor of its own, against the same limits. Every guest signs in as the one guest member, so what any guest makes, the networks guests create too, is every guest's until the daily clearing; keeping a network takes an account of one's own.
 - **The signed-in product is a beta.** It runs on our hackathon Qloo key within each network's daily caps, which Qloo's terms don't let us resell; selling it needs a commercial Qloo agreement or each network's own key, which an owner can already add. It has no payments, no email, and passkey sign-in only, and its SDK and plugin aren't published to npm or a public marketplace.
 
