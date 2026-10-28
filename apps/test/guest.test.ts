@@ -64,7 +64,7 @@ const signedInAs = async (who: Pick<Guest, 'fetch'>) =>
   (await (await who.fetch('/app/account')).text()).match(/Signed in as <b\b[^>]*>([^<]*)<\/b>/)?.[1]
 
 // A write from a guest's page, as its islands send them.
-const post = (guest: Guest, path: string, body: object = {}) =>
+const post = (guest: Pick<Guest, 'fetch'>, path: string, body: object = {}) =>
   guest.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
 // The guest network's members, as its settings page gives them to its island.
@@ -81,6 +81,15 @@ async function guestMembers(guest: Guest) {
 async function runCron() {
   const ctx = createExecutionContext()
   await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+  await waitOnExecutionContext(ctx)
+}
+
+// Runs the hourly cron, its retry's wipes a minute old by then.
+async function runHourlyCron() {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(Date.now() + 2 * 60_000)
+  const ctx = createExecutionContext()
+  await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 0-11,13-23 * * *' }), env, ctx)
   await waitOnExecutionContext(ctx)
 }
 
@@ -797,6 +806,33 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(fresh.launches![0].id).not.toBe(cleared.id)
   })
 
+  it('loads the sample again as it next starts after a guest resets the sample data, with what guests changed gone', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+    const network = await connect(guest)
+    await network.until(settled)
+    await network.call('updateShow', 'The Watch', { downloads: 12_345 })
+    expect(
+      (await post(guest, '/app/guest-network/settings/network', { name: 'Night Shift Guests', cpm: 25 })).status
+    ).toBe(200)
+    await network.call('createLaunch', { name: 'The Night Watch' })
+    const [, watch] = network.state()!.launches!
+
+    expect((await post(guest, '/app/guest-network/settings/sample-data/reset')).status).toBe(200)
+    await network.closed()
+    await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+    const fresh = await (await connect(guest)).until(settled)
+    expect(fresh.roster.find((r) => r.name === 'The Watch')).toMatchObject({
+      downloads: 340_000,
+      sample: ['downloads', 'status', 'description']
+    })
+    expect(fresh).toMatchObject({ cpm: 20, sample: { cpm: true }, launches: [{ name: 'The Watch', status: 'new' }] })
+    expect(fresh.launches).toHaveLength(1)
+    expect(fresh.launches![0].id).not.toBe(watch.id)
+    const page = await (await guest.fetch('/app/guest-network/settings')).text()
+    expect(page.match(/data-network-name="([^"]*)"/)?.[1]).toBe('Guest network')
+  })
+
   describe('and guest pitches on', () => {
     // Made-up IDs for each work the sample inbox pitches, matched by its title and year.
     const works = sampleInbox.pitches.flatMap((p) => (p.expected.work ? [{ pitch: p.id, ...p.expected.work }] : []))
@@ -1045,6 +1081,23 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       const fresh = (await (await connect(guest)).until(loaded)).inbox!
       expect(fresh).toMatchObject({ sample: true, show: { name: 'The Big Picture' } })
       expect(fresh.id).not.toBe(sample.id)
+      expect(fresh.pitches.map((p) => p.match?.entity?.id)).toEqual(sample.pitches.map((p) => p.match?.entity?.id))
+    })
+
+    it("loads the sample inbox again over a guest's own pitches after a guest resets the sample data", async () => {
+      fakeQloo({ search: { ...search, ...workSearch, ...ownSearch } })
+      readOwn()
+      const guest = await openGuest()
+      const network = await connect(guest)
+      const sample = (await network.until(loaded)).inbox!
+      await network.call('loadInbox', { text: own })
+      await network.until((s) => s.inbox?.status === 'done' && !s.inbox.sample)
+
+      expect((await post(guest, '/app/guest-network/settings/sample-data/reset')).status).toBe(200)
+      await network.closed()
+      await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+      const fresh = (await (await connect(guest)).until(loaded)).inbox!
+      expect(fresh).toMatchObject({ sample: true, show: { name: 'The Big Picture' } })
       expect(fresh.pitches.map((p) => p.match?.entity?.id)).toEqual(sample.pitches.map((p) => p.match?.entity?.id))
     })
 
@@ -1589,18 +1642,6 @@ describe("the guest network's daily reset", () => {
   const usage = async (guest: Guest) =>
     (await (await guest.fetch('/app/guest-network/settings')).text()).match(/data-usage="([^"]*)"/)?.[1]
 
-  // Runs the hourly cron, its retry's wipes a minute old by then.
-  async function runHourlyCron() {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(Date.now() + 2 * 60_000)
-    const ctx = createExecutionContext()
-    await (worker as ExportedHandler<Env>).scheduled!(
-      createScheduledController({ cron: '0 0-11,13-23 * * *' }),
-      env,
-      ctx
-    )
-    await waitOnExecutionContext(ctx)
-  }
   // What launch `id`'s agent holds of its latest run.
   const latestRun = async (id: string) =>
     (await (await getAgentByName(env.LaunchAgent, `guest-network:${id}`)).state).run
@@ -1815,5 +1856,143 @@ describe("the guest network's daily reset", () => {
     expect((await guest.fetch(`/app/guest-network/launches/${late}`)).status).toBe(404)
     await runHourlyCron()
     expect(await launchHeld(late)).toBeNull()
+  })
+})
+
+describe('resetting the sample data, from the guest network’s settings (#283)', () => {
+  const RESET = { code: 4410, reason: 'A guest reset the guest network to the sample data.' }
+  const open: Omit<Session, 'cookie'>[] = []
+  afterEach(() => open.splice(0).forEach((agent) => agent.close()))
+  const connect = async (who: { connect: Guest['connect'] }, path = '/agents/network/guest-network') => {
+    const agent = await who.connect(path)
+    open.push(agent)
+    return agent
+  }
+  const reset = (guest: Pick<Guest, 'fetch'>) => post(guest, '/app/guest-network/settings/sample-data/reset')
+  // What the guest network's agent holds, once its wipe has reset it.
+  const fresh = () => readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+
+  it('clears the guest network as the daily cron does, closing every guest’s pages saying a guest reset it, and leaves its launches to the hourly retry', async () => {
+    fakeQloo({
+      search: { 'Night Shift Cinema': [{ entity_id: 'e-0001', name: 'Night Shift Cinema', popularity: 0.8 }] }
+    })
+    const one = await openGuest({ ip: '203.0.113.7' })
+    const other = await openGuest({ ip: '198.51.100.4' })
+    const mine = await connect(one)
+    const theirs = await connect(other)
+    await mine.importRoster('Night Shift Cinema')
+    expect(
+      (await post(one, '/app/guest-network/settings/network', { name: 'Night Shift Guests', cpm: 25 })).status
+    ).toBe(200)
+    const { id } = await mine.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    const launch = await connect(other, `/agents/launch/guest-network/${id}`)
+    const logged = vi.spyOn(console, 'log')
+
+    const res = await reset(one)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({})
+    expect(await theirs.closed()).toEqual(RESET)
+    expect(await mine.closed()).toEqual(RESET)
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 1, failed: 0 }))
+    // Every guest stays signed in, and the guest network opens afresh, with its name back.
+    expect(await fresh()).toMatchObject({ cpm: 20, roster: [], launches: [] })
+    expect((await connect(other)).state()).toMatchObject({ cpm: 20, roster: [], launches: [] })
+    const page = await (await other.fetch('/app/guest-network/settings')).text()
+    expect(page.match(/data-network-name="([^"]*)"/)?.[1]).toBe('Guest network')
+    expect((await one.fetch(`/app/guest-network/launches/${id}`)).status).toBe(404)
+
+    // The launch's page closes as the hourly retry wipes its agent, saying the same.
+    await runHourlyCron()
+    expect(await launch.closed()).toEqual(RESET)
+  })
+
+  it('resets once a minute for everyone: a second reset in the minute, from any guest or address, is refused with 429 saying when to try again', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.now()
+    const one = await openGuest({ ip: '203.0.113.7' })
+    const other = await openGuest({ ip: '198.51.100.4' })
+    expect((await reset(one)).status).toBe(200)
+    const page = await connect(other)
+    await page.call('createLaunch', { name: 'The Night Watch' })
+
+    for (const [who, after, seconds] of [
+      [other, 0, '60 seconds'],
+      [one, 30_000, '30 seconds'],
+      [other, 59_001, '1 second']
+    ] as const) {
+      vi.setSystemTime(start + after)
+      const refused = await reset(who)
+      expect(refused.status).toBe(429)
+      expect(refused.headers.get('retry-after')).toBe(seconds.split(' ')[0])
+      expect(await refused.json()).toEqual({
+        error: `The sample data was just reset, and it resets at most once a minute for everyone. Try again in ${seconds}.`
+      })
+    }
+    expect(page.state()!.launches).toMatchObject([{ name: 'The Night Watch' }])
+
+    vi.setSystemTime(start + 60_000)
+    expect((await reset(other)).status).toBe(200)
+    expect(await page.closed()).toEqual(RESET)
+  })
+
+  it('answers 404 for any other network and to anyone outside the guest network, 403 to its members who aren’t owners and to another site, and resets nothing', async () => {
+    const guest = await openGuest()
+    const page = await connect(guest)
+    await page.call('createLaunch', { name: 'The Night Watch' })
+    // A member's own network, a network guests created, and the guest network to someone outside it.
+    const ada = await openMember()
+    const own = await (await post(ada, '/app/new', { name: 'Night Shift Audio' })).json<{ id: string }>()
+    const created = await (await post(guest, '/app/new', { name: 'Guest Side Project' })).json<{ id: string }>()
+    for (const [who, id] of [
+      [ada, own.id],
+      [guest, created.id],
+      [ada, 'guest-network']
+    ] as const)
+      expect((await post(who, `/app/${id}/settings/sample-data/reset`)).status, id).toBe(404)
+    // A person a guest invited into the guest network, as a member.
+    const invited = await post(guest, '/app/guest-network/settings/members/invites')
+    const dot = await openMember({ name: 'Dot Pruitt', invite: (await invited.json<{ link: string }>()).link })
+    const refused = await reset(dot)
+    expect(refused.status).toBe(403)
+    expect(await refused.json()).toEqual({ error: 'Only an owner can reset the sample data.' })
+    // A guest's cookie on a write from another site.
+    const elsewhere = await exports.default.fetch(`${origin}/app/guest-network/settings/sample-data/reset`, {
+      method: 'POST',
+      headers: { Cookie: guest.cookie, Origin: 'https://crossfeed.example', 'Content-Type': 'application/json' },
+      body: '{}'
+    })
+    expect(elsewhere.status).toBe(403)
+
+    expect(page.state()!.launches).toMatchObject([{ name: 'The Night Watch' }])
+    expect((await (await getAgentByName(env.NetworkAgent, 'guest-network')).state).launches).toMatchObject([
+      { name: 'The Night Watch' }
+    ])
+    // None of them spent the minute's reset.
+    expect((await reset(guest)).status).toBe(200)
+  })
+
+  it('says the reset may take a moment to finish when a wipe fails, and the hourly retry finishes it', async () => {
+    const guest = await openGuest()
+    const page = await connect(guest)
+    await page.call('createLaunch', { name: 'The Night Watch' })
+    vi.spyOn(NetworkAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    const failed = vi.spyOn(console, 'error')
+
+    const res = await reset(guest)
+    expect(res.status).toBe(202)
+    expect(await res.json()).toEqual({
+      message: 'The reset may take a moment to finish: part of it failed, and Crossfeed tries it again within the hour.'
+    })
+    expect(await page.closed()).toEqual(RESET)
+    expect(failed.mock.calls.flat().filter((line) => String(line).includes('"event":"wipe_failed"'))).toHaveLength(1)
+
+    await runHourlyCron()
+    expect(await fresh()).toMatchObject({ cpm: 20, launches: [] })
+  })
+
+  it('counts exactly, so two resets at once leave one refused', async () => {
+    const guests = [await openGuest({ ip: '203.0.113.7' }), await openGuest({ ip: '198.51.100.4' })]
+    const both = await Promise.all(guests.map(reset))
+    expect(both.map((res) => res.status).sort()).toEqual([200, 429])
   })
 })

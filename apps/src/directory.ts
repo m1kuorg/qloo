@@ -873,6 +873,26 @@ export async function clearGuestNetwork(db: D1Database, instances: Instance[]) {
   ])
 }
 
+// How long a reset of the guest network's sample data, from its settings, holds off the next (#283).
+const SAMPLE_RESET_MS = 60_000
+
+// Takes the one reset of the guest network's sample data a minute allows, for everyone, in the statement
+// that notes it (migration 0012), so two at once leave one refused. Null once it's taken; otherwise how
+// long until the next may start, in ms, and nothing was written.
+export async function takeSampleReset(db: D1Database) {
+  const now = Date.now()
+  const [taken, last] = await db.batch([
+    db
+      .prepare(
+        'INSERT INTO sample_resets (id, at) VALUES (1, ?1) ON CONFLICT (id) DO UPDATE SET at = excluded.at WHERE sample_resets.at <= ?1 - ?2'
+      )
+      .bind(now, SAMPLE_RESET_MS),
+    db.prepare('SELECT at FROM sample_resets')
+  ])
+  if (taken.meta.changes > 0) return null
+  return (last.results[0] as { at: number }).at + SAMPLE_RESET_MS - now
+}
+
 // The rows of the guest network's sample launches (src/sample-launches.ts), in the order their JSON reads,
 // as each environment's database was loaded with them by hand (migration 0010).
 export async function sampleLaunchRows(db: D1Database) {

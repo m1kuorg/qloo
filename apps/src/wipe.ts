@@ -120,10 +120,11 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
 // more work, saying the guest network was cleared, as its wipe was noted (LaunchAgent.gone). The agent's
 // next start loads the sample network again (ADR 0007). It's started, if it isn't running, to be wiped,
 // so it loads none now (networkToWipe). Logs how many launches it noted and how many wipes failed; one
-// that failed stays noted for the next hour's retry, and fails this run.
-export async function resetGuestNetwork(env: Env) {
-  const launches = await letGoOfGuestNetwork(env)
-  const instances = networkInstances(GUEST_NETWORK, launches, GUEST_NETWORK_RESET)
+// that failed stays noted for the next hour's retry, and fails this run. A guest's reset of the sample
+// data, from the guest network's settings, clears it the same way, telling its pages `reason`.
+export async function resetGuestNetwork(env: Env, reason = GUEST_NETWORK_RESET) {
+  const launches = await letGoOfGuestNetwork(env, reason)
+  const instances = networkInstances(GUEST_NETWORK, launches, reason)
   await clearGuestNetwork(env.DB, instances)
   let failed = 0
   for (const instance of instances.filter((i) => i.binding !== LAUNCH))
@@ -133,19 +134,23 @@ export async function resetGuestNetwork(env: Env) {
     })
   console.log(JSON.stringify({ event: 'guest_network_reset', launches: launches.length, failed }))
   if (failed > 0)
-    throw new Error(
+    throw new WipesFailed(
       `Clearing the guest network, ${failed} agent ${failed === 1 ? 'wipe' : 'wipes'} failed; the next hourly run tries again.`
     )
 }
 
+// What clearing the guest network throws once every wipe is noted and some failed, which the hourly retry
+// makes, so a guest's reset can say it may take a moment to finish rather than that it failed.
+export class WipesFailed extends Error {}
+
 // Has the guest network's agent let go (NetworkAgent.letGo), and returns the launches it lists, once any
 // wipe of it still under way has finished, as when a guest has just deleted it: a wiped agent's calls throw
 // "destroyed" until its instance starts again, a moment later, so this asks again, a little later each
-// time, a few times.
-async function letGoOfGuestNetwork(env: Env) {
+// time, a few times. Its pages close saying `reason`.
+async function letGoOfGuestNetwork(env: Env, reason: string) {
   for (let tries = 1; ; tries++)
     try {
-      return await (await networkToWipe(env, GUEST_NETWORK)).letGo(GUEST_NETWORK_RESET)
+      return await (await networkToWipe(env, GUEST_NETWORK)).letGo(reason)
     } catch (e) {
       if ((e as Error).message !== 'destroyed' || tries === 5) throw e
       await new Promise((resolve) => setTimeout(resolve, 100 * tries))
