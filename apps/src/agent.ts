@@ -1255,28 +1255,25 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const reading = await read(pitch, today)
     if (reading.status !== 'read') return this.editPitch(inbox, pitch.id, (p) => ({ ...p, ...reading }))
     this.editPitch(inbox, pitch.id, (p) => ({ ...p, ...reading, status: 'looking_up' }))
-    await this.searchWork(inbox, pitch.id, reading.guest, reading.work)
+    await this.searchWork(inbox, { ...pitch, ...reading })
   }
 
   // Searches a pitch's work by title and type only: the guest's name, the sender, and the pitch text
-  // never reach Qloo. The call is numbered as it starts unless `seq` numbered it earlier, and counted
-  // unless it was `reserved` (see qloo).
+  // never reach Qloo. The call is numbered as it starts and counted, unless it was `reserved`: numbered
+  // earlier, and counted in that gateway (see qloo).
   private async searchWork(
     inbox: string,
-    pitchId: string,
-    guest: string,
-    work: Work,
-    seq?: number,
-    reserved?: DurableObjectStub<QlooGateway>
+    { id, guest, work }: { id: string; guest: string; work: Work },
+    reserved?: { seq: number; gateway: DurableObjectStub<QlooGateway> }
   ) {
     const { call, result } = await this.qloo(
       (gateway) => gateway.search(work.title, qlooType[work.type], 5),
       null,
-      seq,
-      reserved
+      reserved?.seq,
+      reserved?.gateway
     )
     const match = lookupWork(work, guest, call, result)
-    this.editPitch(inbox, pitchId, (p) => ({ ...p, status: 'read', match }))
+    this.editPitch(inbox, id, (p) => ({ ...p, status: 'read', match }))
   }
 
   // Puts `inbox` in place with its pitches already read, as the guest network's sample inbox comes
@@ -1284,14 +1281,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // searched through `gateway`, where its calls were reserved (reserveCalls), numbered now in inbox order,
   // as a roster's are. The inbox is done once every search has settled.
   protected lookUpInbox(inbox: Inbox, gateway: DurableObjectStub<QlooGateway>) {
-    const searches = inbox.pitches
-      .filter((p) => p.status === 'looking_up')
-      .map((p) => ({ pitch: p, seq: this.numberCall() }))
+    const searches = inbox.pitches.flatMap(({ id, status, guest, work }) =>
+      status === 'looking_up' && guest !== null && work !== null ? [{ id, guest, work, seq: this.numberCall() }] : []
+    )
     this.setState({ ...this.state, inbox })
     void this.keepAliveWhile(async () => {
-      await Promise.all(
-        searches.map(({ pitch, seq }) => this.searchWork(inbox.id, pitch.id, pitch.guest!, pitch.work!, seq, gateway))
-      )
+      await Promise.all(searches.map(({ seq, ...pitch }) => this.searchWork(inbox.id, pitch, { seq, gateway })))
       this.finishInbox(inbox.id, null)
     }).catch((e) => this.finishInbox(inbox.id, `The lookups stopped: ${message(e)}`))
   }
