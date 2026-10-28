@@ -244,8 +244,9 @@ function PasskeysModule({
       </div>
       <Alert error={error} />
       <p className="text-muted-foreground">
-        Your browser asks where to keep it: on this device, a phone nearby, or your password manager. If you haven’t
-        confirmed it’s you in the last five minutes, Crossfeed asks you to first.
+        Your browser asks where to keep it: on this device, a phone nearby, or your password manager.
+        {/* A guest's first passkey asks no step-up (ADR 0006). */}
+        {!guest && ' If you haven’t confirmed it’s you in the last five minutes, Crossfeed asks you to first.'}
       </p>
       {code.form}
       {dialog}
