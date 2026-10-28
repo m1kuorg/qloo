@@ -74,8 +74,8 @@ export const Alert = ({ error }: { error: string | null }) =>
   )
 
 // Signing out of this browser's session alone, as a guest does to create an account of their own (ADR
-// 0008): the button, busy while it works, and the route's error under it. Then the sign-in page opens,
-// unless `then` goes elsewhere.
+// 0008), and a member on an invite page to join with another account: the button, busy while it works, and
+// the route's error after it. Then the sign-in page opens, unless `then` goes elsewhere.
 export function SignOut({
   children,
   variant,
