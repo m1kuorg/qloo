@@ -174,41 +174,53 @@ const menuItem =
 // The account menu: the member's initials and name, then who's signed in, their account page, and Sign
 // out, which main.tsx wires. The visually hidden "Account: " comes right before the name, so the button
 // reads "Account: <name>"; under 768px only the initials show. Renaming yourself on the account page
-// changes the name and the initials in place (data-signed-in, data-initials).
-const AccountMenu = ({ member, path }: { member: Member; path: string }) => (
-  <details data-menu class={menu}>
-    <summary class={cn(menuButton, 'h-8 px-1.5 max-md:size-11 max-md:justify-center max-md:px-0')}>
-      <span
-        aria-hidden="true"
-        data-initials
-        class="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary type-caption font-semibold"
-      >
-        {initials(member.name)}
-      </span>
-      <span class="vh">Account: </span>
-      <span class="acct-name max-w-48 truncate max-md:sr-only" data-signed-in>
-        {member.name}
-      </span>
-      <ChevronDown class="size-4 shrink-0 text-muted-foreground max-md:hidden" />
-    </summary>
-    <div class={cn(menuPanel, 'right-0 origin-top-right')}>
-      <p class="px-2 pt-1.5 pb-1 type-caption text-muted-foreground">
-        Signed in as{' '}
-        <b class="font-medium break-words text-foreground" data-signed-in>
+// changes the name and the initials in place (data-signed-in, data-initials). For a guest (ADR 0008) it
+// also says they're signed in as the one guest member every guest shares, that guests' networks are
+// cleared daily and their limits shared, and its Sign out is "Sign out and create an account", which
+// opens the sign-in page all the same.
+const AccountMenu = ({ member, path }: { member: Member; path: string }) => {
+  const guest = isGuestMember(member)
+  return (
+    <details data-menu class={menu}>
+      <summary class={cn(menuButton, 'h-8 px-1.5 max-md:size-11 max-md:justify-center max-md:px-0')}>
+        <span
+          aria-hidden="true"
+          data-initials
+          class="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary type-caption font-semibold"
+        >
+          {initials(member.name)}
+        </span>
+        <span class="vh">Account: </span>
+        <span class="acct-name max-w-48 truncate max-md:sr-only" data-signed-in>
           {member.name}
-        </b>
-      </p>
-      <a class={menuItem} href="/app/account" aria-current={path === '/app/account' ? 'page' : undefined}>
-        Your account
-      </a>
-      <button type="button" class={menuItem} data-sign-out>
-        Sign out
-      </button>
-      {/* main.tsx says here when Sign out fails. */}
-      <span role="status" class="vh" data-sign-out-status />
-    </div>
-  </details>
-)
+        </span>
+        <ChevronDown class="size-4 shrink-0 text-muted-foreground max-md:hidden" />
+      </summary>
+      <div class={cn(menuPanel, 'right-0 origin-top-right', guest && 'w-72 max-w-[calc(100vw-2rem)]')}>
+        <p class="px-2 pt-1.5 pb-1 type-caption text-muted-foreground">
+          Signed in as{' '}
+          <b class="font-medium break-words text-foreground" data-signed-in>
+            {member.name}
+          </b>
+        </p>
+        {guest && (
+          <p class="px-2 pb-2 type-caption text-pretty text-muted-foreground">
+            It’s the one account every guest shares. Guests’ networks are cleared every day at {GUEST_NETWORK_CLEARS},
+            so put nothing private in them. All guests share one set of daily limits.
+          </p>
+        )}
+        <a class={menuItem} href="/app/account" aria-current={path === '/app/account' ? 'page' : undefined}>
+          Your account
+        </a>
+        <button type="button" class={menuItem} data-sign-out>
+          {guest ? 'Sign out and create an account' : 'Sign out'}
+        </button>
+        {/* main.tsx says here when Sign out fails. */}
+        <span role="status" class="vh" data-sign-out-status />
+      </div>
+    </details>
+  )
+}
 
 // The network switcher, first in the app's top bar: the current network's name, or "Your networks" on
 // a page outside one, after a visually hidden "Network: ". Its menu lists the member's networks, the
@@ -255,30 +267,6 @@ const Switcher = ({ networks, network }: { networks: Network[]; network?: Networ
       </a>
     </div>
   </details>
-)
-
-// The guest notice, under the app's top bar on every page for a guest (ADR 0008): they're signed in as the
-// guest member every guest shares, every guest works in the guest network and the networks guests create
-// together, which are cleared daily, and all guests share one set of daily limits. "Sign out and create an
-// account" signs out as the account menu's Sign out does (main.tsx), then opens the sign-in page.
-const GuestNotice = () => (
-  <aside
-    aria-label="Guest notice"
-    data-guest-notice
-    class="flex flex-wrap items-center gap-x-3 gap-y-1 bg-muted px-4 py-2 lg:px-6"
-  >
-    <p>
-      <b class="font-medium">You’re signed in as Guest, the one account every guest shares.</b> Every guest works
-      together in the guest network and the networks guests create, so put nothing private in them; they’re cleared
-      every day at {GUEST_NETWORK_CLEARS}. All guests share one set of daily limits.
-    </p>
-    <span>
-      <button type="button" class={buttonVariants({ variant: 'link' })} data-sign-out>
-        Sign out and create an account
-      </button>
-      <span role="status" class="vh" data-sign-out-status />
-    </span>
-  </aside>
 )
 
 // A page the rail leads to: its icon, and its name, the icon's tooltip and the link's accessible name.
@@ -665,59 +653,55 @@ export const appShell = jsxRenderer(({ children }, c) => {
           : undefined
   // The page's name, after the switcher: on a launch's page, Launches, as a link back to the list.
   const here = destinations.find((d) => d.current)
-  const guest = isGuestMember(member)
   return (
     <AppFrame
       rail={<Rail label="Network" home="/app" destinations={destinations} />}
       bottomBar={destinations.length > 0}
       bar={
-        <>
-          <header class="sticky top-0 z-30 flex h-12 items-center gap-2 bg-background px-4 lg:px-6">
-            <MarkLink href="/app" class="-ml-2.5 shrink-0 md:hidden" />
-            {/* Every page here is a member's, so the switcher is always there: on a page outside a network
+        <header class="sticky top-0 z-30 flex h-12 items-center gap-2 bg-background px-4 lg:px-6">
+          <MarkLink href="/app" class="-ml-2.5 shrink-0 md:hidden" />
+          {/* Every page here is a member's, so the switcher is always there: on a page outside a network
               with no networks yet, as on /app/new, it reads "Your networks" and offers New network. */}
-            {(member || here) && (
-              <ol class="flex min-w-0 items-center gap-2">
-                {member && (
-                  <li class="min-w-0">
-                    <Switcher networks={networks} network={network} />
+          {(member || here) && (
+            <ol class="flex min-w-0 items-center gap-2">
+              {member && (
+                <li class="min-w-0">
+                  <Switcher networks={networks} network={network} />
+                </li>
+              )}
+              {here && (
+                <>
+                  <li aria-hidden="true" class="text-muted-foreground max-md:hidden">
+                    /
                   </li>
-                )}
-                {here && (
-                  <>
-                    <li aria-hidden="true" class="text-muted-foreground max-md:hidden">
-                      /
-                    </li>
-                    <li class="truncate max-md:hidden">
-                      {here.current === 'true' ? (
-                        <a
-                          href={here.href}
-                          class="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                        >
-                          {here.label}
-                        </a>
-                      ) : (
-                        here.label
-                      )}
-                    </li>
-                  </>
-                )}
-                {/* On a launch's page, the launch's name, which only its agent knows: the island fills
+                  <li class="truncate max-md:hidden">
+                    {here.current === 'true' ? (
+                      <a
+                        href={here.href}
+                        class="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                      >
+                        {here.label}
+                      </a>
+                    ) : (
+                      here.label
+                    )}
+                  </li>
+                </>
+              )}
+              {/* On a launch's page, the launch's name, which only its agent knows: the island fills
                   this (Launch.tsx). It's last on the bar's line, so the late fill moves nothing, and
                   hidden while it's empty. */}
-                {here?.current === 'true' && (
-                  <li id="shell-launch" class="flex min-w-0 items-center gap-2 empty:hidden max-md:hidden" />
-                )}
-              </ol>
-            )}
-            {member && (
-              <div class="ml-auto shrink-0">
-                <AccountMenu member={member} path={path} />
-              </div>
-            )}
-          </header>
-          {guest && <GuestNotice />}
-        </>
+              {here?.current === 'true' && (
+                <li id="shell-launch" class="flex min-w-0 items-center gap-2 empty:hidden max-md:hidden" />
+              )}
+            </ol>
+          )}
+          {member && (
+            <div class="ml-auto shrink-0">
+              <AccountMenu member={member} path={path} />
+            </div>
+          )}
+        </header>
       }
     >
       {children}
