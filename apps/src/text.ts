@@ -20,7 +20,10 @@ export const nth = (n: number) =>
 // run", "1,000 model runs".
 export const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n.toLocaleString('en-US')} model runs`)
 
-// When the daily cron (wrangler.jsonc) clears the guest network, as every guest is told it.
+// The guest network's ID (ADR 0006), as migration 0005 wrote it, which every guest member owns together;
+// here, so the app's pages know it too. And when the daily cron (wrangler.jsonc) clears it, as every
+// guest is told it.
+export const GUEST_NETWORK = 'guest-network'
 export const GUEST_NETWORK_CLEARS = '12:00 UTC'
 
 // The longest name a member or a network can have.

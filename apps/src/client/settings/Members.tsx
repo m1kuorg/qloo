@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import type { Invite, NetworkMember } from '../../directory'
+import { GUEST_NETWORK } from '../../text'
 import { useConfirm } from '../Confirm'
 import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
@@ -12,7 +13,8 @@ import { cell, head, Module } from './Module'
 // The settings' members module: who's in the network, with their role and when they joined, and, for an
 // owner, its invite links. An owner changes roles, removes members, and makes and revokes links; any
 // member can leave. No change may leave the network without an owner: the Worker refuses one, and the
-// module doesn't offer it. `invites` is null for a member, who doesn't see them. Removing, leaving, revoking, and making an
+// module doesn't offer it. The guest network needn't keep one, as every guest sign-in adds an owner
+// (ADR 0006). `invites` is null for a member, who doesn't see them. Removing, leaving, revoking, and making an
 // owner a member, which revokes their keys and links, each confirm first.
 export function MembersModule({
   network,
@@ -30,9 +32,10 @@ export function MembersModule({
   const heading = useRef<HTMLHeadingElement>(null)
   const { confirm, dialog } = useConfirm(heading)
   const owner = network.role === 'owner'
-  const ownerCount = members.filter((m) => m.role === 'owner').length
+  // Whether the network has one owner, whom it can't lose; the guest network can.
+  const oneOwner = network.id !== GUEST_NETWORK && members.filter((m) => m.role === 'owner').length === 1
   const me = members.find((m) => m.id === memberId)
-  const lastOwner = me?.role === 'owner' && ownerCount === 1
+  const lastOwner = me?.role === 'owner' && oneOwner
   const path = `/app/${network.id}/settings/members`
 
   const changeRole = async (m: NetworkMember) => {
@@ -114,7 +117,7 @@ export function MembersModule({
             {members.map((m) => {
               const self = m.id === memberId
               // A network keeps at least one owner, so its last one has no "Make member".
-              const canSetRole = owner && !(m.role === 'owner' && ownerCount === 1)
+              const canSetRole = owner && !(m.role === 'owner' && oneOwner)
               return (
                 <tr key={m.id}>
                   <th scope="row" className={`${cell} text-left font-medium`}>
