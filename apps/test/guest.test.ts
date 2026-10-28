@@ -16,6 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import type { Evidence } from '../src/evidence'
 import { Invite, SignInPage } from '../src/client/Account'
+import type { Session as AppSession } from '../src/client/App'
+import { InboxWorkspace } from '../src/client/Inbox'
 import { globalGateway } from '../src/gateway'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
@@ -868,6 +870,41 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
           params: { query: p.work!.title },
           error: null
         })
+    })
+
+    it('says the sample’s works are looked up, not its pitches read, while its lookups are out', async () => {
+      // A first start looks up the roster, with no room left for the inbox, so the next looks up only the
+      // inbox's works, held until the test has seen them out.
+      fakeQloo({ search: { ...search, ...workSearch } })
+      env.QLOO_VISITOR_DAILY_CALL_CAP = String((await usage()).qlooCalls.used + 19 + 35)
+      const guest = await openGuest()
+      await (await connect(guest)).until(settled)
+      env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
+      const held = Promise.withResolvers<void>()
+      fakeQloo({ search: { ...search, ...workSearch }, held: held.promise })
+      await evictAllDurableObjects({ webSockets: 'close' })
+      const network = await connect(guest)
+      const page = (state: State) =>
+        words(
+          renderToStaticMarkup(
+            createElement(InboxWorkspace, {
+              agent: { state, stub: {} } as unknown as AppSession,
+              links: { roster: networkLinks(env, 'guest-network').roster }
+            })
+          )
+        )
+
+      const looking = page(await network.until((s) => s.inbox?.status === 'reading'))
+      expect(looking).toContain('The sample’s pitches come already read for their guest and public work.')
+      expect(looking).toContain('Looking up · 0 of 36 works looked up')
+      expect(looking).toContain('Rank them once every work is looked up.')
+      expect(looking).toContain('Looking up the sample’s works…')
+      expect(looking).toContain('36 still looking up')
+      expect(looking).not.toContain('Reading')
+      expect(looking).not.toContain('pitch is read')
+
+      held.resolve()
+      expect(page(await network.until(loaded))).toContain('Read · 40 pitches')
     })
 
     it('tries again as it next starts the lookups the guest budget refused, then those Qloo failed, then loads nothing again', async () => {
