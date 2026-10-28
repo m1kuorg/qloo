@@ -641,6 +641,22 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(loaded.roster).toHaveLength(19)
   })
 
+  it('keeps a CPM a guest set while its lookups were refused, unlabelled, as the sample loads on a later start', async () => {
+    fakeQloo({ search })
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '18'
+    const guest = await openGuest()
+    await connect(guest)
+    expect((await post(guest, '/app/guest-network/settings/network', { name: 'Guest network', cpm: 25 })).status).toBe(
+      200
+    )
+
+    env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const loaded = await (await connect(guest)).until(settled)
+    expect(loaded).toMatchObject({ cpm: 25, sample: { cpm: false }, launches: [{ name: 'The Watch' }] })
+    expect(loaded.roster).toHaveLength(19)
+  })
+
   it('looks up the shows that failed and plans The Watch if planning failed, as it next starts, then loads nothing again', async () => {
     fakeQlooDown()
     vi.spyOn(LaunchAgent.prototype, 'plan').mockRejectedValueOnce(new Error('The agent is overloaded.'))
