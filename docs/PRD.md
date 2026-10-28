@@ -1,6 +1,6 @@
 # PRD
 
-What Crossfeed ships, written from the side of the people who use it: the open demo entered in the Qloo Agentic Hackathon, and the signed-in product built on it for a network to run for real ([spec #155](https://github.com/m1kuorg/qloo/issues/155)). [PRODUCT.md](PRODUCT.md) holds the durable product record, [GLOSSARY.md](/GLOSSARY.md) the terms, [TRD.md](TRD.md) the technical design, and [docs/adr/](/docs/adr/) the decisions the product rests on.
+What Crossfeed ships, written from the side of the people who use it: the sample network entered in the Qloo Agentic Hackathon, open to anyone who signs in as a guest, and the signed-in product built on it for a network to run for real ([spec #155](https://github.com/m1kuorg/qloo/issues/155)). [PRODUCT.md](PRODUCT.md) holds the durable product record, [GLOSSARY.md](/GLOSSARY.md) the terms, [TRD.md](TRD.md) the technical design, and [docs/adr/](/docs/adr/) the decisions the product rests on.
 
 Contents:
 
@@ -21,7 +21,7 @@ Contents:
     1.  [Launch promo stories](#launch-promo-stories)
     1.  [Guest pitch stories](#guest-pitch-stories)
     1.  [Evidence and trust stories](#evidence-and-trust-stories)
-    1.  [Demo and operation stories](#demo-and-operation-stories)
+    1.  [Sample and operation stories](#sample-and-operation-stories)
     1.  [Product stories](#product-stories)
 1.  [Implementation Decisions](#implementation-decisions)
 1.  [Testing Decisions](#testing-decisions)
@@ -36,11 +36,11 @@ Contents:
 
 I run programming at a podcast network. When we launch a show, I promote it on our own roster with host-read promos, and every promo slot is an ad I didn't sell. A 20-slot launch gives away 20 ads on our biggest shows, but I plan it in a spreadsheet by topic: the new true-crime show goes on our other true-crime shows. I have no way to see whether a show from another genre shares more of the launch's listeners, or whether the obvious pick has the wrong age or gender mix. My bookers have the same blind spot every day: each guest pitch is written to sound on-topic, and nothing tells them whether the guest's work draws the same listeners as our show.
 
-The demo shows me which of my shows share a launch's listeners, priced as the inventory each promo slot gives away. To use it for real, I need more than one browser's session: my network kept in Crossfeed, my teammates in it, every launch I'm planning kept on its own, my roster file and my inbox export loaded as they are, settings I control, and a way for our scripts and AI assistants to run it without ever approving something on my behalf.
+The sample network shows me which of my shows share a launch's listeners, priced as the inventory each promo slot gives away. To use it for real, I need more than a sample: my network kept in Crossfeed, my teammates in it, every launch I'm planning kept on its own, my roster file and my inbox export loaded as they are, settings I control, and a way for our scripts and AI assistants to run it without ever approving something on my behalf.
 
 ## Solution
 
-Crossfeed is an agent that scores the network's own lists, its roster and its booking inbox, against a show in Qloo, asks the human at each fork, and hands back a plan to approve. It runs in two places on one Worker: the sample network at `/demo`, open to any visitor, and signed-in networks under `/app`, which the `ACCOUNTS` switch turns on.
+Crossfeed is an agent that scores the network's own lists, its roster and its booking inbox, against a show in Qloo, asks the human at each fork, and hands back a plan to approve. It runs on one Worker as signed-in networks under `/app`, which the `ACCOUNTS` switch turns on. Anyone tries it by signing in as a guest, in one click, to the guest network, which holds the sample network ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)).
 
 ### Launch promos
 
@@ -56,7 +56,7 @@ Every ranking opens to its evidence: the Qloo call, the entities and tags it use
 
 ### The sample network
 
-The landing page at `/` says what Crossfeed does in its first screen, then lets a visitor re-rank a made-up network's roster by who listens or by topic, labelled an illustration, and its first button opens the sample network at `/demo` with no sign-in. The sample network opens on The Ringer's public show names with labelled sample figures, a guide through the sample launch, a stored run that replays when Qloo can't be called, and daily limits per visitor. An old `/inbox` link opens the sample inbox at `/demo/inbox`. While `ACCOUNTS` is on, the landing page and the demo also offer "Create your network".
+The landing page at `/` says what Crossfeed does in its first screen, then lets a visitor re-rank a made-up network's roster by who listens or by topic, labelled an illustration, and its first button signs them in as a guest, in one click and with no script, and opens the guest network, which every guest shares. It holds the sample network ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)): The Ringer's public show names with labelled sample figures, a sample CPM, and the sample launch, The Watch, planned. While no guest has changed its roster, its CPM, or The Watch, a run of The Watch that Qloo or a daily cap refuses replays its stored run, and the daily clearing restores the sample. Every guest shares one guest budget of daily limits. The retired demo's addresses, `/demo`, `/demo/inbox`, and `/inbox`, lead to the sign-in page's guest option. The landing page also offers "Create your network". With `ACCOUNTS` off, it offers no way in.
 
 ### Networks and members
 
@@ -64,7 +64,7 @@ A member signs up with a name and a passkey, keeps a one-time recovery code, and
 
 ### Launches, each planned on its own
 
-The dashboard lists the network's launches with each one's status, finalists, slots, total slot value, and its last run, beside one line each for the roster, the inbox, and the CPM, and a setup checklist for a new network. A member starts a launch from the dashboard by naming it, or up to three comps. Each launch has its own page, with the fit chart, the agent's questions, the insertion order, the run log, and the evidence, as the demo shows them, and keeps every run. A run ranks the network's roster as it stands when the run starts, and the launch says when the roster has changed since. Members can plan several launches at once; each run and approval names who made it.
+The dashboard lists the network's launches with each one's status, finalists, slots, total slot value, and its last run, beside one line each for the roster, the inbox, and the CPM, and a setup checklist for a new network. A member starts a launch from the dashboard by naming it, or up to three comps. Each launch has its own page, with the fit chart, the agent's questions, the insertion order, the run log, and the evidence, and keeps every run. A run ranks the network's roster as it stands when the run starts, and the launch says when the roster has changed since. Members can plan several launches at once; each run and approval names who made it.
 
 ### The roster and the inbox, with uploads
 
@@ -81,10 +81,10 @@ A versioned REST API under `/api/v1`, described by an OpenAPI document at `/api/
 ### Success criteria
 
 - A judge who never opens the app can tell from the description what breaks without Qloo, which endpoints run, and what the product decides.
-- A judge who opens the demo sees a ranked roster within 30 seconds of starting the sample launch, without an account.
+- A judge who opens the sample network, as a guest, sees a ranked roster within 30 seconds of starting the sample launch, without making an account.
 - The sample launch shows at least one roster show whose fit rank differs from its topic-only rank by three or more places, with shared tags that explain the move. On the sample launch, The Watch, The Bill Simmons Podcast climbs from topic rank 9 or 10 to fit rank 4 and shares Conversational, Insightful, and Pop Culture ([SUBMISSION](SUBMISSION.md#what-breaks-without-qloo)).
 - No Qloo request ever carries a guest's name, an email address, or sender details, whether pitches are pasted, uploaded, or sent through the API.
-- The demo keeps answering through the end of judging on 2026-11-16, including when Qloo is slow or a daily cap is hit.
+- The sample network keeps answering through the end of judging on 2026-11-16, including when Qloo is slow or a daily cap is hit: the guest network's sample launch replays its stored run while no guest has changed the sample, which each daily clearing restores ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)).
 - A network's roster, launches, pitches, and keys are visible only to its members and its own API keys; every page and API answer says nothing about another network, not even that it exists.
 - Nothing is approved by a program: only a member, in the app, approves an insertion order or a reply.
 
@@ -99,7 +99,7 @@ The programmer is the head of programming or audience; the booker, the network's
 3.  As a programmer, I want to see which shows resolved, which are ambiguous, and which missed, so that I know what Crossfeed can score before I rely on it.
 4.  As a programmer, I want to pick the right match for an ambiguous show from candidates with their names and popularity, so that the wrong show isn't scored in its place.
 5.  As a programmer, I want to map a show Qloo missed to a comparable show, or leave it out, so that small shows still get a fair place.
-6.  As a programmer, I want my resolved roster remembered, for my session on the sample network or for my network once signed in, so that I resolve it once and not on every launch.
+6.  As a programmer, I want my resolved roster remembered for my network, so that I resolve it once and not on every launch.
 7.  As a programmer, I want to enter my network's CPM, so that slot values reflect what I actually sell.
 8.  As a programmer, I want to mark shows as excluded, such as shows mid-sale or on hiatus, so that they're never proposed.
 9.  As a programmer, I want to edit a show's downloads or status later, so that the next plan uses current numbers.
@@ -150,13 +150,13 @@ The programmer is the head of programming or audience; the booker, the network's
 45. As a programmer, I want to be told when Qloo was slow or failing, what was retried, and what's missing, so that a partial result is never presented as complete.
 46. As a programmer, I want results described as listener overlap, never as a probability about a person, so that I read them for what they are.
 
-### Demo and operation stories
+### Sample and operation stories
 
-47. As a judge, I want to open the live demo without an account and find a sample network ready, so that I can evaluate it in minutes.
-48. As a judge, I want the sample launch to answer quickly from a warm cache, so that the demo works even when Qloo is slow.
+47. As a judge, I want to try the live product as a guest, in one click and without an account, and find the sample network ready, so that I can evaluate it in minutes.
+48. As a judge, I want the sample launch to answer quickly from a warm cache, so that the sample works even when Qloo is slow.
 49. As a judge, I want sample data, such as the synthetic inbox and sample downloads, labelled as sample data, so that I know no real person's email or real network's figures are shown.
-50. As a judge, I want a short guided path through the sample launch, so that I see the decisive moment without knowing the product.
-51. As the operator, I want a daily cap on Qloo calls and daily limits on model runs, per visitor and overall, so that a public demo can't exhaust the quota or the budget.
+50. As a judge, I want a short guided path through the sample launch, so that I see the decisive moment without knowing the product. The guide went with the demo ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)); the guest network's dashboard opens on the sample launch, planned, instead.
+51. As the operator, I want a daily cap on Qloo calls and daily limits on model runs, per network, for all guests together, and overall, so that open guest sign-in can't exhaust the quota or the budget.
 52. As the operator, I want the sample run replayed from storage when a cap is hit or Qloo fails, so that judges still see a working product.
 53. As the operator, I want a daily health check against Qloo, so that I learn a key has stopped working before a judge does.
 
@@ -164,7 +164,7 @@ The programmer is the head of programming or audience; the booker, the network's
 
 The spec, [#155](https://github.com/m1kuorg/qloo/issues/155), lists 98 stories for the signed-in product, under its User Stories heading, and the sub-issues that built them are closed. These are the ones that shape it, worded as what shipped where it went further than the spec asked:
 
-54. As a judge, I want the landing page's first button to open the sample network, so that the demo is one click from the URL I was given.
+54. As a judge, I want the landing page's first button to open the sample network, so that the sample is one click from the URL I was given.
 55. As a programmer, I want the landing page to show how a ranking looks, labelled as an illustration, and to say what Crossfeed never does, so that I can trust it without the page publishing Qloo data.
 56. As a programmer, I want to sign up with my name and a passkey, keep a recovery code shown once, and sign in with the passkey alone, so that I have an account without a password or an inbox to confirm.
 57. As a member, I want to add a passkey from another device, remove one I no longer use but never my last, and sign out of every session at once, so that losing a device never locks me out or leaves me signed in.
@@ -203,7 +203,7 @@ The [TRD](TRD.md) gives call parameters, storage, routes, limits, and configurat
 - **Topic baseline.** One model call ranks the roster by topic from show names and the network's own descriptions, with no Qloo input. It is the without-Qloo counterfactual the UI shows beside the fit ranking.
 - **Insertion order.** Lines of show, slot count, and angle for the finalists. The model proposes slot counts; code, not the model, computes slot value and totals and rejects a draft that exceeds the slot budget, or one drafted before every finalist's shared tags are in, or one with an angle Qloo's tags don't back. It has two states, draft and approved, and only an approved order exports.
 - **Pitch reader and reply drafter.** The model extracts the guest and public work from each pitch and drafts replies. The guest's name and the sender's details stay inside Crossfeed; only the work's title and type reach the gateway.
-- **The agent.** Claude runs a tool loop over these modules in an agent: one per visitor session on the sample network, one per signed-in network for its roster and inbox, and one per launch for its runs ([ADR 0001](/docs/adr/0001-agents-per-network-and-launch.md)). It asks questions through a question tool that pauses the run until the human answers. Approving and exporting are actions in the app the model has no tool for, so it can propose but never commit.
+- **The agent.** Claude runs a tool loop over these modules in an agent: one per signed-in network for its roster and inbox, the guest network included, and one per launch for its runs ([ADR 0001](/docs/adr/0001-agents-per-network-and-launch.md)). It asks questions through a question tool that pauses the run until the human answers. Approving and exporting are actions in the app the model has no tool for, so it can propose but never commit.
 - **A directory beside the agents.** A D1 database holds only what has to be looked up across agents: members, passkeys, sessions, networks, memberships, invite links, and API keys, each secret kept as a hash.
 - **Passkeys only, built in-house.** No password, email, or OAuth; a one-time recovery code stands in for email recovery ([ADR 0003](/docs/adr/0003-passkeys-built-in-house.md)).
 - **Approval stays in the app.** The API, the SDK, and the MCP server act through an API key and have no approve action ([ADR 0002](/docs/adr/0002-approval-stays-in-the-app.md)).
@@ -229,7 +229,7 @@ The [TRD](TRD.md) gives call parameters, storage, routes, limits, and configurat
   - Sign-up, sign-in, recovery, step-up, and sign-out; invites; membership isolation across pages, agents, and the API; two members seeing each other's edits; two launches running at once; uploads and their refusals; API keys scoped to their network; approval refused over RPC; the SDK and the MCP server driving a launch to a draft order; deleting a network or an account.
 - **Fixtures are synthetic.** Hand-written responses in Qloo's shape with made-up IDs and scores. Recorded Qloo responses are never committed, because publishing them breaks the key's terms ([BRIEF](BRIEF.md#implications-for-our-entry)).
 - **Prior art:** `openSession` drives a visitor and `openMember` a member, `api` a program with an API key, the SDK's tests a client through the Worker's `fetch`, and `assistant` an MCP client; the [apps README](/apps/README.md#test) says how to use each, and the [TRD](TRD.md#testing) names the runner.
-- **Done means live.** Each behavior counts as done only once it works in the running app against the real Qloo and Anthropic APIs, per the [project conventions](/docs/references/project-conventions.md): locally first, then on the preview deployment for the signed-in product, and on production for the demo.
+- **Done means live.** Each behavior counts as done only once it works in the running app against the real Qloo and Anthropic APIs, per the [project conventions](/docs/references/project-conventions.md): locally first, then on the preview deployment for the signed-in product, and on production for the landing page and the guest network.
 
 ## Out of Scope
 
@@ -254,14 +254,14 @@ The [TRD](TRD.md) gives call parameters, storage, routes, limits, and configurat
 The hackathon build ran on a dated plan from 2026-10-17: the engine, launch promos, guest pitches (switched on in production after [#57](https://github.com/m1kuorg/qloo/issues/57)), then polish and the submission. The product followed as the tickets of [#155](https://github.com/m1kuorg/qloo/issues/155), each merged to `main` through its own pull request and CI, with `ACCOUNTS` off in production so `main` stayed deployable:
 
 1.  **Preview, to 2026-10-22:** the preview deployment, `crossfeed-preview`, ran `main` with `ACCOUNTS` on, its own D1 database, and its own Durable Objects, and every merged ticket was checked there. On 2026-10-22 the whole product passed there: the judge path on `/demo`, and a member's path from sign-up through an approved order, the API, and MCP.
-2.  **Deploy window, by 2026-10-29:** submissions close 2026-10-30 at 11:45 pm ET. Production got the product, `ACCOUNTS` on, from `main` in [#223](https://github.com/m1kuorg/qloo/issues/223): the landing page at `/`, the demo at `/demo`, where the submission links, and old `/inbox` links redirected. Deploys stay manual, one at a time, from an up-to-date `main`.
-3.  **Freeze, 2026-10-30 to 2026-11-16:** the official rules keep a submission "substantively the same" after the submission period ([rules](/docs/sources/qloo.devpost.com/official-rules.md#modifications-after-the-submission-period)). If the product misses the window, it waits until judging ends on 2026-11-16, and production stays as submitted. A fix to the demo in that time ships from `main` with `ACCOUNTS` still as submitted.
+2.  **Deploy window, by 2026-10-29:** submissions close 2026-10-30 at 11:45 pm ET. Production got the product, `ACCOUNTS` on, from `main` in [#223](https://github.com/m1kuorg/qloo/issues/223): the landing page at `/`, the demo at `/demo`, where the submission links, and old `/inbox` links redirected. On 2026-10-28 the demo retired: the sample network became the guest network's data, and `/demo` leads to the sign-in page's guest option ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)). Deploys stay manual, one at a time, from an up-to-date `main`.
+3.  **Freeze, 2026-10-30 to 2026-11-16:** the official rules keep a submission "substantively the same" after the submission period ([rules](/docs/sources/qloo.devpost.com/official-rules.md#modifications-after-the-submission-period)). If the product misses the window, it waits until judging ends on 2026-11-16, and production stays as submitted. A fix in that time ships from `main` with `ACCOUNTS` still as submitted.
 
 ### Submission deliverables
 
 From the [brief](BRIEF.md#submission-checklist), plus our own choices:
 
-- The live demo URL, with free, unrestricted access through 2026-11-16. The landing page at `/` opens the sample network at `/demo` in one click.
+- The live demo URL, with free, unrestricted access through 2026-11-16. The landing page at `/` opens the sample network, as a guest, in one click, and `/demo` leads to the sign-in page's guest option.
 - A public repository. It is private today and is made public before submitting, with the owner's approval in [#63](https://github.com/m1kuorg/qloo/issues/63).
 - An open-source license file, detected in the repository's About section: MIT, in [LICENSE](/LICENSE).
 - A description with one heading per judging criterion that leads with what breaks without Qloo, names the endpoints, walks one request through to its result, states known limitations, and pitches Crossfeed as a company for the Calacanis bonus ([SUBMISSION](SUBMISSION.md), [CONTEXT](CONTEXT.md#strategy-for-our-entry)).

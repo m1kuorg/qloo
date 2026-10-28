@@ -2,18 +2,18 @@
 
 Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want. It ranks the network's own lists, its roster and its booking inbox, by listener overlap in [Qloo](https://www.qloo.com/), asks the human at each fork, and ends in a plan a person approves. It's our entry to the [Qloo Agentic Hackathon](https://qloo.devpost.com/), and a signed-in product a network's members can run together.
 
-**Live: <https://crossfeed.m1kuorg.workers.dev>.** The landing page's first button, "Open the sample network", opens the demo at [`/demo`](https://crossfeed.m1kuorg.workers.dev/demo): no sign-in, a sample network built from The Ringer's public show names, with labelled sample figures. Crossfeed isn't affiliated with The Ringer.
+**Live: <https://crossfeed.m1kuorg.workers.dev>.** The landing page's first button, "Open the sample network", signs you in as a guest, in one click, and opens the guest network, which holds a sample network built from The Ringer's public show names, with labelled sample figures. Crossfeed isn't affiliated with The Ringer. The retired demo's address, [`/demo`](https://crossfeed.m1kuorg.workers.dev/demo), now leads to the sign-in page's guest option.
 
-## Try the demo
+## Try it as a guest
 
-1. On `/`, select **Open the sample network**. It opens on a sample network of The Ringer's 19 public show names, with labelled sample figures, and the sample launch, The Watch, in the launch field.
-2. Select **Start run**. The fit chart ranks the roster by listener overlap in Qloo, with each show's rank in a topic-only plan in the Topic column, and the on-air readout at the top of the page says what the agent is doing.
+1. On `/`, select **Open the sample network**. It signs you in as a guest, for a day, and opens the guest network's dashboard: The Ringer's 19 public show names on its roster, with labelled sample figures and a sample CPM, and the sample launch, The Watch, planned. Every guest shares the guest network, which is cleared every day at 12:00 UTC.
+2. Open **The Watch** and select **Start run**. The fit chart ranks the roster by listener overlap in Qloo, with each show's rank in a topic-only plan in the Topic column, and the on-air readout at the top of the page says what the agent is doing.
 3. Select a show marked ▲ in the Move column, such as The Bill Simmons Podcast, for why it moved, then the call number in that line, such as `C-21`: the inspector's Evidence tab shows the Qloo request behind the ranking and the raw scores the chart leaves out. Switch the chart to **By topic** to watch the shows move to the topic-only plan's order.
 4. Answer the agent's questions in the card above the chart: a slot budget, such as 20 promo slots, then which shows to leave out.
 5. When the run completes, read **The plan**, the insertion order the agent drafted and code priced, then select **Approve** and **Export CSV**.
 6. Select **Inbox** in the rail, **Load sample inbox** (40 pitches), and **Rank pitches**. It ranks the guests' public works against The Big Picture, one list per type of work, and drafts a reply to every pitch for you to approve, edit, or discard. You can also drop your own `.eml`, `.mbox`, or text pitches on it.
 
-The guide above the question walks steps 2 to 5. [docs/SUBMISSION.md](docs/SUBMISSION.md) explains what Qloo does at each step, the endpoints it calls, and the known limitations.
+All guests share one set of daily limits. While no guest has changed the guest network's roster or The Watch, a run of The Watch that Qloo or a daily limit refuses replays its stored run. A guest can do anything a member can, and keeps the account by adding a passkey on the account page; otherwise it's removed a day after signing in. [docs/SUBMISSION.md](docs/SUBMISSION.md) explains what Qloo does at each step, the endpoints it calls, and the known limitations.
 
 ## The product
 
@@ -40,7 +40,7 @@ bunx wrangler d1 migrations apply DB --local
 bun run dev -- --port 5173 --strictPort
 ```
 
-Open <http://localhost:5173/>, then **Open the sample network**, or **Create your network** to sign up with a passkey (checked in Chrome). The app calls the real Qloo and Anthropic APIs with your keys. `VISITOR_SALT` salts the visitor hash behind the daily limits, and `QLOO_KEY_SECRET` seals each network's own Qloo key; any random values work locally. Leave out `ACCOUNTS=on` to run the demo alone, as production does. `.dev.vars` is git-ignored: never commit it.
+Open <http://localhost:5173/>, then **Open the sample network** to sign in as a guest, or **Create your network** to sign up with a passkey (checked in Chrome). The app calls the real Qloo and Anthropic APIs with your keys. `VISITOR_SALT` salts the visitor hash behind the daily limits, and `QLOO_KEY_SECRET` seals each network's own Qloo key; any random values work locally. Every way in needs `ACCOUNTS=on`, as production sets it: without it the public pages offer none. `.dev.vars` is git-ignored: never commit it.
 
 Run the tests, which fake Qloo and Anthropic at the network boundary and need no keys:
 
@@ -52,7 +52,7 @@ The [apps README](apps/README.md) is the full how-to: tests and their helpers, t
 
 ## Repository
 
-- [`apps/`](apps/): the Cloudflare Worker, with the landing page and docs, the demo, accounts and the app, the REST API and the MCP server, the agents, the Qloo gateway, the D1 directory's migrations, and the React UI.
+- [`apps/`](apps/): the Cloudflare Worker, with the landing page and docs, accounts and the app, the REST API and the MCP server, the agents, the Qloo gateway, the D1 directory's migrations, and the React UI.
 - [`packages/sdk/`](packages/sdk/): `@crossfeed/sdk`, the TypeScript client of the REST API, typed from its OpenAPI document.
 - [`plugins/crossfeed/`](plugins/crossfeed/): the Claude Code plugin, with the MCP server's config and two Agent Skills, listed by [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json).
 - [`docs/SUBMISSION.md`](docs/SUBMISSION.md): the hackathon submission.

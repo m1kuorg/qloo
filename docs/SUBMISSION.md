@@ -25,7 +25,7 @@ Contents:
 
 - **Project name:** Crossfeed
 - **Elevator pitch:** An agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners want, by ranking the network's own lists in Qloo.
-- **Try it out:** <https://crossfeed.m1kuorg.workers.dev>, whose first button opens the sample network at <https://crossfeed.m1kuorg.workers.dev/demo>, and <https://github.com/m1kuorg/qloo>
+- **Try it out:** <https://crossfeed.m1kuorg.workers.dev>, whose first button opens the sample network as a guest, in one click (<https://crossfeed.m1kuorg.workers.dev/demo> leads to the sign-in page's guest option), and <https://github.com/m1kuorg/qloo>
 - **Built with:** qloo, claude, anthropic, cloudflare-workers, durable-objects, cloudflare-agents, cloudflare-d1, hono, react, typescript, vite, vitest, webauthn, openapi, mcp
 - **Video and images:** the video is `crossfeed-demo.mp4`, 2 minutes 50 seconds with captions and no voice, on the draft release `submission`, which waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63). The screenshots are from one run on the sample network, on sample data:
   - [The chart, with a climber and its "why it moved" line](https://github.com/m1kuorg/qloo/blob/main/docs/images/chart.png)
@@ -46,7 +46,7 @@ Every promo slot is an ad the network didn't sell, yet launch plans are drawn up
 
 Without Qloo, an agent can only plan by topic, so Crossfeed runs that plan as its control. Claude Haiku 5.5 ranks the roster from show names and descriptions alone, with no Qloo input. The fit chart shows that rank in its Topic column beside Qloo's, and its lens re-orders the roster between the two, "By topic" and "By who listens".
 
-The live demo opens on a sample network built from The Ringer's public show names. Its sample launch is The Watch, whose description covers the week's TV, movies, and music. Across three fresh sessions ([live check]):
+Signing in as a guest opens the guest network, which holds a sample network built from The Ringer's public show names. Its sample launch is The Watch, whose description covers the week's TV, movies, and music. Across three fresh sessions ([live check]):
 
 - **The music shows fall.** The topic plan put the network's two music shows, Every Single Album and 60 Songs That Explain the '90s, between 3rd and 8th of 15. By how much their listeners overlap The Watch's, they rank 14th and 13th.
 - **A sports show climbs.** The topic plan put The Bill Simmons Podcast 9th or 10th. Qloo ranks it 4th, a finalist. Qloo's compare names what the two shows' listeners share: Conversational, Insightful, and Pop Culture.
@@ -81,7 +81,7 @@ Crossfeed is built with an agent framework, the Cloudflare Agents SDK, and calls
 
 This run is from the [live check], with Qloo entity IDs left out:
 
-1.  **Roster:** a new session opens on the sample network's 19 shows. Each is looked up with `GET /search?query=<show>&types=urn:entity:podcast&take=3`, as calls C-01 to C-19. Of these, 16 resolve, Binge Mode is ambiguous, and The Zach Lowe Show and The Press Box miss.
+1.  **Roster:** the guest network opens each day on the sample network's 19 shows. Each is looked up with `GET /search?query=<show>&types=urn:entity:podcast&take=3`, as calls C-01 to C-19. Of these, 16 resolve, Binge Mode is ambiguous, and The Zach Lowe Show and The Press Box miss.
 2.  **Ranking:** select Start run on The Watch. The agent looks it up (C-20) and calls its `rank_candidates` tool, which sends one ranking (C-21):
 
     ```json
@@ -133,7 +133,7 @@ The guest flow runs the same way ([live check]):
 
 ## Design
 
-A judge opens the URL on a type-led landing page whose one live thing is the re-rank: a made-up roster, labelled as an illustration, that switches between "By topic" and "By who listens", its shows travelling to their new places. True-size fragments of the app show a run, then what Crossfeed never does and the ways in. Its first button opens the sample network with no sign-in, in the signed-in app's shell, on a working screen, not a chat:
+A judge opens the URL on a type-led landing page whose one live thing is the re-rank: a made-up roster, labelled as an illustration, that switches between "By topic" and "By who listens", its shows travelling to their new places. True-size fragments of the app show a run, then what Crossfeed never does and the ways in. Its first button signs the judge in as a guest, in one click and with no passkey, and opens the sample network in the guest network every guest shares, on a working screen, not a chat:
 
 - **Sample data, labelled:** the network opens ready, with a notice that Crossfeed isn't affiliated with The Ringer. Every download, status, description, and CPM figure is labelled "sample" until the visitor edits it.
 - **The re-rank:** the fit chart leads with the roster ranked by listener overlap:
@@ -143,20 +143,20 @@ A judge opens the URL on a type-led landing page whose one live thing is the re-
 - **Rank and band, not decimals:** Qloo normalizes affinity per query, so the chart shows Strong, Good, or Fair by thirds of the ranking. Raw scores stay in the evidence.
 - **Data and agent kept apart:** Qloo results are labelled "Qloo data", and the agent's text "Agent", wherever they appear.
 - **Slot value beside fit:** each charted show's slot value, its downloads per episode × CPM ÷ 1,000, has its own column, labelled "sample" while its figures are. It comes from the same formula that prices the insertion order, so the two never disagree. On a phone, each row folds to two lines and the slot value moves to the second.
-- **A canvas and an inspector:** the page reads in one column: the on-air readout, which says what the run is doing, the guide through the sample launch, the agent's open question as a card, the chart, the plan with its totals, and the roster. Beside it from 1360px, or in a sheet on smaller screens, the inspector's tabs hold the progress notes with the agent's closing line, the evidence for any call, and the selected show.
+- **A canvas and an inspector:** the page reads in one column: the on-air readout, which says what the run is doing, the agent's open question as a card, the chart, the plan with its totals, and the roster. Beside it from 1360px, or in a sheet on smaller screens, the inspector's tabs hold the progress notes with the agent's closing line and the evidence for any call; on the roster page, the selected show.
 - **Honest states:** loading, slow, failed, missed, not scored, and replayed each have their own wording. A Qloo call still waiting after 8 seconds is named as slow ([wrangler.jsonc]).
 - **The booker's inbox:** each pitch shows its guest, the public work, and the work's Qloo match. Pitched works are ranked in one list per type. Every pitch gets a drafted reply under Book, Later, or Decline. The booker approves, edits, or discards each reply, then copies it to send.
-- **The same world, signed in:** the product's pages share the demo's icon rail and top bar, with the network switcher. The dashboard groups launches by who's blocked, the roster and the inbox reuse the chart's rows, settings are labelled sections beside their help, and every destructive action confirms in one dialog. There are no KPI tiles, decorative icons, or shadows at rest, one ink button for each page's decision, and signal orange only for what the agent puts forward ([DESIGN.md]).
+- **One world:** every page in the app shares one icon rail and top bar, with the network switcher. The dashboard groups launches by who's blocked, the roster and the inbox reuse the chart's rows, settings are labelled sections beside their help, and every destructive action confirms in one dialog. There are no KPI tiles, decorative icons, or shadows at rest, one ink button for each page's decision, and signal orange only for what the agent puts forward ([DESIGN.md]).
 
 [DESIGN.md]: https://github.com/m1kuorg/qloo/blob/main/docs/DESIGN.md
 
 ## Potential impact
 
 - **A named user with a costly, recurring job:** the head of programming plans promos with every launch, and every slot a promo takes is an ad not sold. The bookers triage pitches every day.
-- **The plan priced as inventory:** the insertion order prices each slot from the network's own downloads and CPM. Crossfeed ships no default CPM for real networks. The demo's $20 CPM and its downloads are labelled arbitrary sample figures ([sample network]).
+- **The plan priced as inventory:** the insertion order prices each slot from the network's own downloads and CPM. Crossfeed ships no default CPM for real networks. The sample network's $20 CPM and its downloads are labelled arbitrary sample figures ([sample network]).
 - **A decision the user can defend:** the approved order shows which call and which shared tags put each show there. It also shows where a finalist's listeners differ from the launch's.
 - **Safe with other people's inboxes:** only public works reach Qloo.
-  - On the live demo, two sessions' full logs held 81 and 73 Qloo calls. None held a guest name, sender name, or email address from the sample inbox ([live check]).
+  - On the live demo, before it retired, two sessions' full logs held 81 and 73 Qloo calls. None held a guest name, sender name, or email address from the sample inbox ([live check]).
   - Pitch text does go to Anthropic, to extract the work and draft replies. The sample inbox is synthetic: its publicists are fictional, at `example.com` addresses.
 
 [sample network]: https://github.com/m1kuorg/qloo/blob/main/apps/src/sample-network.json
@@ -179,7 +179,7 @@ A judge opens the URL on a type-led landing page whose one live thing is the re-
 - **Customer:** podcast networks, for the programmers and bookers who plan launches and triage pitches. Independent shows that trade feed swaps are a wider second tier.
 - **Wedge and habit:** the launch plan is a high-stakes decision made with every launch. The booking inbox is daily work, which keeps the product open between launches.
 - **One engine:** both jobs are the same call, a closed list ranked against a show in Qloo. Each new list a network owns, such as candidate swap partners, is another product on that engine.
-- **The product a network signs in to, built:** the demo is one browser's session; the company is a network's members working in Crossfeed together. That product is built in this repository, on the same Worker, behind one switch (`ACCOUNTS`) that production turns on only once the whole product passes on a preview deployment ([product spec]):
+- **The product a network signs in to, built:** the company is a network's members working in Crossfeed together, and a judge tries that product itself, as a guest. That product is built in this repository, on the same Worker, behind one switch (`ACCOUNTS`) that production turns on only once the whole product passes on a preview deployment ([product spec]):
   - members sign up with a passkey, with no password or email, and invite teammates with a link that works once;
   - a network's dashboard lists every launch with its status, finalists, slots, and slot value, and each launch keeps its own runs, so two programmers can plan two launches at once;
   - members upload the roster as the CSV they already keep, and pitches as the `.eml` or `.mbox` their email client exports;
@@ -211,7 +211,7 @@ A judge opens the URL on a type-led landing page whose one live thing is the re-
 - **A podcast named after its guest is set aside.** A work title holding the guest's or sender's whole name never reaches Qloo, so a pitch for "Conan O'Brien Needs a Friend" is set aside as unreadable rather than ranked ([#117 check]).
 - **Guest pitches are live.** They were switched on in production after their live check ([#57]). Drafted replies name no guest, because the model never sees names; the booker adds them before sending.
 - **No integrations.** Nothing is emailed or pushed to an ad server. Downloads are typed in or uploaded as CSV, and pitches are pasted, uploaded as `.eml`, `.mbox`, or text files, or loaded from the sample.
-- **No sign-in on the demo.** A session is one browser's cookie. A visitor, known only by a salted hash of their address, starts at most 10 model runs a day, and all visitors together 200. Past either, or if Qloo can't be called, only the sample launch replays; other runs stop and say why. A signed-in network counts as a visitor of its own, against the same limits.
+- **One guest network, one guest budget.** Every guest shares the guest network, cleared every day, and its daily limits: all guests together start at most 10 model runs a day, and everyone together 200. Past either, or if Qloo can't be called, only the guest network's sample launch replays, while no guest has changed the sample; other runs stop and say why. A signed-in network counts as a visitor of its own, against the same limits. A guest account is removed a day after signing in unless a passkey keeps it.
 - **The signed-in product is a beta.** It runs on our hackathon Qloo key within each network's daily caps, which Qloo's terms don't let us resell; selling it needs a commercial Qloo agreement or each network's own key, which an owner can already add. It has no payments, no email, and passkey sign-in only, and its SDK and plugin aren't published to npm or a public marketplace.
 
 [TRD demo data]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#demo-data
