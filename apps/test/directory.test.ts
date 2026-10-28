@@ -213,11 +213,23 @@ describe('migration 0009', () => {
     const open = await link()
 
     await migrate('0009')
+    // Before any guest signs in, which would write them too: the guest network's row, the guest member,
+    // marked a guest, and its owner membership of the guest network.
+    const rows = async (query: string) => (await env.DB.prepare(query).all()).results
+    expect(await rows("SELECT name, created_by FROM networks WHERE id = 'guest-network'")).toEqual([
+      { name: 'Guest network', created_by: null }
+    ])
+    expect(await rows("SELECT name, guest FROM members WHERE id = 'guest-member'")).toEqual([
+      { name: 'Guest', guest: 1 }
+    ])
+    expect(
+      await rows("SELECT role FROM memberships WHERE network_id = 'guest-network' AND member_id = 'guest-member'")
+    ).toEqual([{ role: 'owner' }])
     // The temporary guest and all it made are still there.
     expect((await temporary(`/app/${id}`)).status).toBe(200)
     expect((await api(secret)(`/api/v1/networks/${id}`)).status).toBe(200)
     expect((await opened(open)).status).toBe(200)
-    // A guest signs in as the guest member, the owner of the guest network, whose row is back.
+    // A guest signs in as the guest member, the owner of the guest network.
     const guest = await openGuest()
     const dashboard = await (await guest.fetch('/app/guest-network')).text()
     expect(dashboard).toContain('data-member-id="guest-member"')
