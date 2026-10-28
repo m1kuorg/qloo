@@ -16,7 +16,17 @@ import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
 import { fakeClaude, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
-import { currentLinks, openGuest, openMember, openSession, regions, type Member, type Session } from './session'
+import {
+  currentLinks,
+  detailsToggle,
+  inspectorClosed,
+  openGuest,
+  openMember,
+  openSession,
+  regions,
+  type Member,
+  type Session
+} from './session'
 
 // Synthetic shows: two exact matches, one name shared by two feeds, and one Qloo doesn't have.
 const search = {
@@ -438,10 +448,6 @@ describe("the roster page's words", () => {
   const markup = (state: State | undefined) =>
     renderToStaticMarkup(<NetworkRoster agent={{ state, stub: {} } as unknown as NetworkConnection} />)
   const page = (state: State | undefined) => words(markup(state))
-  // The inspector closed, its panels there for what opens it, and the header's toggle saying so.
-  const inspectorClosed = /<aside\b(?=[^>]*\sid="inspector")(?=[^>]*\shidden="")/
-  const detailsToggle =
-    /<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="inspector")[^>]*>Details<\/button>/
   // The inspector's Show tab for one of the roster's shows, as selecting its row opens it.
   const editor = (state: State, name: string) =>
     words(
