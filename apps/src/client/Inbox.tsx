@@ -178,6 +178,8 @@ export function InboxPage({
     back?.focus()
   }
   const reading = inbox?.status === 'reading'
+  // The sample inbox's pitches come already read, so only their works are looked up.
+  const sample = inbox?.sample ?? false
   const running = pitchRun?.status === 'running'
   // The agent refuses reply actions until its run ends, and a run waiting on a question hasn't ended.
   const drafting = isLive(pitchRun?.status)
@@ -215,7 +217,7 @@ export function InboxPage({
             booking={booking}
             lists={booking.lists}
             pitches={inbox?.pitches ?? []}
-            sample={inbox?.sample ?? false}
+            sample={sample}
             selected={pitch?.id ?? null}
             select={select}
             openCall={showCall}
@@ -244,6 +246,7 @@ export function InboxPage({
               <InboxLoad
                 loadInbox={actions.loadInbox}
                 reading={reading}
+                sample={sample}
                 wipes={Boolean(booking?.lists?.length || booking?.replies?.length)}
               />
             )}
@@ -255,7 +258,7 @@ export function InboxPage({
           )}
           <PitchTable
             pitches={inbox?.pitches ?? []}
-            sample={inbox?.sample ?? false}
+            sample={sample}
             selected={pitch?.id ?? null}
             select={select}
             openCall={showCall}
@@ -291,7 +294,7 @@ export function InboxPage({
               counted={history.counted}
             />
           )}
-          <InboxCheck pitches={inbox?.pitches ?? []} />
+          <InboxCheck pitches={inbox?.pitches ?? []} sample={sample} />
         </TabsContent>
         <TabsContent value="evidence" keepMounted>
           <EvidencePanel opened={actions.opened} />
@@ -301,7 +304,7 @@ export function InboxPage({
             <PitchDetail
               key={pitch.id}
               pitch={pitch}
-              sample={inbox?.sample ?? false}
+              sample={sample}
               confirmWork={viewing ? null : actions.confirmWork}
               close={() => close(pitch.id)}
               openCall={showCall}
@@ -320,7 +323,7 @@ const inboxName = (inbox: Inbox | null) =>
 // The title row: the inbox's name, with the sample label, and what Claude and Qloo are given of each
 // pitch, or for the sample, which comes already read, what Qloo is; while an earlier pitch run is
 // viewed, its number and the way back to the latest. Then the on-air readout, which follows a pitch run,
-// or while there's none, the inbox's reading and its slow calls.
+// or while there's none, the inbox's reading, or the sample's lookups, and its slow calls.
 function InboxHead({
   inbox,
   pitchRun,
@@ -341,6 +344,9 @@ function InboxHead({
   runLog: (() => void) | null // opens the inspector's Run tab, where it's a sheet
 }) {
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
+  // The sample's pitches come already read, so while it loads, its works' lookups are counted instead.
+  const works = inbox?.pitches.filter((p) => p.work).length ?? 0
+  const looked = inbox?.pitches.filter((p) => p.work && p.status !== 'looking_up').length ?? 0
   // Back to the latest run, its button goes, and focus goes to the page's heading.
   const heading = useRef<HTMLHeadingElement>(null)
   return (
@@ -385,7 +391,11 @@ function InboxHead({
           <RunState run={pitchRun} slowCalls={slowCalls} />
         ) : inbox ? (
           <>
-            {inbox.status === 'reading' ? (
+            {inbox.status === 'reading' && inbox.sample ? (
+              <StateLine kind="loading" word="Looking up">
+                · {looked} of {works} {works === 1 ? 'work' : 'works'} looked up
+              </StateLine>
+            ) : inbox.status === 'reading' ? (
               <StateLine kind="loading" word="Reading">
                 · {done} of {pitchCount(inbox.pitches.length)} read
               </StateLine>
@@ -419,10 +429,12 @@ function InboxHead({
 function InboxLoad({
   loadInbox,
   reading,
+  sample,
   wipes
 }: {
   loadInbox: Actions['loadInbox']
   reading: boolean
+  sample: boolean // the inbox is the sample, whose works are looked up as it loads
   wipes: boolean
 }) {
   const [text, setText] = useState('')
@@ -463,7 +475,9 @@ function InboxLoad({
       {dragging && (
         <DropCue busy={locked}>
           {locked
-            ? 'Wait for the inbox to finish reading, then drop the files again.'
+            ? sample && reading
+              ? 'Wait for the sample’s lookups to finish, then drop the files again.'
+              : 'Wait for the inbox to finish reading, then drop the files again.'
             : 'Drop the files to load their pitches: .eml files, an .mbox export, or a .txt of pitches.'}
         </DropCue>
       )}
@@ -497,7 +511,11 @@ function InboxLoad({
             />
           </div>
           <FieldDescription>
-            {reading ? 'Reading the inbox…' : 'Replaces the current inbox, up to 50 pitches.'}
+            {reading
+              ? sample
+                ? 'Looking up the sample’s works…'
+                : 'Reading the inbox…'
+              : 'Replaces the current inbox, up to 50 pitches.'}
           </FieldDescription>
           <FieldDescription className="max-w-[72ch]">
             Drop email files anywhere on the page, or upload them: <Code>.eml</Code> files, an <Code>.mbox</Code>{' '}
@@ -790,7 +808,9 @@ function PitchSetup({
                 : awaited
                   ? `Waiting for ${awaited}’s Qloo lookup…`
                   : reading
-                    ? 'Rank them once every pitch is read.'
+                    ? inbox.sample
+                      ? 'Rank them once every work is looked up.'
+                      : 'Rank them once every pitch is read.'
                     : inbox.show
                       ? 'Filled in from the sample show’s episode feed.'
                       : 'A new run: earlier runs stay in Runs.'}
@@ -1753,8 +1773,9 @@ function PitchDetail({
 }
 
 // The inbox's pitches counted by their word, which says how many a run can rank: a compact key/value
-// list, two pairs to a row, as the roster check is, with a chip while some are still being read.
-function InboxCheck({ pitches }: { pitches: Pitch[] }) {
+// list, two pairs to a row, as the roster check is, with a chip while some are still being read, or for
+// the sample, whose pitches come already read, looked up.
+function InboxCheck({ pitches, sample }: { pitches: Pitch[]; sample: boolean }) {
   const count = (label: string) => pitches.filter((p) => stateLabel(p) === label).length
   const rows = ['Matched', 'Ambiguous', 'Not in Qloo', 'Lookup failed', 'Set aside', 'Unreadable', 'Failed']
   const pending = count('Reading') + count('Looking up')
@@ -1767,7 +1788,7 @@ function InboxCheck({ pitches }: { pitches: Pitch[] }) {
         {pending > 0 && (
           <Badge>
             <Spinner />
-            {pending} still reading
+            {pending} still {sample ? 'looking up' : 'reading'}
           </Badge>
         )}
       </div>
