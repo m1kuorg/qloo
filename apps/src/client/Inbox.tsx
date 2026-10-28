@@ -233,7 +233,8 @@ export function InboxPage({
           pitchRun={pitchRun}
           startedAt={startedAt}
           slowCalls={slowCalls}
-          runLog={(from) => inspector.inspect('run', from)}
+          // Once there's a pitch run, the latest or an earlier one, for the Run tab to log.
+          runLog={pitchRun || history?.runs.some((r) => r.pitchesFor) ? (from) => inspector.inspect('run', from) : null}
         />
         {/* Before the lists, so the question is what a person reaches first. */}
         {question}
@@ -401,7 +402,7 @@ function InboxReadout({
   pitchRun: Run | null
   startedAt: string | null
   slowCalls: SlowCall[]
-  runLog: (from: HTMLElement) => void // opens the inspector on its Run tab
+  runLog: ((from: HTMLElement) => void) | null // opens the inspector on its Run tab, once there's a run
 }) {
   if (!inbox && !pitchRun) return null
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0

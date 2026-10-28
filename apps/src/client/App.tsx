@@ -158,7 +158,8 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
           opened={opened?.call ?? null}
           connection={connection}
           details={<InspectorToggle open={inspector.open} toggle={inspector.toggle} ref={inspector.toggleButton} />}
-          runLog={(from) => inspect('run', from)}
+          // Once there's a run for the Run tab to log.
+          runLog={run || runs.length > 0 ? (from) => inspect('run', from) : null}
         />
         {/* Before the chart, so the question is what a person reaches first. */}
         {run?.status === 'waiting' && run.question && (
@@ -267,7 +268,7 @@ function LaunchHead({
   opened: string | null
   connection: Connection
   details: ReactNode // the inspector's toggle
-  runLog: (from: HTMLElement) => void // opens the inspector on its Run tab
+  runLog: ((from: HTMLElement) => void) | null // opens the inspector on its Run tab, once there's a run
 }) {
   const form = useLaunchFields(launch ? { name: launch.name, comps: launch.comps.map((c) => c.name) } : null)
   const action = useAction()
