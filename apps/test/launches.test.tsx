@@ -113,7 +113,8 @@ const saved = {
   ACCOUNTS: env.ACCOUNTS,
   GUEST_PITCHES: env.GUEST_PITCHES,
   SAMPLE_NETWORK: env.SAMPLE_NETWORK,
-  QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP
+  QLOO_DAILY_CALL_CAP: env.QLOO_DAILY_CALL_CAP,
+  QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP
 }
 afterEach(() => {
   open.splice(0).forEach((agent) => agent.close())
@@ -1213,6 +1214,23 @@ describe('a launch on a network started from the sample roster', () => {
     env.QLOO_DAILY_CALL_CAP = '0'
     await fresh.call('startLaunch', { name: 'The Watch' })
     expect((await fresh.until(ended)).run).toMatchObject({ status: 'completed', replayed: capped })
+  })
+
+  it("doesn't take the guest network's sample launch for the unchanged sample while the guest budget's refusal leaves the roster empty", async () => {
+    env.SAMPLE_NETWORK = 'on'
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '18'
+    fakes()
+    const guest = await openGuest()
+    const network = await connect(guest, '/agents/network/guest-network')
+    expect(network.state()).toMatchObject({ roster: [], sample: { cpm: true }, launches: [{ name: 'The Watch' }] })
+    const [{ id }] = network.state()!.launches!
+    const agent = await connect(guest, `/agents/launch/guest-network/${id}`)
+
+    env.QLOO_DAILY_CALL_CAP = '0'
+    await agent.call('startLaunch', { name: 'The Watch' })
+    const stopped = await agent.until(ended)
+    expect(stopped.run).toMatchObject({ status: 'stopped', error: expect.stringContaining(own) })
+    expect(stopped.run?.replayed).toBeUndefined()
   })
 })
 

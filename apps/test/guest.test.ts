@@ -653,12 +653,19 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(await qlooCalls(guest)).toBe(19)
   })
 
-  it('opens empty, with the sample roster to start from, when the guest budget refuses its lookups, and tries again as it next starts', async () => {
+  it('opens empty, with the sample roster to start from, the sample CPM labelled, and The Watch planned, when the guest budget refuses its lookups, and tries again as it next starts', async () => {
     fakeQloo({ search })
     env.QLOO_VISITOR_DAILY_CALL_CAP = '18'
     const guest = await openGuest()
     const refused = (await connect(guest)).state()!
-    expect(refused).toMatchObject({ roster: [], cpm: 20, sample: null, launches: [] })
+    // The CPM and the plan call nothing, so the guest budget refuses neither.
+    expect(refused).toMatchObject({
+      roster: [],
+      cpm: 20,
+      sample: { network: 'The Ringer', cpm: true },
+      launches: [{ name: 'The Watch', status: 'new' }]
+    })
+    expect(refused.launches).toHaveLength(1)
     expect(requests).toEqual([])
     const page = renderToStaticMarkup(
       createElement(NetworkRoster, {
@@ -672,13 +679,30 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       })
     )
     expect(page).toContain('Start from the sample roster')
+    expect(page.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).toContain(
+      'CPM $20 per 1,000 downloads sample · Change it in settings'
+    )
 
     // As after an idle eviction or a deploy: the agent starts again, with its storage.
     env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
     await evictAllDurableObjects({ webSockets: 'close' })
     const loaded = await (await connect(guest)).until(settled)
     expect(loaded).toMatchObject({ cpm: 20, sample: { cpm: true }, launches: [{ name: 'The Watch' }] })
+    expect(loaded.launches).toEqual(refused.launches)
     expect(loaded.roster).toHaveLength(19)
+  })
+
+  it('keeps the sample CPM’s label as a guest starts from the sample roster after its lookups were refused', async () => {
+    fakeQloo({ search })
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '18'
+    const guest = await openGuest()
+    const network = await connect(guest)
+    env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
+
+    await network.call('startFromSample')
+    const started = await network.until(settled)
+    expect(started).toMatchObject({ cpm: 20, sample: { cpm: true }, launches: [{ name: 'The Watch' }] })
+    expect(started.roster).toHaveLength(19)
   })
 
   it('keeps a CPM a guest set while its lookups were refused, unlabelled, as the sample loads on a later start', async () => {

@@ -1654,9 +1654,10 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 // Whether this is the sample launch on the unchanged sample network: the sample's CPM and every
 // show's sample figures untouched (#44), and no show left out or mapped to a comp. Picking an
-// ambiguous show's candidate, one of Qloo's own, doesn't change it.
+// ambiguous show's candidate, one of Qloo's own, doesn't change it. An empty roster, as the guest
+// network's is while the guest budget refuses its lookups, isn't the sample network.
 function onSampleLaunch({ sample, roster }: Pick<State, 'sample' | 'roster'>, name: string | null) {
-  if (!sample?.cpm || !('name' in sample.launch) || sample.launch.name !== name) return false
+  if (!sample?.cpm || !('name' in sample.launch) || sample.launch.name !== name || roster.length === 0) return false
   return roster.every(
     (show) =>
       !show.excluded &&
