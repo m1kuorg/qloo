@@ -129,7 +129,7 @@ describe('the account page', () => {
   it('shows a guest only why no guest can change the one account every guest shares, and signing out', async () => {
     const guest = await openGuest()
     // The server reads none of the shared account's passkeys, sessions, or networks for it.
-    expect(await data(guest)).toEqual({ page: 'account', 'member-name': 'Guest', 'guest-member': 'true' })
+    expect(await data(guest)).toEqual({ page: 'account', 'guest-member': 'true' })
     const html = await page(guest)
     expect(regions(html)).toEqual(['Shared guest account'])
     expect(words(html)).toBe(

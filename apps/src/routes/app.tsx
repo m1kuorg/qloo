@@ -129,7 +129,7 @@ appPages.get('/app/account', async (c) => {
   const { id, name } = c.var.member
   if (isGuestMember(c.var.member)) {
     c.set('networks', await memberNetworks(c.env.DB, id))
-    return c.render(<Island page="account" data-member-name={name} data-guest-member="true" />)
+    return c.render(<Island page="account" data-guest-member="true" />)
   }
   const networks = await accountNetworks(c.env.DB, id)
   c.set('networks', networks)

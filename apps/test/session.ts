@@ -432,8 +432,8 @@ export type Guest = Pick<Member, 'cookie' | 'fetch' | 'connect'> & {
   next: string
 }
 
-// Someone signed in as a guest, as a guest member of their own, an owner of the guest network (ADR
-// 0006), through guestSignIn's request, with the same `fetch` and `connect` as a member.
+// Someone signed in as a guest, as the one guest member, an owner of the guest network, with a session of
+// their own (ADR 0008), through guestSignIn's request, with the same `fetch` and `connect` as a member.
 export async function openGuest(options: Parameters<typeof guestSignIn>[0] = {}): Promise<Guest> {
   const res = await guestSignIn(options)
   if (res.status !== 200) throw new Error(`Guest sign-in returned ${res.status}: ${await res.text()}`)
