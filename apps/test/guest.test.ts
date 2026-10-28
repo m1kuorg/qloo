@@ -2003,6 +2003,40 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
     }
   })
 
+  it('refuses while more of the guest network’s launches wait for the hourly retry’s wipe than a run wipes, until the next run', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-29T11:20:00Z'))
+    const guest = await openGuest()
+    const plan = async (...names: string[]) => {
+      const page = await connect(guest)
+      for (const name of names) await page.call('createLaunch', { name })
+      return page
+    }
+    // Seven wait after the first reset, as many as a run wipes, so the next goes ahead.
+    await plan('One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven')
+    expect((await reset(guest)).status).toBe(200)
+    vi.setSystemTime(new Date('2026-10-29T11:21:00Z'))
+    await plan('Eight')
+    expect((await reset(guest)).status).toBe(200)
+
+    // Eight wait now, so the next waits for the retry, at 13:00 UTC: 12:00's daily cron leaves it to then.
+    vi.setSystemTime(new Date('2026-10-29T11:22:00Z'))
+    const page = await plan('The Night Watch')
+    const refused = await reset(guest)
+    expect(refused.status).toBe(429)
+    expect(refused.headers.get('retry-after')).toBe(String(98 * 60))
+    expect(await refused.json()).toEqual({
+      error:
+        'The last resets left more of the guest network’s launches to wipe than Crossfeed wipes in an hour. Try again after 13:00 UTC.'
+    })
+    expect(page.state()!.launches).toMatchObject([{ name: 'The Night Watch' }])
+
+    // The retry wipes seven, leaving one.
+    await runHourlyCron()
+    expect((await reset(guest)).status).toBe(200)
+    expect(await page.closed()).toEqual(RESET)
+  })
+
   it('answers 404 for any other network and to anyone outside the guest network, 403 to its members who aren’t owners and to another site, and resets nothing', async () => {
     const guest = await openGuest()
     const page = await connect(guest)

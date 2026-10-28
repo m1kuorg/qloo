@@ -65,7 +65,15 @@ import { cpmProblem, csvDownload } from '../order'
 import { isQlooHost } from '../qloo-hosts'
 import { appShell, Island, networkLinks, type AppVariables } from '../shell'
 import { GUEST_MEMBER, GUEST_NETWORK, listOf, readName } from '../text'
-import { deleteAccount, deleteLaunch, deleteNetwork, resetGuestNetwork, WipesFailed } from '../wipe'
+import {
+  deleteAccount,
+  deleteLaunch,
+  deleteNetwork,
+  guestLaunchWipesBehind,
+  nextRetry,
+  resetGuestNetwork,
+  WipesFailed
+} from '../wipe'
 
 type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
 
@@ -594,6 +602,13 @@ appPages.post('/app/:networkId/settings/sample-data/reset', async (c) => {
       `Loading the sample data again takes ${lookups} Qloo calls, and the guest network has ${Math.max(0, qlooCalls.limit - qlooCalls.used)} left today. Try again after 00:00 UTC, when they reset.`,
       tomorrow()
     )
+  if (await guestLaunchWipesBehind(c.env)) {
+    const retry = nextRetry(Date.now())
+    return tooMany(
+      `The last resets left more of the guest network’s launches to wipe than Crossfeed wipes in an hour. Try again after ${String(retry.getUTCHours()).padStart(2, '0')}:00 UTC.`,
+      Math.ceil((retry.getTime() - Date.now()) / 1000)
+    )
+  }
   const perDay = Number(c.env.SAMPLE_RESETS_PER_DAY) || 0
   const taken = await takeSampleReset(c.env.DB, perDay)
   if (taken !== 'taken') {

@@ -939,6 +939,15 @@ export async function wipesDue(db: D1Database, before: number, limit: number) {
   return results
 }
 
+// How many wipes of `binding`'s instances whose names start with `prefix` are still noted, due or not.
+export async function wipesWaiting(db: D1Database, binding: string, prefix: string) {
+  const n = await db
+    .prepare('SELECT count(*) AS n FROM wipes WHERE binding = ?1 AND substr(name, 1, ?2) = ?3')
+    .bind(binding, prefix.length, prefix)
+    .first<number>('n')
+  return n ?? 0
+}
+
 // What the hourly cron clears: sessions, challenges, and invites that have expired, and the logs of guest
 // sign-ins and of sign-ups through guests' invite links from before the UTC day, which no limit counts,
 // keeping the last minute's guest sign-ins, which the minute's limit still counts. Returns how many of
