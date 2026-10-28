@@ -55,7 +55,17 @@ import type { NetworkPage } from './NetworkPage'
 import { PageEmpty, PageHeader, summaryLine } from './PageHeader'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
-import { connectionOf, isLive, matchLabel, sentence, SlowCalls, stateLabel, StateLine, type Connection } from './states'
+import {
+  connectionOf,
+  isLive,
+  matchLabel,
+  pitchTally,
+  sentence,
+  SlowCalls,
+  stateLabel,
+  StateLine,
+  type Connection
+} from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
@@ -359,17 +369,15 @@ const QLOO_PRIVACY = 'Only the work’s title and type are looked up in Qloo; na
 // the pitches counted by their words, as the inbox check counts them. Pitches still being read or
 // looked up aren't counted here: the readout says how far that's got.
 function inboxSummary(inbox: Inbox, show: string | null) {
-  const n = (label: string) => inbox.pitches.filter((p) => stateLabel(p) === label).length
-  const counted = (label: string, one: string, many = one) =>
-    n(label) > 0 && `${n(label)} ${n(label) === 1 ? one : many}`
+  const n = pitchTally(inbox.pitches)
   return summaryLine(`${pitchCount(inbox.pitches.length)}${show ? ` for ${show}` : ''}`, [
-    counted('Matched', 'matched'),
-    counted('Ambiguous', 'ambiguous'),
-    counted('Not in Qloo', 'not in Qloo'),
-    counted('Lookup failed', 'lookup failed', 'lookups failed'),
-    counted('Set aside', 'set aside'),
-    counted('Unreadable', 'unreadable'),
-    counted('Failed', 'failed')
+    [n('Matched'), 'matched'],
+    [n('Ambiguous'), 'ambiguous'],
+    [n('Not in Qloo'), 'not in Qloo'],
+    [n('Lookup failed'), 'lookup failed', 'lookups failed'],
+    [n('Set aside'), 'set aside'],
+    [n('Unreadable'), 'unreadable'],
+    [n('Failed'), 'failed']
   ])
 }
 
@@ -1824,8 +1832,8 @@ function PitchDetail({
 // list, two pairs to a row, as the roster check is, with a chip while some are still being read, or for
 // the sample, whose pitches come already read, looked up.
 function InboxCheck({ pitches, sample }: { pitches: Pitch[]; sample: boolean }) {
-  const count = (label: string) => pitches.filter((p) => stateLabel(p) === label).length
-  const rows = ['Matched', 'Ambiguous', 'Not in Qloo', 'Lookup failed', 'Set aside', 'Unreadable', 'Failed']
+  const count = pitchTally(pitches)
+  const rows = ['Matched', 'Ambiguous', 'Not in Qloo', 'Lookup failed', 'Set aside', 'Unreadable', 'Failed'] as const
   const pending = count('Reading') + count('Looking up')
   return (
     <section className="flex flex-col gap-3" aria-labelledby="inbox-check">

@@ -30,7 +30,7 @@ import {
 } from './controls'
 import { CallButton } from './Evidence'
 import type { NetworkPage } from './NetworkPage'
-import { summaryLine } from './PageHeader'
+import { count, summaryLine } from './PageHeader'
 import { Source } from './Source'
 import { sentence, SlowCalls, slowText, StateLine } from './states'
 
@@ -190,8 +190,8 @@ function rosterCounts(roster: Show[]) {
 // the counts that aren't 0, which say what's left to settle before a run can score every show.
 export const rosterSummary = (roster: Show[]) =>
   summaryLine(
-    `${roster.length} ${roster.length === 1 ? 'show' : 'shows'}`,
-    rosterCounts(roster).map(({ n, words: [one, many = one] }) => n > 0 && `${n} ${n === 1 ? one : many}`)
+    count(roster.length, 'show'),
+    rosterCounts(roster).map(({ n, words: [one, many] }) => [n, one, many])
   )
 
 // A show's match chip, marked when its match is in trouble: slow, failed, or missed in Qloo. One that

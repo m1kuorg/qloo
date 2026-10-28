@@ -88,10 +88,9 @@ export const matchLabel = {
   ambiguous: 'Ambiguous',
   missed: 'Not in Qloo',
   failed: 'Lookup failed'
-}
+} as const
 
-// A pitch's state in one word: still being read, its work's match, or why it was set aside. The
-// dashboard's inbox line counts pitches by it too.
+// A pitch's state in one word: still being read, its work's match, or why it was set aside.
 export const stateLabel = (p: Pitch) =>
   ({
     reading: 'Reading',
@@ -101,6 +100,17 @@ export const stateLabel = (p: Pitch) =>
     failed: 'Failed',
     read: p.match ? matchLabel[p.match.resolution] : 'Looking up'
   })[p.status]
+
+// The pitches counted by their state's word, the one tally the inbox's header, its inbox check, and
+// the dashboard's inbox line count from: `pitchTally(pitches)('Matched')`.
+export function pitchTally(pitches: Pitch[]) {
+  const counts = new Map<string, number>()
+  for (const p of pitches) {
+    const word = stateLabel(p)
+    counts.set(word, (counts.get(word) ?? 0) + 1)
+  }
+  return (word: ReturnType<typeof stateLabel>) => counts.get(word) ?? 0
+}
 
 // What a page knows of its agent's socket besides the state: a connection that closed for good, or
 // one that dropped and reconnects by itself. The agent's first state arrives with its identity, so a
