@@ -107,10 +107,13 @@ describe('the dashboard', () => {
     const read = words(html)
     // The page is the network's launches; the top bar's switcher names the network.
     expect(await (await ada.fetch(`/app/${id}`)).text()).toMatch(/data-current-network[^>]*>Night Shift Audio</)
-    expect(read).toMatch(/^Launches 0 launches New launch /)
-    expect(read).toContain(
-      'Launch Status Finalists Slots Slot value Last run Actions No launches yet. Each launch you plan is listed here with its status, finalists, promo slots, and their slot value. New launch'
-    )
+    // The header is the title alone, and the empty state says what's missing with the page's one
+    // action, where the launches will be.
+    expect(read).toMatch(/^Launches No launches yet\. New launch Network /)
+    expect(html.match(/>New launch</g)).toHaveLength(1)
+    expect(html).toMatch(/<span class="text-muted-foreground" data-state="empty">No launches yet\.<\/span>/)
+    expect(read).not.toContain('0 launches')
+    expect(read).not.toContain('Launch Status Finalists')
     expect(read).toContain('Roster No shows yet Open')
     expect(read).toContain('CPM Not set Set')
     expect(read).not.toContain('Inbox')
@@ -225,6 +228,8 @@ describe('the dashboard', () => {
       ]
     }
     const html = await dashboard(ada, id, state)
+    // The header: the title, its one summary line, and New launch.
+    expect(words(html)).toMatch(/^Launches 1 launch New launch Launch Status /)
     expect(words(html)).toContain('Approved 1 The Night Watch Order approved 5 20 $52,000 Oct 19 · Ada Programmer')
     expect(html).toContain(`href="/app/${id}/launches/l-1"`)
     expect(words(html)).not.toContain('No launches yet')
@@ -620,26 +625,28 @@ describe("a network page's connection", () => {
 
   it('says it is connecting until the first state arrives', async () => {
     const read = await gated({ state: undefined, identified: false })
-    expect(read).toMatch(/^Launches Working Connecting to the network… New launch /)
+    // Nothing to act on yet: New launch comes with the launches, or with the empty state.
+    expect(read).toMatch(/^Launches Working Connecting to the network… Launch Status /)
+    expect(read).not.toContain('New launch')
     expect(read).not.toContain('No launches yet')
   })
 
   it('says nothing of a connection that is up', async () => {
     const read = await gated({})
     expect(read).not.toContain('Reconnecting…')
-    expect(read).toMatch(/^Launches 0 launches New launch /)
+    expect(read).toMatch(/^Launches No launches yet\. New launch /)
   })
 
   it('says it is reconnecting while the socket is down, keeping what the page showed', async () => {
     const read = await gated({ identified: false })
-    expect(read).toMatch(/^Launches 0 launches Reconnecting… New launch /)
-    expect(read).toContain('No launches yet')
+    expect(read).toMatch(/^Launches Reconnecting… No launches yet\. New launch /)
   })
 
   it('says a connection closed for good without a reason of its own is lost, keeping the page', async () => {
     const read = await gated({ connectionError: { code: 1008, reason: '' } })
-    expect(read).toMatch(/^Launches 0 launches Error This page lost its connection\. Reload to try again\. New launch /)
-    expect(read).toContain('No launches yet')
+    expect(read).toMatch(
+      /^Launches Error This page lost its connection\. Reload to try again\. No launches yet\. New launch /
+    )
   })
 
   it("drops the page for the agent's reason when it shuts the member out, 4403, or the network is gone, 4410", async () => {
