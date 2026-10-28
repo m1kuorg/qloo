@@ -262,6 +262,7 @@ Contents:
     1.  [The shadcn components](#the-shadcn-components)
     1.  [Shared client modules](#shared-client-modules)
 1.  [Patterns](#patterns)
+    1.  [Page header and empty state](#page-header-and-empty-state)
     1.  [Canvas and inspector](#canvas-and-inspector)
     1.  [Question card](#question-card)
     1.  [Fit chart](#fit-chart)
@@ -470,6 +471,7 @@ Forks worth knowing:
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `client/controls.tsx`                 | `send` and `Refused` for the Worker's routes, `useAction`, `useLeaveGuard`, `Alert`, `SignOut`, `FitBand`, `NotScored`, `PickOne`, `KeyValues`, `Code`, `ScrollTable`, `ShownOnce`, `DropCue` and `useFileDrop` |
 | `client/states.tsx`                   | `StateLine` and its words, `SlowCalls`, `isLive` and `endedBadly` (a run's status), and the connection's state                                                                                                  |
+| `client/PageHeader.tsx`               | `PageHeader`, `PageEmpty` and `summaryLine`: the header and the empty state the Launches dashboard, the roster and the inbox share                                                                              |
 | `client/Frame.tsx`                    | the run pages' frame: `canvas`, `frame`, `useInspector`, `Inspector`, `Readout`, `RunState`, `OnAir`, `Connecting`                                                                                              |
 | `client/Run.tsx`                      | a run's status words, `RunLog`, `RunList` and `OpenQuestion`, the question card                                                                                                                                 |
 | `client/FitChart.tsx`                 | the fit chart                                                                                                                                                                                                   |
@@ -483,6 +485,18 @@ Forks worth knowing:
 | `client/ascii.ts`                     | the landing page's ASCII field                                                                                                                                                                                  |
 
 ## Patterns
+
+### Page header and empty state
+
+`PageHeader` (`client/PageHeader.tsx`) is the header the network's pages share: the Launches dashboard, the roster and the inbox. A launch's page keeps its own title row, with its Qloo match and its run's actions.
+
+- **Anatomy:** the title, the page's one h1 at `type-title`, with the page's actions at its right on the title's line. That line is as tall as a control, 32px and 44px on a phone, so an action arriving with the agent's state moves nothing. Under it, 6px down, one summary line in muted 14px text, then the connection's state in a live region that's always there: "Working Connecting to the network…", "Reconnecting…", or the lost connection's error. The inbox's readout says the connection's state instead, once there's a readout.
+- **The summary:** what the page holds, counted in one form (`summaryLine`): the total, " · ", then the counts that aren't 0, separated by commas, in the page's own words: "7 launches · 4 need you, 1 running", "19 shows · 16 resolved, 1 ambiguous, 2 missed", "40 pitches for The Big Picture · 31 matched, 1 ambiguous, 4 not in Qloo, 4 set aside". While an earlier pitch run is viewed, it says that instead: "Run 1 An earlier run, read-only."
+- **Actions:** the page's primary action: "New launch", "Import shows", or the inbox's "Load pitches", which is secondary because ranking the pitches is the inbox's primary once it has some. While an earlier run is viewed, "Back to the latest run". Whatever else acts on the page as a whole goes beside them.
+- **What stays out:** explanations, secondary facts, notices, sample badges and the CPM. Each sits with what it's about. Whether the roster is ready to rank ("3 shows aren't scored until you settle or leave them out.") sits above its table. The inbox's privacy promise, that only a work's title and type are looked up in Qloo, sits in its pitch table's caption and its load form. The CPM is on the dashboard and in settings.
+- **Phones:** the same, the actions on the title's line and the summary wrapping under it.
+
+`PageEmpty`, in the same module, is what each of those pages shows in place of its body while it has nothing yet. It's one short line in the `empty` state's muted words ("No launches yet.", "No shows yet.", "No pitches yet."), and under it the page's one primary action. The header then has no summary and no action, so nothing is said twice; there's no box around it, and no readout beside it. A form the action needs, the roster's import or the inbox's load, opens in the page's sheet, the same from the header and from the empty state. The sheet is kept mounted, so a file dropped anywhere on the page opens it; it stays open as the first import or load fills the page; and closing it returns focus to the header's action.
 
 ### Canvas and inspector
 
@@ -517,7 +531,7 @@ The roster table (`RosterTable`), the inbox's pitch lists and the launches table
 
 ### Launches dashboard
 
-`Dashboard.tsx`: h1 "Launches" with counts ("2 need you · 1 running · 4 launches") and "New launch", which opens a dialog. Launches are grouped by who's blocked, groups shown only when they have rows: Needs you (waiting, order drafted, failed, stopped), Running, Ranked, Not run yet, Approved; latest run first within a group. Status shows the on-air dot for running and waiting, an ink check for an approved order, the square ✕ and the word in crimson for failed and stopped. Each row has a finalist meter and a row menu with Delete. Beside it, the Network panel (roster, inbox and CPM lines, the CPM labelled sample while it's still the sample network's, as on the roster page and, as an outline badge on the module's tone step, in the settings' network module) and Setup ("Setup · 2 of 5 done", a real `<ol>`, until this member dismisses it).
+`Dashboard.tsx`: the page header, "Launches" with its counts ("7 launches · 4 need you, 1 running") and "New launch", which opens a dialog; with no launches, the empty state, "No launches yet." with "New launch", where the launches will be. Launches are grouped by who's blocked, groups shown only when they have rows: Needs you (waiting, order drafted, failed, stopped), Running, Ranked, Not run yet, Approved; latest run first within a group. Status shows the on-air dot for running and waiting, an ink check for an approved order, the square ✕ and the word in crimson for failed and stopped. Each row has a finalist meter and a row menu with Delete. Beside it, the Network panel (roster, inbox and CPM lines, the CPM labelled sample while it's still the sample network's, as the settings' network module labels it with an outline badge on the module's tone step) and Setup ("Setup · 2 of 5 done", a real `<ol>`, until this member dismisses it).
 
 ### Settings grammar
 
@@ -544,7 +558,7 @@ Every block has its loading, empty, error, pending and disabled states. `StateLi
 | `error`   | Error     | a square ✕, crimson (anything else)                                      |
 | `empty`   | none      | none, in muted text                                                      |
 
-A run's status words are `runLabel`'s; `isLive` and `endedBadly` say which glyph a run gets. Loading uses a Skeleton in the block's real shape beside its state line.
+A run's status words are `runLabel`'s; `isLive` and `endedBadly` say which glyph a run gets. Loading uses a Skeleton in the block's real shape beside its state line. A page with nothing yet shows its empty state ([Page header and empty state](#page-header-and-empty-state)), an `empty` state line with the page's one action.
 
 ### Connection states
 
@@ -552,7 +566,7 @@ The launch, inbox and network pages show a connecting skeleton (`Connecting`) un
 
 ### Source labels and call numbers
 
-Every figure says where it came from, and the two never look alike: "Qloo data" is an outlined chip with an ink square, "Agent" a tone-filled chip with a circle (`Source.tsx`). Every Qloo figure cites its call number, a mono button (`callVariants`) with `aria-pressed`, `aria-controls="evidence"` and an `aria-label` naming what it evidences, which opens the inspector's Evidence tab. Sample figures carry a "sample" chip until edited: in the roster table one a row, beside the show's name, while any of its figures is the sample's, and in the Show tab one beside each. The sample inbox's guests and works, which come already read, carry it where Claude's reading carries "Agent": in the pitch table's caption, the lists' column head and the pitch's details. No notice sits above the roster or the inbox; the title row's "Sample data" badge and these chips say what's sample. The roster table's chip is hidden from screen readers, as a row's header is read out before each of its cells; they hear a visually hidden "sample" after each sample downloads and status figure instead.
+Every figure says where it came from, and the two never look alike: "Qloo data" is an outlined chip with an ink square, "Agent" a tone-filled chip with a circle (`Source.tsx`). Every Qloo figure cites its call number, a mono button (`callVariants`) with `aria-pressed`, `aria-controls="evidence"` and an `aria-label` naming what it evidences, which opens the inspector's Evidence tab. Sample figures carry a "sample" chip until edited: in the roster table one a row, beside the show's name, while any of its figures is the sample's, and in the Show tab one beside each. The sample inbox's guests and works, which come already read, carry it where Claude's reading carries "Agent": in the pitch table's caption, the lists' column head and the pitch's details. No notice or badge sits above the roster or the inbox; these chips say what's sample. The roster table's chip is hidden from screen readers, as a row's header is read out before each of its cells; they hear a visually hidden "sample" after each sample downloads and status figure instead.
 
 ### Phones
 
