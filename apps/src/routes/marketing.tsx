@@ -1464,8 +1464,8 @@ marketing.get('/terms', marketingShell('Beta terms'), (c) => c.render(<Terms env
 // The 404 page's body: ways back home, to the sample network, and while ACCOUNTS is on, to the
 // visitor's networks.
 const NotFound = ({ accounts }: { accounts: boolean }) => (
-  // At least 60% of the window tall, so the footer's full-width name starts at the fold rather than in
-  // the first screen, where it would outweigh the page's heading, without a window of nothing above it.
+  // At least 60% of the window tall, so the footer's index and name start at the fold rather than in
+  // the first screen, where they would outweigh the page's heading, without a window of nothing above it.
   <main
     class={cn(
       marketingFrame,

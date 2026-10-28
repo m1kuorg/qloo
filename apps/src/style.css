@@ -209,7 +209,7 @@
     line-height: 0.9;
   }
 }
-/* The landing ranking's show names only. */
+/* The landing ranking's show names, and the marketing footer's index. */
 @utility type-index {
   font-size: clamp(28px, 1rem + 3.6vw, 72px);
   line-height: 1;

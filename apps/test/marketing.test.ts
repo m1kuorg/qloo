@@ -309,6 +309,57 @@ describe('the privacy page and the beta terms', () => {
   })
 })
 
+describe('the footer', () => {
+  // Every marketing page, the 404 page's too, by its path.
+  const shown = async () => {
+    const missing = await exports.default.fetch(`${origin}/no-such-page`, { headers: { Accept: 'text/html' } })
+    return [
+      ...(await Promise.all(pages.map(async (path) => [path, await page(path)]))),
+      ['/no-such-page', await missing.text()]
+    ]
+  }
+  // The footer's one navigation, which holds every link in it: each link's words and where it goes,
+  // and the one that's the page on view.
+  const index = (html: string, path: string) => {
+    const footer = html.match(/<footer\b[\s\S]*<\/footer>/)?.[0] ?? ''
+    const navs = footer.match(/<nav\b[^>]*>[\s\S]*?<\/nav>/g) ?? []
+    expect(navs, path).toHaveLength(1)
+    const nav = navs[0] ?? ''
+    expect(nav, path).toMatch(/^<nav\b[^>]*\baria-label="Footer"/)
+    expect(hrefs(nav), path).toEqual(hrefs(footer))
+    const links = [...nav.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map(([, attributes, text]) => ({
+      link: `${words(text).trim()} ${attributes.match(/\bhref="([^"]*)"/)?.[1]}`,
+      current: /\baria-current="page"/.test(attributes)
+    }))
+    return { links: links.map((l) => l.link), current: links.filter((l) => l.current).map((l) => l.link) }
+  }
+
+  it('indexes the ways in while accounts are on: as a guest, a network of your own, signing in, then the developer docs, privacy, and the beta terms', async () => {
+    env.ACCOUNTS = 'on'
+    for (const [path, html] of await shown()) {
+      const { links, current } = index(html, path)
+      expect(links, path).toEqual([
+        'Sign in as a guest /sign-in',
+        'Create your network /app/new',
+        'Sign in /sign-in',
+        'Developers /docs',
+        'Privacy /privacy',
+        'Beta terms /terms'
+      ])
+      expect(current, path).toEqual(path.startsWith('/docs') ? ['Developers /docs'] : [])
+    }
+  })
+
+  it('indexes only the developer docs, privacy, and the beta terms while accounts are off', async () => {
+    env.ACCOUNTS = 'off'
+    for (const [path, html] of await shown()) {
+      const { links, current } = index(html, path)
+      expect(links, path).toEqual(['Developers /docs', 'Privacy /privacy', 'Beta terms /terms'])
+      expect(current, path).toEqual(path.startsWith('/docs') ? ['Developers /docs'] : [])
+    }
+  })
+})
+
 describe('the developer docs', () => {
   const docs = ['/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
 
