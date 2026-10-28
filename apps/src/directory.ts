@@ -3,6 +3,7 @@
 // and stored only as SHA-256 hashes. D1 has no interactive transactions, so each change that must
 // hold together is one statement or one batch.
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
+import type { SampleLaunchesRow } from './sample-launches'
 import { GUEST_MEMBER, GUEST_NETWORK, GUEST_PREFIX, sha256 } from './text'
 
 // A session lasts 30 days from its last use; a use extends it at most once a minute. A guest's session
@@ -872,12 +873,12 @@ export async function clearGuestNetwork(db: D1Database, instances: Instance[]) {
   ])
 }
 
-// The rows of the guest network's sample launches (src/sample-launch.ts), in the order their JSON reads,
+// The rows of the guest network's sample launches (src/sample-launches.ts), in the order their JSON reads,
 // as each environment's database was loaded with them by hand (migration 0010).
 export async function sampleLaunchRows(db: D1Database) {
   const { results } = await db
     .prepare('SELECT key, chunk FROM sample_launches ORDER BY key, seq')
-    .all<{ key: string; chunk: string }>()
+    .all<SampleLaunchesRow>()
   return results
 }
 

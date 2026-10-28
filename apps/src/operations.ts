@@ -247,14 +247,14 @@ export async function exportOrder(
 }
 
 // The launch's evidence log: one record per Qloo call its runs made or copied from the roster's
-// lookups, oldest first, each with what was sent and what came back. A sample launch's records keep the
-// API's shape, without the mark the app labels them with.
+// lookups, oldest first, each with what was sent and what came back. The records of one of the guest
+// network's sample launches keep the API's shape, without the mark the app labels them with.
 export async function getLaunchEvidence(
   { env, network }: OperationContext,
   input: { launchId: string }
 ): Promise<Evidence[]> {
   const log: Evidence[] = await (await launchAgent(env, network, input.launchId)).getEvidence()
-  return log.map(({ sample: _, ...record }) => record)
+  return log.map(({ fromSample: _, ...record }) => record)
 }
 
 // Deletes the launch for every member, with its runs and their evidence, as the dashboard does. It's
@@ -377,8 +377,8 @@ async function launchRunOf(launch: LaunchStub, state: State, id: string): Promis
 // An insertion order as a program reads it: who approved it by name, never by their member ID, and
 // whether it has been edited since the agent drafted it, so its run's closing line may quote figures
 // it no longer has.
-export type OrderInfo = Omit<InsertionOrder, 'approvedById' | 'edited' | 'sample'> & { edited: boolean }
-const orderOf = ({ approvedById: _, edited, sample: __, ...order }: InsertionOrder): OrderInfo => ({
+export type OrderInfo = Omit<InsertionOrder, 'approvedById' | 'edited' | 'fromSample'> & { edited: boolean }
+const orderOf = ({ approvedById: _, edited, fromSample: __, ...order }: InsertionOrder): OrderInfo => ({
   ...order,
   edited: edited ?? false
 })

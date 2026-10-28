@@ -2,8 +2,9 @@
 // they were run for real as apps/README.md's "Sample launches" steps say: one launch each with its order
 // approved, with its order drafted, ranked with no order, and stopped or failed. It signs in as a guest,
 // reads each launch's state and evidence log through its page's agent connection, as the app does, trims
-// them as the stored sample run is trimmed (apps/src/sample-launch.ts), and writes the SQL that loads them
-// into D1's sample_launches, for `wrangler d1 execute DB --file`.
+// them as the stored sample run is trimmed (apps/test/capture.ts), and writes the SQL that loads them into
+// D1's sample_launches, for `wrangler d1 execute DB --file`. The agents package's client isn't installed
+// at the repo's root, and test/session.ts's needs the Workers runtime, so it opens its own WebSocket.
 //
 // Everything it writes is Qloo data, so it writes outside the repo, never into it, and prints nothing of
 // it. Each launch is the newest the guest network lists in its status, but The Watch, the sample launch.
@@ -17,7 +18,8 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { LaunchSummary, State } from '../apps/src/agent'
 import type { Evidence } from '../apps/src/evidence'
-import { sampleLaunchesSql, sampleLaunchOf, type SampleLaunch } from '../apps/src/sample-launch'
+import type { CapturedRun, KeyedRun } from '../apps/src/sample-launches'
+import { capturedRunOf, sampleLaunchesSql } from '../apps/test/capture'
 
 const origin = process.argv[2] ?? 'http://localhost:5128'
 const outDir = process.argv[3] ?? join(homedir(), '.cache/crossfeed/out/289')
@@ -74,11 +76,11 @@ async function connect(path: string, cookie: string) {
 
 // A stopped or failed run's text as the sample's: what stopped it then, said as of the day it was
 // captured, since the sample is loaded on later days. A start the daily model runs stopped says so plainly.
-function asTheSample(launch: SampleLaunch): SampleLaunch {
-  const run = launch.state.run!
-  if (run.status !== 'stopped' && run.status !== 'failed') return launch
+function asTheSample(captured: CapturedRun): CapturedRun {
+  const run = captured.state.run!
+  if (run.status !== 'stopped' && run.status !== 'failed') return captured
   // The UTC day, as the guest budget counts its days.
-  const day = new Date(launch.captured).toLocaleDateString('en-US', {
+  const day = new Date(captured.captured).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -87,7 +89,7 @@ function asTheSample(launch: SampleLaunch): SampleLaunch {
   const error = /model runs? today/.test(run.error ?? '')
     ? `Stopped at once on ${day}, as this sample was captured: guests had used that day's model runs, so it never called Claude. Run it again to plan it.`
     : `As this sample was captured, on ${day}: ${run.error}`
-  return { ...launch, state: { ...launch.state, run: { ...run, error } } }
+  return { ...captured, state: { ...captured.state, run: { ...run, error } } }
 }
 
 const cookie = await signIn()
@@ -95,7 +97,7 @@ const network = await connect('/agents/network/guest-network', cookie)
 const listed = network.state.launches ?? []
 network.close()
 const captured = new Date().toISOString()
-const launches: { key: string; launch: SampleLaunch }[] = []
+const runs: KeyedRun[] = []
 for (const [key, statuses] of Object.entries(KEYS)) {
   for (const row of listed.filter((l) => statuses.includes(l.status))) {
     const agent = await connect(`/agents/launch/guest-network/${row.id}`, cookie)
@@ -103,18 +105,18 @@ for (const [key, statuses] of Object.entries(KEYS)) {
     agent.close()
     // The sample launch carries the sample; no other launch does.
     if (agent.state.sample) continue
-    launches.push({ key, launch: asTheSample(sampleLaunchOf(agent.state, log, captured)) })
+    runs.push({ key, run: asTheSample(capturedRunOf(agent.state, log, captured)) })
     console.log(`${key}: ${row.name ?? row.comps.join(', ')}, ${row.status}, ${log.length} records in its log`)
     break
   }
 }
-const missing = Object.keys(KEYS).filter((key) => !launches.some((l) => l.key === key))
+const missing = Object.keys(KEYS).filter((key) => !runs.some((r) => r.key === key))
 if (missing.length > 0) throw new Error(`The guest network lists no launch to capture as: ${missing.join(', ')}.`)
 
-const sql = sampleLaunchesSql(launches)
+const sql = sampleLaunchesSql(runs)
 mkdirSync(outDir, { recursive: true })
 const file = join(outDir, 'sample-launches.sql')
 writeFileSync(file, sql)
-for (const { key, launch } of launches)
-  console.log(`${key}: ${launch.evidence.length} cited records, ${JSON.stringify(launch).length} characters`)
+for (const { key, run } of runs)
+  console.log(`${key}: ${run.evidence.length} cited records, ${JSON.stringify(run).length} characters`)
 console.log(`Wrote ${file} (${sql.length} bytes). Load it with: bunx wrangler d1 execute DB --local --file ${file}`)

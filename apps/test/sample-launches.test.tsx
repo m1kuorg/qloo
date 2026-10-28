@@ -2,7 +2,7 @@
 // statuses, captured from real runs and loaded into D1, as scripts/capture-sample-launches.ts and
 // `wrangler d1 execute` do, then seeded as the guest network starts, with no call to Qloo or Claude. Here
 // the runs are made on the guest network against the fakes, captured through the launches' own agents with
-// src/sample-launch.ts, loaded with its SQL, and the guest network cleared by the daily cron, as each day.
+// test/capture.ts, loaded with its SQL, and the guest network cleared by the daily cron, as each day.
 import { getAgentByName } from 'agents'
 import {
   createExecutionContext,
@@ -21,9 +21,9 @@ import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
-import { sampleLaunchOf, sampleLaunchesSql } from '../src/sample-launch'
 import { networkLinks } from '../src/shell'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
+import { capturedRunOf, sampleLaunchesSql } from './capture'
 import { api, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
 
 // Made-up IDs for three of the sample's public show names, and for the made-up launches; every other
@@ -216,7 +216,7 @@ async function captureSampleLaunches(guest: Guest) {
   const sql = []
   const rows: Record<string, LaunchSummary> = {}
   for (const [key, { id, launch }] of Object.entries(launches)) {
-    sql.push({ key, launch: sampleLaunchOf(launch.state()!, await launch.call<Evidence[]>('getEvidence'), captured) })
+    sql.push({ key, run: capturedRunOf(launch.state()!, await launch.call<Evidence[]>('getEvidence'), captured) })
     rows[key] = listed.launches!.find((l) => l.id === id)!
   }
   await env.DB.exec(sampleLaunchesSql(sql))
@@ -316,12 +316,12 @@ describe("the guest network's sample launches", () => {
           `${name} ${call}`
         ).toBeDefined()
       expect(
-        log.every((e) => e.sample === true && !e.replayed && !e.copiedFrom),
+        log.every((e) => e.fromSample === true && !e.replayed && !e.copiedFrom),
         name!
       ).toBe(true)
       expect(state).toMatchObject({ sample: null, rosterChanged: false, slowCalls: [] })
-      expect(state.run).toMatchObject({ sample: expect.any(String) })
-      expect(runs).toEqual([expect.objectContaining({ id: state.run!.id, sample: true, startedBy: 'Guest' })])
+      expect(state.run).toMatchObject({ capturedAt: expect.any(String) })
+      expect(runs).toEqual([expect.objectContaining({ id: state.run!.id, fromSample: true, startedBy: 'Guest' })])
       // The run list's View opens it as it ended.
       expect(await launch.call<RunSnapshot>('getRun', state.run!.id)).toEqual(state)
 
@@ -350,11 +350,11 @@ describe("the guest network's sample launches", () => {
       expect(record, name!).not.toContain('Replayed')
 
       if (name === 'Night Shift Cinema') {
-        expect(state.insertionOrder).toMatchObject({ status: 'approved', approvedBy: 'Guest', sample: true })
+        expect(state.insertionOrder).toMatchObject({ status: 'approved', approvedBy: 'Guest', fromSample: true })
         expect(page).toContain('Approved in the sample data')
       } else if (name === 'Paper Moons') {
         expect(state.insertionOrder).toMatchObject({ status: 'draft', slots: 10, total: 86_400 })
-        expect(state.insertionOrder!.sample).toBeUndefined()
+        expect(state.insertionOrder!.fromSample).toBeUndefined()
       } else expect(state.insertionOrder, name!).toBeNull()
     }
   })
@@ -378,7 +378,7 @@ describe("the guest network's sample launches", () => {
     const order = launch.state()!.insertionOrder!
     await launch.call('editInsertionOrder', order.id, [{ show: 'The Big Picture', slots: 2, angle: 'Film talk.' }])
     expect(launch.state()!.insertionOrder).toMatchObject({ status: 'draft', edited: true, slots: 2 })
-    expect(launch.state()!.insertionOrder).not.toHaveProperty('sample')
+    expect(launch.state()!.insertionOrder).not.toHaveProperty('fromSample')
     expect(launch.state()!.insertionOrder).not.toHaveProperty('approvedBy')
 
     fakeQloo({ search })
@@ -391,8 +391,8 @@ describe("the guest network's sample launches", () => {
     await launch.call('answer', exclusions.run!.question!.id, { exclude: [] })
     const rerun = await launch.until(ended)
     expect(rerun.run).toMatchObject({ status: 'completed' })
-    expect(rerun.run).not.toHaveProperty('sample')
-    expect(rerun.runs.map((r) => [r.status, r.sample ?? false])).toEqual([
+    expect(rerun.run).not.toHaveProperty('capturedAt')
+    expect(rerun.runs.map((r) => [r.status, r.fromSample ?? false])).toEqual([
       ['completed', true],
       ['completed', false]
     ])
@@ -446,7 +446,7 @@ describe("the guest network's sample launches", () => {
     expect(res.status).toBe(200)
     const { evidence } = await res.json<{ evidence: Record<string, unknown>[] }>()
     expect(evidence.length).toBeGreaterThanOrEqual(19)
-    for (const record of evidence) expect(Object.keys(record)).not.toContain('sample')
+    for (const record of evidence) expect(Object.keys(record)).not.toContain('fromSample')
   })
 
   it('that fail to seed, or that the launch cap refuses, are seeded as the guest network next starts, each once, and one deleted stays deleted', async () => {
@@ -565,7 +565,6 @@ describe('the daily cron, with the sample launches', () => {
 
     const { counted, env: bindings } = counting()
     await runCron('0 12 * * *', bindings)
-    console.info(JSON.stringify({ event: 'daily_cron_subrequests', ...counted }))
     expect(counted.subrequests).toBeLessThanOrEqual(50)
     expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 11, failed: 0 }))
     // Each launch it listed is noted for the hourly retry, which wipes the oldest seven a run.
