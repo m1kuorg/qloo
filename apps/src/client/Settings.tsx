@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { State } from '../agent'
 import type { ApiKey, Invite, NetworkMember } from '../directory'
 import type { OwnKey, Usage } from '../gateway'
-import { GUEST_MEMBER } from '../text'
+import { GUEST_MEMBER, GUEST_NETWORK } from '../text'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { ApiKeysModule } from './settings/ApiKeys'
 import { DangerZoneModule } from './settings/DangerZone'
@@ -10,6 +10,7 @@ import { MembersModule } from './settings/Members'
 import { settingsColumn } from './settings/Module'
 import { NetworkModule } from './settings/Network'
 import { QlooKeyModule } from './settings/QlooKey'
+import { SampleDataModule } from './settings/SampleData'
 import { UsageModule } from './settings/Usage'
 import { connectionOf, ConnectionState, StateLine, type Connection } from './states'
 
@@ -27,34 +28,50 @@ type MembersProps = {
 
 // The network's settings page: one module per job, each in its own file under settings/, in the order
 // a new owner needs them. Every member sees every module; a module an owner alone can change shows
-// itself read-only to the rest. The title row says how the agent's connection stands.
+// itself read-only to the rest. The title row says how the agent's connection stands. A reset of the
+// sample data closes the page's connection as it leaves for the dashboard, so the page stays as it is
+// meanwhile (`leaving`).
 export function SettingsPage({
   agentPath,
   network,
   ...membersProps
 }: { agentPath: string; network: NetworkPage } & MembersProps) {
   const agent = useNetwork(agentPath)
+  const [leaving, setLeaving] = useState(false)
   return (
-    <NetworkGate agent={agent} network={network}>
-      <Settings state={agent.state} connection={connectionOf(agent)} network={network} {...membersProps} />
+    <NetworkGate agent={agent} network={network} leaving={leaving}>
+      <Settings
+        state={agent.state}
+        connection={connectionOf(agent)}
+        network={network}
+        onLeaving={setLeaving}
+        {...membersProps}
+      />
     </NetworkGate>
   )
 }
 
 // Tests render it from a network agent's synced state; `state` is undefined until it arrives. The
 // page answers "How is this network set up, and who can do what?": the title row says the viewer's
-// role, then the modules stand in the settings' two columns on a centred 1152px measure.
+// role, then the modules stand in the settings' two columns on a centred 1152px measure. The guest
+// network's alone has the sample data module (ADR 0007).
 export function Settings({
   state,
   connection = { lost: null, reconnecting: false },
   network,
+  onLeaving = () => {},
   memberId,
   members,
   invites,
   apiKeys,
   usage: loaded,
   qlooKey: loadedKey
-}: { state: State | undefined; connection?: Connection; network: NetworkPage } & MembersProps) {
+}: {
+  state: State | undefined
+  connection?: Connection
+  network: NetworkPage
+  onLeaving?: (leaving: boolean) => void
+} & MembersProps) {
   // Adding or removing the Qloo key moves where the network's Qloo calls count, so usage follows it.
   const [{ key: qlooKey, usage }, setKeyAndUsage] = useState({ key: loadedKey, usage: loaded })
   // A rename saved here reaches every module at once: the danger zone asks for the new name, as the
@@ -92,6 +109,7 @@ export function Settings({
         <ApiKeysModule network={named} keys={apiKeys} />
         <QlooKeyModule network={named} qlooKey={qlooKey} guest={memberId === GUEST_MEMBER} onChange={setKeyAndUsage} />
         <UsageModule network={named} usage={usage} hasOwnKey={qlooKey.set} />
+        {network.id === GUEST_NETWORK && <SampleDataModule network={named} onLeaving={onLeaving} />}
         <DangerZoneModule network={named} />
       </div>
     </main>

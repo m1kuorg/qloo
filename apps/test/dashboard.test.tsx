@@ -274,7 +274,8 @@ describe('settings', () => {
     expect(res.status).toBe(200)
     const set = await agent.until((s) => s.cpm === 25)
     expect(words(await dashboard(guest, 'guest-network', set))).toContain('CPM $25 per 1,000 downloads Change')
-    expect(words(await settings(guest, 'guest-network', set))).not.toContain('sample')
+    // The CPM's sample label goes; the sample data module stays.
+    expect(words(await settings(guest, 'guest-network', set))).toContain('Dollars per 1,000 downloads. Save')
   })
 
   it("give an owner the network's name and CPM to change", async () => {
@@ -530,6 +531,31 @@ describe('settings', () => {
     expect(theirs).not.toContain('Every guest shares a key')
   })
 
+  it("give the guest network's owners the sample data module, to reset it for every guest, and no other network's settings", async () => {
+    const guest = await openGuest()
+    const html = await settings(guest, 'guest-network', await (await connect(guest, 'guest-network')).until(() => true))
+    const read = words(html)
+    expect(read).toContain(
+      'Sample data The guest network starts from the sample data every day at 12:00 UTC: The Ringer’s shows, the sample CPM, The Watch and the sample launches. Reset it to start over from the sample data now, for every guest. Reset the sample data It closes every guest’s open pages of the guest network, and it resets at most once a minute for everyone. Danger zone'
+    )
+    expect(html).toMatch(/<button[^>]*>Reset the sample data<\/button>/)
+
+    // A person a guest invited into the guest network, as a member, sees whose it is to do.
+    const invited = await guest.fetch('/app/guest-network/settings/members/invites', { method: 'POST' })
+    const dot = await openMember({ name: 'Dot Pruitt', invite: (await invited.json<{ link: string }>()).link })
+    const theirs = await settings(dot, 'guest-network', await (await connect(dot, 'guest-network')).until(() => true))
+    expect(words(theirs)).toContain('Sample data The guest network starts from the sample data')
+    expect(words(theirs)).toContain('Only an owner can reset the sample data.')
+    expect(theirs).not.toMatch(/>Reset the sample data</)
+
+    // A member's own network, and one a guest created, have no sample data.
+    const ada = await openMember()
+    const own = await network(ada)
+    expect(words(await settings(ada, own.id, own.agent.state()))).not.toContain('Sample data')
+    const created = await network(guest as unknown as Member, 'Guest Side Project')
+    expect(words(await settings(guest, created.id, created.agent.state()))).not.toContain('Sample data')
+  })
+
   it('keep the guest member the guest network’s owner while it’s the only one', async () => {
     const guest = await openGuest()
     const html = await settings(guest, 'guest-network', await (await connect(guest, 'guest-network')).until(() => true))
@@ -599,18 +625,21 @@ describe('settings', () => {
 // What a network's page shows of its agent's socket, the same on every network page: the dashboard
 // here, as DashboardPage wraps it, which says so in its title row.
 describe("a network page's connection", () => {
-  const gated = async (connection: {
-    state?: undefined
-    identified?: boolean
-    connectionError?: { code: number; reason: string }
-  }) => {
+  const gated = async (
+    connection: {
+      state?: undefined
+      identified?: boolean
+      connectionError?: { code: number; reason: string }
+    },
+    leaving = false
+  ) => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
     const page = await island(ada, `/app/${id}`)
     const gate = { state: agent.state(), identified: true, connectionError: null, ...connection }
     return words(
       renderToStaticMarkup(
-        <NetworkGate agent={gate} network={page.network}>
+        <NetworkGate agent={gate} network={page.network} leaving={leaving}>
           <Dashboard
             {...page}
             state={gate.state}
@@ -657,5 +686,14 @@ describe("a network page's connection", () => {
       const read = await gated({ connectionError: { code, reason } })
       expect(read).toBe(`Night Shift Audio Error ${reason} Open your networks`)
     }
+  })
+
+  it('keeps the page, saying its connection is lost, while it leaves for another, having sent the change that closed it, as a reset of the sample data does', async () => {
+    const reason = 'A guest reset the guest network to the sample data.'
+    const read = await gated({ connectionError: { code: 4410, reason } }, true)
+    expect(read).toMatch(
+      /^Launches Error This page lost its connection\. Reload to try again\. No launches yet\. New launch /
+    )
+    expect(read).not.toContain(reason)
   })
 })

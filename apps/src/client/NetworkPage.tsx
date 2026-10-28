@@ -28,20 +28,23 @@ export type NetworkConnection = ReturnType<typeof useNetwork>
 const FORCED = [4403, 4410]
 
 // A network's page (the dashboard, the roster, the inbox, settings, a launch) on its agent's socket.
-// Shut out for good by a forced close, the page gives way to LostAccess. Any other drop is the
-// connection's own, which reconnects by itself while the page keeps what it showed, and says so in its
-// on-air readout or its title row.
+// Shut out for good by a forced close, the page gives way to LostAccess, unless it's `leaving` for
+// another page, having sent the change that closes it, such as a reset of the sample data. Any other drop
+// is the connection's own, which reconnects by itself while the page keeps what it showed, and says so in
+// its on-air readout or its title row.
 export function NetworkGate({
   agent,
   network,
+  leaving = false,
   children
 }: {
   agent: { state: unknown; identified: boolean; connectionError: { code: number; reason: string } | null }
   network: NetworkPage
+  leaving?: boolean
   children: ReactNode
 }) {
   const closed = agent.connectionError
-  if (closed && FORCED.includes(closed.code)) return <LostAccess network={network} reason={closed.reason} />
+  if (closed && FORCED.includes(closed.code) && !leaving) return <LostAccess network={network} reason={closed.reason} />
   return children
 }
 
