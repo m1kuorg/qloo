@@ -24,7 +24,7 @@ import { LaunchAgent } from '../src/launch-agent'
 import { sampleLaunchOf, sampleLaunchesSql } from '../src/sample-launch'
 import { networkLinks } from '../src/shell'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
-import { api, openGuest, readAfterReset, type Guest, type Session } from './session'
+import { api, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
 
 // Made-up IDs for three of the sample's public show names, and for the made-up launches; every other
 // name finds nothing.
@@ -90,11 +90,82 @@ afterEach(() => {
 const ended = (s: State) => s.run !== null && !['running', 'waiting'].includes(s.run.status)
 const settled = (s: State) => s.roster.length > 0 && s.roster.every((r) => r.resolution !== 'pending')
 
-// Runs the Worker's scheduled handler as Cloudflare does at the daily cron in wrangler.jsonc.
-async function runCron(cron = '0 12 * * *') {
+// Runs the Worker's scheduled handler as Cloudflare does at the daily cron in wrangler.jsonc, or another,
+// with `bindings` in place of the Worker's.
+async function runCron(cron = '0 12 * * *', bindings: Env = env) {
   const ctx = createExecutionContext()
-  await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron }), env, ctx)
+  await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron }), bindings, ctx)
   await waitOnExecutionContext(ctx)
+}
+
+// The Worker's bindings, counting each subrequest an invocation makes through them, as Cloudflare's Free
+// plan allows 50 (TRD): each D1 query or batch, and each call to a Durable Object, the agents' start that
+// getAgentByName makes included. What the agents and gateways do inside counts toward their own.
+function counting() {
+  const counted = { subrequests: 0 }
+  const call = <T extends object>(target: T, key: string | symbol) => {
+    const value = Reflect.get(target, key)
+    return typeof value === 'function'
+      ? (...args: unknown[]) => {
+          counted.subrequests++
+          return Reflect.apply(value, target, args)
+        }
+      : value
+  }
+  // A Durable Object's stub: each method it's called with, or property it's read, goes to the object.
+  const stub = <T extends object>(target: T) =>
+    new Proxy(target, {
+      get: (t, key) => {
+        if (key === 'then' || typeof key === 'symbol') return Reflect.get(t, key)
+        const value = Reflect.get(t, key)
+        if (typeof value !== 'function') counted.subrequests++
+        return call(t, key)
+      }
+    })
+  const namespace = <T extends DurableObjectNamespace>(target: T) =>
+    new Proxy(target, {
+      get: (t, key) => {
+        const value = Reflect.get(t, key)
+        if (key === 'get' || key === 'getByName')
+          return (...args: unknown[]) => stub(Reflect.apply(value as (...a: unknown[]) => object, t, args))
+        return typeof value === 'function' ? value.bind(t) : value
+      }
+    })
+  // D1: a statement counts as it runs, and a batch, or an exec, once.
+  const real = new WeakMap<object, D1PreparedStatement>()
+  const statement = (target: D1PreparedStatement): D1PreparedStatement => {
+    const proxy = new Proxy(target, {
+      get: (t, key) => {
+        if (key === 'bind') return (...args: unknown[]) => statement(t.bind(...args))
+        if (['run', 'all', 'first', 'raw'].includes(String(key))) return call(t, key)
+        const value = Reflect.get(t, key)
+        return typeof value === 'function' ? value.bind(t) : value
+      }
+    })
+    real.set(proxy, target)
+    return proxy
+  }
+  const db = new Proxy(env.DB, {
+    get: (t, key) => {
+      if (key === 'prepare') return (sql: string) => statement(t.prepare(sql))
+      if (key === 'batch')
+        return (statements: D1PreparedStatement[]) => {
+          counted.subrequests++
+          return t.batch(statements.map((s) => real.get(s) ?? s))
+        }
+      return call(t, key)
+    }
+  })
+  const bindings = {
+    DB: db,
+    NetworkAgent: namespace(env.NetworkAgent),
+    LaunchAgent: namespace(env.LaunchAgent),
+    QlooGateway: namespace(env.QlooGateway)
+  }
+  return {
+    counted,
+    env: new Proxy(env, { get: (t, key) => (bindings as Record<string | symbol, unknown>)[key] ?? Reflect.get(t, key) })
+  }
 }
 
 // The four sample launches, run as a guest on the guest network as it loads the sample: one approved,
@@ -379,5 +450,67 @@ describe("the guest network's sample launches", () => {
     await readAfterReset(async () => (await getAgentByName(env.LaunchAgent, `guest-network:${ranked.id}`)).state)
     await restart(4)
     expect(names(await restart(4))).toEqual(['Ghost Signal', 'Night Shift Cinema', 'Paper Moons', 'The Watch'])
+  })
+})
+
+describe('the daily cron, with the sample launches', () => {
+  it('clears the guest network within the Free plan’s 50 subrequests, however many launches it lists, and leaves their agents to the hourly retry', async () => {
+    const guest = await openGuest()
+    await captureSampleLaunches(guest)
+    const network = await connect(guest, '/agents/network/guest-network')
+    // Guests' own launches, beside the sample's.
+    for (const name of ['Late Show', 'Early Show', 'Matinee', 'Night Owl', 'Morning Run', 'Dusk'])
+      await network.call('createLaunch', { name })
+    // The networks guests made, the most the guest member can, one shared with a member who owns it too.
+    const made: string[] = []
+    for (const name of ['Night Shift Audio', 'Day Shift Audio', 'Swing Shift Audio']) {
+      const { id } = await (
+        await guest.fetch('/app/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        })
+      ).json<{ id: string }>()
+      made.push(id)
+      const theirs = await connect(guest, `/agents/network/${id}`)
+      for (const launch of ['Paper Route', 'Field Notes']) await theirs.call('createLaunch', { name: launch })
+    }
+    const link = await (
+      await guest.fetch(`/app/${made[2]}/settings/members/invites`, { method: 'POST' })
+    ).json<{ link: string }>()
+    const dot = await openMember({ name: 'Dot Pruitt', invite: link.link })
+    expect(
+      (
+        await guest.fetch(`/app/${made[2]}/settings/members/${dot.id}/role`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'owner' })
+        })
+      ).status
+    ).toBe(200)
+    // And a queue of wipes noted earlier, a full hour's retry and more.
+    await env.DB.batch(
+      Array.from({ length: 10 }, (_, i) =>
+        env.DB.prepare('INSERT INTO wipes (binding, name, created) VALUES (?, ?, ?)').bind(
+          'LaunchAgent',
+          `gone-network:launch-${i}`,
+          Date.now() - 2 * 60 * 60_000
+        )
+      )
+    )
+    const listed = network.state()!.launches!.map((l) => l.id)
+    expect(listed).toHaveLength(11)
+    const logged = vi.spyOn(console, 'log')
+
+    const { counted, env: bindings } = counting()
+    await runCron('0 12 * * *', bindings)
+    console.info(JSON.stringify({ event: 'daily_cron_subrequests', ...counted }))
+    expect(counted.subrequests).toBeLessThanOrEqual(50)
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 11, failed: 0 }))
+    // Each launch it listed is noted for the hourly retry, which wipes the oldest seven a run.
+    const noted = (
+      await env.DB.prepare("SELECT name FROM wipes WHERE binding = 'LaunchAgent'").all<{ name: string }>()
+    ).results.map((r) => r.name)
+    for (const id of listed) expect(noted).toContain(`guest-network:${id}`)
   })
 })
