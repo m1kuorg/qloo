@@ -567,22 +567,33 @@ appPages.post('/app/:networkId/settings/delete', async (c) => {
 
 // The settings' sample data module, in the guest network alone, where the sample lives (ADR 0007), for its
 // owners, as every guest is (ADR 0008): resets the guest network to the sample data now, for every guest,
-// as the daily clearing does (resetGuestNetwork in wipe.ts), its open pages told a guest reset it. Any
-// other network has no sample data, so it's the same 404 as a page that doesn't exist.
+// as the daily clearing does (resetGuestNetwork in wipe.ts), its open pages told it was reset. It's taken
+// at most once a minute and SAMPLE_RESETS_PER_DAY times a UTC day for everyone, from any guest or address
+// (takeSampleReset); a refusal answers 429 saying why, with Retry-After, and closes nothing. Any other
+// network has no sample data, so it's the same 404 as a page that doesn't exist.
+const SAMPLE_DATA_OWNERS_ONLY = 'Only an owner can reset the sample data.'
+
 appPages.post('/app/:networkId/settings/sample-data/reset', async (c) => {
   const id = c.req.param('networkId')
   if (id !== GUEST_NETWORK) return c.notFound()
-  const refused = await refuseNonOwner(c, id, 'Only an owner can reset the sample data.')
+  const refused = await refuseNonOwner(c, id, SAMPLE_DATA_OWNERS_ONLY)
   if (refused) return refused
-  const wait = await takeSampleReset(c.env.DB)
-  if (wait !== null) {
-    const seconds = Math.ceil(wait / 1000)
+  const tooMany = (error: string, seconds: number) => {
     c.header('Retry-After', String(seconds))
-    return c.json(
-      {
-        error: `The sample data was just reset, and it resets at most once a minute for everyone. Try again in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`
-      },
-      429
+    return c.json({ error }, 429)
+  }
+  const perDay = Number(c.env.SAMPLE_RESETS_PER_DAY) || 0
+  const taken = await takeSampleReset(c.env.DB, perDay)
+  if (taken !== 'taken') {
+    if (taken.spent === 'day')
+      return tooMany(
+        `The sample data has been reset ${perDay === 1 ? 'once' : `${perDay} times`} today, the most it can be in a UTC day, for everyone. Try again after 00:00 UTC.`,
+        Math.ceil((new Date().setUTCHours(24, 0, 0, 0) - Date.now()) / 1000)
+      )
+    const seconds = Math.ceil(taken.waitMs / 1000)
+    return tooMany(
+      `The sample data was just reset, and it resets at most once a minute for everyone. Try again in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`,
+      seconds
     )
   }
   try {

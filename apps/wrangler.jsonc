@@ -51,7 +51,11 @@
     // counted exactly in the D1 directory's log of them as each guest member is written, not per
     // Cloudflare location. A day's keeps the guest members it adds inside D1's free daily writes.
     "GUEST_SIGNINS_PER_MINUTE": "30",
-    "GUEST_SIGNINS_PER_DAY": "1000"
+    "GUEST_SIGNINS_PER_DAY": "1000",
+    // Resets of the guest network's sample data from its settings a UTC day, for everyone at once, besides
+    // one a minute: counted exactly in the D1 directory as each is taken (#283). Each reloads the sample on
+    // the guest budget, and leaves its launches' wipes to the hourly retry.
+    "SAMPLE_RESETS_PER_DAY": "20"
   },
   // VISITOR_SALT salts the hash of a visitor's IP address that keys their model run count.
   // QLOO_KEY_SECRET encrypts each network's own Qloo key in its gateway instance (ADR 0004).
@@ -116,7 +120,8 @@
         "INVITES_PER_NETWORK": "20",
         "INVITED_SIGNUP_DAILY_CAP": "20",
         "GUEST_SIGNINS_PER_MINUTE": "30",
-        "GUEST_SIGNINS_PER_DAY": "1000"
+        "GUEST_SIGNINS_PER_DAY": "1000",
+        "SAMPLE_RESETS_PER_DAY": "20"
       },
       "secrets": { "required": ["QLOO_API_KEY", "ANTHROPIC_API_KEY", "VISITOR_SALT", "QLOO_KEY_SECRET"] },
       "d1_databases": [

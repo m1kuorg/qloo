@@ -876,21 +876,29 @@ export async function clearGuestNetwork(db: D1Database, instances: Instance[]) {
 // How long a reset of the guest network's sample data, from its settings, holds off the next (#283).
 const SAMPLE_RESET_MS = 60_000
 
-// Takes the one reset of the guest network's sample data a minute allows, for everyone, in the statement
-// that notes it (migration 0012), so two at once leave one refused. Null once it's taken; otherwise how
-// long until the next may start, in ms, and nothing was written.
-export async function takeSampleReset(db: D1Database) {
+// Takes a reset of the guest network's sample data, for everyone, in the statement that notes it
+// (migration 0012), only while none was taken in the last minute and fewer than `perDay` were taken in the
+// UTC day, so two at once leave one refused, the last of the day's included. 'taken' once it's taken;
+// otherwise which limit refused it, the day's before the minute's, with how long until the minute's
+// lets the next start, in ms, and nothing was written.
+export async function takeSampleReset(
+  db: D1Database,
+  perDay: number
+): Promise<'taken' | { spent: 'day' } | { spent: 'minute'; waitMs: number }> {
   const now = Date.now()
+  const day = utcDayStart(now)
   const [taken, last] = await db.batch([
     db
       .prepare(
-        'INSERT INTO sample_resets (id, at) VALUES (1, ?1) ON CONFLICT (id) DO UPDATE SET at = excluded.at WHERE sample_resets.at <= ?1 - ?2'
+        'INSERT INTO sample_resets (id, at, day, count) SELECT 1, ?1, ?2, 1 WHERE ?4 > 0 ON CONFLICT (id) DO UPDATE SET at = excluded.at, day = excluded.day, count = CASE WHEN sample_resets.day = excluded.day THEN sample_resets.count + 1 ELSE 1 END WHERE sample_resets.at <= ?1 - ?3 AND (sample_resets.day <> excluded.day OR sample_resets.count < ?4)'
       )
-      .bind(now, SAMPLE_RESET_MS),
-    db.prepare('SELECT at FROM sample_resets')
+      .bind(now, day, SAMPLE_RESET_MS, perDay),
+    db.prepare('SELECT at, day, count FROM sample_resets')
   ])
-  if (taken.meta.changes > 0) return null
-  return (last.results[0] as { at: number }).at + SAMPLE_RESET_MS - now
+  if (taken.meta.changes > 0) return 'taken'
+  const row = last.results[0] as { at: number; day: number; count: number } | undefined
+  if (!row || (row.day === day && row.count >= perDay)) return { spent: 'day' }
+  return { spent: 'minute', waitMs: row.at + SAMPLE_RESET_MS - now }
 }
 
 // The rows of the guest network's sample launches (src/sample-launches.ts), in the order their JSON reads,

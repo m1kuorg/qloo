@@ -1935,6 +1935,40 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
     expect(await page.closed()).toEqual(RESET)
   })
 
+  it('resets SAMPLE_RESETS_PER_DAY times a UTC day for everyone, two at once on the last of them leaving one refused, then refuses until 00:00 UTC', async () => {
+    const perDay = env.SAMPLE_RESETS_PER_DAY
+    env.SAMPLE_RESETS_PER_DAY = '2'
+    try {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-10-29T22:00:00Z'))
+      const one = await openGuest({ ip: '203.0.113.7' })
+      const other = await openGuest({ ip: '198.51.100.4' })
+      expect((await reset(one)).status).toBe(200)
+      // One the minute refuses isn't among the day's.
+      expect((await reset(other)).status).toBe(429)
+
+      vi.setSystemTime(new Date('2026-10-29T22:01:00Z'))
+      const both = await Promise.all([one, other].map(reset))
+      expect(both.map((res) => res.status).sort()).toEqual([200, 429])
+      for (const at of ['2026-10-29T22:01:00Z', '2026-10-29T23:59:00Z']) {
+        vi.setSystemTime(new Date(at))
+        const refused = at.endsWith('22:01:00Z') ? both.find((res) => res.status === 429)! : await reset(other)
+        expect(refused.headers.get('retry-after'), at).toBe(
+          String((Date.parse('2026-10-30T00:00:00Z') - Date.parse(at)) / 1000)
+        )
+        expect(await refused.json()).toEqual({
+          error:
+            'The sample data has been reset 2 times today, the most it can be in a UTC day, for everyone. Try again after 00:00 UTC.'
+        })
+      }
+
+      vi.setSystemTime(new Date('2026-10-30T00:00:00Z'))
+      expect((await reset(other)).status).toBe(200)
+    } finally {
+      env.SAMPLE_RESETS_PER_DAY = perDay
+    }
+  })
+
   it('answers 404 for any other network and to anyone outside the guest network, 403 to its members who aren’t owners and to another site, and resets nothing', async () => {
     const guest = await openGuest()
     const page = await connect(guest)
