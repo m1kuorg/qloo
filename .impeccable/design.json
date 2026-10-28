@@ -479,7 +479,7 @@
       {
         "name": "inspector",
         "value": "1360px",
-        "purpose": "min-[85rem]: the inspector sits beside the canvas, a 360px column, instead of in a sheet. At 1440, 56 (rail) + 24 + 976 (canvas) + 24 + 360 (inspector) = 1440."
+        "purpose": "min-[85rem]: the inspector, open, sits beside the canvas, a 360px column, instead of in a sheet. At 1440, 56 (rail) + 24 + 976 (canvas) + 24 + 360 (inspector) = 1440; closed, as every page opens, the canvas takes the width, 1336px."
       },
       {
         "name": "docs-toc",
@@ -509,7 +509,7 @@
       "name": "Ghost Button",
       "kind": "button",
       "refersTo": "button-ghost",
-      "description": "No fill until hovered, then the tone step: Edit lines, Dismiss, Run log, a row menu.",
+      "description": "No fill until hovered, then the tone step, which it keeps while what it opens is open (aria-expanded): Edit lines, Dismiss, Run log, Details, a row menu.",
       "html": "<button class=\"ds-btn-ghost\">Edit lines</button>",
       "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; font: 500 14px/1.45 'Schibsted Grotesk Variable', 'Schibsted Grotesk Fallback', ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; user-select: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1); background: transparent; color: var(--foreground, #121318); } .ds-btn-ghost:active { translate: 0 1px; } .ds-btn-ghost:focus-visible { outline: 2px solid var(--ring, #121318); outline-offset: 2px; } .ds-btn-ghost:disabled { opacity: 0.5; pointer-events: none; } @media (width < 48rem) { .ds-btn-ghost { height: 44px; } } .ds-btn-ghost:hover, .ds-btn-ghost[aria-expanded=\"true\"] { background: var(--muted, #efeff3); }"
     },
