@@ -317,8 +317,9 @@ function CreateAccount({
   )
 }
 
-// What `/auth/invite` answers for an invite link: the network it's for, or why it can't be used.
-type InviteAnswer = { network: string } | { error: string }
+// What `/auth/invite` answers for an invite link: the network it's for, and whether only guests own it,
+// so it goes with them (ADR 0006); or why it can't be used.
+type InviteAnswer = { network: string; guestOwned: boolean } | { error: string }
 
 // The invite page: the link's token is in the address's fragment, which the browser never sends, so
 // the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in.
@@ -332,7 +333,7 @@ export function InvitePage({ memberName }: { memberName: string | null }) {
     return () => window.removeEventListener('hashchange', reload)
   }, [])
   useEffect(() => {
-    send<{ network: string }>('/auth/invite', { token }).then(
+    send<{ network: string; guestOwned: boolean }>('/auth/invite', { token }).then(
       (open) => {
         document.title = `Join ${open.network} · Crossfeed`
         setInvite(open)
@@ -344,8 +345,8 @@ export function InvitePage({ memberName }: { memberName: string | null }) {
 }
 
 // The invite page for the link's `token`, once `/auth/invite` has answered (`invite`, null until then):
-// it names the network, then lets a signed-in member join, or anyone else create an account or sign
-// in, and join in the same step.
+// it names the network, says when it goes with the guests who own it, then lets a signed-in member join,
+// or anyone else create an account or sign in, and join in the same step.
 export function Invite({
   token,
   invite,
@@ -392,6 +393,12 @@ export function Invite({
           You’re invited to {invite.network} on Crossfeed, as a member: you’ll work on its roster, launches, and inbox
           with its other members. The link works once.
         </p>
+        {invite.guestOwned && (
+          <p className="max-w-[48ch] type-body">
+            {invite.network} belongs to guests on temporary accounts, so it’s removed with them unless one of them keeps
+            their account.
+          </p>
+        )}
         {supported === false && !memberName && (
           <p className="max-w-[48ch]">
             <StateLine kind="error" role="alert">

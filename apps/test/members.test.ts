@@ -84,7 +84,7 @@ describe('invite links', () => {
     expect(html).not.toContain('data-signed-in')
     const look = await exports.default.fetch(`${origin}/auth/invite`, write({ token }))
     expect(look.status).toBe(200)
-    expect(await look.json()).toEqual({ network: 'Night Shift Audio' })
+    expect(await look.json()).toEqual({ network: 'Night Shift Audio', guestOwned: false })
 
     const unknown = await exports.default.fetch(`${origin}/auth/invite`, write({ token: `${token}x` }))
     expect(unknown.status).toBe(404)

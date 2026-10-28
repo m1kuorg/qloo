@@ -529,7 +529,7 @@ describe('the app, as a guest sees it', () => {
     return renderToStaticMarkup(
       createElement(Invite, {
         token,
-        invite: await answer.json<{ network: string } | { error: string }>(),
+        invite: await answer.json<{ network: string; guestOwned: boolean } | { error: string }>(),
         memberName: attributes.match(/data-member-name="([^"]*)"/)?.[1] ?? null
       })
     )
@@ -549,6 +549,34 @@ describe('the app, as a guest sees it', () => {
     expect(words(await invitePage(guest, link))).toContain(
       `You’re signed in as ${name} . Join Night Shift Audio Not ${name}? Sign out to join with another account.`
     )
+    expect(words(await invitePage(guest, link))).not.toContain('temporary')
+  })
+
+  const TEMPORARY =
+    'Night Shift Audio belongs to guests on temporary accounts, so it’s removed with them unless one of them keeps their account.'
+
+  it('tells whoever opens an invite to a network only guests own that it’s removed with them, until one keeps their account', async () => {
+    const guest = await openGuest()
+    const { id } = await (await post(guest, '/app/new', { name: 'Night Shift Audio' })).json<{ id: string }>()
+    const link = async (network: string) =>
+      (await (await post(guest, `/app/${network}/settings/members/invites`)).json<{ link: string }>()).link
+    const ada = await openMember()
+    // A browser no one is signed in on, whose page's writes send the app's Origin.
+    const signedOut = {
+      fetch: (path: string, init: RequestInit = {}) =>
+        exports.default.fetch(`${origin}${path}`, { ...init, headers: { ...init.headers, Origin: origin } })
+    }
+    expect(words(await invitePage(ada, await link(id)))).toContain(`Join Night Shift Audio You’re invited to`)
+    expect(words(await invitePage(ada, await link(id)))).toContain(TEMPORARY)
+    expect(words(await invitePage(signedOut, await link(id)))).toContain(TEMPORARY)
+    // The guest network is never removed.
+    expect(words(await invitePage(ada, await link('guest-network')))).not.toContain('temporary')
+
+    const started = await post(guest, '/auth/passkeys/options')
+    const { challenge, options } = await started.json<{ challenge: string; options: never }>()
+    const response = await softwareAuthenticator().register(options)
+    expect((await post(guest, '/auth/passkeys', { challenge, response })).status).toBe(200)
+    expect(words(await invitePage(ada, await link(id)))).not.toContain('temporary')
   })
 })
 
