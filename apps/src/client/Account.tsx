@@ -1,6 +1,6 @@
 import { browserSupportsWebAuthn, startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { cn } from 'cn'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -84,6 +84,12 @@ export function SignInPage({ next, runs, guestRefused }: { next: string; runs: n
 function GuestSignIn({ next, runs, refused }: { next: string; runs: number; refused: string | null }) {
   const { busy, error, run } = useAction()
   const [refusal, setRefusal] = useState(refused)
+  // Opened at #guest, as /demo and a refused guest button open it, the page scrolls here once the island
+  // renders the panel: the browser looked for #guest before it existed.
+  const section = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (window.location.hash === '#guest') section.current?.scrollIntoView({ block: 'start' })
+  }, [])
   const signIn = () =>
     run(async () => {
       setRefusal(null)
@@ -91,7 +97,7 @@ function GuestSignIn({ next, runs, refused }: { next: string; runs: number; refu
       window.location.assign(answer.next)
     })
   return (
-    <section className={panel} id="guest" aria-labelledby="way-guest">
+    <section className={panel} id="guest" aria-labelledby="way-guest" ref={section}>
       <div className="flex flex-col gap-1">
         <h2 className="type-body font-medium" id="way-guest">
           Look around as a guest
