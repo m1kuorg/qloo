@@ -573,6 +573,21 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       entity: { id: 'e-0601' }
     })
     expect(state.cpm).toBe(20)
+    // The roster page labels the CPM as the sample's, as it does each show's figures.
+    const page = renderToStaticMarkup(
+      createElement(NetworkRoster, {
+        agent: { state, stub: {} } as unknown as NetworkConnection,
+        network: {
+          id: 'guest-network',
+          name: 'Guest network',
+          role: 'owner',
+          links: networkLinks(env, 'guest-network')
+        }
+      })
+    )
+    expect(page.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).toContain(
+      'CPM $20 per 1,000 downloads sample · Change it in settings'
+    )
     expect(state.sample).toEqual({
       network: 'The Ringer',
       notice: sampleFile.notice,
