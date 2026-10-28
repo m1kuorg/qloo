@@ -48,7 +48,7 @@ import {
   useIntoView,
   useLeaveGuard
 } from './controls'
-import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
+import { CallButton, EvidencePanel, useEvidence, type OpenCall, type Opened } from './Evidence'
 import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
 import { FormSheet, PageEmpty, PageHeader, summaryLine, useFormSheet } from './PageHeader'
@@ -155,9 +155,9 @@ export function InboxWorkspace({ agent, links, network }: { agent: Session; link
 // ranked lists, the replies, then the pitches; with no pitches, the empty state instead. Load pitches,
 // in the header or the empty state, opens the form in a sheet. The inspector, closed until something
 // opens it, holds the run and the earlier pitch runs, a call's evidence, and the pitch opened from a
-// list or the table; the header's Details opens it while there are pitches. An earlier
-// pitch run, viewed from Runs, shows read-only as it ended: its lists, replies and pitches, with
-// nothing to start, load, confirm or change.
+// list or the table; the header's Details opens it while there are pitches. An earlier pitch run,
+// viewed from Runs, shows read-only as it ended: its lists, replies and pitches, with nothing to
+// start, load, confirm or change.
 export function InboxPage({
   inbox,
   roster,
@@ -175,9 +175,10 @@ export function InboxPage({
   const pitch = inbox?.pitches.find((p) => p.id === selected)
   const inspector = useInspector(pitch ? ['run', 'evidence', 'pitch'] : ['run', 'evidence'], actions)
   const { showCall } = inspector
-  const select = (id: string) => {
+  // A pitch opened from a list or the table, which closing the inspector returns focus to.
+  const select = (id: string, from: HTMLElement) => {
     setSelected(id)
-    inspector.inspect('pitch')
+    inspector.inspect('pitch', from)
   }
   const reading = inbox?.status === 'reading'
   // The sample inbox's pitches come already read, so only their works are looked up.
@@ -210,7 +211,7 @@ export function InboxPage({
           }
           actions={
             <>
-              <InspectorToggle inspector={inspector} />
+              <InspectorToggle open={inspector.open} toggle={inspector.toggle} ref={inspector.toggleButton} />
               {viewing ? (
                 <Button
                   variant="secondary"
@@ -232,7 +233,7 @@ export function InboxPage({
           pitchRun={pitchRun}
           startedAt={startedAt}
           slowCalls={slowCalls}
-          runLog={() => inspector.inspect('run')}
+          runLog={(from) => inspector.inspect('run', from)}
         />
         {/* Before the lists, so the question is what a person reaches first. */}
         {question}
@@ -400,7 +401,7 @@ function InboxReadout({
   pitchRun: Run | null
   startedAt: string | null
   slowCalls: SlowCall[]
-  runLog: () => void // opens the inspector on its Run tab
+  runLog: (from: HTMLElement) => void // opens the inspector on its Run tab
 }) {
   if (!inbox && !pitchRun) return null
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
@@ -876,7 +877,7 @@ function PitchLists({
   sample: boolean // the sample inbox's pitches, which come already read
   selected: string | null
   select: (id: string, from: HTMLElement) => void
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   const setAside = pitches.filter((p) => p.status === 'no_work' || p.status === 'unreadable' || p.status === 'failed')
@@ -929,7 +930,7 @@ function RankedPitches({
   sample: boolean
   selected: string | null
   select: (id: string, from: HTMLElement) => void
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   const id = `list-${list.type}`
@@ -1050,7 +1051,7 @@ function TagLine({
 }: {
   tags: SharedTags
   label: string
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   // The words before the last tag (a separator never starts a line), and the last tag, or the last word
@@ -1080,7 +1081,7 @@ function TagLine({
 const verdictLabel: Record<Verdict, string> = { book: 'Book', later: 'Later', decline: 'Decline' }
 const verdicts: Verdict[] = ['book', 'later', 'decline']
 
-type ReplyActions = Pick<Actions, 'editReply' | 'approveReply' | 'discardReply' | 'openCall'>
+type ReplyActions = Pick<Actions, 'editReply' | 'approveReply' | 'discardReply'> & { openCall: OpenCall }
 
 // The drafted replies, one per pitch, grouped by the agent's verdict, each a review item a booker
 // clears in turn. The booker approves, edits, or discards each one on its own, and only an approved
@@ -1438,15 +1439,7 @@ function ReplyItem({
 // What the pitch run ranked against, as its record: the show, then each past guest's work with its
 // guest and type, how Qloo matched it, and its search's call. A work that didn't match is no anchor,
 // and the note under them says so.
-function Anchors({
-  booking,
-  openCall,
-  opened
-}: {
-  booking: Booking
-  openCall: (call: string) => void
-  opened: string | null
-}) {
+function Anchors({ booking, openCall, opened }: { booking: Booking; openCall: OpenCall; opened: string | null }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="anchors-h">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1529,7 +1522,7 @@ function PitchTable({
   sample: boolean
   selected: string | null
   select: (id: string, from: HTMLElement) => void
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   // One shaded row: the pitch open in the inspector or, with none open, the one whose evidence is.
@@ -1717,7 +1710,7 @@ function PitchDetail({
   pitch: Pitch
   sample: boolean
   confirmWork: Actions['confirmWork'] | null
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   const { busy, error, run } = useAction()

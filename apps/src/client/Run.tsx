@@ -18,7 +18,7 @@ import { offeredBy } from '../resolve'
 import { takesText } from '../tools/ask-human'
 import type { Session } from './App'
 import { Alert, FitBand, KeyValue, KeyValues, listOf, percentile, useAction } from './controls'
-import { CallButton } from './Evidence'
+import { CallButton, type OpenCall } from './Evidence'
 import { Source } from './Source'
 import { endedBadly, isLive, StateLine } from './states'
 
@@ -35,15 +35,7 @@ export const runLabel: Record<Run['status'], string> = {
 
 // Claude's closing line on a completed run, as an Agent block below the trace. Each call number it
 // cites opens that call's evidence.
-function ClosingLine({
-  text,
-  openCall,
-  opened
-}: {
-  text: string
-  openCall: (call: string) => void
-  opened: string | null
-}) {
+function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenCall; opened: string | null }) {
   return (
     <div className="flex flex-col items-start gap-1.5 rounded-lg bg-muted p-3" data-closing>
       <Source of="agent" />
@@ -93,7 +85,7 @@ export function RunLog({
 }: {
   run: Run
   changedNote?: string | null
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   const live = isLive(run.status)

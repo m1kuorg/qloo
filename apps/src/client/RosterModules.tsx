@@ -28,7 +28,7 @@ import {
   useFileDrop,
   useIntoView
 } from './controls'
-import { CallButton } from './Evidence'
+import { CallButton, type OpenCall } from './Evidence'
 import type { NetworkPage } from './NetworkPage'
 import { count, summaryLine } from './PageHeader'
 import { Source } from './Source'
@@ -250,9 +250,10 @@ export function RosterTable({
   roster: Show[]
   readiness?: string | null // whether a run can score every show yet, the caption's first line
   selected: string | null
-  select: ((name: string) => void) | null // null where the roster is read-only, as on a launch's page
+  // Opens a show from the control that asked; null where the roster is read-only, as on a launch's page.
+  select: ((name: string, from: HTMLElement) => void) | null
   slowCalls: SlowCall[]
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   // One selected row: the show open in the editor or, with none open, the show whose evidence is open.
@@ -313,7 +314,7 @@ export function RosterTable({
                           type="button"
                           data-open-show
                           aria-current={show.name === selected || undefined}
-                          onClick={() => select(show.name)}
+                          onClick={(e) => select(show.name, e.currentTarget)}
                           className="cursor-pointer text-left text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-3 max-md:py-3"
                         >
                           {show.name}
@@ -343,7 +344,7 @@ export function RosterTable({
                   <Match
                     show={show}
                     slow={slowCalls.filter((c) => c.call === show.evidence)}
-                    settle={select && (() => select(show.name))}
+                    settle={select && ((from) => select(show.name, from))}
                   />
                 </td>
                 <td className={cn(cell, 'text-right')}>
@@ -377,7 +378,7 @@ export function RosterTable({
 }
 
 // What Qloo matched a show to, or why it matched nothing, and on the roster page the way to settle it.
-function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (() => void) | null }) {
+function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: ((from: HTMLElement) => void) | null }) {
   if (show.resolution === 'pending')
     return <span className="text-muted-foreground">{slow.length > 0 ? slowText(slow) : 'Looking it up in Qloo…'}</span>
   if ((show.resolution === 'resolved' || show.resolution === 'mapped') && show.entity)
@@ -390,7 +391,7 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
     )
   const action = show.excluded ? null : show.resolution === 'ambiguous' ? 'Pick the match' : 'Map a comp or leave out'
   const settleButton = action && settle && (
-    <Button variant="link" className="text-left whitespace-normal" onClick={settle}>
+    <Button variant="link" className="text-left whitespace-normal" onClick={(e) => settle(e.currentTarget)}>
       {action}
     </Button>
   )
@@ -427,7 +428,7 @@ export function ShowEditor({
 }: {
   show: Show
   agent: Session
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   const { busy, error, run } = useAction()

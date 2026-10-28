@@ -21,7 +21,7 @@ import {
   type Priced
 } from '../order'
 import { Alert, day, useAction, useLeaveGuard } from './controls'
-import { CallButton } from './Evidence'
+import { CallButton, type OpenCall } from './Evidence'
 import { Source } from './Source'
 import { StateLine } from './states'
 
@@ -51,7 +51,7 @@ export function InsertionOrderPanel({
   readOnly: string | null // why there are no actions, such as an earlier run being viewed
   exportHref: string | null // where an approved order's CSV downloads, if it has an export here
   sharedTags: Record<string, SharedTags> // by show, the compare its angle draws on, or that returned no tags
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   const [editing, setEditing] = useState(false)

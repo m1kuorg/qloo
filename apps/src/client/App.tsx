@@ -8,7 +8,7 @@ import type { useAgent } from 'agents/react'
 import type { Comp, CrossfeedAgent, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall, State } from '../agent'
 import { inProgress } from '../limits'
 import { Alert, percentile, useAction } from './controls'
-import { CallButton, EvidencePanel, useEvidence } from './Evidence'
+import { CallButton, EvidencePanel, useEvidence, type OpenCall } from './Evidence'
 import { FitChart } from './FitChart'
 import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import { InsertionOrderPanel } from './InsertionOrder'
@@ -157,8 +157,8 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
           openCall={showCall}
           opened={opened?.call ?? null}
           connection={connection}
-          details={<InspectorToggle inspector={inspector} />}
-          runLog={() => inspect('run')}
+          details={<InspectorToggle open={inspector.open} toggle={inspector.toggle} ref={inspector.toggleButton} />}
+          runLog={(from) => inspect('run', from)}
         />
         {/* Before the chart, so the question is what a person reaches first. */}
         {run?.status === 'waiting' && run.question && (
@@ -231,9 +231,9 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
 // The head of the canvas: the title row, the on-air readout, and the launch form. The title row names
 // the launch, with its Qloo match and comps, and holds the inspector's toggle and the run's actions:
 // Start run for the form, or once a run has ended, Run again and Change launch, which opens the form;
-// Back to the latest run while an earlier one is viewed; and Review the plan once there's one. The form keeps the launch's name or
-// comps, to run again as they are or changed: from a released launch's name, or from up to three comps
-// for an unreleased one.
+// Back to the latest run while an earlier one is viewed; and Review the plan once there's one. The
+// form keeps the launch's name or comps, to run again as they are or changed: from a released launch's
+// name, or from up to three comps for an unreleased one.
 function LaunchHead({
   sample,
   ran,
@@ -263,11 +263,11 @@ function LaunchHead({
   viewing: number | null // the number of the earlier run shown
   back: () => void
   startLaunch: (input: LaunchInput) => Promise<unknown>
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
   connection: Connection
   details: ReactNode // the inspector's toggle
-  runLog: () => void // opens the inspector on its Run tab
+  runLog: (from: HTMLElement) => void // opens the inspector on its Run tab
 }) {
   const form = useLaunchFields(launch ? { name: launch.name, comps: launch.comps.map((c) => c.name) } : null)
   const action = useAction()
@@ -431,7 +431,7 @@ function LaunchMatch({
 }: {
   launch: Launch
   running: boolean
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   if (!match) return <p>{running ? 'Looking it up in Qloo…' : 'Not looked up.'}</p>
@@ -472,7 +472,7 @@ function LaunchComps({
 }: {
   comps: Comp[]
   running: boolean
-  openCall: (call: string) => void
+  openCall: OpenCall
   opened: string | null
 }) {
   const state = (c: Comp) => {

@@ -15,8 +15,13 @@ export type Opened =
   | { call: string; status: 'loaded'; record: Evidence | undefined }
   | { call: string; status: 'failed'; error: string }
 
-// A cited call number: opens that call's evidence in the inspector, or closes it when it's open. `label`
-// says what it's evidence for, and screen readers hear it before the number. Codes aren't translated.
+// Opens a call's evidence in the inspector, from the control that asked (`from`), where focus goes back
+// to as the inspector closes.
+export type OpenCall = (call: string, from: HTMLElement) => void
+
+// A cited call number: opens that call's evidence in the inspector, or closes it when it's open, passing
+// itself as what opened it. `label` says what it's evidence for, and screen readers hear it before the
+// number. Codes aren't translated.
 export function CallButton({
   call,
   label,
@@ -26,7 +31,7 @@ export function CallButton({
   call: string
   label: string
   opened: string | null
-  openCall: (call: string) => void
+  openCall: OpenCall
 }) {
   return (
     <button
@@ -36,7 +41,7 @@ export function CallButton({
       aria-controls="evidence"
       aria-label={`${label}: call ${call}`}
       translate="no"
-      onClick={() => openCall(call)}
+      onClick={(e) => openCall(call, e.currentTarget)}
     >
       {call}
     </button>
