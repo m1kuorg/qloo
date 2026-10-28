@@ -250,16 +250,20 @@ async function networkPage(c: Context<AppEnv>, id: string) {
 }
 
 // The network's dashboard: its launches, a line each for its roster and inbox, and the setup checklist.
+// The guest network's, as a reset of its sample data opens it while part of the reset is left to the
+// hourly retry (`?reset=pending`), says so.
 appPages.get('/app/:networkId', async (c) => {
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
   const { invited, apiKey } = await setupProgress(c.env.DB, network.id)
+  const pending = network.id === GUEST_NETWORK && c.req.query('reset') === 'pending'
   return c.render(
     <Island
       page="dashboard"
       data-member-id={c.var.member.id}
       data-invited={String(invited)}
       data-api-key={String(apiKey)}
+      data-notice={pending ? RESET_PENDING : undefined}
       {...island(c, network)}
     />
   )
@@ -577,11 +581,17 @@ appPages.post('/app/:networkId/settings/delete', async (c) => {
 
 // The settings' sample data module, in the guest network alone, where the sample lives (ADR 0007), for its
 // owners, as every guest is (ADR 0008): resets the guest network to the sample data now, for every guest,
-// as the daily clearing does (resetGuestNetwork in wipe.ts), its open pages told it was reset. It's taken
-// at most once a minute and SAMPLE_RESETS_PER_DAY times a UTC day for everyone, from any guest or address
-// (takeSampleReset); a refusal answers 429 saying why, with Retry-After, and closes nothing. Any other
-// network has no sample data, so it's the same 404 as a page that doesn't exist.
+// as the daily clearing does (resetGuestNetwork in wipe.ts), its open pages told it was reset. It's refused
+// with a 429 saying why, and Retry-After, closing nothing: while the guest budget has fewer Qloo calls left
+// today than the sample's next load reserves, while more of the guest network's launches wait for the
+// hourly retry's wipe than a run wipes, and past one reset a minute and SAMPLE_RESETS_PER_DAY a UTC day
+// for everyone, from any guest or address (takeSampleReset). A wipe that fails is left to the hourly
+// retry, as the clearing leaves it, and the answer is a 202, `{ pending: true }`. Any other network has no
+// sample data, so it's the same 404 as a page that doesn't exist.
 const SAMPLE_DATA_OWNERS_ONLY = 'Only an owner can reset the sample data.'
+// What the dashboard says once a reset whose wipe failed opens it (`{ pending: true }`).
+const RESET_PENDING =
+  'The reset may take a moment to finish: part of it failed, and Crossfeed tries it again within the hour.'
 
 appPages.post('/app/:networkId/settings/sample-data/reset', async (c) => {
   const id = c.req.param('networkId')
@@ -627,13 +637,7 @@ appPages.post('/app/:networkId/settings/sample-data/reset', async (c) => {
     await resetGuestNetwork(c.env, SAMPLE_DATA_RESET)
   } catch (e) {
     if (!(e instanceof WipesFailed)) throw e
-    return c.json(
-      {
-        message:
-          'The reset may take a moment to finish: part of it failed, and Crossfeed tries it again within the hour.'
-      },
-      202
-    )
+    return c.json({ pending: true }, 202)
   }
   return c.json({})
 })

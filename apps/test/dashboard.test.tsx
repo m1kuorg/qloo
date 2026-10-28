@@ -63,6 +63,7 @@ async function island(member: Pick<Member, 'fetch'>, path: string) {
     usage: d.usage ? JSON.parse(d.usage) : null,
     qlooKey: d.qlooKey ? JSON.parse(d.qlooKey) : null,
     setup: { invited: d.invited === 'true', apiKey: d.apiKey === 'true' },
+    notice: d.notice,
     network: {
       id: d.networkId,
       name: d.networkName,
@@ -81,10 +82,10 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-const dashboard = async (member: Pick<Member, 'fetch'>, id: string, state: State | undefined) =>
+const dashboard = async (member: Pick<Member, 'fetch'>, id: string, state: State | undefined, query = '') =>
   renderToStaticMarkup(
     <Dashboard
-      {...await island(member, `/app/${id}`)}
+      {...await island(member, `/app/${id}${query}`)}
       state={state}
       dismiss={async () => {}}
       createLaunch={async () => ({ id: 'l-1' })}
@@ -168,6 +169,19 @@ describe('the dashboard', () => {
     for (const i of [0, 2, 3, 4]) expect(listed[i]).toMatch(new RegExp(`^${STEPS[i]} [A-Z]`))
     expect(listed[3]).toMatch(/^Invite a teammate Make an invite link in settings/)
     expect(listed[4]).toMatch(/^Create an API key Make a key in settings/)
+  })
+
+  it('says, as a reset of the sample data opens the guest network’s with part of the reset left to the hourly retry, that it may take a moment to finish', async () => {
+    const guest = await openGuest()
+    const state = await (await connect(guest, 'guest-network')).until(() => true)
+    expect(words(await dashboard(guest, 'guest-network', state, '?reset=pending'))).toMatch(
+      /^Launches The reset may take a moment to finish: part of it failed, and Crossfeed tries it again within the hour\. No launches yet\. New launch /
+    )
+    expect(words(await dashboard(guest, 'guest-network', state))).not.toContain('The reset')
+    // Another network has no sample data to reset.
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    expect(words(await dashboard(ada, id, agent.state(), '?reset=pending'))).not.toContain('The reset')
   })
 
   it("is dismissed for the member who dismisses it, and stays for everyone else's", async () => {

@@ -7,10 +7,11 @@ import { Module } from './Module'
 
 // The settings' sample data module, in the guest network alone, where the sample lives (ADR 0007): an
 // owner, as every guest is (ADR 0008), resets it to the sample data now, for every guest, as the daily
-// clearing does. It asks first, since it changes the network for everyone; once it's done, the guest who
-// reset it opens the fresh dashboard. Its reset closes this page's connection too, as it does every
-// guest's, so `onLeaving` keeps the page as it is while the reset is out (NetworkGate). A member sees
-// only whose it is to do.
+// clearing does. It asks first, since it changes the network for everyone; once it's done, the owner who
+// reset it opens the fresh dashboard, which says so if part of the reset is left to the hourly retry. Its
+// reset closes this page's connection too, as it does every guest's, so `onLeaving` keeps the page as it
+// is while the reset is out (NetworkGate). A refusal stays in the dialog. A member sees only whose it is
+// to do.
 export function SampleDataModule({
   network,
   onLeaving
@@ -19,30 +20,6 @@ export function SampleDataModule({
   onLeaving: (leaving: boolean) => void
 }) {
   const inbox = network.links.inbox !== null
-  return (
-    <Module
-      id="set-sample-h"
-      title="Sample data"
-      help={`The guest network starts every day at ${GUEST_NETWORK_CLEARS} from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches${inbox ? ', and the sample inbox' : ''}. Reset it to start over now, for every guest.`}
-    >
-      {network.role === 'owner' ? (
-        <ResetSampleData network={network} inbox={inbox} onLeaving={onLeaving} />
-      ) : (
-        <p className="text-muted-foreground">Only an owner can reset the sample data.</p>
-      )}
-    </Module>
-  )
-}
-
-function ResetSampleData({
-  network,
-  inbox,
-  onLeaving
-}: {
-  network: NetworkPage
-  inbox: boolean
-  onLeaving: (leaving: boolean) => void
-}) {
   const { confirm, dialog } = useConfirm()
   const askReset = () =>
     confirm({
@@ -53,27 +30,37 @@ function ResetSampleData({
       keep: 'Keep',
       action: async () => {
         onLeaving(true)
-        const answer = await send<{ message?: string }>(`/app/${network.id}/settings/sample-data/reset`).catch((e) => {
-          onLeaving(false)
-          throw e
-        })
-        // Part of it failed, which the hourly retry finishes: the dialog says so, and the page stays.
-        if (answer.message) throw new Error(answer.message)
-        window.location.assign(`/app/${network.id}`)
+        const { pending } = await send<{ pending?: boolean }>(`/app/${network.id}/settings/sample-data/reset`).catch(
+          (e) => {
+            onLeaving(false)
+            throw e
+          }
+        )
+        window.location.assign(`/app/${network.id}${pending ? '?reset=pending' : ''}`)
       }
     })
   return (
-    <>
-      <div>
-        <Button variant="destructive" onClick={askReset}>
-          Reset the sample data
-        </Button>
-      </div>
-      <p className="text-muted-foreground">
-        Resetting closes every guest’s open pages of the guest network. The sample data resets at most once a minute,
-        for everyone.
-      </p>
-      {dialog}
-    </>
+    <Module
+      id="set-sample-h"
+      title="Sample data"
+      help={`The guest network starts every day at ${GUEST_NETWORK_CLEARS} from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches${inbox ? ', and the sample inbox' : ''}. Reset it to start over now, for every guest.`}
+    >
+      {network.role === 'owner' ? (
+        <>
+          <div>
+            <Button variant="destructive" onClick={askReset}>
+              Reset the sample data
+            </Button>
+          </div>
+          <p className="text-muted-foreground">
+            Resetting closes every guest’s open pages of the guest network. The sample data resets at most once a
+            minute, for everyone.
+          </p>
+          {dialog}
+        </>
+      ) : (
+        <p className="text-muted-foreground">Only an owner can reset the sample data.</p>
+      )}
+    </Module>
   )
 }

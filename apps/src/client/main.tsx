@@ -51,6 +51,7 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         network={network()}
         memberId={d.memberId!}
         setup={{ invited: d.invited === 'true', apiKey: d.apiKey === 'true' }}
+        notice={d.notice}
       />
     )),
   launch: () =>
