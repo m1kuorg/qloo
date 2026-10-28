@@ -202,8 +202,9 @@ export class NetworkAgent extends CrossfeedAgent {
   // agent from the rows D1 holds, read in one query, calling neither Qloo nor Claude, and listed as a
   // planned launch is (listLaunch), under an ID kept from the first try, so one tried again seeds and lists
   // it once. Until every row is noted as listed, each start tries again those that weren't: refused by the
-  // launch cap, or failed. One a guest deletes once it's listed stays deleted. With no rows, the guest
-  // network has The Watch alone. Noted as loaded until the daily clearing, which wipes it all.
+  // launch cap, or failed. One a guest deletes once it's listed stays deleted. With no rows, as before an
+  // environment's are loaded, the guest network has The Watch alone, and each start reads the table again,
+  // so rows loaded since are listed as it next starts. Noted as loaded until the daily clearing.
   private async loadSampleLaunches() {
     const { kv } = this.ctx.storage
     if (kv.get(SAMPLE_LAUNCHES_LOADED)) return
@@ -228,7 +229,7 @@ export class NetworkAgent extends CrossfeedAgent {
         failed(e, key)
       }
     }
-    if (launches.every(({ key }) => progress[key]?.listed)) kv.put(SAMPLE_LAUNCHES_LOADED, true)
+    if (launches.length > 0 && launches.every(({ key }) => progress[key]?.listed)) kv.put(SAMPLE_LAUNCHES_LOADED, true)
   }
 
   // Loads the sample inbox into the guest network beside the sample network, while guest pitches are on

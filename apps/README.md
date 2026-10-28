@@ -225,7 +225,7 @@ bunx wrangler d1 execute DB --remote --env preview --file ~/.cache/crossfeed/out
 bunx wrangler d1 execute DB --remote --file ~/.cache/crossfeed/out/289/sample-launches.sql
 ```
 
-The guest network seeds them as it next starts after its daily clearing; locally, run the daily cron as under the crons below. The load reads the table in one query and logs `sample_launches_load` for a launch it couldn't list, which the next start tries again.
+A guest network that has none yet seeds them as it next starts, as after an idle eviction or a deploy; one that has them seeds the new ones after its daily clearing, which you can run locally as under the crons below. The load reads the table in one query and logs `sample_launches_load` for a launch it couldn't list, which the next start tries again.
 
 ## Live check
 

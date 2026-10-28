@@ -453,6 +453,36 @@ describe("the guest network's sample launches", () => {
   })
 })
 
+describe("the guest network's sample launches, loaded after it started", () => {
+  it('open as it next starts, beside The Watch, which it had alone', async () => {
+    const guest = await openGuest()
+    await captureSampleLaunches(guest)
+    // As before an environment's database is loaded: the table is empty as the guest network starts.
+    const { results: rows } = await env.DB.prepare('SELECT key, seq, chunk FROM sample_launches').all<{
+      key: string
+      seq: number
+      chunk: string
+    }>()
+    await env.DB.exec('DELETE FROM sample_launches')
+    expect((await nextDay(guest, 1)).launches!.map((l) => l.name)).toEqual(['The Watch'])
+
+    await env.DB.batch(
+      rows.map((r) =>
+        env.DB.prepare('INSERT INTO sample_launches (key, seq, chunk) VALUES (?, ?, ?)').bind(r.key, r.seq, r.chunk)
+      )
+    )
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const loaded = await (await connect(guest, '/agents/network/guest-network')).until((s) => s.launches?.length === 5)
+    expect(loaded.launches!.map((l) => l.status).sort()).toEqual([
+      'new',
+      'order approved',
+      'order drafted',
+      'ranked',
+      'stopped'
+    ])
+  })
+})
+
 describe('the daily cron, with the sample launches', () => {
   it('clears the guest network within the Free plan’s 50 subrequests, however many launches it lists, and leaves their agents to the hourly retry', async () => {
     const guest = await openGuest()
