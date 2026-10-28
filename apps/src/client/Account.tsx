@@ -29,8 +29,9 @@ const Lede = ({ title, children }: { title: string; children: ReactNode }) => (
   </div>
 )
 
-// `runs` is the guest budget's model runs a day, which everyone who signs in as a guest shares.
-export function SignInPage({ next, runs }: { next: string; runs: number }) {
+// `runs` is the guest budget's model runs a day, which everyone who signs in as a guest shares, and
+// `guestRefused` why a public page's guest button was refused, if it was.
+export function SignInPage({ next, runs, guestRefused }: { next: string; runs: number; guestRefused?: string }) {
   // A recovery code to show once, after a sign-up or a recovery, until the member says they've saved
   // it, and where they go then: `next` after a sign-up, and the account page after a recovery, to add a
   // passkey for the device they're on.
@@ -70,7 +71,7 @@ export function SignInPage({ next, runs }: { next: string; runs: number }) {
           title="New here? Create an account"
           onCode={(c) => setCode({ code: c, next })}
         />
-        <GuestSignIn next={next} runs={runs} />
+        <GuestSignIn next={next} runs={runs} refused={guestRefused ?? null} />
       </div>
     </main>
   )
@@ -78,16 +79,19 @@ export function SignInPage({ next, runs }: { next: string; runs: number }) {
 
 // Signing in as a guest (ADR 0006), with no passkey, so it stays open in a browser without passkeys: one
 // click to a temporary account of one's own, an owner of the guest network every guest owns, then on to
-// where the answer says, `next` under the sign-in's rules.
-function GuestSignIn({ next, runs }: { next: string; runs: number }) {
+// where the answer says, `next` under the sign-in's rules. The public pages' guest buttons send a refused
+// visitor here (#guest), with why, `refused`, which shows until they try again.
+function GuestSignIn({ next, runs, refused }: { next: string; runs: number; refused: string | null }) {
   const { busy, error, run } = useAction()
+  const [refusal, setRefusal] = useState(refused)
   const signIn = () =>
     run(async () => {
+      setRefusal(null)
       const answer = await send<{ next: string }>(`/auth/guest?next=${encodeURIComponent(next)}`)
       window.location.assign(answer.next)
     })
   return (
-    <section className={panel} aria-labelledby="way-guest">
+    <section className={panel} id="guest" aria-labelledby="way-guest">
       <div className="flex flex-col gap-1">
         <h2 className="type-body font-medium" id="way-guest">
           Look around as a guest
@@ -102,7 +106,7 @@ function GuestSignIn({ next, runs }: { next: string; runs: number }) {
         {busy && <Spinner data-icon="inline-start" />}
         {busy ? 'Signing in…' : 'Sign in as a guest'}
       </Button>
-      <Alert error={error} />
+      <Alert error={error ?? refusal} />
     </section>
   )
 }

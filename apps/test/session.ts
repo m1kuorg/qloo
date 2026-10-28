@@ -393,6 +393,27 @@ export const guestSignIn = ({ ip, cookie, next }: { ip?: string; cookie?: string
     body: '{}'
   })
 
+// A public page's guest button, such as "Open the sample network", as a browser posts its plain form with
+// no script, from a browser holding session cookie `cookie`, if given, to `?next` if given. Under the app's
+// `Referrer-Policy: no-referrer` the post's Origin is `null`, and its Sec-Fetch-Site says whose page sent
+// it, `site`, or nothing when it's empty. The redirect it answers with isn't followed.
+export const guestFormSignIn = ({
+  cookie,
+  next,
+  site = 'same-origin'
+}: { cookie?: string; next?: string; site?: string } = {}) =>
+  exports.default.fetch(`${origin}/auth/guest${next === undefined ? '' : `?next=${encodeURIComponent(next)}`}`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      Origin: 'null',
+      ...(site && { 'Sec-Fetch-Site': site }),
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(cookie && { Cookie: cookie })
+    },
+    body: ''
+  })
+
 export type Guest = Pick<Member, 'cookie' | 'fetch' | 'connect'> & {
   // Where the sign-in answered to go next.
   next: string

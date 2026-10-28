@@ -17,6 +17,8 @@ import {
   accountsOn,
   appOrigins,
   endSession,
+  formPost,
+  fromAppForm,
   jsonBody,
   jsonLimit,
   nextPath,
@@ -61,7 +63,8 @@ auth.use('/invite', accountsOn, authShell)
 auth.use(
   '/auth/*',
   accountsOn,
-  sameOrigin,
+  // Guest sign-in also takes a plain form's post from the app's own pages (fromAppForm).
+  (c, next) => (c.req.path === '/auth/guest' && fromAppForm(c) ? next() : sameOrigin(c, next)),
   async (c, next) => {
     await next()
     // Answers carry a session cookie or a recovery code: no cache keeps them.
@@ -152,14 +155,29 @@ async function registered(c: Context<{ Bindings: Env }>, ceremony: string, start
 // Whether a write failed because the passkey's credential ID is on an account already.
 const taken = (err: unknown) => String(err).includes('passkeys.credential_id')
 
+// Why guest sign-in is refused once everyone's guest sign-ins for the minute or the UTC day are spent.
+const guestRefused = (env: Env, spent: 'minute' | 'day') =>
+  spent === 'minute'
+    ? 'Guest sign-ins are busy for everyone right now. Try again in a minute.'
+    : `Guests have signed in ${Number(env.GUEST_SIGNINS_PER_DAY) || 0} times today, the most Crossfeed takes in a UTC day; it resets at 00:00 UTC. Create an account to sign in now.`
+
 // The sign-in page, a page of the React island: `next` is where it goes once the member is in, a
-// path on this site, and `runs` the guest network's model runs a day, which its guests share. A member
-// already signed in goes straight there.
+// path on this site, `runs` the guest network's model runs a day, which its guests share, and
+// `guest-refused` why a public page's guest button was refused, which `?guest` names (/auth/guest). A
+// member already signed in goes straight there.
 auth.get('/sign-in', async (c) => {
   const next = nextPath(c, c.req.query('next'))
   if (await signedIn(c)) return c.redirect(next, 302)
   c.header('Cache-Control', 'no-store')
-  return c.render(<Island page="sign-in" data-next={next} data-runs={Number(c.env.RUN_VISITOR_DAILY_CAP) || 0} />)
+  const spent = c.req.query('guest')
+  return c.render(
+    <Island
+      page="sign-in"
+      data-next={next}
+      data-runs={Number(c.env.RUN_VISITOR_DAILY_CAP) || 0}
+      data-guest-refused={spent === 'minute' || spent === 'day' ? guestRefused(c.env, spent) : undefined}
+    />
+  )
 })
 
 // The invite page, a page of the React island. The link's token is in its fragment, which the browser
@@ -441,31 +459,30 @@ auth.post('/auth/recover', async (c) => {
 // Signing in as a guest (ADR 0006), in one click with nothing to give: a guest member of one's own, an
 // owner of the guest network, signed in for a day. A browser that holds a live session, a member's or a
 // guest's, isn't signed in again, so no button signs anyone out. The answer is where to go next, `?next`
-// under the same rules as a passkey sign-in's. It isn't limited per visitor: everyone's guest sign-ins
-// together are, GUEST_SIGNINS_PER_MINUTE a minute and GUEST_SIGNINS_PER_DAY a UTC day.
+// under the same rules as a passkey sign-in's: to the sign-in page's script, as JSON, and to a public
+// page's plain form, which works with no script (ADR 0007), as a 303 redirect there. It isn't limited
+// per visitor: everyone's guest sign-ins together are, GUEST_SIGNINS_PER_MINUTE a minute and
+// GUEST_SIGNINS_PER_DAY a UTC day.
 auth.post('/auth/guest', async (c) => {
   const next = nextPath(c, c.req.query('next'))
-  if (await signedIn(c)) return c.json({ next })
+  const form = formPost(c)
+  const onward = () => (form ? c.redirect(next, 303) : c.json({ next }))
+  if (await signedIn(c)) return onward()
   const signedInAsGuest = await guestSignIn(c.env.DB, {
     perMinute: Number(c.env.GUEST_SIGNINS_PER_MINUTE) || 0,
     perDay: Number(c.env.GUEST_SIGNINS_PER_DAY) || 0
   })
   if ('spent' in signedInAsGuest) {
-    if (signedInAsGuest.spent === 'minute') {
-      c.header('Retry-After', '60')
-      return refuse(c, 'Guest sign-ins are busy for everyone right now. Try again in a minute.', 429)
-    }
+    const { spent } = signedInAsGuest
+    // A form goes back to the sign-in page's guest panel, which says why.
+    if (form) return c.redirect(`/sign-in?${new URLSearchParams({ guest: spent, next })}#guest`, 303)
     const tomorrow = new Date().setUTCHours(24, 0, 0, 0)
-    c.header('Retry-After', String(Math.ceil((tomorrow - Date.now()) / 1000)))
-    return refuse(
-      c,
-      `Guests have signed in ${Number(c.env.GUEST_SIGNINS_PER_DAY) || 0} times today, the most Crossfeed takes in a UTC day; it resets at 00:00 UTC. Create an account to sign in now.`,
-      429
-    )
+    c.header('Retry-After', spent === 'minute' ? '60' : String(Math.ceil((tomorrow - Date.now()) / 1000)))
+    return refuse(c, guestRefused(c.env, spent), 429)
   }
   setSession(c, signedInAsGuest.token, GUEST_SESSION_MS)
   console.log(JSON.stringify({ event: 'guest_sign_in' }))
-  return c.json({ next })
+  return onward()
 })
 
 // Sign-out: the session ends here and in the browser.
