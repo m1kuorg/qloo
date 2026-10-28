@@ -1,5 +1,5 @@
 // Deleting a network, from its settings' danger zone: an owner types its name, its directory rows go
-// first, then its launches' agents and its own are wiped, and the daily cron retries any wipe that
+// first, then its launches' agents and its own are wiped, and the hourly cron retries any wipe that
 // failed. Each test drives the Worker's routes and the agents' client protocol, and reads what an
 // agent holds over RPC, as the Worker would.
 import { getAgentByName } from 'agents'
@@ -69,11 +69,11 @@ const EMPTY = { network: { shows: 0, cpm: null, launches: 0 }, evidence: 0 }
 const wipedOut = async (id: string, launches: string[]) =>
   expect(await readAfterReset(() => held(id, launches))).toEqual({ ...EMPTY, launches: launches.map(() => null) })
 
-// Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
+// Runs the Worker's scheduled handler as Cloudflare does at the hourly cron in wrangler.jsonc.
 async function runCron() {
   const handler: ExportedHandler<Env> = worker
   const ctx = createExecutionContext()
-  await handler.scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+  await handler.scheduled!(createScheduledController({ cron: '0 0-11,13-23 * * *' }), env, ctx)
   await waitOnExecutionContext(ctx)
 }
 
@@ -139,7 +139,7 @@ describe('deleting a network', () => {
     expect(invite.status).toBe(404)
   })
 
-  it('wipes at the daily cron what failed to wipe, the network and its launches alike', async () => {
+  it('wipes at the hourly cron what failed to wipe, the network and its launches alike', async () => {
     const ada = await openMember()
     const { id, launches } = await network(ada)
     vi.spyOn(NetworkAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
@@ -157,7 +157,6 @@ describe('deleting a network', () => {
 
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.now() + 2 * 60_000)
-    fakeQloo({ search: { 'The Rewatchables': [] } }) // the cron's health check
     await runCron()
     await wipedOut(id, launches)
     expect(logged.mock.calls.flat().map(String)).toContain(

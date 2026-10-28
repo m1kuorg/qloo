@@ -170,11 +170,12 @@ const ended = (s: State) => s.run !== null && !['running', 'waiting'].includes(s
 // Every call number the state cites, outside its list of runs.
 const cited = ({ runs: _, ...state }: State) => [...new Set(JSON.stringify(state).match(/\bC-\d+\b/g))]
 
-// Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc.
-async function runCron() {
+// Runs the Worker's scheduled handler as Cloudflare does at a cron in wrangler.jsonc: the daily one, or
+// with `hourly`, the hourly one.
+async function runCron({ hourly = false } = {}) {
   const handler: ExportedHandler<Env> = worker
   const ctx = createExecutionContext()
-  await handler.scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+  await handler.scheduled!(createScheduledController({ cron: hourly ? '0 0-11,13-23 * * *' : '0 12 * * *' }), env, ctx)
   await waitOnExecutionContext(ctx)
 }
 
@@ -770,7 +771,7 @@ describe('deleting a launch', () => {
     expect((await ada.fetch(`/app/${network}/launches/${id}`)).status).toBe(200)
   })
 
-  it('wipes a launch whose wipe failed at the daily cron, and keeps one whose deletion stopped before the list let go', async () => {
+  it('wipes a launch whose wipe failed at the hourly cron, and keeps one whose deletion stopped before the list let go', async () => {
     const ada = await openMember()
     const network = await created(ada)
     const { id, agent } = await drafted(ada, network)
@@ -793,14 +794,14 @@ describe('deleting a launch', () => {
     agent.close()
 
     // The cron retries a wipe once it's a minute old, so it never races a deletion under way.
-    await runCron()
+    await runCron({ hourly: true })
     expect(await held(network, id)).toMatchObject({ runs: 1 })
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.now() + 2 * 60_000)
     // A retry that fails again fails the cron's run, and is kept for the next.
-    await expect(runCron()).rejects.toThrow('1 agent wipe failed')
+    await expect(runCron({ hourly: true })).rejects.toThrow('1 agent wipe failed')
     expect(await held(network, id)).toMatchObject({ runs: 1 })
-    await runCron()
+    await runCron({ hourly: true })
     await wipedOut(network, id)
     expect((await ada.fetch(`/app/${network}/launches/${other}`)).status).toBe(200)
     expect((await held(network, other)).launch).toEqual({ name: 'The Long Take', match: null, comps: [] })
@@ -907,7 +908,7 @@ describe('a member who deletes their account', () => {
     expect((await dashboard.until(() => true)).launches![0].startedBy).toBe('Former member')
   })
 
-  it("forgets it at the next day's cleanup when a launch can't be reached at once", async () => {
+  it("forgets it at the next hourly cleanup when a launch can't be reached at once", async () => {
     const ada = await openMember()
     const network = await created(ada)
     const grace = await teammate(ada, network)
@@ -924,7 +925,7 @@ describe('a member who deletes their account', () => {
 
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.now() + 2 * 60_000)
-    await runCron()
+    await runCron({ hourly: true })
     expect(await startedBy(ada, network, id)).toEqual(['Former member'])
   })
 })

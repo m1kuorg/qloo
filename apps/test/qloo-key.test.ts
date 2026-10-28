@@ -520,7 +520,7 @@ describe("a network's own Qloo key", () => {
     expect((await settings(ada, own)).usage.modelRuns.used).toBe(0)
   })
 
-  it('is wiped with its network, and by the daily cron when that wipe failed', async () => {
+  it('is wiped with its network, and by the hourly cron when that wipe failed', async () => {
     const ada = await openMember()
     fakeQloo({ search, keys: [OWN] })
     // What the network's own instance holds, read over RPC as the Worker would. A wiped instance resets,
@@ -551,9 +551,12 @@ describe("a network's own Qloo key", () => {
     expect((await held(second.id))[0]).toEqual({ set: true, host: HACKATHON, last4: '7f3a' })
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.now() + 2 * 60_000)
-    fakeQloo({ search: { 'The Rewatchables': [] } }) // the cron's health check
     const ctx = createExecutionContext()
-    await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+    await (worker as ExportedHandler<Env>).scheduled!(
+      createScheduledController({ cron: '0 0-11,13-23 * * *' }),
+      env,
+      ctx
+    )
     await waitOnExecutionContext(ctx)
     await wiped(second.id)
   })
