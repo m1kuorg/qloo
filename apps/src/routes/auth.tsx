@@ -156,7 +156,7 @@ async function registered(c: Context<{ Bindings: Env }>, ceremony: string, start
 const taken = (err: unknown) => String(err).includes('passkeys.credential_id')
 
 // Why guest sign-in is refused once everyone's guest sign-ins for the minute or the UTC day are spent.
-const guestRefused = (env: Env, spent: 'minute' | 'day') =>
+const whyGuestRefused = (env: Env, spent: 'minute' | 'day') =>
   spent === 'minute'
     ? 'Guest sign-ins are busy for everyone right now. Try again in a minute.'
     : `Guests have signed in ${Number(env.GUEST_SIGNINS_PER_DAY) || 0} times today, the most Crossfeed takes in a UTC day; it resets at 00:00 UTC. Create an account to sign in now.`
@@ -175,7 +175,7 @@ auth.get('/sign-in', async (c) => {
       page="sign-in"
       data-next={next}
       data-runs={Number(c.env.RUN_VISITOR_DAILY_CAP) || 0}
-      data-guest-refused={spent === 'minute' || spent === 'day' ? guestRefused(c.env, spent) : undefined}
+      data-guest-refused={spent === 'minute' || spent === 'day' ? whyGuestRefused(c.env, spent) : undefined}
     />
   )
 })
@@ -478,7 +478,7 @@ auth.post('/auth/guest', async (c) => {
     if (form) return c.redirect(`/sign-in?${new URLSearchParams({ guest: spent, next })}#guest`, 303)
     const tomorrow = new Date().setUTCHours(24, 0, 0, 0)
     c.header('Retry-After', spent === 'minute' ? '60' : String(Math.ceil((tomorrow - Date.now()) / 1000)))
-    return refuse(c, guestRefused(c.env, spent), 429)
+    return refuse(c, whyGuestRefused(c.env, spent), 429)
   }
   setSession(c, signedInAsGuest.token, GUEST_SESSION_MS)
   console.log(JSON.stringify({ event: 'guest_sign_in' }))
