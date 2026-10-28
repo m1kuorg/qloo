@@ -1210,10 +1210,12 @@ function Privacy({ accounts }: { accounts: boolean }) {
                 also caches the answers to the network’s Qloo calls and counts them, apart from every other network’s.
               </p>
               <p>
-                Signing in as a guest asks for nothing and keeps only a hash of your session, for a day. Every guest is
-                the same guest member, in the one guest network: everything in it, its roster, launches, runs, inbox,
-                and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them
-                deletes or replaces it, or until it’s cleared, every day at {GUEST_NETWORK_CLEARS}.
+                Signing in as a guest asks for nothing. It makes a temporary account with a generated name, such as
+                Guest 4F2A9C, and keeps a hash of its session, for a day, and the time of each guest sign-in, with
+                nothing else, to count them. Every guest owns the one guest network together: everything in it, its
+                roster, launches, runs, inbox, and approvals, is seen and changed by everyone who signs in as a guest,
+                and stays until one of them deletes or replaces it, or until it’s cleared, every day at{' '}
+                {GUEST_NETWORK_CLEARS}.
               </p>
             </li>
           )}

@@ -164,7 +164,7 @@ auth.get('/sign-in', async (c) => {
 
 // The invite page, a page of the React island. The link's token is in its fragment, which the browser
 // never sends: the page reads it and posts it, so it stays out of every path, query, log, and referrer.
-// A signed-in member is named, to join as themselves, or, as the guest member, told how to join instead.
+// A signed-in member is named, to join as themselves, or, as a guest member, told how to join instead.
 auth.get('/invite', async (c: Context<{ Bindings: Env; Variables: AppVariables }>) => {
   const member = await signedIn(c)
   // The shell shows them their account menu.

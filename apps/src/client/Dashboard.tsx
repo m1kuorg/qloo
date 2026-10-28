@@ -558,7 +558,7 @@ const parts = (counts: [number, string, string?][]) =>
 
 // What a new network needs, ticked off from its agent's state and the directory as each arrives, as
 // a numbered list. A member can dismiss it for themselves; it stays for everyone else. The guest
-// network, which has no owner, leaves out what only an owner could do: inviting and API keys.
+// network's leaves out inviting and API keys.
 function Checklist({
   state,
   network,

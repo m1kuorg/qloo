@@ -118,10 +118,10 @@ describe('the account page', () => {
     )
   })
 
-  it('shows a guest only that they’re the guest member, what that rules out, and signing out', async () => {
+  it('shows a guest only that their account is temporary, what a guest can’t do, and signing out', async () => {
     const html = await page(await openGuest())
     expect(words(html)).toBe(
-      'Account Guest Everyone who signs in as a guest is the one guest member, in the guest network, and shares everything in it and its daily limits. A guest can’t add a passkey or a recovery code, rename the guest member, sign out every guest, or delete the account, and can’t create or join a network. For any of that, sign out and create an account of your own. Sign out'
+      'Account Guest Your guest account is temporary: it lasts a day. Every guest owns the guest network together and shares its daily limits. A guest can’t add a passkey or a recovery code, rename themselves, sign out everywhere, or delete their account, and can’t create or join a network. For any of that, sign out and create an account of your own. Sign out'
     )
     expect(regions(html)).toEqual(['Guest'])
   })

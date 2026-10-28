@@ -213,7 +213,7 @@ const AccountMenu = ({ member, path }: { member: Member; path: string }) => (
 
 // The network switcher, first in the app's top bar: the current network's name, or "Your networks" on
 // a page outside one, after a visually hidden "Network: ". Its menu lists the member's networks, the
-// current one checked, or says there are none yet, and "New network", unless they're the guest member,
+// current one checked, or says there are none yet, and "New network", unless they're a guest member,
 // who can't create one. Renaming the network in its settings changes its name in place
 // (data-current-network).
 const Switcher = ({ networks, network, guest }: { networks: Network[]; network?: Network; guest: boolean }) => (
@@ -261,9 +261,10 @@ const Switcher = ({ networks, network, guest }: { networks: Network[]; network?:
   </details>
 )
 
-// The guest notice, under the app's top bar on every page for the guest member (ADR 0005): everyone who
-// signs in as a guest shares the guest network and its daily limits. Its button ends the session and
-// opens the sign-in page, to create an account; main.tsx wires it, as it does the account menu's Sign out.
+// The guest notice, under the app's top bar on every page for a guest member (ADR 0006): their account
+// is temporary, and every guest owns the guest network and shares its daily limits. Its button ends the
+// session and opens the sign-in page, to create an account; main.tsx wires it, as it does the account
+// menu's Sign out.
 const GuestNotice = () => (
   <aside
     aria-label="Guest notice"
@@ -271,8 +272,9 @@ const GuestNotice = () => (
     class="flex flex-wrap items-center gap-x-3 gap-y-1 bg-muted px-4 py-2 lg:px-6"
   >
     <p>
-      <b class="font-medium">You’re signed in as a guest.</b> Everyone who signs in as a guest shares the guest network
-      and its daily limits, so put nothing private in it. It’s cleared every day at {GUEST_NETWORK_CLEARS}.
+      <b class="font-medium">You’re signed in as a guest, on a temporary account that lasts a day.</b> Every guest owns
+      the guest network together and shares its daily limits, so put nothing private in it. It’s cleared every day at{' '}
+      {GUEST_NETWORK_CLEARS}.
     </p>
     <span>
       <button type="button" class={buttonVariants({ variant: 'link' })} data-sign-out>

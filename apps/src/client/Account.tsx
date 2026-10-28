@@ -311,7 +311,7 @@ type InviteAnswer = { network: string } | { error: string }
 
 // The invite page: the link's token is in the address's fragment, which the browser never sends, so
 // the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in, and
-// `guest` whether that's the guest member, who can't join (ADR 0005).
+// `guest` whether that's a guest member, who can't join (ADR 0006).
 export function InvitePage({ memberName, guest = false }: { memberName: string | null; guest?: boolean }) {
   const [token] = useState(() => window.location.hash.slice(1))
   const [invite, setInvite] = useState<InviteAnswer | null>(null)
@@ -434,8 +434,8 @@ function JoinAs({
     return (
       <section className={panel} aria-label={`Join ${network}`}>
         <p>
-          You’re signed in as a guest, and the guest member every guest shares can’t join a network. Sign out and create
-          an account to join {network}.
+          You’re signed in as a guest, and a guest can’t join a network. Sign out and create an account to join{' '}
+          {network}.
         </p>
         {/* As signOut does above: signed out, the page opens on the invite again. */}
         <SignOut className="w-full" then={() => window.location.reload()}>

@@ -266,9 +266,9 @@ const words = (html: string) =>
 
 describe('the app, as a guest sees it', () => {
   const NOTICE =
-    'You’re signed in as a guest. Everyone who signs in as a guest shares the guest network and its daily limits, so put nothing private in it. It’s cleared every day at 12:00 UTC. Sign out and create an account'
+    'You’re signed in as a guest, on a temporary account that lasts a day. Every guest owns the guest network together and shares its daily limits, so put nothing private in it. It’s cleared every day at 12:00 UTC. Sign out and create an account'
 
-  it('says on every page that the guest network is shared, offers a way to an account, and no network of one’s own', async () => {
+  it('says on every page that the account is temporary and the guest network shared, offers a way to an account, and no network of one’s own', async () => {
     const guest = await openGuest()
     const network = await guest.connect('/agents/network/guest-network')
     const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
@@ -299,7 +299,7 @@ describe('the app, as a guest sees it', () => {
     const cap = Number(root.match(/data-cap="(\d+)"/)![1])
     const html = renderToStaticMarkup(createElement(NewNetworkPage, { cap, guest: true }))
     expect(words(html)).toBe(
-      'Create a network A network holds your roster, its launches, and your booking inbox, for you and the teammates you invite. You own the networks you create, up to 3. A guest can’t create a network: every guest shares the guest network. Sign out and create an account to create one of your own. Sign out and create an account'
+      'Create a network A network holds your roster, its launches, and your booking inbox, for you and the teammates you invite. You own the networks you create, up to 3. A guest can’t create a network. Sign out and create an account to create one of your own. Sign out and create an account'
     )
     expect(html).not.toContain('<input')
   })
@@ -337,7 +337,7 @@ describe('the app, as a guest sees it', () => {
     // A member is offered Join, and signing out to join with another account.
     expect(words(await invitePage(ada, link))).toContain('Join Night Shift Audio Not Ada Programmer? Sign out')
     expect(words(await invitePage(await openGuest(), link))).toBe(
-      'Join Night Shift Audio You’re invited to Night Shift Audio on Crossfeed, as a member: you’ll work on its roster, launches, and inbox with its other members. The link works once. You’re signed in as a guest, and the guest member every guest shares can’t join a network. Sign out and create an account to join Night Shift Audio. Sign out and create an account'
+      'Join Night Shift Audio You’re invited to Night Shift Audio on Crossfeed, as a member: you’ll work on its roster, launches, and inbox with its other members. The link works once. You’re signed in as a guest, and a guest can’t join a network. Sign out and create an account to join Night Shift Audio. Sign out and create an account'
     )
   })
 })
