@@ -10,7 +10,7 @@ import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
-import { ShowEditor } from '../src/client/RosterModules'
+import { RosterImport, ShowEditor } from '../src/client/RosterModules'
 import type { Role } from '../src/directory'
 import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
@@ -434,15 +434,10 @@ describe("the roster's page", () => {
 })
 
 describe("the roster page's words", () => {
-  // The page as a member reads it, from the network agent's synced state and the server's props.
-  const markup = (state: State | undefined, network: string, role: Role = 'owner') =>
-    renderToStaticMarkup(
-      <NetworkRoster
-        agent={{ state, stub: {} } as unknown as NetworkConnection}
-        network={{ id: network, name: 'Night Shift Audio', role, links: networkLinks(env, network) }}
-      />
-    )
-  const page = (state: State | undefined, network: string, role: Role = 'owner') => words(markup(state, network, role))
+  // The page as a member reads it, from the network agent's synced state.
+  const markup = (state: State | undefined) =>
+    renderToStaticMarkup(<NetworkRoster agent={{ state, stub: {} } as unknown as NetworkConnection} />)
+  const page = (state: State | undefined) => words(markup(state))
   // The inspector's Show tab for one of the roster's shows, as selecting its row opens it.
   const editor = (state: State, name: string) =>
     words(
@@ -458,55 +453,46 @@ describe("the roster page's words", () => {
     )
 
   it("leaves the shell's top bar the one banner, and names each region once", async () => {
+    fakeQloo({ search })
     const ada = await openMember()
     const network = await created(ada)
-    const html = renderToStaticMarkup(
-      <NetworkRoster
-        agent={{ state: (await connect(ada, network)).state(), stub: {} } as unknown as NetworkConnection}
-        network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
-      />
-    )
+    const state = await (await connect(ada, network)).importRoster('Deep Cuts\nField Notes')
+    const html = renderToStaticMarkup(<NetworkRoster agent={{ state, stub: {} } as unknown as NetworkConnection} />)
     expect(html).not.toContain('<header')
     const named = regions(html)
     expect(named.length).toBeGreaterThan(0)
     expect(new Set(named).size).toBe(named.length)
   })
 
-  it('offers an empty network two ways in, and nothing a launch does', async () => {
+  it('offers an empty network one way in, the import in its sheet, and nothing a launch does', async () => {
     const ada = await openMember()
     const network = await created(ada)
-    const read = page((await connect(ada, network)).state(), network)
-    expect(read).toMatch(
-      /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. No roster yet\. CPM Not set · Set it in settings Import shows /
+    // The header is the title alone, and the empty state says what's missing with Import shows, which
+    // opens the import in its sheet. With no shows there's nothing to count, cite, or start from, and
+    // the CPM is the dashboard's and the settings'.
+    expect(page((await connect(ada, network)).state())).toBe('Roster No shows yet. Import shows')
+    // The sheet's import takes pasted names or a file, dropped anywhere on the page.
+    const form = words(
+      renderToStaticMarkup(
+        <RosterImport roster={[]} draft={{ current: '' }} importRoster={async () => {}} keepsSettledShows />
+      )
     )
-    expect(read).toContain(
-      'Import shows Show names Import roster Upload a file Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
+    expect(form).toBe(
+      'Show names Import roster Upload a file Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up. Drop a file anywhere on the page, or upload one: a CSV needs a name column, and downloads , status , and description are optional; a text file has one show name per line.'
     )
-    expect(read).toContain(
-      'Drop a file anywhere on the page, or upload one: a CSV needs a name column, and downloads , status , and description are optional; a text file has one show name per line.'
-    )
-    // With no shows, there's nothing to cite or count yet, and the sample roster isn't a way in.
-    for (const elsewhere of [
-      'Start from the sample roster',
-      'Start run',
-      'Launch ·',
-      'Guide',
-      'Clear sample network',
-      'Replaces the current roster',
-      'Evidence',
-      'Roster check'
-    ])
-      expect(read).not.toContain(elsewhere)
   })
 
-  it('offers a guest, an owner of the guest network, its CPM to change in settings, and a guest made a member whose it is', async () => {
+  it('leaves the CPM to the dashboard, where a guest, an owner of the guest network, changes it, and a guest made a member views it', async () => {
     const guest = await openGuest()
     const state = await (await connect(guest, 'guest-network')).until((s) => s.cpm === 20)
-    const roster = (role: Role) =>
+    const roster = words(
+      renderToStaticMarkup(<NetworkRoster agent={{ state, stub: {} } as unknown as NetworkConnection} />)
+    )
+    const dashboard = (role: Role) =>
       words(
         renderToStaticMarkup(
-          <NetworkRoster
-            agent={{ state, stub: {} } as unknown as NetworkConnection}
+          <Dashboard
+            state={state}
             network={{
               id: 'guest-network',
               name: 'Guest network',
@@ -514,15 +500,16 @@ describe("the roster page's words", () => {
               guestBudget: true,
               links: networkLinks(env, 'guest-network')
             }}
+            memberId="guest-member"
+            setup={{ invited: false, apiKey: false }}
+            dismiss={async () => {}}
+            createLaunch={async () => ({ id: 'l-1' })}
           />
         )
       )
-    expect(roster('owner')).toMatch(
-      /No roster yet\. CPM \$20 per 1,000 downloads · Change it in settings Import shows /
-    )
-    expect(roster('member')).toMatch(
-      /No roster yet\. CPM \$20 per 1,000 downloads · An owner sets it in settings\. Import shows /
-    )
+    expect(roster).toBe('Roster No shows yet. Import shows')
+    expect(dashboard('owner')).toContain('CPM $20 per 1,000 downloads Change')
+    expect(dashboard('member')).toContain('CPM $20 per 1,000 downloads View')
   })
 
   it("labels the guest network's sample roster figure by figure, under no notice", async () => {
@@ -531,7 +518,7 @@ describe("the roster page's words", () => {
     const network = 'guest-network'
     const agent = await connect(await openGuest(), network)
     const state = await agent.until((s) => s.roster.length > 0 && settled(s))
-    const read = page(state, network, 'member')
+    const read = page(state)
     // One sample label a row, beside the show's name, however many of its figures are the sample's. It's
     // hidden from screen readers, as the row's header is read out before each of its cells, so they
     // hear "sample" after each sample figure instead.
@@ -540,7 +527,7 @@ describe("the roster page's words", () => {
     )
     const chip = /<span\b[^>]*\saria-hidden="true"[^>]*>sample<\/span>/g
     const rows = (s: State) =>
-      markup(s, network, 'member')
+      markup(s)
         .match(/<tbody>.*<\/tbody>/s)![0]
         .split('</tr>')
         .slice(0, -1)
@@ -561,13 +548,12 @@ describe("the roster page's words", () => {
     const watch = editor(state, 'The Watch')
     expect(watch).toContain('Sample: Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
     expect(watch).toContain('Downloads per episode sample Status sample Save')
-    // The title row: whether it's ready to rank, the sample CPM, and the import, now in a sheet, then the
-    // table, with no notice between them.
+    // The header: the title, its counts, and the import, in a sheet; then, by the table, whether it's
+    // ready to rank. No notice, explanation, or CPM is above the table.
     expect(read).toMatch(
-      /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. 19 shows: 19 missed 19 shows aren’t scored until you settle or leave them out\. CPM \$20 per 1,000 downloads sample · An owner sets it in settings\. Import shows Qloo data Matches from Qloo search, one call per show\. /
+      /^Roster 19 shows · 19 missed Import shows 19 shows aren’t scored until you settle or leave them out\. Qloo data Matches from Qloo search, one call per show\. /
     )
-    for (const gone of ['Sample roster', 'Crossfeed isn’t affiliated', 'Start from the sample roster'])
+    for (const gone of ['Sample roster', 'Crossfeed isn’t affiliated', 'Start from the sample roster', 'CPM'])
       expect(read).not.toContain(gone)
-    expect(read).not.toContain('in settings Set')
   })
 })

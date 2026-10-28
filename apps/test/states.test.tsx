@@ -67,7 +67,7 @@ const page = (
     name === 'inbox' ? (
       <InboxWorkspace agent={agent} links={links} />
     ) : name === 'roster' ? (
-      <NetworkRoster agent={agent as unknown as NetworkConnection} network={launchPage.network} />
+      <NetworkRoster agent={agent as unknown as NetworkConnection} />
     ) : (
       <LaunchWorkspace agent={agent} {...launchPage} />
     )
@@ -88,8 +88,7 @@ describe('an empty workspace', () => {
     expect(text).toContain('No launch yet Import a roster first, then name a released launch to rank it.')
     expect(text).toContain('Not run yet. A run looks it up in Qloo.')
     const roster = page(s.state(), 'roster')
-    expect(roster).toContain('ranks this roster, as it stands when its run starts. No roster yet.')
-    expect(roster).toContain('Import shows Show names Import roster')
+    expect(roster).toContain('Roster No shows yet. Import shows')
     expect(roster).not.toContain('Start from the sample roster')
   })
 
@@ -153,15 +152,12 @@ describe('a roster being looked up', () => {
     await s.call('importRoster', 'Night Shift Cinema\nDeep Cuts')
     const pending = s.state()!
     const html = renderToStaticMarkup(
-      <NetworkRoster
-        agent={{ state: pending, stub: {} } as unknown as NetworkConnection}
-        network={launchPage.network}
-      />
+      <NetworkRoster agent={{ state: pending, stub: {} } as unknown as NetworkConnection} />
     )
     const text = page(pending, 'roster')
     expect(text).toContain('Night Shift Cinema Looking up Looking it up in Qloo… – – C-01')
     expect(text).toContain('Deep Cuts Looking up Looking it up in Qloo… – – C-02')
-    expect(text).toContain('2 shows: 2 looking up')
+    expect(text).toContain('2 shows · 2 looking up')
     expect(html.match(/<tr\b[^>]*\saria-busy="true"/g)).toHaveLength(2)
     // A pending call has no record to open yet.
     expect(html).not.toContain('call C-01"')
@@ -169,7 +165,7 @@ describe('a roster being looked up', () => {
     nightShift.resolve()
     deepCuts.resolve()
     const settled = await s.until((st) => st.roster.every((show) => show.resolution === 'resolved'))
-    expect(page(settled, 'roster')).toContain('2 shows: 2 resolved')
+    expect(page(settled, 'roster')).toContain('2 shows · 2 resolved')
     expect(page(settled, 'roster')).toContain('Import shows')
   })
 })

@@ -17,6 +17,7 @@ import type { State } from '../src/agent'
 import type { Evidence } from '../src/evidence'
 import { Invite, SignInPage } from '../src/client/Account'
 import type { Session as AppSession } from '../src/client/App'
+import { Dashboard } from '../src/client/Dashboard'
 import { InboxWorkspace } from '../src/client/Inbox'
 import { globalGateway } from '../src/gateway'
 import type { NetworkConnection } from '../src/client/NetworkPage'
@@ -440,6 +441,27 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
+// The guest network's dashboard as a guest, its owner, reads it.
+const dashboardWords = (state: State) =>
+  words(
+    renderToStaticMarkup(
+      createElement(Dashboard, {
+        state,
+        network: {
+          id: 'guest-network',
+          name: 'Guest network',
+          role: 'owner',
+          guestBudget: true,
+          links: networkLinks(env, 'guest-network')
+        },
+        memberId: 'guest-member',
+        setup: { invited: false, apiKey: false },
+        dismiss: async () => {},
+        createLaunch: async () => ({ id: 'l-1' })
+      })
+    )
+  )
+
 describe('the app, as a guest sees it', () => {
   // The account menu at the top bar's end, its button and its panel, the one shell menu that says who's
   // signed in.
@@ -629,21 +651,8 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       entity: { id: 'e-0601' }
     })
     expect(state.cpm).toBe(20)
-    // The roster page labels the CPM as the sample's, as it does each show's figures.
-    const page = renderToStaticMarkup(
-      createElement(NetworkRoster, {
-        agent: { state, stub: {} } as unknown as NetworkConnection,
-        network: {
-          id: 'guest-network',
-          name: 'Guest network',
-          role: 'owner',
-          links: networkLinks(env, 'guest-network')
-        }
-      })
-    )
-    expect(page.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).toContain(
-      'CPM $20 per 1,000 downloads sample · Change it in settings'
-    )
+    // The dashboard labels the CPM as the sample's, as the roster page does each show's figures.
+    expect(dashboardWords(state)).toContain('CPM $20 per 1,000 downloads sample Change')
     expect(state.sample).toEqual({
       network: 'The Ringer',
       notice: sampleFile.notice,
@@ -684,21 +693,16 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(refused.launches).toHaveLength(1)
     expect(requests).toEqual([])
     const page = renderToStaticMarkup(
-      createElement(NetworkRoster, {
-        agent: { state: refused, stub: {} } as unknown as NetworkConnection,
-        network: {
-          id: 'guest-network',
-          name: 'Guest network',
-          role: 'owner',
-          links: networkLinks(env, 'guest-network')
-        }
-      })
+      createElement(NetworkRoster, { agent: { state: refused, stub: {} } as unknown as NetworkConnection })
     )
     // Nothing to start from but the roster's import: the next start tries the lookups again.
-    expect(page).not.toContain('Start from the sample roster')
-    expect(page.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).toContain(
-      'CPM $20 per 1,000 downloads sample · Change it in settings'
-    )
+    expect(
+      page
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    ).toBe('Roster No shows yet. Import shows')
+    expect(dashboardWords(refused)).toContain('CPM $20 per 1,000 downloads sample Change')
 
     // As after an idle eviction or a deploy: the agent starts again, with its storage.
     env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
