@@ -17,6 +17,7 @@ import {
   noteWipe,
   pastNetworks,
   wipeDone,
+  wipeReason,
   wipesDue,
   type Instance
 } from './directory'
@@ -24,15 +25,17 @@ import {
   CLEARING,
   GUEST_NETWORK_RESET,
   kickMember,
+  LAUNCH_DELETED,
   launchAgentName,
   NETWORK_DELETED,
-  ownGatewayName
+  ownGatewayName,
+  readLaunchAgentName
 } from './network-agent'
 import { GUEST_MEMBER, GUEST_NETWORK } from './text'
 
 // The bindings a wipe is noted under, and how each wipes its instance (an agent's `destroy`, a gateway's
-// `wipe`), saying `reason` to the pages it closes, if it closes any; and how a network forgets a deleted
-// member, noted the same way.
+// `wipe`), saying the reason it was noted with to the pages it closes, if it closes any; and how a network
+// forgets a deleted member, noted the same way.
 const LAUNCH = 'LaunchAgent'
 const NETWORK = 'NetworkAgent'
 const GATEWAY = 'QlooGateway'
@@ -64,11 +67,11 @@ const WIPES_PER_RUN = 7
 // away, so the guest network's loads no sample (CLEARING).
 const networkToWipe = (env: Env, networkId: string) => getAgentByName(env.NetworkAgent, networkId, { props: CLEARING })
 
-// Deletes a launch the network lists: noted for the wipe first, then let go of by the network's list,
-// so its page and agent answer 404 from then on, then wiped. A wipe that fails is logged and left for
+// Deletes a launch the network lists: noted for the wipe first, with why, then let go of by the network's
+// list, so its page and agent answer 404 from then on, then wiped. A wipe that fails is logged and left for
 // the cron, since the launch is gone from the network either way.
 export async function deleteLaunch(env: Env, networkId: string, launchId: string) {
-  const launch = { binding: LAUNCH, name: launchAgentName(networkId, launchId) }
+  const launch = { binding: LAUNCH, name: launchAgentName(networkId, launchId), reason: LAUNCH_DELETED }
   await noteWipe(env.DB, launch)
   await (await getAgentByName(env.NetworkAgent, networkId)).dropLaunch(launchId)
   await wipe(env, launch).catch((e) => wipeFailed(launch, e))
@@ -76,11 +79,12 @@ export async function deleteLaunch(env: Env, networkId: string, launchId: string
 
 // Every instance network `networkId` has, from the launches it lists: each launch's agent, then its own,
 // then its own Qloo gateway instance, last, since its agents' calls reach it until they're wiped (ADR
-// 0004). The one place a network's instances are listed, so its deletion wipes them all.
-const networkInstances = (networkId: string, launches: string[]): Instance[] => [
-  ...launches.map((id) => ({ binding: LAUNCH, name: launchAgentName(networkId, id) })),
-  { binding: NETWORK, name: networkId },
-  { binding: GATEWAY, name: ownGatewayName(networkId) }
+// 0004), each going for `reason`. The one place a network's instances are listed, so its deletion wipes
+// them all.
+const networkInstances = (networkId: string, launches: string[], reason: string): Instance[] => [
+  ...launches.map((id) => ({ binding: LAUNCH, name: launchAgentName(networkId, id), reason })),
+  { binding: NETWORK, name: networkId, reason },
+  { binding: GATEWAY, name: ownGatewayName(networkId), reason }
 ]
 
 // Deletes network `networkId` for good, once owner `by` has typed its name: its directory rows go first,
@@ -93,15 +97,16 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
   const agent = await networkToWipe(env, networkId)
   const instances = networkInstances(
     networkId,
-    ((await agent.state).launches ?? []).map((l) => l.id)
+    ((await agent.state).launches ?? []).map((l) => l.id),
+    NETWORK_DELETED
   )
   if (!(await dropNetwork(env.DB, networkId, by, instances))) return false
-  for (const late of networkInstances(networkId, await agent.letGo()))
+  for (const late of networkInstances(networkId, await agent.letGo(), NETWORK_DELETED))
     if (!instances.some((i) => i.name === late.name)) {
       await noteWipe(env.DB, late)
       instances.unshift(late)
     }
-  for (const instance of instances) await wipe(env, instance, NETWORK_DELETED).catch((e) => wipeFailed(instance, e))
+  for (const instance of instances) await wipe(env, instance).catch((e) => wipeFailed(instance, e))
   return true
 }
 
@@ -111,14 +116,14 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
 // a wipe of each of those launches, of its agent, and of its own Qloo gateway instance; then its agent is
 // wiped, which takes the launches off its list, so their pages and agents answer 404, then its gateway
 // instance, with any key a guest added. The launches' own agents are left to the hourly retry, so the
-// clearing's subrequests stay the same however many launches it lists (#275); until then a page of one
-// still open can't start a run (NetworkAgent.rosterForLaunch). The agent's next start loads the sample
-// network again (ADR 0007). It's started, if it isn't running, to be wiped, so it loads none now
+// clearing's subrequests stay the same however many launches it lists (#275); until then each takes no
+// more work, saying the guest network was cleared, as its wipe was noted (LaunchAgent.gone). The agent's
+// next start loads the sample network again (ADR 0007). It's started, if it isn't running, to be wiped, so it loads none now
 // (networkToWipe). Logs how many launches it noted and how many wipes failed; one that failed stays noted
 // for the next hour's retry, and fails this run.
 export async function resetGuestNetwork(env: Env) {
   const launches = await letGoOfGuestNetwork(env)
-  const instances = networkInstances(GUEST_NETWORK, launches)
+  const instances = networkInstances(GUEST_NETWORK, launches, GUEST_NETWORK_RESET)
   await clearGuestNetwork(env.DB, instances)
   let failed = 0
   for (const instance of instances.filter((i) => i.binding !== LAUNCH))
@@ -180,7 +185,10 @@ export async function removeTemporaryGuests(env: Env) {
 export async function clearGuests(env: Env) {
   const deleting: { id: string; instances: Instance[] }[] = []
   for (const id of await guestOwnedNetworks(env.DB, networksPerMember(env)))
-    deleting.push({ id, instances: networkInstances(id, await (await networkToWipe(env, id)).letGo()) })
+    deleting.push({
+      id,
+      instances: networkInstances(id, await (await networkToWipe(env, id)).letGo(), NETWORK_DELETED)
+    })
   const { networks, left } = await clearGuestMember(env.DB, deleting)
   await Promise.all(left.map((id) => kickMember(env, id, GUEST_MEMBER)))
   console.log(JSON.stringify({ event: 'guest_member_cleared', networks, left: left.length }))
@@ -188,10 +196,11 @@ export async function clearGuests(env: Env) {
 
 // The hourly cron's retry of the oldest wipes noted over a minute ago and not done, at most
 // WIPES_PER_RUN, logging how many it wiped, kept, and failed: the wipes that failed, and those the daily
-// clearing left to it. A launch its network still lists, while the network is still in the directory, was
-// never let go of, as when its deletion stopped before the list let go, so it's kept and its wipe crossed
-// off. A network's agent is wiped as wipeNetwork says. Every wipe is tried, and then any that failed, or
-// that names a binding nothing here wipes, fails the cron's run; they stay noted for the next.
+// clearing left to it, each closing its pages with the reason it was noted with. A launch its network still
+// lists, while the network is still in the directory, was never let go of, as when its deletion stopped
+// before the list let go, so it's kept and its wipe crossed off. A network's agent is wiped as wipeNetwork
+// says. Every wipe is tried, and then any that failed, or that names a binding nothing here wipes, fails
+// the cron's run; they stay noted for the next.
 export async function retryWipes(env: Env) {
   const done = { wiped: 0, kept: 0, failed: 0 }
   for (const instance of await wipesDue(env.DB, Date.now() - RETRY_AFTER_MS, WIPES_PER_RUN)) {
@@ -200,7 +209,7 @@ export async function retryWipes(env: Env) {
         await wipeDone(env.DB, instance.binding, instance.name)
         done.kept++
       } else {
-        await (instance.binding === NETWORK ? wipeNetwork(env, instance.name) : wipe(env, instance, closing(instance)))
+        await (instance.binding === NETWORK ? wipeNetwork(env, instance) : wipe(env, instance))
         done.wiped++
       }
     } catch (e) {
@@ -215,36 +224,39 @@ export async function retryWipes(env: Env) {
     )
 }
 
-// Wipes network `networkId`'s agent, as the cron's retry does, when its launches' wipes may never have been
-// noted, as when removing temporary guests deleted it: the agent lets go first, closing its open pages, and
-// names the launches it lists, whose wipes, and its own Qloo gateway instance's, are noted for the next runs,
-// in one batch; then it's wiped. A launch already wiped is wiped again, which finds it empty.
-async function wipeNetwork(env: Env, networkId: string) {
+// Wipes a network's agent, as the cron's retry does, when its launches' wipes may never have been noted, as
+// when removing temporary guests deleted it: the agent lets go first, closing its open pages with the
+// reason its wipe was noted with, or that it was deleted, and names the launches it lists, whose wipes, and
+// its own Qloo gateway instance's, are noted for the next runs with that reason, in one batch; then it's
+// wiped. A launch already wiped is wiped again, which finds it empty.
+async function wipeNetwork(env: Env, { name: networkId, reason }: Instance) {
+  const why = reason ?? NETWORK_DELETED
   const agent = await networkToWipe(env, networkId)
-  const launches = await agent.letGo(networkId === GUEST_NETWORK ? GUEST_NETWORK_RESET : NETWORK_DELETED)
-  await noteWipe(env.DB, ...networkInstances(networkId, launches).filter((i) => i.binding !== NETWORK))
+  const launches = await agent.letGo(why)
+  await noteWipe(env.DB, ...networkInstances(networkId, launches, why).filter((i) => i.binding !== NETWORK))
   await agent.destroy()
   await wipeDone(env.DB, NETWORK, networkId)
 }
 
-// What the open pages of a launch the retry wipes say as they close: for the guest network's, which the
-// daily clearing left to the retry (resetGuestNetwork), that it was cleared.
-const closing = ({ binding, name }: Instance) =>
-  binding === LAUNCH && name.startsWith(`${GUEST_NETWORK}:`) ? GUEST_NETWORK_RESET : undefined
+// The reason launch agent `name`'s pages are told as they close, and its calls once its network no longer
+// lists it (LaunchAgent.gone): the one its wipe was noted with, such as the guest network's clearing, or
+// that it was deleted.
+export const launchCloseReason = async (env: Env, name: string) =>
+  (await wipeReason(env.DB, LAUNCH, name)) ?? LAUNCH_DELETED
 
 // Whether `instance` is a launch its network, still in the directory, still lists.
 async function keptLaunch(env: Env, { binding, name }: Instance) {
   if (binding !== LAUNCH) return false
-  const [networkId, launchId] = name.split(':') // as launchAgentName names it
+  const { networkId, launchId } = readLaunchAgentName(name)
   if ((await networkName(env.DB, networkId)) === null) return false
   return (await getAgentByName(env.NetworkAgent, networkId)).listsLaunch(launchId)
 }
 
-// Wipes `instance`, then crosses its wipe off.
-async function wipe(env: Env, { binding, name }: Instance, reason?: string) {
+// Wipes `instance`, its pages told the reason it was noted with, then crosses its wipe off.
+async function wipe(env: Env, { binding, name, reason }: Instance) {
   const wiper = WIPERS[binding]
   if (!wiper) throw new Error(`Nothing wipes a ${binding} yet.`)
-  await wiper(env, name, reason)
+  await wiper(env, name, reason ?? undefined)
   await wipeDone(env.DB, binding, name)
 }
 

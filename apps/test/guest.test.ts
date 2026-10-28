@@ -1601,8 +1601,9 @@ describe("the guest network's daily reset", () => {
     )
     await waitOnExecutionContext(ctx)
   }
-  const gone =
-    "This launch was deleted, or its network cleared, so it can't run. Open the dashboard to see the network's launches."
+  // What launch `id`'s agent holds of its latest run.
+  const latestRun = async (id: string) =>
+    (await (await getAgentByName(env.LaunchAgent, `guest-network:${id}`)).state).run
 
   it('clears it at the daily cron, closing guests’ pages, so the next guest starts afresh with the day’s budget spent as it was', async () => {
     fakeQloo({
@@ -1636,8 +1637,8 @@ describe("the guest network's daily reset", () => {
 
     expect(await network.closed()).toEqual(RESET)
     expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 1, failed: 0 }))
-    // Its launch is off the list, its agent left to the hourly retry, and a page of it still open can't run it.
-    await expect(launch.call('startLaunch', { name: 'The Night Watch' })).rejects.toThrow(gone)
+    // Its launch is off the list, its agent, and a page of it still open, left to the hourly retry.
+    expect(await launchHeld(id)).toBe('The Night Watch')
     // The guest is still signed in, and the guest network opens afresh: the sample's CPM, nothing else.
     const fresh = await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
     expect(fresh).toMatchObject({ cpm: 20, roster: [], launches: [], checklistDismissed: [] })
@@ -1725,6 +1726,72 @@ describe("the guest network's daily reset", () => {
     expect((await guest.fetch(`/app/guest-network/launches/${id}`)).status).toBe(404)
     await runHourlyCron()
     expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'wipes_retried', wiped: 2, kept: 0, failed: 0 }))
+    expect(await launchHeld(id)).toBeNull()
+  })
+
+  it('stops a launch’s run waiting on a question as a page still open answers it, calling no model, and closes its pages', async () => {
+    fakeQloo({ search: health })
+    const guest = await openGuest()
+    const network = await connect(guest, '/agents/network/guest-network')
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    const launch = await connect(guest, `/agents/launch/guest-network/${id}`)
+    const another = await connect(guest, `/agents/launch/guest-network/${id}`)
+    fakeClaude([
+      turn(toolUse('ask_human', { question: 'Which cut is it?', kind: 'choice', options: ['Original', 'Remaster'] })),
+      turn(text('Planned.'))
+    ])
+    await launch.call('startLaunch', { name: 'The Night Watch' })
+    const { run } = await launch.until((s) => s.run?.status === 'waiting')
+    await runCron()
+    const asked = modelRequests().length
+
+    // The answer never reaches Claude: the page closes, saying why, and so does every other.
+    void launch.call('answer', run!.question!.id, { choice: 'Original' })
+    expect(await launch.closed()).toEqual(RESET)
+    expect(await another.closed()).toEqual(RESET)
+    expect(await latestRun(id)).toMatchObject({ id: run!.id, status: 'stopped', error: RESET.reason })
+    expect(modelRequests()).toHaveLength(asked)
+  })
+
+  it('stops a launch’s run under way before its next model turn, and closes its pages', async () => {
+    fakeQloo({
+      search: { ...health, 'The Night Watch': [{ entity_id: 'e-0801', name: 'The Night Watch', popularity: 0.5 }] }
+    })
+    const guest = await openGuest()
+    const network = await connect(guest, '/agents/network/guest-network')
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    const launch = await connect(guest, `/agents/launch/guest-network/${id}`)
+    // Claude's first turn is held while the guest network is cleared, then asks for a tool.
+    const held = Promise.withResolvers<void>()
+    fakeClaude([
+      () =>
+        held.promise.then(() =>
+          turn(toolUse('resolve_entities', { names: ['The Night Watch'], type: 'urn:entity:podcast' }))
+        ),
+      turn(text('Planned.'))
+    ])
+    await launch.call('startLaunch', { name: 'The Night Watch' })
+    await vi.waitFor(() => expect(modelRequests()).toHaveLength(1))
+    await runCron()
+
+    held.resolve()
+    expect(await launch.closed()).toEqual(RESET)
+    expect(await latestRun(id)).toMatchObject({ status: 'stopped', error: RESET.reason })
+    expect(modelRequests()).toHaveLength(1)
+  })
+
+  it('tells a page of a launch a guest deleted, whose wipe failed, that it was deleted when the hourly retry wipes it', async () => {
+    fakeQloo({ search: health })
+    const guest = await openGuest()
+    const network = await connect(guest, '/agents/network/guest-network')
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    const launch = await connect(guest, `/agents/launch/guest-network/${id}`)
+    vi.spyOn(LaunchAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    expect((await guest.fetch(`/app/guest-network/launches/${id}/delete`, { method: 'POST' })).status).toBe(200)
+    expect(await launchHeld(id)).toBe('The Night Watch')
+
+    await runHourlyCron()
+    expect(await launch.closed()).toEqual({ code: 4410, reason: 'This launch was deleted.' })
     expect(await launchHeld(id)).toBeNull()
   })
 

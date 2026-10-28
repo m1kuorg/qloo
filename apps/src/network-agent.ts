@@ -34,8 +34,12 @@ export function memberTag({ request }: ConnectionContext) {
   return member ? [`${MEMBER_TAG}${member}`] : []
 }
 
-// A launch's agent's name: its network's ID and its own, as ADR 0001 names it.
+// A launch's agent's name: its network's ID and its own, as ADR 0001 names it; and the two read back.
 export const launchAgentName = (networkId: string, launchId: string) => `${networkId}:${launchId}`
+export function readLaunchAgentName(name: string) {
+  const [networkId, launchId] = name.split(':')
+  return { networkId, launchId }
+}
 
 // The network an agent belongs to, from its name: the network's ID for its own agent, and
 // `<networkId>:<launchId>` for a launch's.
@@ -78,8 +82,9 @@ export const kickMember = async (env: Env, networkId: string, memberId: string, 
 // nothing.
 export const CLEARING = { clearing: true }
 
-// What a deleted network's open pages, and its launches', say as they close; and the guest network's,
-// as the daily cron clears it.
+// What a deleted launch's open pages say as they close, and a deleted network's, and its launches'; and
+// the guest network's, and its launches', as the daily cron clears it.
+export const LAUNCH_DELETED = 'This launch was deleted.'
 export const NETWORK_DELETED = 'This network was deleted.'
 export const GUEST_NETWORK_RESET = `The guest network was cleared, as it is every day at ${GUEST_NETWORK_CLEARS}.`
 

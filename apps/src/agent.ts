@@ -474,6 +474,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     // fetches the roster it will rank, which may refuse the start too.
     const visitor = this.visitor()
     const { down, limited, refused, stored, network } = await this.admit(async () => {
+      await this.refuseIfGone()
       const network = await this.networkRoster()
       // Whether Qloo can be called is up to the gateway this run's calls will go through; the model
       // run counts in the global gateway either way.
@@ -564,6 +565,33 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // its network's as the run starts (launch-agent.ts), before anything else, so a refusal keeps nothing.
   protected async networkRoster(): Promise<RosterCopy | null> {
     return null
+  }
+
+  // Why this agent takes no more work, or null while it does: a launch's once its network no longer lists
+  // it (launch-agent.ts). An engine session, and a network's agent, always do.
+  protected async gone(): Promise<string | null> {
+    return null
+  }
+
+  // Refuses a call once gone() says why, having stopped the run and closed every page with it (retire).
+  // Each call that starts, resumes, or changes a run's work checks first: a start, an answer, and an
+  // order's edit or approval; and a run checks before each model turn.
+  private async refuseIfGone() {
+    const reason = await this.gone()
+    if (reason === null) return
+    this.retire(reason)
+    throw new Refusal('not_found', reason)
+  }
+
+  // Stops a run under way, or waiting on a question, with `reason`, and closes every open page saying it,
+  // with 4410, which the client takes as final, so none reconnects.
+  private retire(reason: string) {
+    const run = this.state.run
+    if (run?.status === 'running' || run?.status === 'waiting') {
+      this.sql`DELETE FROM paused WHERE run = ${run.id}`
+      this.finish(run.id, reason, 'stopped')
+    }
+    for (const connection of this.getConnections()) connection.close(4410, reason)
   }
 
   // Whether a network's roster has changed since the copy a launch's run takes of it, as far as the
@@ -658,8 +686,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // programmer's own text, after the tool result, which only says they were asked. Leaving shows
   // out recomputes the finalists, which the tool result then lists.
   @callable()
-  answer(questionId: string, reply: Reply) {
+  async answer(questionId: string, reply: Reply) {
     this.visitor() // so the resumed run's Qloo calls count for whoever answered
+    await this.refuseIfGone()
     const run = this.state.run
     const question = run?.status === 'waiting' ? run.question : null
     if (!run || !question || question.id !== questionId)
@@ -719,7 +748,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // changes its lines or their prices marks it edited. The budget bounds the agent's draft, not this:
   // the final plan is the programmer's, and the UI shows it over budget. Returns the order as saved.
   @callable()
-  editInsertionOrder(id: string, lines: LineInput[]) {
+  async editInsertionOrder(id: string, lines: LineInput[]) {
+    await this.refuseIfGone()
     const order = this.editableOrder(id)
     // The programmer may type an angle for any line, but only a finalist without shared tags may have none.
     const problem = lineProblem(lines, finalistsOf(this.state.ranking))
@@ -739,13 +769,14 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // 0002). On a launch's agent it records the member who approved, by name and ID, and when; approving
   // it again, as from a page that hadn't seen the approval, keeps the first.
   @callable()
-  approveInsertionOrder(id: string) {
+  async approveInsertionOrder(id: string) {
     if (!getCurrentAgent().connection)
       throw new Error('An insertion order is approved in the app, by a person; nothing else can approve one.')
-    const order = this.editableOrder(id)
-    if (order.status === 'approved') return
     const by = this.memberName()
     const member = this.member()
+    await this.refuseIfGone()
+    const order = this.editableOrder(id)
+    if (order.status === 'approved') return
     this.saveOrder({
       ...order,
       status: 'approved',
@@ -1311,10 +1342,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // The agent loop: call Claude, run every tool it asks for at once, and send all the results back
-  // in one message, until it ends its turn. Any failure ends the run as failed, with the reason.
+  // in one message, until it ends its turn. Any failure ends the run as failed, with the reason. Before
+  // each turn, an agent that takes no more work (gone) stops the run instead.
   private async runLoop(run: string) {
     const model = claude(this.env)
     for (;;) {
+      const reason = await this.gone()
+      if (reason !== null) return this.retire(reason)
       const [{ turns }] = this.sql<{ turns: number }>`
         UPDATE runs SET turns = turns + 1 WHERE id = ${run} RETURNING turns`
       let reply: Anthropic.Message
