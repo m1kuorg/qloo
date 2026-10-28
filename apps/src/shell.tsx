@@ -423,20 +423,65 @@ const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }
   </header>
 )
 
-// The marketing pages' footer: the name set across the full content width first, then the legal
-// pages and the docs, and what Crossfeed was made for, on a tone step from the page. The name is
-// 4.48em wide in Schibsted Grotesk at 600, so the content's width over 4.5 sets it.
+// The marketing pages' footer, a screen at least, on a tone step from the page: one navigation, an
+// index of where to go next set as the landing re-rank sets its show names, each with a line on what's
+// there, beside it from 1024px and under it below, then the legal pages; what Crossfeed was made for;
+// and the name across the foot. With accounts off the index is the docs alone. The index sits in the
+// middle of whatever height the screen leaves, so the footer fills it with no stretch of nothing. Each
+// row's link covers the row (indexLink's ::after over its relative <li>), and the guest row's link
+// can become a form's button with the same classes. The name is 4.48em wide in Schibsted Grotesk at
+// 600, so the content's width over 4.5 sets it.
 const footerLink = linkVariants({ tone: 'text', className: 'inline-flex min-h-11 items-center md:min-h-0' })
-const Footer = () => (
+const indexLink =
+  'justify-self-start rounded-sm type-index decoration-2 underline-offset-[0.12em] after:absolute after:inset-0 hover:underline aria-[current]:underline lg:col-span-7'
+const IndexRow = ({ caption, children }: { caption: Child; children: Child }) => (
+  <li class="relative grid gap-1.5 py-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-6">
+    {children}
+    <p class="max-w-[46ch] text-pretty text-muted-foreground lg:col-span-5 lg:col-start-8 lg:max-w-none">{caption}</p>
+  </li>
+)
+const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
   <footer class="mt-24 overflow-hidden bg-muted md:mt-40">
-    <div class={cn(marketingFrame, 'pt-8 pb-8 md:pt-12 md:pb-12')}>
-      <p
-        translate="no"
-        class="text-[length:calc((min(100vw,1456px)_-_3rem)_/_4.5)] leading-[0.8] font-semibold tracking-[-0.05em] whitespace-nowrap md:text-[length:calc((min(100vw,1456px)_-_5rem)_/_4.5)]"
-      >
-        Crossfeed
-      </p>
-      <div class="mt-10 flex flex-col gap-2 md:mt-16 md:flex-row md:items-baseline md:justify-between">
+    <div
+      class={cn(
+        marketingFrame,
+        'grid min-h-svh grid-rows-[1fr_auto] pt-12 pb-8 md:grid-cols-[1fr_auto] md:pt-20 md:pb-10'
+      )}
+    >
+      <nav aria-label="Footer" class="flex flex-col gap-16 md:col-[1/-1] md:row-start-1">
+        <ul class="my-auto">
+          {accounts && (
+            <>
+              <IndexRow
+                caption={
+                  <>
+                    One network every guest shares, cleared every day at{' '}
+                    <span class="whitespace-nowrap">{GUEST_NETWORK_CLEARS}</span>.
+                  </>
+                }
+              >
+                <a class={indexLink} href="/sign-in">
+                  Sign in as a guest
+                </a>
+              </IndexRow>
+              <IndexRow caption="Your own roster and launches, with the members you invite.">
+                <a class={indexLink} href="/app/new">
+                  Create your network
+                </a>
+              </IndexRow>
+              <IndexRow caption="With a passkey or a recovery code.">
+                <a class={indexLink} href="/sign-in">
+                  Sign in
+                </a>
+              </IndexRow>
+            </>
+          )}
+          <IndexRow caption="The REST API, the SDK, the MCP server, and agent skills.">
+            <a class={indexLink} href="/docs" aria-current={path.startsWith('/docs') ? 'page' : undefined}>
+              Developers
+            </a>
+          </IndexRow>
+        </ul>
         <ul class="flex flex-wrap gap-x-6">
           <li>
             <a class={footerLink} href="/privacy">
@@ -448,14 +493,15 @@ const Footer = () => (
               Beta terms
             </a>
           </li>
-          <li>
-            <a class={footerLink} href="/docs">
-              Developers
-            </a>
-          </li>
         </ul>
-        <p>Made for the Qloo Agentic Hackathon.</p>
-      </div>
+      </nav>
+      <p class="mt-2 md:col-start-2 md:row-start-1 md:mt-0 md:self-end">Made for the Qloo Agentic Hackathon.</p>
+      <p
+        translate="no"
+        class="mt-8 text-[length:calc((min(100vw,1456px)_-_3rem)_/_4.5)] leading-[0.8] font-semibold tracking-[-0.05em] whitespace-nowrap md:col-span-2 md:mt-12 md:text-[length:calc((min(100vw,1456px)_-_5rem)_/_4.5)]"
+      >
+        Crossfeed
+      </p>
     </div>
   </footer>
 )
@@ -508,7 +554,7 @@ export const MarketingPage = ({
         <SkipTarget />
         {children}
       </div>
-      <Footer />
+      <Footer path={path} accounts={accounts} />
     </body>
   </html>
 )
