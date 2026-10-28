@@ -13,8 +13,7 @@ import {
   sameOrigin,
   session,
   signedIn,
-  stepUpRefused,
-  stepUpRefusedButGuest
+  stepUpRefused
 } from '../auth'
 import {
   accountNetworks,
@@ -185,7 +184,7 @@ appPages.post('/app/account/sign-out-everywhere', async (c) => {
 // the last five minutes, or, as a guest member, with no step-up (ADR 0006). What they made in each network
 // stays with it, but each launch forgets their name (wipe.ts). Their open pages close.
 appPages.post('/app/account/delete', async (c) => {
-  const unproved = await stepUpRefusedButGuest(c, c.var.member)
+  const unproved = await stepUpRefused(c, c.var.member, () => null)
   if (unproved) return unproved
   const { id } = c.var.member
   const networks = await accountNetworks(c.env.DB, id)

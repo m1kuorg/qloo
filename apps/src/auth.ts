@@ -56,14 +56,22 @@ export const sessionToken = (c: Context) => getCookie(c, COOKIE, 'host')
 // adding a passkey, a new recovery code, and deleting the account need. Otherwise the 403 that asks
 // them to, so the page asks at once: for a passkey of theirs, user-verified, with the ceremony's
 // challenge and options, or, in a browser signed in with the recovery code, for that code (`/auth/verify`).
-// A guest member, who has neither, is told to add a passkey first, before any challenge is written:
-// their recovery code comes with it.
-export async function stepUpRefused<E extends { Bindings: Env }>(c: Context<E>, member: Member) {
+// A guest member has neither, so their session is the only proof they have (ADR 0006): where a route
+// takes it, for adding their first passkey and deleting their account, they get `asGuest`'s answer
+// instead, null or a refusal of the route's own; elsewhere they're told to add a passkey first, before
+// any challenge is written, since their recovery code comes with it.
+export async function stepUpRefused<E extends { Bindings: Env }>(
+  c: Context<E>,
+  member: Member,
+  asGuest?: () => Response | null | Promise<Response | null>
+): Promise<Response | null> {
   if (isGuestMember(member))
-    return c.json(
-      { error: 'Add a passkey first, to keep your account: you get a recovery code with your first passkey.' },
-      403
-    )
+    return asGuest
+      ? asGuest()
+      : c.json(
+          { error: 'Add a passkey first, to keep your account: you get a recovery code with your first passkey.' },
+          403
+        )
   const token = sessionToken(c)
   const proof = token ? await sessionProof(c.env.DB, token) : null
   if (proof?.verified && Date.now() - proof.verified < STEP_UP_MS) return null
@@ -80,11 +88,6 @@ export async function stepUpRefused<E extends { Bindings: Env }>(c: Context<E>, 
   const challenge = await saveChallenge(c.env.DB, 'step-up', options.challenge, { memberId: member.id })
   return c.json({ error: "Confirm it's you with your passkey first.", stepUp: 'passkey', challenge, options }, 403)
 }
-
-// As stepUpRefused, but null for a guest member, whose session is the only proof they have (ADR 0006):
-// for adding their first passkey, and deleting their account.
-export const stepUpRefusedButGuest = <E extends { Bindings: Env }>(c: Context<E>, member: Member) =>
-  isGuestMember(member) ? null : stepUpRefused(c, member)
 
 // Clears the session cookie, and returns the token it held, for the directory to end its session.
 export const endSession = (c: Context) => deleteCookie(c, COOKIE, { prefix: 'host', path: '/', secure: true })
