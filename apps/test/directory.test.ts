@@ -54,6 +54,7 @@ describe('the directory', () => {
       'networks',
       'passkeys',
       'past_memberships',
+      'sample_launches',
       'sessions',
       'wipes'
     ])
@@ -67,7 +68,16 @@ describe('the directory', () => {
     expect(await all('SELECT network_id, member_id, role FROM memberships')).toEqual([
       { network_id: 'guest-network', member_id: 'guest-member', role: 'owner' }
     ])
-    for (const table of ['guest_signins', 'guest_invited_signups', 'passkeys', 'sessions', 'invites', 'api_keys'])
+    // The guest network's sample launches are loaded into each environment's database by hand.
+    for (const table of [
+      'guest_signins',
+      'guest_invited_signups',
+      'passkeys',
+      'sessions',
+      'invites',
+      'api_keys',
+      'sample_launches'
+    ])
       expect(await env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n'), table).toBe(0)
   })
 })

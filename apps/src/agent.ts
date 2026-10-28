@@ -2,7 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { Agent, callable, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
 import { claude, declined } from './claude'
 import type { DemographicCheck } from './demographics'
-import { callNumber, type CallEvidence, type Evidence } from './evidence'
+import { CALL, callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
 import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
 import { blankEvidence, globalGateway, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
@@ -35,6 +35,7 @@ import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidat
 import { parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
+import { keptRun, type KeptRun, type SampleLaunch } from './sample-launch'
 import { listOf, MAX_ANSWER, MAX_TITLE } from './text'
 import { tools, type ToolContext, type ToolResult } from './tools'
 import { takesText } from './tools/ask-human'
@@ -120,6 +121,7 @@ export type Run = {
   budget: Budget | null // the slot budget the programmer gave this run; only their answer sets it
   exclusions: string[] | null // show names left out of this run only; null until answered
   replayed?: string // why the stored sample run was replayed instead of run, such as the daily cap
+  sample?: string // when one of the guest network's sample launches was captured, for its seeded run (ISO time)
   closing: string | null // Claude's closing text once the run completes; never kept from a refused or failed turn
   typed?: true // the programmer typed an answer of their own, so the run isn't the unchanged sample's to keep
 }
@@ -161,6 +163,7 @@ export type RunSummary = {
   startedBy?: string // who started it, on a launch's agent: a member by name, or `API key “<name>”`; absent on an engine session's
   startedById?: string // the member's ID, so their name can be forgotten with their account (forgetMember)
   replayed?: true // the stored sample run, replayed
+  sample?: true // a run one of the guest network's sample launches was seeded with
 }
 
 // Who starts a launch's run: a member by name, with their ID, or an API key by its name alone.
@@ -213,9 +216,9 @@ export type LaunchSummary = {
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.
 export type RunSnapshot = Omit<State, 'runs'>
 
-// A completed sample run any session can replay while Qloo can't be called: what it ended with,
-// less the visitor's own guest pitches, and every evidence record that cites. The gateway keeps the latest.
-type SampleRun = { state: Omit<RunSnapshot, 'inbox' | 'booking'>; evidence: Evidence[] }
+// A completed sample run any session can replay while Qloo can't be called, kept as keptRun keeps it.
+// The gateway keeps the latest.
+type SampleRun = KeptRun
 
 // What a launch's run ranks, copied from its network's agent as the run starts (launch-agent.ts): the
 // roster and CPM, and the evidence records the roster cites. And whether the network has a Qloo key of
@@ -235,9 +238,6 @@ export const rosterKey = (roster: Show[]) =>
   JSON.stringify(
     roster.map((s) => [s.name, s.resolution, s.entity?.id ?? null, s.downloads, s.status, s.description, s.excluded])
   )
-
-// A call number wherever it appears in state, such as "C-07".
-export const CALL = /\bC-\d+\b/g
 
 // Pitches read at once: each is one model call, then one Qloo search the gateway paces.
 const READ_CONCURRENCY = 5
@@ -1142,8 +1142,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 
   // Stores the current order, and puts it in its run's snapshot once the run has ended, so an
   // earlier run shows, and exports, its order as the programmer left it. Who approved it, and when, go
-  // with any change back to draft.
-  private saveOrder({ approvedBy, approvedById, approvedAt, ...change }: InsertionOrder) {
+  // with any change back to draft, and a sample's mark with any change at all.
+  private saveOrder({ approvedBy, approvedById, approvedAt, sample: _, ...change }: InsertionOrder) {
     const order =
       change.status === 'approved' && approvedBy
         ? { ...change, approvedBy, ...(approvedById && { approvedById }), approvedAt }
@@ -1478,18 +1478,15 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // typed, for any session to replay while Qloo can't be called. Only a run whose every cited Qloo
   // call was answered is kept; a tool error Claude recovered from, such as a second question in one
   // turn, doesn't count. The guest pitch flow's fields are the visitor's own, not the run's, so they
-  // stay out, and so does a comp search's query, which they typed.
-  private keepSampleRun(run: string, { inbox: _, booking: __, ...ended }: RunSnapshot) {
-    const state = { ...ended, roster: ended.roster.map((s) => ({ ...s, compSearch: null })) }
-    const { sample, launch, run: r } = state
-    if (!sample || !launch?.name || launch.comps.length > 0 || !r || r.typed || !onSampleLaunch(state, launch.name))
+  // stay out, and so does a comp search's query, which they typed (keptRun).
+  private keepSampleRun(run: string, ended: RunSnapshot) {
+    const { sample, launch, run: r } = ended
+    if (!sample || !launch?.name || launch.comps.length > 0 || !r || r.typed || !onSampleLaunch(ended, launch.name))
       return
     const { budget, exclusions } = sample.answers
     if (JSON.stringify([r.budget, r.exclusions]) !== JSON.stringify([budget, exclusions])) return
-    const cited = new Set(JSON.stringify(state).match(CALL))
-    const evidence = this.getEvidence().filter((e) => cited.has(e.call))
-    if (evidence.length < cited.size || evidence.some((e) => e.error)) return
-    this.storeSampleRun(run, { state, evidence })
+    const kept = keptRun(ended, this.getEvidence())
+    if (kept && !kept.evidence.some((e) => e.error)) this.storeSampleRun(run, kept)
   }
 
   // The sample run is the guest network's sample launch's (ADR 0007), kept in the global gateway, which its
@@ -1529,9 +1526,46 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.complete(run, state.run!.closing ?? null)
   }
 
+  // Seeds this session with one of the guest network's sample launches (sample-launch.ts), as a launch's
+  // agent is seeded (LaunchAgent.seed), calling neither Qloo nor Claude: its run, as a new run with its
+  // row in `runs` and the state it ended with, which getRun returns; the calls it cites copied into this
+  // log under new numbers and marked as the sample's, in place of any mark from where they were made;
+  // its start, and its order's approval, moved on by as long as it's been since it was captured, so its
+  // row reads as recent; and an approved order marked as approved in the sample (ADR 0002). The records
+  // keep when Qloo answered them, and the run when it was captured.
+  protected seedRun({ captured, summary, state, evidence }: SampleLaunch) {
+    const run = crypto.randomUUID()
+    const shift = Date.now() - Date.parse(captured)
+    const moved = (iso: string) => new Date(Date.parse(iso) + shift).toISOString()
+    const ours = <T>(value: T): T => JSON.parse(JSON.stringify(value).replaceAll(summary.id, run))
+    const startedAt = moved(summary.startedAt)
+    this.sql`INSERT INTO runs (id, started_at) VALUES (${run}, ${Date.parse(startedAt)})`
+    const seeded = this.copyEvidence(ours(state), ours(evidence), ({ replayed: _, copiedFrom: __, ...copy }) => ({
+      ...copy,
+      sample: true
+    }))
+    const order = seeded.insertionOrder
+    this.setState({
+      ...this.state,
+      ...seeded,
+      run: { ...seeded.run!, sample: captured },
+      runs: [{ ...summary, id: run, startedAt, sample: true }],
+      insertionOrder: order && {
+        ...order,
+        ...(order.approvedAt && { approvedAt: moved(order.approvedAt) }),
+        ...(order.status === 'approved' && { sample: true as const })
+      },
+      sample: null,
+      slowCalls: [],
+      rosterChanged: false
+    })
+    const { runs: _, ...snapshot } = this.state
+    this.sql`UPDATE runs SET snapshot = ${JSON.stringify(snapshot)} WHERE id = ${run}`
+  }
+
   // Copies evidence records into this log under new numbers, in their order, each labelled by `mark`
   // from the record it copies, and returns `cites` with their calls renumbered. The replay copies the
-  // stored sample run's records, and a launch's run its network's roster's.
+  // stored sample run's records, a seed a sample launch's, and a launch's run its network's roster's.
   private copyEvidence<T>(cites: T, evidence: Evidence[], mark: (copy: Evidence, from: Evidence) => Evidence): T {
     const seqs = evidence.map(() => this.numberCall())
     const numbers = new Map(evidence.map((e, i) => [e.call, callNumber(seqs[i])]))

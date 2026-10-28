@@ -14,6 +14,7 @@ import {
 import { finalistsOf } from './fit'
 import type { InsertionOrder } from './order'
 import type { Sample } from './sample'
+import type { SampleLaunch } from './sample-launch'
 import { keepOwnKey, MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimitKey } from './network-agent'
 
 const ROSTER =
@@ -179,6 +180,15 @@ export class LaunchAgent extends CrossfeedAgent {
   // instead, which may name it anew.
   plan({ name, comps, sample = null }: { name: string | null; comps: string[]; sample?: Sample | null }) {
     this.setState({ ...this.state, launch: { name, match: null, comps: comps.map(newComp) }, sample })
+    return summaryOf(this.state)
+  }
+
+  // Seeds the launch with one of the guest network's sample launches (sample-launch.ts) as the network
+  // lists it, calling neither Qloo nor Claude (CrossfeedAgent.seedRun), and returns the row the network
+  // lists for it. Its `sample` stays null: only the sample launch, The Watch, replays. A launch already
+  // planned or seeded stays as it is, so a load the network tries again seeds nothing twice. Over RPC only.
+  seed(launch: SampleLaunch) {
+    if (!this.state.launch) this.seedRun(launch)
     return summaryOf(this.state)
   }
 

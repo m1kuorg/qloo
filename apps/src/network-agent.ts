@@ -1,6 +1,5 @@
 import { callable, getAgentByName, getCurrentAgent, type Connection, type ConnectionContext } from 'agents'
 import {
-  CALL,
   CrossfeedAgent,
   MEMBER_TAG,
   readLaunch,
@@ -12,10 +11,14 @@ import {
   type SessionProps,
   type State
 } from './agent'
+import { sampleLaunchRows } from './directory'
+import { CALL } from './evidence'
 import { globalGateway } from './gateway'
 import { readSampleInbox, type Booking, type Inbox, type Pitch, type PitchReply } from './inbox'
+import type { LaunchAgent } from './launch-agent'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
+import { readSampleLaunches } from './sample-launch'
 import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX } from './text'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
@@ -90,6 +93,11 @@ const SAMPLE_LOADED = 'crossfeed_sample_loaded'
 const SAMPLE_LAUNCH = 'crossfeed_sample_launch'
 // And that it has loaded the sample inbox (loadSampleInbox).
 const SAMPLE_INBOX_LOADED = 'crossfeed_sample_inbox_loaded'
+// And that it has listed every sample launch in D1 (loadSampleLaunches), and until then each one's launch
+// ID, by its key, and whether it's listed yet.
+const SAMPLE_LAUNCHES_LOADED = 'crossfeed_sample_launches_loaded'
+const SAMPLE_LAUNCHES = 'crossfeed_sample_launches'
+type SampleLaunchesProgress = Record<string, { id: string; listed: boolean }>
 
 // A sample pitch whose work's lookup failed, or was interrupted, so it's looked up again.
 const unsettled = (p: Pitch) => p.work !== null && (p.status === 'failed' || p.match?.resolution === 'failed')
@@ -139,6 +147,7 @@ export class NetworkAgent extends CrossfeedAgent {
     if (this.name !== GUEST_NETWORK) return
     if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) {
       await this.loadSample()
+      await this.loadSampleLaunches()
       await this.loadSampleInbox()
     }
     // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006),
@@ -187,6 +196,39 @@ export class NetworkAgent extends CrossfeedAgent {
     } catch (e) {
       failed(e)
     }
+  }
+
+  // Lists the sample launches beside The Watch (sample-launch.ts, ADR 0007), each seeded in its own
+  // agent from the rows D1 holds, read in one query, calling neither Qloo nor Claude, and listed as a
+  // planned launch is (listLaunch), under an ID kept from the first try, so one tried again seeds and lists
+  // it once. Until every row is noted as listed, each start tries again those that weren't: refused by the
+  // launch cap, or failed. One a guest deletes once it's listed stays deleted. With no rows, the guest
+  // network has The Watch alone. Noted as loaded until the daily clearing, which wipes it all.
+  private async loadSampleLaunches() {
+    const { kv } = this.ctx.storage
+    if (kv.get(SAMPLE_LAUNCHES_LOADED)) return
+    const failed = (e: unknown, key?: string) =>
+      console.error(JSON.stringify({ event: 'sample_launches_load', ...(key && { key }), error: String(e) }))
+    let launches
+    try {
+      launches = readSampleLaunches(await sampleLaunchRows(this.env.DB))
+    } catch (e) {
+      return failed(e)
+    }
+    const progress = kv.get<SampleLaunchesProgress>(SAMPLE_LAUNCHES) ?? {}
+    for (const { key, launch } of launches) {
+      if (progress[key]?.listed) continue
+      progress[key] = { id: progress[key]?.id ?? crypto.randomUUID(), listed: false }
+      kv.put(SAMPLE_LAUNCHES, progress)
+      try {
+        await this.listLaunch(progress[key].id, (agent) => agent.seed(launch))
+        progress[key].listed = true
+        kv.put(SAMPLE_LAUNCHES, progress)
+      } catch (e) {
+        failed(e, key)
+      }
+    }
+    if (launches.every(({ key }) => progress[key]?.listed)) kv.put(SAMPLE_LAUNCHES_LOADED, true)
   }
 
   // Loads the sample inbox into the guest network beside the sample network, while guest pitches are on
@@ -346,6 +388,16 @@ export class NetworkAgent extends CrossfeedAgent {
   // Plans a launch as createLaunch does, carrying `sample` for the guest network's sample launch.
   private async planLaunch(input: LaunchInput, sample: Sample | null) {
     const { name, comps } = readLaunch(input, 'to plan it')
+    return this.listLaunch(crypto.randomUUID(), (launch) => launch.plan({ name, comps: comps ?? [], sample }))
+  }
+
+  // Lists launch `id` once its own agent has taken it, with `take`, which returns its row: planned, or
+  // seeded with a sample launch. A launch already listed stays as it is.
+  private async listLaunch(
+    id: string,
+    take: (launch: DurableObjectStub<LaunchAgent>) => Promise<Omit<LaunchSummary, 'id'>>
+  ) {
+    if (this.listsLaunch(id)) return { id }
     const cap = Number(this.env.LAUNCHES_PER_NETWORK) || 0
     if ((this.state.launches ?? []).length + this.planning >= cap)
       throw new Refusal(
@@ -354,9 +406,8 @@ export class NetworkAgent extends CrossfeedAgent {
       )
     this.planning++
     try {
-      const id = crypto.randomUUID()
       const launch = await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))
-      const summary: LaunchSummary = { id, ...(await launch.plan({ name, comps: comps ?? [], sample })) }
+      const summary: LaunchSummary = { id, ...(await take(launch)) }
       this.setState({ ...this.state, launches: [summary, ...(this.state.launches ?? [])] })
       return { id }
     } finally {
