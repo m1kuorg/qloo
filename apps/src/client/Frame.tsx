@@ -380,8 +380,8 @@ export function RunState({ run, slowCalls }: { run: Run; slowCalls: SlowCall[] }
         <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 type-caption">
           <Badge variant="outline">Sample data</Badge>
           <span>
-            This run is from the sample data, captured on {day(run.sample)} and loaded as it ended then. Nothing new was
-            asked of Qloo or Claude.
+            This run is from the sample data, captured on {day(run.sample, true)} and loaded as it ended then. Nothing
+            new was asked of Qloo or Claude.
           </span>
         </span>
       )}
