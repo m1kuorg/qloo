@@ -139,7 +139,7 @@ describe("the inbox's connection", () => {
     expect(page(state, 'inbox')).not.toContain('Reconnecting…')
     // With no pitches and no readout, the header says it.
     const text = page(state, 'inbox', { identified: false })
-    expect(text).toMatch(/^ Inbox Reconnecting… No pitches yet\. Load pitches /)
+    expect(text).toMatch(/^ Inbox Reconnecting… No pitches yet\. Only the work’s title and type .+ Load pitches /)
   })
 })
 
