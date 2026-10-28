@@ -590,14 +590,15 @@ export async function pastNetworks(db: D1Database, memberId: string) {
   return results.map((r) => r.network_id)
 }
 
-// Revoking what member ?1 made, at time ?2: their API keys still in use and their invite links still
-// open. Only an owner makes either, so one who stops being an owner loses both, and neither keeps
-// acting for, or letting anyone into, a network they no longer run. Each is a statement's start, for
-// the caller to narrow with `AND`.
-const REVOKE_MADE = [
-  'UPDATE api_keys SET revoked = ?2 WHERE created_by = ?1 AND revoked IS NULL',
-  'UPDATE invites SET revoked = ?2 WHERE created_by = ?1 AND used IS NULL AND revoked IS NULL'
+// Revoking what member ?1 made, at time ?2, or with `makers`, what the members it names made: their API
+// keys still in use and their invite links still open. Only an owner makes either, so one who stops being
+// an owner loses both, and neither keeps acting for, or letting anyone into, a network they no longer run.
+// Each is a statement's start, for the caller to narrow with `AND`.
+const revokeMade = (makers = '= ?1') => [
+  `UPDATE api_keys SET revoked = ?2 WHERE created_by ${makers} AND revoked IS NULL`,
+  `UPDATE invites SET revoked = ?2 WHERE created_by ${makers} AND used IS NULL AND revoked IS NULL`
 ]
+const REVOKE_MADE = revokeMade()
 
 // Revokes member `memberId`'s API keys and invite links in network `networkId` unless they're still
 // one of its owners, for the batch that may have just removed or demoted them.
@@ -887,18 +888,22 @@ const OWNED_BY_EXPIRED = `id != '${GUEST_NETWORK}' AND EXISTS (SELECT 1 FROM mem
 
 // Removes the expired guest members (ADR 0006) in one batch of bulk statements. The networks only they own
 // are deleted as a deleted network is (dropNetwork), each with a wipe of its agent, under `binding`, noted
-// in the batch (wipe.ts). Then the members go, their passkeys, sessions, memberships, and past memberships
-// with them. Returns how many of each it removed.
+// in the batch (wipe.ts). The API keys and invite links they made elsewhere are revoked, as an account's
+// deletion does (deleteMember). Then the members go, their passkeys, sessions, memberships, and past
+// memberships with them; nothing in the networks they were in forgets them. Returns how many members and
+// networks it removed.
 export async function dropExpiredGuests(db: D1Database, binding: string) {
   const now = Date.now()
   const statement = (sql: string, ...values: unknown[]) => db.prepare(sql).bind(now - GUEST_SESSION_MS, now, ...values)
-  const [, networks, members] = await db.batch([
+  const [, networks, , , members] = await db.batch([
     // Noted before the networks go, while their owners' memberships are still there to check.
     statement(
       `INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?3, id, ?2 FROM networks WHERE ${OWNED_BY_EXPIRED}`,
       binding
     ),
     statement(`DELETE FROM networks WHERE ${OWNED_BY_EXPIRED}`),
+    // Revoked before the members go, while their keys and invites still name them.
+    ...revokeMade(`IN ${EXPIRED_GUESTS}`).map((revoke) => statement(revoke)),
     statement(`DELETE FROM members WHERE id IN ${EXPIRED_GUESTS}`)
   ])
   return { members: members.meta.changes, networks: networks.meta.changes }

@@ -4,10 +4,11 @@
 // handler, a day on, as the clock moves.
 import { getAgentByName } from 'agents'
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
-import { env } from 'cloudflare:workers'
+import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import worker from '../src/index'
-import { openGuest, openMember, readAfterReset, type Guest, type Member, type Session } from './session'
+import { softwareAuthenticator } from './authenticator'
+import { api, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
 
 const HOUR = 60 * 60_000
 const DAY = 24 * HOUR
@@ -52,15 +53,27 @@ async function membersOf(who: Pick<Guest, 'fetch'>, network: string) {
   return members.map((m) => m.name).sort()
 }
 
-// The guest's name, as their account page shows it.
-async function nameOf(guest: Guest) {
-  return (await (await guest.fetch('/app/account')).text()).match(/data-member-name="([^"]*)"/)![1]
+// The guest's ID and name, as the guest network's dashboard and their account page give them.
+async function whoIs(guest: Guest) {
+  const id = (await (await guest.fetch('/app/guest-network')).text()).match(/data-member-id="([^"]*)"/)![1]
+  const name = (await (await guest.fetch('/app/account')).text()).match(/data-member-name="([^"]*)"/)![1]
+  return { id, name }
 }
 
-// Guest `guest` joins network `network` through an invite link `owner` makes, as a member.
-async function join(guest: Guest, owner: Member, network: string) {
-  const token = new URL(await owner.invite(network)).hash.slice(1)
-  expect((await post(guest, '/auth/join', { token })).status).toBe(200)
+// An invite link's token, as owner `who` makes the link in network `network`'s settings.
+const invite = async (who: Pick<Guest, 'fetch'>, network: string) =>
+  new URL(
+    (await (await post(who, `/app/${network}/settings/members/invites`)).json<{ link: string }>()).link
+  ).hash.slice(1)
+
+// `who` joins a network through invite token `token`, as a member.
+async function join(who: Pick<Guest, 'fetch'>, token: string) {
+  expect((await post(who, '/auth/join', { token })).status).toBe(200)
+}
+
+// Owner `who` makes member `memberId` an owner of network `network` too.
+async function makeOwner(who: Pick<Guest, 'fetch'>, network: string, memberId: string) {
+  expect((await post(who, `/app/${network}/settings/members/${memberId}/role`, { role: 'owner' })).status).toBe(200)
 }
 
 describe('the hourly cron', () => {
@@ -68,8 +81,8 @@ describe('the hourly cron', () => {
     const lin = await openMember({ name: 'Lin Editor' })
     const theirs = await created(lin, 'Paper Route')
     const ada = await openGuest()
-    const name = await nameOf(ada)
-    await join(ada, lin, theirs)
+    const { name } = await whoIs(ada)
+    await join(ada, await invite(lin, theirs))
     expect(await membersOf(lin, theirs)).toEqual([name, 'Lin Editor'])
 
     later(DAY - HOUR)
@@ -127,5 +140,101 @@ describe('the hourly cron', () => {
     later(HOUR)
     await runCron()
     expect(retried()).toBe(JSON.stringify({ event: 'wipes_retried', wiped: 0, kept: 0, failed: 0 }))
+  })
+
+  it('revokes the API keys and invite links they made in the networks that stay', async () => {
+    const lin = await openMember({ name: 'Lin Editor' })
+    const theirs = await created(lin, 'Paper Route')
+    const ada = await openGuest()
+    await join(ada, await invite(lin, theirs))
+    await makeOwner(lin, theirs, (await whoIs(ada)).id)
+    const made = await Promise.all(
+      ['guest-network', theirs].map(async (network) => {
+        const { secret } = await (
+          await post(ada, `/app/${network}/settings/api-keys`, { name: 'Nightly sync' })
+        ).json<{
+          secret: string
+        }>()
+        return { network, call: api(secret), token: await invite(ada, network) }
+      })
+    )
+    const opened = (token: string) =>
+      exports.default.fetch('https://crossfeed.test/auth/invite', {
+        method: 'POST',
+        headers: { Origin: 'https://crossfeed.test', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      })
+    for (const { network, call, token } of made) {
+      expect((await call(`/api/v1/networks/${network}`)).status).toBe(200)
+      expect((await opened(token)).status).toBe(200)
+    }
+
+    later(DAY + HOUR)
+    await runCron()
+    for (const { network, call, token } of made) {
+      expect((await call(`/api/v1/networks/${network}`)).status, network).toBe(401)
+      expect((await opened(token)).status, network).toBe(410)
+    }
+    // Lin's own still work.
+    const { secret } = await (
+      await post(lin, `/app/${theirs}/settings/api-keys`, { name: 'Lin’s sync' })
+    ).json<{
+      secret: string
+    }>()
+    expect((await api(secret)(`/api/v1/networks/${theirs}`)).status).toBe(200)
+  })
+
+  it('keeps the guest network as its last guest owner left it', async () => {
+    const ada = await openGuest()
+    const renamed = await post(ada, '/app/guest-network/settings/network', { name: 'Night Shift Guests', cpm: 25 })
+    expect(renamed.status).toBe(200)
+
+    later(DAY + HOUR)
+    await runCron()
+    const grace = await openGuest()
+    expect(await membersOf(grace, 'guest-network')).toEqual([(await whoIs(grace)).name])
+    expect((await (await grace.fetch('/app/guest-network')).text()).match(/data-network-name="([^"]*)"/)?.[1]).toBe(
+      'Night Shift Guests'
+    )
+    expect((await connect(grace, '/agents/network/guest-network')).state()).toMatchObject({ cpm: 25 })
+  })
+
+  it('deletes a network two guests own when both expire, and keeps one an owner who stays shares', async () => {
+    const ada = await openGuest()
+    const grace = await openGuest()
+    const dot = await openMember({ name: 'Dot Pruitt' })
+    const lin = await openMember({ name: 'Lin Editor' })
+    const shared = await created(ada, 'Night Shift Audio')
+    await join(grace, await invite(ada, shared))
+    await makeOwner(ada, shared, (await whoIs(grace)).id)
+    await join(dot, await invite(ada, shared))
+    const kept = await created(ada, 'Paper Route')
+    await join(lin, await invite(ada, kept))
+    await makeOwner(ada, kept, lin.id)
+
+    later(DAY + HOUR)
+    await runCron()
+    expect((await dot.fetch(`/app/${shared}`)).status).toBe(404)
+    expect((await lin.fetch(`/app/${kept}`)).status).toBe(200)
+    expect(await membersOf(lin, kept)).toEqual(['Lin Editor'])
+  })
+
+  it('keeps a guest member who kept their account, with their networks', async () => {
+    const ada = await openGuest()
+    const hers = await created(ada, 'Night Shift Audio')
+    const started = await post(ada, '/auth/passkeys/options')
+    const { challenge, options } = await started.json<{ challenge: string; options: never }>()
+    const device = softwareAuthenticator()
+    const kept = await post(ada, '/auth/passkeys', { challenge, response: await device.register(options) })
+    expect(kept.status).toBe(200)
+    const cookie = kept.headers.get('set-cookie')!.split(';')[0]
+    const member = {
+      fetch: (path: string) => exports.default.fetch(`https://crossfeed.test${path}`, { headers: { Cookie: cookie } })
+    }
+
+    later(DAY + HOUR)
+    await runCron()
+    expect((await member.fetch(`/app/${hers}`)).status).toBe(200)
+    expect(await membersOf(member, 'guest-network')).toHaveLength(1)
   })
 })
