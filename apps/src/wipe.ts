@@ -48,6 +48,12 @@ const WIPERS: Record<string, (env: Env, name: string, reason?: string) => Promis
 // A wipe the cron retries only once it's this old, so it never races a deletion still under way.
 const RETRY_AFTER_MS = 60_000
 
+// The most wipes one run of the cron's retry makes, so an hourly run stays within the Workers Free plan's
+// 50 subrequests, D1 queries and Durable Object calls alike (TRD): each takes at most six, a launch's
+// whose network is still in the directory, and the run's own three directory batches take three more. The
+// rest stay noted for the next hour's run.
+const WIPES_PER_RUN = 7
+
 // Network `networkId`'s agent, to be wiped: started, if it isn't running, knowing it's about to be thrown
 // away, so the guest network's loads no sample (CLEARING).
 const networkToWipe = (env: Env, networkId: string) => getAgentByName(env.NetworkAgent, networkId, { props: CLEARING })
@@ -162,14 +168,14 @@ export async function deleteAccount(env: Env, memberId: string, networks: string
 // networks only they own, noting a wipe of each network's agent, which a later run's retry makes.
 export const removeExpiredGuests = (env: Env) => dropExpiredGuests(env.DB, NETWORK)
 
-// The cron's retry of each wipe noted over a minute ago and not done, logging how many it wiped, kept, and
-// failed. A launch its network still lists, while the network is still in the directory, was never let go
+// The cron's retry of the oldest wipes noted over a minute ago and not done, at most WIPES_PER_RUN, logging
+// how many it wiped, kept, and failed. A launch its network still lists, while the network is still in the directory, was never let go
 // of, as when its deletion stopped before the list let go, so it's kept and its wipe crossed off. A
 // network's agent is wiped as wipeNetwork says. Every wipe is tried, and then any that failed, or that
 // names a binding nothing here wipes, fails the cron's run; they stay noted for the next.
 export async function retryWipes(env: Env) {
   const done = { wiped: 0, kept: 0, failed: 0 }
-  for (const instance of await wipesDue(env.DB, Date.now() - RETRY_AFTER_MS)) {
+  for (const instance of await wipesDue(env.DB, Date.now() - RETRY_AFTER_MS, WIPES_PER_RUN)) {
     try {
       if (await keptLaunch(env, instance)) {
         await wipeDone(env.DB, instance.binding, instance.name)

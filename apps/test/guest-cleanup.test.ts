@@ -237,4 +237,36 @@ describe('the hourly cron', () => {
     expect((await member.fetch(`/app/${hers}`)).status).toBe(200)
     expect(await membersOf(member, 'guest-network')).toHaveLength(1)
   })
+
+  it('stays green with more wipes due than a run makes, and the next runs make the rest', async () => {
+    // Three guests' three networks each, every one with its agent started, as a CPM set in settings starts it.
+    const networks: string[] = []
+    for (const guest of [await openGuest(), await openGuest(), await openGuest()])
+      for (const name of ['Night Shift Audio', 'Paper Route', 'Corner Booth']) {
+        const id = await created(guest, name)
+        expect((await post(guest, `/app/${id}/settings/network`, { name, cpm: 25 })).status).toBe(200)
+        networks.push(id)
+      }
+    const logged = vi.spyOn(console, 'log')
+
+    // The first run deletes the networks and notes their agents' wipes; each later run makes at most
+    // seven wipes, each network's agent noting its Qloo gateway instance's as it's wiped.
+    const wiped: number[] = []
+    for (let run = 0; run < 5; run++) {
+      later(run === 0 ? DAY + HOUR : HOUR)
+      await runCron()
+      const line = logged.mock.calls
+        .flat()
+        .filter((l) => String(l).startsWith('{"event":"wipes_retried"'))
+        .at(-1)
+      const counts = JSON.parse(String(line)) as { wiped: number; kept: number; failed: number }
+      expect(counts).toMatchObject({ kept: 0, failed: 0 })
+      wiped.push(counts.wiped)
+    }
+    expect(wiped).toEqual([0, 7, 7, 4, 0])
+    for (const id of networks)
+      expect(await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, id)).state)).toMatchObject({
+        cpm: null
+      })
+  })
 })
