@@ -2,7 +2,7 @@
 
 <!-- impeccable:product-schema 1 -->
 
-Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want, by scoring the network's own lists in Qloo. It runs as an open demo on a sample network and as a signed-in product a network's members share. This is the durable product record that design and build work start from. The [PRD](PRD.md) says what ships, the [TRD](TRD.md) says how, and [GLOSSARY.md](/GLOSSARY.md) defines the terms.
+Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want, by scoring the network's own lists in Qloo. It runs as a signed-in product a network's members share, which anyone tries as a guest, in one click, on a sample network. This is the durable product record that design and build work start from. The [PRD](PRD.md) says what ships, the [TRD](TRD.md) says how, and [GLOSSARY.md](/GLOSSARY.md) defines the terms.
 
 The choices it rests on were confirmed on 2026-10-17 for the hackathon entry and taken as the spec's defaults on 2026-10-19 for the product, and are listed under [Decisions](#decisions).
 
@@ -32,7 +32,7 @@ web
 
 ## Stack
 
-The Hono and Vite app in [`apps/`](/apps/) on one Cloudflare Worker, the Cloudflare Agents SDK as the agent framework, with a Durable Object per demo session, per network, and per launch, a D1 database as the directory of members and networks, passkeys verified in-house, Claude Haiku 5.5 as the model, and direct REST calls to Qloo. A TypeScript SDK, an MCP server, Agent Skills, and a Claude Code plugin sit over the app's REST API. The [TRD](TRD.md#architecture) gives the reasons.
+The Hono and Vite app in [`apps/`](/apps/) on one Cloudflare Worker, the Cloudflare Agents SDK as the agent framework, with a Durable Object per network and per launch, a D1 database as the directory of members and networks, passkeys verified in-house, Claude Haiku 5.5 as the model, and direct REST calls to Qloo. A TypeScript SDK, an MCP server, Agent Skills, and a Claude Code plugin sit over the app's REST API. The [TRD](TRD.md#architecture) gives the reasons.
 
 ## Users
 
@@ -41,7 +41,7 @@ The Hono and Vite app in [`apps/`](/apps/) on one Cloudflare Worker, the Cloudfl
   - **Bookers.** Every day they triage an inbox of guest pitches, each written by a publicist to sound on-topic, and decide whom to book, decline, or hold for later.
 - **Owners:** the members who also manage who's in the network, its invite links, its API keys, its own Qloo key, and deleting it. The member who creates a network owns it, and owners can make others owners.
 - **Developers and assistants** acting for a network through an API key: scripts on the REST API or the SDK, and AI assistants such as Claude Code over the MCP server. They work on the roster, launches, and inbox as members do, short of approving, and can't manage the network's members, invite links, API keys, or Qloo key, or delete a launch or the network.
-- **Visitors:** anyone opening the sample network at `/demo` without signing in, including hackathon judges, who may score from the written description alone or open the live demo ([BRIEF](BRIEF.md#submission-checklist)).
+- **Visitors:** anyone reading the public pages, including hackathon judges, who may score from the written description alone or open the live sample network, as a guest ([BRIEF](BRIEF.md#submission-checklist)).
 - **Buyer:** the network. Independent shows doing feed swaps are a wider second tier, not a user yet. The beta is free and names no price.
 
 ## Product Purpose
@@ -61,7 +61,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - **Booking:** happens daily. Pitches arrive as email; each names a guest and the public work they're promoting, such as a book, show, film, or podcast. A booker loads them as the email client exports them, as `.eml` files, an `.mbox`, or text.
 - **Members together:** a network's head of programming and its bookers share one roster, one inbox, and every launch, and see each other's changes as they're made. A person can belong to several networks.
 - **Automation:** a network's developers script imports and runs through the API or the SDK, and a programmer can plan a launch with an assistant over MCP, which relays the agent's questions and never approves.
-- **Demo:** judges open the landing page at `/`, whose first button opens a sample network at `/demo` with no sign-in, built from The Ringer's public show names, that answers from a warm cache ([BRIEF](BRIEF.md#implications-for-our-entry)). Its downloads and CPM are labelled sample inputs, not The Ringer's figures.
+- **Sample network:** judges open the landing page at `/`, whose first button signs them in as a guest, in one click, and opens the guest network, which holds a sample network built from The Ringer's public show names and answers from a warm cache ([BRIEF](BRIEF.md#implications-for-our-entry), [ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)). Its downloads and CPM are labelled sample inputs, not The Ringer's figures. The retired demo's `/demo` leads to the same way in.
 
 ## Capabilities and Constraints
 
@@ -86,7 +86,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - **Only public shows and works reach Qloo.** A guest without a public work is skipped, so private individuals, email addresses, and sender details never reach Qloo, whether a pitch is pasted, uploaded, or sent through the API ([kit safe use][kit-safe]).
 - **Results describe listeners, not people.** Affinity is never shown as a probability about an individual, and nothing infers a person's politics, health, or eligibility for anything.
 - **Rank over raw score.** Affinity is normalized per query and guest scores bunch, so the UI leads with rank and a band and keeps the raw score in the evidence ([BRIEF](BRIEF.md#reading-results)).
-- **Money comes from the network.** Slot value uses the CPM and downloads the network enters. Crossfeed ships no default CPM for real networks, because the $18 to $25 range in the idea is unsourced; the demo's sample CPM is labelled arbitrary.
+- **Money comes from the network.** Slot value uses the CPM and downloads the network enters. Crossfeed ships no default CPM for real networks, because the $18 to $25 range in the idea is unsourced; the sample network's CPM is labelled arbitrary.
 - **Qloo data stays private.** Responses may be cached server-side but never committed or published ([BRIEF](BRIEF.md#implications-for-our-entry)). The shared cache serves every visitor and every network without its own Qloo key, so a cache hit can show that another looked up the same name.
 - **A network's data is its own.** Only its members and its own API keys can reach its roster, launches, pitches, and keys; to anyone else it doesn't exist.
 - **The beta runs on Crossfeed's hackathon Qloo key.** That key can't be resold or shared, so every network runs within daily caps of its own, and an owner can bring the network's own Qloo key; selling Crossfeed or opening it past the beta needs a commercial Qloo agreement or each network's own key ([ADR 0004](/docs/adr/0004-qloo-key-per-network.md)).
@@ -138,11 +138,11 @@ Confirmed on 2026-10-17 in [#20](https://github.com/m1kuorg/qloo/issues/20). Eac
 
 Taken on 2026-10-19 in the product spec, [#155](https://github.com/m1kuorg/qloo/issues/155), each the recommended answer of a grilling round that went unanswered, with four recorded as ADRs:
 
-1.  **Agents per network and launch, with a D1 directory** ([ADR 0001](/docs/adr/0001-agents-per-network-and-launch.md)): a `NetworkAgent` per network and a `LaunchAgent` per launch, beside the demo's per-session agent; D1 holds only the directory: members, passkeys, sessions, sign-in challenges, networks, memberships, invites, API keys, and the agent wipes still due.
+1.  **Agents per network and launch, with a D1 directory** ([ADR 0001](/docs/adr/0001-agents-per-network-and-launch.md)): a `NetworkAgent` per network and a `LaunchAgent` per launch, beside the demo's per-session agent, which they extend and which retired with the demo; D1 holds only the directory: members, passkeys, sessions, sign-in challenges, networks, memberships, invites, API keys, and the agent wipes still due.
 1.  **Approval stays in the app** ([ADR 0002](/docs/adr/0002-approval-stays-in-the-app.md)): API keys reach everything but approval.
 1.  **Passkeys, built in-house** ([ADR 0003](/docs/adr/0003-passkeys-built-in-house.md)): no password, email, or OAuth; a recovery code instead of email recovery.
 1.  **A network can bring its own Qloo key** ([ADR 0004](/docs/adr/0004-qloo-key-per-network.md)): the beta runs on the hackathon key within per-network caps.
-1.  **Release:** the same Worker; `/` is the landing page, the sample network moves to `/demo` with no sign-in, and signed-in networks live under `/app`, behind the `ACCOUNTS` switch until the product passes on the preview, by 2026-10-29 or after judging ends on 2026-11-16 ([PRD](PRD.md#release-plan)).
+1.  **Release:** the same Worker; `/` is the landing page, the sample network moves to `/demo` with no sign-in, and signed-in networks live under `/app`, behind the `ACCOUNTS` switch until the product passes on the preview, by 2026-10-29 or after judging ends on 2026-11-16 ([PRD](PRD.md#release-plan)). On 2026-10-28 the demo retired: the sample network became the guest network's data, and `/demo` leads to guest sign-in ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)).
 1.  **Networks and members:** a network has owners and members; a person can belong to several networks and joins through an invite link.
 1.  **Launches:** the spec's "projects" are launches. The dashboard lists them; the roster and the inbox belong to the network.
 1.  **Billing:** none. No payments and no invented prices; settings show usage against the daily caps under a "Beta" label.
