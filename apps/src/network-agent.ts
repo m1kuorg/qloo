@@ -130,6 +130,11 @@ export class NetworkAgent extends CrossfeedAgent {
           .ownKey()
           .then(({ set }) => keepOwnKey(storage, set))
           .catch((e) => console.error(JSON.stringify({ event: 'own_key_lookup', error: String(e) })))
+    // A sample inbox stopped while its works were looked up isn't a guest's to load again, as an inbox
+    // stopped reading is (CrossfeedAgent.onStart): its lookups are tried again (loadSampleInbox).
+    const inbox = this.state.inbox
+    if (inbox?.sample && inbox.status === 'reading')
+      this.finishInbox(inbox.id, 'The lookup was interrupted. Crossfeed tries it again later.')
     await super.onStart(props)
     if (this.name !== GUEST_NETWORK) return
     if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) {
