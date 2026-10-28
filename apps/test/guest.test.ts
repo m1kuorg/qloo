@@ -667,7 +667,7 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(await qlooCalls(guest)).toBe(19)
   })
 
-  it('opens empty, with the sample roster to start from, the sample CPM labelled, and The Watch planned, when the guest budget refuses its lookups, and tries again as it next starts', async () => {
+  it('opens empty, with the sample CPM labelled and The Watch planned, when the guest budget refuses its lookups, and tries again as it next starts', async () => {
     fakeQloo({ search })
     env.QLOO_VISITOR_DAILY_CALL_CAP = '18'
     const guest = await openGuest()
@@ -692,7 +692,8 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
         }
       })
     )
-    expect(page).toContain('Start from the sample roster')
+    // Nothing to start from but the roster's import: the next start tries the lookups again.
+    expect(page).not.toContain('Start from the sample roster')
     expect(page.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).toContain(
       'CPM $20 per 1,000 downloads sample · Change it in settings'
     )
@@ -704,19 +705,6 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(loaded).toMatchObject({ cpm: 20, sample: { cpm: true }, launches: [{ name: 'The Watch' }] })
     expect(loaded.launches).toEqual(refused.launches)
     expect(loaded.roster).toHaveLength(19)
-  })
-
-  it('keeps the sample CPM’s label as a guest starts from the sample roster after its lookups were refused', async () => {
-    fakeQloo({ search })
-    env.QLOO_VISITOR_DAILY_CALL_CAP = '18'
-    const guest = await openGuest()
-    const network = await connect(guest)
-    env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
-
-    await network.call('startFromSample')
-    const started = await network.until(settled)
-    expect(started).toMatchObject({ cpm: 20, sample: { cpm: true }, launches: [{ name: 'The Watch' }] })
-    expect(started.roster).toHaveLength(19)
   })
 
   it('keeps a CPM a guest set while its lookups were refused, unlabelled, as the sample loads on a later start', async () => {
@@ -905,8 +893,10 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       expect(queries.toSorted()).toEqual(works.map((w) => w.title).toSorted())
 
       const settledAt = requests.length
+      const spent = (await usage()).qlooCalls.used
       expect((await restart()).state()!.inbox).toEqual(retried.inbox)
       expect(requests).toHaveLength(settledAt)
+      expect((await usage()).qlooCalls.used).toBe(spent)
       expect(modelRequests()).toEqual([])
     })
 
@@ -997,9 +987,11 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
 
       env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
       const sent = requests.length
+      const spent = (await usage()).qlooCalls.used
       await evictAllDurableObjects({ webSockets: 'close' })
       expect((await connect(guest)).state()!.inbox).toEqual(loadedOwn)
       expect(requests).toHaveLength(sent)
+      expect((await usage()).qlooCalls.used).toBe(spent)
     })
   })
 })

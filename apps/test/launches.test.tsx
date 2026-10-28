@@ -988,7 +988,7 @@ describe('two launches of one network', () => {
   })
 })
 
-describe('a launch on a network started from the sample roster', () => {
+describe('a launch on the sample roster', () => {
   // Made-up IDs and scores for four of the sample's public show names; every other name finds nothing.
   const sampleSearch = {
     'The Rewatchables': show('e-0201', 'The Rewatchables'),
@@ -1028,73 +1028,6 @@ describe('a launch on a network started from the sample roster', () => {
       sampleFit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id))
     )
   }
-  // A network started from the sample roster, every show looked up, and a launch of The Watch.
-  async function sampleLaunch() {
-    const ada = await openMember()
-    const network = await created(ada)
-    const roster = await connect(ada, `/agents/network/${network}`)
-    await roster.call('startFromSample')
-    await roster.until((s) => s.roster.length > 0 && s.roster.every((r) => r.resolution !== 'pending'))
-    const sent = requests.length
-    const { agent } = await launch(ada, network, { name: 'The Watch' })
-    // A launch never opens on the sample network, even with it on.
-    expect([agent.state()!.roster, agent.state()!.sample, requests.length]).toEqual([[], null, sent])
-    return { roster, agent }
-  }
-
-  it("keeps its figures labelled sample on a member's network, but not the sample, which only the guest network's sample launch carries, and never stores its run as the sample run", async () => {
-    env.SAMPLE_NETWORK = 'on'
-    fakes()
-    const logged = vi.spyOn(console, 'log')
-    const { roster, agent } = await sampleLaunch()
-    fakeClaude(theWatch())
-    await agent.call('startLaunch', { name: 'The Watch' })
-    const state = await answerSample(agent)
-
-    expect(state.run?.status).toBe('completed')
-    expect(state.sample).toBeNull()
-    expect(state.roster.map((r) => [r.name, r.sample])).toEqual(roster.state()!.roster.map((r) => [r.name, r.sample]))
-    expect(logged.mock.calls.flat().filter((line) => String(line).includes('"event":"sample_run"'))).toEqual([])
-    // So the demo has no stored run to replay when Qloo can't be called.
-    env.QLOO_DAILY_CALL_CAP = '0'
-    const judge = await openSession()
-    open.push(judge)
-    await judge.until((s) => s.roster.every((r) => r.resolution !== 'pending'))
-    await judge.call('startLaunch', { name: 'The Watch' })
-    expect(judge.state()!.run).toMatchObject({
-      status: 'stopped',
-      error: expect.stringContaining('no sample run is stored to replay yet')
-    })
-  })
-
-  it("never replays the stored sample run on a member's network, and stops instead while Qloo can't be called", async () => {
-    env.SAMPLE_NETWORK = 'on'
-    fakes()
-    const logged = vi.spyOn(console, 'log')
-    // A visitor runs the sample launch on the demo, which keeps it for replays.
-    const visitor = await openSession()
-    open.push(visitor)
-    await visitor.until((s) => s.roster.length > 0 && s.roster.every((r) => r.resolution !== 'pending'))
-    fakeClaude([...theWatch(), ...theWatch()])
-    await visitor.call('startLaunch', { name: 'The Watch' })
-    expect((await answerSample(visitor)).run?.status).toBe('completed')
-    await vi.waitFor(() =>
-      expect(logged.mock.calls.flat().some((line) => String(line).includes('"event":"sample_run"'))).toBe(true)
-    )
-
-    const { agent } = await sampleLaunch()
-    env.QLOO_DAILY_CALL_CAP = '0'
-    await agent.call('startLaunch', { name: 'The Watch' })
-    const state = await agent.until(ended)
-    expect(state.run).toMatchObject({
-      status: 'stopped',
-      error: expect.stringContaining('so runs on your own data wait until Qloo answers again')
-    })
-    expect(state.run?.replayed).toBeUndefined()
-    expect(state.ranking).toBeNull()
-    expect((await agent.call<Evidence[]>('getEvidence')).some((e) => e.replayed)).toBe(false)
-  })
-
   // The guest network as it loads the sample (ADR 0007), and its sample launch's page agent.
   async function guestSampleLaunch() {
     env.SAMPLE_NETWORK = 'on'
@@ -1121,6 +1054,32 @@ describe('a launch on a network started from the sample roster', () => {
     return state
   }
   const capped = 'The daily cap of 0 Qloo calls is reached; it resets at 00:00 UTC'
+
+  it('keeps its figures labelled sample on another launch of the guest network, but not the sample, which only its sample launch carries, and never stores its run as the sample run', async () => {
+    const { guest, network } = await guestSampleLaunch()
+    const logged = vi.spyOn(console, 'log')
+    // The Watch planned again by a guest isn't the sample launch.
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Watch' })
+    const agent = await connect(guest, `/agents/launch/guest-network/${id}`)
+    fakeClaude(theWatch())
+    await agent.call('startLaunch', { name: 'The Watch' })
+    const state = await answerSample(agent)
+
+    expect(state.run?.status).toBe('completed')
+    expect(state.sample).toBeNull()
+    expect(state.roster.map((r) => [r.name, r.sample])).toEqual(network.state()!.roster.map((r) => [r.name, r.sample]))
+    expect(logged.mock.calls.flat().filter((line) => String(line).includes('"event":"sample_run"'))).toEqual([])
+    // So the engine has no stored run to replay when Qloo can't be called.
+    env.QLOO_DAILY_CALL_CAP = '0'
+    const judge = await openSession()
+    open.push(judge)
+    await judge.until((s) => s.roster.every((r) => r.resolution !== 'pending'))
+    await judge.call('startLaunch', { name: 'The Watch' })
+    expect(judge.state()!.run).toMatchObject({
+      status: 'stopped',
+      error: expect.stringContaining('no sample run is stored to replay yet')
+    })
+  })
 
   it("carries the sample on the guest network's sample launch, which replays its stored run while Qloo is capped or down", async () => {
     const { network, id, agent } = await guestSampleLaunch()

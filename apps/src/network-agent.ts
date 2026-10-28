@@ -146,11 +146,11 @@ export class NetworkAgent extends CrossfeedAgent {
   // clears it (ADR 0007): the sample CPM labelled as a sample figure, the sample launch planned, and the
   // sample roster with its labels, looked up like an import. The CPM and the plan call nothing, so they
   // land whatever the lookups do; the lookups count on the guest budget, and refused, the roster stays
-  // empty, with the sample to start from. Until it's noted as loaded, each start tries again what didn't
-  // land: a roster still empty, the lookups that failed, the launch if it wasn't planned. It's noted once
-  // a start finds the roster settled and the launch planned, or finds the sample replaced by a guest's
-  // import. It runs before any page connects, so it plans the launch and reserves the calls here, and
-  // leaves the lookups to run in the background.
+  // empty. Until it's noted as loaded, each start tries again what didn't land: a roster still empty, the
+  // lookups that failed, the launch if it wasn't planned. It's noted once a start finds the roster settled
+  // and the launch planned, or finds the sample replaced by a guest's import. It runs before any page
+  // connects, so it plans the launch and reserves the calls here, and leaves the lookups to run in the
+  // background.
   private async loadSample() {
     const { kv } = this.ctx.storage
     if (kv.get(SAMPLE_LOADED)) return
@@ -326,24 +326,6 @@ export class NetworkAgent extends CrossfeedAgent {
       const forgotten = { ...kept, booking: withoutApprover(kept.booking, memberId) }
       this.sql`UPDATE runs SET snapshot = ${JSON.stringify(forgotten)} WHERE id = ${id}`
     }
-  }
-
-  // Starts the network's roster from the sample network's shows, each figure labelled sample until a
-  // member changes it, looked up like an import. The sample's notice comes with its show names; its CPM
-  // doesn't, since the network's is an owner's to set, but for the guest network's, still labelled the
-  // sample's as its lookups were refused (loadSample).
-  @callable()
-  async startFromSample() {
-    const empty = () => {
-      if (this.state.roster.length > 0)
-        throw new Error(
-          'The roster already has shows. Start from the sample roster only while it has none, or import over it.'
-        )
-    }
-    empty()
-    const gateway = await this.reserveCalls(this.limitKey(), sampleRoster.length)
-    empty() // again, since an import may have started meanwhile
-    this.lookUpRoster(sampleRoster, { sample: { ...sample, cpm: this.state.sample?.cpm ?? false } }, gateway)
   }
 
   // Plans a new launch, named or from up to three comps: its own agent takes it, then it joins the

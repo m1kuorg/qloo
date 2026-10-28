@@ -4,13 +4,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Spinner } from '@/components/ui/spinner'
 import { TabsContent } from '@/components/ui/tabs'
 import { linkVariants } from '@/components/ui/variants'
 import type { Show } from '../agent'
 import { dollars } from '../order'
-import { sample as sampleNetwork, sampleRoster, type Sample } from '../sample'
-import { Alert, useAction } from './controls'
 import { EvidencePanel, useEvidence } from './Evidence'
 import { canvas, frame, Inspector, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
@@ -31,11 +28,10 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
 const alone = cn(canvas, 'min-[85rem]:pr-6')
 
 // The roster every launch on the network ranks, kept by its agent, which answers "Is my roster ready
-// to rank?": the title row with its counts and CPM, the sample's notice, the shows Qloo failed on,
-// and the roster table, whose shows open in the inspector's Show tab beside it (a sheet under
-// 1360px) and whose calls open in its Evidence tab. "Import shows" opens the import in a sheet; an
-// empty roster has the import as its body, with the sample roster to start from. Every member's
-// edits reach the others through synced state. Tests render it from a network agent's synced state.
+// to rank?": the title row with its counts and CPM, the shows Qloo failed on, and the roster table,
+// whose shows open in the inspector's Show tab beside it (a sheet under 1360px) and whose calls open
+// in its Evidence tab. "Import shows" opens the import in a sheet; an empty roster has the import as
+// its body. Every member's edits reach the others through synced state. Tests render it from a network agent's synced state.
 export function NetworkRoster({
   agent,
   network,
@@ -98,7 +94,6 @@ export function NetworkRoster({
           </h2>
           {importer(false)}
         </section>
-        <SampleStart start={() => agent.stub.startFromSample()} />
       </main>
     )
 
@@ -106,7 +101,6 @@ export function NetworkRoster({
     <div className={frame}>
       <main className={canvas}>
         {head}
-        {state.sample && <SampleRoster sample={state.sample} />}
         <RosterFailures roster={roster} />
         <RosterTable
           roster={roster}
@@ -250,36 +244,6 @@ function CpmLine({ cpm, sample, network }: { cpm: number | null; sample: boolean
       ) : (
         <span>An owner sets it in settings.</span>
       )}
-    </p>
-  )
-}
-
-// An empty roster's other way in: the sample roster, to try Crossfeed before importing one's own.
-function SampleStart({ start }: { start: () => Promise<unknown> }) {
-  const { busy, error, run } = useAction()
-  return (
-    <div className="flex flex-col items-start gap-x-4 gap-y-2 rounded-xl bg-card p-4 md:flex-row md:items-center lg:px-6">
-      <Button variant="secondary" disabled={busy} onClick={() => void run(start)}>
-        {busy && <Spinner data-icon="inline-start" />}
-        Start from the sample roster
-      </Button>
-      <p className="text-muted-foreground">
-        {sampleNetwork.network}’s {sampleRoster.length} public show names, with made-up figures labelled sample, to try
-        Crossfeed before your own.
-      </p>
-      <Alert error={error} />
-    </div>
-  )
-}
-
-// What a roster started from the sample is: a block on the card, as notices about the page's data
-// are. Its CPM isn't the sample's, so the notice leaves it out.
-function SampleRoster({ sample }: { sample: Sample }) {
-  return (
-    <p className="max-w-[72ch] rounded-xl bg-card p-4 lg:max-w-none" data-sample-notice>
-      <b className="font-semibold">Sample roster.</b> {sample.network}’s public show names, with downloads, statuses,
-      and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn’t affiliated with{' '}
-      {sample.network}. Import your own roster over it; shows on both keep their matches.
     </p>
   )
 }
