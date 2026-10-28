@@ -148,12 +148,12 @@ describe('the dashboard', () => {
     expect(listed[4]).toMatch(new RegExp(`^${STEPS[4]} Make a key in settings`))
   })
 
-  it('leaves out of the guest network’s setup what no one in it can do: inviting a teammate and making an API key', async () => {
+  it('leaves inviting a teammate and making an API key out of the guest network’s setup, and lets a guest, an owner, change its CPM', async () => {
     const guest = await openGuest()
     const agent = await connect(guest, 'guest-network')
     const html = await dashboard(guest, 'guest-network', await agent.until((s) => s.cpm === 20))
     const read = words(html)
-    expect(read).toContain('CPM $20 per 1,000 downloads View')
+    expect(read).toContain('CPM $20 per 1,000 downloads Change')
     expect(read).toContain('Setup · 1 of 3 done Dismiss')
     const listed = steps(html)
     expect(listed[0]).toMatch(new RegExp(`^${STEPS[0]} Paste`))
@@ -461,26 +461,22 @@ describe('settings', () => {
     expect(theirs).not.toContain('Delete network')
   })
 
-  it('show a guest the guest network’s settings read-only, saying it has no owner, with no Leave', async () => {
+  it('show a guest the guest network’s settings as an owner’s, with every other guest to manage, and no Leave', async () => {
     const guest = await openGuest()
+    await openGuest()
     const id = 'guest-network'
     const html = await settings(guest, id, await (await connect(guest, id)).until((s) => s.cpm === 20))
     const read = words(html)
-    expect(html).not.toContain('<input')
+    expect(read).toMatch(/^Settings You’re an owner of this network\. Network /)
+    expect(html).toMatch(/<input\b[^>]*\svalue="Guest network"/)
     expect(read).toMatch(
-      /^Settings You’re a guest\. The guest network has no owner, so what only an owner can change is read-only\. Network /
+      /Member Role Joined Actions Guest [0-9A-F]{6} You Owner \w{3} \d{1,2} Make member Guest [0-9A-F]{6} Owner \w{3} \d{1,2} Make member Remove Invite links/
     )
-    expect(read).toContain('Name Guest network CPM $20 The guest network has no owner, so no one can change these.')
-    expect(read).toMatch(
-      /Member Role Joined Actions Guest You Member \w{3} \d{1,2} The guest network has no owner, so no one can invite people, change roles, or remove members, and no guest can leave it\./
-    )
-    expect(read).toContain('The guest network has no owner, so no one can create or revoke API keys.')
-    expect(read).toContain(
-      'Qloo key Crossfeed’s shared key The guest network has no owner, so no one can add or remove its Qloo key.'
-    )
-    expect(read).toContain('The guest network has no owner, so no one can delete it.')
+    expect(read).toContain('Key name Create API key')
+    expect(read).toContain('Type Guest network to delete it Delete network')
     expect(read).not.toContain('Leave')
     expect(read).not.toContain('Only an owner')
+    expect(read).not.toContain('has no owner')
   })
 
   it('show every guest the guest network’s usage today, every guest’s together, from any address or none', async () => {

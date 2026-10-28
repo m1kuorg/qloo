@@ -11,7 +11,7 @@ import { cell, head, Module } from './Module'
 
 // The settings' members module: who's in the network, with their role and when they joined, and, for an
 // owner, its invite links. An owner changes roles, removes members, and makes and revokes links; any
-// member can leave, but a guest, who can't leave the guest network, which has no owner (ADR 0005). No
+// member can leave, but a guest member, who can't leave the guest network (ADR 0006). No
 // change may leave the network without an owner: the Worker refuses one, and the module doesn't offer
 // it. `invites` is null for a member, who doesn't see them. Removing, leaving, revoking, and making an
 // owner a member, which revokes their keys and links, each confirm first.
@@ -133,7 +133,7 @@ export function MembersModule({
                           {m.role === 'owner' ? 'Make member' : 'Make owner'}
                         </Button>
                       )}
-                      {((self && !network.guest) || owner) && (
+                      {(self ? !network.guest : owner) && (
                         <Button
                           variant="ghost"
                           size="sm"

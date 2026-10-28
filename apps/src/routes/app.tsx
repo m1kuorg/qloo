@@ -84,8 +84,8 @@ appPages.get('/app', async (c) => {
   return c.redirect(last ? `/app/${last}` : '/app/new', 302)
 })
 
-// Naming a new network. The demo's and the landing page's "Create your network" lead here. The guest
-// member is told it can't create one instead.
+// Naming a new network. The demo's and the landing page's "Create your network" lead here. A guest
+// member is told they can't create one instead.
 appPages.get('/app/new', async (c) => {
   c.set('networks', await memberNetworks(c.env.DB, c.var.member.id))
   return c.render(
@@ -128,7 +128,7 @@ appPages.get('/app/account', async (c) => {
       data-networks={JSON.stringify(networks)}
       // Signing in with a recovery code lands here, to add a passkey.
       data-recovered={String(c.req.query('recovered') !== undefined)}
-      // The guest member's page shows only that it's the guest member, and signing out (ADR 0005).
+      // A guest member's page shows only that their account is temporary, and signing out (ADR 0006).
       data-guest={isGuestMember(c.var.member) ? 'true' : undefined}
     />
   )

@@ -116,7 +116,7 @@ export class NetworkAgent extends CrossfeedAgent {
           .then(({ set }) => keepOwnKey(storage, set))
           .catch((e) => console.error(JSON.stringify({ event: 'own_key_lookup', error: String(e) })))
     await super.onStart(props)
-    // The guest network has no owner to set its CPM (ADR 0005), so it takes the sample network's.
+    // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006).
     if (this.name === GUEST_NETWORK && this.state.cpm === null) this.setState({ ...this.state, cpm: sampleCpm })
   }
 

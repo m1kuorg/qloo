@@ -18,8 +18,8 @@ import { StateLine } from './states'
 // sessions, their networks, and deleting the account, one module per job in the settings' grammar.
 // A recovery code signs a member in here (`recovered`), to add a passkey for the device they're on.
 // Every destructive change confirms first; one that needs the member to confirm it's them (step-up)
-// asks once the confirm has closed, never over it. The guest member's page (`guest`) shows only what's a
-// guest's to do (ADR 0005).
+// asks once the confirm has closed, never over it. A guest member's page (`guest`) shows only what's a
+// guest's to do (ADR 0006).
 export function AccountPage({
   name,
   passkeys,
@@ -66,18 +66,18 @@ export function AccountPage({
 const codeFrame =
   'mx-auto grid w-full max-w-[1152px] items-start gap-8 px-4 pt-10 pb-16 lg:grid-cols-2 lg:gap-12 lg:px-6 lg:pt-20'
 
-// The guest member's account, which every guest shares: what that rules out, and signing out of this
-// browser's session alone.
+// A guest member's account, which is temporary: what a guest can't do, and signing out of this
+// browser's session.
 function GuestModule() {
   return (
     <Module
       id="acct-guest-h"
       title="Guest"
-      help="Everyone who signs in as a guest is the one guest member, in the guest network, and shares everything in it and its daily limits."
+      help="Your guest account is temporary: it lasts a day. Every guest owns the guest network together and shares its daily limits."
     >
       <p>
-        A guest can’t add a passkey or a recovery code, rename the guest member, sign out every guest, or delete the
-        account, and can’t create or join a network. For any of that, sign out and create an account of your own.
+        A guest can’t add a passkey or a recovery code, rename themselves, sign out everywhere, or delete their account,
+        and can’t create or join a network. For any of that, sign out and create an account of your own.
       </p>
       <SignOut variant="secondary" className="self-start">
         Sign out
