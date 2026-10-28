@@ -257,9 +257,10 @@ function Status({ status }: { status: LaunchSummary['status'] }) {
 }
 
 // A launch's finalists: a five-step meter in signal, what the agent puts forward, then the count,
-// which says it, so the meter is hidden from screen readers. A launch not yet ranked has none.
+// which says it, so the meter is hidden from screen readers. A launch not yet ranked has none, and its
+// cell is empty.
 function Finalists({ n }: { n: number }) {
-  if (n === 0) return '–'
+  if (n === 0) return null
   return (
     <span className="inline-flex items-center gap-2">
       <span className="inline-flex items-end gap-0.5" aria-hidden="true">
@@ -429,10 +430,10 @@ function LaunchRow({ launch: l, href, ask }: { launch: LaunchSummary; href: stri
       <td className={cn(cell, 'text-right')}>
         <Finalists n={l.finalists} />
       </td>
-      <td className={cn(cell, 'text-right tabular-nums')}>{l.slots ?? '–'}</td>
-      <td className={cn(cell, 'text-right')}>{l.slotValue === null ? '–' : dollars(l.slotValue)}</td>
+      <td className={cn(cell, 'text-right tabular-nums')}>{l.slots}</td>
+      <td className={cn(cell, 'text-right')}>{l.slotValue !== null && dollars(l.slotValue)}</td>
       <td className={cn(cell, 'text-muted-foreground')}>
-        {l.lastRun ? (
+        {l.lastRun && (
           <>
             {day(l.lastRun)}
             {l.startedBy && (
@@ -442,8 +443,6 @@ function LaunchRow({ launch: l, href, ask }: { launch: LaunchSummary; href: stri
               </span>
             )}
           </>
-        ) : (
-          'Not run yet'
         )}
       </td>
       <td className={cn(cell, 'py-2 pr-2 text-right')}>

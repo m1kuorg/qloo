@@ -1549,7 +1549,7 @@ function PitchTable({
                     )}
                   </span>
                 </th>
-                <td className={cell}>{p.guest ?? <span className="text-muted-foreground">–</span>}</td>
+                <td className={cell}>{p.guest}</td>
                 <td className={cell}>
                   <WorkCell pitch={p} />
                 </td>
@@ -1577,7 +1577,7 @@ function PitchTable({
 
 function WorkCell({ pitch: { work, status } }: { pitch: Pitch }) {
   if (status === 'reading') return <span className="text-muted-foreground">Reading…</span>
-  if (!work) return <span className="text-muted-foreground">–</span>
+  if (!work) return null
   return (
     <span className="flex flex-col gap-1">
       <span className="font-medium">{work.title}</span>

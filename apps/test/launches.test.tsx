@@ -1279,7 +1279,7 @@ describe('the pages, as a member reads them', () => {
     const html = dashboard(network, agent.state())
     expect(words(html)).toMatch(/^Launches 2 launches New launch /)
     expect(words(html)).toContain(
-      'Not run yet 2 Blank Check · Filmspotting Unreleased, from comps New – – – Not run yet The Night Watch New – – – Not run yet'
+      'Not run yet 2 Blank Check · Filmspotting Unreleased, from comps New The Night Watch New'
     )
     expect(html).toContain(`href="/app/${network}/launches/${id}"`)
     expect(html).toContain(`href="/app/${network}/launches/${fromComps}"`)
