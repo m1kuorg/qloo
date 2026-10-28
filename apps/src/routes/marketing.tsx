@@ -1236,7 +1236,8 @@ function Privacy({ accounts }: { accounts: boolean }) {
               </p>
               <p>
                 Also shared: the sample launch’s stored run, which the guest network’s replays when Qloo can’t be
-                called; and each network’s counts for the day against the limits in the <a href="/terms">beta terms</a>.
+                called; the guest network’s other sample launches, runs Crossfeed captured once and loads each day; and
+                each network’s counts for the day against the limits in the <a href="/terms">beta terms</a>.
               </p>
             </li>
           )}
