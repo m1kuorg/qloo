@@ -1,12 +1,11 @@
 import { cn } from 'cn'
 import { CheckIcon, CircleDashedIcon, CopyIcon, SquareXIcon, UploadIcon } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
 import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -52,7 +51,7 @@ import {
 import { CallButton, EvidencePanel, useEvidence, type Opened } from './Evidence'
 import { canvas, Connecting, frame, Inspector, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
-import { PageEmpty, PageHeader, summaryLine } from './PageHeader'
+import { FormSheet, PageEmpty, PageHeader, summaryLine, useFormSheet } from './PageHeader'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
 import {
@@ -199,27 +198,47 @@ export function InboxPage({
   const opened = actions.opened?.call ?? null
   // The number of the earlier pitch run shown, read-only.
   const viewing = history?.viewing ? runNumber(history.runs, history.viewing) : null
-  // The load form's sheet, which stays open after a load so a refusal shows where it was asked, and
-  // stays open as the first load takes the page from its empty state to the pitches.
-  const [loading, setLoading] = useState(false)
-  const load = () => setLoading(true)
-  // The header's Load pitches, which focus goes back to as the sheet closes once the first load has
-  // taken the empty state, and the button that opened it, away.
-  const loadButton = useRef<HTMLButtonElement>(null)
+  // Load pitches, in the header or the empty state, and the sheet it opens the load form in.
+  const loading = useFormSheet('Load pitches')
+  // Back to the latest run, its button goes, and focus goes to the page's heading.
+  const heading = useRef<HTMLHeadingElement>(null)
   return (
     <div className={frame}>
       <main className={canvas} data-canvas>
-        <InboxHead
+        {/* The inbox counted, with the show it's for once one is known, the sample's or the latest
+            run's, or while an earlier run is viewed, which it is and the way back to the latest. Load
+            pitches is secondary here: once pitches are in, ranking them is the page's primary. */}
+        <PageHeader
+          title="Inbox"
+          heading={heading}
+          connection={connection}
+          empty={!inbox}
+          summary={
+            viewing
+              ? `Run ${viewing} · earlier, read-only`
+              : inbox && inboxSummary(inbox, booking?.show.name ?? inbox.show?.name ?? null)
+          }
+          actions={
+            viewing ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void history?.view(null)
+                  heading.current?.focus()
+                }}
+              >
+                Back to the latest run
+              </Button>
+            ) : (
+              loading.button('secondary')
+            )
+          }
+        />
+        <InboxReadout
           inbox={inbox}
-          show={booking?.show.name ?? inbox?.show?.name ?? null}
-          load={load}
-          loadButton={loadButton}
           pitchRun={pitchRun}
           startedAt={startedAt}
           slowCalls={slowCalls}
-          connection={connection}
-          viewing={viewing}
-          back={() => void history?.view(null)}
           runLog={inspector.wide ? null : () => inspector.inspect('run')}
         />
         {/* Before the lists, so the question is what a person reaches first. */}
@@ -281,7 +300,7 @@ export function InboxPage({
             />
           </section>
         ) : (
-          <PageEmpty action={<Button onClick={load}>Load pitches</Button>} detail={QLOO_PRIVACY}>
+          <PageEmpty action={loading.button()} detail={QLOO_PRIVACY}>
             No pitches yet.
           </PageEmpty>
         )}
@@ -336,25 +355,18 @@ export function InboxPage({
       {/* Kept mounted while closed, so files dropped anywhere on the page load, opening it. An earlier
           run, viewed, loads nothing. */}
       {!viewing && (
-        <Sheet open={loading} onOpenChange={setLoading}>
-          <SheetContent keepMounted className="gap-0" finalFocus={() => loadButton.current ?? true}>
-            <SheetHeader className="pr-14">
-              <SheetTitle>Load pitches</SheetTitle>
-              <SheetDescription>
-                Paste pitch emails or upload them. Claude reads each one for its guest and public work. {QLOO_PRIVACY}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
-              <InboxLoad
-                loadInbox={actions.loadInbox}
-                reading={reading}
-                sample={sample}
-                wipes={Boolean(booking?.lists?.length || booking?.replies?.length)}
-                dropped={load}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+        <FormSheet
+          sheet={loading}
+          description={`Paste pitch emails or upload them. Claude reads each one for its guest and public work. ${QLOO_PRIVACY}`}
+        >
+          <InboxLoad
+            loadInbox={actions.loadInbox}
+            reading={reading}
+            sample={sample}
+            wipes={Boolean(booking?.lists?.length || booking?.replies?.length)}
+            dropped={loading.show}
+          />
+        </FormSheet>
       )}
     </div>
   )
@@ -381,100 +393,55 @@ function inboxSummary(inbox: Inbox, show: string | null) {
   ])
 }
 
-// The head of the canvas: the page header, with the inbox counted, the connection's state, as on the
-// network's other pages, and Load pitches, or while an earlier pitch run is viewed, its number and the
-// way back to the latest. Then the on-air readout, which follows a pitch run, or while there's none,
-// the inbox's reading, or the sample's lookups, and its slow calls. With no inbox and no run there's
-// no readout: the empty state says what's missing.
-function InboxHead({
+// The on-air readout under the header, which says the inbox's state and progress, never the counts
+// the header says: a pitch run's state, or while there's none, the inbox's reading, or the sample's
+// lookups, and its slow calls. With no inbox and no run there's none: the empty state says what's
+// missing.
+function InboxReadout({
   inbox,
-  show,
-  load,
-  loadButton,
   pitchRun,
   startedAt,
   slowCalls,
-  connection,
-  viewing,
-  back,
   runLog
 }: {
   inbox: Inbox | null
-  show: string | null // the show the pitches are for, once one is known
-  load: () => void // opens the load form's sheet
-  loadButton: RefObject<HTMLButtonElement | null>
   pitchRun: Run | null
   startedAt: string | null
   slowCalls: SlowCall[]
-  connection: Connection
-  viewing: number | null // the number of the earlier pitch run shown
-  back: () => void
   runLog: (() => void) | null // opens the inspector's Run tab, where it's a sheet
 }) {
+  if (!inbox && !pitchRun) return null
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
   // The sample's pitches come already read, so while it loads, its works' lookups are counted instead.
   const works = inbox?.pitches.filter((p) => p.work).length ?? 0
   const looked = inbox?.pitches.filter((p) => p.work && p.status !== 'looking_up').length ?? 0
-  // Back to the latest run, its button goes, and focus goes to the page's heading.
-  const heading = useRef<HTMLHeadingElement>(null)
-  const readout = Boolean(inbox || pitchRun)
   return (
-    <>
-      {/* Load pitches is secondary here: once pitches are in, ranking them is the page's primary. */}
-      <PageHeader
-        title="Inbox"
-        heading={heading}
-        summary={viewing ? `Run ${viewing} · earlier, read-only` : inbox && inboxSummary(inbox, show)}
-        connection={connection}
-        actions={
-          viewing ? (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                back()
-                heading.current?.focus()
-              }}
-            >
-              Back to the latest run
-            </Button>
-          ) : (
-            inbox && (
-              <Button ref={loadButton} variant="secondary" onClick={load}>
-                Load pitches
-              </Button>
-            )
-          )
-        }
-      />
-      {readout && (
-        <Readout since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
-          {pitchRun ? (
-            <RunState run={pitchRun} slowCalls={slowCalls} />
-          ) : (
-            inbox && (
-              <>
-                {inbox.status === 'reading' && inbox.sample ? (
-                  <StateLine kind="loading" word="Looking up">
-                    · {looked} of {works} {works === 1 ? 'work' : 'works'} looked up
-                  </StateLine>
-                ) : inbox.status === 'reading' ? (
-                  <StateLine kind="loading" word="Reading">
-                    · {done} of {pitchCount(inbox.pitches.length)} read
-                  </StateLine>
-                ) : (
-                  <b className="font-semibold">Read</b>
-                )}
-                {slowCalls.length > 0 && (
-                  <span className="basis-full type-caption">
-                    <SlowCalls calls={slowCalls} />
-                  </span>
-                )}
-              </>
-            )
-          )}
-        </Readout>
+    <Readout since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
+      {pitchRun ? (
+        <RunState run={pitchRun} slowCalls={slowCalls} />
+      ) : (
+        inbox && (
+          <>
+            {inbox.status === 'reading' && inbox.sample ? (
+              <StateLine kind="loading" word="Looking up">
+                · {looked} of {works} {works === 1 ? 'work' : 'works'} looked up
+              </StateLine>
+            ) : inbox.status === 'reading' ? (
+              <StateLine kind="loading" word="Reading">
+                · {done} of {pitchCount(inbox.pitches.length)} read
+              </StateLine>
+            ) : (
+              <b className="font-semibold">Read</b>
+            )}
+            {slowCalls.length > 0 && (
+              <span className="basis-full type-caption">
+                <SlowCalls calls={slowCalls} />
+              </span>
+            )}
+          </>
+        )
       )}
-    </>
+    </Readout>
   )
 }
 

@@ -1,14 +1,12 @@
 import { cn } from 'cn'
 import { useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TabsContent } from '@/components/ui/tabs'
 import type { Show } from '../agent'
 import { EvidencePanel, useEvidence } from './Evidence'
 import { canvas, frame, Inspector, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
-import { PageEmpty, PageHeader } from './PageHeader'
+import { FormSheet, PageEmpty, PageHeader, useFormSheet } from './PageHeader'
 import { RosterFailures, RosterImport, rosterSummary, RosterTable, ShowEditor } from './RosterModules'
 import { connectionOf, type Connection } from './states'
 
@@ -45,26 +43,16 @@ export function NetworkRoster({
   const evidence = useEvidence(agent)
   // The Show tab is there with no show selected too, saying how to open one.
   const inspector = useInspector(['show', 'evidence'], evidence)
-  // The import's sheet, which stays open after an import so a refusal shows where it was asked, and
-  // stays open as the first import takes the page from its empty state to the table.
-  const [importing, setImporting] = useState(false)
+  // Import shows, in the header or the empty state, and the sheet it opens the import in.
+  const importing = useFormSheet('Import shows')
   const importDraft = useRef('')
-  const openImport = () => setImporting(true)
-  // The header's Import shows, which focus goes back to as the sheet closes once the first import has
-  // taken the empty state, and the button that opened it, away.
-  const importButton = useRef<HTMLButtonElement>(null)
   const head = (
     <PageHeader
       title="Roster"
       connection={state ? connection : null}
-      summary={roster.length > 0 && rosterSummary(roster)}
-      actions={
-        roster.length > 0 && (
-          <Button ref={importButton} onClick={openImport}>
-            Import shows
-          </Button>
-        )
-      }
+      empty={roster.length === 0}
+      summary={rosterSummary(roster)}
+      actions={importing.button()}
     />
   )
 
@@ -85,7 +73,7 @@ export function NetworkRoster({
       {roster.length === 0 ? (
         <main className={alone}>
           {head}
-          <PageEmpty action={<Button onClick={openImport}>Import shows</Button>}>No shows yet.</PageEmpty>
+          <PageEmpty action={importing.button()}>No shows yet.</PageEmpty>
         </main>
       ) : (
         <div className={frame}>
@@ -130,26 +118,18 @@ export function NetworkRoster({
           </Inspector>
         </div>
       )}
-      {/* Kept mounted while closed, so a file dropped anywhere on the page imports, opening it. */}
-      <Sheet open={importing} onOpenChange={setImporting}>
-        <SheetContent keepMounted className="gap-0" finalFocus={() => importButton.current ?? true}>
-          <SheetHeader className="pr-14">
-            <SheetTitle>Import shows</SheetTitle>
-            <SheetDescription>
-              Paste show names or upload the roster’s file. Crossfeed looks each new one up in Qloo.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
-            <RosterImport
-              roster={roster}
-              draft={importDraft}
-              importRoster={(text, format) => agent.stub.importRoster(text, format)}
-              keepsSettledShows
-              dropped={openImport}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
+      <FormSheet
+        sheet={importing}
+        description="Paste show names or upload the roster’s file. Crossfeed looks each new one up in Qloo."
+      >
+        <RosterImport
+          roster={roster}
+          draft={importDraft}
+          importRoster={(text, format) => agent.stub.importRoster(text, format)}
+          keepsSettledShows
+          dropped={importing.show}
+        />
+      </FormSheet>
     </>
   )
 }
