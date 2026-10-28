@@ -55,17 +55,7 @@ import type { NetworkPage } from './NetworkPage'
 import { PageEmpty, PageHeader, summaryLine } from './PageHeader'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
-import {
-  connectionOf,
-  ConnectionState,
-  isLive,
-  matchLabel,
-  sentence,
-  SlowCalls,
-  stateLabel,
-  StateLine,
-  type Connection
-} from './states'
+import { connectionOf, isLive, matchLabel, sentence, SlowCalls, stateLabel, StateLine, type Connection } from './states'
 
 type Actions = {
   loadInbox: (source: InboxSource) => Promise<unknown>
@@ -383,11 +373,11 @@ function inboxSummary(inbox: Inbox, show: string | null) {
   ])
 }
 
-// The head of the canvas: the page header, with the inbox counted and Load pitches, or while an earlier
-// pitch run is viewed, its number and the way back to the latest. Then the on-air readout, which
-// follows a pitch run, or while there's none, the inbox's reading, or the sample's lookups, and its
-// slow calls. With no inbox and no run there's no readout: the empty state says what's missing, and
-// the header the connection's state.
+// The head of the canvas: the page header, with the inbox counted, the connection's state, as on the
+// network's other pages, and Load pitches, or while an earlier pitch run is viewed, its number and the
+// way back to the latest. Then the on-air readout, which follows a pitch run, or while there's none,
+// the inbox's reading, or the sample's lookups, and its slow calls. With no inbox and no run there's
+// no readout: the empty state says what's missing.
 function InboxHead({
   inbox,
   show,
@@ -427,7 +417,7 @@ function InboxHead({
         title="Inbox"
         heading={heading}
         summary={viewing ? `Run ${viewing} · earlier, read-only` : inbox && inboxSummary(inbox, show)}
-        status={readout ? undefined : <ConnectionState connection={connection} />}
+        connection={connection}
         actions={
           viewing ? (
             <Button
@@ -449,7 +439,7 @@ function InboxHead({
         }
       />
       {readout && (
-        <Readout connection={connection} since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
+        <Readout since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
           {pitchRun ? (
             <RunState run={pitchRun} slowCalls={slowCalls} />
           ) : (

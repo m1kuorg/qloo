@@ -40,7 +40,7 @@ import { OnAir } from './Frame'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { PageEmpty, PageHeader, summaryLine } from './PageHeader'
-import { connectionOf, ConnectionState, endedBadly, isLive, stateLabel, StateLine, type Connection } from './states'
+import { connectionOf, endedBadly, isLive, stateLabel, StateLine, type Connection } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
 // invited or has joined, and whether an API key was ever created.
@@ -96,14 +96,8 @@ export function Dashboard({
       <PageHeader
         title="Launches"
         heading={heading}
+        connection={state ? connection : null}
         summary={launches.length > 0 && countsLine(launches)}
-        status={
-          state ? (
-            <ConnectionState connection={connection} />
-          ) : (
-            <StateLine kind="loading">Connecting to the network…</StateLine>
-          )
-        }
         actions={launches.length > 0 && <Button onClick={plan}>New launch</Button>}
       />
       <NewLaunch network={network} create={createLaunch} open={planning} setOpen={setPlanning} />
