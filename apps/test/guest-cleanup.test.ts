@@ -1,17 +1,17 @@
-// Removing expired guest members (ADR 0006): every hour the cron removes each guest member whose day has
-// ended, with every network only expiring guest members own, and revokes the API keys and invite links
-// they made. Each test drives the Worker's routes, the agents' connections, and the cron's scheduled
-// handler, a day on, as the clock moves.
+// What the daily clearing (ADR 0008) clears of what guests made beyond the guest network: at 12:00 UTC the
+// cron deletes the networks only the guest member owns, closing their pages, takes the guest member out of
+// the networks it shares with members who have accounts, and deletes the API keys and invite links it
+// made. The networks' agents are wiped over the hourly runs after. Each test drives the Worker's routes,
+// the agents' connections, and the cron's scheduled handler, as the clock moves.
 import { getAgentByName } from 'agents'
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import worker from '../src/index'
-import { softwareAuthenticator } from './authenticator'
+import { fakeQloo } from './fake'
 import { api, guestSignIn, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
 
 const HOUR = 60 * 60_000
-const DAY = 24 * HOUR
 
 const open: Omit<Session, 'cookie'>[] = []
 afterEach(() => {
@@ -25,11 +25,19 @@ const connect = async (who: Pick<Guest, 'connect'>, path: string) => {
   return agent
 }
 
-// Runs the Worker's scheduled handler as Cloudflare does at the hourly cron in wrangler.jsonc.
-async function runCron() {
+// Runs the Worker's scheduled handler as Cloudflare does at the daily cron in wrangler.jsonc, or with
+// `hourly`, at the hourly one.
+async function runCron(hourly = false) {
   const ctx = createExecutionContext()
-  await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 0-11,13-23 * * *' }), env, ctx)
+  const cron = hourly ? '0 0-11,13-23 * * *' : '0 12 * * *'
+  await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron }), env, ctx)
   await waitOnExecutionContext(ctx)
+}
+
+// The daily cron, with a Qloo for its health check to search, which fails the run without one.
+async function clearing() {
+  fakeQloo({ search: { 'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }] } })
+  await runCron()
 }
 
 // Moves the clock `ms` on, for the Worker and its agents.
@@ -42,9 +50,12 @@ function later(ms: number) {
 const post = (who: Pick<Guest, 'fetch'>, path: string, body: object = {}) =>
   who.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
-// A network `who` creates, as /app/new does.
-const created = async (who: Pick<Guest, 'fetch'>, name: string) =>
-  (await (await post(who, '/app/new', { name })).json<{ id: string }>()).id
+// A network `who` creates, as /app/new does, with its agent started, as setting its CPM starts it.
+async function created(who: Pick<Guest, 'fetch'>, name: string) {
+  const { id } = await (await post(who, '/app/new', { name })).json<{ id: string }>()
+  expect((await post(who, `/app/${id}/settings/network`, { name, cpm: 25 })).status).toBe(200)
+  return id
+}
 
 // A network's members by name, as its settings page gives them to its island.
 async function membersOf(who: Pick<Guest, 'fetch'>, network: string) {
@@ -53,110 +64,95 @@ async function membersOf(who: Pick<Guest, 'fetch'>, network: string) {
   return members.map((m) => m.name).sort()
 }
 
-// The guest's ID and name, as the guest network's dashboard and their account page give them.
-async function whoIs(guest: Guest) {
-  const id = (await (await guest.fetch('/app/guest-network')).text()).match(/data-member-id="([^"]*)"/)![1]
-  const name = (await (await guest.fetch('/app/account')).text()).match(/data-member-name="([^"]*)"/)![1]
-  return { id, name }
-}
-
-// An invite link's token, as owner `who` makes the link in network `network`'s settings.
+// An invite link, as owner `who` makes it in network `network`'s settings.
 const invite = async (who: Pick<Guest, 'fetch'>, network: string) =>
-  new URL(
-    (await (await post(who, `/app/${network}/settings/members/invites`)).json<{ link: string }>()).link
-  ).hash.slice(1)
-
-// `who` joins a network through invite token `token`, as a member.
-async function join(who: Pick<Guest, 'fetch'>, token: string) {
-  expect((await post(who, '/auth/join', { token })).status).toBe(200)
-}
+  (await (await post(who, `/app/${network}/settings/members/invites`)).json<{ link: string }>()).link
 
 // Owner `who` makes member `memberId` an owner of network `network` too.
 async function makeOwner(who: Pick<Guest, 'fetch'>, network: string, memberId: string) {
   expect((await post(who, `/app/${network}/settings/members/${memberId}/role`, { role: 'owner' })).status).toBe(200)
 }
 
-describe('the hourly cron', () => {
-  it('removes a guest member once their day is over, with their memberships of other networks', async () => {
-    const lin = await openMember({ name: 'Lin Editor' })
-    const theirs = await created(lin, 'Paper Route')
-    const ada = await openGuest()
-    const { name } = await whoIs(ada)
-    await join(ada, await invite(lin, theirs))
-    expect(await membersOf(lin, theirs)).toEqual([name, 'Lin Editor'])
+// The last count of wipes the cron's retry logged.
+const lastRetry = (logged: { mock: { calls: unknown[][] } }) =>
+  logged.mock.calls
+    .flat()
+    .filter((line) => String(line).startsWith('{"event":"wipes_retried"'))
+    .at(-1)
 
-    later(DAY - HOUR)
-    await runCron()
-    expect(await membersOf(lin, theirs)).toEqual([name, 'Lin Editor'])
-
-    later(2 * HOUR)
-    await runCron()
-    expect(await membersOf(lin, theirs)).toEqual(['Lin Editor'])
-  })
-
-  it('deletes a network only they own, as a deleted network is: its pages answer 404, and the next runs wipe its agents', async () => {
-    const ada = await openGuest()
-    const hers = await created(ada, 'Night Shift Audio')
-    expect((await post(ada, `/app/${hers}/settings/network`, { name: 'Night Shift Audio', cpm: 25 })).status).toBe(200)
-    const { link } = await (await post(ada, `/app/${hers}/settings/members/invites`)).json<{ link: string }>()
-    const lin = await openMember({ name: 'Lin Editor', invite: link })
-    const dashboard = await connect(lin, `/agents/network/${hers}`)
+describe('the daily clearing', () => {
+  it('deletes a network only the guest member owns, closing its open pages, and the next runs wipe its agents', async () => {
+    const guest = await openGuest()
+    const made = await created(guest, 'Night Shift Audio')
+    const lin = await openMember({ name: 'Lin Editor', invite: await invite(guest, made) })
+    const dashboard = await connect(lin, `/agents/network/${made}`)
     const { id: launch } = await dashboard.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
-    const page = await connect(lin, `/agents/launch/${hers}/${launch}`)
+    const page = await connect(guest, `/agents/launch/${made}/${launch}`)
     const logged = vi.spyOn(console, 'log')
-    const retried = () =>
-      logged.mock.calls
-        .flat()
-        .filter((line) => String(line).startsWith('{"event":"wipes_retried"'))
-        .at(-1)
 
-    later(DAY + HOUR)
-    await runCron()
-    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guests_removed', members: 1, networks: 1 }))
-    for (const path of [`/app/${hers}`, `/app/${hers}/settings`, `/app/${hers}/launches/${launch}`])
-      expect((await lin.fetch(path)).status, path).toBe(404)
-    await expect(lin.connect(`/agents/network/${hers}`)).rejects.toThrow('did not upgrade: 404')
+    await clearing()
+    expect(await dashboard.closed()).toEqual({ code: 4410, reason: 'This network was deleted.' })
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_member_cleared', networks: 1, left: 0 }))
+    for (const who of [guest, lin])
+      for (const path of [`/app/${made}`, `/app/${made}/settings`, `/app/${made}/launches/${launch}`])
+        expect((await who.fetch(path)).status, path).toBe(404)
+    await expect(lin.connect(`/agents/network/${made}`)).rejects.toThrow('did not upgrade: 404')
     expect((await lin.fetch('/app', { redirect: 'manual' })).headers.get('location')).toBe('/app/new')
 
-    // The next run wipes its agent, closing its pages, and notes its launches' wipes from its list.
+    // The next run wipes its launch's agent, closing its page, its own, and its own Qloo gateway instance.
     later(HOUR)
-    await runCron()
-    expect(await dashboard.closed()).toEqual({ code: 4410, reason: 'This network was deleted.' })
-    expect(retried()).toBe(JSON.stringify({ event: 'wipes_retried', wiped: 1, kept: 0, failed: 0 }))
-    expect(await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, hers)).state)).toMatchObject({
+    await runCron(true)
+    expect((await page.closed()).code).toBe(4410)
+    expect(await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, made)).state)).toMatchObject({
       cpm: null,
       launches: []
     })
-
-    // And the one after wipes its launches and its own Qloo gateway instance.
-    later(HOUR)
-    await runCron()
-    expect((await page.closed()).code).toBe(4410)
-    expect(retried()).toBe(JSON.stringify({ event: 'wipes_retried', wiped: 2, kept: 0, failed: 0 }))
     expect(
       await readAfterReset(
-        async () => (await (await getAgentByName(env.LaunchAgent, `${hers}:${launch}`)).state).launch?.name ?? null
+        async () => (await (await getAgentByName(env.LaunchAgent, `${made}:${launch}`)).state).launch?.name ?? null
       )
     ).toBeNull()
+    // Wiping the network's agent noted its launch's again, which the run after finds empty.
+    expect(lastRetry(logged)).toBe(JSON.stringify({ event: 'wipes_retried', wiped: 3, kept: 0, failed: 0 }))
     later(HOUR)
-    await runCron()
-    expect(retried()).toBe(JSON.stringify({ event: 'wipes_retried', wiped: 0, kept: 0, failed: 0 }))
+    await runCron(true)
+    expect(lastRetry(logged)).toBe(JSON.stringify({ event: 'wipes_retried', wiped: 1, kept: 0, failed: 0 }))
+    later(HOUR)
+    await runCron(true)
+    expect(lastRetry(logged)).toBe(JSON.stringify({ event: 'wipes_retried', wiped: 0, kept: 0, failed: 0 }))
   })
 
-  it('revokes the API keys and invite links they made in the networks that stay', async () => {
-    const lin = await openMember({ name: 'Lin Editor' })
-    const theirs = await created(lin, 'Paper Route')
-    const ada = await openGuest()
-    await join(ada, await invite(lin, theirs))
-    await makeOwner(lin, theirs, (await whoIs(ada)).id)
+  it('keeps a network a member with an account co-owns, taking the guest member out of it and closing guests’ pages of it', async () => {
+    const guest = await openGuest()
+    const made = await created(guest, 'Night Shift Audio')
+    const lin = await openMember({ name: 'Lin Editor', invite: await invite(guest, made) })
+    await makeOwner(guest, made, lin.id)
+    const guests = await connect(guest, `/agents/network/${made}`)
+    const theirs = await connect(lin, `/agents/network/${made}`)
+    const logged = vi.spyOn(console, 'log')
+
+    await clearing()
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_member_cleared', networks: 0, left: 1 }))
+    expect(await guests.closed()).toEqual({ code: 4403, reason: "You're no longer a member of this network." })
+    expect((await guest.fetch(`/app/${made}`)).status).toBe(404)
+    expect((await lin.fetch(`/app/${made}`)).status).toBe(200)
+    expect(await membersOf(lin, made)).toEqual(['Lin Editor'])
+    expect(theirs.state()).toMatchObject({ cpm: 25 })
+  })
+
+  it('deletes the API keys and invite links the guest member made, so the guest network’s setup starts over', async () => {
+    const guest = await openGuest()
+    // A network a member with an account co-owns, which stays, and a member of the guest network.
+    const shared = await created(guest, 'Night Shift Audio')
+    const lin = await openMember({ name: 'Lin Editor', invite: await invite(guest, shared) })
+    await makeOwner(guest, shared, lin.id)
+    const dot = await openMember({ name: 'Dot Pruitt', invite: await invite(guest, 'guest-network') })
     const made = await Promise.all(
-      ['guest-network', theirs].map(async (network) => {
+      ['guest-network', shared].map(async (network) => {
         const { secret } = await (
-          await post(ada, `/app/${network}/settings/api-keys`, { name: 'Nightly sync' })
-        ).json<{
-          secret: string
-        }>()
-        return { network, call: api(secret), token: await invite(ada, network) }
+          await post(guest, `/app/${network}/settings/api-keys`, { name: 'Nightly sync' })
+        ).json<{ secret: string }>()
+        return { network, call: api(secret), token: new URL(await invite(guest, network)).hash.slice(1) }
       })
     )
     const opened = (token: string) =>
@@ -169,108 +165,104 @@ describe('the hourly cron', () => {
       expect((await call(`/api/v1/networks/${network}`)).status).toBe(200)
       expect((await opened(token)).status).toBe(200)
     }
+    const setup = async () =>
+      (await (await guest.fetch('/app/guest-network')).text())
+        .match(/data-invited="(\w+)" data-api-key="(\w+)"/)!
+        .slice(1)
+    expect(await setup()).toEqual(['true', 'true'])
 
-    later(DAY + HOUR)
-    await runCron()
+    await clearing()
     for (const { network, call, token } of made) {
       expect((await call(`/api/v1/networks/${network}`)).status, network).toBe(401)
-      expect((await opened(token)).status, network).toBe(410)
+      expect((await opened(token)).status, network).toBe(404)
     }
+    // Dot, who joined it, is still a member of the guest network, so a teammate has joined.
+    expect(await membersOf(dot, 'guest-network')).toEqual(['Dot Pruitt', 'Guest'])
+    expect(await setup()).toEqual(['true', 'false'])
     // Lin's own still work.
     const { secret } = await (
-      await post(lin, `/app/${theirs}/settings/api-keys`, { name: 'Lin’s sync' })
-    ).json<{
-      secret: string
-    }>()
-    expect((await api(secret)(`/api/v1/networks/${theirs}`)).status).toBe(200)
+      await post(lin, `/app/${shared}/settings/api-keys`, { name: 'Lin’s sync' })
+    ).json<{ secret: string }>()
+    expect((await api(secret)(`/api/v1/networks/${shared}`)).status).toBe(200)
   })
 
-  it('keeps the guest network as its last guest owner left it', async () => {
-    const ada = await openGuest()
-    const renamed = await post(ada, '/app/guest-network/settings/network', { name: 'Night Shift Guests', cpm: 25 })
-    expect(renamed.status).toBe(200)
-
-    later(DAY + HOUR)
-    await runCron()
-    const grace = await openGuest()
-    expect(await membersOf(grace, 'guest-network')).toEqual([(await whoIs(grace)).name])
-    expect((await (await grace.fetch('/app/guest-network')).text()).match(/data-network-name="([^"]*)"/)?.[1]).toBe(
-      'Night Shift Guests'
-    )
-    expect((await connect(grace, '/agents/network/guest-network')).state()).toMatchObject({ cpm: 25 })
-  })
-
-  it('deletes a network two guests own when both expire, and keeps one an owner who stays shares', async () => {
-    const ada = await openGuest()
-    const grace = await openGuest()
-    const dot = await openMember({ name: 'Dot Pruitt' })
-    const lin = await openMember({ name: 'Lin Editor' })
-    const shared = await created(ada, 'Night Shift Audio')
-    await join(grace, await invite(ada, shared))
-    await makeOwner(ada, shared, (await whoIs(grace)).id)
-    await join(dot, await invite(ada, shared))
-    const kept = await created(ada, 'Paper Route')
-    await join(lin, await invite(ada, kept))
-    await makeOwner(ada, kept, lin.id)
-
-    later(DAY + HOUR)
-    await runCron()
-    expect((await dot.fetch(`/app/${shared}`)).status).toBe(404)
-    expect((await lin.fetch(`/app/${kept}`)).status).toBe(200)
-    expect(await membersOf(lin, kept)).toEqual(['Lin Editor'])
-  })
-
-  it('keeps a guest member who kept their account, with their networks', async () => {
-    const ada = await openGuest()
-    const hers = await created(ada, 'Night Shift Audio')
-    const started = await post(ada, '/auth/passkeys/options')
-    const { challenge, options } = await started.json<{ challenge: string; options: never }>()
-    const device = softwareAuthenticator()
-    const kept = await post(ada, '/auth/passkeys', { challenge, response: await device.register(options) })
-    expect(kept.status).toBe(200)
-    const cookie = kept.headers.get('set-cookie')!.split(';')[0]
-    const member = {
-      fetch: (path: string) => exports.default.fetch(`https://crossfeed.test${path}`, { headers: { Cookie: cookie } })
+  it('keeps counting the day’s sign-ups through guests’ invite links once it has deleted the links', async () => {
+    const cap = env.INVITED_SIGNUP_DAILY_CAP
+    env.INVITED_SIGNUP_DAILY_CAP = '1'
+    try {
+      const guest = await openGuest()
+      await openMember({ name: 'Dot Pruitt', invite: await invite(guest, 'guest-network') })
+      await clearing()
+      const signUp = await exports.default.fetch('https://crossfeed.test/auth/sign-up/options', {
+        method: 'POST',
+        headers: { Origin: 'https://crossfeed.test', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Eve Booker',
+          invite: new URL(await invite(guest, 'guest-network')).hash.slice(1)
+        })
+      })
+      expect(signUp.status).toBe(429)
+    } finally {
+      env.INVITED_SIGNUP_DAILY_CAP = cap
     }
+  })
 
-    later(DAY + HOUR)
-    await runCron()
-    expect((await member.fetch(`/app/${hers}`)).status).toBe(200)
-    expect(await membersOf(member, 'guest-network')).toHaveLength(1)
+  it('frees the networks the guest member may create, so guests can create the day’s again', async () => {
+    const guest = await openGuest()
+    // NETWORKS_PER_MEMBER, as wrangler.jsonc sets it; one of them co-owned by a member with an account.
+    const kept = await created(guest, 'Night Shift Audio')
+    const lin = await openMember({ name: 'Lin Editor', invite: await invite(guest, kept) })
+    await makeOwner(guest, kept, lin.id)
+    await created(guest, 'Paper Route')
+    await created(guest, 'Corner Booth')
+    expect((await post(guest, '/app/new', { name: 'Late Edition' })).status).toBe(429)
+
+    await clearing()
+    for (const name of ['Late Edition', 'Second Run', 'Third Act'])
+      expect((await post(guest, '/app/new', { name })).status, name).toBe(200)
+    expect((await post(guest, '/app/new', { name: 'Fourth Wall' })).status).toBe(429)
+    expect((await lin.fetch(`/app/${kept}`)).status).toBe(200)
+  })
+
+  it('leaves the guest network’s members as they are, the guest member its owner', async () => {
+    const guest = await openGuest()
+    const dot = await openMember({ name: 'Dot Pruitt', invite: await invite(guest, 'guest-network') })
+    await clearing()
+    expect(await membersOf(dot, 'guest-network')).toEqual(['Dot Pruitt', 'Guest'])
+    expect((await (await guest.fetch('/app/guest-network')).text()).match(/data-role="([^"]*)"/)?.[1]).toBe('owner')
   })
 
   it('stays green with more wipes due than a run makes, and the next runs make the rest', async () => {
-    // Three guests' three networks each, every one with its agent started, as a CPM set in settings starts it.
+    // NETWORKS_PER_MEMBER networks, each with a launch, every agent started.
+    const guest = await openGuest()
     const networks: string[] = []
-    for (const guest of [await openGuest(), await openGuest(), await openGuest()])
-      for (const name of ['Night Shift Audio', 'Paper Route', 'Corner Booth']) {
-        const id = await created(guest, name)
-        expect((await post(guest, `/app/${id}/settings/network`, { name, cpm: 25 })).status).toBe(200)
-        networks.push(id)
-      }
+    for (const name of ['Night Shift Audio', 'Paper Route', 'Corner Booth']) {
+      const id = await created(guest, name)
+      await (await connect(guest, `/agents/network/${id}`)).call('createLaunch', { name: 'The Night Watch' })
+      networks.push(id)
+    }
     const logged = vi.spyOn(console, 'log')
 
-    // The first run deletes the networks and notes their agents' wipes; each later run makes at most
-    // seven wipes, each network's agent noting its Qloo gateway instance's as it's wiped.
+    // The clearing deletes the networks and notes their nine instances' wipes; each later run makes at
+    // most seven, each network's agent noting its launch's again as it's wiped.
+    await clearing()
     const wiped: number[] = []
-    for (let run = 0; run < 5; run++) {
-      later(run === 0 ? DAY + HOUR : HOUR)
-      await runCron()
-      const line = logged.mock.calls
-        .flat()
-        .filter((l) => String(l).startsWith('{"event":"wipes_retried"'))
-        .at(-1)
-      const counts = JSON.parse(String(line)) as { wiped: number; kept: number; failed: number }
+    for (let run = 0; run < 3; run++) {
+      later(HOUR)
+      await runCron(true)
+      const counts = JSON.parse(String(lastRetry(logged))) as { wiped: number; kept: number; failed: number }
       expect(counts).toMatchObject({ kept: 0, failed: 0 })
       wiped.push(counts.wiped)
     }
-    expect(wiped).toEqual([0, 7, 7, 4, 0])
+    expect(wiped).toEqual([7, 5, 0])
     for (const id of networks)
       expect(await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, id)).state)).toMatchObject({
         cpm: null
       })
   })
+})
 
+describe('the hourly cron', () => {
   it('prunes the guest sign-in log to the UTC day and the last minute, and the log of sign-ups through guests’ links to the day', async () => {
     const perMinute = env.GUEST_SIGNINS_PER_MINUTE
     env.GUEST_SIGNINS_PER_MINUTE = '2'
@@ -278,17 +270,14 @@ describe('the hourly cron', () => {
       vi.useFakeTimers({ toFake: ['Date'] })
       vi.setSystemTime(new Date('2026-10-28T23:59:30Z'))
       const ada = await openGuest()
-      await openMember({
-        name: 'Dot Pruitt',
-        invite: `https://crossfeed.test/invite#${await invite(ada, 'guest-network')}`
-      })
+      await openMember({ name: 'Dot Pruitt', invite: await invite(ada, 'guest-network') })
       vi.setSystemTime(new Date('2026-10-29T00:00:10Z'))
       await openGuest()
       const logged = vi.spyOn(console, 'log')
       // What's left is the storage itself, so this reads the tables.
       const count = (table: string) => env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n')
 
-      await runCron()
+      await runCron(true)
       expect(logged).toHaveBeenCalledWith(
         JSON.stringify({
           event: 'directory_purged',
@@ -304,8 +293,12 @@ describe('the hourly cron', () => {
       expect((await guestSignIn()).status).toBe(429)
 
       vi.setSystemTime(new Date('2026-10-29T00:01:00Z'))
-      await runCron()
+      await runCron(true)
       expect(await count('guest_signins')).toBe(1)
+      // The hourly cron clears nothing of what guests made.
+      expect(
+        logged.mock.calls.flat().filter((line) => /"event":"(guests_removed|guest_member_cleared)"/.test(String(line)))
+      ).toEqual([])
     } finally {
       env.GUEST_SIGNINS_PER_MINUTE = perMinute
     }

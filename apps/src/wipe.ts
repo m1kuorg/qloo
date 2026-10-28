@@ -1,15 +1,17 @@
 // Wiping agents once the directory or their network has let go of them: a launch's, when it's deleted,
 // and a network's with all of its launches' and its own Qloo gateway instance, when the network is; the
 // guest network's launches', its own, and its gateway instance, when the daily cron clears it; the
-// networks only expired guest members own, as the hourly cron removes them; a deleted member's name from
-// their networks' launches; and the hourly cron's retry of a wipe that failed. The directory notes each
-// wipe before it starts and crosses it off once it succeeds.
+// networks only the guest member, or only temporary guest members, own, as the daily cron clears what
+// guests made; a deleted member's name from their networks' launches; and the hourly cron's retry of a wipe
+// that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
 import {
+  clearGuestMember,
   clearGuestNetwork,
   deleteMember,
-  dropExpiredGuests,
   dropNetwork,
+  dropTemporaryGuests,
+  guestMemberNetworks,
   networkName,
   noteWipe,
   pastNetworks,
@@ -25,7 +27,7 @@ import {
   NETWORK_DELETED,
   ownGatewayName
 } from './network-agent'
-import { GUEST_NETWORK } from './text'
+import { GUEST_MEMBER, GUEST_NETWORK } from './text'
 
 // The bindings a wipe is noted under, and how each wipes its instance (an agent's `destroy`, a gateway's
 // `wipe`), saying `reason` to the pages it closes, if it closes any; and how a network forgets a deleted
@@ -53,7 +55,7 @@ const RETRY_AFTER_MS = 60_000
 
 // The most wipes one run of the cron's retry makes, so an hourly run stays within the Workers Free plan's
 // 50 subrequests, D1 queries and Durable Object calls alike (TRD): each takes at most six, a launch's
-// whose network is still in the directory, and the run's own three directory batches take three more. The
+// whose network is still in the directory, and the run's own two directory batches take two more. The
 // rest stay noted for the next hour's run.
 const WIPES_PER_RUN = 7
 
@@ -169,9 +171,25 @@ export async function deleteAccount(env: Env, memberId: string, networks: string
   return true
 }
 
-// The hourly cron's removal of expired guest members (ADR 0006): the directory deletes them and the
-// networks only they own, noting a wipe of each network's agent, which a later run's retry makes.
-export const removeExpiredGuests = (env: Env) => dropExpiredGuests(env.DB, NETWORK)
+// The daily cron's removal of the temporary guest members ADR 0006 made, a member per guest sign-in (ADR
+// 0008): the directory deletes them and the networks only they own, noting a wipe of each network's agent,
+// which a later run's retry makes.
+export const removeTemporaryGuests = (env: Env) => dropTemporaryGuests(env.DB, NETWORK)
+
+// The daily cron's clearing of what the guest member made beyond the guest network (ADR 0008), so each day
+// starts from the sample alone. Each network only it owns, at most NETWORKS_PER_MEMBER of them, lets go
+// first, closing its open pages, and names the launches it lists; then, in a batch of its own, the
+// directory deletes them, noting a wipe of each of their instances, which the next runs' retry makes, takes
+// the guest member out of the networks it shares with others, and deletes the API keys and invite links it
+// made. Then guests' open pages of the networks it left close. Logs how many networks it deleted and left.
+export async function clearGuests(env: Env) {
+  const deleting: { id: string; instances: Instance[] }[] = []
+  for (const { id, onlyOwner } of await guestMemberNetworks(env.DB, Number(env.NETWORKS_PER_MEMBER) || 0))
+    if (onlyOwner) deleting.push({ id, instances: networkInstances(id, await (await networkToWipe(env, id)).letGo()) })
+  const { networks, left } = await clearGuestMember(env.DB, deleting)
+  await Promise.all(left.map((id) => kickMember(env, id, GUEST_MEMBER)))
+  console.log(JSON.stringify({ event: 'guest_member_cleared', networks, left: left.length }))
+}
 
 // The cron's retry of the oldest wipes noted over a minute ago and not done, at most WIPES_PER_RUN,
 // logging how many it wiped, kept, and failed. A launch its network still lists, while the network is
@@ -203,7 +221,7 @@ export async function retryWipes(env: Env) {
 }
 
 // Wipes network `networkId`'s agent, as the cron's retry does, when its launches' wipes may never have been
-// noted, as when removing expired guests deleted it: the agent lets go first, closing its open pages, and
+// noted, as when removing temporary guests deleted it: the agent lets go first, closing its open pages, and
 // names the launches it lists, whose wipes, and its own Qloo gateway instance's, are noted for the next runs,
 // in one batch; then it's wiped. A launch already wiped is wiped again, which finds it empty.
 async function wipeNetwork(env: Env, networkId: string) {

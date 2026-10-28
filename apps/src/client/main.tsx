@@ -25,18 +25,24 @@ const pages: Record<string, () => Promise<ReactNode>> = {
     import('./Account').then(({ SignInPage }) => (
       <SignInPage next={d.next!} runs={Number(d.runs)} guestRefused={d.guestRefused} />
     )),
-  invite: () => import('./Account').then(({ InvitePage }) => <InvitePage memberName={d.memberName ?? null} />),
-  account: () =>
-    import('./AccountPage').then(({ AccountPage }) => (
-      <AccountPage
-        name={d.memberName!}
-        passkeys={JSON.parse(d.passkeys!)}
-        sessions={Number(d.sessions)}
-        networks={JSON.parse(d.networks!)}
-        recovered={d.recovered === 'true'}
-        guestMember={d.guestMember === 'true'}
-      />
+  invite: () =>
+    import('./Account').then(({ InvitePage }) => (
+      <InvitePage memberName={d.memberName ?? null} guestMember={d.guestMember === 'true'} />
     )),
+  account: () =>
+    import('./AccountPage').then(({ AccountPage, GuestAccountPage }) =>
+      d.guestMember === 'true' ? (
+        <GuestAccountPage />
+      ) : (
+        <AccountPage
+          name={d.memberName!}
+          passkeys={JSON.parse(d.passkeys!)}
+          sessions={Number(d.sessions)}
+          networks={JSON.parse(d.networks!)}
+          recovered={d.recovered === 'true'}
+        />
+      )
+    ),
   'new-network': () => import('./NewNetwork').then(({ NewNetworkPage }) => <NewNetworkPage cap={Number(d.cap)} />),
   dashboard: () =>
     import('./Dashboard').then(({ DashboardPage }) => (

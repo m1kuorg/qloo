@@ -257,9 +257,10 @@ const Switcher = ({ networks, network }: { networks: Network[]; network?: Networ
   </details>
 )
 
-// The guest notice, under the app's top bar on every page for a guest member (ADR 0006): their account
-// is temporary, every guest owns the guest network, which is cleared daily, and all guests share one set
-// of daily limits. "Keep this account" opens the account page, to add a passkey.
+// The guest notice, under the app's top bar on every page for a guest (ADR 0008): they're signed in as the
+// one guest account every guest shares, every guest works in the guest network and the networks guests
+// create together, which are cleared daily, and all guests share one set of daily limits. "Sign out and
+// create an account" is the account menu's Sign out (main.tsx), which opens the sign-in page.
 const GuestNotice = () => (
   <aside
     aria-label="Guest notice"
@@ -267,15 +268,16 @@ const GuestNotice = () => (
     class="flex flex-wrap items-center gap-x-3 gap-y-1 bg-muted px-4 py-2 lg:px-6"
   >
     <p>
-      <b class="font-medium">
-        You’re signed in as a guest, on a temporary account that lasts a day unless you keep it.
-      </b>{' '}
-      Every guest owns the guest network together, so put nothing private in it; it’s cleared every day at{' '}
-      {GUEST_NETWORK_CLEARS}. All guests share one set of daily limits.
+      <b class="font-medium">You’re signed in as Guest, the one account every guest shares.</b> Every guest works
+      together in the guest network and the networks guests create, so put nothing private in them; they’re cleared
+      every day at {GUEST_NETWORK_CLEARS}. All guests share one set of daily limits.
     </p>
-    <a class={buttonVariants({ variant: 'link' })} href="/app/account">
-      Keep this account
-    </a>
+    <span>
+      <button type="button" class={buttonVariants({ variant: 'link' })} data-sign-out>
+        Sign out and create an account
+      </button>
+      <span role="status" class="vh" data-sign-out-status />
+    </span>
   </aside>
 )
 

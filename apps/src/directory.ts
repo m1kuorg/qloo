@@ -3,10 +3,10 @@
 // and stored only as SHA-256 hashes. D1 has no interactive transactions, so each change that must
 // hold together is one statement or one batch.
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
-import { GUEST_NETWORK, GUEST_PREFIX, sha256 } from './text'
+import { GUEST_MEMBER, GUEST_NETWORK, GUEST_PREFIX, sha256 } from './text'
 
-// A session lasts 30 days from its last use; a use extends it at most once a minute. A guest member's
-// session lasts a day from sign-in, and isn't extended while they're a guest (ADR 0006).
+// A session lasts 30 days from its last use; a use extends it at most once a minute. A guest's session
+// lasts a day from sign-in, and isn't extended (ADR 0008).
 export const SESSION_MS = 30 * 24 * 60 * 60_000
 export const GUEST_SESSION_MS = 24 * 60 * 60_000
 // Guest sign-ins are limited per minute and per UTC day: the guest sign-ins logged in each count.
@@ -19,16 +19,21 @@ const CHALLENGE_MS = 5 * 60_000
 // recovery code, and deleting the account need.
 export const STEP_UP_MS = 5 * 60_000
 
-// The name the guest network (ADR 0006), which every guest member owns together, is made with.
+// The names the guest network and the guest member (ADR 0008) are made with, as migrations 0005 and 0009
+// made them, and the guest member's recovery code hash, which no SHA-256 output (64 hex digits) is, so no
+// recovery code names it.
 const GUEST_NETWORK_NAME = 'Guest network'
+const GUEST_MEMBER_NAME = 'Guest'
+const GUEST_RECOVERY_HASH = 'none: the guest member has no recovery code'
 
 // Which of guest sign-in's limits is spent: everyone's for the minute, or for the UTC day.
 export type GuestLimit = 'minute' | 'day'
 
-// Whether `member` is a guest member still: one "Sign in as a guest" made, who hasn't kept the account.
+// Whether `member` is marked a guest, as the guest member is, whom every guest is signed in as (ADR 0008),
+// and the temporary guest members ADR 0006 made, until the daily clearing removes them.
 export const isGuestMember = (member: { guest: boolean } | null | undefined) => member?.guest === true
 
-// A member, and whether they're a guest member still, as the members table marks them.
+// A member, and whether they're marked a guest, as the members table marks them.
 export type Member = { id: string; name: string; guest: boolean }
 
 // A passkey as the directory keeps it: base64url credential ID and public key, the signature
@@ -158,39 +163,10 @@ export async function memberPasskeys(db: D1Database, memberId: string): Promise<
   return results
 }
 
-// Adds a passkey to member `memberId`'s account, once its registration has verified.
+// Adds a passkey to member `memberId`'s account, once its registration has verified. False when they're
+// marked a guest, whose one shared account takes none (ADR 0008), and nothing was written.
 export async function addPasskey(db: D1Database, memberId: string, passkey: Omit<Passkey, 'memberId'>, label: string) {
-  await insertPasskey(db, memberId, passkey, label, Date.now()).run()
-}
-
-// Keeps guest member `memberId`'s account (ADR 0006) with their first passkey, once its registration has
-// verified, in one batch: the passkey, the guest mark cleared, a new recovery code, and the session with
-// token `token` given a member's lifetime from now, proved there by the passkey, as at sign-up. Only while
-// they're a guest still, so of two keepings at once one is written. Returns the recovery code, handed out
-// once; null when they weren't a guest, and nothing was written.
-export async function keepAccount(
-  db: D1Database,
-  memberId: string,
-  passkey: Omit<Passkey, 'memberId'>,
-  label: string,
-  token: string
-) {
-  const code = recoveryCode()
-  const now = Date.now()
-  // Each change after the passkey's follows it, which a member who isn't a guest leaves out.
-  const added = 'EXISTS (SELECT 1 FROM passkeys WHERE credential_id = ?3 AND member_id = ?2)'
-  const [inserted] = await db.batch([
-    insertPasskey(db, memberId, passkey, label, now, { guest: true }),
-    db
-      .prepare(`UPDATE members SET guest = 0, recovery_code_hash = ?1 WHERE id = ?2 AND guest = 1 AND ${added}`)
-      .bind(await sha256(normalCode(code)), memberId, passkey.credentialId),
-    db
-      .prepare(
-        `UPDATE sessions SET expires = ?4, last_seen = ?5, verified = ?5 WHERE token_hash = ?1 AND member_id = ?2 AND ${added} AND (SELECT guest FROM members WHERE id = ?2) = 0`
-      )
-      .bind(await sha256(token), memberId, passkey.credentialId, now + SESSION_MS, now)
-  ])
-  return inserted.meta.changes ? code : null
+  return (await insertPasskey(db, memberId, passkey, label, Date.now()).run()).meta.changes > 0
 }
 
 // Removes member `memberId`'s passkey `credentialId` unless it's their last, in one statement, so two
@@ -222,67 +198,83 @@ export async function signIn(db: D1Database, passkey: Passkey, counter: number) 
   return secret
 }
 
-// Signs in as a guest (ADR 0006): a new guest member, "Guest" and six random hex digits, with an ID
-// that starts with `guest-`, no passkey, and a recovery code hash that no SHA-256 output is, so no code
-// names them; an owner of the guest network, whose row is made again if it's gone; and a session for a
-// day, which never proves it's them. All of it, and the sign-in's row in the log, is one batch, written
-// only while fewer than `perMinute` guest sign-ins were logged in the last minute and fewer than `perDay`
-// in the UTC day. The counts are in the statement that writes the member, so they hold for every request
-// at once, from anywhere. Returns the session's token, or which limit is spent, and nothing was written.
+// Signs in as a guest (ADR 0008): a session of its own for the one guest member, for a day, which never
+// proves it's them; and the guest member an owner of the guest network. It's one batch: first the session,
+// written only while fewer than `perMinute` guest sign-ins were logged in the last minute and fewer than
+// `perDay` in the UTC day, counted in the statement that writes it, before the batch writes anything, so
+// the counts hold for every request at once, from anywhere; then the sign-in's row in the log, and the
+// guest network's and the guest member's rows if they're gone, and its owner membership (intoGuestNetwork),
+// each only where that session was written. Returns the session's token, or which limit is spent, and
+// nothing was written.
 export async function guestSignIn(
   db: D1Database,
   { perMinute, perDay }: { perMinute: number; perDay: number }
 ): Promise<{ token: string } | { spent: GuestLimit }> {
-  const id = `${GUEST_PREFIX}${crypto.randomUUID()}`
-  const hex = [...crypto.getRandomValues(new Uint8Array(3))].map((b) => b.toString(16).padStart(2, '0')).join('')
   const secret = token()
+  const hash = await sha256(secret)
   const now = Date.now()
   const day = utcDayStart(now)
-  const forMember = (sql: string, ...values: unknown[]) =>
-    db.prepare(`${sql} FROM members WHERE id = ?1`).bind(id, ...values)
   const results = await db.batch([
+    // The session names the guest member before the batch makes its row again, if it's gone: the foreign
+    // key is checked as the batch ends, once it's there.
+    db.prepare('PRAGMA defer_foreign_keys = ON'),
     db
       .prepare(
-        'INSERT INTO members (id, name, recovery_code_hash, created, guest) SELECT ?1, ?2, ?3, ?4, 1 WHERE (SELECT count(*) FROM guest_signins WHERE created > ?5) < ?6 AND (SELECT count(*) FROM guest_signins WHERE created >= ?7) < ?8'
+        'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?1, ?2, ?3, ?4, ?3 WHERE (SELECT count(*) FROM guest_signins WHERE created > ?5) < ?6 AND (SELECT count(*) FROM guest_signins WHERE created >= ?7) < ?8'
       )
-      .bind(id, `Guest ${hex.toUpperCase()}`, `none: guest ${id}`, now, now - GUEST_SIGNINS_MS, perMinute, day, perDay),
-    // The rest follow the member's row, which a spent limit leaves out.
-    forMember('INSERT INTO guest_signins (created) SELECT ?2', now),
-    ...intoGuestNetwork(db, id, now),
-    forMember(
-      'INSERT INTO sessions (token_hash, member_id, created, expires, last_seen) SELECT ?2, id, ?3, ?4, ?3',
-      await sha256(secret),
-      now,
-      now + GUEST_SESSION_MS
-    ),
+      .bind(hash, GUEST_MEMBER, now, now + GUEST_SESSION_MS, now - GUEST_SIGNINS_MS, perMinute, day, perDay),
+    db.prepare(`INSERT INTO guest_signins (created) SELECT ?1 WHERE ${sessionWritten(2)}`).bind(now, hash),
+    ...intoGuestNetwork(db, now, hash),
     // Which limit refused it, if one did, as the batch found them.
     db.prepare('SELECT (SELECT count(*) FROM guest_signins WHERE created >= ?1) >= ?2 AS day').bind(day, perDay)
   ])
-  if (results[0].meta.changes) return { token: secret }
+  if (results[1].meta.changes) return { token: secret }
   return { spent: (results.at(-1)!.results[0] as { day: number }).day ? 'day' : 'minute' }
 }
 
-// Makes guest member `memberId` an owner of the guest network again, as their /app opens, when they left
-// it, were removed, or it was deleted, making its row again if it's gone, so every guest has it (ADR
-// 0006). A member it already has keeps their role; a member who isn't a guest is left as they are.
-export async function rejoinGuestNetwork(db: D1Database, memberId: string) {
-  await db.batch(intoGuestNetwork(db, memberId, Date.now()))
+// Makes the guest member an owner of the guest network again, as a guest's /app opens, when anyone demoted
+// or removed it, or deleted the guest network, whose row is made again (ADR 0008).
+export async function restoreGuestOwner(db: D1Database) {
+  await db.batch(intoGuestNetwork(db, Date.now()))
 }
 
-// The guest network's row, made again if it's gone, and guest member `memberId`'s owner membership of it
-// unless they're in it, both only while they're a guest member, as their sign-in has just written them.
-const intoGuestNetwork = (db: D1Database, memberId: string, now: number) => [
-  db
-    .prepare(
-      'INSERT OR IGNORE INTO networks (id, name, created_by, created) SELECT ?2, ?3, NULL, ?4 FROM members WHERE id = ?1 AND guest = 1'
+// The guest network's row and the guest member's, each made again if it's gone, and the guest member's
+// membership of the guest network made an owner's, none of them written where it's so already. With
+// `signedIn`, a guest sign-in's session's token hash, only where that session was written.
+const intoGuestNetwork = (db: D1Database, now: number, signedIn?: string) => {
+  // A statement whose last parameter, after `values`, is the session's token hash, when there is one.
+  const statement = (sql: (where: string) => string, ...values: unknown[]) =>
+    signedIn
+      ? db.prepare(sql(`WHERE ${sessionWritten(values.length + 1)}`)).bind(...values, signedIn)
+      : db.prepare(sql('WHERE true')).bind(...values)
+  return [
+    statement(
+      (where) => `INSERT OR IGNORE INTO networks (id, name, created_by, created) SELECT ?1, ?2, NULL, ?3 ${where}`,
+      GUEST_NETWORK,
+      GUEST_NETWORK_NAME,
+      now
+    ),
+    statement(
+      (where) =>
+        `INSERT OR IGNORE INTO members (id, name, recovery_code_hash, created, guest) SELECT ?1, ?2, ?3, ?4, 1 ${where}`,
+      GUEST_MEMBER,
+      GUEST_MEMBER_NAME,
+      GUEST_RECOVERY_HASH,
+      now
+    ),
+    // A WHERE, `true` at least, keeps SQLite from reading the upsert's ON as the SELECT's join.
+    statement(
+      (where) =>
+        `INSERT INTO memberships (network_id, member_id, role, joined, last_opened) SELECT ?1, ?2, 'owner', ?3, NULL ${where} ON CONFLICT (network_id, member_id) DO UPDATE SET role = 'owner' WHERE role != 'owner'`,
+      GUEST_NETWORK,
+      GUEST_MEMBER,
+      now
     )
-    .bind(memberId, GUEST_NETWORK, GUEST_NETWORK_NAME, now),
-  db
-    .prepare(
-      "INSERT OR IGNORE INTO memberships (network_id, member_id, role, joined, last_opened) SELECT ?2, id, 'owner', ?3, NULL FROM members WHERE id = ?1 AND guest = 1"
-    )
-    .bind(memberId, GUEST_NETWORK, now)
-]
+  ]
+}
+
+// Whether the session whose token hash is SQL parameter ?n was written, as a guest sign-in's batch asks.
+const sessionWritten = (n: number) => `EXISTS (SELECT 1 FROM sessions WHERE token_hash = ?${n})`
 
 // Signs in the member whose recovery code `code` is, and replaces it with a new one in the same
 // batch, so each code works once. Null when no member has it.
@@ -303,14 +295,15 @@ export async function recover(db: D1Database, code: string): Promise<Secrets | n
   return replaced.results.length ? secrets : null
 }
 
-// Gives member `memberId` a new recovery code, which replaces their last one, and hands it out once.
+// Gives member `memberId` a new recovery code, which replaces their last one, and hands it out once. Null
+// when they're marked a guest, whose one shared account has none (ADR 0008), and nothing was written.
 export async function newRecoveryCode(db: D1Database, memberId: string) {
   const code = recoveryCode()
-  await db
-    .prepare('UPDATE members SET recovery_code_hash = ? WHERE id = ?')
+  const { meta } = await db
+    .prepare('UPDATE members SET recovery_code_hash = ? WHERE id = ? AND guest = 0')
     .bind(await sha256(normalCode(code)), memberId)
     .run()
-  return code
+  return meta.changes ? code : null
 }
 
 // The member a session token belongs to, while the session lasts. A use more than a minute after the
@@ -380,9 +373,18 @@ export async function signOut(db: D1Database, token: string) {
     .run()
 }
 
-// Ends every one of member `memberId`'s sessions, on every browser.
+// Ends every one of member `memberId`'s sessions, on every browser. False when they're marked a guest,
+// whose sessions are every guest's (ADR 0008), and none ended.
 export async function signOutEverywhere(db: D1Database, memberId: string) {
-  await db.prepare('DELETE FROM sessions WHERE member_id = ?').bind(memberId).run()
+  const [, member] = await db.batch([
+    db
+      .prepare(
+        'DELETE FROM sessions WHERE member_id = ?1 AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND guest = 0)'
+      )
+      .bind(memberId),
+    db.prepare('SELECT 1 FROM members WHERE id = ? AND guest = 0').bind(memberId)
+  ])
+  return member.results.length > 0
 }
 
 // How many browsers member `memberId` is signed in on: their sessions that haven't expired.
@@ -395,9 +397,11 @@ export async function openSessions(db: D1Database, memberId: string) {
   )
 }
 
-// Renames member `memberId`, as their teammates see them from then on.
+// Renames member `memberId`, as their teammates see them from then on. False when they're marked a guest,
+// whose one shared account keeps its name (ADR 0008), and nothing was written.
 export async function renameMember(db: D1Database, memberId: string, name: string) {
-  await db.prepare('UPDATE members SET name = ? WHERE id = ?').bind(name, memberId).run()
+  const { meta } = await db.prepare('UPDATE members SET name = ? WHERE id = ? AND guest = 0').bind(name, memberId).run()
+  return meta.changes > 0
 }
 
 // What a member is in a network: its `owner` can change it and manage its members, and a `member`
@@ -462,7 +466,7 @@ export async function memberRole(db: D1Database, networkId: string, memberId: st
 }
 
 // A network on its member's account page: whether they're its only owner, which stops them leaving it
-// or deleting their account, as it never does in the guest network (ONLY_OWNER).
+// or deleting their account (ONLY_OWNER).
 export type AccountNetwork = Network & { onlyOwner: boolean }
 
 // The networks a member belongs to, by name, saying which they're the only owner of.
@@ -476,20 +480,20 @@ export async function accountNetworks(db: D1Database, memberId: string): Promise
   return results.map((n) => ({ ...n, onlyOwner: n.onlyOwner === 1 }))
 }
 
-// Whether membership `m` makes its member the network's only owner, whom the network can't lose. The
-// guest network can, since every guest sign-in adds an owner (ADR 0006), so no one is its only owner.
-const ONLY_OWNER = `(m.role = 'owner' AND m.network_id != '${GUEST_NETWORK}' AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.network_id = m.network_id AND o.role = 'owner' AND o.member_id != m.member_id))`
+// Whether membership `m` makes its member the network's only owner, whom the network can't lose.
+const ONLY_OWNER = `(m.role = 'owner' AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.network_id = m.network_id AND o.role = 'owner' AND o.member_id != m.member_id))`
 
-// Whether network ?1 keeps an owner without member ?2, or is the guest network, which needn't (ONLY_OWNER).
-const KEEPS_OWNER = `(?1 = '${GUEST_NETWORK}' OR EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2))`
+// Whether network ?1 keeps an owner without member ?2.
+const KEEPS_OWNER = `EXISTS (SELECT 1 FROM memberships WHERE network_id = ?1 AND role = 'owner' AND member_id != ?2)`
 
 // Deletes member `memberId`, with their passkeys, sessions, and memberships, unless they're any
-// network's only owner, so no network is left without an owner, and notes `instances`, the networks
-// that must forget their name (wipe.ts), in the same batch, so none is left unnoted. What they made in
-// a network stays with it, made by no one, but for the API keys and invite links they made, which are
-// revoked in the batch too. False when it's refused, and nothing was written.
+// network's only owner, so no network is left without an owner, or they're marked a guest, whose one
+// shared account stays (ADR 0008), and notes `instances`, the networks that must forget their name
+// (wipe.ts), in the same batch, so none is left unnoted. What they made in a network stays with it, made by
+// no one, but for the API keys and invite links they made, which are revoked in the batch too. False when
+// it's refused, and nothing was written.
 export async function deleteMember(db: D1Database, memberId: string, instances: Instance[]) {
-  const allowed = `EXISTS (SELECT 1 FROM members WHERE id = ?1) AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.member_id = ?1 AND ${ONLY_OWNER})`
+  const allowed = `EXISTS (SELECT 1 FROM members WHERE id = ?1 AND guest = 0) AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.member_id = ?1 AND ${ONLY_OWNER})`
   const now = Date.now()
   const results = await db.batch([
     // Noted and revoked before the member goes, while their memberships are still there to check and
@@ -556,8 +560,8 @@ export async function networkMembers(db: D1Database, networkId: string): Promise
 
 // Gives member `memberId` role `role` in network `networkId`, when member `by` is one of its owners and
 // the network keeps another owner if it's a demotion, in one statement, so two owners demoting each
-// other at once can't leave it with none; the guest network needn't (ONLY_OWNER). A demoted owner's API
-// keys and invite links in the network are revoked in the same batch. False when either check refuses it.
+// other at once can't leave it with none. A demoted owner's API keys and invite links in the network
+// are revoked in the same batch. False when either check refuses it.
 export async function setRole(db: D1Database, networkId: string, memberId: string, role: Role, by: string) {
   const [changed] = await db.batch([
     db
@@ -572,9 +576,9 @@ export async function setRole(db: D1Database, networkId: string, memberId: strin
 
 // Takes member `memberId` out of network `networkId`, when member `by` is one of its owners or is
 // `memberId` leaving, and the network keeps another owner if they're one, in one statement, so two
-// owners leaving at once can't leave it with none; the guest network needn't (ONLY_OWNER). The batch
-// notes that they were in it, for their account's deletion to forget them there too (pastNetworks), and
-// revokes their API keys and invite links in the network. False when either check refuses it.
+// owners leaving at once can't leave it with none. The batch notes that they were in it, for their
+// account's deletion to forget them there too (pastNetworks), and revokes their API keys and invite
+// links in the network. False when either check refuses it.
 export async function removeMember(db: D1Database, networkId: string, memberId: string, by: string) {
   const [removed] = await db.batch([
     db
@@ -602,15 +606,14 @@ export async function pastNetworks(db: D1Database, memberId: string) {
   return results.map((r) => r.network_id)
 }
 
-// Revoking what member ?1 made, at time ?2, or with `makers`, what the members it names made: their API
-// keys still in use and their invite links still open. Only an owner makes either, so one who stops being
-// an owner loses both, and neither keeps acting for, or letting anyone into, a network they no longer run.
-// Each is a statement's start, for the caller to narrow with `AND`.
-const revokeMade = (makers = '= ?1') => [
-  `UPDATE api_keys SET revoked = ?2 WHERE created_by ${makers} AND revoked IS NULL`,
-  `UPDATE invites SET revoked = ?2 WHERE created_by ${makers} AND used IS NULL AND revoked IS NULL`
+// Revoking what member ?1 made, at time ?2: their API keys still in use and their invite links still
+// open. Only an owner makes either, so one who stops being an owner loses both, and neither keeps
+// acting for, or letting anyone into, a network they no longer run. Each is a statement's start, for
+// the caller to narrow with `AND`.
+const REVOKE_MADE = [
+  'UPDATE api_keys SET revoked = ?2 WHERE created_by = ?1 AND revoked IS NULL',
+  'UPDATE invites SET revoked = ?2 WHERE created_by = ?1 AND used IS NULL AND revoked IS NULL'
 ]
-const REVOKE_MADE = revokeMade()
 
 // Revokes member `memberId`'s API keys and invite links in network `networkId` unless they're still
 // one of its owners, for the batch that may have just removed or demoted them.
@@ -713,9 +716,9 @@ export async function openInvites(db: D1Database, networkId: string): Promise<In
 // Why an invite can't be used any more, or `open` while it can.
 type InviteState = 'open' | 'used' | 'revoked' | 'expired'
 
-// The invite a link's token names: its network, whether it can still be used, whether a guest member made
-// it, and whether only guest members own its network, which then goes with them unless one of them keeps
-// their account (ADR 0006); the guest network never does. Null when no invite has that token.
+// The invite a link's token names: its network, whether it can still be used, whether a guest made it, and
+// whether only guest members own its network, which the daily clearing then deletes (ADR 0008), as it never
+// does the guest network. Null when no invite has that token.
 export async function findInvite(db: D1Database, token: string) {
   const row = await db
     .prepare(
@@ -921,51 +924,105 @@ export async function purgeExpired(db: D1Database) {
   }
 }
 
-// The guest members who have expired as of ?2 (epoch ms), by ID: each signed in at ?1, a guest session's
-// length earlier, or before, and has no session left, so no one is signed in as them or can keep the account.
-const EXPIRED_GUESTS = `(SELECT id FROM members WHERE guest = 1 AND created <= ?1 AND NOT EXISTS (SELECT 1 FROM sessions WHERE member_id = members.id AND expires > ?2))`
+// The temporary guest members ADR 0006 made, a member per guest sign-in, by ID: every member marked a guest
+// but the guest member (ADR 0008).
+const TEMPORARY_GUESTS = `(SELECT id FROM members WHERE guest = 1 AND id != '${GUEST_MEMBER}')`
 
-// Whether a networks row is a network only expired guest members own, which goes with them: it has an owner
-// among them and none who isn't one. Never the guest network, which stays for the next guest (ADR 0006).
-const OWNED_BY_EXPIRED = `id != '${GUEST_NETWORK}' AND EXISTS (SELECT 1 FROM memberships WHERE network_id = networks.id AND role = 'owner' AND member_id IN ${EXPIRED_GUESTS}) AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = networks.id AND role = 'owner' AND member_id NOT IN ${EXPIRED_GUESTS})`
+// Whether a networks row is a network only temporary guest members own, which goes with them: it has an
+// owner among them and none who isn't one. Never the guest network, which the guest member owns.
+const OWNED_BY_TEMPORARY = `id != '${GUEST_NETWORK}' AND EXISTS (SELECT 1 FROM memberships WHERE network_id = networks.id AND role = 'owner' AND member_id IN ${TEMPORARY_GUESTS}) AND NOT EXISTS (SELECT 1 FROM memberships WHERE network_id = networks.id AND role = 'owner' AND member_id NOT IN ${TEMPORARY_GUESTS})`
 
-// Removes the expired guest members (ADR 0006) in one batch of bulk statements. The networks only they own
-// are deleted as a deleted network is (dropNetwork), each with a wipe of its agent, under `binding`, noted
-// in the batch (wipe.ts). The API keys and invite links they made elsewhere are revoked, as an account's
-// deletion does (deleteMember). Then the members go, their passkeys, sessions, memberships, and past
-// memberships with them; nothing in the networks they were in forgets them. Returns how many members and
-// networks it removed.
-export async function dropExpiredGuests(db: D1Database, binding: string) {
-  const now = Date.now()
-  const statement = (sql: string, ...values: unknown[]) => db.prepare(sql).bind(now - GUEST_SESSION_MS, now, ...values)
+// Removes the temporary guest members (ADR 0008), as the daily cron clears what guests made, in one batch
+// of bulk statements. The networks only they own are deleted as a deleted network is (dropNetwork), each
+// with a wipe of its agent, under `binding`, noted in the batch (wipe.ts). The API keys and invite links
+// they made are deleted. Then the members go, their passkeys, sessions, memberships, and past memberships
+// with them; nothing in the networks they were in forgets them. Returns how many members and networks it
+// removed.
+export async function dropTemporaryGuests(db: D1Database, binding: string) {
   const [, networks, , , members] = await db.batch([
     // Noted before the networks go, while their owners' memberships are still there to check.
-    statement(
-      `INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?3, id, ?2 FROM networks WHERE ${OWNED_BY_EXPIRED}`,
-      binding
-    ),
-    statement(`DELETE FROM networks WHERE ${OWNED_BY_EXPIRED} RETURNING id`),
-    // Revoked before the members go, while their keys and invites still name them.
-    ...revokeMade(`IN ${EXPIRED_GUESTS}`).map((revoke) => statement(revoke)),
-    statement(`DELETE FROM members WHERE id IN ${EXPIRED_GUESTS} RETURNING id`)
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?1, id, ?2 FROM networks WHERE ${OWNED_BY_TEMPORARY}`
+      )
+      .bind(binding, Date.now()),
+    db.prepare(`DELETE FROM networks WHERE ${OWNED_BY_TEMPORARY} RETURNING id`),
+    // Deleted before the members go, while their keys and invites still name them.
+    db.prepare(`DELETE FROM api_keys WHERE created_by IN ${TEMPORARY_GUESTS}`),
+    db.prepare(`DELETE FROM invites WHERE created_by IN ${TEMPORARY_GUESTS}`),
+    db.prepare(`DELETE FROM members WHERE id IN ${TEMPORARY_GUESTS} RETURNING id`)
   ])
   // Counted by the rows each statement returns, as D1's count of changes takes in what they cascade to.
   return { members: members.results.length, networks: networks.results.length }
 }
 
-// A new passkey for member `memberId`, added only if they exist, as a sign-up's member may not, and with
-// `guest`, only while they're a guest member.
+// The networks the guest member is in besides the guest network, at most `limit`, by ID, each saying
+// whether it's their only owner, as the daily cron clears what guests made (wipe.ts).
+export async function guestMemberNetworks(db: D1Database, limit: number) {
+  const { results } = await db
+    .prepare(
+      `SELECT m.network_id AS id, ${ONLY_OWNER} AS onlyOwner FROM memberships m WHERE m.member_id = ?1 AND m.network_id != ?2 ORDER BY m.joined, m.network_id LIMIT ?3`
+    )
+    .bind(GUEST_MEMBER, GUEST_NETWORK, limit)
+    .all<{ id: string; onlyOwner: number }>()
+  return results.map((n) => ({ id: n.id, onlyOwner: n.onlyOwner === 1 }))
+}
+
+// Clears what the guest member made beyond the guest network (ADR 0008), as the daily cron does, in one
+// batch: the networks in `deleting`, while it's still their only owner, are deleted as a deleted network is
+// (dropNetwork), with a wipe noted for each of their `instances`; the guest member leaves every other
+// network but the guest network, but for one it's the only owner of still, which would be left with none;
+// the API keys and invite links it made are deleted, so the guest network's setup starts over; and the
+// networks it created that stay no longer count as its (NETWORKS_PER_MEMBER). Returns how many networks it
+// deleted, and the networks it left.
+export async function clearGuestMember(db: D1Database, deleting: { id: string; instances: Instance[] }[]) {
+  const now = Date.now()
+  // Whether the guest member, ?2, is still network ?1's only owner.
+  const onlyOwner = `EXISTS (SELECT 1 FROM memberships m WHERE m.network_id = ?1 AND m.member_id = ?2 AND ${ONLY_OWNER})`
+  const network = (sql: string, id: string, ...values: unknown[]) => db.prepare(sql).bind(id, GUEST_MEMBER, ...values)
+  const deleted = deleting.flatMap(({ id, instances }) => [
+    // Noted before the network goes, while the guest member's membership is still there to check.
+    ...instances.map(({ binding, name }) =>
+      network(
+        `INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?3, ?4, ?5 WHERE ${onlyOwner}`,
+        id,
+        binding,
+        name,
+        now
+      )
+    ),
+    network(`DELETE FROM networks WHERE id = ?1 AND ${onlyOwner} RETURNING id`, id)
+  ])
+  const results = await db.batch([
+    ...deleted,
+    db
+      .prepare(
+        `DELETE FROM memberships AS m WHERE m.member_id = ?1 AND m.network_id != ?2 AND NOT ${ONLY_OWNER} RETURNING network_id`
+      )
+      .bind(GUEST_MEMBER, GUEST_NETWORK),
+    db.prepare('DELETE FROM api_keys WHERE created_by = ?').bind(GUEST_MEMBER),
+    db.prepare('DELETE FROM invites WHERE created_by = ?').bind(GUEST_MEMBER),
+    db.prepare('UPDATE networks SET created_by = NULL WHERE created_by = ?').bind(GUEST_MEMBER)
+  ])
+  // Only a network's deletion returns a row, its ID, and only where it went.
+  return {
+    networks: results.slice(0, deleted.length).filter((r) => r.results.length > 0).length,
+    left: (results[deleted.length].results as { network_id: string }[]).map((r) => r.network_id)
+  }
+}
+
+// A new passkey for member `memberId`, added only if they exist, as a sign-up's member may not, and aren't
+// marked a guest.
 const insertPasskey = (
   db: D1Database,
   memberId: string,
   passkey: Omit<Passkey, 'memberId'>,
   label: string,
-  now: number,
-  { guest = false } = {}
+  now: number
 ) =>
   db
     .prepare(
-      `INSERT INTO passkeys (credential_id, member_id, public_key, counter, transports, label, created) SELECT ?, id, ?, ?, ?, ?, ? FROM members WHERE id = ?${guest ? ' AND guest = 1' : ''}`
+      'INSERT INTO passkeys (credential_id, member_id, public_key, counter, transports, label, created) SELECT ?, id, ?, ?, ?, ?, ? FROM members WHERE id = ? AND guest = 0'
     )
     .bind(
       passkey.credentialId,

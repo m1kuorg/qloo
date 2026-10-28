@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { State } from '../agent'
 import type { ApiKey, Invite, NetworkMember } from '../directory'
 import type { OwnKey, Usage } from '../gateway'
+import { GUEST_MEMBER } from '../text'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { ApiKeysModule } from './settings/ApiKeys'
 import { DangerZoneModule } from './settings/DangerZone'
@@ -89,7 +90,7 @@ export function Settings({
         />
         <MembersModule network={named} memberId={memberId} members={members} invites={invites} />
         <ApiKeysModule network={named} keys={apiKeys} />
-        <QlooKeyModule network={named} qlooKey={qlooKey} onChange={setKeyAndUsage} />
+        <QlooKeyModule network={named} qlooKey={qlooKey} guest={memberId === GUEST_MEMBER} onChange={setKeyAndUsage} />
         <UsageModule network={named} usage={usage} hasOwnKey={qlooKey.set} />
         <DangerZoneModule network={named} />
       </div>

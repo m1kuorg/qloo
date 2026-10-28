@@ -2,7 +2,7 @@
 // driving the member's account through the Worker's routes, and read as words.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AccountPage } from '../src/client/AccountPage'
+import { AccountPage, GuestAccountPage } from '../src/client/AccountPage'
 import { softwareAuthenticator } from './authenticator'
 import { addPasskey, openGuest, openMember, regions, type Member } from './session'
 
@@ -11,11 +11,11 @@ afterEach(() => vi.useRealTimers())
 const post = (member: Pick<Member, 'fetch'>, path: string, body: object = {}) =>
   member.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
-// The account page as main.tsx renders it from the server's data attributes.
-async function page(member: Pick<Member, 'fetch'>, path = '/app/account') {
+// The #root's data attributes the server gave the account page.
+async function data(member: Pick<Member, 'fetch'>, path = '/app/account') {
   const html = await (await member.fetch(path)).text()
   const root = html.match(/<div id="root"([^>]*)>/)![1]
-  const d = Object.fromEntries(
+  return Object.fromEntries(
     [...root.matchAll(/data-([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [
       k,
       v
@@ -24,15 +24,23 @@ async function page(member: Pick<Member, 'fetch'>, path = '/app/account') {
         .replace(/&amp;/g, '&')
     ])
   )
+}
+
+// The account page as main.tsx renders it from the server's data attributes.
+async function page(member: Pick<Member, 'fetch'>, path = '/app/account') {
+  const d = await data(member, path)
   return renderToStaticMarkup(
-    <AccountPage
-      name={d['member-name']}
-      passkeys={JSON.parse(d.passkeys)}
-      sessions={Number(d.sessions)}
-      networks={JSON.parse(d.networks)}
-      recovered={d.recovered === 'true'}
-      guestMember={d['guest-member'] === 'true'}
-    />
+    d['guest-member'] === 'true' ? (
+      <GuestAccountPage />
+    ) : (
+      <AccountPage
+        name={d['member-name']}
+        passkeys={JSON.parse(d.passkeys)}
+        sessions={Number(d.sessions)}
+        networks={JSON.parse(d.networks)}
+        recovered={d.recovered === 'true'}
+      />
+    )
   )
 }
 
@@ -118,46 +126,15 @@ describe('the account page', () => {
     )
   })
 
-  it('shows a guest every module a member has, that the account is temporary until a passkey keeps it, and no recovery code yet', async () => {
+  it('shows a guest only why no guest can change the one account every guest shares, and signing out', async () => {
     const guest = await openGuest()
+    // The server reads none of the shared account's passkeys, sessions, or networks for it.
+    expect(await data(guest)).toEqual({ page: 'account', 'member-name': 'Guest', 'guest-member': 'true' })
     const html = await page(guest)
-    const read = words(html)
-    expect(regions(html)).toEqual([
-      'Name',
-      'Passkeys',
-      'Recovery code',
-      'Sessions',
-      'Networks',
-      'Your networks',
-      'Delete account'
-    ])
-    expect(html).toMatch(/<input\b(?=[^>]*\sid="acct-name")(?=[^>]*\svalue="Guest [0-9A-F]{6}")/)
-    expect(read).toContain(
-      'Your account is temporary: as a guest’s, it lasts a day from when you signed in. Add a passkey to keep it, with the networks you own; you get a recovery code with it. No passkeys yet. Add a passkey'
+    expect(regions(html)).toEqual(['Shared guest account'])
+    expect(words(html)).toBe(
+      'Account Shared guest account Everyone who signs in as a guest is signed in as Guest, in the guest network, and shares everything in it and its daily limits. No guest can add a passkey or a recovery code, rename this account, sign out every guest, delete it, join a network by invite, or leave a network, since each would change it for every guest. For any of that, and for networks of your own, sign out and create an account. Sign out and create an account'
     )
-    expect(html).not.toContain('Passkeys table')
-    // A guest's first passkey asks for no step-up.
-    expect(read).toContain(
-      'Your browser asks where to keep it: on this device, a phone nearby, or your password manager. Recovery code'
-    )
-    expect(read).toContain('You get your recovery code with your first passkey.')
-    expect(read).not.toContain('Get a new recovery code')
-    expect(read).toContain(
-      'As a guest, you’re signed in on this browser alone, for a day from when you signed in. Once you add a passkey, each browser you sign in on stays signed in for 30 days from the last time you use it.'
-    )
-    expect(read).toContain('Guest network Owner Leave')
-    expect(html).not.toMatch(/disabled=""[^>]*>(Leave|Delete account)</)
-    // Once a passkey keeps it, through both steps of adding one, the page is a member's.
-    const started = await guest.fetch('/auth/passkeys/options', { method: 'POST' })
-    const { challenge, options } = await started.json<{ challenge: string; options: never }>()
-    const added = await post(guest, '/auth/passkeys', {
-      challenge,
-      response: await softwareAuthenticator().register(options)
-    })
-    expect(added.status).toBe(200)
-    const kept = words(await page(guest))
-    expect(kept).toContain('Get a new recovery code')
-    expect(kept).not.toContain('Your account is temporary')
-    expect(kept).toContain('Each browser you sign in on stays signed in for 30 days from the last time you use it.')
+    expect(html).toMatch(/<button\b[^>]*>Sign out and create an account<\/button>/)
   })
 })

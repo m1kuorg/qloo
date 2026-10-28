@@ -20,12 +20,14 @@ export const nth = (n: number) =>
 // run", "1,000 model runs".
 export const modelRuns = (n: number) => (n === 1 ? '1 model run' : `${n.toLocaleString('en-US')} model runs`)
 
-// The guest network's ID (ADR 0006), as migration 0005 wrote it, which every guest member owns together;
-// here, so the app's pages know it too. And when the daily cron (wrangler.jsonc) clears it, as every
-// guest is told it.
+// The guest member's ID (ADR 0008), as migration 0009 wrote it, whom everyone who signs in as a guest is
+// signed in as, and the guest network's, as migration 0005 wrote it, which the guest member owns; here, so
+// the app's pages know them too. And when the daily cron (wrangler.jsonc) clears it, as every guest is
+// told it.
+export const GUEST_MEMBER = 'guest-member'
 export const GUEST_NETWORK = 'guest-network'
-// What every guest member's ID starts with, and the ID of every network on the guest budget: the guest
-// network's, and each a guest member creates (ADR 0006).
+// What the ID of every network on the guest budget starts with: the guest network's, and each a guest
+// member creates (ADR 0006).
 export const GUEST_PREFIX = 'guest-'
 export const GUEST_NETWORK_CLEARS = '12:00 UTC'
 

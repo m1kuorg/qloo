@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { linkVariants, marketingFrame } from '@/components/ui/variants'
 import { GUEST_NETWORK_CLEARS, modelRuns } from '../text'
-import { Alert, send, useAction } from './controls'
+import { Alert, send, SignOut, useAction } from './controls'
 import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
 import { StateLine } from './states'
 
@@ -77,10 +77,10 @@ export function SignInPage({ next, runs, guestRefused }: { next: string; runs: n
   )
 }
 
-// Signing in as a guest (ADR 0006), with no passkey, so it stays open in a browser without passkeys: one
-// click to a temporary account of one's own, an owner of the guest network every guest owns, then on to
-// where the answer says, `next` under the sign-in's rules. The public pages' guest buttons send a refused
-// visitor here (#guest), with why, `refused`, which shows until they try again.
+// Signing in as a guest (ADR 0008), with no passkey, so it stays open in a browser without passkeys: one
+// click to the one guest account every guest shares, an owner of the guest network, then on to where the
+// answer says, `next` under the sign-in's rules. The public pages' guest buttons send a refused visitor
+// here (#guest), with why, `refused`, which shows until they try again.
 function GuestSignIn({ next, runs, refused }: { next: string; runs: number; refused: string | null }) {
   const { busy, error, run } = useAction()
   const [refusal, setRefusal] = useState(refused)
@@ -103,9 +103,9 @@ function GuestSignIn({ next, runs, refused }: { next: string; runs: number; refu
           Look around as a guest
         </h2>
         <p className="text-muted-foreground">
-          You get a temporary account of your own for a day, which you keep by adding a passkey. Every guest owns one
-          guest network together, so put nothing private in it; it’s cleared every day at {GUEST_NETWORK_CLEARS}. All
-          guests share one set of daily limits, {modelRuns(runs)} a day between them.
+          You’re signed in for a day as Guest, the one account every guest shares, and work in the guest network with
+          every other guest, so put nothing private in it; it’s cleared every day at {GUEST_NETWORK_CLEARS}. All guests
+          share one set of daily limits, {modelRuns(runs)} a day between them.
         </p>
       </div>
       <Button variant="secondary" className="w-full" disabled={busy} onClick={() => void signIn()}>
@@ -318,12 +318,13 @@ function CreateAccount({
 }
 
 // What `/auth/invite` answers for an invite link: the network it's for, and whether only guests own it,
-// so it goes with them (ADR 0006); or why it can't be used.
+// so the daily clearing deletes it (ADR 0008); or why it can't be used.
 type InviteAnswer = { network: string; guestOwned: boolean } | { error: string }
 
 // The invite page: the link's token is in the address's fragment, which the browser never sends, so
-// the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in.
-export function InvitePage({ memberName }: { memberName: string | null }) {
+// the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in, and
+// `guestMember` whether it's the guest account every guest shares.
+export function InvitePage({ memberName, guestMember = false }: { memberName: string | null; guestMember?: boolean }) {
   const [token] = useState(() => window.location.hash.slice(1))
   const [invite, setInvite] = useState<InviteAnswer | null>(null)
   // Another link opened in this tab changes only the fragment, which loads no page: load it.
@@ -341,20 +342,23 @@ export function InvitePage({ memberName }: { memberName: string | null }) {
       (err: Error) => setInvite({ error: err.message })
     )
   }, [token])
-  return <Invite token={token} invite={invite} memberName={memberName} />
+  return <Invite token={token} invite={invite} memberName={memberName} guestMember={guestMember} />
 }
 
 // The invite page for the link's `token`, once `/auth/invite` has answered (`invite`, null until then):
-// it names the network, says when it goes with the guests who own it, then lets a signed-in member join,
-// or anyone else create an account or sign in, and join in the same step.
+// it names the network, says when the daily clearing deletes it, as one only guests own, then lets a
+// signed-in member join, or anyone else create an account or sign in, and join in the same step. A guest
+// (`guestMember`) is told to sign out and create an account to join (ADR 0008).
 export function Invite({
   token,
   invite,
-  memberName
+  memberName,
+  guestMember = false
 }: {
   token: string
   invite: InviteAnswer | null
   memberName: string | null
+  guestMember?: boolean
 }) {
   const [code, setCode] = useState<{ code: string; next: string } | null>(null)
   const supported = useSupported()
@@ -395,8 +399,8 @@ export function Invite({
         </p>
         {invite.guestOwned && (
           <p className="max-w-[48ch] type-body">
-            {invite.network} belongs to guests on temporary accounts, so it’s removed with them unless one of them keeps
-            their account.
+            {invite.network} belongs to the guest account every guest shares, so it’s cleared, with everything in it,
+            every day at {GUEST_NETWORK_CLEARS}.
           </p>
         )}
         {supported === false && !memberName && (
@@ -407,7 +411,9 @@ export function Invite({
           </p>
         )}
       </Lede>
-      {memberName ? (
+      {guestMember ? (
+        <GuestCantJoin network={invite.network} />
+      ) : memberName ? (
         <JoinAs name={memberName} network={invite.network} join={join} />
       ) : (
         <div className={ways}>
@@ -422,6 +428,22 @@ export function Invite({
         </div>
       )}
     </main>
+  )
+}
+
+// A guest can't join: the guest account every guest shares joins no network, so they sign out, and the
+// page opens on the invite again, to create an account and join with it.
+function GuestCantJoin({ network }: { network: string }) {
+  return (
+    <section className={panel} aria-label={`Join ${network}`}>
+      <p>
+        You’re signed in as Guest, the one account every guest shares, which can’t join a network. Sign out and create
+        an account to join {network}.
+      </p>
+      <SignOut className="w-full" then={() => window.location.reload()}>
+        Sign out and create an account
+      </SignOut>
+    </section>
   )
 }
 

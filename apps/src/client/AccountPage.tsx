@@ -9,7 +9,7 @@ import { linkVariants } from '@/components/ui/variants'
 import type { AccountNetwork, AccountPasskey } from '../directory'
 import { initials, listOf, MAX_NAME } from '../text'
 import { useConfirm } from './Confirm'
-import { Alert, day, ScrollTable, send, useAction, useLeaveGuard } from './controls'
+import { Alert, day, ScrollTable, send, SignOut, useAction, useLeaveGuard } from './controls'
 import { prompted, RecoveryCode, sendConfirmed, useCodeAsk, type Ceremony } from './Passkeys'
 import { cell, Done, head, Module, settingsColumn } from './settings/Module'
 import { StateLine } from './states'
@@ -18,23 +18,19 @@ import { StateLine } from './states'
 // sessions, their networks, and deleting the account, one module per job in the settings' grammar.
 // A recovery code signs a member in here (`recovered`), to add a passkey for the device they're on.
 // Every destructive change confirms first; one that needs the member to confirm it's them (step-up)
-// asks once the confirm has closed, never over it. A guest member's page (`guestMember`) says their
-// account is temporary until their first passkey keeps it, which shows its recovery code once, as a
-// sign-up does (ADR 0006).
+// asks once the confirm has closed, never over it. A guest's page is GuestAccountPage.
 export function AccountPage({
   name,
   passkeys,
   sessions,
   networks,
-  recovered,
-  guestMember = false
+  recovered
 }: {
   name: string
   passkeys: AccountPasskey[]
   sessions: number
   networks: AccountNetwork[]
   recovered: boolean
-  guestMember?: boolean
 }) {
   // A new recovery code to show once, until the member says they've saved it.
   const [code, setCode] = useState<string | null>(null)
@@ -45,9 +41,9 @@ export function AccountPage({
       <h1 className="type-title">Account</h1>
       <div className="flex flex-col gap-12">
         <NameModule name={name} />
-        <PasskeysModule listed={passkeys} recovered={recovered} guest={guestMember} onKept={setCode} />
-        <RecoveryModule onCode={setCode} guest={guestMember} />
-        <SessionsModule sessions={sessions} guest={guestMember} />
+        <PasskeysModule listed={passkeys} recovered={recovered} />
+        <RecoveryModule onCode={setCode} />
+        <SessionsModule sessions={sessions} />
         <NetworksModule networks={networks} onlyOwner={onlyOwner} />
         <DeleteModule onlyOwner={onlyOwner} />
       </div>
@@ -59,6 +55,28 @@ export function AccountPage({
 // centred measure.
 const codeFrame =
   'mx-auto grid w-full max-w-[1152px] items-start gap-8 px-4 pt-10 pb-16 lg:grid-cols-2 lg:gap-12 lg:px-6 lg:pt-20'
+
+// A guest's account page (ADR 0008): the account every guest shares, what no guest can change of it, and
+// signing out of this browser's session alone, to create an account.
+export function GuestAccountPage() {
+  return (
+    <main className={settingsColumn}>
+      <h1 className="type-title">Account</h1>
+      <Module
+        id="acct-guest-h"
+        title="Shared guest account"
+        help="Everyone who signs in as a guest is signed in as Guest, in the guest network, and shares everything in it and its daily limits."
+      >
+        <p>
+          No guest can add a passkey or a recovery code, rename this account, sign out every guest, delete it, join a
+          network by invite, or leave a network, since each would change it for every guest. For any of that, and for
+          networks of your own, sign out and create an account.
+        </p>
+        <SignOut className="self-start">Sign out and create an account</SignOut>
+      </Module>
+    </main>
+  )
+}
 
 function NameModule({ name: saved }: { name: string }) {
   const [name, setName] = useState(saved)
@@ -121,19 +139,7 @@ function NameModule({ name: saved }: { name: string }) {
   )
 }
 
-// A guest member's first passkey keeps their account, and its answer has their recovery code, for
-// `onKept` to show.
-function PasskeysModule({
-  listed,
-  recovered,
-  guest,
-  onKept
-}: {
-  listed: AccountPasskey[]
-  recovered: boolean
-  guest: boolean
-  onKept: (code: string) => void
-}) {
+function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recovered: boolean }) {
   const [passkeys, setPasskeys] = useState(listed)
   // The passkey just added.
   const [added, setAdded] = useState<string | null>(null)
@@ -151,11 +157,7 @@ function PasskeysModule({
         'The passkey prompt closed before a passkey was made. Try again when you’re ready.',
         'This device or password manager already keeps a passkey for your account. Add one from another device.'
       )
-      const answer = await send<{ passkeys: AccountPasskey[]; recoveryCode?: string }>('/auth/passkeys', {
-        challenge,
-        response
-      })
-      if (answer.recoveryCode) return onKept(answer.recoveryCode)
+      const answer = await send<{ passkeys: AccountPasskey[] }>('/auth/passkeys', { challenge, response })
       setAdded(answer.passkeys.find((p) => !passkeys.some((q) => q.id === p.id))?.id ?? null)
       setPasskeys(answer.passkeys)
     })
@@ -169,9 +171,8 @@ function PasskeysModule({
       action: async () =>
         setPasskeys((await send<{ passkeys: AccountPasskey[] }>(`/app/account/passkeys/${p.id}/remove`)).passkeys)
     })
-  // What a recovery code's sign-in, or a guest's temporary account, asks for, so it's the page's one
-  // primary until it's done.
-  const asked = (recovered || guest) && !added
+  // What a recovery code's sign-in asks for, so it's the page's one primary until it's done.
+  const asked = recovered && !added
 
   return (
     <Module
@@ -182,59 +183,52 @@ function PasskeysModule({
     >
       {asked && (
         <p role="status" className="rounded-lg bg-card p-3">
-          {guest
-            ? 'Your account is temporary: as a guest’s, it lasts a day from when you signed in. Add a passkey to keep it, with the networks you own; you get a recovery code with it.'
-            : 'You signed in with your recovery code. Add a passkey for this device now, so you can sign in without a code next time.'}
+          You signed in with your recovery code. Add a passkey for this device now, so you can sign in without a code
+          next time.
         </p>
       )}
-      {passkeys.length === 0 ? (
-        <p>
-          <StateLine kind="empty">No passkeys yet.</StateLine>
-        </p>
-      ) : (
-        /* Narrower than its columns, as on a phone, it scrolls in its region rather than crowd them. */
-        <ScrollTable label="Passkeys table">
-          <table className="relative w-full min-w-[24rem] border-separate border-spacing-0">
-            <thead className="type-caption text-muted-foreground">
-              <tr>
-                <th scope="col" className={head}>
-                  Passkey
+      {/* Narrower than its columns, as on a phone, it scrolls in its region rather than crowd them. */}
+      <ScrollTable label="Passkeys table">
+        <table className="relative w-full min-w-[24rem] border-separate border-spacing-0">
+          <thead className="type-caption text-muted-foreground">
+            <tr>
+              <th scope="col" className={head}>
+                Passkey
+              </th>
+              <th scope="col" className={head}>
+                Added
+              </th>
+              <th scope="col" className={head}>
+                Last used
+              </th>
+              <th scope="col" className={head}>
+                <span className="vh">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {passkeys.map((p) => (
+              <tr key={p.id}>
+                <th scope="row" className={`${cell} text-left font-medium`}>
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    {p.label}
+                    {added === p.id && <Badge variant="outline">New</Badge>}
+                  </span>
                 </th>
-                <th scope="col" className={head}>
-                  Added
-                </th>
-                <th scope="col" className={head}>
-                  Last used
-                </th>
-                <th scope="col" className={head}>
-                  <span className="vh">Actions</span>
-                </th>
+                <td className={`${cell} whitespace-nowrap`}>{addedAt(p, passkeys)}</td>
+                <td className={`${cell} whitespace-nowrap text-muted-foreground`}>
+                  {p.lastUsed === null ? 'Never' : day(p.lastUsed)}
+                </td>
+                <td className={`${cell} pr-0 text-right`}>
+                  <Button variant="ghost" size="sm" disabled={busy || only} onClick={() => askRemove(p)}>
+                    Remove
+                  </Button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {passkeys.map((p) => (
-                <tr key={p.id}>
-                  <th scope="row" className={`${cell} text-left font-medium`}>
-                    <span className="inline-flex flex-wrap items-center gap-2">
-                      {p.label}
-                      {added === p.id && <Badge variant="outline">New</Badge>}
-                    </span>
-                  </th>
-                  <td className={`${cell} whitespace-nowrap`}>{addedAt(p, passkeys)}</td>
-                  <td className={`${cell} whitespace-nowrap text-muted-foreground`}>
-                    {p.lastUsed === null ? 'Never' : day(p.lastUsed)}
-                  </td>
-                  <td className={`${cell} pr-0 text-right`}>
-                    <Button variant="ghost" size="sm" disabled={busy || only} onClick={() => askRemove(p)}>
-                      Remove
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ScrollTable>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </ScrollTable>
       {only && <p className="text-muted-foreground">Your only passkey can’t be removed: add another first.</p>}
       <div>
         <Button variant={asked ? 'default' : 'secondary'} disabled={busy} onClick={() => void add()}>
@@ -244,9 +238,8 @@ function PasskeysModule({
       </div>
       <Alert error={error} />
       <p className="text-muted-foreground">
-        Your browser asks where to keep it: on this device, a phone nearby, or your password manager.
-        {/* A guest's first passkey asks no step-up (ADR 0006). */}
-        {!guest && ' If you haven’t confirmed it’s you in the last five minutes, Crossfeed asks you to first.'}
+        Your browser asks where to keep it: on this device, a phone nearby, or your password manager. If you haven’t
+        confirmed it’s you in the last five minutes, Crossfeed asks you to first.
       </p>
       {code.form}
       {dialog}
@@ -262,20 +255,7 @@ function addedAt(p: AccountPasskey, all: AccountPasskey[]) {
   return `${day(p.created)}, ${new Date(p.created).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
 }
 
-// A guest member has no recovery code until their first passkey brings one.
-function RecoveryModule({ onCode, guest }: { onCode: (code: string) => void; guest: boolean }) {
-  return (
-    <Module
-      id="acct-code-h"
-      title="Recovery code"
-      help="If you lose every passkey, your recovery code signs you in once. Crossfeed keeps no copy it can read."
-    >
-      {guest ? <p>You get your recovery code with your first passkey.</p> : <RenewCode onCode={onCode} />}
-    </Module>
-  )
-}
-
-function RenewCode({ onCode }: { onCode: (code: string) => void }) {
+function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
   const { busy, error, run } = useAction()
   const code = useCodeAsk('acct-code-code')
   const renew = () =>
@@ -283,7 +263,11 @@ function RenewCode({ onCode }: { onCode: (code: string) => void }) {
       onCode((await sendConfirmed<{ recoveryCode: string }>('/app/account/recovery-code', code.ask)).recoveryCode)
     )
   return (
-    <>
+    <Module
+      id="acct-code-h"
+      title="Recovery code"
+      help="If you lose every passkey, your recovery code signs you in once. Crossfeed keeps no copy it can read."
+    >
       <div>
         <Button variant="secondary" disabled={busy} onClick={() => void renew()}>
           {busy && <Spinner data-icon="inline-start" />}
@@ -296,19 +280,16 @@ function RenewCode({ onCode }: { onCode: (code: string) => void }) {
         once. If you haven’t confirmed it’s you in the last five minutes, Crossfeed asks you to first.
       </p>
       {code.form}
-    </>
+    </Module>
   )
 }
 
-// A guest member's session is their only way in, until a passkey keeps the account.
-function SessionsModule({ sessions, guest }: { sessions: number; guest: boolean }) {
+function SessionsModule({ sessions }: { sessions: number }) {
   const { confirm, dialog } = useConfirm()
   const askSignOut = () =>
     confirm({
       title: 'Sign out of every browser, this one too?',
-      consequence: guest
-        ? 'Your open pages close, and with no passkey, you can’t sign in to this account again.'
-        : 'Your open pages close, and each browser needs your passkey again.',
+      consequence: 'Your open pages close, and each browser needs your passkey again.',
       verb: 'Sign out everywhere',
       busy: 'Signing out…',
       keep: 'Stay signed in',
@@ -321,11 +302,7 @@ function SessionsModule({ sessions, guest }: { sessions: number; guest: boolean 
     <Module
       id="acct-sessions-h"
       title="Sessions"
-      help={
-        guest
-          ? 'As a guest, you’re signed in on this browser alone, for a day from when you signed in. Once you add a passkey, each browser you sign in on stays signed in for 30 days from the last time you use it.'
-          : 'Each browser you sign in on stays signed in for 30 days from the last time you use it.'
-      }
+      help="Each browser you sign in on stays signed in for 30 days from the last time you use it."
     >
       <p>
         You’re signed in on{' '}

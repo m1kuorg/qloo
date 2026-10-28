@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import type { Invite, NetworkMember } from '../../directory'
-import { GUEST_NETWORK } from '../../text'
+import { GUEST_MEMBER } from '../../text'
 import { useConfirm } from '../Confirm'
 import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
@@ -13,9 +13,10 @@ import { cell, head, Module } from './Module'
 // The settings' members module: who's in the network, with their role and when they joined, and, for an
 // owner, its invite links. An owner changes roles, removes members, and makes and revokes links; any
 // member can leave. No change may leave the network without an owner: the Worker refuses one, and the
-// module doesn't offer it. The guest network needn't keep one, as every guest sign-in adds an owner
-// (ADR 0006). `invites` is null for a member, who doesn't see them. Removing, leaving, revoking, and making an
-// owner a member, which revokes their keys and links, each confirm first.
+// module doesn't offer it. Nor does it offer a guest, signed in as the guest account every guest shares, a
+// change to that account's own membership, which the Worker refuses too (ADR 0008). `invites` is null for a
+// member, who doesn't see them. Removing, leaving, revoking, and making an owner a member, which revokes
+// their keys and links, each confirm first.
 export function MembersModule({
   network,
   memberId,
@@ -32,10 +33,11 @@ export function MembersModule({
   const heading = useRef<HTMLHeadingElement>(null)
   const { confirm, dialog } = useConfirm(heading)
   const owner = network.role === 'owner'
-  // Whether the network has one owner, whom it can't lose; the guest network can.
-  const oneOwner = network.id !== GUEST_NETWORK && members.filter((m) => m.role === 'owner').length === 1
+  // Whether the network has one owner, whom it can't lose.
+  const oneOwner = members.filter((m) => m.role === 'owner').length === 1
   const me = members.find((m) => m.id === memberId)
-  const lastOwner = me?.role === 'owner' && oneOwner
+  const guest = memberId === GUEST_MEMBER
+  const lastOwner = me?.role === 'owner' && oneOwner && !guest
   const path = `/app/${network.id}/settings/members`
 
   const changeRole = async (m: NetworkMember) => {
@@ -116,8 +118,9 @@ export function MembersModule({
           <tbody>
             {members.map((m) => {
               const self = m.id === memberId
-              // A network keeps at least one owner, so its last one has no "Make member".
-              const canSetRole = owner && !(m.role === 'owner' && oneOwner)
+              // A network keeps at least one owner, so its last one has no "Make member", and a guest's own
+              // row has neither it nor Leave.
+              const canSetRole = owner && !(m.role === 'owner' && oneOwner) && !(self && guest)
               return (
                 <tr key={m.id}>
                   <th scope="row" className={`${cell} text-left font-medium`}>
@@ -135,7 +138,7 @@ export function MembersModule({
                           {m.role === 'owner' ? 'Make member' : 'Make owner'}
                         </Button>
                       )}
-                      {(self || owner) && (
+                      {(self ? !guest : owner) && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -159,6 +162,11 @@ export function MembersModule({
       )}
       {lastOwner && members.length === 1 && (
         <p className="text-muted-foreground">A network needs an owner, so its only one can’t leave.</p>
+      )}
+      {guest && me && (
+        <p className="text-muted-foreground">
+          You’re signed in as Guest, the account every guest shares, so you can’t leave or change its role.
+        </p>
       )}
       {!owner && (
         <p className="text-muted-foreground">Only an owner can invite people, change roles, or remove members.</p>
