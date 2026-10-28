@@ -23,7 +23,7 @@ export function SampleDataModule({
     <Module
       id="set-sample-h"
       title="Sample data"
-      help={`The guest network starts from the sample data every day at ${GUEST_NETWORK_CLEARS}: The Ringer’s shows, the sample CPM, The Watch and the sample launches${inbox ? ', and the sample inbox' : ''}. Reset it to start over from the sample data now, for every guest.`}
+      help={`The guest network starts every day at ${GUEST_NETWORK_CLEARS} from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches${inbox ? ', and the sample inbox' : ''}. Reset it to start over now, for every guest.`}
     >
       {network.role === 'owner' ? (
         <ResetSampleData network={network} inbox={inbox} onLeaving={onLeaving} />
@@ -70,7 +70,8 @@ function ResetSampleData({
         </Button>
       </div>
       <p className="text-muted-foreground">
-        It closes every guest’s open pages of the guest network, and it resets at most once a minute for everyone.
+        Resetting closes every guest’s open pages of the guest network. The sample data resets at most once a minute,
+        for everyone.
       </p>
       {dialog}
     </>
