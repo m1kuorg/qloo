@@ -1,6 +1,7 @@
 // A network's roster: its own page, kept by the network's agent, imported from a file or pasted names,
-// kept across re-imports, shared live by its members, and counted against the limits as the network. Each test drives a network through the Worker's routes, its agent's client
-// protocol, or the Worker's own RPC to the agent, as the API will call it.
+// kept across re-imports, shared live by its members, and counted against the limits as the network.
+// Each test drives a network through the Worker's routes, its agent's client protocol, or the Worker's
+// own RPC to the agent, as the API will call it.
 import { getAgentByName } from 'agents'
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'

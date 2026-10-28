@@ -31,7 +31,8 @@ const alone = cn(canvas, 'min-[85rem]:pr-6')
 // to rank?": the title row with its counts and CPM, the shows Qloo failed on, and the roster table,
 // whose shows open in the inspector's Show tab beside it (a sheet under 1360px) and whose calls open
 // in its Evidence tab. "Import shows" opens the import in a sheet; an empty roster has the import as
-// its body. Every member's edits reach the others through synced state. Tests render it from a network agent's synced state.
+// its body. Every member's edits reach the others through synced state. Tests render it from a network
+// agent's synced state.
 export function NetworkRoster({
   agent,
   network,
