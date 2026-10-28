@@ -22,7 +22,7 @@ import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
-import { GUEST_FORM, MarketingPage, marketingShell } from '../shell'
+import { GuestButton, MarketingPage, marketingShell } from '../shell'
 import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
 import { CLIMB, topicFinding } from '../topic'
 
@@ -965,13 +965,9 @@ const Close = () => (
       </h2>
       <div class="col-start-1 row-start-2 my-14 flex w-full flex-col items-center gap-5 self-center md:my-20">
         <div class="flex w-full flex-col items-center gap-3 md:w-auto md:flex-row md:gap-8">
-          <button
-            type="submit"
-            form={GUEST_FORM}
-            class={buttonVariants({ size: 'lg', className: 'cursor-pointer max-md:w-[72%]' })}
-          >
+          <GuestButton class={buttonVariants({ size: 'lg', className: 'max-md:w-[72%]' })}>
             Open the sample network
-          </button>
+          </GuestButton>
           <span>or</span>
           <a class={buttonVariants({ variant: 'secondary', size: 'lg', className: 'max-md:w-[72%]' })} href="/app/new">
             Create your network
@@ -1020,16 +1016,11 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
           {/* Trying Crossfeed is signing in as a guest (ADR 0007), so with accounts off there's no way in. */}
           {accounts && (
             <>
-              <button
-                type="submit"
-                form={GUEST_FORM}
-                class={buttonVariants({
-                  size: 'lg',
-                  className: 'cursor-pointer max-lg:self-start max-md:w-full lg:justify-self-end'
-                })}
+              <GuestButton
+                class={buttonVariants({ size: 'lg', className: 'max-lg:self-start max-md:w-full lg:justify-self-end' })}
               >
                 Open the sample network
-              </button>
+              </GuestButton>
               {/* Fine print at 13px, the smallest size the page rules allow on a marketing page (the app's
                   captions are 12px). */}
               <p class="-mt-3 max-w-[44ch] text-[0.8125rem] leading-[1.45] text-muted-foreground lg:col-start-2 lg:mt-0 lg:text-right">
@@ -1509,13 +1500,7 @@ const NotFound = ({ accounts }: { accounts: boolean }) => (
         {accounts && (
           <>
             <li>
-              <button
-                type="submit"
-                form={GUEST_FORM}
-                class={buttonVariants({ variant: 'secondary', size: 'lg', className: 'cursor-pointer' })}
-              >
-                Sample network
-              </button>
+              <GuestButton class={buttonVariants({ variant: 'secondary', size: 'lg' })}>Sample network</GuestButton>
             </li>
             <li>
               <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/app">
