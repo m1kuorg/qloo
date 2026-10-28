@@ -22,7 +22,7 @@ import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
-import { MarketingPage, marketingShell } from '../shell'
+import { GUEST_FORM, MarketingPage, marketingShell } from '../shell'
 import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
 import { CLIMB, topicFinding } from '../topic'
 
@@ -944,11 +944,11 @@ const Developers = ({ inbox }: { inbox: boolean }) => (
   </section>
 )
 
-// The close, the page's one colour field: the question across two lines with the ways in between
-// them, the sample first and, while accounts are on, a network of one's own. A screen at least: the
+// The close, the page's one colour field, while accounts are on: the question across two lines with the
+// ways in between them, the sample, as guest sign-in, and a network of one's own. A screen at least: the
 // question's lines hold its top and its foot, and the ways in sit in the middle. It meets the footer,
 // taking back the margin the shell sets above it.
-const Close = ({ accounts }: { accounts: boolean }) => (
+const Close = () => (
   <section aria-labelledby="close-h" data-band="signal" class="-mb-24 bg-signal text-signal-foreground md:-mb-40">
     <div
       class={cn(
@@ -965,25 +965,21 @@ const Close = ({ accounts }: { accounts: boolean }) => (
       </h2>
       <div class="col-start-1 row-start-2 my-14 flex w-full flex-col items-center gap-5 self-center md:my-20">
         <div class="flex w-full flex-col items-center gap-3 md:w-auto md:flex-row md:gap-8">
-          <a class={buttonVariants({ size: 'lg', className: 'max-md:w-[72%]' })} href="/demo">
+          <button
+            type="submit"
+            form={GUEST_FORM}
+            class={buttonVariants({ size: 'lg', className: 'cursor-pointer max-md:w-[72%]' })}
+          >
             Open the sample network
+          </button>
+          <span>or</span>
+          <a class={buttonVariants({ variant: 'secondary', size: 'lg', className: 'max-md:w-[72%]' })} href="/app/new">
+            Create your network
           </a>
-          {accounts && (
-            <>
-              <span>or</span>
-              <a
-                class={buttonVariants({ variant: 'secondary', size: 'lg', className: 'max-md:w-[72%]' })}
-                href="/app/new"
-              >
-                Create your network
-              </a>
-            </>
-          )}
         </div>
         <p class="max-w-[52ch] text-pretty">
-          {accounts
-            ? 'The sample needs no sign-in. A network of your own keeps its roster, launches, and members, and its members sign in with passkeys.'
-            : 'No sign-in. Clear the sample and paste your own show names to rank them instead.'}
+          The sample signs you in as a guest, in the network every guest shares, which is cleared every day. A network
+          of your own keeps its roster, launches, and members, and its members sign in with passkeys.
         </p>
       </div>
     </div>
@@ -1021,18 +1017,27 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
             An agent that ranks your network’s shows by listener overlap in Qloo, asks you at each fork, and ends in an
             insertion order you approve.
           </p>
-          <a
-            class={buttonVariants({ size: 'lg', className: 'max-lg:self-start max-md:w-full lg:justify-self-end' })}
-            href="/demo"
-          >
-            Open the sample network
-          </a>
-          {/* Fine print at 13px, the smallest size the page rules allow on a marketing page (the app's
-              captions are 12px). */}
-          <p class="-mt-3 max-w-[44ch] text-[0.8125rem] leading-[1.45] text-muted-foreground lg:col-start-2 lg:mt-0 lg:text-right">
-            No sign-in. It opens on 19 public show names from The Ringer, with sample figures. Crossfeed isn’t
-            affiliated with The Ringer.
-          </p>
+          {/* Trying Crossfeed is signing in as a guest (ADR 0007), so with accounts off there's no way in. */}
+          {accounts && (
+            <>
+              <button
+                type="submit"
+                form={GUEST_FORM}
+                class={buttonVariants({
+                  size: 'lg',
+                  className: 'cursor-pointer max-lg:self-start max-md:w-full lg:justify-self-end'
+                })}
+              >
+                Open the sample network
+              </button>
+              {/* Fine print at 13px, the smallest size the page rules allow on a marketing page (the app's
+                  captions are 12px). */}
+              <p class="-mt-3 max-w-[44ch] text-[0.8125rem] leading-[1.45] text-muted-foreground lg:col-start-2 lg:mt-0 lg:text-right">
+                Signs you in as a guest, for a day. Every guest shares the network, which opens on 19 public show names
+                from The Ringer, with sample figures. Crossfeed isn’t affiliated with The Ringer.
+              </p>
+            </>
+          )}
         </div>
       </section>
       <ReRank />
@@ -1040,7 +1045,7 @@ function Landing({ accounts, inbox }: { accounts: boolean; inbox: boolean }) {
       <Capabilities inbox={inbox} />
       <Nevers />
       <Developers inbox={inbox} />
-      <Close accounts={accounts} />
+      {accounts && <Close />}
     </main>
   )
 }
@@ -1464,8 +1469,8 @@ function Terms({ env }: { env: Env }) {
 marketing.get('/privacy', marketingShell('Privacy'), (c) => c.render(<Privacy accounts={c.env.ACCOUNTS === 'on'} />))
 marketing.get('/terms', marketingShell('Beta terms'), (c) => c.render(<Terms env={c.env} />))
 
-// The 404 page's body: ways back home, to the sample network, and while ACCOUNTS is on, to the
-// visitor's networks.
+// The 404 page's body: ways back home, and while ACCOUNTS is on, to the sample network, as guest sign-in,
+// and to the visitor's networks.
 const NotFound = ({ accounts }: { accounts: boolean }) => (
   // At least 60% of the window tall, so the footer's index and name start at the fold rather than in
   // the first screen, where they would outweigh the page's heading, without a window of nothing above it.
@@ -1490,17 +1495,23 @@ const NotFound = ({ accounts }: { accounts: boolean }) => (
             Home
           </a>
         </li>
-        <li>
-          <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/demo">
-            Sample network
-          </a>
-        </li>
         {accounts && (
-          <li>
-            <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/app">
-              Your networks
-            </a>
-          </li>
+          <>
+            <li>
+              <button
+                type="submit"
+                form={GUEST_FORM}
+                class={buttonVariants({ variant: 'secondary', size: 'lg', className: 'cursor-pointer' })}
+              >
+                Sample network
+              </button>
+            </li>
+            <li>
+              <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/app">
+                Your networks
+              </a>
+            </li>
+          </>
         )}
       </ul>
     </div>

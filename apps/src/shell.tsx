@@ -375,12 +375,19 @@ const AppFrame = ({
   </html>
 )
 
+// Guest sign-in, as the marketing pages' guest buttons post it with no script (ADR 0007): one hidden,
+// empty form a page carries while ACCOUNTS is on, which each button names with its `form` attribute, so
+// a button sits wherever a link would, and signing in as a guest opens the guest network, the sample in
+// it. /auth/guest answers with a redirect there, or back to the sign-in page saying why it can't.
+export const GUEST_FORM = 'guest-sign-in'
+const GuestForm = () => <form id={GUEST_FORM} method="post" action="/auth/guest" hidden />
+
 // The marketing pages' head of the page, with no bar: the wordmark top left and the links top right:
-// the sample network, the developer docs, current on every docs page, and while ACCOUNTS is on, Sign in
-// and "Create your network", secondary, so the page's own primary stays the only one. One nav at every
-// width, as the app's rail is: a <details> "Menu" whose panel holds the links under 768px, and from
-// there its summary hides and the same links sit in a row (style.css, where ::details-content is
-// understood; elsewhere it stays a Menu at every width).
+// the developer docs, current on every docs page, and while ACCOUNTS is on, the sample network, a
+// button that signs in as a guest, Sign in, and "Create your network", secondary, so the page's own
+// primary stays the only one. One nav at every width, as the app's rail is: a <details> "Menu" whose
+// panel holds the links under 768px, and from there its summary hides and the same links sit in a row
+// (style.css, where ::details-content is understood; elsewhere it stays a Menu at every width).
 const siteLink =
   'rounded-md max-md:flex max-md:min-h-11 max-md:w-full max-md:items-center max-md:px-2 max-md:py-1.5 max-md:transition-colors max-md:hover:bg-accent max-md:focus-visible:bg-accent max-md:aria-[current]:font-medium md:rounded-sm md:decoration-1 md:underline-offset-[5px] md:hover:underline md:aria-[current]:underline'
 const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }) => (
@@ -393,9 +400,11 @@ const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }
           <ChevronDown class="size-4 text-muted-foreground" />
         </summary>
         <div class="max-md:absolute max-md:top-full max-md:right-0 max-md:z-50 max-md:mt-1 max-md:flex max-md:min-w-56 max-md:origin-top-right max-md:flex-col max-md:rounded-xl max-md:bg-popover max-md:p-1 max-md:text-popover-foreground max-md:animate-in max-md:duration-100 max-md:fade-in-0 max-md:zoom-in-95 max-md:group-open/menu:shadow-float md:flex md:items-center md:gap-6">
-          <a class={siteLink} href="/demo">
-            Sample network
-          </a>
+          {accounts && (
+            <button type="submit" form={GUEST_FORM} class={cn(siteLink, 'cursor-pointer')}>
+              Sample network
+            </button>
+          )}
           <a class={siteLink} href="/docs" aria-current={path.startsWith('/docs') ? 'page' : undefined}>
             Developers
           </a>
@@ -423,9 +432,9 @@ const MarketingHeader = ({ path, accounts }: { path: string; accounts: boolean }
 // there, beside it from 1024px and under it below, then the legal pages; what Crossfeed was made for;
 // and the name across the foot. With accounts off the index is the docs alone. The index sits in the
 // middle of whatever height the screen leaves, so the footer fills it with no stretch of nothing. Each
-// row's link covers the row (indexLink's ::after over its relative <li>), and the guest row's link
-// can become a form's button with the same classes. The name is 4.48em wide in Schibsted Grotesk at
-// 600, so the content's width over 4.5 sets it.
+// row's link covers the row (indexLink's ::after over its relative <li>), and so does the guest row's
+// button, which posts the guest form. The name is 4.48em wide in Schibsted Grotesk at 600, so the
+// content's width over 4.5 sets it.
 const footerLink = linkVariants({ tone: 'text', className: 'inline-flex min-h-11 items-center md:min-h-0' })
 const indexLink =
   'justify-self-start rounded-sm type-index decoration-2 underline-offset-[0.12em] after:absolute after:inset-0 hover:underline aria-[current]:underline lg:col-span-7'
@@ -450,14 +459,14 @@ const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
               <IndexRow
                 caption={
                   <>
-                    One network every guest shares, cleared every day at{' '}
+                    To the sample, in the network every guest shares, cleared every day at{' '}
                     <span class="whitespace-nowrap">{GUEST_NETWORK_CLEARS}</span>.
                   </>
                 }
               >
-                <a class={indexLink} href="/sign-in">
+                <button type="submit" form={GUEST_FORM} class={cn(indexLink, 'cursor-pointer text-left')}>
                   Sign in as a guest
-                </a>
+                </button>
               </IndexRow>
               <IndexRow caption="Your own roster and launches, with the members you invite.">
                 <a class={indexLink} href="/app/new">
@@ -537,6 +546,7 @@ export const MarketingPage = ({
     </Head>
     <body class="flex min-h-svh flex-col type-body">
       <SkipLink />
+      {accounts && <GuestForm />}
       {ascii && (
         <canvas
           data-ascii
