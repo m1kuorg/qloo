@@ -8,7 +8,6 @@ import {
   accountsOn,
   endSession,
   fromAppOrigin,
-  GUEST_ACCOUNT,
   guestRefused,
   jsonBody,
   jsonLimit,
@@ -154,7 +153,7 @@ appPages.post('/app/account/name', async (c) => {
   if (guest) return guest
   const read = readName((await jsonBody(c)).name, 'Enter your name.')
   if ('error' in read) return c.json({ error: read.error }, 400)
-  if (!(await renameMember(c.env.DB, c.var.member.id, read.name))) return c.json({ error: GUEST_ACCOUNT }, 403)
+  await renameMember(c.env.DB, c.var.member.id, read.name)
   return c.json({ name: read.name })
 })
 
@@ -177,8 +176,7 @@ appPages.post('/app/account/passkeys/:credentialId/remove', async (c) => {
 appPages.post('/app/account/recovery-code', async (c) => {
   const unproved = await stepUpRefused(c, c.var.member)
   if (unproved) return unproved
-  const recoveryCode = await newRecoveryCode(c.env.DB, c.var.member.id)
-  return recoveryCode ? c.json({ recoveryCode }) : c.json({ error: GUEST_ACCOUNT }, 403)
+  return c.json({ recoveryCode: await newRecoveryCode(c.env.DB, c.var.member.id) })
 })
 
 // Signs the member out on every browser, as when a device is lost: every session ends, this one's
@@ -188,7 +186,7 @@ appPages.post('/app/account/sign-out-everywhere', async (c) => {
   const guest = guestRefused(c, c.var.member)
   if (guest) return guest
   const { id } = c.var.member
-  if (!(await signOutEverywhere(c.env.DB, id))) return c.json({ error: GUEST_ACCOUNT }, 403)
+  await signOutEverywhere(c.env.DB, id)
   endSession(c)
   const networks = await memberNetworks(c.env.DB, id)
   await Promise.all(

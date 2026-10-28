@@ -52,14 +52,14 @@ export async function session<E extends { Bindings: Env }>(c: Context<E>) {
 // The session's token, as the cookie holds it, for the directory to look it up; undefined without one.
 export const sessionToken = (c: Context) => getCookie(c, COOKIE, 'host')
 
-// Why a guest (ADR 0008), whom every guest is signed in as, can't change the one guest account they share:
-// its passkeys, recovery code, name, sessions, and the account itself, joining a network by invite, and its
+// Why no guest can change the guest member (ADR 0008), whom everyone who signs in as a guest is signed in as:
+// its passkeys, recovery code, name, sessions, and the member itself, joining a network by invite, and its
 // own leaving, removal, or role in a network, any of which would act for every guest at once. And the 403
-// that says so, for a guest; null for any other member.
-export const GUEST_ACCOUNT =
+// that says so, for a member marked a guest (isGuestMember); null for any other member.
+const SHARED_BY_EVERY_GUEST =
   'Everyone who signs in as a guest shares one guest account, so no guest can change it for the others. Sign out and create an account to do this.'
 export const guestRefused = (c: Context, member: Member) =>
-  isGuestMember(member) ? c.json({ error: GUEST_ACCOUNT }, 403) : null
+  isGuestMember(member) ? c.json({ error: SHARED_BY_EVERY_GUEST }, 403) : null
 
 // Null when the signed-in `member`'s session proved it's them in the last five minutes (STEP_UP_MS), as
 // adding a passkey, a new recovery code, and deleting the account need. Otherwise the 403 that asks
