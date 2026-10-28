@@ -6,12 +6,12 @@ import type { State } from '../src/agent'
 import { fakeClaude, fakeInsights, fakeQloo, requests, text, toolUse, turn } from './fake'
 import { openSession, type Session } from './session'
 
-// Runs the Worker's scheduled handler as Cloudflare does at the cron in wrangler.jsonc, and waits
-// for everything it started.
-async function runCron() {
+// Runs the Worker's scheduled handler as Cloudflare does at the daily cron in wrangler.jsonc, or the one
+// `cron` names, and waits for everything it started.
+async function runCron(cron = '0 12 * * *') {
   const handler: ExportedHandler<Env> = worker
   const ctx = createExecutionContext()
-  await handler.scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+  await handler.scheduled!(createScheduledController({ cron }), env, ctx)
   await waitOnExecutionContext(ctx)
 }
 
@@ -107,6 +107,15 @@ describe('the daily health check', () => {
         error: `Qloo returned ${status}: fake failure`
       }
     ])
+  })
+
+  it('runs at the daily cron alone, not the hourly one', async () => {
+    const logged = watchLogs()
+    fakeQloo({ search: { 'The Rewatchables': rewatchables } })
+
+    await runCron('0 0-11,13-23 * * *')
+    expect(logged()).toEqual([])
+    expect(requests).toEqual([])
   })
 
   it('asks Qloo every day instead of answering from the cache', async () => {

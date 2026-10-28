@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { softwareAuthenticator } from './authenticator'
 import type { Invite, NetworkMember } from '../src/directory'
 import worker from '../src/index'
-import { fakeQloo } from './fake'
 import { openMember, type Member, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -315,9 +314,7 @@ describe('invite links', () => {
     expect(invites).toHaveLength(1)
   })
 
-  it('are forgotten by the daily cron once they expire, and the open ones kept', async () => {
-    // The cron's health check searches Qloo too.
-    fakeQloo({ search: { 'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }] } })
+  it('are forgotten by the hourly cron once they expire, and the open ones kept', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
     const ada = await openMember()
@@ -330,7 +327,11 @@ describe('invite links', () => {
     expect([await look(old), await look(fresh)]).toEqual([410, 200])
 
     const ctx = createExecutionContext()
-    await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
+    await (worker as ExportedHandler<Env>).scheduled!(
+      createScheduledController({ cron: '0 0-11,13-23 * * *' }),
+      env,
+      ctx
+    )
     await waitOnExecutionContext(ctx)
     expect([await look(old), await look(fresh)]).toEqual([404, 200])
   })
