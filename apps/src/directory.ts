@@ -711,12 +711,13 @@ export async function openInvites(db: D1Database, networkId: string): Promise<In
 // Why an invite can't be used any more, or `open` while it can.
 type InviteState = 'open' | 'used' | 'revoked' | 'expired'
 
-// The invite a link's token names: its network, whether it can still be used, and whether a guest
-// member made it. Null when no invite has that token.
+// The invite a link's token names: its network, whether it can still be used, whether a guest member made
+// it, and whether only guest members own its network, which then goes with them unless one of them keeps
+// their account (ADR 0006); the guest network never does. Null when no invite has that token.
 export async function findInvite(db: D1Database, token: string) {
   const row = await db
     .prepare(
-      'SELECT i.network_id, n.name, i.used, i.revoked, i.expires, i.guest FROM invites i JOIN networks n ON n.id = i.network_id WHERE i.token_hash = ?'
+      `SELECT i.network_id, n.name, i.used, i.revoked, i.expires, i.guest, n.id != '${GUEST_NETWORK}' AND NOT EXISTS (SELECT 1 FROM memberships o JOIN members m ON m.id = o.member_id WHERE o.network_id = n.id AND o.role = 'owner' AND m.guest = 0) AS guest_owned FROM invites i JOIN networks n ON n.id = i.network_id WHERE i.token_hash = ?`
     )
     .bind(await sha256(token))
     .first<{
@@ -726,11 +727,18 @@ export async function findInvite(db: D1Database, token: string) {
       revoked: number | null
       expires: number
       guest: number
+      guest_owned: number
     }>()
   if (!row) return null
   const state: InviteState =
     row.used !== null ? 'used' : row.revoked !== null ? 'revoked' : row.expires <= Date.now() ? 'expired' : 'open'
-  return { networkId: row.network_id, network: row.name, state, guest: row.guest === 1 }
+  return {
+    networkId: row.network_id,
+    network: row.name,
+    state,
+    guest: row.guest === 1,
+    guestOwned: row.guest_owned === 1
+  }
 }
 
 // Joins member `memberId` to the network the invite with token `token` is for, as a member, in one

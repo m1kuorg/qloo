@@ -208,10 +208,10 @@ async function openInvite(c: Context<{ Bindings: Env }>, token: unknown) {
   return { invite }
 }
 
-// The invite page's first request: which network the link invites to.
+// The invite page's first request: which network the link invites to, and whether only guests own it.
 auth.post('/auth/invite', async (c) => {
   const { invite, refused } = await openInvite(c, (await jsonBody(c)).token)
-  return refused ?? c.json({ network: invite.network })
+  return refused ?? c.json({ network: invite.network, guestOwned: invite.guestOwned })
 })
 
 // Joining as the signed-in member, in one step: the answer is the network to open.
