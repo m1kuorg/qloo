@@ -396,12 +396,20 @@ describe('the footer', () => {
     }
   })
 
-  it('indexes only the developer docs, privacy, and the beta terms while accounts are off', async () => {
+  it('indexes only what exists while accounts are off: each page of the developer docs, privacy, and the beta terms', async () => {
     env.ACCOUNTS = 'off'
+    const docs = [
+      'Developers /docs',
+      'REST API /docs/api',
+      'TypeScript SDK /docs/sdk',
+      'MCP server /docs/mcp',
+      'Skills and plugin /docs/agents'
+    ]
     for (const [path, html] of await shown()) {
       const { links, current } = index(html, path)
-      expect(links, path).toEqual(['Developers /docs', 'Privacy /privacy', 'Beta terms /terms'])
-      expect(current, path).toEqual(path.startsWith('/docs') ? ['Developers /docs'] : [])
+      expect(links, path).toEqual([...docs, 'Privacy /privacy', 'Beta terms /terms'])
+      // The page on view, and on a docs page only its own row.
+      expect(current, path).toEqual(docs.filter((link) => link.endsWith(` ${path}`)))
     }
   })
 })
