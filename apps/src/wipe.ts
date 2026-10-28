@@ -92,9 +92,9 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
 // their sessions and the guest network's directory rows. Each launch it lists goes as a deleted one
 // does, off the list before its agent is wiped, so its page answers 404 from then on; then the network's
 // agent lets go, closing every guest's open pages with why, any launch planned since goes the same way,
-// and the agent is wiped; its next start sets the sample's CPM again. Guests can't add a Qloo key, so
-// it has no gateway instance of its own. Logs how many launches it wiped and how many wipes failed;
-// one that failed stays noted for the next day's cron, and fails this one's run.
+// and the agent is wiped; its next start loads the sample network again (ADR 0007). Guests can't add a
+// Qloo key, so it has no gateway instance of its own. Logs how many launches it wiped and how many wipes
+// failed; one that failed stays noted for the next day's cron, and fails this one's run.
 export async function resetGuestNetwork(env: Env) {
   const done = { launches: 0, failed: 0 }
   const clear = async (launches: string[]) => {
