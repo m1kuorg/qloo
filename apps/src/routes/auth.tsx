@@ -313,7 +313,7 @@ auth.post('/auth/passkeys/options', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
   // Asked here, so the page asks at once, and again as the new passkey arrives.
-  const unproved = isGuestMember(member) ? await keepingRefused(c) : await stepUpRefused(c, member)
+  const unproved = await stepUpRefused(c, member, () => keepingRefused(c))
   if (unproved) return unproved
   const has = await memberPasskeys(c.env.DB, member.id)
   const options = await registrationOptions(c.env, member, has)
@@ -329,7 +329,7 @@ auth.post('/auth/passkeys', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
   const guest = isGuestMember(member)
-  const unproved = guest ? await perMinuteRefused(c) : await stepUpRefused(c, member)
+  const unproved = await stepUpRefused(c, member, () => perMinuteRefused(c))
   if (unproved) return unproved
   const { challenge, response } = await jsonBody(c)
   const started = await takeStarted(c, 'add-passkey', challenge)
