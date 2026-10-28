@@ -717,12 +717,12 @@ export async function openInvites(db: D1Database, networkId: string): Promise<In
 type InviteState = 'open' | 'used' | 'revoked' | 'expired'
 
 // The invite a link's token names: its network, whether it can still be used, whether a guest made it, and
-// whether only guest members own its network, which the daily clearing then deletes (ADR 0008), as it never
-// does the guest network. Null when no invite has that token.
+// whether the daily clearing clears its network (ADR 0008): the guest network, whoever else owns it, and a
+// network only guest members own, which it deletes. Null when no invite has that token.
 export async function findInvite(db: D1Database, token: string) {
   const row = await db
     .prepare(
-      `SELECT i.network_id, n.name, i.used, i.revoked, i.expires, i.guest, n.id != '${GUEST_NETWORK}' AND NOT EXISTS (SELECT 1 FROM memberships o JOIN members m ON m.id = o.member_id WHERE o.network_id = n.id AND o.role = 'owner' AND m.guest = 0) AS guest_owned FROM invites i JOIN networks n ON n.id = i.network_id WHERE i.token_hash = ?`
+      `SELECT i.network_id, n.name, i.used, i.revoked, i.expires, i.guest, n.id = '${GUEST_NETWORK}' OR NOT EXISTS (SELECT 1 FROM memberships o JOIN members m ON m.id = o.member_id WHERE o.network_id = n.id AND o.role = 'owner' AND m.guest = 0) AS cleared_daily FROM invites i JOIN networks n ON n.id = i.network_id WHERE i.token_hash = ?`
     )
     .bind(await sha256(token))
     .first<{
@@ -732,7 +732,7 @@ export async function findInvite(db: D1Database, token: string) {
       revoked: number | null
       expires: number
       guest: number
-      guest_owned: number
+      cleared_daily: number
     }>()
   if (!row) return null
   const state: InviteState =
@@ -742,7 +742,7 @@ export async function findInvite(db: D1Database, token: string) {
     network: row.name,
     state,
     guest: row.guest === 1,
-    guestOwned: row.guest_owned === 1
+    clearedDaily: row.cleared_daily === 1
   }
 }
 
