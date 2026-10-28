@@ -15,7 +15,16 @@ import { finalistsOf } from './fit'
 import type { InsertionOrder } from './order'
 import type { Sample } from './sample'
 import type { SampleLaunch } from './sample-launch'
-import { keepOwnKey, MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimitKey } from './network-agent'
+import {
+  keepOwnKey,
+  LAUNCH_DELETED,
+  MEMBER_NAME_HEADER,
+  memberTag,
+  networkGateway,
+  networkLimitKey,
+  readLaunchAgentName
+} from './network-agent'
+import { launchCloseReason } from './wipe'
 
 const ROSTER =
   "A launch ranks its network's roster, which members edit on the network's roster page. Each run copies the roster as it starts."
@@ -89,10 +98,18 @@ export class LaunchAgent extends CrossfeedAgent {
   // An insertion order is a member's to approve, in the app (ADR 0002): a connection the Worker let
   // through names its member, so one that names none, and any call with no connection, is refused.
   @callable()
-  approveInsertionOrder(id: string) {
+  async approveInsertionOrder(id: string) {
     if (!this.member())
       throw new Error('Only a member of the network, signed in to the app, can approve an insertion order.')
-    super.approveInsertionOrder(id)
+    await super.approveInsertionOrder(id)
+  }
+
+  // Once its network no longer lists it, the launch takes no more work: as after the daily clearing, which
+  // takes the guest network's launches off its list and leaves their agents to the hourly retry's wipe, or
+  // a deletion whose wipe failed (wipe.ts). Why, as its wipe was noted, or null while it's listed.
+  protected async gone() {
+    const network = await getAgentByName(this.env.NetworkAgent, this.networkId)
+    return (await network.listsLaunch(this.launchId)) ? null : launchCloseReason(this.env, this.name)
   }
 
   // After any change to what the network's list says of the launch, reports it there, in order, so
@@ -133,11 +150,11 @@ export class LaunchAgent extends CrossfeedAgent {
 
   // The network's ID and the launch's, from the agent's name (launchAgentName).
   private get networkId() {
-    return this.name.split(':')[0]
+    return readLaunchAgentName(this.name).networkId
   }
 
   private get launchId() {
-    return this.name.split(':')[1]
+    return readLaunchAgentName(this.name).launchId
   }
 
   // Each run ranks the network's roster as it stands when the run starts, and its calls follow the
@@ -150,7 +167,7 @@ export class LaunchAgent extends CrossfeedAgent {
 
   // Wipes the launch once its network has let go of it (wipe.ts), as when it's deleted, or its network
   // is. Its open pages close first, for good, saying why; the client takes a 4000s close code as final.
-  async destroy(reason = 'This launch was deleted.') {
+  async destroy(reason = LAUNCH_DELETED) {
     for (const connection of this.getConnections()) connection.close(4410, reason)
     await super.destroy()
   }

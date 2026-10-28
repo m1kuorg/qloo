@@ -830,8 +830,9 @@ export async function networkName(db: D1Database, networkId: string) {
 }
 
 // An agent instance to wipe (`destroy`) once the directory or its network has let go of it: its
-// binding, such as LaunchAgent, and its name.
-export type Instance = { binding: string; name: string }
+// binding, such as LaunchAgent, its name, and why it's going, which its open pages are told as its wipe
+// closes them (migration 0011), or null.
+export type Instance = { binding: string; name: string; reason?: string | null }
 
 // Deletes network `networkId` when member `by` is one of its owners, and notes a wipe for each of its
 // agent instances, `instances`, in the same batch, so none is left unnoted. Its memberships, invites,
@@ -842,10 +843,10 @@ export async function dropNetwork(db: D1Database, networkId: string, by: string,
   const now = Date.now()
   const results = await db.batch([
     // Noted before the network goes, while the owner's membership is still there to check.
-    ...instances.map(({ binding, name }) =>
+    ...instances.map(({ binding, name, reason }) =>
       db
-        .prepare(`INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?3, ?4, ?5 WHERE ${owner}`)
-        .bind(networkId, by, binding, name, now)
+        .prepare(`INSERT OR IGNORE INTO wipes (binding, name, created, reason) SELECT ?3, ?4, ?5, ?6 WHERE ${owner}`)
+        .bind(networkId, by, binding, name, now, reason ?? null)
     ),
     db.prepare(`DELETE FROM networks WHERE id = ?1 AND ${owner}`).bind(networkId, by)
   ])
@@ -880,19 +881,30 @@ export async function sampleLaunchRows(db: D1Database) {
   return results
 }
 
-// The note of a wipe of `instance` at time `now`, kept as it was if it's noted already.
-const noting = (db: D1Database, { binding, name }: Instance, now: number) =>
-  db.prepare('INSERT OR IGNORE INTO wipes (binding, name, created) VALUES (?, ?, ?)').bind(binding, name, now)
+// The note of a wipe of `instance` at time `now`, with its reason, kept as it was if it's noted already.
+const noting = (db: D1Database, { binding, name, reason }: Instance, now: number) =>
+  db
+    .prepare('INSERT OR IGNORE INTO wipes (binding, name, created, reason) VALUES (?, ?, ?, ?)')
+    .bind(binding, name, now, reason ?? null)
 
 export async function wipeDone(db: D1Database, binding: string, name: string) {
   await db.prepare('DELETE FROM wipes WHERE binding = ? AND name = ?').bind(binding, name).run()
+}
+
+// The reason the wipe of `binding`'s instance `name` was noted with, or null when it was noted with none, or
+// isn't noted.
+export async function wipeReason(db: D1Database, binding: string, name: string) {
+  return db
+    .prepare('SELECT reason FROM wipes WHERE binding = ? AND name = ?')
+    .bind(binding, name)
+    .first<string>('reason')
 }
 
 // The first `limit` wipes noted before `before` (epoch ms) and not yet done, oldest first, and of those
 // noted together, a launch's before its network's own Qloo gateway instance's, as the binding's name sorts.
 export async function wipesDue(db: D1Database, before: number, limit: number) {
   const { results } = await db
-    .prepare('SELECT binding, name FROM wipes WHERE created < ? ORDER BY created, binding, name LIMIT ?')
+    .prepare('SELECT binding, name, reason FROM wipes WHERE created < ? ORDER BY created, binding, name LIMIT ?')
     .bind(before, limit)
     .all<Instance>()
   return results
@@ -979,13 +991,14 @@ export async function clearGuestMember(db: D1Database, deleting: { id: string; i
   const network = (sql: string, id: string, ...values: unknown[]) => db.prepare(sql).bind(id, GUEST_MEMBER, ...values)
   const deleted = deleting.flatMap(({ id, instances }) => [
     // Noted before the network goes, while the guest member's membership is still there to check.
-    ...instances.map(({ binding, name }) =>
+    ...instances.map(({ binding, name, reason }) =>
       network(
-        `INSERT OR IGNORE INTO wipes (binding, name, created) SELECT ?3, ?4, ?5 WHERE ${onlyOwner}`,
+        `INSERT OR IGNORE INTO wipes (binding, name, created, reason) SELECT ?3, ?4, ?5, ?6 WHERE ${onlyOwner}`,
         id,
         binding,
         name,
-        now
+        now,
+        reason ?? null
       )
     ),
     network(`DELETE FROM networks WHERE id = ?1 AND ${onlyOwner} RETURNING id`, id)
