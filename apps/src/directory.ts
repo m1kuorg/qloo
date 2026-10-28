@@ -241,35 +241,24 @@ export async function restoreGuestOwner(db: D1Database) {
 // The guest network's row and the guest member's, each made again if it's gone, and the guest member's
 // membership of the guest network made an owner's, none of them written where it's so already. With
 // `signedIn`, a guest sign-in's session's token hash, only where that session was written.
-const intoGuestNetwork = (db: D1Database, now: number, signedIn?: string) => {
-  // A statement whose last parameter, after `values`, is the session's token hash, when there is one.
-  const statement = (sql: (where: string) => string, ...values: unknown[]) =>
-    signedIn
-      ? db.prepare(sql(`WHERE ${sessionWritten(values.length + 1)}`)).bind(...values, signedIn)
-      : db.prepare(sql('WHERE true')).bind(...values)
+const intoGuestNetwork = (db: D1Database, now: number, signedIn: string | null = null) => {
+  // Each statement's ?1 is `signedIn`. The WHERE also keeps SQLite from reading the upsert's ON as the
+  // SELECT's join.
+  const where = `WHERE ?1 IS NULL OR ${sessionWritten(1)}`
   return [
-    statement(
-      (where) => `INSERT OR IGNORE INTO networks (id, name, created_by, created) SELECT ?1, ?2, NULL, ?3 ${where}`,
-      GUEST_NETWORK,
-      GUEST_NETWORK_NAME,
-      now
-    ),
-    statement(
-      (where) =>
-        `INSERT OR IGNORE INTO members (id, name, recovery_code_hash, created, guest) SELECT ?1, ?2, ?3, ?4, 1 ${where}`,
-      GUEST_MEMBER,
-      GUEST_MEMBER_NAME,
-      GUEST_RECOVERY_HASH,
-      now
-    ),
-    // A WHERE, `true` at least, keeps SQLite from reading the upsert's ON as the SELECT's join.
-    statement(
-      (where) =>
-        `INSERT INTO memberships (network_id, member_id, role, joined, last_opened) SELECT ?1, ?2, 'owner', ?3, NULL ${where} ON CONFLICT (network_id, member_id) DO UPDATE SET role = 'owner' WHERE role != 'owner'`,
-      GUEST_NETWORK,
-      GUEST_MEMBER,
-      now
-    )
+    db
+      .prepare(`INSERT OR IGNORE INTO networks (id, name, created_by, created) SELECT ?2, ?3, NULL, ?4 ${where}`)
+      .bind(signedIn, GUEST_NETWORK, GUEST_NETWORK_NAME, now),
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO members (id, name, recovery_code_hash, created, guest) SELECT ?2, ?3, ?4, ?5, 1 ${where}`
+      )
+      .bind(signedIn, GUEST_MEMBER, GUEST_MEMBER_NAME, GUEST_RECOVERY_HASH, now),
+    db
+      .prepare(
+        `INSERT INTO memberships (network_id, member_id, role, joined, last_opened) SELECT ?2, ?3, 'owner', ?4, NULL ${where} ON CONFLICT (network_id, member_id) DO UPDATE SET role = 'owner' WHERE role != 'owner'`
+      )
+      .bind(signedIn, GUEST_NETWORK, GUEST_MEMBER, now)
   ]
 }
 
