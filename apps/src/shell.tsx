@@ -258,9 +258,9 @@ const Switcher = ({ networks, network }: { networks: Network[]; network?: Networ
 )
 
 // The guest notice, under the app's top bar on every page for a guest (ADR 0008): they're signed in as the
-// one guest account every guest shares, every guest works in the guest network and the networks guests
-// create together, which are cleared daily, and all guests share one set of daily limits. "Sign out and
-// create an account" is the account menu's Sign out (main.tsx), which opens the sign-in page.
+// guest member every guest shares, every guest works in the guest network and the networks guests create
+// together, which are cleared daily, and all guests share one set of daily limits. "Sign out and create an
+// account" signs out as the account menu's Sign out does (main.tsx), then opens the sign-in page.
 const GuestNotice = () => (
   <aside
     aria-label="Guest notice"

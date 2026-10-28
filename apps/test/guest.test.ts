@@ -220,7 +220,7 @@ describe('signing in as a guest', () => {
   })
 })
 
-describe('what no guest can change: the one guest account every guest shares', () => {
+describe('what no guest can change: the guest member every guest shares', () => {
   const SHARED = {
     error:
       'Everyone who signs in as a guest shares one guest account, so no guest can change it for the others. Sign out and create an account to do this.'

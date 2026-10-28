@@ -492,7 +492,7 @@ describe('settings', () => {
     expect(theirs).not.toContain('Delete network')
   })
 
-  it('show a guest the guest network’s settings as an owner’s, with nothing to change of the guest account’s own membership', async () => {
+  it('show a guest the guest network’s settings as an owner’s, with nothing to change of the guest member’s own membership', async () => {
     const guest = await openGuest()
     const id = 'guest-network'
     const invited = await guest.fetch(`/app/${id}/settings/members/invites`, { method: 'POST' })
@@ -517,7 +517,7 @@ describe('settings', () => {
     expect(read).toContain('Type Guest network to delete it Delete network')
     expect(read).not.toContain('Only an owner')
 
-    // A co-owner with an account can change the guest account's role, or remove it.
+    // A co-owner with an account can change the guest member's role, or remove it.
     const theirs = words(await settings(dot, id, await (await connect(dot, id)).until(() => true)))
     expect(theirs).toMatch(
       /Guest Owner \w{3} \d{1,2} Make member Remove Dot Pruitt You Owner \w{3} \d{1,2} Make member Leave/
@@ -525,7 +525,7 @@ describe('settings', () => {
     expect(theirs).not.toContain('Every guest shares a key')
   })
 
-  it('keep the guest account the guest network’s owner while it’s the only one', async () => {
+  it('keep the guest member the guest network’s owner while it’s the only one', async () => {
     const guest = await openGuest()
     const html = await settings(guest, 'guest-network', await (await connect(guest, 'guest-network')).until(() => true))
     expect(words(html)).toMatch(/Guest You Owner \w{3} \d{1,2} You’re signed in as Guest/)

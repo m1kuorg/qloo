@@ -21,7 +21,7 @@ type KeyChange = { key: OwnKey; usage: Usage }
 // for and pastes it; the gateway tests it with one search before it keeps it, and from then on it shows
 // only its last four characters, with a way to remove it, back to Crossfeed's shared key, once the
 // owner confirms. A member sees whether the network has one, not which. A guest, an owner as the guest
-// account every guest shares (ADR 0008), is told every guest shares the key.
+// member every guest is signed in as (ADR 0008), is told every guest shares the key.
 export function QlooKeyModule({
   network,
   qlooKey,

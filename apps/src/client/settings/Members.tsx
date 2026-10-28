@@ -13,8 +13,8 @@ import { cell, head, Module } from './Module'
 // The settings' members module: who's in the network, with their role and when they joined, and, for an
 // owner, its invite links. An owner changes roles, removes members, and makes and revokes links; any
 // member can leave. No change may leave the network without an owner: the Worker refuses one, and the
-// module doesn't offer it. Nor does it offer a guest, signed in as the guest account every guest shares, a
-// change to that account's own membership, which the Worker refuses too (ADR 0008). `invites` is null for a
+// module doesn't offer it. Nor does it offer a guest, signed in as the guest member every guest shares, a
+// change to that member's own membership, which the Worker refuses too (ADR 0008). `invites` is null for a
 // member, who doesn't see them. Removing, leaving, revoking, and making an owner a member, which revokes
 // their keys and links, each confirm first.
 export function MembersModule({

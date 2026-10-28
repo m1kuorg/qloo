@@ -78,7 +78,7 @@ export function SignInPage({ next, runs, guestRefused }: { next: string; runs: n
 }
 
 // Signing in as a guest (ADR 0008), with no passkey, so it stays open in a browser without passkeys: one
-// click to the one guest account every guest shares, an owner of the guest network, then on to where the
+// click to the guest member every guest is signed in as, an owner of the guest network, then on to where the
 // answer says, `next` under the sign-in's rules. The public pages' guest buttons send a refused visitor
 // here (#guest), with why, `refused`, which shows until they try again.
 function GuestSignIn({ next, runs, refused }: { next: string; runs: number; refused: string | null }) {
@@ -323,7 +323,7 @@ type InviteAnswer = { network: string; clearedDaily: boolean } | { error: string
 
 // The invite page: the link's token is in the address's fragment, which the browser never sends, so
 // the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in, and
-// `guestMember` whether it's the guest account every guest shares.
+// `guestMember` whether it's the guest member every guest is signed in as.
 export function InvitePage({ memberName, guestMember = false }: { memberName: string | null; guestMember?: boolean }) {
   const [token] = useState(() => window.location.hash.slice(1))
   const [invite, setInvite] = useState<InviteAnswer | null>(null)
@@ -431,8 +431,8 @@ export function Invite({
   )
 }
 
-// A guest can't join: the guest account every guest shares joins no network, so they sign out, and the
-// page opens on the invite again, to create an account and join with it.
+// A guest can't join: the guest member, every guest's, joins no network, so they sign out, and the page
+// opens on the invite again, to create an account and join with it.
 function GuestCantJoin({ network }: { network: string }) {
   return (
     <section className={panel} aria-label={`Join ${network}`}>
