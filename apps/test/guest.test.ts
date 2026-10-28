@@ -279,6 +279,31 @@ describe('what no guest can change: the one guest account every guest shares', (
     }
     expect(await guestMembers(guest)).toMatchObject([{ id: 'guest-member', role: 'owner' }])
   })
+
+  it('refuses removing itself or changing its own role with the same reason once a co-owner with an account has made it a member', async () => {
+    const guest = await openGuest()
+    const members = '/app/guest-network/settings/members'
+    const dot = await openMember({
+      name: 'Dot Pruitt',
+      invite: (await (await post(guest, `${members}/invites`)).json<{ link: string }>()).link
+    })
+    expect((await post(guest, `${members}/${dot.id}/role`, { role: 'owner' })).status).toBe(200)
+    expect((await post(dot as unknown as Guest, `${members}/guest-member/role`, { role: 'member' })).status).toBe(200)
+    for (const [path, body] of [
+      [`${members}/leave`, {}],
+      [`${members}/guest-member/remove`, {}],
+      [`${members}/guest-member/role`, { role: 'owner' }]
+    ] as const)
+      expect(await refusal(await post(guest, path, body)), path).toEqual([403, SHARED])
+    // Another member's membership is an owner's to change, and a network it isn't in is a 404.
+    expect(await refusal(await post(guest, `${members}/${dot.id}/remove`))).toEqual([
+      403,
+      { error: 'Only an owner can invite and manage members.' }
+    ])
+    expect(
+      (await post(guest, '/app/no-such-network/settings/members/guest-member/role', { role: 'owner' })).status
+    ).toBe(404)
+  })
 })
 
 describe('what a guest can change, as an owner', () => {

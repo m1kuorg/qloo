@@ -369,9 +369,13 @@ async function refuseNonOwner(c: Context<AppEnv>, id: string, ownersOnly = OWNER
   return role === 'owner' ? null : role ? c.json({ error: ownersOnly }, 403) : c.notFound()
 }
 
-// The 403 for a guest changing its own membership, which is every guest's (guestRefused); null otherwise.
-const refuseOwnGuest = (c: Context<AppEnv>) =>
-  c.req.param('memberId') === c.var.member.id ? guestRefused(c, c.var.member) : null
+// The answer to a change to member `:memberId`'s membership of network `id`, as refuseNonOwner gives it,
+// but for a guest's own, which is every guest's: in a network it's in, whatever its role there, as once a
+// co-owner has made it a member, the 403 that says why (guestRefused).
+async function refuseMembershipChange(c: Context<AppEnv>, id: string) {
+  if (c.req.param('memberId') !== c.var.member.id || !isGuestMember(c.var.member)) return refuseNonOwner(c, id)
+  return (await memberRole(c.env.DB, id, c.var.member.id)) ? guestRefused(c, c.var.member) : c.notFound()
+}
 
 // The answer to a change that would leave the network with no owner.
 const refuseLastOwner = (c: Context<AppEnv>) =>
@@ -417,7 +421,7 @@ appPages.post('/app/:networkId/settings/members/invites/:inviteId/revoke', async
 // guest can't change its own role, which is every guest's (ADR 0008).
 appPages.post('/app/:networkId/settings/members/:memberId/role', async (c) => {
   const id = c.req.param('networkId')
-  const refused = (await refuseNonOwner(c, id)) ?? refuseOwnGuest(c)
+  const refused = await refuseMembershipChange(c, id)
   if (refused) return refused
   const { role: to } = await jsonBody(c)
   if (to !== 'owner' && to !== 'member') return c.json({ error: 'A member is an owner or a member.' }, 400)
@@ -432,7 +436,7 @@ appPages.post('/app/:networkId/settings/members/:memberId/role', async (c) => {
 // would remove every guest (ADR 0008).
 appPages.post('/app/:networkId/settings/members/:memberId/remove', async (c) => {
   const id = c.req.param('networkId')
-  const refused = (await refuseNonOwner(c, id)) ?? refuseOwnGuest(c)
+  const refused = await refuseMembershipChange(c, id)
   if (refused) return refused
   const memberId = c.req.param('memberId')
   if (!(await memberRole(c.env.DB, id, memberId))) return c.notFound()
