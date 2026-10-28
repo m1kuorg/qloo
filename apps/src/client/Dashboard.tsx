@@ -39,8 +39,8 @@ import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { OnAir } from './Frame'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
-import { PageEmpty, PageHeader, summaryLine } from './PageHeader'
-import { connectionOf, endedBadly, isLive, stateLabel, StateLine, type Connection } from './states'
+import { count, listCounts, PageEmpty, PageHeader, summaryLine } from './PageHeader'
+import { connectionOf, endedBadly, isLive, pitchTally, StateLine, type Connection } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
 // invited or has joined, and whether an API key was ever created.
@@ -149,8 +149,8 @@ function countsLine(launches: LaunchSummary[]) {
   const needs = launches.filter((l) => GROUPS[0].statuses.includes(l.status)).length
   const running = launches.filter((l) => l.status === 'running').length
   return summaryLine(count(launches.length, 'launch', 'launches'), [
-    needs > 0 && `${needs} ${needs === 1 ? 'needs' : 'need'} you`,
-    running > 0 && `${running} running`
+    [needs, 'needs you', 'need you'],
+    [running, 'running']
   ])
 }
 
@@ -508,7 +508,7 @@ function rosterLine(roster: Show[]) {
   const n = (...of: Show['resolution'][]) => roster.filter((s) => of.includes(s.resolution)).length
   const pending = n('pending')
   if (pending) return `Looking up ${pending} of ${count(roster.length, 'show')} in Qloo…`
-  return `${count(roster.length, 'show')}: ${parts([
+  return `${count(roster.length, 'show')}: ${listCounts([
     [n('resolved', 'mapped'), 'matched'],
     [n('ambiguous'), 'to settle'],
     [n('missed'), 'not in Qloo'],
@@ -522,8 +522,8 @@ function inboxLine(inbox: Inbox | null) {
   if (!inbox || inbox.pitches.length === 0) return 'No pitches loaded'
   const { pitches } = inbox
   if (inbox.status === 'reading') return `Reading ${count(pitches.length, 'pitch', 'pitches')}…`
-  const n = (label: string) => pitches.filter((p) => stateLabel(p) === label).length
-  return `${count(pitches.length, 'pitch', 'pitches')}: ${parts([
+  const n = pitchTally(pitches)
+  return `${count(pitches.length, 'pitch', 'pitches')}: ${listCounts([
     [n('Matched'), 'matched'],
     [n('Ambiguous'), 'to confirm'],
     [n('Not in Qloo'), 'not in Qloo'],
@@ -533,14 +533,6 @@ function inboxLine(inbox: Inbox | null) {
     [n('Failed'), 'failed']
   ])}`
 }
-
-const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
-// The counts that aren't 0, as a list: "16 matched, 1 to settle".
-const parts = (counts: [number, string, string?][]) =>
-  counts
-    .filter(([n]) => n > 0)
-    .map(([n, one, many = one]) => `${n} ${n === 1 ? one : many}`)
-    .join(', ')
 
 // What a new network needs, ticked off from its agent's state and the directory as each arrives, as
 // a numbered list. A member can dismiss it for themselves; it stays for everyone else.

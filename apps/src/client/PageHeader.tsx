@@ -55,10 +55,22 @@ export function PageHeader({
   )
 }
 
-// A page's summary, in the one form every header counts in: the total, then what it's made of, the
-// counts that aren't 0, as "19 shows · 16 resolved, 1 ambiguous, 2 missed".
-export const summaryLine = (total: string, parts: (string | false)[]) =>
-  [total, parts.filter(Boolean).join(', ')].filter(Boolean).join(' · ')
+// A number of things in words: "1 launch", "1,204 shows".
+export const count = (n: number, one: string, many = `${one}s`) =>
+  `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
+
+// Counts in a page's own words, each its number, its word for one, and its word for more where that
+// differs; those that aren't 0 as a list, as "16 matched, 1 to settle".
+export type Counts = [n: number, one: string, many?: string][]
+export const listCounts = (counts: Counts) =>
+  counts
+    .filter(([n]) => n > 0)
+    .map(([n, one, many = one]) => count(n, one, many))
+    .join(', ')
+
+// A page's summary, in the one form every header counts in: the total, then what it's made of, as
+// "19 shows · 16 resolved, 1 ambiguous, 2 missed".
+export const summaryLine = (total: string, counts: Counts) => [total, listCounts(counts)].filter(Boolean).join(' · ')
 
 // What a page shows in place of its body while it has nothing yet: one short line saying what's
 // missing, in the empty state's words, and the page's one primary action, which brings in the first.
