@@ -488,7 +488,7 @@ describe('the app, as a guest sees it', () => {
     return renderToStaticMarkup(
       createElement(Invite, {
         token,
-        invite: await answer.json<{ network: string; guestOwned: boolean } | { error: string }>(),
+        invite: await answer.json<{ network: string; clearedDaily: boolean } | { error: string }>(),
         memberName: attributes.match(/data-member-name="([^"]*)"/)?.[1] ?? null,
         guestMember: attributes.includes('data-guest-member="true"')
       })
@@ -528,13 +528,26 @@ describe('the app, as a guest sees it', () => {
     expect(words(await invitePage(ada, await link(id)))).toContain(`Join Night Shift Audio You’re invited to`)
     expect(words(await invitePage(ada, await link(id)))).toContain(CLEARED)
     expect(words(await invitePage(signedOut, await link(id)))).toContain(CLEARED)
-    // The guest network itself stays.
-    expect(words(await invitePage(ada, await link('guest-network')))).not.toContain('cleared')
 
-    // Once a member with an account owns it too, it stays as well.
+    // Once a member with an account owns it too, it stays.
     const dot = await openMember({ name: 'Dot Pruitt', invite: await link(id) })
     expect((await post(guest, `/app/${id}/settings/members/${dot.id}/role`, { role: 'owner' })).status).toBe(200)
     expect(words(await invitePage(ada, await link(id)))).not.toContain('cleared')
+  })
+
+  it('tells whoever opens an invite to the guest network that it’s cleared every day, whoever else owns it', async () => {
+    const guest = await openGuest()
+    const link = async () =>
+      (await (await post(guest, '/app/guest-network/settings/members/invites')).json<{ link: string }>()).link
+    const ada = await openMember()
+    const cleared =
+      'Guest network belongs to the guest account every guest shares, so it’s cleared, with everything in it, every day at 12:00 UTC.'
+    expect(words(await invitePage(ada, await link()))).toContain(cleared)
+    const dot = await openMember({ name: 'Dot Pruitt', invite: await link() })
+    expect((await post(guest, `/app/guest-network/settings/members/${dot.id}/role`, { role: 'owner' })).status).toBe(
+      200
+    )
+    expect(words(await invitePage(ada, await link()))).toContain(cleared)
   })
 })
 

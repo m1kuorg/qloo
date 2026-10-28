@@ -317,9 +317,9 @@ function CreateAccount({
   )
 }
 
-// What `/auth/invite` answers for an invite link: the network it's for, and whether only guests own it,
-// so the daily clearing deletes it (ADR 0008); or why it can't be used.
-type InviteAnswer = { network: string; guestOwned: boolean } | { error: string }
+// What `/auth/invite` answers for an invite link: the network it's for, and whether the daily clearing
+// clears it, as the guest network or one only guests own (ADR 0008); or why it can't be used.
+type InviteAnswer = { network: string; clearedDaily: boolean } | { error: string }
 
 // The invite page: the link's token is in the address's fragment, which the browser never sends, so
 // the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in, and
@@ -334,7 +334,7 @@ export function InvitePage({ memberName, guestMember = false }: { memberName: st
     return () => window.removeEventListener('hashchange', reload)
   }, [])
   useEffect(() => {
-    send<{ network: string; guestOwned: boolean }>('/auth/invite', { token }).then(
+    send<{ network: string; clearedDaily: boolean }>('/auth/invite', { token }).then(
       (open) => {
         document.title = `Join ${open.network} · Crossfeed`
         setInvite(open)
@@ -346,9 +346,9 @@ export function InvitePage({ memberName, guestMember = false }: { memberName: st
 }
 
 // The invite page for the link's `token`, once `/auth/invite` has answered (`invite`, null until then):
-// it names the network, says when the daily clearing deletes it, as one only guests own, then lets a
-// signed-in member join, or anyone else create an account or sign in, and join in the same step. A guest
-// (`guestMember`) is told to sign out and create an account to join (ADR 0008).
+// it names the network, says when the daily clearing clears it, as the guest network or one only guests
+// own, then lets a signed-in member join, or anyone else create an account or sign in, and join in the same
+// step. A guest (`guestMember`) is told to sign out and create an account to join (ADR 0008).
 export function Invite({
   token,
   invite,
@@ -397,7 +397,7 @@ export function Invite({
           You’re invited to {invite.network} on Crossfeed, as a member: you’ll work on its roster, launches, and inbox
           with its other members. The link works once.
         </p>
-        {invite.guestOwned && (
+        {invite.clearedDaily && (
           <p className="max-w-[48ch] type-body">
             {invite.network} belongs to the guest account every guest shares, so it’s cleared, with everything in it,
             every day at {GUEST_NETWORK_CLEARS}.
