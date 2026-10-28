@@ -1,6 +1,5 @@
-// A network's roster: its own page, kept by the network's agent, imported from a file, pasted names,
-// or the sample roster, kept across re-imports, shared live by its members, and counted against the
-// limits as the network. Each test drives a network through the Worker's routes, its agent's client
+// A network's roster: its own page, kept by the network's agent, imported from a file or pasted names,
+// kept across re-imports, shared live by its members, and counted against the limits as the network. Each test drives a network through the Worker's routes, its agent's client
 // protocol, or the Worker's own RPC to the agent, as the API will call it.
 import { getAgentByName } from 'agents'
 import { env } from 'cloudflare:workers'
@@ -37,7 +36,8 @@ const open: Omit<Session, 'cookie'>[] = []
 const saved = {
   QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP,
   RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
-  GUEST_PITCHES: env.GUEST_PITCHES
+  GUEST_PITCHES: env.GUEST_PITCHES,
+  SAMPLE_NETWORK: env.SAMPLE_NETWORK
 }
 afterEach(() => {
   Object.assign(env, saved)
@@ -102,51 +102,15 @@ describe("a network's agent", () => {
   })
 })
 
-describe('starting from the sample roster', () => {
-  it("imports the sample network's shows, each figure labelled sample, and leaves the CPM to the network", async () => {
-    // Made-up matches for two of the sample's public show names; the rest find nothing.
-    fakeQloo({
-      search: {
-        'The Watch': [{ entity_id: 'p-0601', name: 'The Watch', popularity: 0.5 }],
-        'House of R': [{ entity_id: 'p-0602', name: 'House of R', popularity: 0.5 }]
-      }
-    })
-    const ada = await openMember()
-    const network = await created(ada)
-    const agent = await connect(ada, network)
-    await agent.call('startFromSample')
-    const state = await agent.until((s) => s.roster.length > 0 && settled(s))
-
-    expect(state.roster.map((r) => [r.name, r.downloads, r.status, r.description, r.sample])).toEqual(
-      sample.shows.map((r) => [
-        r.name,
-        r.downloadsPerEpisode.value,
-        r.status.value,
-        r.description.value,
-        ['downloads', 'status', 'description']
-      ])
-    )
-    expect(state.roster.filter((r) => r.resolution === 'resolved').map((r) => r.name)).toEqual([
-      'The Watch',
-      'House of R'
-    ])
-    expect(requests).toHaveLength(19)
-    // The sample's not-affiliated notice goes with its show names; its CPM doesn't.
-    expect(state.sample).toMatchObject({ network: 'The Ringer', notice: sample.notice, cpm: false })
-    expect(state.cpm).toBeNull()
-  })
-
-  it('is refused over a roster that has shows, which stays as it is', async () => {
+describe('the sample roster', () => {
+  it("isn't a network's to start from: only the guest network loads it, and its agent offers no way to", async () => {
     fakeQloo({ search })
     const ada = await openMember()
     const network = await created(ada)
     const agent = await connect(ada, network)
-    await agent.importRoster('Deep Cuts')
-    await expect(agent.call('startFromSample')).rejects.toThrow(
-      'The roster already has shows. Start from the sample roster only while it has none, or import over it.'
-    )
-    expect(agent.state()!.roster.map((r) => r.name)).toEqual(['Deep Cuts'])
-    expect(requests).toHaveLength(1)
+    await expect(agent.call('startFromSample')).rejects.toThrow('startFromSample')
+    expect(agent.state()).toMatchObject({ roster: [], sample: null })
+    expect(requests).toEqual([])
   })
 })
 
@@ -297,10 +261,8 @@ describe('re-importing the roster', () => {
 
   it("takes the sample labels off the figures the file brings, and the sample's notice once none is left", async () => {
     fakeQloo({ search: {} })
-    const ada = await openMember()
-    const network = await created(ada)
-    const agent = await connect(ada, network)
-    await agent.call('startFromSample')
+    env.SAMPLE_NETWORK = 'on'
+    const agent = await connect(await openGuest(), 'guest-network')
     await agent.until((s) => s.roster.length > 0 && settled(s))
 
     await agent.importRoster('name,downloads\nThe Watch,41000\nHouse of R,', 'csv')
@@ -509,7 +471,7 @@ describe("the roster page's words", () => {
     expect(new Set(named).size).toBe(named.length)
   })
 
-  it('offers an empty network three ways in, and nothing a launch does', async () => {
+  it('offers an empty network two ways in, and nothing a launch does', async () => {
     const ada = await openMember()
     const network = await created(ada)
     const read = page((await connect(ada, network)).state(), network)
@@ -522,11 +484,9 @@ describe("the roster page's words", () => {
     expect(read).toContain(
       'Drop a file anywhere on the page, or upload one: a CSV needs a name column, and downloads , status , and description are optional; a text file has one show name per line.'
     )
-    // The sample roster is the last way in; with no shows, there's nothing to cite or count yet.
-    expect(read).toMatch(
-      /Start from the sample roster The Ringer’s 19 public show names, with made-up figures labelled sample, to try Crossfeed before your own\.$/
-    )
+    // With no shows, there's nothing to cite or count yet, and the sample roster isn't a way in.
     for (const elsewhere of [
+      'Start from the sample roster',
       'Start run',
       'Launch ·',
       'Guide',
@@ -564,23 +524,13 @@ describe("the roster page's words", () => {
     )
   })
 
-  it('labels a roster started from the sample, and shows a member the CPM an owner set', async () => {
+  it("labels the guest network's sample roster figure by figure, under no notice", async () => {
     fakeQloo({ search: {} })
-    const ada = await openMember()
-    const network = await created(ada)
-    await ada.fetch(`/app/${network}/settings/network`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Night Shift Audio', cpm: 20 })
-    })
-    const grace = await teammate(ada, network)
-    const agent = await connect(grace, network)
-    await agent.call('startFromSample')
+    env.SAMPLE_NETWORK = 'on'
+    const network = 'guest-network'
+    const agent = await connect(await openGuest(), network)
     const state = await agent.until((s) => s.roster.length > 0 && settled(s))
     const read = page(state, network, 'member')
-    expect(read).toContain(
-      'Sample roster. The Ringer’s public show names, with downloads, statuses, and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn’t affiliated with The Ringer. Import your own roster over it; shows on both keep their matches.'
-    )
     // One sample label a row, beside the show's name, however many of its figures are the sample's. It's
     // hidden from screen readers, as the row's header is read out before each of its cells, so they
     // hear "sample" after each sample figure instead.
@@ -610,11 +560,13 @@ describe("the roster page's words", () => {
     const watch = editor(state, 'The Watch')
     expect(watch).toContain('Sample: Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
     expect(watch).toContain('Downloads per episode sample Status sample Save')
-    // The title row: whether it's ready to rank, the CPM an owner set, and the import, now in a sheet.
+    // The title row: whether it's ready to rank, the sample CPM, and the import, now in a sheet, then the
+    // table, with no notice between them.
     expect(read).toMatch(
-      /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. 19 shows: 19 missed 19 shows aren’t scored until you settle or leave them out\. CPM \$20 per 1,000 downloads · An owner sets it in settings\. Import shows Sample roster\. /
+      /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. 19 shows: 19 missed 19 shows aren’t scored until you settle or leave them out\. CPM \$20 per 1,000 downloads sample · An owner sets it in settings\. Import shows Qloo data Matches from Qloo search, one call per show\. /
     )
-    expect(read).not.toContain('Start from the sample roster')
+    for (const gone of ['Sample roster', 'Crossfeed isn’t affiliated', 'Start from the sample roster'])
+      expect(read).not.toContain(gone)
     expect(read).not.toContain('in settings Set')
   })
 })

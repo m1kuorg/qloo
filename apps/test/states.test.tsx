@@ -90,7 +90,7 @@ describe('an empty workspace', () => {
     const roster = page(s.state(), 'roster')
     expect(roster).toContain('ranks this roster, as it stands when its run starts. No roster yet.')
     expect(roster).toContain('Import shows Show names Import roster')
-    expect(roster).toContain('Start from the sample roster')
+    expect(roster).not.toContain('Start from the sample roster')
   })
 
   it('asks for the launch once a roster is in', async () => {
