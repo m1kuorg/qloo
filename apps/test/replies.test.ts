@@ -635,6 +635,8 @@ describe('the booker clearing the inbox', () => {
       createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
 
+    // The readout says the run waits, and its Run log opens the inspector on the run's log.
+    expect(words(html)).toContain('Waiting on you Answer the agent’s question to go on. Run log')
     // Before the lists, so a single column reaches it first.
     expect(html.indexOf('Hold the film pitches for next season?')).toBeGreaterThan(-1)
     expect(html.indexOf('Hold the film pitches for next season?')).toBeLessThan(html.indexOf('id="lists-h"'))

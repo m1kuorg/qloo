@@ -303,8 +303,8 @@ const readout = 'flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg
 
 // The on-air readout (role="status"): the connection's state on a launch's page, whose title row
 // doesn't say it as the page header does on the inbox, then what the page's run or work is doing
-// (`children`); while a run is running, the time since `since`, outside the live region; and "Run log",
-// which opens the inspector on the Run tab.
+// (`children`); while a run is running, the time since `since`, outside the live region; and once
+// there's a run, "Run log" (`runLog`), which opens the inspector on the Run tab.
 export function Readout({
   connection,
   since,
@@ -313,7 +313,7 @@ export function Readout({
 }: {
   connection?: Connection
   since: string | null
-  runLog: (from: HTMLElement) => void
+  runLog: ((from: HTMLElement) => void) | null
   children: ReactNode
 }) {
   const elapsed = useElapsed(since)
@@ -336,9 +336,11 @@ export function Readout({
           ))}
         </span>
       )}
-      <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={(e) => runLog(e.currentTarget)}>
-        Run log
-      </Button>
+      {runLog && (
+        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={(e) => runLog(e.currentTarget)}>
+          Run log
+        </Button>
+      )}
     </div>
   )
 }

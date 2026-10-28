@@ -1441,12 +1441,11 @@ describe('the pages, as a member reads them', () => {
     const { agent } = await launch(ada, network, { name: 'The Night Watch' })
 
     // Before its first run: the launch it plans is ready to start, and the roster is the network's. The
-    // inspector is closed as the page opens, so the canvas takes the width: the title row's Details
-    // opens it, and the readout's Run log opens it on the run's log.
+    // inspector is closed as the page opens, so the canvas takes the width, and the title row's Details
+    // opens it. The readout has no Run log until there's a run to log.
     const before = workspace(network, agent)
-    expect(words(before)).toMatch(
-      /^The Night Watch Details Start run Not run yet\. A run looks it up in Qloo\. Run log /
-    )
+    expect(words(before)).toMatch(/^The Night Watch Details Start run Not run yet\. A run looks it up in Qloo\. /)
+    expect(words(before)).not.toContain('Run log')
     expect(before).toMatch(inspectorClosed)
     expect(before).toMatch(detailsToggle)
     expect(before).toMatch(/<input\b(?=[^>]*\saria-label="Released launch")(?=[^>]*\svalue="The Night Watch")/)
@@ -1465,8 +1464,9 @@ describe('the pages, as a member reads them', () => {
     await agent.until(ended)
     const after = workspace(network, agent)
     // The title row runs this launch again as it is, or opens the form, still planning it, to change it.
+    // The readout's Run log opens the inspector on the run's log.
     expect(words(after)).toMatch(
-      /^The Night Watch Qloo data The Night Watch popularity \S+ C-\d+ Details Change launch Run again Completed /
+      /^The Night Watch Qloo data The Night Watch popularity \S+ C-\d+ Details Change launch Run again Completed Run log /
     )
     const read = words(after)
     expect(read).toContain(

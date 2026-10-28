@@ -587,9 +587,9 @@ describe("the inbox page's words", () => {
     await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
     const read = inboxPage(await loaded(agent), network)
     // The header: the title, the pitches counted, the inspector's toggle, and Load pitches. The readout
-    // says the inbox is read, without counting it again, and opens the run's log, right before the show
-    // to rank against.
-    expect(read).toMatch(/^Inbox 1 pitch · 1 set aside Details Load pitches Read Run log Rank against a show /)
+    // says the inbox is read, without counting it again, right before the show to rank against; with no
+    // pitch run yet, it has no Run log.
+    expect(read).toMatch(/^Inbox 1 pitch · 1 set aside Details Load pitches Read Rank against a show /)
     // The inspector is closed as the page opens, so the canvas takes the width; Details opens it.
     expect(inboxMarkup(agent.state(), network)).toMatch(inspectorClosed)
     expect(inboxMarkup(agent.state(), network)).toMatch(detailsToggle)
