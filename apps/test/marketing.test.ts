@@ -303,10 +303,12 @@ describe('the privacy page and the beta terms', () => {
       'Deleting your account, on your account page, deletes your account with its name, passkeys, recovery code, sessions, and memberships at once. What you did in a network stays with it, but not your name: the launches of the networks you’re in, or were in before, say “Former member” on the runs you started and the orders you approved, and the replies you approved no longer say who did. The API keys and invite links you made are revoked at once too, as they are when an owner leaves a network, is removed, or is made a member. A network that can’t be reached at once forgets your name at the next hourly cleanup. It’s refused while you’re a network’s only owner. “Sign out everywhere” deletes every session of yours.'
     const perMinute = 'Each API key, and each visitor’s sign-in requests, are also limited per minute'
     const guest =
-      'Signing in as a guest asks for nothing. It makes a temporary account with a generated name, such as Guest 4F2A9C, and keeps a hash of its session, for a day, and the time of each guest sign-in, with nothing else, to count them. Adding a passkey keeps the account, as any member’s, with a recovery code. Every guest owns the one guest network together: everything in it, its roster, launches, runs, inbox, and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them deletes or replaces it, or until it’s cleared, every day at 12:00 UTC.'
+      'Signing in as a guest asks for nothing. Every guest is signed in as one account they all share, Guest, which has no passkey or recovery code; Crossfeed keeps a hash of each guest’s session, for a day, and the time of each guest sign-in, with nothing else, to count them. Everything guests make, in the guest network and in the networks guests create, such as rosters, launches, runs, inboxes, approvals, API keys, and invite links, is seen and changed by everyone who signs in as a guest, and stays until one of them deletes or replaces it, or until it’s cleared, every day at 12:00 UTC.'
     const guestCount = 'Guest sign-ins are counted for everyone together, with no address.'
     const guestGone =
-      'A guest account that no passkey keeps is removed a day after its sign-in, at the next hourly cleanup, with the networks only it owns, wiped as a deleted network is; the API keys and invite links it made are revoked.'
+      'Every day at 12:00 UTC the guest network is cleared, and so is what guests made beyond it: the networks only the guest account owns are deleted, and wiped as a deleted network is, the guest account leaves the networks it shares with members who have accounts, and the API keys and invite links it made are deleted. The guest accounts of their own that guest sign-ins made before go at the first of these clearings, with the networks only they own and the API keys and invite links they made.'
+    const guestTerms =
+      'Everyone who signs in as a guest shares one account, and so one set of these limits: the guest network and the networks guests create count as one visitor together, guests can create at most 2 networks a day between them, and guest sign-ins are limited for everyone together, to 30 a minute and 1,000 a UTC day.'
     const ownKey =
       'A network’s own Qloo key, if an owner adds one, is kept encrypted in the network’s own Qloo storage, with the host it’s for and its last four characters, the only part of it anyone is shown.'
     const ownKeySent =
@@ -328,7 +330,7 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).toContain(accountGone)
     for (const line of [ownKey, ownKeySent, keyGone, guest, guestCount, guestGone])
       expect(words(await page('/privacy'))).toContain(line)
-    for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).toContain(line)
+    for (const line of [ownKeyTerms, ownKeyLimits, guestTerms]) expect(words(await page('/terms'))).toContain(line)
     expect(words(await page('/terms'))).toContain(cap)
     expect(words(await page('/terms'))).toContain(network)
     expect(words(await page('/terms'))).toContain(perMinute)
@@ -341,7 +343,7 @@ describe('the privacy page and the beta terms', () => {
     expect(words(await page('/privacy'))).not.toContain(accountGone)
     for (const line of [ownKey, ownKeySent, keyGone, guest, guestCount, guestGone, counts])
       expect(words(await page('/privacy'))).not.toContain(line)
-    for (const line of [ownKeyTerms, ownKeyLimits]) expect(words(await page('/terms'))).not.toContain(line)
+    for (const line of [ownKeyTerms, ownKeyLimits, guestTerms]) expect(words(await page('/terms'))).not.toContain(line)
     expect(words(await page('/terms'))).not.toContain(cap)
     expect(words(await page('/terms'))).not.toContain(network)
     expect(words(await page('/terms'))).not.toContain(perMinute)

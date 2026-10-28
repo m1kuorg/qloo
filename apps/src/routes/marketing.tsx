@@ -1209,12 +1209,12 @@ function Privacy({ accounts }: { accounts: boolean }) {
                 also caches the answers to the network’s Qloo calls and counts them, apart from every other network’s.
               </p>
               <p>
-                Signing in as a guest asks for nothing. It makes a temporary account with a generated name, such as
-                Guest 4F2A9C, and keeps a hash of its session, for a day, and the time of each guest sign-in, with
-                nothing else, to count them. Adding a passkey keeps the account, as any member’s, with a recovery code.
-                Every guest owns the one guest network together: everything in it, its roster, launches, runs, inbox,
-                and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them
-                deletes or replaces it, or until it’s cleared, every day at {GUEST_NETWORK_CLEARS}.
+                Signing in as a guest asks for nothing. Every guest is signed in as one account they all share, Guest,
+                which has no passkey or recovery code; Crossfeed keeps a hash of each guest’s session, for a day, and
+                the time of each guest sign-in, with nothing else, to count them. Everything guests make, in the guest
+                network and in the networks guests create, such as rosters, launches, runs, inboxes, approvals, API
+                keys, and invite links, is seen and changed by everyone who signs in as a guest, and stays until one of
+                them deletes or replaces it, or until it’s cleared, every day at {GUEST_NETWORK_CLEARS}.
               </p>
             </li>
           )}
@@ -1297,9 +1297,11 @@ function Privacy({ accounts }: { accounts: boolean }) {
             </p>
             <p>&ldquo;Sign out everywhere&rdquo; deletes every session of yours.</p>
             <p>
-              A guest account that no passkey keeps is removed a day after its sign-in, at the next hourly cleanup, with
-              the networks only it owns, wiped as a deleted network is; the API keys and invite links it made are
-              revoked.
+              Every day at {GUEST_NETWORK_CLEARS} the guest network is cleared, and so is what guests made beyond it:
+              the networks only the guest account owns are deleted, and wiped as a deleted network is, the guest account
+              leaves the networks it shares with members who have accounts, and the API keys and invite links it made
+              are deleted. The guest accounts of their own that guest sign-ins made before go at the first of these
+              clearings, with the networks only they own and the API keys and invite links they made.
             </p>
           </>
         )}
@@ -1426,7 +1428,11 @@ function Terms({ env }: { env: Env }) {
             <>
               A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks, and a network can keep at most{' '}
               {cap(env.LAUNCHES_PER_NETWORK)} launches and {cap(env.INVITES_PER_NETWORK)} open invite links at once. One
-              member’s invite links can bring in at most {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC
+              member’s invite links can bring in at most {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC day.
+              Everyone who signs in as a guest shares one account, and so one set of these limits: the guest network and
+              the networks guests create count as one visitor together, guests can create at most{' '}
+              {cap(env.NETWORKS_PER_MEMBER)} networks a day between them, and guest sign-ins are limited for everyone
+              together, to {cap(env.GUEST_SIGNINS_PER_MINUTE)} a minute and {cap(env.GUEST_SIGNINS_PER_DAY)} a UTC
               day.{' '}
             </>
           )}
