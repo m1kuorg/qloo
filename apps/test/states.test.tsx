@@ -157,10 +157,10 @@ describe("the inbox's connection", () => {
     const read = await s.until((st) => st.inbox?.status === 'done')
 
     expect(page(read, 'inbox', { identified: false })).toMatch(
-      /^ Inbox 1 pitch · 1 matched Reconnecting… Load pitches Read Rank against /
+      /^ Inbox 1 pitch · 1 matched Reconnecting… Details Load pitches Read Run log Rank against /
     )
     expect(page(read, 'inbox', { connectionError: { code: 1008, reason: '' } })).toMatch(
-      /^ Inbox 1 pitch · 1 matched Error This page lost its connection\. Reload to try again\. Load pitches Read Rank /
+      /^ Inbox 1 pitch · 1 matched Error This page lost its connection\. Reload to try again\. Details Load pitches Read Run log Rank /
     )
   })
 })

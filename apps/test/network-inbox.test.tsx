@@ -162,8 +162,8 @@ describe('uploading pitch files', () => {
     const page = words(
       renderToStaticMarkup(<InboxWorkspace agent={{ state, stub: {} } as unknown as Agent} links={links} />)
     )
-    // The header: the page's title, its pitches counted, and Load pitches.
-    expect(page).toMatch(/^Inbox 3 pitches · 3 set aside Load pitches /)
+    // The header: the page's title, its pitches counted, the inspector's toggle, and Load pitches.
+    expect(page).toMatch(/^Inbox 3 pitches · 3 set aside Details Load pitches /)
   })
 
   it("reads an email's own charset, odd HTML, and an mbox's unescaped body lines without breaking an email", async () => {
@@ -514,16 +514,19 @@ const words = (html: string) =>
     .trim()
 // The inbox page as a member reads it, from the network agent's synced state and the server's links,
 // as NetworkInboxPage renders it.
-const inboxPage = (state: State | undefined, network: string) =>
-  words(
-    renderToStaticMarkup(
-      <InboxWorkspace
-        agent={{ state, stub: {} } as unknown as Agent}
-        links={{ roster: networkLinks(env, network).roster }}
-        network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
-      />
-    )
+const inboxMarkup = (state: State | undefined, network: string) =>
+  renderToStaticMarkup(
+    <InboxWorkspace
+      agent={{ state, stub: {} } as unknown as Agent}
+      links={{ roster: networkLinks(env, network).roster }}
+      network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
+    />
   )
+const inboxPage = (state: State | undefined, network: string) => words(inboxMarkup(state, network))
+// The inspector closed, its panels there for what opens it, and the header's toggle saying so.
+const inspectorClosed = /<aside\b(?=[^>]*\sid="inspector")(?=[^>]*\shidden="")/
+const detailsToggle =
+  /<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="inspector")[^>]*>Details<\/button>/
 
 describe("the inbox's members", () => {
   it("see the pitches another uploads as they're read, and the dashboard's inbox line with them", async () => {
@@ -567,12 +570,15 @@ describe("the inbox page's words", () => {
     const network = await created(ada)
     const agent = await connect(ada, network)
     // The header is the title alone, and the empty state says what's missing and what reaches Qloo of a
-    // pitch, with Load pitches, which opens the form in its sheet. Nothing says "Not loaded" too.
+    // pitch, with Load pitches, which opens the form in its sheet. Nothing says "Not loaded" too. The
+    // inspector is closed, with nothing to show yet, so the header has no toggle for it either.
     const empty = inboxPage(agent.state(), network)
     expect(empty).toMatch(
-      /^Inbox No pitches yet\. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are\. Load pitches Run Evidence /
+      /^Inbox No pitches yet\. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are\. Load pitches /
     )
     expect(empty).not.toContain('Not loaded')
+    expect(inboxMarkup(agent.state(), network)).toMatch(inspectorClosed)
+    expect(empty).not.toContain('Details')
     // The sheet's form takes pasted pitches or email files, and says what reaches Qloo.
     expect(
       words(renderToStaticMarkup(<InboxLoad loadInbox={async () => {}} reading={false} sample={false} wipes={false} />))
@@ -582,9 +588,13 @@ describe("the inbox page's words", () => {
 
     await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
     const read = inboxPage(await loaded(agent), network)
-    // The header: the title, the pitches counted, and Load pitches. The readout says the inbox is read,
-    // without counting it again, right before the show to rank against.
-    expect(read).toMatch(/^Inbox 1 pitch · 1 set aside Load pitches Read Rank against a show /)
+    // The header: the title, the pitches counted, the inspector's toggle, and Load pitches. The readout
+    // says the inbox is read, without counting it again, and opens the run's log, right before the show
+    // to rank against.
+    expect(read).toMatch(/^Inbox 1 pitch · 1 set aside Details Load pitches Read Run log Rank against a show /)
+    // The inspector is closed as the page opens, so the canvas takes the width; Details opens it.
+    expect(inboxMarkup(agent.state(), network)).toMatch(inspectorClosed)
+    expect(inboxMarkup(agent.state(), network)).toMatch(detailsToggle)
     // The privacy promise is by the pitches' table.
     expect(read).toContain(
       'Matches from Qloo search, one call per work. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'

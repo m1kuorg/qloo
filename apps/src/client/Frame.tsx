@@ -1,4 +1,5 @@
 import { cn } from 'cn'
+import { XIcon } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,18 +16,19 @@ import { ConnectionState, endedBadly, isLive, SlowCalls, StateLine, type Connect
 // beside an inspector, the on-air readout at the head of the canvas, and the connecting state, which
 // on the inbox, given its title, is its page header saying it.
 
-// From 1360px, the canvas beside the inspector, a 360px column on the card, sticky under the 48px top
-// bar for the window's height. At 1440 that's 56 (rail) + 24 (gutter) + 976 (canvas) + 24 (gap) + 360
-// (inspector) = 1440; at 1360, a 896px canvas. Under 1360 the inspector is a sheet and the canvas
-// takes the width, with 24px gutters from 1024px and 16px below. Blocks are 24px apart. 1360px is
-// written 85rem, so Tailwind orders it after lg's 64rem and the canvas's right gutter goes from it.
+// The inspector is closed as a page opens, so the canvas takes the width, with 24px gutters from
+// 1024px and 16px below; blocks are 24px apart. Open from 1360px, it's beside the canvas, a 360px
+// column on the card, sticky under the 48px top bar for the window's height: at 1440 that's 56 (rail)
+// + 24 (gutter) + 976 (canvas) + 24 (gutter) + 360 (inspector) = 1440, and at 1360, a 896px canvas.
+// Its column is as wide as it is, so closed (hidden) it takes none. Under 1360 it's a sheet over the
+// canvas. 1360px is written 85rem, so Tailwind orders it after lg's 64rem.
 const WIDE = '(min-width: 85rem)'
-export const frame = 'min-[85rem]:grid min-[85rem]:grid-cols-[minmax(0,1fr)_360px] min-[85rem]:gap-6'
-export const canvas = 'flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6 min-[85rem]:pr-0'
+export const frame = 'min-[85rem]:grid min-[85rem]:grid-cols-[minmax(0,1fr)_auto]'
+export const canvas = 'flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6'
 // Its own scroller, which keeps a scroll at its ends from moving the page, and keeps what Tab reaches
 // clear of its sticky tabs.
 const aside =
-  'sticky top-12 flex h-[calc(100svh-3rem)] scroll-pt-14 flex-col gap-4 self-start overflow-y-auto overscroll-contain bg-card p-4'
+  'sticky top-12 flex h-[calc(100svh-3rem)] w-90 scroll-pt-14 flex-col gap-4 self-start overflow-y-auto overscroll-contain bg-card p-4'
 
 // The inspector's tabs: the run's trace and history, a call's evidence, and the object selected on the
 // canvas, a show on the roster page or a pitch in the inbox.
@@ -34,40 +36,94 @@ export type InspectorTab = 'run' | 'evidence' | 'show' | 'pitch'
 const tabName: Record<InspectorTab, string> = { run: 'Run', evidence: 'Evidence', show: 'Show', pitch: 'Pitch' }
 
 // Which of `tabs` the inspector shows, falling back to the first, Run on a run page, when the one
-// asked for has gone (its show or pitch closed); whether it's beside the canvas or a sheet, and the
-// sheet's state. `inspect` opens it on a tab, and `showCall` opens a call's evidence there, or closes
-// it when it's already shown.
+// asked for has gone (its show or pitch closed); whether it's beside the canvas or a sheet; and
+// whether it's open, which it isn't as the page opens, at any width, and needn't be after it. `inspect`
+// opens it on a tab, `showCall` opens a call's evidence there, or closes the evidence when it's
+// already shown, and `toggle`, the header's Details, opens it on the tab it last showed, or closes it.
+// Closing it keeps what the page has selected, so it opens on the same again.
 export function useInspector(
   tabs: InspectorTab[],
   { opened, openCall }: { opened: Opened | null; openCall: (call: string) => unknown }
 ) {
   const wide = useMedia(WIDE)
   const [tab, setTab] = useState<InspectorTab>('run')
-  // The inspector's sheet, under 1360px, which opens on the tab asked for.
-  const [sheet, setSheet] = useState(false)
+  const [open, setOpen] = useState(false)
+  // The inspector, beside the canvas or its sheet; the header's toggle; and what opened it last, from
+  // outside it, where focus goes back to as it closes.
+  const panel = useRef<HTMLDivElement>(null)
+  const toggleButton = useRef<HTMLButtonElement>(null)
+  const opener = useRef<HTMLElement | null>(null)
   const current = tabs.includes(tab) ? tab : tabs[0]
   const inspect = (next: InspectorTab) => {
+    const from = document.activeElement
+    if (from instanceof HTMLElement && from !== document.body && !panel.current?.contains(from)) opener.current = from
     setTab(next)
-    if (!wide) setSheet(true)
+    setOpen(true)
   }
   const showCall = (call: string) => {
-    if (opened?.call === call && current === 'evidence' && (wide || sheet)) return void openCall(call)
+    if (opened?.call === call && current === 'evidence' && open) return void openCall(call)
     inspect('evidence')
     if (opened?.call !== call) void openCall(call)
   }
-  return { tabs, current, setTab, wide, sheet, setSheet, inspect, showCall }
+  // Where focus goes as it closes: back to what opened it, while that's still there, or else to the
+  // header's toggle; only from inside it, though, or from nowhere, so focus that has left it stays.
+  const returnFocus = () => {
+    const at = document.activeElement
+    if (at && at !== document.body && !panel.current?.contains(at)) return null
+    return opener.current?.isConnected ? opener.current : toggleButton.current
+  }
+  const close = () => {
+    const back = returnFocus()
+    setOpen(false)
+    back?.focus()
+  }
+  const toggle = () => (open ? close() : inspect(current))
+  return {
+    tabs,
+    current,
+    setTab,
+    wide,
+    open,
+    setOpen,
+    inspect,
+    showCall,
+    close,
+    toggle,
+    panel,
+    toggleButton,
+    returnFocus
+  }
 }
 
-// The inspector, a Base UI Tabs panel: beside the canvas from 1360px, and below it a non-modal right
-// sheet. `children` are its TabsContent panels, each kept mounted, so the ids calls point at
-// (aria-controls="evidence") are always there; Base UI hides and inerts the panels not shown, and
-// nothing else. The sheet leaves the page usable, so focus may leave it; when Tab takes focus to
-// something the sheet covers (all of the canvas on a phone, where it's full width), the sheet closes
-// and focus stays where it went.
+// The header's toggle for the inspector, "Details", which says whether it's open (aria-expanded) and
+// which it opens (aria-controls): on the tab it last showed, or the first.
+export function InspectorToggle({ inspector }: { inspector: ReturnType<typeof useInspector> }) {
+  return (
+    <Button
+      ref={inspector.toggleButton}
+      variant="ghost"
+      aria-expanded={inspector.open}
+      aria-controls="inspector"
+      onClick={inspector.toggle}
+    >
+      Details
+    </Button>
+  )
+}
+
+// The inspector, a Base UI Tabs panel, closed until something opens it: beside the canvas from 1360px,
+// on the card at rest, with no shadow, and below it a non-modal right sheet, which floats, with the
+// floating shadow. Each has a close button, and Escape closes it while focus is in it, focus going back
+// to what opened it. `children` are its TabsContent panels, each kept mounted, closed too, so the ids
+// calls point at (aria-controls="evidence") are always there, and what a panel holds, such as a show's
+// figures being typed, is there as it was when it opens again; Base UI hides and inerts the panels not
+// shown, and nothing else. The sheet leaves the page usable, so focus may leave it; when Tab takes
+// focus to something the sheet covers (all of the canvas on a phone, where it's full width), the sheet
+// closes and focus stays where it went.
 // `initialFocus` is what the sheet focuses as it opens, when the page asks for more than Base UI's
 // default, such as an opened object's heading.
 export function Inspector({
-  inspector: { tabs, current, setTab, wide, sheet, setSheet },
+  inspector: { tabs, current, setTab, wide, open, setOpen, close, panel, returnFocus },
   initialFocus,
   children
 }: {
@@ -75,32 +131,30 @@ export function Inspector({
   initialFocus?: () => HTMLElement | true
   children: ReactNode
 }) {
-  const popup = useRef<HTMLDivElement>(null)
-  // Closed because focus went under it: focus stays where it went.
-  const away = useRef(false)
   useEffect(() => {
-    if (wide || !sheet) return
-    away.current = false
+    if (wide || !open) return
     const moved = (e: FocusEvent) => {
       const to = e.target
-      const from = popup.current
+      const from = panel.current
       // Inside the sheet, or anything floating over it, such as its own focus guards.
       if (!from || !(to instanceof Element) || from.contains(to) || to.closest('[data-base-ui-portal]')) return
       const a = from.getBoundingClientRect()
       const b = to.getBoundingClientRect()
-      if (b.right > a.left && b.left < a.right && b.bottom > a.top && b.top < a.bottom) {
-        away.current = true
-        setSheet(false)
-      }
+      if (b.right > a.left && b.left < a.right && b.bottom > a.top && b.top < a.bottom) setOpen(false)
     }
     document.addEventListener('focusin', moved)
     return () => document.removeEventListener('focusin', moved)
-  }, [wide, sheet, setSheet])
+  }, [wide, open, setOpen, panel])
   const panels = (
     <Tabs value={current} onValueChange={(next) => setTab(next as InspectorTab)}>
       {/* The tabs stay at the top of the inspector while what's in it scrolls under them. */}
       {/* It sticks at the scroller's padding edge, so beside the canvas it's pulled up over the aside's 16px. */}
-      <div className={cn('sticky z-10 -mx-4 bg-card px-4 pb-1', wide ? '-top-4 -mt-4 pt-4' : 'top-0 pt-1')}>
+      <div
+        className={cn(
+          'sticky z-10 -mx-4 flex items-center justify-between gap-2 bg-card px-4 pb-1',
+          wide ? '-top-4 -mt-4 pt-4' : 'top-0 pt-1'
+        )}
+      >
         <TabsList>
           {tabs.map((t) => (
             <TabsTrigger key={t} value={t}>
@@ -108,24 +162,44 @@ export function Inspector({
             </TabsTrigger>
           ))}
         </TabsList>
+        {/* The sheet has its own, by its title. */}
+        {wide && (
+          <Button variant="ghost" size="icon-sm" onClick={close}>
+            <XIcon />
+            <span className="sr-only">Close</span>
+          </Button>
+        )}
       </div>
       {children}
     </Tabs>
   )
   return wide ? (
-    <aside className={aside} aria-label="Details">
+    <aside
+      ref={panel}
+      id="inspector"
+      className={aside}
+      aria-label="Details"
+      hidden={!open}
+      // Escape in the inspector itself, not in what floats over it from it, as a select's options.
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || e.defaultPrevented || !e.currentTarget.contains(e.target as Node)) return
+        e.preventDefault()
+        close()
+      }}
+    >
       {panels}
     </aside>
   ) : (
     // Non-modal and kept mounted while closed: the canvas stays usable beside it, its guide included,
     // and the calls' aria-controls="evidence" always finds its panel.
-    <Sheet open={sheet} onOpenChange={setSheet} modal={false} disablePointerDismissal>
+    <Sheet open={open} onOpenChange={setOpen} modal={false} disablePointerDismissal>
       <SheetContent
-        ref={popup}
+        ref={panel}
+        id="inspector"
         overlay={false}
         keepMounted
         className="gap-0"
-        finalFocus={() => !away.current}
+        finalFocus={() => returnFocus() ?? false}
         {...(initialFocus && { initialFocus })}
       >
         <SheetHeader className="pr-14">
@@ -141,7 +215,6 @@ export function Inspector({
 // it's connecting; or, on a page whose title is known before its state, as the inbox's, the page
 // header, saying it under the title, as the network's other pages do.
 export function Connecting({ label, title }: { label: string; title?: string }) {
-  const wide = useMedia(WIDE)
   return (
     <div className={frame}>
       <main className={canvas} aria-busy="true">
@@ -167,12 +240,6 @@ export function Connecting({ label, title }: { label: string; title?: string }) 
           ))}
         </div>
       </main>
-      {wide && (
-        <aside className={aside} aria-label="Details">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-24" />
-        </aside>
-      )}
     </div>
   )
 }
@@ -196,8 +263,8 @@ const readout = 'flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg
 
 // The on-air readout (role="status"): the connection's state on a launch's page, whose title row
 // doesn't say it as the page header does on the inbox, then what the page's run or work is doing
-// (`children`); while a run is running, the time since `since`, outside the live region; and where the
-// inspector is a sheet, "Run log", which opens it on the Run tab.
+// (`children`); while a run is running, the time since `since`, outside the live region; and "Run log",
+// which opens the inspector on the Run tab.
 export function Readout({
   connection,
   since,
@@ -206,7 +273,7 @@ export function Readout({
 }: {
   connection?: Connection
   since: string | null
-  runLog: (() => void) | null
+  runLog: () => void
   children: ReactNode
 }) {
   const elapsed = useElapsed(since)
@@ -229,11 +296,9 @@ export function Readout({
           ))}
         </span>
       )}
-      {runLog && (
-        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={runLog}>
-          Run log
-        </Button>
-      )}
+      <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={runLog}>
+        Run log
+      </Button>
     </div>
   )
 }
