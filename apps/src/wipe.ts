@@ -118,9 +118,9 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
 // instance, with any key a guest added. The launches' own agents are left to the hourly retry, so the
 // clearing's subrequests stay the same however many launches it lists (#275); until then each takes no
 // more work, saying the guest network was cleared, as its wipe was noted (LaunchAgent.gone). The agent's
-// next start loads the sample network again (ADR 0007). It's started, if it isn't running, to be wiped, so it loads none now
-// (networkToWipe). Logs how many launches it noted and how many wipes failed; one that failed stays noted
-// for the next hour's retry, and fails this run.
+// next start loads the sample network again (ADR 0007). It's started, if it isn't running, to be wiped,
+// so it loads none now (networkToWipe). Logs how many launches it noted and how many wipes failed; one
+// that failed stays noted for the next hour's retry, and fails this run.
 export async function resetGuestNetwork(env: Env) {
   const launches = await letGoOfGuestNetwork(env)
   const instances = networkInstances(GUEST_NETWORK, launches, GUEST_NETWORK_RESET)
