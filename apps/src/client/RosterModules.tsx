@@ -255,12 +255,6 @@ export function RosterTable({
   openCall: (call: string) => void
   opened: string | null
 }) {
-  if (roster.length === 0)
-    return (
-      <p className="rounded-xl bg-muted px-4 py-3 text-muted-foreground">
-        No roster yet. Paste show names above to import one.
-      </p>
-    )
   // One selected row: the show open in the editor or, with none open, the show whose evidence is open.
   const hot = selected ?? roster.find((s) => s.evidence === opened)?.name
   const cell = 'border-b py-3 pl-3 align-top group-data-selected/row:bg-muted'
