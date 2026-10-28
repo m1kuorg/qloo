@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { callVariants } from '@/components/ui/variants'
 import type { Evidence } from '../evidence'
 import type { Session } from './App'
-import { KeyValue, KeyValues } from './controls'
+import { day, KeyValue, KeyValues } from './controls'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
 
@@ -75,6 +75,7 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <Source of="qloo" />
           {record?.replayed && <Badge variant="outline">Replayed</Badge>}
+          {record?.sample && <Badge variant="outline">Sample data</Badge>}
           {record?.copiedFrom && <Badge variant="outline">From the roster</Badge>}
         </div>
       </div>
@@ -139,6 +140,11 @@ function EvidenceRecord({ record }: { record: Evidence }) {
       <KeyValues>
         {record.replayed && (
           <KeyValue label="Replayed">From the stored sample run, as Qloo answered it then; no new request</KeyValue>
+        )}
+        {record.sample && (
+          <KeyValue label="Sample">
+            From the sample data, as Qloo answered it on {day(record.at)}, when the sample was captured; no new request
+          </KeyValue>
         )}
         {record.copiedFrom && (
           <KeyValue label="Copied">

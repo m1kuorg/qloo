@@ -8,14 +8,17 @@ import { createExecutionContext, createScheduledController, waitOnExecutionConte
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LaunchSummary, State } from '../src/agent'
+import type { LaunchSummary, RunSnapshot, State } from '../src/agent'
+import type { Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
+import { EvidencePanel } from '../src/client/Evidence'
+import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
 import worker from '../src/index'
 import { sampleLaunchOf, sampleLaunchesSql } from '../src/sample-launch'
 import { networkLinks } from '../src/shell'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
-import { openGuest, readAfterReset, type Guest, type Session } from './session'
+import { api, openGuest, readAfterReset, type Guest, type Session } from './session'
 
 // Made-up IDs for three of the sample's public show names, and for the made-up launches; every other
 // name finds nothing.
@@ -210,5 +213,127 @@ describe("the guest network's sample launches", () => {
     expect(modelRequests()).toHaveLength(models)
     expect(requests.slice(qloo).map((r) => r.url.pathname)).not.toContain('/v2/insights')
     expect(requests.slice(qloo).map((r) => r.url.pathname)).not.toContain('/v2/analysis/compare')
+  })
+
+  it('each show their run, every call it cites in their evidence as the sample’s, their order, and where it’s from, and View opens it', async () => {
+    const guest = await openGuest()
+    await captureSampleLaunches(guest)
+    const fresh = await nextDay(guest, 5)
+    const seeded = fresh.launches!.filter((l) => l.name !== 'The Watch')
+    expect(seeded).toHaveLength(4)
+
+    for (const { id, name } of seeded) {
+      const launch = await connect(guest, `/agents/launch/guest-network/${id}`)
+      const { runs, ...state } = launch.state()!
+      const log = await launch.call<Evidence[]>('getEvidence')
+      // Every call the run cites opens in the inspector, copied from the sample, as Qloo answered it then.
+      const cited = [...new Set(JSON.stringify(state).match(/\bC-\d+\b/g))]
+      expect(cited.length, name!).toBeGreaterThanOrEqual(19)
+      for (const call of cited)
+        expect(
+          log.find((e) => e.call === call),
+          `${name} ${call}`
+        ).toBeDefined()
+      expect(
+        log.every((e) => e.sample === true && !e.replayed && !e.copiedFrom),
+        name!
+      ).toBe(true)
+      expect(state).toMatchObject({ sample: null, rosterChanged: false, slowCalls: [] })
+      expect(state.run).toMatchObject({ sample: expect.any(String) })
+      expect(runs).toEqual([expect.objectContaining({ id: state.run!.id, sample: true, startedBy: 'Guest' })])
+      // The run list's View opens it as it ended.
+      expect(await launch.call<RunSnapshot>('getRun', state.run!.id)).toEqual(state)
+
+      const page = words(
+        renderToStaticMarkup(
+          <LaunchWorkspace
+            agent={{ state: launch.state(), stub: {} } as unknown as Agent}
+            network={{
+              id: 'guest-network',
+              name: 'Guest network',
+              role: 'owner',
+              links: networkLinks(env, 'guest-network')
+            }}
+            orders={`/app/guest-network/launches/${id}/insertion-orders`}
+          />
+        )
+      )
+      expect(page, name!).toContain('Sample data')
+      expect(page, name!).toContain('This run is from the sample data')
+      expect(page, name!).not.toContain('Replayed')
+      const record = words(
+        renderToStaticMarkup(<EvidencePanel opened={{ call: cited[0], status: 'loaded', record: log[0] }} />)
+      )
+      expect(record, name!).toContain('Sample data')
+      expect(record, name!).toContain('From the sample data, as Qloo answered it')
+      expect(record, name!).not.toContain('Replayed')
+
+      if (name === 'Night Shift Cinema') {
+        expect(state.insertionOrder).toMatchObject({ status: 'approved', approvedBy: 'Guest', sample: true })
+        expect(page).toContain('Approved in the sample data')
+      } else if (name === 'Paper Moons') {
+        expect(state.insertionOrder).toMatchObject({ status: 'draft', slots: 10, total: 86_400 })
+        expect(state.insertionOrder!.sample).toBeUndefined()
+      } else expect(state.insertionOrder, name!).toBeNull()
+    }
+  })
+
+  it('run again as any launch does, counted on the guest budget, and an edit makes the approved order a draft of the guest’s own', async () => {
+    const guest = await openGuest()
+    await captureSampleLaunches(guest)
+    const fresh = await nextDay(guest, 5)
+    const usage = async () =>
+      (
+        JSON.parse(
+          (await (await guest.fetch('/app/guest-network/settings')).text())
+            .match(/data-usage="([^"]*)"/)![1]
+            .replace(/&quot;/g, '"')
+        ) as { modelRuns: { used: number } }
+      ).modelRuns.used
+    const before = await usage()
+    const approved = fresh.launches!.find((l) => l.name === 'Night Shift Cinema')!
+    const launch = await connect(guest, `/agents/launch/guest-network/${approved.id}`)
+
+    const order = launch.state()!.insertionOrder!
+    await launch.call('editInsertionOrder', order.id, [{ show: 'The Big Picture', slots: 2, angle: 'Film talk.' }])
+    expect(launch.state()!.insertionOrder).toMatchObject({ status: 'draft', edited: true, slots: 2 })
+    expect(launch.state()!.insertionOrder).not.toHaveProperty('sample')
+    expect(launch.state()!.insertionOrder).not.toHaveProperty('approvedBy')
+
+    fakeQloo({ search })
+    fakeRanking()
+    fakeClaude(plan('Night Shift Cinema', 'e-0001', 'The order is drafted at $86,400.', lines))
+    await launch.call('startLaunch', { name: 'Night Shift Cinema' })
+    const asked = await launch.until((s) => s.run?.question?.kind === 'budget')
+    await launch.call('answer', asked.run!.question!.id, { slots: 10 })
+    const exclusions = await launch.until((s) => s.run?.question?.kind === 'exclusions')
+    await launch.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    const rerun = await launch.until(ended)
+    expect(rerun.run).toMatchObject({ status: 'completed' })
+    expect(rerun.run).not.toHaveProperty('sample')
+    expect(rerun.runs.map((r) => [r.status, r.sample ?? false])).toEqual([
+      ['completed', true],
+      ['completed', false]
+    ])
+    expect(rerun.insertionOrder).toMatchObject({ id: 'IO-0002', status: 'draft' })
+    expect(await usage()).toBe(before + 1)
+  })
+
+  it('keep the API’s evidence shape, as Qloo answered, without the sample’s mark', async () => {
+    const guest = await openGuest()
+    await captureSampleLaunches(guest)
+    const fresh = await nextDay(guest, 5)
+    const made = await guest.fetch('/app/guest-network/settings/api-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nightly sync' })
+    })
+    const call = api((await made.json<{ secret: string }>()).secret)
+    const { id } = fresh.launches!.find((l) => l.name === 'Paper Moons')!
+    const res = await call(`/api/v1/networks/guest-network/launches/${id}/evidence`)
+    expect(res.status).toBe(200)
+    const { evidence } = await res.json<{ evidence: Record<string, unknown>[] }>()
+    expect(evidence.length).toBeGreaterThanOrEqual(19)
+    for (const record of evidence) expect(Object.keys(record)).not.toContain('sample')
   })
 })
