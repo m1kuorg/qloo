@@ -19,7 +19,7 @@ import { keepOwnKey, MEMBER_NAME_HEADER, memberTag, networkGateway, networkLimit
 const ROSTER =
   "A launch ranks its network's roster, which members edit on the network's roster page. Each run copies the roster as it starts."
 const INBOX = "A launch has no inbox: guest pitches go to the network's inbox, on its own page."
-const NO_GUIDE = "A launch has no guide: it's the sample network's, at /demo."
+const NO_GUIDE = 'A launch has no guide.'
 // Who a deleted member's runs and approvals say they were by (forgetMember).
 const FORMER_MEMBER = 'Former member'
 
@@ -145,7 +145,7 @@ export class LaunchAgent extends CrossfeedAgent {
   // Each run ranks the network's roster as it stands when the run starts, and its calls follow the
   // network's Qloo key as it then stands.
   protected async networkRoster(): Promise<RosterCopy> {
-    const copy = await (await getAgentByName(this.env.NetworkAgent, this.networkId)).rosterForLaunch()
+    const copy = await (await getAgentByName(this.env.NetworkAgent, this.networkId)).rosterForLaunch(this.launchId)
     this.noteOwnKey(copy.ownKey)
     return copy
   }

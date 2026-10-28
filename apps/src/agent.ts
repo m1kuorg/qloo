@@ -228,8 +228,15 @@ type SampleRun = { state: Omit<RunSnapshot, 'inbox' | 'booking'>; evidence: Evid
 
 // What a launch's run ranks, copied from its network's agent as the run starts (launch-agent.ts): the
 // roster and CPM, and the evidence records the roster cites. And whether the network has a Qloo key of
-// its own, so the run's calls go through the right gateway.
-export type RosterCopy = { roster: Show[]; cpm: number | null; evidence: Evidence[]; ownKey: boolean }
+// its own, so the run's calls go through the right gateway, and for the guest network's sample launch,
+// the sample as the network now holds it (ADR 0007), null for any other launch.
+export type RosterCopy = {
+  roster: Show[]
+  cpm: number | null
+  evidence: Evidence[]
+  ownKey: boolean
+  sample: Sample | null
+}
 
 // A roster as one string, to tell whether two copies of it differ: each show as the roster page shows
 // it, but for its call numbers, which a launch's copy renumbers.
@@ -507,7 +514,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       // Whether Qloo can be called is up to the gateway this run's calls will go through; the model
       // run counts in the global gateway either way.
       const health = await (await this.gateway()).health()
-      const admitted = await globalGateway(this.env).admitLaunch(visitor, onSampleLaunch(this.state, name), health)
+      // On the copy a launch's run takes, which carries the sample only for the guest network's sample launch.
+      const sample = onSampleLaunch(network ?? this.state, name)
+      const admitted = await globalGateway(this.env).admitLaunch(visitor, sample, health)
       return { ...admitted, network }
     })
     if (refused) throw new Refusal('limit', `${refused}.`)
@@ -608,10 +617,16 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // A network's roster and CPM as a launch's run copies them, with the records the roster cites copied
-  // into this log under new numbers, each marked with the network's call it copies.
-  private copyRoster({ roster, cpm, evidence }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'rosterChanged'> {
+  // into this log under new numbers, each marked with the network's call it copies, and the sample it
+  // carries, if any.
+  private copyRoster({
+    roster,
+    cpm,
+    evidence,
+    sample
+  }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'sample' | 'rosterChanged'> {
     const copied = this.copyEvidence(roster, evidence, (copy, from) => ({ ...copy, copiedFrom: from.call }))
-    return { roster: copied, cpm, rosterChanged: this.rosterChangedSince(copied) }
+    return { roster: copied, cpm, sample, rosterChanged: this.rosterChangedSince(copied) }
   }
 
   // Starts a guest pitch run and returns at once. The past guests' works are looked up in Qloo like
