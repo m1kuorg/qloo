@@ -1589,6 +1589,21 @@ describe("the guest network's daily reset", () => {
   const usage = async (guest: Guest) =>
     (await (await guest.fetch('/app/guest-network/settings')).text()).match(/data-usage="([^"]*)"/)?.[1]
 
+  // Runs the hourly cron, its retry's wipes a minute old by then.
+  async function runHourlyCron() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 2 * 60_000)
+    const ctx = createExecutionContext()
+    await (worker as ExportedHandler<Env>).scheduled!(
+      createScheduledController({ cron: '0 0-11,13-23 * * *' }),
+      env,
+      ctx
+    )
+    await waitOnExecutionContext(ctx)
+  }
+  const gone =
+    "This launch was deleted, or its network cleared, so it can't run. Open the dashboard to see the network's launches."
+
   it('clears it at the daily cron, closing guests’ pages, so the next guest starts afresh with the day’s budget spent as it was', async () => {
     fakeQloo({
       search: {
@@ -1620,9 +1635,9 @@ describe("the guest network's daily reset", () => {
     await runCron()
 
     expect(await network.closed()).toEqual(RESET)
-    expect(await launch.closed()).toEqual(RESET)
     expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 1, failed: 0 }))
-    expect(await launchHeld(id)).toBeNull()
+    // Its launch is off the list, its agent left to the hourly retry, and a page of it still open can't run it.
+    await expect(launch.call('startLaunch', { name: 'The Night Watch' })).rejects.toThrow(gone)
     // The guest is still signed in, and the guest network opens afresh: the sample's CPM, nothing else.
     const fresh = await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
     expect(fresh).toMatchObject({ cpm: 20, roster: [], launches: [], checklistDismissed: [] })
@@ -1630,6 +1645,12 @@ describe("the guest network's daily reset", () => {
     expect((await guest.fetch('/app', { redirect: 'manual' })).headers.get('location')).toBe('/app/guest-network')
     expect((await connect(guest, '/agents/network/guest-network')).state()).toMatchObject({ roster: [], launches: [] })
     expect(await usage(guest)).toBe(spent)
+    expect((await (await getAgentByName(env.NetworkAgent, own.id)).state).launches).toHaveLength(1)
+
+    await runHourlyCron()
+    expect(await launch.closed()).toEqual(RESET)
+    expect(await launchHeld(id)).toBeNull()
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'wipes_retried', wiped: 1, kept: 0, failed: 0 }))
     expect((await (await getAgentByName(env.NetworkAgent, own.id)).state).launches).toHaveLength(1)
   })
 
@@ -1655,7 +1676,7 @@ describe("the guest network's daily reset", () => {
     expect(page.match(/data-qloo-key="([^"]*)"/)?.[1].replace(/&quot;/g, '"')).toBe('{"set":false}')
   })
 
-  it('fails the cron’s run when a wipe fails, with the launch already gone from the guest network, and wipes it the next day', async () => {
+  it('leaves each launch’s wipe to the hourly retry, whose run a failed wipe fails, and wipes it the next hour', async () => {
     fakeQloo({ search: health })
     const guest = await openGuest()
     const { id } = await (
@@ -1663,22 +1684,47 @@ describe("the guest network's daily reset", () => {
     ).call<{ id: string }>('createLaunch', {
       name: 'The Night Watch'
     })
-    vi.spyOn(LaunchAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
     const logged = vi.spyOn(console, 'log')
     const failed = vi.spyOn(console, 'error')
+
+    await runCron()
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 1, failed: 0 }))
+    expect((await guest.fetch(`/app/guest-network/launches/${id}`)).status).toBe(404)
+    expect(await launchHeld(id)).toBe('The Night Watch')
+
+    vi.spyOn(LaunchAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    await expect(runHourlyCron()).rejects.toThrow('1 agent wipe failed; the next hourly run tries again.')
+    expect(failed.mock.calls.flat().filter((line) => String(line).includes('"event":"wipe_failed"'))).toHaveLength(1)
+    expect(await launchHeld(id)).toBe('The Night Watch')
+
+    await runHourlyCron()
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'wipes_retried', wiped: 1, kept: 0, failed: 0 }))
+    expect(await launchHeld(id)).toBeNull()
+  })
+
+  it('fails the cron’s run when its agent’s wipe fails, and the hourly retry clears it, its launches too', async () => {
+    fakeQloo({ search: health })
+    const guest = await openGuest()
+    const { id } = await (
+      await connect(guest, '/agents/network/guest-network')
+    ).call<{ id: string }>('createLaunch', {
+      name: 'The Night Watch'
+    })
+    vi.spyOn(NetworkAgent.prototype, 'destroy').mockRejectedValueOnce(new Error('The agent is overloaded.'))
+    const logged = vi.spyOn(console, 'log')
 
     await expect(runCron()).rejects.toThrow(
       'Clearing the guest network, 1 agent wipe failed; the next hourly run tries again.'
     )
-    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 0, failed: 1 }))
-    expect(failed.mock.calls.flat().filter((line) => String(line).includes('"event":"wipe_failed"'))).toHaveLength(1)
-    expect((await guest.fetch(`/app/guest-network/launches/${id}`)).status).toBe(404)
-    expect(await launchHeld(id)).toBe('The Night Watch')
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 1, failed: 1 }))
 
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(Date.now() + 2 * 60_000)
-    await runCron()
-    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'wipes_retried', wiped: 1, kept: 0, failed: 0 }))
+    // Its agent still lists the launch, so the first run crosses its wipe off and wipes the agent, noting
+    // the launch's again, which the next run makes.
+    await runHourlyCron()
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'wipes_retried', wiped: 1, kept: 1, failed: 0 }))
+    expect((await guest.fetch(`/app/guest-network/launches/${id}`)).status).toBe(404)
+    await runHourlyCron()
+    expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'wipes_retried', wiped: 2, kept: 0, failed: 0 }))
     expect(await launchHeld(id)).toBeNull()
   })
 
@@ -1699,7 +1745,8 @@ describe("the guest network's daily reset", () => {
 
     await runCron()
     expect(await page.closed()).toEqual(RESET)
-    expect(await launchHeld(late)).toBeNull()
     expect((await guest.fetch(`/app/guest-network/launches/${late}`)).status).toBe(404)
+    await runHourlyCron()
+    expect(await launchHeld(late)).toBeNull()
   })
 })

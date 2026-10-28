@@ -57,24 +57,20 @@ const HOURLY = '0 0-11,13-23 * * *'
 export default {
   fetch: app.fetch,
   // The crons in wrangler.jsonc. Every hour: the directory's expired sessions, challenges, and invites
-  // cleared, and any agent wipe that failed tried again. At 12:00 UTC, the daily cron's, and any other
-  // schedule's, also the Qloo health check, the guest network's clearing, after the retry so the two never
-  // wipe one instance at once, and the clearing of what guests made beyond it: the temporary guest members
-  // removed, and what the guest member made cleared (ADR 0008), each in a batch of its own. Each logs what
-  // it did, and runs to its end whether or not the others fail, and then a failure fails the run.
+  // cleared, and any agent wipe that failed or was left for it tried again. At 12:00 UTC, the daily cron's,
+  // and any other schedule's, the directory's clearing too, the Qloo health check, the guest network's
+  // clearing, and the clearing of what guests made beyond it: the temporary guest members removed, and
+  // what the guest member made cleared (ADR 0008), each in a batch of its own. That run leaves the wipes
+  // to the next hour's retry, so it stays within the Free plan's 50 subrequests (TRD crons, #275). Each
+  // logs what it did, and runs to its end whether or not the others fail, and then a failure fails the run.
   async scheduled(controller, env) {
     const purged = purgeExpired(env.DB).then((counts) =>
       console.log(JSON.stringify({ event: 'directory_purged', ...counts }))
     )
-    const retried = retryWipes(env)
-    const tasks = [purged, retried]
-    if (controller.cron !== HOURLY)
-      tasks.push(
-        checkHealth(env),
-        retried.catch(() => {}).then(() => resetGuestNetwork(env)),
-        removeTemporaryGuests(env),
-        clearGuests(env)
-      )
+    const tasks =
+      controller.cron === HOURLY
+        ? [purged, retryWipes(env)]
+        : [purged, checkHealth(env), resetGuestNetwork(env), removeTemporaryGuests(env), clearGuests(env)]
     for (const result of await Promise.allSettled(tasks)) if (result.status === 'rejected') throw result.reason
   }
 } satisfies ExportedHandler<Env>
