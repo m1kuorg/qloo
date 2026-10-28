@@ -33,8 +33,8 @@ import type { NetworkPage } from './NetworkPage'
 import { Source } from './Source'
 import { sentence, SlowCalls, slowText, StateLine } from './states'
 
-// The roster's modules, shared by the demo's workspace and a network's roster page: its import, its
-// counts, its table, the show editor, the roster check, and the CPM its slots are priced at.
+// The roster's modules, shared by a network's roster page and a launch's page: its import, its counts,
+// its table, the show editor, the roster check, and the CPM its slots are priced at.
 
 // The import answers at once, and each show fills in through synced state as its search settles. A
 // file can come from the picker or be dropped anywhere on the page, so one dropped beside the form
@@ -238,7 +238,7 @@ const SampleChip = () => <Badge>sample</Badge>
 
 // The roster as a ranked list's rows, in the fit chart's anatomy: a real table, its rules bleeding
 // 8px past the text as the chart's do, the show set as the chart sets it with its description under
-// it, figures right-aligned. On the demo each show's name opens it in the inspector's Show tab, and
+// it, figures right-aligned. On the roster page each show's name opens it in the inspector's Show tab, and
 // the show open there, or whose evidence is, holds the tone step. Narrower than the table, it
 // scrolls sideways in its region with the show's column held at the left.
 export function RosterTable({
@@ -384,7 +384,7 @@ export function RosterTable({
   )
 }
 
-// What Qloo matched a show to, or why it matched nothing, and on the demo the way to settle it.
+// What Qloo matched a show to, or why it matched nothing, and on the roster page the way to settle it.
 function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (() => void) | null }) {
   if (show.resolution === 'pending')
     return <span className="text-muted-foreground">{slow.length > 0 ? slowText(slow) : 'Looking it up in Qloo…'}</span>

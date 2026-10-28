@@ -89,7 +89,7 @@ type Page = {
   links: Links
 }
 
-// The inbox page on a connected agent, the demo session's or a network's (`network`), with the
+// The inbox page on a connected agent, a network's (`network`) or, in tests, an engine session's, with the
 // latest run when it's a pitch run, or an earlier pitch run being viewed, read-only, as it ended. Tests
 // render it from synced state.
 export function InboxWorkspace({ agent, links, network }: { agent: Session; links: Links; network?: NetworkPage }) {

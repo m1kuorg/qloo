@@ -272,8 +272,8 @@ function SampleStart({ start }: { start: () => Promise<unknown> }) {
   )
 }
 
-// What a roster started from the sample is, where its notice would be on the demo: a block on the
-// card, as notices about the page's data are. Its CPM isn't the sample's, so the notice leaves it out.
+// What a roster started from the sample is: a block on the card, as notices about the page's data
+// are. Its CPM isn't the sample's, so the notice leaves it out.
 function SampleRoster({ sample }: { sample: Sample }) {
   return (
     <p className="max-w-[72ch] rounded-xl bg-card p-4 lg:max-w-none" data-sample-notice>
