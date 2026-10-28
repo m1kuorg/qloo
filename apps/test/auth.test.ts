@@ -296,10 +296,10 @@ describe('the way in', () => {
     const runs = Number(page.match(/data-runs="([^"]*)"/)![1])
     const html = renderToStaticMarkup(createElement(SignInPage, { next, runs }))
     expect(words(html)).toBe(
-      'Sign in to Crossfeed Crossfeed signs you in with a passkey, kept by your device or password manager. There’s no password, and no email to confirm. Sign in Use the passkey you made for Crossfeed on this device, or on a phone nearby. Sign in with a passkey Lost every passkey? Use a recovery code New here? Create an account Your name, as your teammates will see it Your browser makes a passkey for Crossfeed, then you get a recovery code to keep. Create account Look around as a guest Everyone who signs in as a guest shares one guest network and its daily limits, 10 model runs a day between them, so put nothing private in it. It’s cleared every day at 12:00 UTC. Sign in as a guest'
+      'Sign in to Crossfeed Crossfeed signs you in with a passkey, kept by your device or password manager. There’s no password, and no email to confirm. Sign in Use the passkey you made for Crossfeed on this device, or on a phone nearby. Sign in with a passkey Lost every passkey? Use a recovery code New here? Create an account Your name, as your teammates will see it Your browser makes a passkey for Crossfeed, then you get a recovery code to keep. Create account Look around as a guest You get a temporary account of your own for a day, which you keep by adding a passkey. Every guest owns one guest network together, so put nothing private in it; it’s cleared every day at 12:00 UTC. All guests share one set of daily limits, 10 model runs a day between them. Sign in as a guest'
     )
     expect(words(renderToStaticMarkup(createElement(SignInPage, { next, runs: 1 })))).toContain(
-      'its daily limits, 1 model run a day between them,'
+      'daily limits, 1 model run a day between them.'
     )
     expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-in"/)
     expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-new"/)

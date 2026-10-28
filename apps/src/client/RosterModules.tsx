@@ -30,7 +30,7 @@ import {
   useIntoView
 } from './controls'
 import { CallButton } from './Evidence'
-import { ownersOnly, type NetworkPage } from './NetworkPage'
+import type { NetworkPage } from './NetworkPage'
 import { Source } from './Source'
 import { sentence, SlowCalls, slowText, StateLine } from './states'
 
@@ -764,7 +764,7 @@ export function CpmRecord({
             {cpm === null ? 'Set it in settings' : 'Change it in settings'}
           </a>
         ) : (
-          ownersOnly(network, 'An owner sets it in settings.', 'change it')
+          'An owner sets it in settings.'
         )}
       </p>
     </section>

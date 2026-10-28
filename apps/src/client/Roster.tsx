@@ -13,7 +13,7 @@ import { sample as sampleNetwork, sampleRoster, type Sample } from '../sample'
 import { Alert, useAction } from './controls'
 import { EvidencePanel, useEvidence } from './Evidence'
 import { canvas, frame, Inspector, useInspector } from './Frame'
-import { NetworkGate, ownersOnly, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
+import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
 import { RosterCounts, RosterFailures, RosterImport, RosterTable, ShowEditor } from './RosterModules'
 import { connectionOf, ConnectionState, StateLine, type Connection } from './states'
 
@@ -225,8 +225,7 @@ function Readiness({ roster }: { roster: Show[] }) {
   )
 }
 
-// The CPM that prices every launch's slots, read-only here: an owner changes it in settings, and in the
-// guest network, which has no owner, no one does.
+// The CPM that prices every launch's slots, read-only here: an owner changes it in settings.
 function CpmLine({ cpm, network }: { cpm: number | null; network: NetworkPage }) {
   return (
     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground">
@@ -244,7 +243,7 @@ function CpmLine({ cpm, network }: { cpm: number | null; network: NetworkPage })
           {cpm === null ? 'Set it in settings' : 'Change it in settings'}
         </a>
       ) : (
-        <span>{ownersOnly(network, 'An owner sets it in settings.', 'change it')}</span>
+        <span>An owner sets it in settings.</span>
       )}
     </p>
   )

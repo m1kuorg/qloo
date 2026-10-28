@@ -164,15 +164,13 @@ auth.get('/sign-in', async (c) => {
 
 // The invite page, a page of the React island. The link's token is in its fragment, which the browser
 // never sends: the page reads it and posts it, so it stays out of every path, query, log, and referrer.
-// A signed-in member is named, to join as themselves, or, as a guest member, told how to join instead.
+// A signed-in member is named, to join as themselves.
 auth.get('/invite', async (c: Context<{ Bindings: Env; Variables: AppVariables }>) => {
   const member = await signedIn(c)
   // The shell shows them their account menu.
   if (member) c.set('member', member)
   c.header('Cache-Control', 'no-store')
-  return c.render(
-    <Island page="invite" data-member-name={member?.name} data-guest={isGuestMember(member) ? 'true' : undefined} />
-  )
+  return c.render(<Island page="invite" data-member-name={member?.name} />)
 })
 
 // Why an invite link can't be used, in words for the invite page.

@@ -23,10 +23,7 @@ const network = () => ({
 // holds back the page's first render by about 300 ms.
 const pages: Record<string, () => Promise<ReactNode>> = {
   'sign-in': () => import('./Account').then(({ SignInPage }) => <SignInPage next={d.next!} runs={Number(d.runs)} />),
-  invite: () =>
-    import('./Account').then(({ InvitePage }) => (
-      <InvitePage memberName={d.memberName ?? null} guest={d.guest === 'true'} />
-    )),
+  invite: () => import('./Account').then(({ InvitePage }) => <InvitePage memberName={d.memberName ?? null} />),
   account: () =>
     import('./AccountPage').then(({ AccountPage }) => (
       <AccountPage
@@ -38,10 +35,7 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         guest={d.guest === 'true'}
       />
     )),
-  'new-network': () =>
-    import('./NewNetwork').then(({ NewNetworkPage }) => (
-      <NewNetworkPage cap={Number(d.cap)} guest={d.guest === 'true'} />
-    )),
+  'new-network': () => import('./NewNetwork').then(({ NewNetworkPage }) => <NewNetworkPage cap={Number(d.cap)} />),
   dashboard: () =>
     import('./Dashboard').then(({ DashboardPage }) => (
       <DashboardPage
@@ -95,9 +89,8 @@ void (pages[d.page ?? ''] ?? demo)()
 
 document.querySelectorAll<HTMLButtonElement>('[data-sign-out]').forEach(wireSignOut)
 
-// The app shell's Sign out buttons, the account menu's and the guest notice's "Sign out and create an
-// account": each ends the session, then goes to the sign-in page. The shell is server-rendered, so the
-// island finds the buttons rather than rendering them.
+// The app shell's Sign out button, in the account menu: it ends the session, then goes to the sign-in
+// page. The shell is server-rendered, so the island finds the button rather than rendering it.
 function wireSignOut(button: HTMLButtonElement) {
   button.addEventListener('click', async () => {
     button.disabled = true

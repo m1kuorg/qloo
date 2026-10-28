@@ -532,25 +532,29 @@ describe("the roster page's words", () => {
       expect(read).not.toContain(elsewhere)
   })
 
-  it('tells a guest that no one can change the guest network’s CPM, as it has no owner', async () => {
+  it('offers a guest, an owner of the guest network, its CPM to change in settings, and a guest made a member whose it is', async () => {
     const guest = await openGuest()
     const state = await (await connect(guest, 'guest-network')).until((s) => s.cpm === 20)
-    const read = words(
-      renderToStaticMarkup(
-        <NetworkRoster
-          agent={{ state, stub: {} } as unknown as NetworkConnection}
-          network={{
-            id: 'guest-network',
-            name: 'Guest network',
-            role: 'member',
-            guest: true,
-            links: networkLinks(env, 'guest-network')
-          }}
-        />
+    const roster = (role: Role) =>
+      words(
+        renderToStaticMarkup(
+          <NetworkRoster
+            agent={{ state, stub: {} } as unknown as NetworkConnection}
+            network={{
+              id: 'guest-network',
+              name: 'Guest network',
+              role,
+              guest: true,
+              links: networkLinks(env, 'guest-network')
+            }}
+          />
+        )
       )
+    expect(roster('owner')).toMatch(
+      /No roster yet\. CPM \$20 per 1,000 downloads · Change it in settings Import shows /
     )
-    expect(read).toMatch(
-      /No roster yet\. CPM \$20 per 1,000 downloads · The guest network has no owner, so no one can change it\. Import shows /
+    expect(roster('member')).toMatch(
+      /No roster yet\. CPM \$20 per 1,000 downloads · An owner sets it in settings\. Import shows /
     )
   })
 

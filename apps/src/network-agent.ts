@@ -39,13 +39,13 @@ export const launchAgentName = (networkId: string, launchId: string) => `${netwo
 // `<networkId>:<launchId>` for a launch's.
 const networkOf = (name: string) => name.split(':')[0]
 
-// What a network's agents count against for the per-visitor limits: the network. A network whose ID
-// starts with `guest-`, the guest network or one a guest member created, counts as the guest network, on
-// the guest budget every guest shares (ADR 0006).
-export const networkLimitKey = (name: string) => {
-  const id = networkOf(name)
-  return `network:${id.startsWith('guest-') ? GUEST_NETWORK : id}`
-}
+// Whether a network counts on the guest budget every guest shares (ADR 0006), from one of its agents'
+// names: its ID starts with `guest-`, as the guest network's and every network a guest member creates do.
+export const onGuestBudget = (name: string) => networkOf(name).startsWith('guest-')
+
+// What a network's agents count against for the per-visitor limits: the network, or for one on the guest
+// budget, the guest network.
+export const networkLimitKey = (name: string) => `network:${onGuestBudget(name) ? GUEST_NETWORK : networkOf(name)}`
 
 // The name of a network's own gateway instance (ADR 0004), from an agent's name: `network:<networkId>`,
 // each network's its own, though the guest budget's networks count their limits under one key. And the
