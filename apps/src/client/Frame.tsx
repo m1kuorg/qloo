@@ -27,7 +27,7 @@ const aside =
   'sticky top-12 flex h-[calc(100svh-3rem)] scroll-pt-14 flex-col gap-4 self-start overflow-y-auto overscroll-contain bg-card p-4'
 
 // The inspector's tabs: the run's trace and history, a call's evidence, and the object selected on the
-// canvas, a show on the demo or a pitch in the inbox.
+// canvas, a show on the roster page or a pitch in the inbox.
 export type InspectorTab = 'run' | 'evidence' | 'show' | 'pitch'
 const tabName: Record<InspectorTab, string> = { run: 'Run', evidence: 'Evidence', show: 'Show', pitch: 'Pitch' }
 

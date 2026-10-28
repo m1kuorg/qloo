@@ -94,7 +94,7 @@ appPages.get('/app', async (c) => {
   return c.redirect(last ? `/app/${last}` : '/app/new', 302)
 })
 
-// Naming a new network. The demo's and the landing page's "Create your network" lead here.
+// Naming a new network. The landing page's "Create your network" leads here.
 appPages.get('/app/new', async (c) => {
   c.set('networks', await memberNetworks(c.env.DB, c.var.member.id))
   return c.render(<Island page="new-network" data-cap={c.env.NETWORKS_PER_MEMBER} />)
@@ -245,7 +245,7 @@ appPages.get('/app/:networkId/roster', async (c) => {
 })
 
 // The network's booking inbox: pitches loaded, ranked against a roster show, and answered over the
-// network's agent by any of its members. Like the demo's, it exists only while GUEST_PITCHES is on.
+// network's agent by any of its members. It exists only while GUEST_PITCHES is on.
 appPages.get('/app/:networkId/inbox', async (c) => {
   if (c.env.GUEST_PITCHES !== 'on') return c.notFound()
   const network = await networkPage(c, c.req.param('networkId'))
@@ -271,7 +271,7 @@ appPages.get('/app/:networkId/launches/:launchId', async (c) => {
 })
 
 // An approved insertion order of the launch, as a CSV download for any of the network's members; a draft
-// is refused with 409. The demo's export is the same, under the visitor's session instead.
+// is refused with 409.
 appPages.get('/app/:networkId/launches/:launchId/insertion-orders/:file{.+\\.csv}', async (c) => {
   const { networkId, launchId, file } = c.req.param()
   if (!(await membersLaunch(c, networkId, launchId))) return c.notFound()

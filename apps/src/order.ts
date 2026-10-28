@@ -32,7 +32,7 @@ export type InsertionOrder = Priced & {
   // closing line, Claude's words as the run completed, may quote figures it no longer has (#202).
   edited?: true
   // The member who approved it, by name and ID, and when (ISO time), on a launch's agent; absent on
-  // the demo's, and on any draft. The ID is kept so the name can be forgotten with their account
+  // an engine session's, and on any draft. The ID is kept so the name can be forgotten with their account
   // (forgetMember), and never leaves through the API.
   approvedBy?: string
   approvedById?: string
@@ -113,7 +113,7 @@ export function toCsv(order: InsertionOrder) {
 export type OrderExport = { status: 200; csv: string } | { status: 404 | 409; error: string }
 
 // An order's export as a browser downloads it: the CSV as a file named for the order, or the agent's
-// refusal, such as a draft's 409, as text. The demo's export route and a launch's answer with it.
+// refusal, such as a draft's 409, as text. A launch's export route answers with it.
 export const csvDownload = (id: string, exported: OrderExport) =>
   exported.status === 200
     ? new Response(exported.csv, {
