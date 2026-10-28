@@ -10,6 +10,7 @@ import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
+import { ShowEditor } from '../src/client/RosterModules'
 import type { Role } from '../src/directory'
 import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
@@ -471,12 +472,24 @@ describe("the roster's page", () => {
 
 describe("the roster page's words", () => {
   // The page as a member reads it, from the network agent's synced state and the server's props.
-  const page = (state: State | undefined, network: string, role: Role = 'owner') =>
+  const markup = (state: State | undefined, network: string, role: Role = 'owner') =>
+    renderToStaticMarkup(
+      <NetworkRoster
+        agent={{ state, stub: {} } as unknown as NetworkConnection}
+        network={{ id: network, name: 'Night Shift Audio', role, links: networkLinks(env, network) }}
+      />
+    )
+  const page = (state: State | undefined, network: string, role: Role = 'owner') => words(markup(state, network, role))
+  // The inspector's Show tab for one of the roster's shows, as selecting its row opens it.
+  const editor = (state: State, name: string) =>
     words(
       renderToStaticMarkup(
-        <NetworkRoster
+        <ShowEditor
+          show={state.roster.find((show) => show.name === name)!}
           agent={{ state, stub: {} } as unknown as NetworkConnection}
-          network={{ id: network, name: 'Night Shift Audio', role, links: networkLinks(env, network) }}
+          close={() => {}}
+          openCall={() => {}}
+          opened={null}
         />
       )
     )
@@ -563,13 +576,25 @@ describe("the roster page's words", () => {
     const grace = await teammate(ada, network)
     const agent = await connect(grace, network)
     await agent.call('startFromSample')
-    const read = page(await agent.until((s) => s.roster.length > 0 && settled(s)), network, 'member')
+    const state = await agent.until((s) => s.roster.length > 0 && settled(s))
+    const read = page(state, network, 'member')
     expect(read).toContain(
       'Sample roster. The Ringer’s public show names, with downloads, statuses, and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn’t affiliated with The Ringer. Import your own roster over it; shows on both keep their matches.'
     )
+    // One sample label a row, beside the show's name, however many of its figures are the sample's.
     expect(read).toContain(
-      'Missed No show by this name in Qloo. Map a comp or leave out 340,000 sample active sample C-06'
+      "The Watch sample Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts, break down the week's TV, movies, and music. Missed No show by this name in Qloo. Map a comp or leave out 340,000 active C-06"
     )
+    const rows = markup(state, network, 'member')
+      .match(/<tbody>.*<\/tbody>/s)![0]
+      .split('</tr>')
+      .slice(0, -1)
+    expect(rows).toHaveLength(19)
+    for (const row of rows) expect(row.match(/>sample</g)).toHaveLength(1)
+    // The Show tab says which figures are the sample's.
+    const watch = editor(state, 'The Watch')
+    expect(watch).toContain('Sample: Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
+    expect(watch).toContain('Downloads per episode sample Status sample Save')
     // The title row: whether it's ready to rank, the CPM an owner set, and the import, now in a sheet.
     expect(read).toMatch(
       /^Roster Every launch on Night Shift Audio ranks this roster, as it stands when its run starts\. 19 shows: 19 missed 19 shows aren’t scored until you settle or leave them out\. CPM \$20 per 1,000 downloads · An owner sets it in settings\. Import shows Sample roster\. /

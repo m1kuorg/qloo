@@ -232,13 +232,15 @@ function MatchChip({ show, slow }: { show: Show; slow: boolean }) {
   )
 }
 
-// Whether a show's figure still holds the sample network's arbitrary value, and its label beside it.
+// Whether a show's figure still holds the sample network's arbitrary value, and its label: beside each
+// such figure in the Show tab, and once beside the show's name in the roster table.
 const sampled = (show: Show, figure: SampleFigure) => show.sample?.includes(figure) ?? false
 const SampleChip = () => <Badge>sample</Badge>
 
 // The roster as a ranked list's rows, in the fit chart's anatomy: a real table, its rules bleeding
 // 8px past the text as the chart's do, the show set as the chart sets it with its description under
-// it, figures right-aligned. On the roster page each show's name opens it in the inspector's Show tab, and
+// it, labelled sample once while any of its figures is the sample's (the Show tab says which), figures
+// right-aligned. On the roster page each show's name opens it in the inspector's Show tab, and
 // the show open there, or whose evidence is, holds the tone step. Narrower than the table, it
 // scrolls sideways in its region with the show's column held at the left.
 export function RosterTable({
@@ -313,22 +315,24 @@ export function RosterTable({
               >
                 <th scope="row" className={cn(cell, held, 'text-left font-normal')}>
                   <span className="flex min-w-40 flex-col items-start gap-1 md:min-w-48">
-                    {select ? (
-                      <button
-                        type="button"
-                        data-open-show
-                        aria-current={show.name === selected || undefined}
-                        onClick={() => select(show.name)}
-                        className="cursor-pointer text-left text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-3 max-md:py-3"
-                      >
-                        {show.name}
-                      </button>
-                    ) : (
-                      <span className="text-[15px] leading-snug font-semibold">{show.name}</span>
-                    )}
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      {select ? (
+                        <button
+                          type="button"
+                          data-open-show
+                          aria-current={show.name === selected || undefined}
+                          onClick={() => select(show.name)}
+                          className="cursor-pointer text-left text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-3 max-md:py-3"
+                        >
+                          {show.name}
+                        </button>
+                      ) : (
+                        <span className="text-[15px] leading-snug font-semibold">{show.name}</span>
+                      )}
+                      {show.sample?.length ? <SampleChip /> : null}
+                    </span>
                     {show.description && (
                       <span className="line-clamp-2 type-caption text-muted-foreground" title={show.description}>
-                        {sampled(show, 'description') && <span className="font-medium">Sample:</span>}{' '}
                         {show.description}
                       </span>
                     )}
@@ -351,17 +355,9 @@ export function RosterTable({
                   />
                 </td>
                 <td className={cn(cell, 'text-right')}>
-                  <span className="flex flex-col items-end gap-1">
-                    {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
-                    {sampled(show, 'downloads') && <SampleChip />}
-                  </span>
+                  {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
                 </td>
-                <td className={cell}>
-                  <span className="flex flex-col items-start gap-1">
-                    {show.status ?? '–'}
-                    {sampled(show, 'status') && <SampleChip />}
-                  </span>
-                </td>
+                <td className={cell}>{show.status ?? '–'}</td>
                 <td className={cn(cell, 'pr-2 text-right')}>
                   {/* A pending call has no evidence record yet, so it opens once the search settles. */}
                   {show.resolution === 'pending' ? (
