@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { linkVariants, marketingFrame } from '@/components/ui/variants'
 import { GUEST_NETWORK_CLEARS, modelRuns } from '../text'
-import { Alert, send, SignOut, useAction } from './controls'
+import { Alert, send, useAction } from './controls'
 import { prompted, RecoveryCode, type Ceremony } from './Passkeys'
 import { StateLine } from './states'
 
@@ -29,7 +29,7 @@ const Lede = ({ title, children }: { title: string; children: ReactNode }) => (
   </div>
 )
 
-// `runs` is the guest network's model runs a day, which everyone who signs in as a guest shares.
+// `runs` is the guest budget's model runs a day, which everyone who signs in as a guest shares.
 export function SignInPage({ next, runs }: { next: string; runs: number }) {
   // A recovery code to show once, after a sign-up or a recovery, until the member says they've saved
   // it, and where they go then: `next` after a sign-up, and the account page after a recovery, to add a
@@ -76,9 +76,9 @@ export function SignInPage({ next, runs }: { next: string; runs: number }) {
   )
 }
 
-// Signing in as a guest (ADR 0005), with no passkey, so it stays open in a browser without passkeys:
-// one click into the guest network, which every guest shares with its daily limits, then on to where
-// the answer says, `next` under the sign-in's rules.
+// Signing in as a guest (ADR 0006), with no passkey, so it stays open in a browser without passkeys: one
+// click to a temporary account of one's own, an owner of the guest network every guest owns, then on to
+// where the answer says, `next` under the sign-in's rules.
 function GuestSignIn({ next, runs }: { next: string; runs: number }) {
   const { busy, error, run } = useAction()
   const signIn = () =>
@@ -93,8 +93,9 @@ function GuestSignIn({ next, runs }: { next: string; runs: number }) {
           Look around as a guest
         </h2>
         <p className="text-muted-foreground">
-          Everyone who signs in as a guest shares one guest network and its daily limits, {modelRuns(runs)} a day
-          between them, so put nothing private in it. It’s cleared every day at {GUEST_NETWORK_CLEARS}.
+          You get a temporary account of your own for a day, which you keep by adding a passkey. Every guest owns one
+          guest network together, so put nothing private in it; it’s cleared every day at {GUEST_NETWORK_CLEARS}. All
+          guests share one set of daily limits, {modelRuns(runs)} a day between them.
         </p>
       </div>
       <Button variant="secondary" className="w-full" disabled={busy} onClick={() => void signIn()}>
@@ -310,9 +311,8 @@ function CreateAccount({
 type InviteAnswer = { network: string } | { error: string }
 
 // The invite page: the link's token is in the address's fragment, which the browser never sends, so
-// the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in, and
-// `guest` whether that's a guest member, who can't join (ADR 0006).
-export function InvitePage({ memberName, guest = false }: { memberName: string | null; guest?: boolean }) {
+// the page reads it and posts it, then shows the answer (Invite). `memberName` is who's signed in.
+export function InvitePage({ memberName }: { memberName: string | null }) {
   const [token] = useState(() => window.location.hash.slice(1))
   const [invite, setInvite] = useState<InviteAnswer | null>(null)
   // Another link opened in this tab changes only the fragment, which loads no page: load it.
@@ -330,7 +330,7 @@ export function InvitePage({ memberName, guest = false }: { memberName: string |
       (err: Error) => setInvite({ error: err.message })
     )
   }, [token])
-  return <Invite token={token} invite={invite} memberName={memberName} guest={guest} />
+  return <Invite token={token} invite={invite} memberName={memberName} />
 }
 
 // The invite page for the link's `token`, once `/auth/invite` has answered (`invite`, null until then):
@@ -339,13 +339,11 @@ export function InvitePage({ memberName, guest = false }: { memberName: string |
 export function Invite({
   token,
   invite,
-  memberName,
-  guest
+  memberName
 }: {
   token: string
   invite: InviteAnswer | null
   memberName: string | null
-  guest: boolean
 }) {
   const [code, setCode] = useState<{ code: string; next: string } | null>(null)
   const supported = useSupported()
@@ -393,7 +391,7 @@ export function Invite({
         )}
       </Lede>
       {memberName ? (
-        <JoinAs name={memberName} network={invite.network} guest={guest} join={join} />
+        <JoinAs name={memberName} network={invite.network} join={join} />
       ) : (
         <div className={ways}>
           <CreateAccount
@@ -410,19 +408,8 @@ export function Invite({
   )
 }
 
-// A signed-in member joins as themselves, in one step, or signs out to join with another account. A
-// guest can only sign out, to create an account and join with it.
-function JoinAs({
-  name,
-  network,
-  guest,
-  join
-}: {
-  name: string
-  network: string
-  guest: boolean
-  join: () => Promise<void>
-}) {
+// A signed-in member joins as themselves, in one step, or signs out to join with another account.
+function JoinAs({ name, network, join }: { name: string; network: string; join: () => Promise<void> }) {
   const { busy, error, run } = useAction()
   const signOut = () =>
     run(async () => {
@@ -430,19 +417,6 @@ function JoinAs({
       // The link's fragment stays in the address, so the page opens on the invite again, signed out.
       window.location.reload()
     })
-  if (guest)
-    return (
-      <section className={panel} aria-label={`Join ${network}`}>
-        <p>
-          You’re signed in as a guest, and a guest can’t join a network. Sign out and create an account to join{' '}
-          {network}.
-        </p>
-        {/* As signOut does above: signed out, the page opens on the invite again. */}
-        <SignOut className="w-full" then={() => window.location.reload()}>
-          Sign out and create an account
-        </SignOut>
-      </section>
-    )
   return (
     <section className={panel} aria-label={`Join ${network}`}>
       <p>

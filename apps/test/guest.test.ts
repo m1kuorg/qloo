@@ -8,7 +8,6 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Invite } from '../src/client/Account'
-import { NewNetworkPage } from '../src/client/NewNetwork'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent } from '../src/network-agent'
@@ -421,9 +420,9 @@ const words = (html: string) =>
 
 describe('the app, as a guest sees it', () => {
   const NOTICE =
-    'You’re signed in as a guest, on a temporary account that lasts a day. Every guest owns the guest network together and shares its daily limits, so put nothing private in it. It’s cleared every day at 12:00 UTC. Sign out and create an account'
+    'You’re signed in as a guest, on a temporary account that lasts a day unless you keep it. Every guest owns the guest network together, so put nothing private in it; it’s cleared every day at 12:00 UTC. All guests share one set of daily limits. Keep this account'
 
-  it('says on every page that the account is temporary and the guest network shared, offers a way to an account, and no network of one’s own', async () => {
+  it('says on every page that the account is temporary and the guest network shared, and offers keeping it and a network of one’s own', async () => {
     const guest = await openGuest()
     const network = await guest.connect('/agents/network/guest-network')
     const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
@@ -436,8 +435,11 @@ describe('the app, as a guest sees it', () => {
       '/app/new'
     ]) {
       const html = await (await guest.fetch(path)).text()
-      expect(hooked(html, 'data-guest-notice').map(words), path).toEqual([NOTICE])
-      expect(html, path).not.toContain('New network')
+      const [notice] = hooked(html, 'data-guest-notice')
+      expect(words(notice), path).toBe(NOTICE)
+      // Keeping it is adding a passkey, on the account page.
+      expect(notice, path).toMatch(/<a\b[^>]*\shref="\/app\/account"[^>]*>Keep this account<\/a>/)
+      expect(html, path).toContain('New network')
     }
     const ada = await openMember()
     for (const path of ['/app/new', '/app/account']) {
@@ -447,24 +449,20 @@ describe('the app, as a guest sees it', () => {
     }
   })
 
-  it('tells a guest on the new network page that a guest can’t create one, with no form', async () => {
-    const page = await (await (await openGuest()).fetch('/app/new')).text()
-    const root = page.match(/<div id="root"([^>]*)>/)![1]
-    expect(root).toContain('data-guest="true"')
-    const cap = Number(root.match(/data-cap="(\d+)"/)![1])
-    const html = renderToStaticMarkup(createElement(NewNetworkPage, { cap, guest: true }))
-    expect(words(html)).toBe(
-      'Create a network A network holds your roster, its launches, and your booking inbox, for you and the teammates you invite. You own the networks you create, up to 3. A guest can’t create a network. Sign out and create an account to create one of your own. Sign out and create an account'
-    )
-    expect(html).not.toContain('<input')
+  // The data attributes the server gave a page's #root.
+  const root = async (who: Pick<Guest, 'fetch'>, path: string) =>
+    (await (await who.fetch(path)).text()).match(/<div id="root"([^>]*)>/)![1]
+
+  it('gives a guest the new network page a member gets', async () => {
+    const ada = await openMember()
+    expect(await root(await openGuest(), '/app/new')).toBe(await root(ada, '/app/new'))
+    expect(await root(ada, '/app/new')).toBe(' data-page="new-network" data-cap="3"')
   })
 
   // The invite page for `link`, as main.tsx renders it from the server's data attributes, once it has
   // posted the link's token to /auth/invite, as the page does, with the answer.
   async function invitePage(visitor: Pick<Guest, 'fetch'>, link: string) {
-    const page = await (await visitor.fetch('/invite')).text()
-    const root = page.match(/<div id="root"([^>]*)>/)![1]
-    const attr = (name: string) => root.match(new RegExp(`data-${name}="([^"]*)"`))?.[1]
+    const attributes = await root(visitor, '/invite')
     const token = new URL(link).hash.slice(1)
     const answer = await visitor.fetch('/auth/invite', {
       method: 'POST',
@@ -475,13 +473,12 @@ describe('the app, as a guest sees it', () => {
       createElement(Invite, {
         token,
         invite: await answer.json<{ network: string } | { error: string }>(),
-        memberName: attr('member-name') ?? null,
-        guest: attr('guest') === 'true'
+        memberName: attributes.match(/data-member-name="([^"]*)"/)?.[1] ?? null
       })
     )
   }
 
-  it('tells a guest who opens an invite link to sign out and create an account to join, with no Join', async () => {
+  it('offers a guest who opens an invite link Join, as it does a member', async () => {
     const ada = await openMember()
     const network = await ada.fetch('/app/new', {
       method: 'POST',
@@ -489,10 +486,11 @@ describe('the app, as a guest sees it', () => {
       body: JSON.stringify({ name: 'Night Shift Audio' })
     })
     const link = await ada.invite((await network.json<{ id: string }>()).id)
-    // A member is offered Join, and signing out to join with another account.
     expect(words(await invitePage(ada, link))).toContain('Join Night Shift Audio Not Ada Programmer? Sign out')
-    expect(words(await invitePage(await openGuest(), link))).toBe(
-      'Join Night Shift Audio You’re invited to Night Shift Audio on Crossfeed, as a member: you’ll work on its roster, launches, and inbox with its other members. The link works once. You’re signed in as a guest, and a guest can’t join a network. Sign out and create an account to join Night Shift Audio. Sign out and create an account'
+    const guest = await openGuest()
+    const [{ name }] = await guestMembers(guest)
+    expect(words(await invitePage(guest, link))).toContain(
+      `You’re signed in as ${name} . Join Night Shift Audio Not ${name}? Sign out to join with another account.`
     )
   })
 })

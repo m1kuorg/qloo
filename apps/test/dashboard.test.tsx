@@ -148,16 +148,19 @@ describe('the dashboard', () => {
     expect(listed[4]).toMatch(new RegExp(`^${STEPS[4]} Make a key in settings`))
   })
 
-  it('leaves inviting a teammate and making an API key out of the guest network’s setup, and lets a guest, an owner, change its CPM', async () => {
+  it('lists all five setup steps in the guest network too, and lets a guest, an owner, change its CPM', async () => {
     const guest = await openGuest()
     const agent = await connect(guest, 'guest-network')
     const html = await dashboard(guest, 'guest-network', await agent.until((s) => s.cpm === 20))
     const read = words(html)
     expect(read).toContain('CPM $20 per 1,000 downloads Change')
-    expect(read).toContain('Setup · 1 of 3 done Dismiss')
+    expect(read).toContain('Setup · 1 of 5 done Dismiss')
     const listed = steps(html)
-    expect(listed[0]).toMatch(new RegExp(`^${STEPS[0]} Paste`))
-    expect(listed.slice(1)).toEqual([`${STEPS[1]} Done`, expect.stringMatching(new RegExp(`^${STEPS[2]} Name`))])
+    expect(listed).toHaveLength(STEPS.length)
+    expect(listed[1]).toBe(`${STEPS[1]} Done`)
+    for (const i of [0, 2, 3, 4]) expect(listed[i]).toMatch(new RegExp(`^${STEPS[i]} [A-Z]`))
+    expect(listed[3]).toMatch(/^Invite a teammate Make an invite link in settings/)
+    expect(listed[4]).toMatch(/^Create an API key Make a key in settings/)
   })
 
   it("is dismissed for the member who dismisses it, and stays for everyone else's", async () => {
@@ -461,7 +464,7 @@ describe('settings', () => {
     expect(theirs).not.toContain('Delete network')
   })
 
-  it('show a guest the guest network’s settings as an owner’s, with every other guest to manage, and no Leave', async () => {
+  it('show a guest the guest network’s settings as an owner’s, with every other guest to manage, and Leave', async () => {
     const guest = await openGuest()
     await openGuest()
     const id = 'guest-network'
@@ -470,16 +473,15 @@ describe('settings', () => {
     expect(read).toMatch(/^Settings You’re an owner of this network\. Network /)
     expect(html).toMatch(/<input\b[^>]*\svalue="Guest network"/)
     expect(read).toMatch(
-      /Member Role Joined Actions Guest [0-9A-F]{6} You Owner \w{3} \d{1,2} Make member Guest [0-9A-F]{6} Owner \w{3} \d{1,2} Make member Remove Invite links/
+      /Member Role Joined Actions Guest [0-9A-F]{6} You Owner \w{3} \d{1,2} Make member Leave Guest [0-9A-F]{6} Owner \w{3} \d{1,2} Make member Remove Invite links/
     )
     expect(read).toContain('Key name Create API key')
     expect(read).toContain('Type Guest network to delete it Delete network')
-    expect(read).not.toContain('Leave')
     expect(read).not.toContain('Only an owner')
     expect(read).not.toContain('has no owner')
   })
 
-  it('show every guest the guest network’s usage today, every guest’s together, from any address or none', async () => {
+  it('show every guest the guest budget’s usage today, in the guest network and a guest’s own, from any address or none', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
     env.GUEST_PITCHES = 'on'
@@ -507,15 +509,31 @@ describe('settings', () => {
     await someone.agent.call('loadInbox', { text: 'From: Pat <pat@example.com>\nSubject: A guest\n\nAda Quill.' })
     const state = await someone.agent.until((s) => s.inbox?.status === 'done')
 
-    for (const { guest } of [ada, someone, await from('192.0.2.1')]) {
-      expect((await island(guest, `/app/${id}/settings`)).usage).toEqual({
+    // A fourth guest's own network counts on the same budget.
+    const dot = await from('192.0.2.1')
+    const own = (
+      await (
+        await dot.guest.fetch('/app/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Night Shift Audio' })
+        })
+      ).json<{ id: string }>()
+    ).id
+    for (const [{ guest }, network] of [
+      [ada, id],
+      [someone, id],
+      [dot, id],
+      [dot, own]
+    ] as const) {
+      expect((await island(guest, `/app/${network}/settings`)).usage).toEqual({
         modelRuns: { used: 1, limit: 10 },
         qlooCalls: { used: 2, limit: 2000 },
         resets: '2026-10-20T00:00:00.000Z'
       })
-      const read = words(await settings(guest, id, state))
+      const read = words(await settings(guest, network, state))
       expect(read).toContain(
-        'Usage Beta What the guest network can use each UTC day, shared by everyone who signs in as a guest. Model runs are'
+        'Usage Beta What all guests together can use each UTC day, in the guest network and the networks guests create. Model runs are'
       )
       expect(read).toContain('Model runs 1 of 10 today Qloo calls 2 of 2,000 today Resets 00:00 UTC, in 9 h 30 min')
     }

@@ -8,7 +8,7 @@ import { addPasskey, openGuest, openMember, regions, type Member } from './sessi
 
 afterEach(() => vi.useRealTimers())
 
-const post = (member: Member, path: string, body: object = {}) =>
+const post = (member: Pick<Member, 'fetch'>, path: string, body: object = {}) =>
   member.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
 // The account page as main.tsx renders it from the server's data attributes.
@@ -118,11 +118,42 @@ describe('the account page', () => {
     )
   })
 
-  it('shows a guest only that their account is temporary, what a guest can’t do, and signing out', async () => {
-    const html = await page(await openGuest())
-    expect(words(html)).toBe(
-      'Account Guest Your guest account is temporary: it lasts a day. Every guest owns the guest network together and shares its daily limits. A guest can’t add a passkey or a recovery code, rename themselves, sign out everywhere, or delete their account, and can’t create or join a network. For any of that, sign out and create an account of your own. Sign out'
+  it('shows a guest every module a member has, that the account is temporary until a passkey keeps it, and no recovery code yet', async () => {
+    const guest = await openGuest()
+    const html = await page(guest)
+    const read = words(html)
+    expect(regions(html)).toEqual([
+      'Name',
+      'Passkeys',
+      'Recovery code',
+      'Sessions',
+      'Networks',
+      'Your networks',
+      'Delete account'
+    ])
+    expect(html).toMatch(/<input\b(?=[^>]*\sid="acct-name")(?=[^>]*\svalue="Guest [0-9A-F]{6}")/)
+    expect(read).toContain(
+      'Your account is temporary: as a guest’s, it lasts a day from when you signed in. Add a passkey to keep it, with the networks you own; you get a recovery code with it. No passkeys yet. Add a passkey'
     )
-    expect(regions(html)).toEqual(['Guest'])
+    expect(html).not.toContain('Passkeys table')
+    expect(read).toContain('You get your recovery code with your first passkey.')
+    expect(read).not.toContain('Get a new recovery code')
+    expect(read).toContain(
+      'As a guest, you’re signed in on this browser alone, for a day from when you signed in. Once you add a passkey, each browser you sign in on stays signed in for 30 days from the last time you use it.'
+    )
+    expect(read).toContain('Guest network Owner Leave')
+    expect(html).not.toMatch(/disabled=""[^>]*>(Leave|Delete account)</)
+    // Once a passkey keeps it, through both steps of adding one, the page is a member's.
+    const started = await guest.fetch('/auth/passkeys/options', { method: 'POST' })
+    const { challenge, options } = await started.json<{ challenge: string; options: never }>()
+    const added = await post(guest, '/auth/passkeys', {
+      challenge,
+      response: await softwareAuthenticator().register(options)
+    })
+    expect(added.status).toBe(200)
+    const kept = words(await page(guest))
+    expect(kept).toContain('Get a new recovery code')
+    expect(kept).not.toContain('Your account is temporary')
+    expect(kept).toContain('Each browser you sign in on stays signed in for 30 days from the last time you use it.')
   })
 })

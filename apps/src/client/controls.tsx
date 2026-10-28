@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon, CopyIcon } from 'lucide-react'
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,37 +72,6 @@ export const Alert = ({ error }: { error: string | null }) =>
       {error}
     </StateLine>
   )
-
-// Signing out of this browser's session alone, as a guest does to create an account of their own: the
-// button, busy while it works, and the route's error under it. Then the sign-in page opens, unless
-// `then` goes elsewhere.
-export function SignOut({
-  children,
-  variant,
-  className,
-  then = () => window.location.assign('/sign-in')
-}: {
-  children: string
-  variant?: ComponentProps<typeof Button>['variant']
-  className?: string
-  then?: () => void
-}) {
-  const { busy, error, run } = useAction()
-  const signOut = () =>
-    run(async () => {
-      await send('/auth/sign-out')
-      then()
-    })
-  return (
-    <>
-      <Button variant={variant} className={className} disabled={busy} onClick={() => void signOut()}>
-        {busy && <Spinner data-icon="inline-start" />}
-        {busy ? 'Signing out…' : children}
-      </Button>
-      <Alert error={error} />
-    </>
-  )
-}
 
 export { bandMeter } from '../fit'
 export { listOf } from '../text'

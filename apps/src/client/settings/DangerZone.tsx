@@ -4,13 +4,12 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, send, useAction } from '../controls'
-import { ownersOnly, type NetworkPage } from '../NetworkPage'
+import type { NetworkPage } from '../NetworkPage'
 import { Module } from './Module'
 
 // The settings' danger zone: an owner deletes the network, for every member, once they've typed its
 // name, so it can't happen by a slip; typing it is the confirmation, so there's no dialog. Its pages,
-// agents, and API answer 404 from then on, and its storage is wiped. A member sees only whose it is to do,
-// and in the guest network, which has no owner, that no one can.
+// agents, and API answer 404 from then on, and its storage is wiped. A member sees only whose it is to do.
 export function DangerZoneModule({ network }: { network: NetworkPage }) {
   return (
     <Module
@@ -21,9 +20,7 @@ export function DangerZoneModule({ network }: { network: NetworkPage }) {
       {network.role === 'owner' ? (
         <DeleteNetwork network={network} />
       ) : (
-        <p className="text-muted-foreground">
-          {ownersOnly(network, 'Only an owner can delete the network.', 'delete it')}
-        </p>
+        <p className="text-muted-foreground">Only an owner can delete the network.</p>
       )}
     </Module>
   )

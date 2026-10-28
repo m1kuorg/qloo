@@ -37,7 +37,7 @@ import { dollars } from '../order'
 import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { OnAir } from './Frame'
 import { launchTitle, useLaunchFields } from './LaunchFields'
-import { NetworkGate, ownersOnly, useNetwork, type NetworkPage } from './NetworkPage'
+import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { connectionOf, ConnectionState, endedBadly, isLive, stateLabel, StateLine, type Connection } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
@@ -557,8 +557,7 @@ const parts = (counts: [number, string, string?][]) =>
     .join(', ')
 
 // What a new network needs, ticked off from its agent's state and the directory as each arrives, as
-// a numbered list. A member can dismiss it for themselves; it stays for everyone else. The guest
-// network's leaves out inviting and API keys.
+// a numbered list. A member can dismiss it for themselves; it stays for everyone else.
 function Checklist({
   state,
   network,
@@ -588,7 +587,7 @@ function Checklist({
       title: 'Set the CPM',
       how: owner
         ? 'Your CPM prices every promo slot. Set it in settings.'
-        : `Your CPM prices every promo slot. ${ownersOnly(network, 'An owner sets it in settings.', 'set it')}`,
+        : 'Your CPM prices every promo slot. An owner sets it in settings.',
       go: owner ? settings : null,
       done: state.cpm !== null
     },
@@ -598,26 +597,22 @@ function Checklist({
       go: plan,
       done: (state.launches?.length ?? 0) > 0
     },
-    ...(network.guest
-      ? []
-      : [
-          {
-            title: 'Invite a teammate',
-            how: owner
-              ? 'Make an invite link in settings and send it to them. It works once, for seven days.'
-              : 'An owner makes invite links in settings.',
-            go: owner ? settings : null,
-            done: setup.invited
-          },
-          {
-            title: 'Create an API key',
-            how: owner
-              ? 'Make a key in settings for a script or an assistant to act for the network, short of approving anything.'
-              : 'An owner makes API keys in settings, for scripts and assistants.',
-            go: owner ? settings : null,
-            done: setup.apiKey
-          }
-        ])
+    {
+      title: 'Invite a teammate',
+      how: owner
+        ? 'Make an invite link in settings and send it to them. It works once, for seven days.'
+        : 'An owner makes invite links in settings.',
+      go: owner ? settings : null,
+      done: setup.invited
+    },
+    {
+      title: 'Create an API key',
+      how: owner
+        ? 'Make a key in settings for a script or an assistant to act for the network, short of approving anything.'
+        : 'An owner makes API keys in settings, for scripts and assistants.',
+      go: owner ? settings : null,
+      done: setup.apiKey
+    }
   ]
   const done = items.filter((i) => i.done).length
   return (

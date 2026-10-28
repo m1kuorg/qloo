@@ -22,7 +22,6 @@ import {
   createApiKey,
   createInvite,
   createNetwork,
-  GUEST_NETWORK,
   isGuestMember,
   lastNetwork,
   memberNetworks,
@@ -53,6 +52,7 @@ import {
   MEMBER_HEADER,
   MEMBER_NAME_HEADER,
   networkLimitKey,
+  onGuestBudget,
   ownGateway
 } from '../network-agent'
 import { getUsage } from '../operations'
@@ -94,17 +94,10 @@ appPages.get('/app', async (c) => {
   return c.redirect(last ? `/app/${last}` : '/app/new', 302)
 })
 
-// Naming a new network. The demo's and the landing page's "Create your network" lead here. A guest
-// member is told they can't create one instead.
+// Naming a new network. The demo's and the landing page's "Create your network" lead here.
 appPages.get('/app/new', async (c) => {
   c.set('networks', await memberNetworks(c.env.DB, c.var.member.id))
-  return c.render(
-    <Island
-      page="new-network"
-      data-cap={c.env.NETWORKS_PER_MEMBER}
-      data-guest={isGuestMember(c.var.member) ? 'true' : undefined}
-    />
-  )
+  return c.render(<Island page="new-network" data-cap={c.env.NETWORKS_PER_MEMBER} />)
 })
 
 // Creates the network, with the member as its owner, unless they've created NETWORKS_PER_MEMBER.
@@ -138,7 +131,7 @@ appPages.get('/app/account', async (c) => {
       data-networks={JSON.stringify(networks)}
       // Signing in with a recovery code lands here, to add a passkey.
       data-recovered={String(c.req.query('recovered') !== undefined)}
-      // A guest member's page shows only that their account is temporary, and signing out (ADR 0006).
+      // A guest member's page says their account is temporary until a passkey keeps it (ADR 0006).
       data-guest={isGuestMember(c.var.member) ? 'true' : undefined}
     />
   )
@@ -541,7 +534,7 @@ appPages.post('/app/:networkId/settings/delete', async (c) => {
 })
 
 // What every network page tells the island: where the network's agent connects, the network and the
-// member's role in it, whether it's the guest network, and where its pages are.
+// member's role in it, whether it counts on the guest budget, and where its pages are.
 const island = (c: Context<AppEnv>, network: Network) => {
   const links = networkLinks(c.env, network.id)
   return {
@@ -549,7 +542,7 @@ const island = (c: Context<AppEnv>, network: Network) => {
     'data-network-id': network.id,
     'data-network-name': network.name,
     'data-role': network.role,
-    'data-guest': network.id === GUEST_NETWORK ? 'true' : undefined,
+    'data-guest': onGuestBudget(network.id) ? 'true' : undefined,
     'data-roster-link': links.roster,
     'data-inbox-link': links.inbox ?? undefined,
     'data-settings-link': links.settings,

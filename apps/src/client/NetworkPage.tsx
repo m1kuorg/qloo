@@ -6,9 +6,10 @@ import type { Role } from '../directory'
 import type { NetworkAgent } from '../network-agent'
 import { StateLine } from './states'
 
-// A network's page, as the server describes it: the network, the member's role in it, whether it's the
-// guest network (ADR 0005), and where its other pages are. `inbox` is null while GUEST_PITCHES is off; a
-// launch's page is under `launches`.
+// A network's page, as the server describes it: the network, the member's role in it, whether it counts
+// on the guest budget, as the guest network and every network a guest member creates do (ADR 0006), and
+// where its other pages are. `inbox` is null while GUEST_PITCHES is off; a launch's page is under
+// `launches`.
 export type NetworkPage = {
   id: string
   name: string
@@ -16,11 +17,6 @@ export type NetworkPage = {
   guest?: boolean
   links: { roster: string; inbox: string | null; settings: string; launches: string }
 }
-
-// What a member is told of a change only an owner can make: `owners`, or in the guest network, which has
-// no owner, that no one can `what`.
-export const ownersOnly = (network: NetworkPage, owners: string, what: string) =>
-  network.guest ? `The guest network has no owner, so no one can ${what}.` : owners
 
 // The network's agent, at the path the server gives, which checks the member's session and membership.
 export const useNetwork = (path: string) =>

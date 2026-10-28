@@ -1212,10 +1212,10 @@ function Privacy({ accounts }: { accounts: boolean }) {
               <p>
                 Signing in as a guest asks for nothing. It makes a temporary account with a generated name, such as
                 Guest 4F2A9C, and keeps a hash of its session, for a day, and the time of each guest sign-in, with
-                nothing else, to count them. Every guest owns the one guest network together: everything in it, its
-                roster, launches, runs, inbox, and approvals, is seen and changed by everyone who signs in as a guest,
-                and stays until one of them deletes or replaces it, or until it’s cleared, every day at{' '}
-                {GUEST_NETWORK_CLEARS}.
+                nothing else, to count them. Adding a passkey keeps the account, as any member’s, with a recovery code.
+                Every guest owns the one guest network together: everything in it, its roster, launches, runs, inbox,
+                and approvals, is seen and changed by everyone who signs in as a guest, and stays until one of them
+                deletes or replaces it, or until it’s cleared, every day at {GUEST_NETWORK_CLEARS}.
               </p>
             </li>
           )}

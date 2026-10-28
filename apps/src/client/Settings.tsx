@@ -68,9 +68,7 @@ export function Settings({
           <span>
             {network.role === 'owner'
               ? 'You’re an owner of this network.'
-              : network.guest
-                ? 'You’re a guest. The guest network has no owner, so what only an owner can change is read-only.'
-                : 'You’re a member of this network: you see what only an owner can change, read-only.'}
+              : 'You’re a member of this network: you see what only an owner can change, read-only.'}
           </span>
           {/* Always there, so a screen reader hears the line as it appears. */}
           <span role="status">
