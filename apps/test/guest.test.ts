@@ -13,7 +13,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
-import { Invite } from '../src/client/Account'
+import { Invite, SignInPage } from '../src/client/Account'
 import { globalGateway } from '../src/gateway'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
@@ -26,6 +26,7 @@ import { softwareAuthenticator } from './authenticator'
 import { fakeClaude, fakeQloo, fakeQlooDown, requests, text, toolUse, turn } from './fake'
 import {
   api,
+  guestFormSignIn,
   guestSignIn,
   hooked,
   openGuest,
@@ -134,11 +135,39 @@ describe('signing in as a guest', () => {
       expect(again.status).toBe(200)
       expect(again.headers.get('set-cookie')).toBeNull()
       expect(await again.json()).toEqual({ next: '/app/account' })
+      // A public page's guest button, too.
+      const form = await guestFormSignIn({ cookie, next: '/app/account' })
+      expect([form.status, form.headers.get('location'), form.headers.get('set-cookie')]).toEqual([
+        303,
+        '/app/account',
+        null
+      ])
     }
     // Each is still signed in as themselves, and the guest network has no other guest member.
     expect(await (await ada.fetch('/app/account')).text()).toContain('data-member-name="Ada Programmer"')
     expect(await (await guest.fetch('/app/account')).text()).toContain(`data-member-name="${name}"`)
     expect(await guestMembers(guest)).toHaveLength(1)
+  })
+
+  it('signs in from a public page’s plain form, with no script, and redirects with 303 to where it leads', async () => {
+    const res = await guestFormSignIn()
+    expect(res.status).toBe(303)
+    expect(res.headers.get('location')).toBe('/app')
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    const cookie = res.headers.get('set-cookie')?.split(';')[0]
+    expect(cookie).toMatch(/^__Host-crossfeed_member=[\w-]{43}$/)
+    // The browser follows it into the guest network, as its owner.
+    const browser = (path: string, init?: RequestInit) =>
+      exports.default.fetch(`${origin}${path}`, { ...init, headers: { Cookie: cookie! } })
+    expect(await dashboard({ fetch: browser } as Guest)).toMatchObject({
+      path: '/app/guest-network',
+      page: 'dashboard',
+      role: 'owner',
+      member: expect.stringMatching(/^guest-/)
+    })
+    const roster = await guestFormSignIn({ next: '/app/guest-network/roster' })
+    expect(roster.headers.get('location')).toBe('/app/guest-network/roster')
+    expect((await guestFormSignIn({ next: '//crossfeed.example/app' })).headers.get('location')).toBe('/app')
   })
 
   it('is a POST from one of the app’s pages, while accounts are on', async () => {
@@ -152,6 +181,15 @@ describe('signing in as a guest', () => {
       expect(res.status).toBe(403)
       expect(res.headers.get('set-cookie')).toBeNull()
     }
+    // A plain form's post says it's from one of the app's pages by its Sec-Fetch-Site, never by a bare
+    // `null` Origin: not from another site, a sibling subdomain, the address bar, or a browser that
+    // doesn't say.
+    for (const site of ['cross-site', 'same-site', 'none', '']) {
+      const res = await guestFormSignIn({ site })
+      expect(res.status, site).toBe(403)
+      expect(res.headers.get('set-cookie'), site).toBeNull()
+    }
+    // A GET, as a link or a prefetch makes, never signs in.
     expect((await exports.default.fetch(`${origin}/auth/guest`)).status).toBe(404)
     const signedIn = await guestSignIn()
     expect(signedIn.headers.get('cache-control')).toBe('no-store')
@@ -836,6 +874,46 @@ describe('the guest sign-in limit', () => {
     } finally {
       env.GUEST_SIGNINS_PER_DAY = perDay
     }
+  })
+
+  it('sends a refused plain form back to the sign-in page’s guest panel, which says why', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.now()
+    // The guest panel of the sign-in page a refused form's redirect opens, in words.
+    const panel = async (refused: Response) => {
+      expect(refused.status).toBe(303)
+      expect(refused.headers.get('set-cookie')).toBeNull()
+      const page = await (await exports.default.fetch(`${origin}${refused.headers.get('location')}`)).text()
+      const attr = (name: string) => page.match(new RegExp(`data-${name}="([^"]*)"`))?.[1]
+      const html = renderToStaticMarkup(
+        createElement(SignInPage, {
+          next: attr('next')!,
+          runs: Number(attr('runs')),
+          guestRefused: attr('guest-refused')
+        })
+      )
+      const section = html.match(/<section\b[^>]*\bid="guest"[\s\S]*?<\/section>/)?.[0] ?? ''
+      return { next: attr('next'), words: section.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ') }
+    }
+    for (let i = 0; i < 30; i++) expect((await guestSignIn()).status).toBe(200)
+    const busy = await guestFormSignIn({ next: '/app/guest-network/roster' })
+    expect(busy.headers.get('location')).toBe('/sign-in?guest=minute&next=%2Fapp%2Fguest-network%2Froster#guest')
+    expect(await panel(busy)).toEqual({ next: '/app/guest-network/roster', words: expect.stringContaining(BUSY.error) })
+
+    // A minute on, past the day's sign-ins instead.
+    const perDay = env.GUEST_SIGNINS_PER_DAY
+    env.GUEST_SIGNINS_PER_DAY = '30'
+    try {
+      vi.setSystemTime(start + 60_000)
+      expect((await panel(await guestFormSignIn())).words).toContain(
+        'Guests have signed in 30 times today, the most Crossfeed takes in a UTC day; it resets at 00:00 UTC. Create an account to sign in now.'
+      )
+    } finally {
+      env.GUEST_SIGNINS_PER_DAY = perDay
+    }
+    // The sign-in page itself, or with a word it doesn't know, says nothing of it.
+    for (const path of ['/sign-in', '/sign-in?guest=other'])
+      expect(await (await exports.default.fetch(`${origin}${path}`)).text(), path).not.toContain('data-guest-refused')
   })
 
   it('counts exactly, so two sign-ins at once for the last place leave one refused', async () => {

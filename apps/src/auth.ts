@@ -120,6 +120,17 @@ export const sameOrigin: MiddlewareHandler<{ Bindings: Env }> = async (c, next) 
   await next()
 }
 
+// Whether a request is a plain HTML form's post, which no script sent, as the public pages' guest buttons
+// send it.
+export const formPost = (c: Context) =>
+  c.req.header('Content-Type')?.split(';')[0].trim().toLowerCase() === 'application/x-www-form-urlencoded'
+
+// Whether a plain form's post comes from one of the app's own pages. Under the app's `Referrer-Policy:
+// no-referrer` (index.tsx), a browser sends such a post's Origin as `null`, which a sandboxed frame or a
+// file on another site sends too, so a `null` is never taken alone: the browser's Sec-Fetch-Site, which
+// no page can set, must say the post comes from this origin.
+export const fromAppForm = (c: Context) => formPost(c) && c.req.header('Sec-Fetch-Site') === 'same-origin'
+
 // A JSON body to an accounts route holds at most a few names and a passkey's answer: one past 64 KB,
 // as its Content-Length says or as it streams in with none, is refused before it's read further.
 export const jsonLimit = bodyLimit({
