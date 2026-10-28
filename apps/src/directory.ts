@@ -857,12 +857,22 @@ export async function dropNetwork(db: D1Database, networkId: string, by: string,
 // the cron can retry any that failed.
 export async function noteWipe(db: D1Database, ...instances: Instance[]) {
   const now = Date.now()
-  await db.batch(
-    instances.map(({ binding, name }) =>
-      db.prepare('INSERT OR IGNORE INTO wipes (binding, name, created) VALUES (?, ?, ?)').bind(binding, name, now)
-    )
-  )
+  await db.batch(instances.map((instance) => noting(db, instance, now)))
 }
+
+// Restores the guest network's name, as the daily cron clears it (wipe.ts), and notes the wipes of
+// `instances`, its agent's and its own Qloo gateway instance's, in the same batch.
+export async function clearGuestNetwork(db: D1Database, instances: Instance[]) {
+  const now = Date.now()
+  await db.batch([
+    db.prepare('UPDATE networks SET name = ? WHERE id = ?').bind(GUEST_NETWORK_NAME, GUEST_NETWORK),
+    ...instances.map((instance) => noting(db, instance, now))
+  ])
+}
+
+// The note of a wipe of `instance` at time `now`, kept as it was if it's noted already.
+const noting = (db: D1Database, { binding, name }: Instance, now: number) =>
+  db.prepare('INSERT OR IGNORE INTO wipes (binding, name, created) VALUES (?, ?, ?)').bind(binding, name, now)
 
 export async function wipeDone(db: D1Database, binding: string, name: string) {
   await db.prepare('DELETE FROM wipes WHERE binding = ? AND name = ?').bind(binding, name).run()

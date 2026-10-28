@@ -14,11 +14,12 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import { Invite } from '../src/client/Account'
+import { globalGateway } from '../src/gateway'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
-import { NetworkAgent } from '../src/network-agent'
+import { NetworkAgent, ownGateway } from '../src/network-agent'
 import sampleFile from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { softwareAuthenticator } from './authenticator'
@@ -690,6 +691,18 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(requests).toHaveLength(sent)
   })
 
+  it('starts no sample load as the daily cron clears it, before it has loaded one, and loads it on the next start', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+
+    await runCron()
+    // Reserved for the sample's lookups, the guest budget would have spent them.
+    expect((await globalGateway(env).usage('network:guest-network')).qlooCalls.used).toBe(0)
+    const loaded = await (await connect(guest)).until(settled)
+    expect(loaded.launches).toMatchObject([{ name: 'The Watch' }])
+    expect(await qlooCalls(guest)).toBe(19)
+  })
+
   it('loads the sample again as it next starts after the daily cron clears it', async () => {
     fakeQloo({ search })
     const guest = await openGuest()
@@ -1196,6 +1209,28 @@ describe("the guest network's daily reset", () => {
     expect((await (await getAgentByName(env.NetworkAgent, own.id)).state).launches).toHaveLength(1)
   })
 
+  it('restores its name and wipes a Qloo key a guest added', async () => {
+    const key = 'qk-made-up-7f3a'
+    fakeQloo({ search: health, keys: [key, env.QLOO_API_KEY] })
+    const guest = await openGuest()
+    const renamed = await post(guest, '/app/guest-network/settings/network', { name: 'Night Shift Guests', cpm: 25 })
+    expect(renamed.status).toBe(200)
+    const added = await post(guest, '/app/guest-network/settings/qloo-key', {
+      host: 'https://hackathon.api.qloo.com',
+      key
+    })
+    expect(added.status).toBe(200)
+
+    await runCron()
+    expect(await readAfterReset(() => ownGateway(env, 'guest-network').ownKey())).toEqual({ set: false })
+    expect(
+      await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+    ).toMatchObject({ cpm: 20 })
+    const page = await (await guest.fetch('/app/guest-network/settings')).text()
+    expect(page.match(/data-network-name="([^"]*)"/)?.[1]).toBe('Guest network')
+    expect(page.match(/data-qloo-key="([^"]*)"/)?.[1].replace(/&quot;/g, '"')).toBe('{"set":false}')
+  })
+
   it('fails the cron’s run when a wipe fails, with the launch already gone from the guest network, and wipes it the next day', async () => {
     fakeQloo({ search: health })
     const guest = await openGuest()
@@ -1209,7 +1244,7 @@ describe("the guest network's daily reset", () => {
     const failed = vi.spyOn(console, 'error')
 
     await expect(runCron()).rejects.toThrow(
-      'Clearing the guest network, 1 agent wipe failed; the next daily run tries again.'
+      'Clearing the guest network, 1 agent wipe failed; the next hourly run tries again.'
     )
     expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 0, failed: 1 }))
     expect(failed.mock.calls.flat().filter((line) => String(line).includes('"event":"wipe_failed"'))).toHaveLength(1)

@@ -4,6 +4,7 @@
 // their networks' launches; and the daily cron's retry of a wipe that failed. The directory notes each wipe before it starts and crosses it off once it succeeds.
 import { getAgentByName } from 'agents'
 import {
+  clearGuestNetwork,
   deleteMember,
   dropExpiredGuests,
   dropNetwork,
@@ -106,13 +107,14 @@ export async function deleteNetwork(env: Env, networkId: string, by: string) {
   return true
 }
 
-// The daily cron's clearing of the guest network (ADR 0005), so each day's guests start afresh, keeping
+// The daily cron's clearing of the guest network (ADR 0006), so each day's guests start afresh, keeping
 // their sessions and the guest network's directory rows. Each launch it lists goes as a deleted one
 // does, off the list before its agent is wiped, so its page answers 404 from then on; then the network's
 // agent lets go, closing every guest's open pages with why, any launch planned since goes the same way,
-// and the agent is wiped; its next start loads the sample network again (ADR 0007). Guests can't add a
-// Qloo key, so it has no gateway instance of its own. Logs how many launches it wiped and how many wipes
-// failed; one that failed stays noted for the next day's cron, and fails this one's run.
+// its name is restored, and its agent is wiped, then its own Qloo gateway instance, with any key a guest
+// added; the agent's next start loads the sample network again (ADR 0007). It's started, if it isn't
+// running, to be wiped, so it loads none now (networkToWipe). Logs how many launches it wiped and how
+// many wipes failed; one that failed stays noted for the next hour's retry, and fails this run.
 export async function resetGuestNetwork(env: Env) {
   const done = { launches: 0, failed: 0 }
   const clear = async (launches: string[]) => {
@@ -121,17 +123,18 @@ export async function resetGuestNetwork(env: Env) {
       else done.failed++
   }
   await clear(await guestLaunches(env))
-  await clear(await (await getAgentByName(env.NetworkAgent, GUEST_NETWORK)).letGo(GUEST_NETWORK_RESET))
-  const network = { binding: NETWORK, name: GUEST_NETWORK }
-  await noteWipe(env.DB, network)
-  await wipe(env, network).catch((e) => {
-    done.failed++
-    wipeFailed(network, e)
-  })
+  await clear(await (await networkToWipe(env, GUEST_NETWORK)).letGo(GUEST_NETWORK_RESET))
+  const instances = networkInstances(GUEST_NETWORK, [])
+  await clearGuestNetwork(env.DB, instances)
+  for (const instance of instances)
+    await wipe(env, instance).catch((e) => {
+      done.failed++
+      wipeFailed(instance, e)
+    })
   console.log(JSON.stringify({ event: 'guest_network_reset', ...done }))
   if (done.failed > 0)
     throw new Error(
-      `Clearing the guest network, ${done.failed} agent ${done.failed === 1 ? 'wipe' : 'wipes'} failed; the next daily run tries again.`
+      `Clearing the guest network, ${done.failed} agent ${done.failed === 1 ? 'wipe' : 'wipes'} failed; the next hourly run tries again.`
     )
 }
 
@@ -141,7 +144,7 @@ export async function resetGuestNetwork(env: Env) {
 async function guestLaunches(env: Env) {
   for (let tries = 1; ; tries++)
     try {
-      return ((await (await getAgentByName(env.NetworkAgent, GUEST_NETWORK)).state).launches ?? []).map((l) => l.id)
+      return ((await (await networkToWipe(env, GUEST_NETWORK)).state).launches ?? []).map((l) => l.id)
     } catch (e) {
       if ((e as Error).message !== 'destroyed' || tries === 5) throw e
       await new Promise((resolve) => setTimeout(resolve, 100 * tries))
@@ -192,7 +195,7 @@ export async function retryWipes(env: Env) {
   console.log(JSON.stringify({ event: 'wipes_retried', ...done }))
   if (done.failed > 0)
     throw new Error(
-      `${done.failed} agent ${done.failed === 1 ? 'wipe' : 'wipes'} failed; the next daily run tries again.`
+      `${done.failed} agent ${done.failed === 1 ? 'wipe' : 'wipes'} failed; the next hourly run tries again.`
     )
 }
 
