@@ -36,15 +36,15 @@ Someone reading Crossfeed's public pages without signing in.
 _Avoid_: Guest, which means a pitched guest, or a guest member
 
 **Guest member**:
-A temporary member that "Sign in as a guest" makes, without a passkey: an owner of the guest network who can do anything a member can, kept by adding a passkey and otherwise removed a day after signing in.
+The one member everyone who signs in as a guest is signed in as, without a passkey: an owner of the guest network who can do anything in a network, but whose own account no guest can change.
 _Avoid_: Guest user, guest account
 
 **Guest network**:
-The one network every guest member owns together, loaded with the sample network's data and cleared every day.
+The shared network the guest member owns, which every guest works in together, loaded with the sample network's data and cleared every day.
 _Avoid_: Guest workspace, demo account
 
 **Guest budget**:
-The daily caps every guest member's use counts against together, in the guest network and in every network a guest member creates.
+The daily caps every guest's use counts against together, in the guest network and in every network the guest member creates.
 
 **Sample network**:
 The Ringer's public show names with labelled sample figures, a sample CPM, and the sample launch: the data the guest network starts with each day, and a roster any network can start from.
