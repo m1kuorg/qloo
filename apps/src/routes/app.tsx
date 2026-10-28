@@ -8,6 +8,8 @@ import {
   accountsOn,
   endSession,
   fromAppOrigin,
+  GUEST_ACCOUNT,
+  guestRefused,
   jsonBody,
   jsonLimit,
   sameOrigin,
@@ -32,11 +34,11 @@ import {
   openInvites,
   openNetwork,
   openSessions,
-  rejoinGuestNetwork,
   removeMember,
   removePasskey,
   renameMember,
   renameNetwork,
+  restoreGuestOwner,
   revokeApiKey,
   revokeInvite,
   setRole,
@@ -85,10 +87,11 @@ appPages.use(
 )
 appPages.use('/app/*', appShell)
 
-// /app opens the network the member opened last, or asks them to create their first. A guest member
-// always has the guest network to open: one who isn't in it is an owner of it again (ADR 0006).
+// /app opens the network the member opened last, or asks them to create their first. A guest always has
+// the guest network to open: the guest member is an owner of it again if anyone demoted or removed it, or
+// deleted it (ADR 0008).
 appPages.get('/app', async (c) => {
-  if (isGuestMember(c.var.member)) await rejoinGuestNetwork(c.env.DB, c.var.member.id)
+  if (isGuestMember(c.var.member)) await restoreGuestOwner(c.env.DB)
   const last = await lastNetwork(c.env.DB, c.var.member.id)
   return c.redirect(last ? `/app/${last}` : '/app/new', 302)
 })
@@ -116,9 +119,15 @@ appPages.post('/app/new', async (c) => {
 })
 
 // The member's account: their name, passkeys, recovery code, sessions, networks, and deleting it. It's
-// the member's own, so it comes before the network pages, whose IDs it would otherwise look like.
+// the member's own, so it comes before the network pages, whose IDs it would otherwise look like. A
+// guest's page says only why no guest can change the account every guest shares, and offers signing out
+// (ADR 0008), so it reads none of it.
 appPages.get('/app/account', async (c) => {
   const { id, name } = c.var.member
+  if (isGuestMember(c.var.member)) {
+    c.set('networks', await memberNetworks(c.env.DB, id))
+    return c.render(<Island page="account" data-member-name={name} data-guest-member="true" />)
+  }
   const networks = await accountNetworks(c.env.DB, id)
   c.set('networks', networks)
   return c.render(
@@ -130,17 +139,18 @@ appPages.get('/app/account', async (c) => {
       data-networks={JSON.stringify(networks)}
       // Signing in with a recovery code lands here, to add a passkey.
       data-recovered={String(c.req.query('recovered') !== undefined)}
-      // A guest member's page says their account is temporary until a passkey keeps it (ADR 0006).
-      data-guest-member={isGuestMember(c.var.member) ? 'true' : undefined}
     />
   )
 })
 
-// Renames the member, as their teammates see them from then on.
+// Renames the member, as their teammates see them from then on. A guest is refused, here and in the
+// directory (ADR 0008).
 appPages.post('/app/account/name', async (c) => {
+  const guest = guestRefused(c, c.var.member)
+  if (guest) return guest
   const read = readName((await jsonBody(c)).name, 'Enter your name.')
   if ('error' in read) return c.json({ error: read.error }, 400)
-  await renameMember(c.env.DB, c.var.member.id, read.name)
+  if (!(await renameMember(c.env.DB, c.var.member.id, read.name))) return c.json({ error: GUEST_ACCOUNT }, 403)
   return c.json({ name: read.name })
 })
 
@@ -159,18 +169,22 @@ appPages.post('/app/account/passkeys/:credentialId/remove', async (c) => {
 })
 
 // A new recovery code, shown this once, in place of the member's last one, once they've proved it's them
-// in the last five minutes.
+// in the last five minutes. A guest is refused, by the step-up and in the directory (ADR 0008).
 appPages.post('/app/account/recovery-code', async (c) => {
   const unproved = await stepUpRefused(c, c.var.member)
   if (unproved) return unproved
-  return c.json({ recoveryCode: await newRecoveryCode(c.env.DB, c.var.member.id) })
+  const recoveryCode = await newRecoveryCode(c.env.DB, c.var.member.id)
+  return recoveryCode ? c.json({ recoveryCode }) : c.json({ error: GUEST_ACCOUNT }, 403)
 })
 
 // Signs the member out on every browser, as when a device is lost: every session ends, this one's
-// cookie goes, and their open pages close on every network and launch.
+// cookie goes, and their open pages close on every network and launch. A guest, whose sessions are every
+// guest's, is refused, here and in the directory (ADR 0008).
 appPages.post('/app/account/sign-out-everywhere', async (c) => {
+  const guest = guestRefused(c, c.var.member)
+  if (guest) return guest
   const { id } = c.var.member
-  await signOutEverywhere(c.env.DB, id)
+  if (!(await signOutEverywhere(c.env.DB, id))) return c.json({ error: GUEST_ACCOUNT }, 403)
   endSession(c)
   const networks = await memberNetworks(c.env.DB, id)
   await Promise.all(
@@ -181,10 +195,10 @@ appPages.post('/app/account/sign-out-everywhere', async (c) => {
 
 // Deletes the member's account: them, their passkeys, sessions, and memberships, unless they're any
 // network's only owner, which would leave it with no one to run it, once they've proved it's them in
-// the last five minutes, or, as a guest member, with no step-up (ADR 0006). What they made in each network
-// stays with it, but each launch forgets their name (wipe.ts). Their open pages close.
+// the last five minutes. A guest is refused, by the step-up and in the directory (ADR 0008). What they
+// made in each network stays with it, but each launch forgets their name (wipe.ts). Their open pages close.
 appPages.post('/app/account/delete', async (c) => {
-  const unproved = await stepUpRefused(c, c.var.member, () => null)
+  const unproved = await stepUpRefused(c, c.var.member)
   if (unproved) return unproved
   const { id } = c.var.member
   const networks = await accountNetworks(c.env.DB, id)
@@ -352,6 +366,10 @@ async function refuseNonOwner(c: Context<AppEnv>, id: string, ownersOnly = OWNER
   return role === 'owner' ? null : role ? c.json({ error: ownersOnly }, 403) : c.notFound()
 }
 
+// The 403 for a guest changing its own membership, which is every guest's (guestRefused); null otherwise.
+const refuseOwnGuest = (c: Context<AppEnv>) =>
+  c.req.param('memberId') === c.var.member.id ? guestRefused(c, c.var.member) : null
+
 // The answer to a change that would leave the network with no owner.
 const refuseLastOwner = (c: Context<AppEnv>) =>
   c.json({ error: 'A network needs an owner. Make someone else an owner first.' }, 409)
@@ -392,10 +410,11 @@ appPages.post('/app/:networkId/settings/members/invites/:inviteId/revoke', async
   return c.json({ invites: await openInvites(c.env.DB, id) })
 })
 
-// Makes a member an owner, or an owner a member, unless that would leave the network with no owner.
+// Makes a member an owner, or an owner a member, unless that would leave the network with no owner. A
+// guest can't change its own role, which is every guest's (ADR 0008).
 appPages.post('/app/:networkId/settings/members/:memberId/role', async (c) => {
   const id = c.req.param('networkId')
-  const refused = await refuseNonOwner(c, id)
+  const refused = (await refuseNonOwner(c, id)) ?? refuseOwnGuest(c)
   if (refused) return refused
   const { role: to } = await jsonBody(c)
   if (to !== 'owner' && to !== 'member') return c.json({ error: 'A member is an owner or a member.' }, 400)
@@ -406,10 +425,11 @@ appPages.post('/app/:networkId/settings/members/:memberId/role', async (c) => {
 })
 
 // Removes a member, unless they're the last owner. Their open pages close at once, and every request
-// they make after answers 404, as for a network that doesn't exist.
+// they make after answers 404, as for a network that doesn't exist. A guest can't remove itself, which
+// would remove every guest (ADR 0008).
 appPages.post('/app/:networkId/settings/members/:memberId/remove', async (c) => {
   const id = c.req.param('networkId')
-  const refused = await refuseNonOwner(c, id)
+  const refused = (await refuseNonOwner(c, id)) ?? refuseOwnGuest(c)
   if (refused) return refused
   const memberId = c.req.param('memberId')
   if (!(await memberRole(c.env.DB, id, memberId))) return c.notFound()
@@ -418,10 +438,13 @@ appPages.post('/app/:networkId/settings/members/:memberId/remove', async (c) => 
   return c.json({ members: await networkMembers(c.env.DB, id) })
 })
 
-// Leaves the network, unless the member is its last owner. Their other open pages close too.
+// Leaves the network, unless the member is its last owner. Their other open pages close too. A guest
+// can't, as it would take every guest out (ADR 0008).
 appPages.post('/app/:networkId/settings/members/leave', async (c) => {
   const id = c.req.param('networkId')
   if (!(await memberRole(c.env.DB, id, c.var.member.id))) return c.notFound()
+  const guest = guestRefused(c, c.var.member)
+  if (guest) return guest
   if (!(await removeMember(c.env.DB, id, c.var.member.id, c.var.member.id)))
     return c.json({ error: 'You’re this network’s last owner. Make someone else an owner before you leave.' }, 409)
   await kickMember(c.env, id, c.var.member.id)

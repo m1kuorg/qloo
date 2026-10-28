@@ -492,29 +492,44 @@ describe('settings', () => {
     expect(theirs).not.toContain('Delete network')
   })
 
-  it('show a guest the guest network’s settings as an owner’s, with every other guest to manage, and Leave', async () => {
+  it('show a guest the guest network’s settings as an owner’s, with nothing to change of the guest account’s own membership', async () => {
     const guest = await openGuest()
-    await openGuest()
     const id = 'guest-network'
+    const invited = await guest.fetch(`/app/${id}/settings/members/invites`, { method: 'POST' })
+    const dot = await openMember({ name: 'Dot Pruitt', invite: (await invited.json<{ link: string }>()).link })
+    const owner = await guest.fetch(`/app/${id}/settings/members/${dot.id}/role`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'owner' })
+    })
+    expect(owner.status).toBe(200)
     const html = await settings(guest, id, await (await connect(guest, id)).until((s) => s.cpm === 20))
     const read = words(html)
     expect(read).toMatch(/^Settings You’re an owner of this network\. Network /)
     expect(html).toMatch(/<input\b[^>]*\svalue="Guest network"/)
     expect(read).toMatch(
-      /Member Role Joined Actions Guest [0-9A-F]{6} You Owner \w{3} \d{1,2} Make member Leave Guest [0-9A-F]{6} Owner \w{3} \d{1,2} Make member Remove Invite links/
+      /Member Role Joined Actions Guest You Owner \w{3} \d{1,2} Dot Pruitt Owner \w{3} \d{1,2} Make member Remove You’re signed in as Guest, the account every guest shares, so you can’t leave or change its role\. Invite links/
     )
     expect(read).toContain('Key name Create API key')
+    expect(read).toContain(
+      'From then on it shows only its last four characters. Every guest shares a key added here, and sees its last four characters.'
+    )
     expect(read).toContain('Type Guest network to delete it Delete network')
     expect(read).not.toContain('Only an owner')
-    expect(read).not.toContain('has no owner')
+
+    // A co-owner with an account can change the guest account's role, or remove it.
+    const theirs = words(await settings(dot, id, await (await connect(dot, id)).until(() => true)))
+    expect(theirs).toMatch(
+      /Guest Owner \w{3} \d{1,2} Make member Remove Dot Pruitt You Owner \w{3} \d{1,2} Make member Leave/
+    )
+    expect(theirs).not.toContain('Every guest shares a key')
   })
 
-  it('let the guest network’s only owner leave it or become a member, as every guest sign-in adds an owner', async () => {
+  it('keep the guest account the guest network’s owner while it’s the only one', async () => {
     const guest = await openGuest()
     const html = await settings(guest, 'guest-network', await (await connect(guest, 'guest-network')).until(() => true))
-    expect(words(html)).toMatch(/Guest [0-9A-F]{6} You Owner \w{3} \d{1,2} Make member Leave Invite links/)
-    expect(html).not.toMatch(/disabled=""[^>]*>(Leave|Make member)</)
-    expect(words(html)).not.toContain('needs an owner')
+    expect(words(html)).toMatch(/Guest You Owner \w{3} \d{1,2} You’re signed in as Guest/)
+    expect(html).not.toMatch(/>(Leave|Make member|Remove)</)
   })
 
   it('show every guest the guest budget’s usage today, in the guest network and a guest’s own, from any address or none', async () => {

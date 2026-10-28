@@ -52,26 +52,26 @@ export async function session<E extends { Bindings: Env }>(c: Context<E>) {
 // The session's token, as the cookie holds it, for the directory to look it up; undefined without one.
 export const sessionToken = (c: Context) => getCookie(c, COOKIE, 'host')
 
+// Why a guest (ADR 0008), whom every guest is signed in as, can't change the one guest account they share:
+// its passkeys, recovery code, name, sessions, and the account itself, joining a network by invite, and its
+// own leaving, removal, or role in a network, any of which would act for every guest at once. And the 403
+// that says so, for a guest; null for any other member.
+export const GUEST_ACCOUNT =
+  'Everyone who signs in as a guest shares one guest account, so no guest can change it for the others. Sign out and create an account to do this.'
+export const guestRefused = (c: Context, member: Member) =>
+  isGuestMember(member) ? c.json({ error: GUEST_ACCOUNT }, 403) : null
+
 // Null when the signed-in `member`'s session proved it's them in the last five minutes (STEP_UP_MS), as
 // adding a passkey, a new recovery code, and deleting the account need. Otherwise the 403 that asks
 // them to, so the page asks at once: for a passkey of theirs, user-verified, with the ceremony's
 // challenge and options, or, in a browser signed in with the recovery code, for that code (`/auth/verify`).
-// A guest member has neither, so their session is the only proof they have (ADR 0006): where a route
-// takes it, for adding their first passkey and deleting their account, they get `asGuest`'s answer
-// instead, null or a refusal of the route's own; elsewhere they're told to add a passkey first, before
-// any challenge is written, since their recovery code comes with it.
+// A guest, who has neither, is refused first (guestRefused), before any challenge is written.
 export async function stepUpRefused<E extends { Bindings: Env }>(
   c: Context<E>,
-  member: Member,
-  asGuest?: () => Response | null | Promise<Response | null>
+  member: Member
 ): Promise<Response | null> {
-  if (isGuestMember(member))
-    return asGuest
-      ? asGuest()
-      : c.json(
-          { error: 'Add a passkey first, to keep your account: you get a recovery code with your first passkey.' },
-          403
-        )
+  const guest = guestRefused(c, member)
+  if (guest) return guest
   const token = sessionToken(c)
   const proof = token ? await sessionProof(c.env.DB, token) : null
   if (proof?.verified && Date.now() - proof.verified < STEP_UP_MS) return null

@@ -19,6 +19,8 @@ import {
   endSession,
   formPost,
   fromAppForm,
+  GUEST_ACCOUNT,
+  guestRefused,
   jsonBody,
   jsonLimit,
   nextPath,
@@ -38,7 +40,6 @@ import {
   isGuestMember,
   isRecoveryCode,
   joinByInvite,
-  keepAccount,
   memberPasskeys,
   proveSession,
   recover,
@@ -79,19 +80,19 @@ const refuse = (c: Context, error: string, status: 400 | 401 | 404 | 409 | 410 |
 
 // The requests that write a challenge, an account, or a session before anyone is signed in are
 // limited per visitor per minute (AUTH_LIMITER in wrangler.jsonc), so a script can't spend the
-// directory's writes, and so is a guest member's keeping their account, a sign-up too. The 429 for a
-// request past it; null for one within it, or with no visitor address, as in local tests.
-async function perMinuteRefused(c: Context<{ Bindings: Env }>) {
+// directory's writes. A request with no visitor address, as in local tests, isn't limited.
+const perMinute: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
   const visitor = await visitorTag(c.req.raw, c.env.VISITOR_SALT)
-  if (!visitor || (await c.env.AUTH_LIMITER.limit({ key: visitor })).success) return null
-  c.header('Retry-After', '60')
-  return refuse(
-    c,
-    'Too many sign-in requests from your address in the last minute. Wait a minute, then try again.',
-    429
-  )
+  if (visitor && !(await c.env.AUTH_LIMITER.limit({ key: visitor })).success) {
+    c.header('Retry-After', '60')
+    return refuse(
+      c,
+      'Too many sign-in requests from your address in the last minute. Wait a minute, then try again.',
+      429
+    )
+  }
+  await next()
 }
-const perMinute: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => (await perMinuteRefused(c)) ?? next()
 for (const path of ['/auth/sign-up/options', '/auth/sign-up', '/auth/sign-in/options', '/auth/recover'])
   auth.use(path, perMinute)
 
@@ -183,13 +184,19 @@ auth.get('/sign-in', async (c) => {
 
 // The invite page, a page of the React island. The link's token is in its fragment, which the browser
 // never sends: the page reads it and posts it, so it stays out of every path, query, log, and referrer.
-// A signed-in member is named, to join as themselves.
+// A signed-in member is named, to join as themselves, or, as a guest, told how to join instead (ADR 0008).
 auth.get('/invite', async (c: Context<{ Bindings: Env; Variables: AppVariables }>) => {
   const member = await signedIn(c)
   // The shell shows them their account menu.
   if (member) c.set('member', member)
   c.header('Cache-Control', 'no-store')
-  return c.render(<Island page="invite" data-member-name={member?.name} />)
+  return c.render(
+    <Island
+      page="invite"
+      data-member-name={member?.name}
+      data-guest-member={isGuestMember(member) ? 'true' : undefined}
+    />
+  )
 })
 
 // Why an invite link can't be used, in words for the invite page.
@@ -215,10 +222,13 @@ auth.post('/auth/invite', async (c) => {
   return refused ?? c.json({ network: invite.network, guestOwned: invite.guestOwned })
 })
 
-// Joining as the signed-in member, in one step: the answer is the network to open.
+// Joining as the signed-in member, in one step: the answer is the network to open. A guest is refused
+// (ADR 0008).
 auth.post('/auth/join', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, 'Sign in, or create an account, to join.', 401)
+  const guest = guestRefused(c, member)
+  if (guest) return guest
   const { token } = await jsonBody(c)
   const id = typeof token === 'string' && token ? await joinByInvite(c.env.DB, token, member.id) : null
   if (id) return c.json({ id })
@@ -306,14 +316,13 @@ auth.post('/auth/sign-up', async (c) => {
 // manager, so losing one doesn't lock them out, or from a new device after signing in with their
 // recovery code. The options name the member's own user handle and the passkeys they have, so a
 // device that holds one of them adds no second. It needs a proof that it's them from the last five
-// minutes, which signing in with the recovery code is, for the device's first passkey. A guest
-// member's first passkey keeps their account (ADR 0006): it asks no step-up, since their session is the
-// only proof they have, and it's a sign-up, limited and capped per visitor as one.
+// minutes, which signing in with the recovery code is, for the device's first passkey. A guest is refused
+// (ADR 0008).
 auth.post('/auth/passkeys/options', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
   // Asked here, so the page asks at once, and again as the new passkey arrives.
-  const unproved = await stepUpRefused(c, member, () => keepingRefused(c))
+  const unproved = await stepUpRefused(c, member)
   if (unproved) return unproved
   const has = await memberPasskeys(c.env.DB, member.id)
   const options = await registrationOptions(c.env, member, has)
@@ -323,45 +332,27 @@ auth.post('/auth/passkeys/options', async (c) => {
 
 // Adding a passkey, second step: the browser's new passkey, added once it verifies, for the member
 // whose request it answers, while their proof that it's them is still within five minutes. The answer
-// is their passkeys. A guest member's keeps their account, counted as a sign-up once it verifies: the
-// answer has their recovery code too, shown once, and their session's cookie a member's lifetime.
+// is their passkeys.
 auth.post('/auth/passkeys', async (c) => {
   const member = await signedIn(c)
   if (!member) return refuse(c, SIGN_IN_TO_ADD, 401)
-  const guest = isGuestMember(member)
-  const unproved = await stepUpRefused(c, member, () => perMinuteRefused(c))
+  const unproved = await stepUpRefused(c, member)
   if (unproved) return unproved
   const { challenge, response } = await jsonBody(c)
   const started = await takeStarted(c, 'add-passkey', challenge)
   if (!started || started.memberId !== member.id) return refuse(c, STALE)
   const passkey = await registered(c, 'add-passkey', started, response)
   if (!passkey) return refuse(c, UNVERIFIED)
-  const capped = guest && (await signupRefused(c, true))
-  if (capped) return refuse(c, capped, 429)
-  const label = browserLabel(c.req.header('User-Agent') ?? '')
   try {
-    if (guest) {
-      const recoveryCode = await keepAccount(c.env.DB, member.id, passkey, label, sessionToken(c)!)
-      if (!recoveryCode) return refuse(c, 'Your account was kept already, with another passkey. Reload to see it.', 409)
-      setSession(c, sessionToken(c)!)
-      return c.json({ passkeys: await memberPasskeys(c.env.DB, member.id), recoveryCode })
-    }
-    await addPasskey(c.env.DB, member.id, passkey, label)
+    // The directory refuses a guest too (guestRefused).
+    if (!(await addPasskey(c.env.DB, member.id, passkey, browserLabel(c.req.header('User-Agent') ?? ''))))
+      return c.json({ error: GUEST_ACCOUNT }, 403)
   } catch (err) {
     if (!taken(err)) throw err
     return refuse(c, 'This passkey already belongs to a Crossfeed account. Add one from another device.', 409)
   }
   return c.json({ passkeys: await memberPasskeys(c.env.DB, member.id) })
 })
-
-// Why a guest member can't start keeping their account, as a sign-up's first step is refused: past their
-// address's sign-in requests a minute, or its accounts a day. Null when they can.
-async function keepingRefused(c: Context<{ Bindings: Env }>) {
-  const limited = await perMinuteRefused(c)
-  if (limited) return limited
-  const capped = await signupRefused(c, false)
-  return capped ? refuse(c, capped, 429) : null
-}
 
 // Sign-in, first step: options for any passkey the browser holds for Crossfeed, so the page asks
 // for nothing else.
@@ -457,12 +448,12 @@ auth.post('/auth/recover', async (c) => {
   return c.json({ recoveryCode: recovered.recoveryCode })
 })
 
-// Signing in as a guest (ADR 0006), in one click with nothing to give: a guest member of one's own, an
-// owner of the guest network, signed in for a day. A browser that holds a live session, a member's or a
-// guest's, isn't signed in again, so no button signs anyone out. The answer is where to go next, `?next`
-// under the same rules as a passkey sign-in's: to the sign-in page's script, as JSON, and to a public
-// page's plain form, which works with no script (ADR 0007), as a 303 redirect there. It isn't limited
-// per visitor: everyone's guest sign-ins together are, GUEST_SIGNINS_PER_MINUTE a minute and
+// Signing in as a guest (ADR 0008), in one click with nothing to give: as the one guest member, an owner
+// of the guest network, with a session of one's own for a day. A browser that holds a live session, a
+// member's or a guest's, isn't signed in again, so no button signs anyone out. The answer is where to go
+// next, `?next` under the same rules as a passkey sign-in's: to the sign-in page's script, as JSON, and to
+// a public page's plain form, which works with no script (ADR 0007), as a 303 redirect there. It isn't
+// limited per visitor: everyone's guest sign-ins together are, GUEST_SIGNINS_PER_MINUTE a minute and
 // GUEST_SIGNINS_PER_DAY a UTC day.
 auth.post('/auth/guest', async (c) => {
   const next = nextPath(c, c.req.query('next'))

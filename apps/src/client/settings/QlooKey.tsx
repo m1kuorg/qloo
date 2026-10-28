@@ -20,14 +20,17 @@ type KeyChange = { key: OwnKey; usage: Usage }
 // The settings' Qloo key module: the network's own Qloo key (ADR 0004). An owner picks the host it's
 // for and pastes it; the gateway tests it with one search before it keeps it, and from then on it shows
 // only its last four characters, with a way to remove it, back to Crossfeed's shared key, once the
-// owner confirms. A member sees whether the network has one, not which.
+// owner confirms. A member sees whether the network has one, not which. A guest, an owner as the guest
+// account every guest shares (ADR 0008), is told every guest shares the key.
 export function QlooKeyModule({
   network,
   qlooKey,
+  guest = false,
   onChange
 }: {
   network: NetworkPage
   qlooKey: OwnKey
+  guest?: boolean
   onChange: (change: KeyChange) => void
 }) {
   // Whether the key on show was saved on this page, to say it was tested.
@@ -66,6 +69,9 @@ export function QlooKeyModule({
             onChange(change)
           }}
         />
+      )}
+      {network.role === 'owner' && guest && (
+        <p className="text-muted-foreground">Every guest shares a key added here, and sees its last four characters.</p>
       )}
     </Module>
   )
