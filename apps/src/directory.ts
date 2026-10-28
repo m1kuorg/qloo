@@ -3,7 +3,7 @@
 // and stored only as SHA-256 hashes. D1 has no interactive transactions, so each change that must
 // hold together is one statement or one batch.
 import { isoBase64URL } from '@simplewebauthn/server/helpers'
-import { GUEST_NETWORK, sha256 } from './text'
+import { GUEST_NETWORK, GUEST_PREFIX, sha256 } from './text'
 
 // A session lasts 30 days from its last use; a use extends it at most once a minute. A guest member's
 // session lasts a day from sign-in, and isn't extended while they're a guest (ADR 0006).
@@ -19,9 +19,11 @@ const CHALLENGE_MS = 5 * 60_000
 // recovery code, and deleting the account need.
 export const STEP_UP_MS = 5 * 60_000
 
-// The guest network (ADR 0006), which every guest member owns together, and the name it's made with.
-export { GUEST_NETWORK }
+// The name the guest network (ADR 0006), which every guest member owns together, is made with.
 const GUEST_NETWORK_NAME = 'Guest network'
+
+// Which of guest sign-in's limits is spent: everyone's for the minute, or for the UTC day.
+export type GuestLimit = 'minute' | 'day'
 
 // Whether `member` is a guest member still: one "Sign in as a guest" made, who hasn't kept the account.
 export const isGuestMember = (member: { guest: boolean } | null | undefined) => member?.guest === true
@@ -230,8 +232,8 @@ export async function signIn(db: D1Database, passkey: Passkey, counter: number) 
 export async function guestSignIn(
   db: D1Database,
   { perMinute, perDay }: { perMinute: number; perDay: number }
-): Promise<{ token: string } | { spent: 'minute' | 'day' }> {
-  const id = `guest-${crypto.randomUUID()}`
+): Promise<{ token: string } | { spent: GuestLimit }> {
+  const id = `${GUEST_PREFIX}${crypto.randomUUID()}`
   const hex = [...crypto.getRandomValues(new Uint8Array(3))].map((b) => b.toString(16).padStart(2, '0')).join('')
   const secret = token()
   const now = Date.now()
@@ -411,7 +413,7 @@ export type Network = { id: string; name: string; role: Role }
 // network's does, so its agents count it on the guest budget (ADR 0006). Null when the cap refuses it.
 export async function createNetwork(db: D1Database, member: Member, name: string, cap: number) {
   const memberId = member.id
-  const id = `${isGuestMember(member) ? 'guest-' : ''}${crypto.randomUUID()}`
+  const id = `${isGuestMember(member) ? GUEST_PREFIX : ''}${crypto.randomUUID()}`
   const now = Date.now()
   const [network] = await db.batch([
     db

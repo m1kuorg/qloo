@@ -10,7 +10,6 @@ import {
   deleteMember,
   dropExpiredGuests,
   dropNetwork,
-  GUEST_NETWORK,
   networkName,
   noteWipe,
   pastNetworks,
@@ -26,6 +25,7 @@ import {
   NETWORK_DELETED,
   ownGatewayName
 } from './network-agent'
+import { GUEST_NETWORK } from './text'
 
 // The bindings a wipe is noted under, and how each wipes its instance (an agent's `destroy`, a gateway's
 // `wipe`), saying `reason` to the pages it closes, if it closes any; and how a network forgets a deleted

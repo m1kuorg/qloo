@@ -12,12 +12,11 @@ import {
   type SessionProps,
   type State
 } from './agent'
-import { GUEST_NETWORK } from './directory'
 import { globalGateway } from './gateway'
 import type { Booking, PitchReply } from './inbox'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
-import { GUEST_NETWORK_CLEARS } from './text'
+import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX } from './text'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
 // a network's agent, once it has checked the session and the membership, replacing any the browser
@@ -41,7 +40,7 @@ const networkOf = (name: string) => name.split(':')[0]
 
 // Whether a network counts on the guest budget every guest shares (ADR 0006), from one of its agents'
 // names: its ID starts with `guest-`, as the guest network's and every network a guest member creates do.
-export const onGuestBudget = (name: string) => networkOf(name).startsWith('guest-')
+export const onGuestBudget = (name: string) => networkOf(name).startsWith(GUEST_PREFIX)
 
 // What a network's agents count against for the per-visitor limits: the network, or for one on the guest
 // budget, the guest network.
