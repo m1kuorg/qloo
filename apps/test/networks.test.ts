@@ -54,7 +54,7 @@ const saveNetwork = (member: Member, network: string, body: object) =>
   })
 
 const origin = 'https://crossfeed.test'
-const saved = { SAMPLE_NETWORK: env.SAMPLE_NETWORK, ACCOUNTS: env.ACCOUNTS }
+const saved = { SAMPLE_NETWORK: env.SAMPLE_NETWORK, GUEST_PITCHES: env.GUEST_PITCHES, ACCOUNTS: env.ACCOUNTS }
 const open: Omit<Session, 'cookie'>[] = []
 afterEach(() => {
   vi.useRealTimers()
@@ -179,8 +179,9 @@ describe('opening a network', () => {
 })
 
 describe("a network's agent", () => {
-  it('opens on an empty network: no roster, CPM, inbox, or launches, and no sample network', async () => {
+  it('opens on an empty network: no roster, CPM, inbox, or launches, and no sample network or sample inbox', async () => {
     env.SAMPLE_NETWORK = 'on'
+    env.GUEST_PITCHES = 'on'
     const ada = await openMember()
     const network = await created(ada, 'Night Shift Audio')
     const state = (await connect(ada, network)).state()!
