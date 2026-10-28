@@ -48,6 +48,7 @@ import {
   type Member,
   type Network
 } from '../directory'
+import { globalGateway } from '../gateway'
 import {
   kickMember,
   launchAgentName,
@@ -56,7 +57,8 @@ import {
   networkLimitKey,
   onGuestBudget,
   ownGateway,
-  SAMPLE_DATA_RESET
+  SAMPLE_DATA_RESET,
+  sampleLookups
 } from '../network-agent'
 import { getUsage } from '../operations'
 import { cpmProblem, csvDownload } from '../order'
@@ -582,13 +584,23 @@ appPages.post('/app/:networkId/settings/sample-data/reset', async (c) => {
     c.header('Retry-After', String(seconds))
     return c.json({ error }, 429)
   }
+  const tomorrow = () => Math.ceil((new Date().setUTCHours(24, 0, 0, 0) - Date.now()) / 1000)
+  // The sample loads again on the guest budget as the guest network next starts, through the global
+  // gateway, since the reset wipes any Qloo key a guest added; refused there, it would open without it.
+  const lookups = sampleLookups(c.env)
+  const { qlooCalls } = await globalGateway(c.env).usage(networkLimitKey(GUEST_NETWORK))
+  if (qlooCalls.used + lookups > qlooCalls.limit)
+    return tooMany(
+      `Loading the sample data again takes ${lookups} Qloo calls, and the guest network has ${Math.max(0, qlooCalls.limit - qlooCalls.used)} left today. Try again after 00:00 UTC, when they reset.`,
+      tomorrow()
+    )
   const perDay = Number(c.env.SAMPLE_RESETS_PER_DAY) || 0
   const taken = await takeSampleReset(c.env.DB, perDay)
   if (taken !== 'taken') {
     if (taken.spent === 'day')
       return tooMany(
         `The sample data has been reset ${perDay === 1 ? 'once' : `${perDay} times`} today, the most it can be in a UTC day, for everyone. Try again after 00:00 UTC.`,
-        Math.ceil((new Date().setUTCHours(24, 0, 0, 0) - Date.now()) / 1000)
+        tomorrow()
       )
     const seconds = Math.ceil(taken.waitMs / 1000)
     return tooMany(

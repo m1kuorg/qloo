@@ -1969,6 +1969,40 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
     }
   })
 
+  it('refuses while the guest budget has fewer Qloo calls left today than loading the sample again takes, until 00:00 UTC', async () => {
+    const saved = {
+      SAMPLE_NETWORK: env.SAMPLE_NETWORK,
+      GUEST_PITCHES: env.GUEST_PITCHES,
+      QLOO_VISITOR_DAILY_CALL_CAP: env.QLOO_VISITOR_DAILY_CALL_CAP
+    }
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-29T22:00:00Z'))
+    const guest = await openGuest()
+    const page = await connect(guest)
+    await page.call('createLaunch', { name: 'The Night Watch' })
+    Object.assign(env, { SAMPLE_NETWORK: 'on', GUEST_PITCHES: 'on' })
+    try {
+      // The sample roster's 19 shows and the sample inbox's 36 works.
+      const { used } = (await globalGateway(env).usage('network:guest-network')).qlooCalls
+      env.QLOO_VISITOR_DAILY_CALL_CAP = String(used + 54)
+      const refused = await reset(guest)
+      expect(refused.status).toBe(429)
+      expect(refused.headers.get('retry-after')).toBe('7200')
+      expect(await refused.json()).toEqual({
+        error:
+          'Loading the sample data again takes 55 Qloo calls, and the guest network has 54 left today. Try again after 00:00 UTC, when they reset.'
+      })
+      expect(page.state()!.launches).toMatchObject([{ name: 'The Night Watch' }])
+
+      // The refusal took nothing, so the minute's reset is still there.
+      env.QLOO_VISITOR_DAILY_CALL_CAP = String(used + 55)
+      expect((await reset(guest)).status).toBe(200)
+      expect(await page.closed()).toEqual(RESET)
+    } finally {
+      Object.assign(env, saved)
+    }
+  })
+
   it('answers 404 for any other network and to anyone outside the guest network, 403 to its members who aren’t owners and to another site, and resets nothing', async () => {
     const guest = await openGuest()
     const page = await connect(guest)
