@@ -392,7 +392,7 @@ A running step shows a small spinner, never shimmering text, and a skeleton is a
 
 - Under 768px (`max-md`): the phone layout. The rail is a bottom bar, controls are 44px tall, wide tables scroll inside themselves.
 - 1024px (`lg`): 24px gutters; two-column auth, new-network and settings layouts; the docs' nav beside the article.
-- 1360px (`85rem`): the inspector sits beside the canvas instead of in a sheet.
+- 1360px (`85rem`): the inspector, open, sits beside the canvas instead of in a sheet.
 - 1440px (`90rem`): the docs' "On this page" column.
 
 ## Shells
@@ -472,7 +472,7 @@ Forks worth knowing:
 | `client/controls.tsx`                 | `send` and `Refused` for the Worker's routes, `useAction`, `useLeaveGuard`, `Alert`, `SignOut`, `FitBand`, `NotScored`, `PickOne`, `KeyValues`, `Code`, `ScrollTable`, `ShownOnce`, `DropCue` and `useFileDrop` |
 | `client/states.tsx`                   | `StateLine` and its words, `SlowCalls`, `isLive` and `endedBadly` (a run's status), a pitch's state word and `pitchTally`, and the connection's state                                                           |
 | `client/PageHeader.tsx`               | `PageHeader`, `PageEmpty`, `FormSheet` and `useFormSheet`, and `summaryLine`, `listCounts` and `count`: the header, the empty state and the form sheet the Launches dashboard, the roster and the inbox share   |
-| `client/Frame.tsx`                    | the run pages' frame: `canvas`, `frame`, `useInspector`, `Inspector`, `Readout`, `RunState`, `OnAir`, `Connecting` (with a title, the page header saying it, as on the inbox)                                   |
+| `client/Frame.tsx`                    | the run pages' frame: `canvas`, `frame`, `useInspector`, `Inspector`, `InspectorToggle`, `Readout`, `RunState`, `OnAir`, `Connecting` (with a title, the page header saying it, as on the inbox)                |
 | `client/Run.tsx`                      | a run's status words, `RunLog`, `RunList` and `OpenQuestion`, the question card                                                                                                                                 |
 | `client/FitChart.tsx`                 | the fit chart                                                                                                                                                                                                   |
 | `client/InsertionOrder.tsx`           | the plan                                                                                                                                                                                                        |
@@ -492,7 +492,7 @@ Forks worth knowing:
 
 - **Anatomy:** the title, the page's one h1 at `type-title`, with the page's actions at its right on the title's line. That line is as tall as a control, 32px and 44px on a phone, so an action arriving with the agent's state moves nothing. Under it, 6px down, one summary line in muted 14px text, then the connection's state in a live region that's always there: "Working Connecting to the network…", "Reconnecting…", or the lost connection's error. It's the one place each of the three pages says it, the inbox beside its readout included.
 - **The summary:** what the page holds, counted in one form (`summaryLine`): the total, " · ", then the counts that aren't 0, separated by commas, in the page's own words: "7 launches · 4 need you, 1 running", "19 shows · 16 resolved, 1 ambiguous, 2 missed", "40 pitches for The Big Picture · 31 matched, 1 ambiguous, 4 not in Qloo, 4 set aside". While an earlier pitch run is viewed, it says that instead, in the same muted form: "Run 1 · earlier, read-only". The header holds the counts, and the inbox's readout only its state and progress ("Reading · 3 of 40 pitches read", "Read"), so a pitch still being read or looked up is counted by the readout, not the summary.
-- **Actions:** the page's primary action: "New launch", "Import shows", or the inbox's "Load pitches", which is secondary because ranking the pitches is the inbox's primary once it has some. While an earlier run is viewed, "Back to the latest run". Whatever else acts on the page as a whole goes beside them.
+- **Actions:** the page's primary action: "New launch", "Import shows", or the inbox's "Load pitches", which is secondary because ranking the pitches is the inbox's primary once it has some. While an earlier run is viewed, "Back to the latest run". Whatever else acts on the page as a whole goes beside them: on the roster and the inbox, the inspector's "Details" toggle leads them.
 - **What stays out:** explanations, secondary facts, notices, sample badges and the CPM. Each sits with what it's about. Whether the roster is ready to rank ("3 shows aren't scored until you settle or leave them out.") is the first line of its table's caption. The inbox's privacy promise, that only a work's title and type are looked up in Qloo, sits in its pitch table's caption, its load form, and its empty state. The CPM is on the dashboard and in settings.
 - **Phones:** the same, the actions on the title's line and the summary wrapping under it.
 
@@ -502,8 +502,11 @@ Forks worth knowing:
 
 The launch workspace (`App.tsx`, on each launch page), the inbox (`Inbox.tsx`) and the network's roster page share one frame: a canvas beside an inspector.
 
-- From 1360px the inspector is a 360px column on the card, sticky under the top bar for the window's height. At 1440 that's 56 (rail) + 24 + 976 (canvas) + 24 + 360 = 1440.
-- Under 1360px it's a right sheet, non-modal and kept mounted: opening a call number, selecting a roster row or a pitch, or "Run log" in the readout opens it on that tab, and the canvas stays usable beside it. Tab moving focus onto something the sheet covers closes it.
+- **Closed by default.** Every page opens with the inspector closed, at every width, so the canvas takes the width: at 1440, 56 (rail) + 24 + 1336 (canvas) + 24. Whether it's open isn't kept past the page.
+- **How it opens:** on the tab for what was picked: a call number on Evidence, a roster row on Show, a pitch on Pitch, "Run log" in the readout on Run. "Details", a ghost toggle in the page's header (`InspectorToggle`, with `aria-expanded` and `aria-controls="inspector"`), opens it on the tab it last showed, or the first, and closes it again. It's the first of the header's actions on the roster and the inbox, and of the title row's on a launch's page, where on a phone the primary still leads on a line of its own. A page with nothing in it yet, the empty roster or inbox, has no toggle.
+- **How it closes:** its close button, at every width; Escape while focus is in it; or the toggle. Focus goes back to what opened it, or to the toggle once that's gone; focus already elsewhere stays. Closing it keeps the page's selection, the row or pitch selected and the call opened, so it opens on the same again. Closing the show or pitch it was opened for closes it too.
+- From 1360px, open, it's a 360px column on the card, sticky under the top bar for the window's height, with its close button at the end of its tabs. It's at rest, so it casts no shadow. At 1440 that's 56 (rail) + 24 + 976 (canvas) + 24 + 360 = 1440.
+- Under 1360px it's a right sheet, non-modal and kept mounted, titled "Details" with its close button by the title; it floats, so it has the floating shadow, and no scrim. The canvas stays usable beside it, and Tab moving focus onto something the sheet covers closes it.
 - It's a Base UI Tabs panel: Run (the trace, the agent's closing line, the run record, then Runs), Evidence (the open call's request and what Qloo returned), and Pitch in the inbox while one is selected. The roster page's inspector has Show and Evidence. Every panel stays mounted, so `aria-controls="evidence"` on a call number always finds its panel; nothing has `aria-modal`.
 - The canvas, in reading order on a launch: the title row (the launch's name, its Qloo match with its call, the primary action), the on-air readout, the launch form or the question card, the fit chart, the plan, and the roster.
 
