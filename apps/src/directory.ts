@@ -631,8 +631,8 @@ export type Invite = { id: string; created: number; expires: number; by: string 
 
 // Makes an invite to network `networkId` when member `by` is one of its owners and the network has
 // fewer than `cap` open, checked in the statement that writes it, so two made at once can't both pass
-// the cap. Returns its ID and its token, which only its hash is kept for; `capped` when the network
-// has `cap` open, and null when they aren't an owner.
+// the cap. A guest member's is marked as a guest's (invitedSince). Returns its ID and its token, which
+// only its hash is kept for; `capped` when the network has `cap` open, and null when they aren't an owner.
 export async function createInvite(db: D1Database, networkId: string, by: string, cap: number) {
   const invite = { id: crypto.randomUUID(), token: token() }
   const now = Date.now()
@@ -642,7 +642,7 @@ export async function createInvite(db: D1Database, networkId: string, by: string
   const [made, counted] = await db.batch([
     db
       .prepare(
-        `INSERT INTO invites (id, token_hash, network_id, created_by, created, expires) SELECT ?1, ?2, network_id, member_id, ?3, ?4 FROM memberships WHERE network_id = ?5 AND member_id = ?6 AND role = 'owner' AND ${openCount('?5', '?3')} < ?7`
+        `INSERT INTO invites (id, token_hash, network_id, created_by, created, expires, guest) SELECT ?1, ?2, network_id, member_id, ?3, ?4, (SELECT guest FROM members WHERE id = ?6) FROM memberships WHERE network_id = ?5 AND member_id = ?6 AND role = 'owner' AND ${openCount('?5', '?3')} < ?7`
       )
       .bind(invite.id, await sha256(invite.token), now, now + INVITE_MS, networkId, by, cap),
     db.prepare(`SELECT ${openCount('?1', '?2')} AS n`).bind(networkId, now)
@@ -651,9 +651,9 @@ export async function createInvite(db: D1Database, networkId: string, by: string
   return ((counted.results[0] as { n: number } | undefined)?.n ?? 0) >= cap ? ('capped' as const) : null
 }
 
-// Whether the member who made the invite with token `token` has brought in `cap` new accounts through
-// their links today, so it can't sign anyone up until 00:00 UTC; it can still let in someone who has
-// an account.
+// Whether the member who made the invite with token `token`, or every guest, for a guest's link, has
+// brought in `cap` new accounts through their links today, so it can't sign anyone up until 00:00 UTC;
+// it can still let in someone who has an account.
 export async function invitedCapped(db: D1Database, token: string, cap: number) {
   const n = await db
     .prepare(`SELECT ${invitedSince('?1', '?2')} AS n`)
@@ -664,9 +664,10 @@ export async function invitedCapped(db: D1Database, token: string, cap: number) 
 
 // How many new accounts the invite links of whoever made the invite with token hash `hash` have
 // brought in since `since`, both SQL parameters: the uses whose member was written at the same time,
-// as only a sign-up through a link writes its member and uses the link in one batch, at one time.
+// as only a sign-up through a link writes its member and uses the link in one batch, at one time. A
+// guest's link counts with every guest's link, made by guests who are gone too (ADR 0006).
 const invitedSince = (hash: string, since: string) =>
-  `(SELECT count(*) FROM invites u JOIN members m ON m.id = u.used_by AND m.created = u.used WHERE u.created_by = (SELECT created_by FROM invites WHERE token_hash = ${hash}) AND u.used >= ${since})`
+  `(SELECT count(*) FROM invites i JOIN invites u ON (i.guest = 1 AND u.guest = 1) OR (i.guest = 0 AND u.created_by = i.created_by) JOIN members m ON m.id = u.used_by AND m.created = u.used WHERE i.token_hash = ${hash} AND u.used >= ${since})`
 
 // The start of the UTC day time `now` (epoch ms) falls in.
 const utcDayStart = (now: number) => new Date(now).setUTCHours(0, 0, 0, 0)
@@ -698,19 +699,26 @@ export async function openInvites(db: D1Database, networkId: string): Promise<In
 // Why an invite can't be used any more, or `open` while it can.
 type InviteState = 'open' | 'used' | 'revoked' | 'expired'
 
-// The invite a link's token names: its network, and whether it can still be used. Null when no
-// invite has that token.
+// The invite a link's token names: its network, whether it can still be used, and whether a guest
+// member made it. Null when no invite has that token.
 export async function findInvite(db: D1Database, token: string) {
   const row = await db
     .prepare(
-      'SELECT i.network_id, n.name, i.used, i.revoked, i.expires FROM invites i JOIN networks n ON n.id = i.network_id WHERE i.token_hash = ?'
+      'SELECT i.network_id, n.name, i.used, i.revoked, i.expires, i.guest FROM invites i JOIN networks n ON n.id = i.network_id WHERE i.token_hash = ?'
     )
     .bind(await sha256(token))
-    .first<{ network_id: string; name: string; used: number | null; revoked: number | null; expires: number }>()
+    .first<{
+      network_id: string
+      name: string
+      used: number | null
+      revoked: number | null
+      expires: number
+      guest: number
+    }>()
   if (!row) return null
   const state: InviteState =
     row.used !== null ? 'used' : row.revoked !== null ? 'revoked' : row.expires <= Date.now() ? 'expired' : 'open'
-  return { networkId: row.network_id, network: row.name, state }
+  return { networkId: row.network_id, network: row.name, state, guest: row.guest === 1 }
 }
 
 // Joins member `memberId` to the network the invite with token `token` is for, as a member, in one

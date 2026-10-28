@@ -35,14 +35,22 @@ export function memberTag({ request }: ConnectionContext) {
 // A launch's agent's name: its network's ID and its own, as ADR 0001 names it.
 export const launchAgentName = (networkId: string, launchId: string) => `${networkId}:${launchId}`
 
-// What a network's agents count against for the per-visitor limits: the network, from the agent's
-// name, which is the network's ID for its own agent and `<networkId>:<launchId>` for a launch's.
-export const networkLimitKey = (name: string) => `network:${name.split(':')[0]}`
+// The network an agent belongs to, from its name: the network's ID for its own agent, and
+// `<networkId>:<launchId>` for a launch's.
+const networkOf = (name: string) => name.split(':')[0]
 
-// The name of a network's own gateway instance (ADR 0004), from an agent's name as networkLimitKey reads
-// it: `network:<networkId>`, the same as the key its limits count under. And the instance, where the
-// network's own Qloo key, its cache, and its Qloo counts live.
-export const ownGatewayName = networkLimitKey
+// What a network's agents count against for the per-visitor limits: the network. A network whose ID
+// starts with `guest-`, the guest network or one a guest member created, counts as the guest network, on
+// the guest budget every guest shares (ADR 0006).
+export const networkLimitKey = (name: string) => {
+  const id = networkOf(name)
+  return `network:${id.startsWith('guest-') ? GUEST_NETWORK : id}`
+}
+
+// The name of a network's own gateway instance (ADR 0004), from an agent's name: `network:<networkId>`,
+// each network's its own, though the guest budget's networks count their limits under one key. And the
+// instance, where the network's own Qloo key, its cache, and its Qloo counts live.
+export const ownGatewayName = (name: string) => `network:${networkOf(name)}`
 export const ownGateway = (env: Env, name: string) => env.QlooGateway.getByName(ownGatewayName(name))
 
 // Where a network's agent, and each of its launches', keeps whether the network has a Qloo key of its own,

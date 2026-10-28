@@ -194,10 +194,11 @@ export class QlooGateway extends DurableObject<Env> {
 
   // Tests `key` with one search on `host`, past the cache, and keeps it as this network's own only once
   // Qloo answers, replacing any key before it; or says why Qloo refused it, keeping nothing. The search
-  // counts against today's cap like any request, and once the key is saved, among the network's calls:
-  // it was a call on the network's own key, and this instance serves that network alone. A refused key's
-  // search isn't counted there, as its usage doesn't read this instance until a key is saved.
-  async setKey(host: string, key: string): Promise<string | null> {
+  // counts against today's cap like any request, and once the key is saved, among the network's calls,
+  // under `visitor`, the key its limits count under (networkLimitKey): it was a call on the network's own
+  // key, and this instance serves that network alone. A refused key's search isn't counted there, as its
+  // usage doesn't read this instance until a key is saved.
+  async setKey(host: string, key: string, visitor: string): Promise<string | null> {
     // The key goes nowhere but Qloo, whatever the caller checked.
     if (!isQlooHost(host)) throw new Error(`${host} isn't one of Qloo's hosts.`)
     const url = new URL(REQUESTS.search.endpoint, host)
@@ -217,9 +218,8 @@ export class QlooGateway extends DurableObject<Env> {
       await seal(this.env.QLOO_KEY_SECRET, key),
       key.slice(-4)
     )
-    // This instance's name is the key the network's limits count under (networkLimitKey).
     const day = utcDay()
-    this.add('visitor_calls', await sha256(`${this.ctx.id.name}:${day}`), day)
+    this.add('visitor_calls', await sha256(`${visitor}:${day}`), day)
     return null
   }
 
@@ -731,16 +731,17 @@ function list<T>(data: unknown, ...path: string[]): T[] {
 
 // Who a per-visitor limit counts, in its refusal: whose use it is (`you`, and `youHave` to start a
 // sentence), and who the limit is for (`limitFor`), one visitor or one network, as a signed-in network's
-// agents count as their network. The guest network's limits are shared by everyone who signs in as a
-// guest (ADR 0005), so its refusals say that too, in a clause after the limit (`sharedClause`).
+// agents count as their network. The guest budget is every guest's, in the guest network and in each
+// network a guest creates, which count under the guest network's key (ADR 0006), so its refusals say
+// where, in a clause after the limit (`sharedClause`).
 type Who = { you: string; youHave: string; limitFor: string; sharedClause: string }
 const whoCounts = (visitor: string): Who =>
   visitor === `network:${GUEST_NETWORK}`
     ? {
         you: 'guests',
         youHave: 'Guests have',
-        limitFor: 'the guest network',
-        sharedClause: ', shared by everyone who signs in as a guest'
+        limitFor: 'all guests together',
+        sharedClause: ', in the guest network and the networks guests create'
       }
     : {
         you: 'you',
