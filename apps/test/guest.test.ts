@@ -1948,6 +1948,11 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
       expect((await reset(other)).status).toBe(429)
 
       vi.setSystemTime(new Date('2026-10-29T22:01:00Z'))
+      // The last reset leaves eight launches' wipes waiting, more than the retry wipes in a run, but the
+      // day's limit holds longer, so it's what the refusals say.
+      const page = await connect(one)
+      for (const name of ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'])
+        await page.call('createLaunch', { name })
       const both = await Promise.all([one, other].map(reset))
       expect(both.map((res) => res.status).sort()).toEqual([200, 429])
       for (const at of ['2026-10-29T22:01:00Z', '2026-10-29T23:59:00Z']) {
@@ -1962,7 +1967,11 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
         })
       }
 
+      // At 00:00 UTC the day's limit lifts, and the wipes still waiting are what holds the next, until the
+      // retry wipes seven of them.
       vi.setSystemTime(new Date('2026-10-30T00:00:00Z'))
+      expect((await (await reset(other)).json<{ error: string }>()).error).toMatch(/Try again after 01:00 UTC\.$/)
+      await runHourlyCron()
       expect((await reset(other)).status).toBe(200)
     } finally {
       env.SAMPLE_RESETS_PER_DAY = perDay
@@ -2019,12 +2028,13 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
     await plan('Eight')
     expect((await reset(guest)).status).toBe(200)
 
-    // Eight wait now, so the next waits for the retry, at 13:00 UTC: 12:00's daily cron leaves it to then.
-    vi.setSystemTime(new Date('2026-10-29T11:22:00Z'))
+    // Eight wait now, so the next waits for the retry, at 13:00 UTC, since 12:00's daily cron leaves it to
+    // then; inside the minute too, the retry is what it says, as it holds the next reset longer.
+    vi.setSystemTime(new Date('2026-10-29T11:21:30Z'))
     const page = await plan('The Night Watch')
     const refused = await reset(guest)
     expect(refused.status).toBe(429)
-    expect(refused.headers.get('retry-after')).toBe(String(98 * 60))
+    expect(refused.headers.get('retry-after')).toBe(String(98 * 60 + 30))
     expect(await refused.json()).toEqual({
       error:
         'The last resets left more of the guest network’s launches to wipe than Crossfeed wipes in an hour. Try again after 13:00 UTC.'

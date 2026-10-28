@@ -20,7 +20,6 @@ import {
   wipeDone,
   wipeReason,
   wipesDue,
-  wipesWaiting,
   type Instance
 } from './directory'
 import {
@@ -231,10 +230,10 @@ export async function retryWipes(env: Env) {
     )
 }
 
-// Whether more of the guest network's launches wait for the hourly retry's wipe, as its clearing and its
-// resets leave them (resetGuestNetwork), than one run wipes, so another reset would pile them up.
-export const guestLaunchWipesBehind = async (env: Env) =>
-  (await wipesWaiting(env.DB, LAUNCH, launchAgentName(GUEST_NETWORK, ''))) > WIPES_PER_RUN
+// The guest network's launches' wipes, as its clearing and its resets note them for the hourly retry
+// (resetGuestNetwork), and the most one run wipes, past which a reset of its sample data waits for the run
+// (takeSampleReset), so resets can't pile them up.
+export const GUEST_LAUNCH_WIPES = { binding: LAUNCH, prefix: launchAgentName(GUEST_NETWORK, ''), most: WIPES_PER_RUN }
 
 // When the hourly cron next retries wipes, after `now`: the next hour's start, but for 12:00 UTC, whose
 // daily cron leaves them to 13:00 (src/index.tsx).
