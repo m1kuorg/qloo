@@ -40,7 +40,7 @@ The sample network shows me which of my shows share a launch's listeners, priced
 
 ## Solution
 
-Crossfeed is an agent that scores the network's own lists, its roster and its booking inbox, against a show in Qloo, asks the human at each fork, and hands back a plan to approve. It runs on one Worker as signed-in networks under `/app`, which the `ACCOUNTS` switch turns on. Anyone tries it by signing in as a guest, in one click, to the guest network, which holds the sample network ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)).
+Crossfeed is an agent that scores the network's own lists, its roster and its booking inbox, against a show in Qloo, asks the human at each fork, and hands back a plan to approve. It runs on one Worker as signed-in networks under `/app`, which the `ACCOUNTS` switch turns on. Anyone tries it by signing in as a guest, in one click, as the one guest account every guest shares, to the guest network, which holds the sample network ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md), [ADR 0008](/docs/adr/0008-guests-share-one-guest-member-again.md)).
 
 ### Launch promos
 
