@@ -232,17 +232,20 @@ function MatchChip({ show, slow }: { show: Show; slow: boolean }) {
   )
 }
 
-// Whether a show's figure still holds the sample network's arbitrary value, and its label: beside each
-// such figure in the Show tab, and once beside the show's name in the roster table.
+// Whether a show's figure, or any of them, still holds the sample network's arbitrary value, and its
+// label: beside each such figure in the Show tab, and once beside the show's name in the roster table.
 const sampled = (show: Show, figure: SampleFigure) => show.sample?.includes(figure) ?? false
+const isSampled = (show: Show) => (show.sample?.length ?? 0) > 0
 const SampleChip = () => <Badge>sample</Badge>
 
 // The roster as a ranked list's rows, in the fit chart's anatomy: a real table, its rules bleeding
 // 8px past the text as the chart's do, the show set as the chart sets it with its description under
 // it, labelled sample once while any of its figures is the sample's (the Show tab says which), figures
-// right-aligned. On the roster page each show's name opens it in the inspector's Show tab, and
-// the show open there, or whose evidence is, holds the tone step. Narrower than the table, it
-// scrolls sideways in its region with the show's column held at the left.
+// right-aligned. Screen readers read a row's header out before each of its cells, so they don't get
+// that label: they hear "sample" after the downloads and status it marks instead (a sample description
+// is in the header, so only the Show tab says so). On the roster page each show's name opens it in
+// the inspector's Show tab, and the show open there, or whose evidence is, holds the tone step.
+// Narrower than the table, it scrolls sideways in its region with the show's column held at the left.
 export function RosterTable({
   roster,
   selected,
@@ -329,7 +332,7 @@ export function RosterTable({
                       ) : (
                         <span className="text-[15px] leading-snug font-semibold">{show.name}</span>
                       )}
-                      {show.sample?.length ? <SampleChip /> : null}
+                      {isSampled(show) && <Badge aria-hidden="true">sample</Badge>}
                     </span>
                     {show.description && (
                       <span className="line-clamp-2 type-caption text-muted-foreground" title={show.description}>
@@ -356,8 +359,12 @@ export function RosterTable({
                 </td>
                 <td className={cn(cell, 'text-right')}>
                   {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
+                  {sampled(show, 'downloads') && <span className="vh"> sample</span>}
                 </td>
-                <td className={cell}>{show.status ?? '–'}</td>
+                <td className={cell}>
+                  {show.status ?? '–'}
+                  {sampled(show, 'status') && <span className="vh"> sample</span>}
+                </td>
                 <td className={cn(cell, 'pr-2 text-right')}>
                   {/* A pending call has no evidence record yet, so it opens once the search settles. */}
                   {show.resolution === 'pending' ? (

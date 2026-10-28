@@ -581,16 +581,31 @@ describe("the roster page's words", () => {
     expect(read).toContain(
       'Sample roster. The Ringer’s public show names, with downloads, statuses, and descriptions Crossfeed chose, each labelled sample until you change it. Crossfeed isn’t affiliated with The Ringer. Import your own roster over it; shows on both keep their matches.'
     )
-    // One sample label a row, beside the show's name, however many of its figures are the sample's.
+    // One sample label a row, beside the show's name, however many of its figures are the sample's. It's
+    // hidden from screen readers, as the row's header is read out before each of its cells, so they
+    // hear "sample" after each sample figure instead.
     expect(read).toContain(
-      "The Watch sample Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts, break down the week's TV, movies, and music. Missed No show by this name in Qloo. Map a comp or leave out 340,000 active C-06"
+      "The Watch sample Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts, break down the week's TV, movies, and music. Missed No show by this name in Qloo. Map a comp or leave out 340,000 sample active sample C-06"
     )
-    const rows = markup(state, network, 'member')
-      .match(/<tbody>.*<\/tbody>/s)![0]
-      .split('</tr>')
-      .slice(0, -1)
-    expect(rows).toHaveLength(19)
-    for (const row of rows) expect(row.match(/>sample</g)).toHaveLength(1)
+    const chip = /<span\b[^>]*\saria-hidden="true"[^>]*>sample<\/span>/g
+    const rows = (s: State) =>
+      markup(s, network, 'member')
+        .match(/<tbody>.*<\/tbody>/s)![0]
+        .split('</tr>')
+        .slice(0, -1)
+    expect(rows(state)).toHaveLength(19)
+    for (const row of rows(state)) {
+      const [header] = row.match(/<th\b.*<\/th>/s)!
+      expect(row.match(/>sample</g)).toHaveLength(1)
+      expect(header.match(chip)).toHaveLength(1)
+      expect(words(header.replace(chip, ''))).not.toMatch(/sample/i)
+    }
+    // A figure changed loses its label for screen readers; the row keeps its own while any is the sample's.
+    await agent.call('updateShow', 'The Watch', { downloads: 350000 })
+    const edited = await agent.until((s) => s.roster.some((show) => show.downloads === 350000))
+    const watchRow = rows(edited).find((row) => row.includes('>The Watch<'))!
+    expect(watchRow.match(chip)).toHaveLength(1)
+    expect(words(watchRow)).toContain('Map a comp or leave out 350,000 active sample C-06')
     // The Show tab says which figures are the sample's.
     const watch = editor(state, 'The Watch')
     expect(watch).toContain('Sample: Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
