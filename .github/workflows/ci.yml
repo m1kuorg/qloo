@@ -17,7 +17,8 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The suite alone takes about 9 minutes as of #283 (681 tests).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
