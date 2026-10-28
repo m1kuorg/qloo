@@ -513,7 +513,7 @@ The launch workspace (`App.tsx`, on each launch page), the inbox (`Inbox.tsx`) a
 
 ### Ranked lists
 
-The roster table (`RosterTable`), the inbox's pitch lists and the launches table use the fit chart's row anatomy as real tables: rules bleeding 8px past the text, the name at 15px 600 with its caption line, figures right-aligned. Narrower than the table, they scroll sideways in a named region (`ScrollTable`) with the name column held at the left. In the launches table and the inbox's pitch table, a cell with nothing to show yet, such as an unrun launch's finalists, slots, slot value and last run, or a set-aside pitch's guest and work, is left empty rather than holding a dash.
+The roster table (`RosterTable`), the inbox's pitch lists and the launches table use the fit chart's row anatomy as real tables: rules bleeding 8px past the text, the name at 15px 600 with its caption line, figures right-aligned. Narrower than the table, they scroll sideways in a named region (`ScrollTable`) with the name column held at the left. In the launches table and the inbox's pitch table, a cell with nothing to show yet, such as an unrun launch's finalists, slots, slot value and last run, or a set-aside pitch's guest and work, is left empty rather than holding a dash, with visually hidden text, "None" or "Not run yet", so a screen reader doesn't say "blank".
 
 ### Launches dashboard
 

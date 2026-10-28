@@ -257,10 +257,10 @@ function Status({ status }: { status: LaunchSummary['status'] }) {
 }
 
 // A launch's finalists: a five-step meter in signal, what the agent puts forward, then the count,
-// which says it, so the meter is hidden from screen readers. A launch not yet ranked has none, and its
-// cell is empty.
+// which says it, so the meter is hidden from screen readers. A launch not yet ranked has none: its
+// cell looks empty, and says "None" to screen readers.
 function Finalists({ n }: { n: number }) {
-  if (n === 0) return null
+  if (n === 0) return <span className="vh">None</span>
   return (
     <span className="inline-flex items-center gap-2">
       <span className="inline-flex items-end gap-0.5" aria-hidden="true">
@@ -411,6 +411,8 @@ function LaunchesTable({ children }: { children: React.ReactNode }) {
   )
 }
 
+// A launch's row. A cell with nothing in it yet, as an unrun launch's slots, slot value and last run
+// have, looks empty, and says "None" or "Not run yet" to screen readers rather than "blank".
 function LaunchRow({ launch: l, href, ask }: { launch: LaunchSummary; href: string; ask: () => void }) {
   const title = launchTitle(l.name, l.comps)
   return (
@@ -430,10 +432,12 @@ function LaunchRow({ launch: l, href, ask }: { launch: LaunchSummary; href: stri
       <td className={cn(cell, 'text-right')}>
         <Finalists n={l.finalists} />
       </td>
-      <td className={cn(cell, 'text-right tabular-nums')}>{l.slots}</td>
-      <td className={cn(cell, 'text-right')}>{l.slotValue !== null && dollars(l.slotValue)}</td>
+      <td className={cn(cell, 'text-right tabular-nums')}>{l.slots ?? <span className="vh">None</span>}</td>
+      <td className={cn(cell, 'text-right')}>
+        {l.slotValue === null ? <span className="vh">None</span> : dollars(l.slotValue)}
+      </td>
       <td className={cn(cell, 'text-muted-foreground')}>
-        {l.lastRun && (
+        {l.lastRun ? (
           <>
             {day(l.lastRun)}
             {l.startedBy && (
@@ -443,6 +447,8 @@ function LaunchRow({ launch: l, href, ask }: { launch: LaunchSummary; href: stri
               </span>
             )}
           </>
+        ) : (
+          <span className="vh">Not run yet</span>
         )}
       </td>
       <td className={cn(cell, 'py-2 pr-2 text-right')}>

@@ -588,7 +588,7 @@ describe("the inbox page's words", () => {
     ).toMatch(new RegExp(`<a\\b[^>]*\\shref="/app/${network}/roster"[^>]*>Import the roster</a>`))
   })
 
-  it("leaves a set-aside pitch's guest and work cells empty", async () => {
+  it("leaves a set-aside pitch's guest and work cells empty, saying so to screen readers", async () => {
     fakeQloo({ search: {} })
     fakeReader(1, () => ({ guest: 'G'.repeat(201), work: null }))
     const ada = await openMember()
@@ -606,10 +606,12 @@ describe("the inbox page's words", () => {
       />
     ).match(/<tbody>.*?<\/tbody>/s)!
     expect(words(rows)).toBe(
-      "Ada Quill on Night Ferry Pat Lindqvist <pat.lindqvist@example.com> Unreadable The guest's name is over 200 characters, so the pitch is set aside."
+      "Ada Quill on Night Ferry Pat Lindqvist <pat.lindqvist@example.com> None None Unreadable The guest's name is over 200 characters, so the pitch is set aside."
     )
-    // Its guest and work cells are there, with nothing in them, so the columns keep their places.
-    expect(rows).toMatch(/<\/th><td\b[^>]*><\/td><td\b[^>]*><\/td><td\b/)
+    // Its guest and work cells are there, with nothing to see in them, so the columns keep their places.
+    expect(rows).toMatch(
+      /<\/th><td\b[^>]*><span class="vh">None<\/span><\/td><td\b[^>]*><span class="vh">None<\/span><\/td><td\b/
+    )
   })
 
   it('names each skipped pitch and why, apart from the ones that loaded', async () => {
