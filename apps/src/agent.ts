@@ -325,8 +325,16 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
         ...this.state,
         topic: { ...topic, status: 'failed', error: 'The topic ranking was interrupted. Run the launch again' }
       })
+    // And for an inbox still loading, which the booker loads again, but for the guest network's sample
+    // inbox, whose agent tries its lookups again (network-agent.ts).
     const inbox = this.state.inbox
-    if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
+    if (inbox?.status === 'reading')
+      this.finishInbox(
+        inbox.id,
+        inbox.sample
+          ? 'The lookup was interrupted. Crossfeed tries it again later.'
+          : 'Reading was interrupted. Load the inbox again.'
+      )
     // Calls are timed in memory, so none is still waiting after a restart.
     if (this.state.slowCalls?.length) this.setState({ ...this.state, slowCalls: [] })
     // A new engine session opens on the sample network, looked up like an import, so its calls count among

@@ -6,6 +6,7 @@ import {
   createExecutionContext,
   createScheduledController,
   evictAllDurableObjects,
+  runInDurableObject,
   waitOnExecutionContext
 } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
@@ -24,7 +25,7 @@ import { NetworkAgent, ownGateway } from '../src/network-agent'
 import sampleInbox from '../src/sample-inbox.json'
 import sampleFile from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
-import { fakeClaude, fakeQloo, fakeQlooDown, modelRequests, requests, text, toolUse, turn } from './fake'
+import { fakeClaude, fakeQloo, fakeQlooDown, fakeReader, modelRequests, requests, text, toolUse, turn } from './fake'
 import {
   api,
   guestFormSignIn,
@@ -870,6 +871,135 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
           params: { query: p.work!.title },
           error: null
         })
+    })
+
+    it('tries again as it next starts the lookups the guest budget refused, then those Qloo failed, then loads nothing again', async () => {
+      fakeQloo({ search: { ...search, ...workSearch } })
+      fakeClaude([])
+      const restart = async () => {
+        await evictAllDurableObjects({ webSockets: 'close' })
+        return connect(guest)
+      }
+      // Room for the roster's lookups, but not the inbox's: it stays empty.
+      env.QLOO_VISITOR_DAILY_CALL_CAP = String((await usage()).qlooCalls.used + 19 + 35)
+      const guest = await openGuest()
+      const refused = await (await connect(guest)).until(settled)
+      expect(refused.inbox).toBeNull()
+
+      env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
+      fakeQlooDown()
+      const failed = await (await restart()).until((s) => s.inbox?.status === 'done')
+      expect(failed.inbox!.pitches.map((p) => p.match?.resolution ?? p.status)).toEqual(
+        sampleInbox.pitches.map((p) => (p.expected.work ? 'failed' : 'no_work'))
+      )
+
+      fakeQloo({ search: { ...search, ...workSearch } })
+      const sent = requests.length
+      const network = await restart()
+      const retried = await network.until((s) => s.inbox?.status === 'done')
+      expect(retried.inbox!.id).toBe(failed.inbox!.id)
+      expect(retried.inbox!.pitches.map((p) => p.match?.entity?.id)).toEqual(
+        sampleInbox.pitches.map((p) => (p.expected.work ? `w-${p.id}` : undefined))
+      )
+      const queries = requests.slice(sent).map((r) => r.url.searchParams.get('query'))
+      expect(queries.toSorted()).toEqual(works.map((w) => w.title).toSorted())
+
+      const settledAt = requests.length
+      expect((await restart()).state()!.inbox).toEqual(retried.inbox)
+      expect(requests).toHaveLength(settledAt)
+      expect(modelRequests()).toEqual([])
+    })
+
+    it('says a lookup a deploy interrupted is tried again later, not to load the inbox again, and tries it as it next starts', async () => {
+      fakeQloo({ search: { ...search, ...workSearch } })
+      const guest = await openGuest()
+      await (await connect(guest)).until(loaded)
+      // Stand in for an agent a deploy stopped mid-load: its inbox still reading, each work's lookup out.
+      // Then restart it, as the deploy does, with no guest budget left to try them again.
+      const agent = env.NetworkAgent.get(env.NetworkAgent.idFromName('guest-network'))
+      await runInDurableObject(agent, (network: NetworkAgent) => {
+        const inbox = network.state.inbox!
+        const out = inbox.pitches.map((p) => (p.work ? { ...p, status: 'looking_up' as const, match: null } : p))
+        network.setState({ ...network.state, inbox: { ...inbox, status: 'reading', pitches: out } })
+      })
+      env.QLOO_VISITOR_DAILY_CALL_CAP = String((await usage()).qlooCalls.used)
+      await evictAllDurableObjects({ webSockets: 'close' })
+      const interrupted = (await connect(guest)).state()!.inbox!
+      expect(interrupted.status).toBe('done')
+      expect(interrupted.pitches.map((p) => [p.status, p.error])).toEqual(
+        sampleInbox.pitches.map((p) =>
+          p.expected.work
+            ? ['failed', 'The lookup was interrupted. Crossfeed tries it again later.']
+            : ['no_work', null]
+        )
+      )
+
+      env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
+      await evictAllDurableObjects({ webSockets: 'close' })
+      const retried = await (await connect(guest)).until(loaded)
+      expect(retried.inbox!.pitches.map((p) => [p.status, p.match?.entity?.id])).toEqual(
+        sampleInbox.pitches.map((p) => (p.expected.work ? ['read', `w-${p.id}`] : ['no_work', undefined]))
+      )
+    })
+
+    // A guest's own pitch, read by the scripted model, and its work's made-up match.
+    const own = 'Ada Quill on her novel Night Ferry.'
+    const ownSearch = { 'Night Ferry': [{ entity_id: 'w-own', name: 'Night Ferry', popularity: 0.4 }] }
+    const readOwn = () =>
+      fakeReader(1, () => ({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: null } }))
+
+    it("keeps a guest's own pitches, loaded over it, start after start, until the daily cron clears it and it loads again", async () => {
+      fakeQloo({ search: { ...search, ...workSearch, ...ownSearch } })
+      readOwn()
+      const guest = await openGuest()
+      const network = await connect(guest)
+      const sample = (await network.until(loaded)).inbox!
+      await network.call('loadInbox', { text: own })
+      const loadedOwn = (await network.until((s) => s.inbox?.status === 'done')).inbox!
+      expect(loadedOwn).toMatchObject({ sample: false, pitches: [{ body: own, match: { entity: { id: 'w-own' } } }] })
+
+      const sent = requests.length
+      for (let i = 0; i < 2; i++) await evictAllDurableObjects({ webSockets: 'close' })
+      expect((await connect(guest)).state()!.inbox).toEqual(loadedOwn)
+      expect(requests).toHaveLength(sent)
+
+      await runCron()
+      await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+      const fresh = (await (await connect(guest)).until(loaded)).inbox!
+      expect(fresh).toMatchObject({ sample: true, show: { name: 'The Big Picture' } })
+      expect(fresh.id).not.toBe(sample.id)
+      expect(fresh.pitches.map((p) => p.match?.entity?.id)).toEqual(sample.pitches.map((p) => p.match?.entity?.id))
+    })
+
+    it('starts no sample inbox load as the daily cron clears it, before it has loaded one, and loads it on the next start', async () => {
+      fakeQloo({ search: { ...search, ...workSearch } })
+      const guest = await openGuest()
+      const before = (await usage()).qlooCalls.used
+
+      await runCron()
+      // Reserved for the sample's lookups, the guest budget would have spent them.
+      expect((await usage()).qlooCalls.used).toBe(before)
+      expect((await (await connect(guest)).until(loaded)).inbox).toMatchObject({ sample: true })
+      expect((await usage()).qlooCalls.used).toBe(before + 19 + 36)
+    })
+
+    it("never replaces a guest's own pitches, loaded while the guest budget refused its lookups, nor looks them up again", async () => {
+      // Qloo fails the guest's own lookup, which isn't the sample's to try again.
+      fakeQloo({ search: { ...search, ...workSearch, 'Night Ferry': 503 } })
+      readOwn()
+      env.QLOO_VISITOR_DAILY_CALL_CAP = String((await usage()).qlooCalls.used + 19 + 35)
+      const guest = await openGuest()
+      const network = await connect(guest)
+      expect((await network.until(settled)).inbox).toBeNull()
+      await network.call('loadInbox', { text: own })
+      const loadedOwn = (await network.until((s) => s.inbox?.status === 'done')).inbox!
+      expect(loadedOwn).toMatchObject({ sample: false, pitches: [{ match: { resolution: 'failed' } }] })
+
+      env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
+      const sent = requests.length
+      await evictAllDurableObjects({ webSockets: 'close' })
+      expect((await connect(guest)).state()!.inbox).toEqual(loadedOwn)
+      expect(requests).toHaveLength(sent)
     })
   })
 })
