@@ -115,7 +115,7 @@ async function verified<T>(ceremony: string, verify: () => Promise<T & { verifie
 
 // A new passkey's options for member `member`'s browser: their random ID is the user handle, so it says
 // nothing about them, and `has` lists the passkeys they have already.
-const registrationOptions = (env: Env, member: Member, has: { id: string }[] = []) =>
+const registrationOptions = (env: Env, member: Pick<Member, 'id' | 'name'>, has: { id: string }[] = []) =>
   generateRegistrationOptions({
     rpName: 'Crossfeed',
     rpID: env.RP_ID,
@@ -417,19 +417,34 @@ auth.post('/auth/recover', async (c) => {
   return c.json({ recoveryCode: recovered.recoveryCode })
 })
 
-// Signing in as a guest (ADR 0005), in one click with nothing to give: a session of the guest member's,
-// in the guest network. The session the browser held, if any, ends. The answer is where to go next,
-// `?next` under the same rules as a passkey sign-in's. It isn't limited per visitor: everyone's guest
-// sign-ins together are, GUEST_SIGNINS_PER_MINUTE a minute.
+// Signing in as a guest (ADR 0006), in one click with nothing to give: a guest member of one's own, an
+// owner of the guest network, signed in for a day. A browser that holds a live session, a member's or a
+// guest's, isn't signed in again, so no button signs anyone out. The answer is where to go next, `?next`
+// under the same rules as a passkey sign-in's. It isn't limited per visitor: everyone's guest sign-ins
+// together are, GUEST_SIGNINS_PER_MINUTE a minute and GUEST_SIGNINS_PER_DAY a UTC day.
 auth.post('/auth/guest', async (c) => {
-  const token = await guestSignIn(c.env.DB, Number(c.env.GUEST_SIGNINS_PER_MINUTE) || 0, sessionToken(c))
-  if (!token) {
-    c.header('Retry-After', '60')
-    return refuse(c, 'Guest sign-ins are busy for everyone right now. Try again in a minute.', 429)
+  const next = nextPath(c, c.req.query('next'))
+  if (await signedIn(c)) return c.json({ next })
+  const signedInAsGuest = await guestSignIn(c.env.DB, {
+    perMinute: Number(c.env.GUEST_SIGNINS_PER_MINUTE) || 0,
+    perDay: Number(c.env.GUEST_SIGNINS_PER_DAY) || 0
+  })
+  if ('spent' in signedInAsGuest) {
+    if (signedInAsGuest.spent === 'minute') {
+      c.header('Retry-After', '60')
+      return refuse(c, 'Guest sign-ins are busy for everyone right now. Try again in a minute.', 429)
+    }
+    const tomorrow = new Date().setUTCHours(24, 0, 0, 0)
+    c.header('Retry-After', String(Math.ceil((tomorrow - Date.now()) / 1000)))
+    return refuse(
+      c,
+      `Guests have signed in ${Number(c.env.GUEST_SIGNINS_PER_DAY) || 0} times today, the most Crossfeed takes in a UTC day; it resets at 00:00 UTC. Create an account to sign in now.`,
+      429
+    )
   }
-  setSession(c, token, GUEST_SESSION_MS)
+  setSession(c, signedInAsGuest.token, GUEST_SESSION_MS)
   console.log(JSON.stringify({ event: 'guest_sign_in' }))
-  return c.json({ next: nextPath(c, c.req.query('next')) })
+  return c.json({ next })
 })
 
 // Sign-out: the session ends here and in the browser.

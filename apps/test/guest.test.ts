@@ -1,5 +1,6 @@
-// Signing in as a guest (ADR 0005): one click, no passkey, to the guest network, as the guest member,
-// through the accounts routes and the app's pages, as the sign-in page's "Sign in as a guest" does.
+// Signing in as a guest (ADR 0006): one click, no passkey, to a guest member of one's own, an owner of
+// the guest network, through the accounts routes and the app's pages, as the sign-in page's "Sign in as
+// a guest" does.
 import { getAgentByName } from 'agents'
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
@@ -12,7 +13,7 @@ import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent } from '../src/network-agent'
 import { fakeClaude, fakeQloo, text, toolUse, turn } from './fake'
-import { guestSignIn, hooked, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
+import { api, guestSignIn, hooked, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
 const accounts = env.ACCOUNTS
@@ -32,8 +33,22 @@ async function dashboard(guest: Guest) {
   return { path, page: attr('page'), member: attr('member-id'), network: attr('network-name'), role: attr('role') }
 }
 
+// A write from a guest's page, as its islands send them.
+const post = (guest: Guest, path: string, body: object = {}) =>
+  guest.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+// The guest network's members, as its settings page gives them to its island.
+async function guestMembers(guest: Guest) {
+  const html = await (await guest.fetch('/app/guest-network/settings')).text()
+  return JSON.parse(html.match(/data-members="([^"]*)"/)![1].replace(/&quot;/g, '"')) as {
+    id: string
+    name: string
+    role: string
+  }[]
+}
+
 describe('signing in as a guest', () => {
-  it('gives each guest a session of their own, as the one guest member in the one guest network', async () => {
+  it('makes each guest a guest member of their own, named Guest and six hex digits, an owner of the guest network', async () => {
     const logged = vi.spyOn(console, 'log')
     const ada = await openGuest()
     const grace = await openGuest()
@@ -41,10 +56,29 @@ describe('signing in as a guest', () => {
     expect(grace.cookie).not.toBe(ada.cookie)
     expect(ada.next).toBe('/app')
 
-    const opened = await dashboard(ada)
-    expect(opened).toMatchObject({ page: 'dashboard', network: 'Guest network', role: 'member' })
-    expect(opened.member).toBeTruthy()
-    expect(await dashboard(grace)).toEqual(opened)
+    const hers = await dashboard(ada)
+    const his = await dashboard(grace)
+    for (const opened of [hers, his])
+      expect(opened).toMatchObject({
+        path: '/app/guest-network',
+        page: 'dashboard',
+        network: 'Guest network',
+        role: 'owner',
+        member: expect.stringMatching(/^guest-[0-9a-f-]{36}$/)
+      })
+    expect(his.member).not.toBe(hers.member)
+    const members = await guestMembers(grace)
+    expect(members).toMatchObject([
+      { id: hers.member, name: expect.stringMatching(/^Guest [0-9A-F]{6}$/), role: 'owner' },
+      { id: his.member, name: expect.stringMatching(/^Guest [0-9A-F]{6}$/), role: 'owner' }
+    ])
+    expect(members[1].name).not.toBe(members[0].name)
+    // Each is signed in as themselves: their account page names them.
+    for (const [guest, { name }] of [
+      [ada, members[0]],
+      [grace, members[1]]
+    ] as const)
+      expect(await (await guest.fetch('/app/account')).text()).toContain(`data-member-name="${name}"`)
     expect(logged.mock.calls.filter(([line]) => line === JSON.stringify({ event: 'guest_sign_in' }))).toHaveLength(2)
   })
 
@@ -62,31 +96,20 @@ describe('signing in as a guest', () => {
       expect((await openGuest({ next: away })).next, away).toBe('/app')
   })
 
-  it('ends the session the browser held, a member’s, and none of their others', async () => {
+  it('signs no browser in again that holds a live session, a member’s or a guest’s: it goes where it was headed', async () => {
     const ada = await openMember({ name: 'Ada Programmer' })
-    // Ada signs in on a second browser with her passkey.
-    const post = (path: string, body: object) =>
-      exports.default.fetch(`${origin}${path}`, {
-        method: 'POST',
-        headers: { Origin: origin, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
-    const { challenge, options } = await (
-      await post('/auth/sign-in/options', {})
-    ).json<{
-      challenge: string
-      options: never
-    }>()
-    const other = await post('/auth/sign-in', { challenge, response: await ada.authenticator.authenticate(options) })
-    const elsewhere = other.headers.get('set-cookie')!.split(';')[0]
-
-    const guest = await openGuest({ cookie: ada.cookie })
-    expect(guest.cookie).not.toBe(ada.cookie)
-    const signIn = await ada.fetch('/app/new', { redirect: 'manual' })
-    expect(signIn.headers.get('location')).toBe('/sign-in?next=/app/new')
-    expect((await dashboard(guest)).network).toBe('Guest network')
-    const kept = await exports.default.fetch(`${origin}/app/new`, { headers: { Cookie: elsewhere } })
-    expect(await kept.text()).toContain('Ada Programmer')
+    const guest = await openGuest()
+    const [{ name }] = await guestMembers(guest)
+    for (const cookie of [ada.cookie, guest.cookie]) {
+      const again = await guestSignIn({ cookie, next: '/app/account' })
+      expect(again.status).toBe(200)
+      expect(again.headers.get('set-cookie')).toBeNull()
+      expect(await again.json()).toEqual({ next: '/app/account' })
+    }
+    // Each is still signed in as themselves, and the guest network has no other guest member.
+    expect(await (await ada.fetch('/app/account')).text()).toContain('data-member-name="Ada Programmer"')
+    expect(await (await guest.fetch('/app/account')).text()).toContain(`data-member-name="${name}"`)
+    expect(await guestMembers(guest)).toHaveLength(1)
   })
 
   it('is a POST from one of the app’s pages, while accounts are on', async () => {
@@ -110,18 +133,14 @@ describe('signing in as a guest', () => {
   })
 })
 
-describe('what a guest can’t change', () => {
-  const REFUSED = {
-    error:
-      'Everyone who signs in as a guest shares the guest network and its one guest member, so no guest can do this. Sign out and create an account to do it.'
-  }
-  const post = (guest: Guest, path: string, body: object = {}) =>
-    guest.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+describe('what a guest can’t change yet', () => {
+  const REFUSED = { error: 'A guest can’t do this. Sign out and create an account to do it.' }
   const challenges = () => env.DB.prepare('SELECT count(*) AS n FROM challenges').first<number>('n')
 
-  it('refuses the guest member’s passkeys, recovery code, name, sessions, and account, even just signed in, and asks for no step-up', async () => {
+  it('refuses a guest member’s passkeys, recovery code, name, sessions, and account, even just signed in, and asks for no step-up', async () => {
     const guest = await openGuest()
     const other = await openGuest()
+    const [mine, theirs] = await guestMembers(other)
     for (const [path, body] of [
       ['/auth/passkeys/options', {}],
       ['/auth/passkeys', { challenge: 'none', response: {} }],
@@ -134,13 +153,16 @@ describe('what a guest can’t change', () => {
       expect(refused.status, path).toBe(403)
       expect(await refused.json(), path).toEqual(REFUSED)
     }
-    // No ceremony was started for a step-up the guest member has no passkey or code to answer.
+    // No ceremony was started for a step-up a guest member has no passkey or code to answer.
     expect(await challenges()).toBe(0)
-    // Both guests are still signed in, as the guest member, by its name.
-    for (const g of [guest, other]) {
+    // Both guests are still signed in, each by their own name.
+    for (const [g, { name }] of [
+      [guest, mine],
+      [other, theirs]
+    ] as const) {
       const page = await g.fetch('/app/account')
       expect(page.status).toBe(200)
-      expect(await page.text()).toContain('data-member-name="Guest"')
+      expect(await page.text()).toContain(`data-member-name="${name}"`)
     }
   })
 
@@ -164,37 +186,74 @@ describe('what a guest can’t change', () => {
       expect(refused.status, path).toBe(403)
       expect(await refused.json(), path).toEqual(REFUSED)
     }
-    // The guest network keeps its guest member, and the invite is still there for a person to use.
+    // The guest is still in the guest network, and the invite is still there for a person to use.
     expect((await guest.fetch('/app/guest-network')).status).toBe(200)
     expect((await guest.fetch(`/app/${id}`)).status).toBe(404)
     await openMember({ name: 'Grace Booker', invite: `https://crossfeed.test/invite#${token}` })
   })
+})
 
-  it('refuses every owner’s change to the guest network, which has no owner', async () => {
+describe('what a guest can change, as an owner of the guest network', () => {
+  const settings = '/app/guest-network/settings'
+
+  it('renames it and sets its CPM, for every guest', async () => {
+    const ada = await openGuest()
+    const grace = await openGuest()
+    const renamed = await post(ada, `${settings}/network`, { name: 'Night Shift Guests', cpm: 25 })
+    expect(renamed.status).toBe(200)
+    expect(await renamed.json()).toEqual({ name: 'Night Shift Guests', cpm: 25 })
+    expect(await dashboard(grace)).toMatchObject({ network: 'Night Shift Guests', role: 'owner' })
+    expect((await grace.connect('/agents/network/guest-network')).state()).toMatchObject({ cpm: 25 })
+  })
+
+  it('invites a person, who joins as a member, changes another guest’s role, and removes a member', async () => {
+    const ada = await openGuest()
+    const grace = await openGuest()
+    const invited = await post(ada, `${settings}/members/invites`)
+    expect(invited.status).toBe(200)
+    const dot = await openMember({ name: 'Dot Pruitt', invite: (await invited.json<{ link: string }>()).link })
+    expect(dot.network).toBe('guest-network')
+
+    const [, theirs] = await guestMembers(ada)
+    expect((await post(ada, `${settings}/members/${theirs.id}/role`, { role: 'member' })).status).toBe(200)
+    expect(await dashboard(grace)).toMatchObject({ role: 'member' })
+    expect(await (await post(grace, `${settings}/members/invites`)).json()).toEqual({
+      error: 'Only an owner can invite and manage members.'
+    })
+    expect((await post(ada, `${settings}/members/${dot.id}/remove`)).status).toBe(200)
+    expect((await dot.fetch('/app/guest-network')).status).toBe(404)
+    expect((await guestMembers(ada)).map((m) => m.role)).toEqual(['owner', 'member'])
+  })
+
+  it('makes an API key that acts for the guest network, and revokes it', async () => {
     const guest = await openGuest()
-    const settings = '/app/guest-network/settings'
-    for (const [path, body, error] of [
-      [`${settings}/network`, { name: 'Mine now', cpm: 1 }, 'Only an owner can change the network’s name and CPM.'],
-      [`${settings}/members/invites`, {}, 'Only an owner can invite and manage members.'],
-      [`${settings}/members/guest-member/role`, { role: 'owner' }, 'Only an owner can invite and manage members.'],
-      [`${settings}/members/guest-member/remove`, {}, 'Only an owner can invite and manage members.'],
-      [`${settings}/api-keys`, { name: 'Mine' }, 'Only an owner can create and revoke API keys.'],
-      [
-        `${settings}/qloo-key`,
-        { host: 'https://api.qloo.com', key: 'k' },
-        'Only an owner can add or remove the network’s Qloo key.'
-      ],
-      [`${settings}/delete`, { name: 'Guest network' }, 'Only an owner can delete the network.']
-    ] as const) {
-      const refused = await post(guest, path, body)
-      expect(refused.status, path).toBe(403)
-      expect(await refused.json(), path).toEqual({ error })
-    }
-    const network = await guest.connect('/agents/network/guest-network')
-    expect(network.state()).toMatchObject({ cpm: 20 })
-    const page = await (await guest.fetch(settings)).text()
-    expect(page).toContain('data-network-name="Guest network"')
-    expect(page).toContain('data-role="member"')
+    const made = await post(guest, `${settings}/api-keys`, { name: 'Nightly sync' })
+    expect(made.status).toBe(200)
+    const { id, secret } = await made.json<{ id: string; secret: string }>()
+    const call = api(secret)
+    const network = await call('/api/v1/networks/guest-network')
+    expect(network.status).toBe(200)
+    expect(await network.json()).toMatchObject({ id: 'guest-network', name: 'Guest network' })
+    expect((await post(guest, `${settings}/api-keys/${id}/revoke`)).status).toBe(200)
+    expect((await call('/api/v1/networks/guest-network')).status).toBe(401)
+  })
+
+  it('deletes it for every guest, and the next guest sign-in makes it again and lands there', async () => {
+    const ada = await openGuest()
+    const deleted = await post(ada, `${settings}/delete`, { name: 'Guest network' })
+    expect(deleted.status).toBe(200)
+    expect((await ada.fetch('/app/guest-network')).status).toBe(404)
+    expect((await ada.fetch('/app', { redirect: 'manual' })).headers.get('location')).toBe('/app/new')
+
+    const grace = await openGuest()
+    expect(await dashboard(grace)).toMatchObject({
+      path: '/app/guest-network',
+      page: 'dashboard',
+      network: 'Guest network',
+      role: 'owner'
+    })
+    expect(await guestMembers(grace)).toHaveLength(1)
+    expect((await grace.connect('/agents/network/guest-network')).state()).toMatchObject({ roster: [], launches: [] })
   })
 })
 
@@ -317,6 +376,10 @@ describe('a guest session', () => {
     const ended = await open(start + 24 * HOUR)
     expect(ended.status).toBe(302)
     expect(ended.headers.get('location')).toBe('/sign-in?next=/app/guest-network')
+    // Its browser, holding no live session now, signs in as a new guest member.
+    const again = await guestSignIn({ cookie: set.split(';')[0] })
+    expect(again.headers.get('set-cookie')).toMatch(/^__Host-crossfeed_member=[\w-]{43}; Max-Age=86400;/)
+    expect(again.headers.get('set-cookie')).not.toContain(set.split(';')[0])
   })
 
   it('ends at sign-out for that guest alone: every other guest stays signed in', async () => {
@@ -355,36 +418,47 @@ describe('the guest sign-in limit', () => {
     expect((await guestSignIn({ ip: '192.0.2.1' })).status).toBe(200)
   })
 
-  it('counts a guest session that ended in the minute, by sign-out or by signing in as a guest again', async () => {
-    // 15 guests sign in and out again, and 15 more sign in, each from the last one's browser.
-    for (let i = 0; i < 15; i++) await (await openGuest()).fetch('/auth/sign-out', { method: 'POST' })
-    let cookie: string | undefined
-    for (let i = 0; i < 15; i++) cookie = (await openGuest({ cookie })).cookie
-    expect(await (await guestSignIn({ cookie })).json()).toEqual(BUSY)
-    expect((await guestSignIn()).status).toBe(429)
-  })
-
-  it('keeps counting a guest session that ended in the minute after the daily cron clears expired ones', async () => {
-    // The cron's health check searches Qloo too.
-    fakeQloo({ search: { 'The Rewatchables': [{ entity_id: 'e-0701', name: 'The Rewatchables', popularity: 0.7 }] } })
+  it('counts guests who signed out in the minute: their sessions are gone, and their sign-ins still count', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     const start = Date.now()
-    // A guest who signed out two minutes before the cron, and 30 who signed in and out since.
-    await (await openGuest()).fetch('/auth/sign-out', { method: 'POST' })
-    vi.setSystemTime(start + 2 * 60_000)
-    for (let i = 0; i < 30; i++) await (await openGuest()).fetch('/auth/sign-out', { method: 'POST' })
-    const logged = vi.spyOn(console, 'log')
-
-    const ctx = createExecutionContext()
-    await (worker as ExportedHandler<Env>).scheduled!(createScheduledController({ cron: '0 12 * * *' }), env, ctx)
-    await waitOnExecutionContext(ctx)
-
-    expect(logged).toHaveBeenCalledWith(
-      JSON.stringify({ event: 'directory_purged', sessions: 1, challenges: 0, invites: 0 })
-    )
+    for (let i = 0; i < 30; i++) {
+      const out = await (await openGuest()).fetch('/auth/sign-out', { method: 'POST' })
+      expect(out.status).toBe(200)
+    }
     expect(await (await guestSignIn()).json()).toEqual(BUSY)
-    vi.setSystemTime(start + 3 * 60_000)
+    vi.setSystemTime(start + 60_000)
     expect((await guestSignIn()).status).toBe(200)
+  })
+
+  it('lets GUEST_SIGNINS_PER_DAY guests sign in a UTC day in all, from any address or none, then refuses the next until 00:00 UTC', async () => {
+    const perDay = env.GUEST_SIGNINS_PER_DAY
+    env.GUEST_SIGNINS_PER_DAY = '3'
+    try {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      // Three guests a few minutes apart, so the minute's limit never counts, one of whom signs out.
+      vi.setSystemTime(new Date('2026-10-28T23:00:00Z'))
+      await openGuest({ ip: '203.0.113.7' })
+      vi.setSystemTime(new Date('2026-10-28T23:10:00Z'))
+      await (await openGuest({ ip: '198.51.100.4' })).fetch('/auth/sign-out', { method: 'POST' })
+      vi.setSystemTime(new Date('2026-10-28T23:20:00Z'))
+      await openGuest()
+
+      vi.setSystemTime(new Date('2026-10-28T23:59:59Z'))
+      for (const ip of ['192.0.2.1', undefined]) {
+        const refused = await guestSignIn({ ip })
+        expect(refused.status).toBe(429)
+        expect(refused.headers.get('retry-after')).toBe('1')
+        expect(refused.headers.get('set-cookie')).toBeNull()
+        expect(await refused.json()).toEqual({
+          error:
+            'Guests have signed in 3 times today, the most Crossfeed takes in a UTC day; it resets at 00:00 UTC. Create an account to sign in now.'
+        })
+      }
+      vi.setSystemTime(new Date('2026-10-29T00:00:00Z'))
+      expect((await guestSignIn({ ip: '192.0.2.1' })).status).toBe(200)
+    } finally {
+      env.GUEST_SIGNINS_PER_DAY = perDay
+    }
   })
 
   it('counts exactly, so two sign-ins at once for the last place leave one refused', async () => {

@@ -24,11 +24,12 @@ describe('the directory', () => {
     expect(member).toEqual({ name: 'Ada Programmer' })
   })
 
-  it('starts the next test with every table, and no rows but the guest member, the guest network, and its membership', async () => {
+  it('starts the next test with every table, and no rows but the guest network', async () => {
     expect(await tables()).toEqual([
       'api_keys',
       'challenges',
       'd1_migrations',
+      'guest_signins',
       'invites',
       'members',
       'memberships',
@@ -39,14 +40,10 @@ describe('the directory', () => {
       'wipes'
     ])
     const all = async (query: string) => (await env.DB.prepare(query).all()).results
-    expect(await all('SELECT id, name FROM members')).toEqual([{ id: 'guest-member', name: 'Guest' }])
     expect(await all('SELECT id, name, created_by FROM networks')).toEqual([
       { id: 'guest-network', name: 'Guest network', created_by: null }
     ])
-    expect(await all('SELECT network_id, member_id, role FROM memberships')).toEqual([
-      { network_id: 'guest-network', member_id: 'guest-member', role: 'member' }
-    ])
-    for (const table of ['passkeys', 'sessions', 'invites', 'api_keys'])
+    for (const table of ['members', 'memberships', 'guest_signins', 'passkeys', 'sessions', 'invites', 'api_keys'])
       expect(await env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n'), table).toBe(0)
   })
 })
