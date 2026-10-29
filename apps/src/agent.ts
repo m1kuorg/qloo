@@ -187,7 +187,9 @@ export type State = {
   demographics: DemographicCheck | null // the current run's finalists checked against the launch's listeners
   topic: Topic | null // the current run's topic baseline, the chart's last-week column
   inbox: Inbox | null // the booker's guest pitches, when GUEST_PITCHES is on
-  sample: Sample | null // the sample network the session opened on, until a roster is imported
+  // The sample network the session opened on, until an import leaves none of it: on an engine session, any
+  // import; on a network, one that leaves no show holding a sample figure while the CPM isn't the sample's.
+  sample: Sample | null
   booking: Booking | null // the latest guest pitch run's show, past guests, and ranked lists
   insertionOrder: InsertionOrder | null // the current run's order, once drafted; only the programmer edits or approves it
   slowCalls: SlowCall[] // this session's Qloo calls still waiting longer than they should
