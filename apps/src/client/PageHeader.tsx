@@ -167,7 +167,8 @@ export function FormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent keepMounted finalFocus={finalFocus} initialFocus={initialFocus}>
+      {/* A scroll at the ends of a form taller than a phone's screen doesn't move the page. */}
+      <DialogContent keepMounted className="overscroll-contain" finalFocus={finalFocus} initialFocus={initialFocus}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
