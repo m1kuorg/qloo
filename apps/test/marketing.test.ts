@@ -59,7 +59,8 @@ const vars = {
   API_KEYS_PER_NETWORK: env.API_KEYS_PER_NETWORK,
   INVITED_SIGNUP_DAILY_CAP: env.INVITED_SIGNUP_DAILY_CAP,
   GUEST_PITCHES: env.GUEST_PITCHES,
-  RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
+  RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP,
+  SEARCH_INDEXING: env.SEARCH_INDEXING
 }
 afterEach(() => Object.assign(env, vars))
 
@@ -734,12 +735,17 @@ describe('a page that fails', () => {
   afterEach(() => vi.restoreAllMocks())
 
   it('shows a browser the error page in the marketing shell, with its Ray ID and the way back to the network', async () => {
+    // On production, where search engines index the public pages but none of a member's.
+    env.SEARCH_INDEXING = 'on'
     const { ada, id } = await failing('api_keys')
     const failed = vi.spyOn(console, 'error')
     const res = await ada.fetch(`/app/${id}`, { headers: { ...browser.headers, 'CF-Ray': '8f1e2d3c4b5a6978-SIN' } })
+    expect(res.headers.get('X-Robots-Tag')).toBe('noindex')
     const { status, type, body } = await answer(res)
     expect([status, type]).toEqual([500, expect.stringMatching(/^text\/html/)])
     expect(body).toContain('<title>Something went wrong · Crossfeed</title>')
+    // A failure is no page to preview or index, so it has no card.
+    expect(body).not.toMatch(/<meta name="description"|<link rel="canonical"|<meta property="og:|<meta name="twitter:/)
     expect(words(main(body)).trim()).toBe(
       'Dead air. Something went wrong in Crossfeed as it loaded this page: try again in a moment. Dashboard Ray ID 8f1e2d3c4b5a6978-SIN'
     )
@@ -752,18 +758,22 @@ describe('a page that fails', () => {
         event: 'request_error',
         method: 'GET',
         path: `/app/${id}`,
+        ray: '8f1e2d3c4b5a6978-SIN',
         error: expect.stringContaining('no such table: api_keys')
       }
     ])
   })
 
   it('leads home from a public page and to the networks from another of the app’s, with no Ray ID when there is none', async () => {
+    // On the preview, where search engines may index nothing, a public page's error page included.
     const { ada } = await failing('sessions')
     for (const [path, back] of [
       ['/sign-in', '/'],
       ['/app/account', '/app']
     ]) {
-      const { status, type, body } = await answer(await ada.fetch(path, browser))
+      const res = await ada.fetch(path, browser)
+      expect(res.headers.get('X-Robots-Tag'), path).toBe('noindex')
+      const { status, type, body } = await answer(res)
       expect([status, type], path).toEqual([500, expect.stringMatching(/^text\/html/)])
       expect(ways(main(body), body), path).toEqual([back])
       expect(words(main(body)), path).not.toContain('Ray ID')
@@ -786,35 +796,47 @@ describe('a page that fails', () => {
   })
 
   it('answers a plain 500 when the error page fails too, and logs both', async () => {
-    const { ada, id } = await failing('api_keys')
     const failed = vi.spyOn(console, 'error')
-    const saved = env.APP_ORIGINS
-    // A deployment without the variable the error page's card needs.
-    delete (env as Partial<Env>).APP_ORIGINS
+    const saved = env.ACCOUNTS
+    // A variable that the landing page reads, and the error page after it, can't be read.
+    Object.defineProperty(env, 'ACCOUNTS', {
+      configurable: true,
+      get: () => {
+        throw new Error('ACCOUNTS is unreadable')
+      }
+    })
     try {
-      expect(await answer(await ada.fetch(`/app/${id}`, browser))).toEqual(plain)
+      expect(await answer(await exports.default.fetch(`${origin}/`, browser))).toEqual(plain)
     } finally {
-      env.APP_ORIGINS = saved
+      Object.defineProperty(env, 'ACCOUNTS', { value: saved, writable: true, enumerable: true, configurable: true })
     }
-    expect(logged(failed, 'request_error')).toHaveLength(1)
-    expect(logged(failed, 'error_page_failed')).toEqual([
-      { event: 'error_page_failed', path: `/app/${id}`, error: expect.stringContaining('TypeError') }
+    const unreadable = expect.stringContaining('ACCOUNTS is unreadable')
+    expect(logged(failed, 'request_error')).toEqual([
+      { event: 'request_error', method: 'GET', path: '/', error: unreadable }
     ])
+    expect(logged(failed, 'error_page_failed')).toEqual([{ event: 'error_page_failed', path: '/', error: unreadable }])
   })
 
-  it('answers an HTTPException with its own answer, its status kept, to a page and a write alike', async () => {
+  it('answers an HTTPException with its own answer, its status and headers kept, to a page and a write alike', async () => {
     const ada = await openMember()
     vi.spyOn(env.DB, 'prepare').mockImplementation(() => {
-      throw new HTTPException(503, { message: 'Crossfeed is busy.' })
+      const res = new Response('Crossfeed is busy.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '60' }
+      })
+      throw new HTTPException(503, { res })
     })
     for (const [path, init] of [
       ['/app/account', browser],
       ['/app/account/name', { method: 'POST', ...browser }]
-    ] as const)
-      expect(await answer(await ada.fetch(path, init)), path).toEqual({
+    ] as const) {
+      const res = await ada.fetch(path, init)
+      expect(res.headers.get('Retry-After'), path).toBe('60')
+      expect(await answer(res), path).toEqual({
         status: 503,
-        type: expect.stringMatching(/^text\/plain/),
+        type: 'text/plain; charset=utf-8',
         body: 'Crossfeed is busy.'
       })
+    }
   })
 })

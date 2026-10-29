@@ -41,8 +41,8 @@ const secure = secureHeaders({
   }
 })
 app.use((c, next) => (c.req.path.startsWith('/agents/') ? next() : secure(c, next)))
-// Each answer search engines mustn't index says so in its X-Robots-Tag (routes/crawlers.ts), but an
-// agent's connection, for the same reason.
+// Each answer search engines mustn't index says so in its X-Robots-Tag (routes/crawlers.ts), except an
+// agent's connection, whose answer can't take headers.
 app.use((c, next) => (c.req.path.startsWith('/agents/') ? next() : noindex(c, next)))
 
 app.route('/', crawlers)

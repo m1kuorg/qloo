@@ -3,6 +3,7 @@
 // tests have it.
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { publicPages as pages } from './pages'
 import { openMember } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -12,17 +13,7 @@ const get = (url: string, init?: RequestInit) => exports.default.fetch(new URL(u
 
 // The public pages, which a search engine may index, and what it should skip: a member's pages, the
 // API, the MCP server, the agents' connections, the auth routes, and the invite page.
-const publicPages = [
-  '/',
-  '/privacy',
-  '/terms',
-  '/docs',
-  '/docs/api',
-  '/docs/sdk',
-  '/docs/mcp',
-  '/docs/agents',
-  '/sign-in'
-]
+const publicPages = Object.keys(pages)
 const skipped = [
   '/app',
   '/app/new',
@@ -33,9 +24,10 @@ const skipped = [
   '/auth/guest',
   '/invite'
 ]
-// What else a crawler may fetch: the docs for agents, a skill's file, and the files in public/.
-const files = ['/llms.txt', '/docs/agents/plan-launch-promos/SKILL.md', '/og-1.png', '/favicon.ico', '/icon.svg']
-files.push('/apple-touch-icon.png', '/manifest.webmanifest')
+// What else a crawler may fetch: the docs for agents, a skill's file, and every file in public/, which
+// Workers Assets serves before the Worker, so a new one under a path robots.txt disallows fails here.
+const files = ['/llms.txt', '/docs/agents/plan-launch-promos/SKILL.md']
+files.push(...Object.keys(import.meta.glob('../public/*')).map((file) => file.slice('../public'.length)))
 
 // Whether robots.txt lets every crawler fetch `path`, as RFC 9309 reads it: of the rules of the group for
 // `*` whose path starts `path`, the longest wins, an Allow over a Disallow as long; none, and it may.
@@ -70,6 +62,8 @@ describe('on production, where SEARCH_INDEXING is on', () => {
 
   it('lets crawlers fetch the public pages and files, asks them to skip the rest, and names the sitemap', async () => {
     const text = await robots()
+    // The one public file a disallowed path covers, so the glob found public/.
+    expect(files).toContain('/apple-touch-icon.png')
     for (const path of [...publicPages, ...files]) expect(allows(text, path), path).toBe(true)
     for (const path of skipped) expect(allows(text, path), path).toBe(false)
     expect(text.match(/^Sitemap:.*$/gm)).toEqual([`Sitemap: ${origin}/sitemap.xml`])
@@ -125,7 +119,7 @@ describe('on production, where SEARCH_INDEXING is on', () => {
 
 describe('on the preview, where SEARCH_INDEXING is left out', () => {
   beforeEach(() => {
-    delete (env as Partial<Env>).SEARCH_INDEXING
+    delete env.SEARCH_INDEXING
   })
 
   it('disallows nothing, so a crawler can read every noindex, and names no sitemap, which is a 404', async () => {
