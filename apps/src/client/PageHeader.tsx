@@ -207,7 +207,7 @@ export function Section({
   ...data
 }: {
   id: string // the heading's, which names the section
-  title: string
+  title: ReactNode // its words, with a code such as an order's ID in its own type
   description: ReactNode // one sentence
   level?: 2 | 3
   badge?: ReactNode
@@ -246,8 +246,10 @@ export type PageTab = { id: string; title: string; content: ReactNode }
 // in one survives a switch to another, and a page rendered on the server holds every panel; in each,
 // the sections stand 48px apart, as the settings' modules do. The chosen tab is the URL's hash: one
 // that names a tab as the page opens, or as it changes (a link such as "Review the plan"), opens that
-// tab, and scrolls its list into view, clear of the sticky top bar, only when it's out of view. Choosing
-// a tab writes the hash without a history entry. A hash that names none is left alone, so the first tab
+// tab, and scrolls its list into view, clear of the sticky top bar, only when it's out of view; or, when
+// the hash is also an element's id in the tab's panel, as "Review the plan"'s #plan, scrolls to that
+// element once the panel shows, as the browser would have had it been showing. Choosing a tab writes
+// the hash without a history entry. A hash that names none is left alone, so the first tab
 // shows, as it does once the chosen one goes away. Tabs
 // activate by hand, Base UI's default: arrow keys move focus, and Enter or Space opens a tab. Wider
 // than the page, as on a phone, the list scrolls sideways, keeping the open tab in view.
@@ -257,17 +259,26 @@ export function PageTabs({ label, tabs }: { label: string; tabs: PageTab[] }) {
   const named = useRef(tabs)
   named.current = tabs
   const track = useRef<HTMLDivElement>(null)
+  // The hash whose element was in a hidden panel as the hash changed, so the browser's jump to it
+  // couldn't land: it's made once the panel shows.
+  const jump = useRef<string | null>(null)
   useEffect(() => {
     const follow = () => {
       const hash = location.hash.slice(1)
       if (!named.current.some((t) => t.id === hash)) return
       setChosen(hash)
-      track.current?.scrollIntoView({ block: 'nearest' })
+      if (document.getElementById(hash)?.closest('[hidden]')) jump.current = hash
+      else track.current?.scrollIntoView({ block: 'nearest' })
     }
     follow()
     window.addEventListener('hashchange', follow)
     return () => window.removeEventListener('hashchange', follow)
   }, [])
+  useEffect(() => {
+    if (jump.current !== shown) return
+    jump.current = null
+    document.getElementById(shown)?.scrollIntoView()
+  }, [shown])
   // The open tab, as it opens and as the list's width changes (a phone turned), scrolled sideways into
   // view: sideways only, so the page itself never moves for it.
   useEffect(() => {
