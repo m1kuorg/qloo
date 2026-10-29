@@ -57,14 +57,16 @@ export const draftReplies: Tool<Input> = {
     const fresh = pitches.size - redrafts
     const n = (count: number) => `${count} ${count === 1 ? 'reply' : 'replies'}`
     if (fresh === 0 && redrafts > 0) return `Redrafting ${n(redrafts)}`
-    const [from, to, of] = [drafted.size + 1, drafted.size + fresh, inbox?.pitches.length ?? 0]
-    // A call that drafts every reply at once says how many, as does one the tool refuses for having no
-    // inbox or naming more pitches than the inbox has left.
-    const batch =
-      fresh === 0 || to > of || (from === 1 && to === of)
+    const first = drafted.size + 1
+    const last = drafted.size + fresh
+    const total = inbox?.pitches.length ?? 0
+    // A call that drafts every reply at once says how many, as does an empty call and one the tool
+    // refuses for having no inbox or naming more pitches than the inbox has left.
+    const which =
+      fresh === 0 || last > total || (first === 1 && last === total)
         ? n(fresh)
-        : `${from === to ? `reply ${to}` : `replies ${from} to ${to}`} of ${of}`
-    return redrafts === 0 ? `Drafting ${batch}` : `Drafting ${batch} and redrafting ${redrafts}`
+        : `${first === last ? `reply ${last}` : `replies ${first} to ${last}`} of ${total}`
+    return redrafts === 0 ? `Drafting ${which}` : `Drafting ${which} and redrafting ${redrafts}`
   },
   async run({ replies }, { run, state, update }) {
     const { booking, inbox } = state()
