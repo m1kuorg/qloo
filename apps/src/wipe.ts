@@ -35,6 +35,24 @@ import {
 } from './network-agent'
 import { GUEST_MEMBER, GUEST_NETWORK } from './text'
 
+// Awaits `wipe`, a call that wipes an instance, counting the instance's own reset after it as the wipe
+// done. Once a wipe has deleted its instance's storage, the instance resets itself: an agent's `destroy`
+// says "destroyed" (DESTROYED), and a gateway's `wipe` says WIPED. On Cloudflare that reset reaches the
+// caller before the wipe's answer does (#297), as an error whose message is the reset's reason, which
+// workerd marks `durableObjectReset`. In the Workers vitest pool and on the dev server the answer comes
+// first. Any other error fails the wipe, including a reset for another reason, such as a deploy's. So does
+// an error the instance's code throws, such as a gateway's call once its wipe has begun: it has no mark,
+// even when its message is the same.
+const DESTROYED = 'destroyed'
+async function awaitWipe(wipe: Promise<void>, reset: string) {
+  try {
+    await wipe
+  } catch (e) {
+    const isReset = e instanceof Error && 'durableObjectReset' in e && e.durableObjectReset === true
+    if (!isReset || e.message !== reset) throw e
+  }
+}
+
 // The bindings a wipe is noted under, and how each wipes its instance (an agent's `destroy`, a gateway's
 // `wipe`), saying the reason it was noted with to the pages it closes, if it closes any; and how a network
 // forgets a deleted member, noted the same way.
@@ -47,29 +65,13 @@ const GATEWAY = 'QlooGateway'
 const FORGET = 'NetworkAgent.forgetMember'
 const WIPERS: Record<string, (env: Env, name: string, reason?: string) => Promise<void>> = {
   [LAUNCH]: async (env, name, reason) =>
-    wiped((await getAgentByName(env.LaunchAgent, name)).destroy(reason), DESTROYED),
-  [NETWORK]: async (env, name) => wiped((await networkToWipe(env, name)).destroy(), DESTROYED),
-  [GATEWAY]: (env, name) => wiped(env.QlooGateway.getByName(name).wipe(), WIPED),
+    awaitWipe((await getAgentByName(env.LaunchAgent, name)).destroy(reason), DESTROYED),
+  [NETWORK]: async (env, name) => awaitWipe((await networkToWipe(env, name)).destroy(), DESTROYED),
+  [GATEWAY]: (env, name) => awaitWipe(env.QlooGateway.getByName(name).wipe(), WIPED),
   [FORGET]: async (env, name) => {
     const [networkId, memberId] = name.split(':')
     if ((await networkName(env.DB, networkId)) === null) return
     await (await getAgentByName(env.NetworkAgent, networkId)).forgetMember(memberId)
-  }
-}
-
-// The reset an instance makes once its own wipe has deleted its storage: an agent's `destroy` resets it
-// saying "destroyed", and a gateway's `wipe` saying WIPED. On Cloudflare that reset reaches the wipe's
-// caller before the wipe's answer does (#297), as an error saying the reset's reason, marked
-// `durableObjectReset` by workerd, so a wipe it rejects is done. Every other error fails the wipe: a reset
-// with another reason, such as a deploy's, and an error code throws, which has no mark, even saying the
-// same, as a gateway's calls do once its wipe has begun.
-const DESTROYED = 'destroyed'
-async function wiped(wiping: Promise<void>, reset: string) {
-  try {
-    await wiping
-  } catch (e) {
-    const isReset = e instanceof Error && 'durableObjectReset' in e && e.durableObjectReset === true
-    if (!isReset || e.message !== reset) throw e
   }
 }
 
@@ -275,7 +277,7 @@ async function wipeNetwork(env: Env, { name: networkId, reason }: Instance) {
   const agent = await networkToWipe(env, networkId)
   const launches = await agent.letGo(why)
   await noteWipe(env.DB, ...networkInstances(networkId, launches, why).filter((i) => i.binding !== NETWORK))
-  await wiped(agent.destroy(), DESTROYED)
+  await awaitWipe(agent.destroy(), DESTROYED)
   await wipeDone(env.DB, NETWORK, networkId)
 }
 
