@@ -343,6 +343,31 @@ const KeyValue = ({ label, children }: { label: string; children: Child }) => (
     <dd class="min-w-0">{children}</dd>
   </div>
 )
+// A section as the app's Section sets it: its heading with its chips after the title's last word, its
+// sentence under it, then its parts 16px apart.
+const Section = ({
+  title,
+  badge,
+  sentence,
+  children
+}: {
+  title: Child
+  badge: Child
+  sentence: string
+  children: Child
+}) => (
+  <section class="flex min-w-0 flex-col gap-4">
+    <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4">
+      <p class="type-body font-semibold text-balance break-words">
+        {title}
+        <span class="[word-spacing:0.25rem]"> </span>
+        <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-1 align-middle">{badge}</span>
+      </p>
+      <p class="col-span-full mt-1 max-w-[72ch] text-pretty break-words text-muted-foreground">{sentence}</p>
+    </div>
+    {children}
+  </section>
+)
 
 // A true-size piece of the app, as a picture: the island's classes, the illustration's figures, and
 // `inert`, so nothing in it can be focused or pressed. Its caption says what it shows.
@@ -386,29 +411,33 @@ const RunFragment = () => (
         1:<span class="tabular-nums">48</span>
       </span>
     </div>
-    <section class="flex flex-col gap-3 rounded-xl bg-card p-4">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="font-semibold">Run log</p>
-        <Chip mark="signal">Running</Chip>
-      </div>
-      <ol class="flex flex-col gap-2">
-        {notes.map((n) => (
-          <li class="flex items-start gap-2.5">
-            {n.running ? (
-              <LoaderCircle class="mt-0.5 size-4 shrink-0 text-muted-foreground motion-safe:animate-spin motion-safe:[animation-iteration-count:5]" />
-            ) : (
-              <Check class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            )}
-            <span class="min-w-0 flex-1">{n.text}</span>
-            <span class="shrink-0 type-caption leading-5 text-muted-foreground">{n.running ? 'Running' : 'Done'}</span>
-          </li>
-        ))}
-      </ol>
-      <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">
-        <KeyValue label="Slot budget">{BUDGET} promo slots</KeyValue>
-        <KeyValue label="Left out">None</KeyValue>
-      </dl>
-    </section>
+    <div class="rounded-xl bg-card p-4">
+      <Section
+        title="Run log"
+        badge={<Chip mark="signal">Running</Chip>}
+        sentence="Each step the run took, and how it ended."
+      >
+        <ol class="flex flex-col gap-2">
+          {notes.map((n) => (
+            <li class="flex items-start gap-2.5">
+              {n.running ? (
+                <LoaderCircle class="mt-0.5 size-4 shrink-0 text-muted-foreground motion-safe:animate-spin motion-safe:[animation-iteration-count:5]" />
+              ) : (
+                <Check class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              )}
+              <span class="min-w-0 flex-1">{n.text}</span>
+              <span class="shrink-0 type-caption leading-5 text-muted-foreground">
+                {n.running ? 'Running' : 'Done'}
+              </span>
+            </li>
+          ))}
+        </ol>
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+          <KeyValue label="Slot budget">{BUDGET} promo slots</KeyValue>
+          <KeyValue label="Left out">None</KeyValue>
+        </dl>
+      </Section>
+    </div>
   </div>
 )
 
@@ -541,23 +570,18 @@ const EvidenceFragment = () => (
         Evidence
       </span>
     </span>
-    {/* The app's Section: its chips follow the heading's last word, its sentence under it. */}
-    <section class="flex min-w-0 flex-col gap-4">
-      <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4">
-        <p class="type-body font-semibold text-balance break-words">
+    <Section
+      title={
+        <>
           Evidence ·{' '}
           <code class="font-mono font-medium" translate="no">
             {RANKING_CALL}
           </code>
-          <span class="[word-spacing:0.25rem]"> </span>
-          <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-1 align-middle">
-            <Source of="qloo" />
-          </span>
-        </p>
-        <p class="col-span-full mt-1 max-w-[72ch] text-pretty break-words text-muted-foreground">
-          Qloo scored {roster.length} of {roster.length} candidates.
-        </p>
-      </div>
+        </>
+      }
+      badge={<Source of="qloo" />}
+      sentence={`Qloo scored ${roster.length} of ${roster.length} candidates.`}
+    >
       {/* Its facts and what was sent share one edge for their values. */}
       <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-4">
         <dl class="col-span-full grid grid-cols-subgrid gap-x-4 gap-y-1.5">
@@ -608,7 +632,7 @@ const EvidenceFragment = () => (
         </tbody>
       </table>
       <Fold>Stored record</Fold>
-    </section>
+    </Section>
   </div>
 )
 

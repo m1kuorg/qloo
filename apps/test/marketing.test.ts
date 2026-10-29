@@ -41,6 +41,14 @@ const words = (html: string) =>
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
+// The picture of the app among the page's figures whose words include `text`, as markup.
+const picture = (html: string, text: string) => {
+  const figure = html.split(/(?=<figure\b)/).find((f) => words(f).includes(text)) ?? ''
+  return figure.slice(0, figure.indexOf('</figure>'))
+}
+// A picture's heading, as the app's Section sets it: its title, then its chips after the last word.
+const heading = (figure: string, title: string) =>
+  words(figure.match(new RegExp(`<p\\b[^>]*>\\s*${title}[\\s\\S]*?</p>`))?.[0] ?? '').trim()
 
 const vars = {
   ACCOUNTS: env.ACCOUNTS,
@@ -100,9 +108,9 @@ describe('the landing page', () => {
   })
 
   it('pictures a call’s evidence as the inspector words it, with no ID or URN and each figure in its format', async () => {
-    const html = main(await page('/'))
-    const figure = html.split(/(?=<figure\b)/).find((f) => words(f).includes('Evidence · C-14')) ?? ''
-    const text = words(figure.slice(0, figure.indexOf('</figure>')))
+    const figure = picture(main(await page('/')), 'Evidence · C-14')
+    const text = words(figure)
+    expect(heading(figure, 'Evidence')).toBe('Evidence · C-14 Qloo data')
     for (const part of [
       'Evidence · C-14 Qloo data Qloo scored 8 of 8 candidates.',
       'Request POST /v2/insights Status 200 Called Oct 28, 14:01:58 · 1,240 ms Run Run 1',
@@ -126,6 +134,12 @@ describe('the landing page', () => {
     const figures = rows.map(([, , affinity]) => Number(affinity))
     expect(figures).toEqual([...figures].sort((a, b) => b - a))
     expect(text).not.toMatch(/urn:|[0-9a-f]{8}-[0-9a-f]{4}-/i)
+  })
+
+  it('pictures the run log as the inspector draws it, its chip beside its heading over the app’s sentence', async () => {
+    const figure = picture(main(await page('/')), 'Run log')
+    expect(heading(figure, 'Run log')).toBe('Run log Running')
+    expect(words(figure)).toContain('Run log Running Each step the run took, and how it ended. Resolving Low Tide Done')
   })
 
   it('links nowhere behind accounts while they are off', async () => {
