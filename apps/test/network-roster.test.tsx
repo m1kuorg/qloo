@@ -526,7 +526,9 @@ describe("the roster page's words", () => {
     )
     const watch = editor(state, 'The Watch')
     expect(sampleLabels(watch)).toEqual([])
-    expect(words(watch)).toContain('Missed Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
+    expect(words(watch)).toContain(
+      'The Watch Missed The show’s Qloo match, its figures, and whether a launch can propose it. Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts'
+    )
     expect(words(watch)).toContain('Downloads per episode Status Save')
     // The inspector's close button closes it, so the show has no Close of its own.
     expect(words(watch)).not.toContain('Close')

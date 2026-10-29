@@ -436,15 +436,15 @@ export function ShowEditor({
       <Section
         id="show-ed"
         title={show.name}
-        description="The show’s Qloo match, its figures, and whether a launch can propose it."
-      >
-        <div className="flex flex-col items-start gap-2">
-          <span className="flex flex-wrap gap-1">
+        badge={
+          <>
             <MatchChip show={show} slow={false} />
             {show.excluded && <Badge>Excluded</Badge>}
-          </span>
-          {show.description && <p className="text-muted-foreground">{show.description}</p>}
-        </div>
+          </>
+        }
+        description="The show’s Qloo match, its figures, and whether a launch can propose it."
+      >
+        {show.description && <p className="text-muted-foreground">{show.description}</p>}
         {show.candidates.length > 0 && (
           <PickOne
             legend={`Which Qloo show is ${show.name}?`}
