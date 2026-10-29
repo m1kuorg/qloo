@@ -35,18 +35,20 @@ export const runLabel: Record<Run['status'], string> = {
 }
 
 // Claude's closing line on a completed run, as an Agent block below the trace. Each call number it
-// cites opens that call's evidence. Punctuation right after a call sits against its number and wraps
-// with it: the button drops its right padding, so the punctuation stays outside its fill.
+// cites opens that call's evidence. An opening parenthesis right before a call and punctuation right
+// after it sit against its number and wrap with it: the button drops its padding on that side, so the
+// punctuation stays outside its fill.
 function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenCall; opened: string | null }) {
   return (
     <div className="flex flex-col items-start gap-1.5 rounded-lg bg-muted p-3" data-closing>
       <Source of="agent" />
       <p className="whitespace-pre-line">
-        {/* Text, a call, then the punctuation after it (often none), in turn. */}
-        {text.split(/\b(C-\d+)\b([,.;:)]*)/).map((part, i, parts) => {
-          if (i % 3 === 0) return part
-          if (i % 3 === 2) return null
-          const after = parts[i + 1]
+        {/* Text, the parenthesis before a call (often none), the call, then the punctuation after it
+            (often none), in turn. */}
+        {text.split(/(\(?)\b(C-\d+)\b([,.;:)]*)/).map((part, i, parts) => {
+          if (i % 4 === 0) return part
+          if (i % 4 !== 2) return null
+          const [before, after] = [parts[i - 1], parts[i + 1]]
           const call = (
             <CallButton
               key={i}
@@ -54,11 +56,12 @@ function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenC
               label="Evidence Claude cites"
               opened={opened}
               openCall={openCall}
-              className={after ? 'pr-0' : undefined}
+              className={cn(before && 'pl-0', after && 'pr-0')}
             />
           )
-          return after ? (
+          return before || after ? (
             <span key={i} className="whitespace-nowrap">
+              {before}
               {call}
               {after}
             </span>

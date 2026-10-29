@@ -120,8 +120,8 @@ describe("a run's closing line", () => {
     expect(log).not.toContain('data-closing')
   })
 
-  it('keeps the punctuation after a call number against it, on its line, each call its own button', async () => {
-    const said = 'Ranked Back Row first (C-23, C-24, C-25 to C-29).'
+  it('keeps the punctuation around a call number against it, on its line, each call its own button', async () => {
+    const said = 'Ranked Back Row first (C-23, C-24, C-25 to C-29). Its budget check (C-30 to C-31) failed.'
     fakeClaude([turn(text(said))])
     const s = await session()
     const { runId } = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
@@ -134,21 +134,27 @@ describe("a run's closing line", () => {
       'data-closing'
     )
     expect(closing.replace(/<[^>]+>/g, '')).toBe(`Agent${said}`)
-    // Each call's button, what follows it up to the next tag, whether one unbreakable run holds the two,
-    // and whether the button drops its right padding, so the punctuation sits against the number.
+    // Each call's button, the opening parenthesis right before it and the punctuation right after it,
+    // whether one unbreakable run holds them, and which of its paddings the button drops, so the
+    // punctuation sits against the number.
     const calls = [
-      ...closing.matchAll(/(<span class="whitespace-nowrap">)?<button([^>]*)>(C-\d+)<\/button>([,.;:)]*)(<\/span>)?/g)
-    ].map(([, open, attrs, call, after, close]) => ({
+      ...closing.matchAll(
+        /(<span class="whitespace-nowrap">)?(\(?)<button([^>]*)>(C-\d+)<\/button>([,.;:)]*)(<\/span>)?/g
+      )
+    ].map(([, open, before, attrs, call, after, close]) => ({
       call,
+      before,
       after,
       kept: Boolean(open && close),
-      flush: /class="[^"]*\bpr-0\b/.test(attrs)
+      dropped: ['pl-0', 'pr-0'].filter((padding) => new RegExp(`class="[^"]*\\b${padding}\\b`).test(attrs))
     }))
     expect(calls).toEqual([
-      { call: 'C-23', after: ',', kept: true, flush: true },
-      { call: 'C-24', after: ',', kept: true, flush: true },
-      { call: 'C-25', after: '', kept: false, flush: false },
-      { call: 'C-29', after: ').', kept: true, flush: true }
+      { call: 'C-23', before: '(', after: ',', kept: true, dropped: ['pl-0', 'pr-0'] },
+      { call: 'C-24', before: '', after: ',', kept: true, dropped: ['pr-0'] },
+      { call: 'C-25', before: '', after: '', kept: false, dropped: [] },
+      { call: 'C-29', before: '', after: ').', kept: true, dropped: ['pr-0'] },
+      { call: 'C-30', before: '(', after: '', kept: true, dropped: ['pl-0'] },
+      { call: 'C-31', before: '', after: ')', kept: true, dropped: ['pr-0'] }
     ])
   })
 })
