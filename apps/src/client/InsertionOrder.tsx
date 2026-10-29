@@ -22,6 +22,7 @@ import {
 } from '../order'
 import { Alert, day, useAction, useLeaveGuard } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
+import { Section } from './PageHeader'
 import { Source } from './Source'
 import { StateLine } from './states'
 
@@ -91,124 +92,133 @@ export function InsertionOrderPanel({
     </a>
   )
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="plan-h" data-io>
-      <h2 className="text-base font-semibold" id="plan-h">
-        The plan
-      </h2>
-      <div className="flex flex-col gap-4 rounded-xl bg-card p-4 lg:p-5">
-        <div className="flex flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="font-semibold" id="io-h">
+    <Section
+      id="plan-h"
+      title="The plan"
+      description="The promo slots for this launch, each priced as the ad inventory it displaces."
+      data-io
+    >
+      <div className="rounded-xl bg-card p-4 lg:p-5">
+        <Section
+          id="io-h"
+          level={3}
+          title={
+            <span>
               Insertion order{' '}
               <code className="font-mono font-medium" translate="no">
                 {order.id}
               </code>
-            </h3>
-            {approved ? (
+            </span>
+          }
+          badge={
+            approved ? (
               <Badge variant="outline">
                 <CheckIcon aria-hidden="true" />
                 Approved
               </Badge>
             ) : (
               <Badge>Draft</Badge>
-            )}
-          </div>
-          <p className="type-caption text-muted-foreground">
-            <Source of="agent" /> drafted the slots and angles. Code prices each slot at downloads per episode × CPM ÷
-            1,000.
-          </p>
-        </div>
-        {editing && actions ? (
-          <EditLines
-            order={order}
-            roster={roster}
-            cpm={cpm}
-            budget={budget}
-            sample={sample}
-            sharedTags={sharedTags}
-            save={async (lines) => {
-              if (await run(() => actions.edit(lines))) stopEditing()
-            }}
-            cancel={stopEditing}
-            busy={busy}
-          />
-        ) : (
-          <>
-            <Lines priced={order} sample={sample}>
-              {(line) => ({
-                angle: (
-                  <p className="max-w-[72ch]" data-angle>
-                    <span className={line.angle ? undefined : 'text-muted-foreground'}>{line.angle ?? NO_ANGLE}</span>
-                    {sharedTags[line.show] && (
+            )
+          }
+          description={
+            <>
+              <Source of="agent" /> drafted the slots and angles, and code prices each slot at downloads per episode ×
+              CPM ÷ 1,000.
+            </>
+          }
+        >
+          {editing && actions ? (
+            <EditLines
+              order={order}
+              roster={roster}
+              cpm={cpm}
+              budget={budget}
+              sample={sample}
+              sharedTags={sharedTags}
+              save={async (lines) => {
+                if (await run(() => actions.edit(lines))) stopEditing()
+              }}
+              cancel={stopEditing}
+              busy={busy}
+            />
+          ) : (
+            <>
+              <Lines priced={order} sample={sample}>
+                {(line) => ({
+                  angle: (
+                    <p className="max-w-[72ch]" data-angle>
+                      <span className={line.angle ? undefined : 'text-muted-foreground'}>{line.angle ?? NO_ANGLE}</span>
+                      {sharedTags[line.show] && (
+                        <>
+                          {' '}
+                          <CallButton
+                            call={sharedTags[line.show].call}
+                            label={`Evidence for the tags ${line.show} shares`}
+                            opened={opened}
+                            openCall={openCall}
+                          />
+                        </>
+                      )}
+                    </p>
+                  ),
+                  slots: line.slots,
+                  value: <Value line={line} />,
+                  price: <SlotPrice line={line} sample={sample(line)} />
+                })}
+              </Lines>
+              <Checks priced={order} budget={budget} />
+              {approved && order.approvedBy && order.approvedAt && (
+                <p className="flex items-start gap-1.5" ref={approvedLine} tabIndex={-1}>
+                  <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                  {/* An approval in one of the sample launches is the sample data's, not a sign-off anyone gave here (ADR 0002). */}
+                  <span>
+                    {order.fromSample ? (
                       <>
-                        {' '}
-                        <CallButton
-                          call={sharedTags[line.show].call}
-                          label={`Evidence for the tags ${line.show} shares`}
-                          opened={opened}
-                          openCall={openCall}
-                        />
+                        Approved in the sample data, by {order.approvedBy} as it was captured, not by anyone in this
+                        network. Edit it to make it a draft of your own.
+                      </>
+                    ) : (
+                      <>
+                        Approved by {order.approvedBy} on {day(order.approvedAt)} at{' '}
+                        {new Date(order.approvedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
                       </>
                     )}
-                  </p>
-                ),
-                slots: line.slots,
-                value: <Value line={line} />,
-                price: <SlotPrice line={line} sample={sample(line)} />
-              })}
-            </Lines>
-            <Checks priced={order} budget={budget} />
-            {approved && order.approvedBy && order.approvedAt && (
-              <p className="flex items-start gap-1.5" ref={approvedLine} tabIndex={-1}>
-                <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                {/* An approval in one of the sample launches is the sample data's, not a sign-off anyone gave here (ADR 0002). */}
-                <span>
-                  {order.fromSample ? (
-                    <>
-                      Approved in the sample data, by {order.approvedBy} as it was captured, not by anyone in this
-                      network. Edit it to make it a draft of your own.
-                    </>
-                  ) : (
-                    <>
-                      Approved by {order.approvedBy} on {day(order.approvedAt)} at{' '}
-                      {new Date(order.approvedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
-                    </>
-                  )}
-                </span>
-              </p>
-            )}
-            {actions ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                {approved ? (
-                  exported
-                ) : (
-                  <Button disabled={busy} onClick={() => void approve()}>
-                    {busy && <Spinner data-icon="inline-start" />}
-                    Approve
-                  </Button>
-                )}
-                <Button ref={editButton} variant="ghost" disabled={busy} onClick={() => setEditing(true)}>
-                  Edit lines
-                </Button>
-                <p className="type-caption text-muted-foreground">
-                  {approved
-                    ? 'Editing returns it to draft.'
-                    : 'Nothing is final until you approve it. Editing returns it to draft.'}
+                  </span>
                 </p>
-              </div>
-            ) : (
-              (exported || readOnly) && (
+              )}
+              {actions ? (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                  {exported}
-                  {readOnly && <p className="type-caption text-muted-foreground">{readOnly}</p>}
+                  {approved ? (
+                    exported
+                  ) : (
+                    <Button disabled={busy} onClick={() => void approve()}>
+                      {busy && <Spinner data-icon="inline-start" />}
+                      Approve
+                    </Button>
+                  )}
+                  <Button ref={editButton} variant="ghost" disabled={busy} onClick={() => setEditing(true)}>
+                    Edit lines
+                  </Button>
+                  <p className="type-caption text-muted-foreground">
+                    {approved
+                      ? 'Editing returns it to draft.'
+                      : 'Nothing is final until you approve it. Editing returns it to draft.'}
+                  </p>
                 </div>
-              )
-            )}
-          </>
-        )}
-        <Alert error={error} />
+              ) : (
+                (exported || readOnly) && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    {exported}
+                    {readOnly && <p className="type-caption text-muted-foreground">{readOnly}</p>}
+                  </div>
+                )
+              )}
+            </>
+          )}
+          <Alert error={error} />
+        </Section>
       </div>
-    </section>
+    </Section>
   )
 }
 

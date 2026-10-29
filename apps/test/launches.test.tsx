@@ -44,6 +44,8 @@ import {
   openGuest,
   openMember,
   openSession,
+  sections,
+  tabsOf,
   type Member,
   type Session
 } from './session'
@@ -492,7 +494,7 @@ describe("a launch's run", () => {
         .replace(/&#x27;/g, "'")
         .replace(/\s+/g, ' ')
     ).toContain(
-      'Evidence · C-06 Qloo data From the roster Copied From the network’s roster, its call C-08 , as Qloo answered it then; the run made no new request'
+      'Evidence · C-06 The Qloo request behind a call, and what Qloo returned. Qloo data From the roster Copied From the network’s roster, its call C-08 , as Qloo answered it then; the run made no new request'
     )
     expect(state.run?.replayed).toBeUndefined()
     expect(await roster.call<Evidence[]>('getEvidence')).toEqual(networkLog)
@@ -1369,7 +1371,9 @@ describe('the pages, as a member reads them', () => {
     expect(words(draftPlan)).toContain(
       'Approve Edit lines Nothing is final until you approve it. Editing returns it to draft.'
     )
-    expect(words(draftPlan)).toMatch(/^The plan Insertion order IO-0001 Draft /)
+    expect(words(draftPlan)).toMatch(
+      /^The plan The promo slots for this launch, each priced as the ad inventory it displaces\. Insertion order IO-0001 Draft /
+    )
     expect(draftHtml).not.toContain('Export CSV')
 
     const graces = await connect(grace, `/agents/launch/${network}/${id}`)
@@ -1380,7 +1384,7 @@ describe('the pages, as a member reads them', () => {
     const day = at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     const time = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     const [plan] = hooked(html, 'data-io')
-    expect(words(plan)).toMatch(/^The plan Insertion order IO-0001 Approved /)
+    expect(words(plan)).toMatch(/ Insertion order IO-0001 Approved /)
     expect(words(plan)).toContain(
       `Approved by Grace Booker on ${day} at ${time}. Export CSV Edit lines Editing returns it to draft.`
     )
@@ -1407,7 +1411,8 @@ describe('the pages, as a member reads them', () => {
       turn(text('Ranked again.'))
     ])
     const { agent } = await launch(ada, network)
-    const changed = 'It has changed since then, so run again to rank it as it is now.'
+    const changed =
+      'Night Shift Audio’s roster has changed since the latest run started, so run again to rank it as it is now.'
     // Not run yet: there's no copy to compare.
     await roster.call('updateShow', 'Slow Burn', { downloads: 41000 })
     expect(words(workspace(network, agent))).not.toContain(changed)
@@ -1418,9 +1423,7 @@ describe('the pages, as a member reads them', () => {
     // A teammate's edit on the roster page shows on the launch's page as it's made.
     await roster.call('updateShow', 'Paper Route', { excluded: true })
     await agent.until((s) => s.rosterChanged === true)
-    expect(words(workspace(network, agent))).toContain(
-      `Roster The latest run ranks Night Shift Audio’s roster as it stood when that run started. ${changed} Edit its shows on the roster page .`
-    )
+    expect(words(workspace(network, agent))).toContain(`Roster ${changed} Edit the roster`)
     // Put back as it was, the roster is the run's again.
     await roster.call('updateShow', 'Paper Route', { excluded: false })
     await agent.until((s) => s.rosterChanged === false)
@@ -1450,12 +1453,12 @@ describe('the pages, as a member reads them', () => {
     expect(before).toMatch(detailsToggle)
     expect(before).toMatch(/<input\b(?=[^>]*\saria-label="Released launch")(?=[^>]*\svalue="The Night Watch")/)
     expect(words(before)).toContain(
-      'Roster Each run ranks Night Shift Audio’s roster as it stands when the run starts. Edit its shows on the roster page .'
+      'Roster Each run ranks Night Shift Audio’s roster as it stands when the run starts. Edit the roster'
     )
     // Nothing is counted or priced until a run brings the roster and its CPM.
     expect(words(before)).not.toContain('Roster check')
     expect(words(before)).not.toContain('Network CPM')
-    expect(before).toMatch(new RegExp(`<a\\b[^>]*\\shref="/app/${network}/roster"[^>]*>the roster page</a>`))
+    expect(before).toMatch(new RegExp(`<a\\b[^>]*\\shref="/app/${network}/roster"[^>]*>Edit the roster</a>`))
 
     rankAsked()
     fakeClaude([turn(resolve('The Night Watch')), turn(rank('e-0001')), turn(text('Ranked.'))])
@@ -1470,13 +1473,14 @@ describe('the pages, as a member reads them', () => {
     )
     const read = words(after)
     expect(read).toContain(
-      'Roster The latest run ranks Night Shift Audio’s roster as it stood when that run started. Edit its shows on the roster page .'
+      'Roster The latest run ranks Night Shift Audio’s roster as it stood when that run started. Edit the roster'
     )
     expect(read).toContain('Corner Booth Resolved Corner Booth')
-    expect(read).toContain('Network CPM CPM $25 per 1,000 downloads')
+    expect(read).toContain(
+      'Network CPM Each run takes the network’s CPM as it starts, to price each promo slot: downloads per episode × CPM ÷ 1,000. Change it in settings CPM $25 per 1,000 downloads'
+    )
     // Changing it opens the settings' network tab.
     expect(after).toMatch(new RegExp(`href="/app/${network}/settings#network"[^>]*>Change it in settings</a>`))
-    expect(read).toContain('Each run takes the network’s CPM as it starts.')
     expect(read).toContain(
       'Model runs are limited per UTC day across the network’s launches and inbox, whoever starts them.'
     )
@@ -1492,5 +1496,99 @@ describe('the pages, as a member reads them', () => {
     // No CPM field, and no show to open in an editor (the demo's rows open theirs with data-open-show).
     expect(after).not.toMatch(/<input[^>]*aria-labelledby="cpm-h"/)
     expect(after).not.toContain('data-open-show')
+  })
+
+  it('tabs a launch from its first run on, under its question: Ranking and Roster, then Plan once there’s an order', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    await rosterOf(ada, network)
+    rankAsked()
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft),
+      turn(text('Drafted the insertion order.'))
+    ])
+    const { agent } = await launch(ada, network)
+    // The canvas, beside the inspector and its own tabs, and its sections, by heading, in each tab's
+    // panel.
+    const canvas = (html: string) => hooked(html, 'data-canvas')[0]
+    const panels = (html: string) =>
+      hooked(canvas(html), 'role="tabpanel"').map((panel) => sections(panel).map(([heading]) => heading))
+
+    // Before its first run there are no tabs: the roster it will rank is the page's one section.
+    const before = workspace(network, agent)
+    expect(tabsOf(canvas(before)).tabs).toEqual([])
+    expect(sections(canvas(before)).map(([heading]) => heading)).toEqual(['Roster'])
+
+    // Its first run ranks the roster and asks: the question stays above the tabs, the first of which,
+    // Ranking, shows the fit chart and what it didn't score, and Roster the run's roster and its CPM.
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const budget = await agent.until((s) => s.run?.status === 'waiting' && s.run.question?.kind === 'budget')
+    const asked = workspace(network, agent)
+    expect(tabsOf(canvas(asked))).toEqual({
+      label: 'Launch sections',
+      tabs: ['Ranking', 'Roster'],
+      panels: ['shown', 'hidden']
+    })
+    expect(asked.indexOf('aria-label="Agent asks"')).toBeGreaterThan(-1)
+    expect(asked.indexOf('aria-label="Agent asks"')).toBeLessThan(asked.indexOf('role="tablist"'))
+    expect(panels(asked)).toEqual([
+      ['Who shares Night Shift Cinema’s listeners', 'Not scored · 1'],
+      ['Roster', 'Network CPM']
+    ])
+    expect(asked).not.toContain('Review the plan')
+
+    // Answered, it drafts the plan, which takes its own tab between them; "Review the plan" opens it by
+    // its hash, where the plan is.
+    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    await agent.until(ended)
+    const planned = workspace(network, agent)
+    expect(tabsOf(canvas(planned))).toEqual({
+      label: 'Launch sections',
+      tabs: ['Ranking', 'Plan', 'Roster'],
+      panels: ['shown', 'hidden', 'hidden']
+    })
+    expect(panels(planned)[1]).toEqual(['The plan', 'Insertion order IO-0001 Draft'])
+    expect(planned).toMatch(/<a\b[^>]*\shref="#plan"[^>]*>Review the plan<\/a>/)
+    const plan = hooked(canvas(planned), 'role="tabpanel"')[1]
+    expect(plan).toMatch(/<div\b[^>]*\sid="plan"/)
+    expect(hooked(plan, 'data-io')).toHaveLength(1)
+  })
+
+  it('heads each of a launch’s sections, and the inspector’s, with one sentence of what it holds', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { agent } = await drafted(ada, network)
+    const html = workspace(network, agent)
+    const ranking = agent.state()!.ranking!
+
+    expect(sections(hooked(html, 'data-canvas')[0])).toEqual([
+      [
+        'Who shares Night Shift Cinema’s listeners',
+        `5 finalists. No show climbs 3 or more places over a topic-only plan. ${ranking.call}`
+      ],
+      ['Not scored · 1', 'The roster’s shows that the ranking left out, and why.'],
+      ['The plan', 'The promo slots for this launch, each priced as the ad inventory it displaces.'],
+      [
+        'Insertion order IO-0001 Draft',
+        'Agent drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷ 1,000.'
+      ],
+      ['Roster', 'The latest run ranks Night Shift Audio’s roster as it stood when that run started.'],
+      [
+        'Network CPM',
+        'Each run takes the network’s CPM as it starts, to price each promo slot: downloads per episode × CPM ÷ 1,000.'
+      ]
+    ])
+    expect(sections(hooked(html, 'id="inspector"')[0]).filter(([heading]) => heading !== 'Roster check')).toEqual([
+      ['Run log Completed', 'Each step the run took, and how it ended.'],
+      ['Runs', 'Each run starts fresh; earlier ones stay here to compare.'],
+      ['Evidence', 'The Qloo request behind a call, and what Qloo returned.']
+    ])
   })
 })

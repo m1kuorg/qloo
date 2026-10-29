@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { TabsContent } from '@/components/ui/tabs'
-import { buttonVariants, linkVariants } from '@/components/ui/variants'
+import { buttonVariants } from '@/components/ui/variants'
 import type { useAgent } from 'agents/react'
 import type { Comp, CrossfeedAgent, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall, State } from '../agent'
 import { inProgress } from '../limits'
@@ -14,6 +14,7 @@ import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, 
 import { InsertionOrderPanel } from './InsertionOrder'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import type { NetworkPage } from './NetworkPage'
+import { PageTabs, Section } from './PageHeader'
 import { CpmRecord, RosterCheck, RosterTable } from './RosterModules'
 import { OpenQuestion, ORDER_CHANGED, runLabel, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
@@ -29,9 +30,10 @@ export type Links = { roster: string }
 // A launch's page of `network` (Launch.tsx), on its connected agent; tests render it from a launch's
 // synced state. It ranks the network's roster, read-only here, and its approved insertion orders
 // export under `orders`, as `<orders>/<id>.csv`. The canvas reads in the order a run asks for
-// attention: the launch and its readout, the launch form, the agent's question, then the fit chart, the
-// plan and the roster. The inspector beside it, closed until something opens it, holds what a person
-// checks: the run's trace and a call's evidence.
+// attention: the launch and its readout, the launch form, the agent's question, then, from the first
+// run on, the run's sections in tabs: Ranking (the fit chart), Plan once there's an order, and Roster.
+// Before it there's only the roster. The inspector beside it, closed until something opens it, holds
+// what a person checks: the run's trace and a call's evidence.
 export function Workspace({ agent, network, orders }: { agent: Session; network: NetworkPage; orders: string }) {
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
@@ -58,37 +60,36 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
 
   const order = shown?.insertionOrder ?? null
   // The roster the run ranks: the copy its latest run took, read-only, and where the network's members
-  // edit it. The CPM that prices its slots follows it.
+  // edit it.
   const rosterSection = (
-    <section className="flex min-w-0 flex-col gap-6" aria-labelledby="roster-h" data-roster>
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold" id="roster-h" tabIndex={-1}>
-          Roster
-        </h2>
-        <p className="max-w-[72ch] text-muted-foreground">
-          {viewing ? (
-            `As it was when run ${runNumber(runs, viewing.id)} ended, with that run’s exclusions.`
-          ) : (
-            <>
-              {runs.length > 0
-                ? `The latest run ranks ${network.name}’s roster as it stood when that run started.`
-                : `Each run ranks ${network.name}’s roster as it stands when the run starts.`}{' '}
-              {runs.length > 0 && agent.state?.rosterChanged && (
-                <>
-                  <b className="font-semibold text-foreground">
-                    It has changed since then, so run again to rank it as it is now.
-                  </b>{' '}
-                </>
-              )}
-              Edit its shows on{' '}
-              <a className={linkVariants()} href={network.links.roster}>
-                the roster page
-              </a>
-              .
-            </>
-          )}
-        </p>
-      </div>
+    <Section
+      id="roster-h"
+      title="Roster"
+      description={
+        viewing ? (
+          `As it was when run ${runNumber(runs, viewing.id)} ended, with that run’s exclusions.`
+        ) : runs.length === 0 ? (
+          `Each run ranks ${network.name}’s roster as it stands when the run starts.`
+        ) : agent.state?.rosterChanged ? (
+          <b className="font-semibold text-foreground">
+            {network.name}’s roster has changed since the latest run started, so run again to rank it as it is now.
+          </b>
+        ) : (
+          `The latest run ranks ${network.name}’s roster as it stood when that run started.`
+        )
+      }
+      actions={
+        !viewing && (
+          <a
+            className={buttonVariants({ variant: 'ghost', size: 'sm', className: '-my-1 -mr-1.5' })}
+            href={network.links.roster}
+          >
+            Edit the roster
+          </a>
+        )
+      }
+      data-roster
+    >
       {/* A launch's roster arrives with its first run. */}
       {roster.length > 0 && (
         <RosterTable
@@ -100,11 +101,7 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
           opened={opened?.call ?? null}
         />
       )}
-      {/* A launch takes its CPM with the roster, so it has none to show before its first run. */}
-      {runs.length > 0 && (
-        <CpmRecord cpm={shown?.cpm ?? null} network={network} note="Each run takes the network’s CPM as it starts." />
-      )}
-    </section>
+    </Section>
   )
   const panels = (
     <>
@@ -171,58 +168,90 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
             ranking={shown?.ranking ?? null}
           />
         )}
-        {/* The chart has nothing to show before a run ranks the roster, or starts to. */}
-        {(shown?.ranking || run?.status === 'running') && (
-          <FitChart
-            ranking={shown?.ranking ?? null}
-            launch={shown?.launch ?? null}
-            leftOut={shown?.run?.exclusions ?? []}
-            demographics={shown?.demographics ?? null}
-            topic={shown?.topic ?? null}
-            failed={roster.filter((s) => s.resolution === 'failed' && !s.excluded).map((s) => s.name)}
-            running={run?.status === 'running'}
-            openCall={showCall}
-            opened={opened?.call ?? null}
-            roster={roster}
-            cpm={shown?.cpm ?? null}
-            sampleCpm={shown?.sample?.cpm ?? false}
+        {runs.length === 0 ? (
+          rosterSection
+        ) : (
+          // From the first run on, the run's sections in tabs: the ranking, the plan once there's one,
+          // and the roster it ranked, with the CPM that prices its slots.
+          <PageTabs
+            label="Launch sections"
+            tabs={[
+              {
+                id: 'ranking',
+                title: 'Ranking',
+                content: (
+                  <FitChart
+                    ranking={shown?.ranking ?? null}
+                    launch={shown?.launch ?? null}
+                    leftOut={shown?.run?.exclusions ?? []}
+                    demographics={shown?.demographics ?? null}
+                    topic={shown?.topic ?? null}
+                    failed={roster.filter((s) => s.resolution === 'failed' && !s.excluded).map((s) => s.name)}
+                    running={run?.status === 'running'}
+                    openCall={showCall}
+                    opened={opened?.call ?? null}
+                    roster={roster}
+                    cpm={shown?.cpm ?? null}
+                    sampleCpm={shown?.sample?.cpm ?? false}
+                  />
+                )
+              },
+              ...(shown && order
+                ? [
+                    {
+                      id: 'plan',
+                      title: 'Plan',
+                      content: (
+                        // "Review the plan" in the title row opens this tab, and jumps here, clear of the
+                        // sticky top bar.
+                        <div id="plan" className="scroll-mt-16">
+                          <InsertionOrderPanel
+                            key={`${viewing?.id ?? 'latest'} ${order.id}`}
+                            order={order}
+                            roster={roster}
+                            cpm={shown.cpm}
+                            sampleCpm={shown.sample?.cpm ?? false}
+                            budget={run?.id === order.run ? run.budget : null}
+                            sharedTags={Object.fromEntries(
+                              (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags]] : []))
+                            )}
+                            openCall={showCall}
+                            opened={opened?.call ?? null}
+                            exportHref={`${orders}/${order.id}.csv`}
+                            actions={
+                              viewing || inProgress(run, order.run)
+                                ? null
+                                : {
+                                    edit: async (lines) => {
+                                      await agent.stub.editInsertionOrder(order.id, lines)
+                                    },
+                                    approve: () => agent.stub.approveInsertionOrder(order.id)
+                                  }
+                            }
+                            readOnly={
+                              viewing
+                                ? `Run ${runNumber(runs, viewing.id)}’s order, read-only.`
+                                : 'Edit and approve it once the run ends.'
+                            }
+                          />
+                        </div>
+                      )
+                    }
+                  ]
+                : []),
+              {
+                id: 'roster',
+                title: 'Roster',
+                content: (
+                  <>
+                    {rosterSection}
+                    <CpmRecord cpm={shown?.cpm ?? null} network={network} />
+                  </>
+                )
+              }
+            ]}
           />
         )}
-        {shown && order && (
-          // "Review the plan" in the title row jumps here, clear of the sticky top bar.
-          <div id="plan" className="scroll-mt-16">
-            <InsertionOrderPanel
-              key={`${viewing?.id ?? 'latest'} ${order.id}`}
-              order={order}
-              roster={roster}
-              cpm={shown.cpm}
-              sampleCpm={shown.sample?.cpm ?? false}
-              budget={run?.id === order.run ? run.budget : null}
-              sharedTags={Object.fromEntries(
-                (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags]] : []))
-              )}
-              openCall={showCall}
-              opened={opened?.call ?? null}
-              exportHref={`${orders}/${order.id}.csv`}
-              actions={
-                viewing || inProgress(run, order.run)
-                  ? null
-                  : {
-                      edit: async (lines) => {
-                        await agent.stub.editInsertionOrder(order.id, lines)
-                      },
-                      approve: () => agent.stub.approveInsertionOrder(order.id)
-                    }
-              }
-              readOnly={
-                viewing
-                  ? `Run ${runNumber(runs, viewing.id)}’s order, read-only.`
-                  : 'Edit and approve it once the run ends.'
-              }
-            />
-          </div>
-        )}
-        {rosterSection}
       </main>
       <Inspector inspector={inspector}>{panels}</Inspector>
     </div>

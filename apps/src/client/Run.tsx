@@ -19,6 +19,7 @@ import { takesText } from '../tools/ask-human'
 import type { Session } from './App'
 import { Alert, FitBand, KeyValue, KeyValues, listOf, percentile, useAction } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
+import { Section } from './PageHeader'
 import { Source } from './Source'
 import { endedBadly, isLive, StateLine } from './states'
 
@@ -90,17 +91,19 @@ export function RunLog({
 }) {
   const live = isLive(run.status)
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="run-log" data-run-log>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold" id="run-log">
-          Run log
-        </h2>
-        <span className="flex flex-wrap items-center gap-1.5">
+    <Section
+      id="run-log"
+      title="Run log"
+      badge={
+        <>
           {run.replayed && <Badge variant="outline">Replayed</Badge>}
           {run.capturedAt && <Badge variant="outline">Sample data</Badge>}
           <Badge mark={live ? 'signal' : 'none'}>{runLabel[run.status]}</Badge>
-        </span>
-      </div>
+        </>
+      }
+      description="Each step the run took, and how it ended."
+      data-run-log
+    >
       {run.notes.length > 0 && (
         <ol className="flex flex-col gap-2">
           {run.notes.map((n, i) => (
@@ -137,7 +140,7 @@ export function RunLog({
           )}
         </KeyValues>
       )}
-    </section>
+    </Section>
   )
 }
 
@@ -170,10 +173,12 @@ export function RunList({
     if (await run(() => view(id))) heading.current?.focus()
   }
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="runs-h">
-      <h2 className="font-semibold" id="runs-h" ref={heading} tabIndex={-1}>
-        Runs
-      </h2>
+    <Section
+      id="runs-h"
+      title="Runs"
+      heading={heading}
+      description="Each run starts fresh; earlier ones stay here to compare."
+    >
       <ol className="-mx-2 flex flex-col gap-0.5">
         {runs
           .map((r, i) => ({ ...r, n: i + 1 }))
@@ -218,13 +223,12 @@ export function RunList({
           })}
       </ol>
       <p className="type-caption text-muted-foreground">
-        Each run starts fresh; earlier ones stay here to compare.{' '}
         {counted === 'network'
           ? 'Model runs are limited per UTC day across the network’s launches and inbox, whoever starts them. Runs that stop at once have a higher limit of their own.'
           : 'Model runs are limited per visitor and per UTC day, across browsers. Runs that replay or stop at once have a higher limit of their own.'}
       </p>
       <Alert error={error} />
-    </section>
+    </Section>
   )
 }
 

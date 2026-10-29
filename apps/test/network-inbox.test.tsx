@@ -380,7 +380,9 @@ describe('approving a reply', () => {
     expect(page).toMatch(
       /Night Ferry · Ada Quill Approved To Pat Lindqvist <pat\.lindqvist@example\.com> No angle: Qloo returned no shared tags\. Shares with Night Shift Cinema: Qloo data No distinctive shared tags C-\d+ Let's revisit Night Ferry in spring\. Copy reply about Night Ferry Edit reply about Night Ferry Discard reply about Night Ferry Copy it into your own email to send\./
     )
-    expect(page).toContain('Runs Run 1 · Pitches for Night Shift Cinema')
+    expect(page).toContain(
+      'Runs Each run starts fresh; earlier ones stay here to compare. Run 1 · Pitches for Night Shift Cinema'
+    )
     expect(page).toContain(
       'Model runs are limited per UTC day across the network’s launches and inbox, whoever starts them.'
     )
