@@ -133,9 +133,10 @@ const OpenApi = ({ accounts }: { accounts: boolean }) =>
 // an emoji: here it's the CLI's output, quoted in a code sample, not an icon.
 const CONNECTED = '✔ Connected' // taste-skill-ignore
 
-// The command that connects Claude Code to the MCP server of the deployment at `origin`.
+// The command that connects Claude Code to the MCP server of the deployment at `origin`, then the one
+// that checks it, with what it prints as a comment, so the block copies as commands alone.
 const McpAdd = ({ origin }: { origin: string }) => (
-  <Code label="Shell">{`
+  <Code label="Shell" copy>{`
 claude mcp add --transport http crossfeed ${origin}/mcp \\
   --header "Authorization: Bearer $CROSSFEED_API_KEY"
 
@@ -382,7 +383,9 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
             An owner makes a key in the network’s settings, under API keys, and sees its secret once. The settings show
             the network’s ID under the keys. Send the key with every request:
           </p>
-          <Code label="HTTP">Authorization: Bearer cf_live_…</Code>
+          <Code label="HTTP" copy>
+            Authorization: Bearer cf_live_…
+          </Code>
           <p>
             A key reaches its own network alone: to it, every other network is the same 404 <code>not_found</code>. Keys
             don’t expire. Revoking one stops it at once, and its next request answers 401 <code>unauthorized</code>. A
@@ -402,7 +405,7 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
             then <code>completed</code>, or <code>stopped</code> or <code>failed</code> with the reason in{' '}
             <code>error</code>. With a made-up roster:
           </p>
-          <Code label="Shell">{`
+          <Code label="Shell" copy>{`
 export CROSSFEED=${origin}
 export CROSSFEED_API_KEY=cf_live_…   # from the network's settings
 export NETWORK_ID=${NETWORK_ID}
@@ -873,7 +876,7 @@ const sdkPage = (origin: string): Page => ({
       body: (
         <>
           <p>It isn’t on npm yet. Clone the repo and build the package, then add it to your project by its path:</p>
-          <Code label="Shell">{`
+          <Code label="Shell" copy>{`
 git clone https://github.com/m1kuorg/qloo.git
 cd qloo/packages/sdk && bun install   # builds dist/
 
@@ -892,7 +895,7 @@ bun add <path to qloo>/packages/sdk   # or: npm install <path to qloo>/packages/
       body: (
         <>
           <p>The client takes one of the network’s API keys and its ID, both from its settings:</p>
-          <Code label="TypeScript">{`
+          <Code label="TypeScript" copy>{`
 import { Crossfeed } from '@crossfeed/sdk'
 
 const crossfeed = new Crossfeed({
@@ -919,7 +922,7 @@ const crossfeed = new Crossfeed({
             Import the roster, settle what Qloo couldn’t match on its own, then run the launch. A run asks the person
             planning it its questions, such as the slot budget: relay each one and answer with their words.
           </p>
-          <Code label="TypeScript">{`
+          <Code label="TypeScript" copy>{`
 await crossfeed.roster.import('name,downloads\\nDeep Cuts,12000\\nField Notes,8000\\n')
 await crossfeed.waitForRoster()
 await crossfeed.roster.updateShow('Field Notes', { entityId: 'e-0102' }) // one of its candidates
@@ -955,7 +958,7 @@ console.log(run.insertionOrder) // the draft, priced at the network's CPM
             Load the day’s pitches as an <code>.mbox</code> export, an <code>.eml</code>, text with a line of{' '}
             <code>---</code> between pitches, or one by one, then rank them against one of the network’s shows:
           </p>
-          <Code label="TypeScript">{`
+          <Code label="TypeScript" copy>{`
 await crossfeed.inbox.load({ pitches: [{ subject: 'A guest for Deep Cuts', body: '…' }] })
 await crossfeed.waitForInbox()
 
@@ -1003,7 +1006,7 @@ for (const reply of run.replies ?? []) console.log(reply.pitch, reply.verdict, r
             Every refusal rejects with a <code>CrossfeedError</code>: the API’s <code>code</code>, its{' '}
             <code>message</code> for a person, and the HTTP <code>status</code>.
           </p>
-          <Code label="TypeScript">{`
+          <Code label="TypeScript" copy>{`
 import { CrossfeedError } from '@crossfeed/sdk'
 
 try {
@@ -1273,7 +1276,9 @@ const agentsPage = (origin: string): Page => ({
             The plugin, <code>crossfeed</code>, sits in the repo’s <code>plugins/crossfeed</code>, beside a marketplace
             file at the repo’s root. It holds both skills and this MCP server config:
           </p>
-          <Code file="plugins/crossfeed/.mcp.json">{mcpConfig}</Code>
+          <Code file="plugins/crossfeed/.mcp.json" copy>
+            {mcpConfig}
+          </Code>
           <p>
             <code>CROSSFEED_API_KEY</code> is one of the network’s API keys. <code>CROSSFEED_URL</code> points it at
             another deployment, such as <code>{origin}</code>; without it, the plugin connects to{' '}
@@ -1288,7 +1293,7 @@ const agentsPage = (origin: string): Page => ({
       body: (
         <>
           <p>It isn’t in a public marketplace yet. From a clone of the repo:</p>
-          <Code label="Shell">{`
+          <Code label="Shell" copy>{`
 git clone https://github.com/m1kuorg/qloo.git
 claude plugin marketplace add ./qloo
 claude plugin install crossfeed@crossfeed
@@ -1337,10 +1342,12 @@ const originOf = (c: Context) => new URL(c.req.url).origin
 const renderPage = (c: Context<{ Bindings: Env }>, page: Page) =>
   c.render(<Docs page={page} accounts={c.env.ACCOUNTS === 'on'} />)
 // A docs page's shell, titled and described from PAGES: the overview as the docs themselves, each
-// other page under them.
+// other page under them, with the script that puts the Copy buttons on its commands and configurations.
 const shell = (path: Path) => {
   const at = PAGES.findIndex((p) => p.path === path)
-  return marketingShell(at === 0 ? 'Developer docs' : `${PAGES[at].title} · Developer docs`, PAGES[at].description)
+  return marketingShell(at === 0 ? 'Developer docs' : `${PAGES[at].title} · Developer docs`, PAGES[at].description, {
+    copy: true
+  })
 }
 
 docs.get('/docs', shell('/docs'), async (c) =>

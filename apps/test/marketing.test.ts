@@ -647,6 +647,61 @@ describe('the developer docs', () => {
     expect(closed).toContain(`](${origin}/docs/mcp)`)
   })
 
+  // Each figure on a page, as its caption and its Copy button's words, or null for none. A copyable
+  // block keeps its button in an inert <template>, which copy.ts puts in place, so the page as served
+  // has no button anywhere else: without the script, there's none.
+  const copies = (html: string) =>
+    main(html)
+      .split(/(?=<figure\b)/)
+      .slice(1)
+      .map((f) => {
+        const figure = f.slice(0, f.indexOf('</figure>'))
+        expect(figure.replace(/<template\b[\s\S]*?<\/template>/g, '')).not.toMatch(/<button\b/)
+        const button = figure.match(
+          /<template data-copy\b[^>]*>[\s\S]*?(<button\b[\s\S]*?<\/button>)[\s\S]*?<\/template>/
+        )?.[1]
+        return [
+          words(figure.match(/<figcaption\b[\s\S]*?<\/figcaption>/)?.[0] ?? '').trim(),
+          button ? words(button).trim() : null
+        ]
+      })
+
+  it('offer Copy on their commands and configurations, never on expected output or a transcript, from a script only they load', async () => {
+    const shown: Record<string, unknown> = {}
+    for (const path of docs) shown[path] = copies(await page(path))
+    expect(shown).toEqual({
+      '/docs': [
+        ['HTTP', 'Copy'],
+        ['Shell', 'Copy'],
+        // An error the API answers.
+        ['JSON', null]
+      ],
+      '/docs/api': [],
+      '/docs/sdk': [
+        ['Shell', 'Copy'],
+        ['TypeScript', 'Copy'],
+        ['TypeScript', 'Copy'],
+        ['TypeScript', 'Copy'],
+        ['TypeScript', 'Copy']
+      ],
+      '/docs/mcp': [
+        ['Shell', 'Copy'],
+        ['A launch through the MCP server Illustration', null]
+      ],
+      '/docs/agents': [
+        ['plugins/crossfeed/.mcp.json', 'Copy'],
+        ['Shell', 'Copy'],
+        ['Shell', 'Copy']
+      ]
+    })
+    // The landing page's samples, a run's answer and how to read it, have no script to copy them.
+    expect(await page('/')).not.toContain('<template data-copy')
+    for (const path of pages) {
+      const scripts = [...(await page(path)).matchAll(/<script\b[^>]*\bsrc="([^"]*)"/g)].map((m) => m[1])
+      expect(scripts.includes('/src/client/copy.ts'), path).toBe(path.startsWith('/docs'))
+    }
+  })
+
   it("are linked from the landing page's developers band and the top bar's Developers", async () => {
     const html = await page('/')
     const band = html.match(/<section id="developers"[\s\S]*?<\/section>/)?.[0] ?? ''

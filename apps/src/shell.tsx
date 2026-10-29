@@ -610,7 +610,8 @@ const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
 // card. The 404 and error pages are one too (routes/marketing), the error page with no card. menus.ts
 // closes the phone's Menu on a click outside and on Escape; `reveal` adds reveal.ts, the landing page's
 // section entrances, and `ascii` its ASCII field: a canvas fixed behind the page, which ascii.ts draws,
-// sized by its classes and its own width and height, never a style attribute. The face's Latin file is
+// sized by its classes and its own width and height, never a style attribute; `copy` adds copy.ts, the
+// docs' Copy buttons on their copyable code (routes/marketing's Code). The face's Latin file is
 // preloaded, so the landing page's poster type is set in it from the first paint rather than re-wrapping
 // when it swaps in for the size-adjusted fallback (style.css).
 export const MarketingPage = ({
@@ -620,6 +621,7 @@ export const MarketingPage = ({
   accounts,
   reveal = false,
   ascii = false,
+  copy = false,
   children
 }: {
   title: string | null
@@ -628,6 +630,7 @@ export const MarketingPage = ({
   accounts: boolean
   reveal?: boolean
   ascii?: boolean
+  copy?: boolean
   children: Child
 }) => (
   <html lang="en">
@@ -640,6 +643,7 @@ export const MarketingPage = ({
       <Script src="/src/client/menus.ts" />
       {reveal && <Script src="/src/client/reveal.ts" />}
       {ascii && <Script src="/src/client/ascii.ts" />}
+      {copy && <Script src="/src/client/copy.ts" />}
     </Head>
     <body class="flex min-h-svh flex-col type-body">
       <SkipLink />
@@ -663,7 +667,11 @@ export const MarketingPage = ({
 
 // The marketing shell, for a route group's pages: MarketingPage, with the app's own origin, and the
 // request's path and flags.
-export const marketingShell = (title: string | null, description: string, { reveal = false, ascii = false } = {}) =>
+export const marketingShell = (
+  title: string | null,
+  description: string,
+  { reveal = false, ascii = false, copy = false } = {}
+) =>
   jsxRenderer(({ children }, c) => (
     <MarketingPage
       title={title}
@@ -672,6 +680,7 @@ export const marketingShell = (title: string | null, description: string, { reve
       accounts={c.env.ACCOUNTS === 'on'}
       reveal={reveal}
       ascii={ascii}
+      copy={copy}
     >
       {children}
     </MarketingPage>
