@@ -288,10 +288,14 @@ describe('the keys route the connection check reads', () => {
 
 describe('/app/developers', () => {
   it("leads to the Developers page of the network /app opens: the one the member opened last, a guest's guest network, or for a member with none, naming their first", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
     const ada = await openMember()
     const first = await created(ada)
+    vi.setSystemTime(new Date('2026-10-19T14:31:00Z'))
     await created(ada, 'Paper Trail Pods')
-    // The member opened the first network last.
+    // The member opened the first network last, a minute after creating the second.
+    vi.setSystemTime(new Date('2026-10-19T14:32:00Z'))
     expect((await ada.fetch(`/app/${first}`)).status).toBe(200)
     const to = async (who: Pick<Member, 'fetch'>) =>
       (await who.fetch('/app/developers', { redirect: 'manual' })).headers.get('location')
