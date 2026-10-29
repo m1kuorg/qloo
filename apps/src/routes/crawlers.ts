@@ -15,9 +15,9 @@ const indexed = (env: Env) => env.SEARCH_INDEXING === 'on'
 // the longer Allow gives back, as a search engine may take it for the favicon.
 const PRIVATE = ['/app', '/api', '/mcp', '/agents', '/auth', '/invite']
 
-// Cloudflare puts its managed content-signals text before what the Worker answers (TRD crawlers). Where
-// nothing may be indexed, nothing is disallowed, so a crawler can still fetch each page and read its
-// noindex.
+// Cloudflare serves its managed content-signals text only while the Worker answers none, and prepends
+// nothing to this answer (TRD crawlers). Where nothing may be indexed, nothing is disallowed, so a
+// crawler can still fetch each page and read its noindex.
 crawlers.get('/robots.txt', (c) => {
   if (!indexed(c.env)) return c.text('User-agent: *\nDisallow:\n')
   const lines = [
