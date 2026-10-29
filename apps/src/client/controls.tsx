@@ -295,8 +295,8 @@ export function PickOne({
   )
 }
 
-// The rows of one list that read the same, `shown` being everything a row shows, so each shows its
-// Qloo ID (#128): each such row's ID as it shows it. An entity's is cut to the shortest start, from 8
+// The rows of one list that read the same, by `shown`, so each shows its Qloo ID (#128): each such
+// row's ID as it shows it. An entity's is cut to the shortest start, from 8
 // characters, that tells every twin apart; a tag's URN is whole, as its start tells none apart.
 export function twinIds<T extends { id: string }>(rows: T[], shown: (row: T) => string[]) {
   const said = (row: T) => shown(row).join('\n')

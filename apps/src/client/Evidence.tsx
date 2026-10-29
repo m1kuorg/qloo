@@ -1,3 +1,4 @@
+import { cn } from 'cn'
 import { CheckIcon, ChevronDownIcon, CopyIcon } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -487,7 +488,8 @@ function StoredRecord({ record }: { record: Evidence }) {
 
 // A demographics call's answer, which keeps each entity's buckets as its explainability: per entity,
 // its name, then its scores two pairs to a row, as Roster check lays out its counts, ages youngest
-// first, then male and female, whatever order Qloo sent them in.
+// first, then male and female, whatever order Qloo sent them in. Entities of one name show their Qloo
+// IDs, as the tables' rows do.
 function DemographicsList({ affinities }: { affinities: Evidence['affinities'] }) {
   const rows = affinities.map((a) => ({
     id: a.id,
@@ -496,7 +498,7 @@ function DemographicsList({ affinities }: { affinities: Evidence['affinities'] }
       .sort((x, y) => place(x.id) - place(y.id))
       .map((x) => ({ id: x.id, words: bucketWords(x.id), score: demographic(x.score) }))
   }))
-  const twins = twinIds(rows, (r) => [r.name, ...r.buckets.map((b) => `${b.words} ${b.score}`)])
+  const twins = twinIds(rows, (r) => [r.name])
   return (
     <div>
       <h3 className="pb-1.5 font-semibold">Demographics · {rows.length}</h3>
@@ -531,10 +533,11 @@ const bucketWords = (id: string) =>
 type ValueRow = { id: string; name: string; note?: string | null; lead?: string; figure: string }
 
 // What Qloo returned, in words: each row's name, its line, and its figure in its metric's format, which
-// the chart shows as a rank and band. Rows that read the same show their Qloo IDs (#128). The record
-// getEvidence answers keeps each ID and figure as Qloo wrote it.
+// the chart shows as a rank and band. Rows whose words are the same show their Qloo IDs (#128): a figure
+// measures a row, it doesn't say which one it is. The record getEvidence answers keeps each ID and
+// figure as Qloo wrote it.
 function ValueTable({ title, value, rows, names }: { title: string; value: string; rows: ValueRow[]; names: Names }) {
-  const twins = twinIds(rows, (r) => [r.name, r.note ?? '', r.lead ?? '', r.figure])
+  const twins = twinIds(rows, (r) => [r.name, r.note ?? '', r.lead ?? ''])
   return (
     <table className="w-full table-fixed">
       <caption className="pb-1.5 text-left font-semibold">{title}</caption>
@@ -543,7 +546,8 @@ function ValueTable({ title, value, rows, names }: { title: string; value: strin
           <th scope="col" className="pb-1.5 text-left font-normal">
             Name
           </th>
-          <th scope="col" className="w-36 pb-1.5 pl-3 text-right font-normal">
+          {/* As wide as its header, so a twin's ID has the room it needs beside a short one. */}
+          <th scope="col" className={cn('pb-1.5 pl-3 text-right font-normal', value.length > 8 ? 'w-36' : 'w-20')}>
             {value}
           </th>
         </tr>
@@ -574,13 +578,22 @@ function ValueTable({ title, value, rows, names }: { title: string; value: strin
 }
 
 // A row's Qloo ID as `twinIds` shows it, when another row in its list reads the same; whole in its
-// tooltip, and never translated.
+// tooltip, and never translated. A tag's URN wraps only after a colon.
 const TwinId = ({ id, shown }: { id: string; shown: string | undefined }) =>
   shown && (
     <span className="block type-caption text-muted-foreground">
       Qloo ID{' '}
-      <span className="font-mono break-all" title={id} translate="no">
-        {shown}
+      <span className="font-mono" title={id} translate="no">
+        {shown.split(':').map((part, i) => (
+          <Fragment key={i}>
+            {i > 0 && (
+              <>
+                :<wbr />
+              </>
+            )}
+            {part}
+          </Fragment>
+        ))}
       </span>
     </span>
   )

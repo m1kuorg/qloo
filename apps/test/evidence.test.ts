@@ -19,9 +19,10 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// A rendered part's words, as a reader hears them.
+// A rendered part's words, as a reader hears them; a line-break opportunity breaks no word.
 const words = (part: string) =>
   part
+    .replace(/<wbr\/?>/g, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&quot;/g, '"')
     .replace(/&#x27;/g, "'")
@@ -412,32 +413,32 @@ describe('the evidence behind each Qloo call', () => {
     expect(inView(ranking, [search, ranking])).not.toContain('Led by')
   })
 
-  it('shows the Qloo IDs of rows in one list that read the same, and only theirs (#128)', () => {
+  it('shows the Qloo IDs of rows in one list whose words are the same, and only theirs (#128)', () => {
     // Qloo's compare answer for one of the sample launches had three tags named Music, two of them
-    // genres. Their scores differ past the three decimals shown.
+    // genres. A figure measures a row; it doesn't say which tag it is, so theirs don't tell them apart.
     const music = record('C-11', '/v2/analysis/compare', {
       params: compare.params,
       tags: [
-        { id: 'urn:tag:genre:media:music', name: 'Music', score: 0.90012 },
-        { id: 'urn:tag:keyword:qloo:music', name: 'Music', score: 0.9002 },
-        { id: 'urn:tag:genre:qloo:music', name: 'Music', score: 0.90037 },
-        { id: 'urn:tag:genre:media:podcasts', name: 'Podcasts', score: 0.9 }
+        { id: 'urn:tag:genre:media:music', name: 'Music', score: 0.7311 },
+        { id: 'urn:tag:keyword:qloo:music', name: 'Music', score: 0.725 },
+        { id: 'urn:tag:genre:qloo:music', name: 'Music', score: 0.6881 },
+        { id: 'urn:tag:genre:media:podcasts', name: 'Podcasts', score: 0.7309 }
       ]
     })
     expect(inView(music)).toContain(
-      'Tags · 4 Name Score Music Genre Qloo ID urn:tag:genre:media:music 0.900 Music Keyword 0.900 Music Genre Qloo ID urn:tag:genre:qloo:music 0.900 Podcasts Genre 0.900'
+      'Tags · 4 Name Score Music Genre Qloo ID urn:tag:genre:media:music 0.731 Music Keyword 0.725 Music Genre Qloo ID urn:tag:genre:qloo:music 0.688 Podcasts Genre 0.731'
     )
-    // Two shows of one name with one affinity show the shortest start of their IDs that tells them apart.
+    // Two shows of one name show the shortest start of their IDs that tells them apart.
     const binge = record('C-12', '/v2/insights', {
       params: ranking.params,
       affinities: [
         { id: 'D95B20A8-0CEA-4BDC-8074-000000000001', name: 'Binge Mode', affinity: 0.5, explainability: [] },
-        { id: 'D95B20A8-6D5D-4102-9138-000000000002', name: 'Binge Mode', affinity: 0.5, explainability: [] },
+        { id: 'D95B20A8-6D5D-4102-9138-000000000002', name: 'Binge Mode', affinity: 0.4, explainability: [] },
         { id: e(2), name: 'Deep Cuts', affinity: 0.5, explainability: [] }
       ]
     })
     expect(inView(binge)).toContain(
-      'Affinities · 3 Name Affinity Binge Mode Qloo ID D95B20A8-0CE 0.500 Binge Mode Qloo ID D95B20A8-6D5 0.500 Deep Cuts 0.500'
+      'Affinities · 3 Name Affinity Binge Mode Qloo ID D95B20A8-0CE 0.500 Binge Mode Qloo ID D95B20A8-6D5 0.400 Deep Cuts 0.500'
     )
   })
 
