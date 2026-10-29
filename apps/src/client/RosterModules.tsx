@@ -30,29 +30,29 @@ import {
 } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
 import type { NetworkPage } from './NetworkPage'
-import { count, summaryLine } from './PageHeader'
+import { count, FormDialog, summaryLine, useFormDialog } from './PageHeader'
 import { Source } from './Source'
 import { sentence, SlowCalls, slowText, StateLine } from './states'
 
 // The roster's modules, shared by a network's roster page and a launch's page: its import, its counts,
 // its table, the show editor, the roster check, and the CPM its slots are priced at.
 
-// The import, in the roster page's sheet, answers at once, and each show fills in through synced state
-// as its search settles. A file can come from the picker or be dropped anywhere on the page, so one
-// dropped beside the form imports too, rather than opening in the browser. `dropped` hears of a
-// dropped file it imports, so the page can show the form it imports in.
+// The import, in the roster page's form dialog (`dialog`), answers at once and closes the dialog, and
+// each show fills in on the page through synced state as its search settles; a refusal stays in the
+// dialog. A file can come from the picker or be dropped anywhere on the page, so one dropped beside
+// the form imports too, rather than opening in the browser, and opens the dialog it imports in.
 export function RosterImport({
+  dialog,
   roster,
   draft,
   importRoster,
-  keepsSettledShows,
-  dropped
+  keepsSettledShows
 }: {
+  dialog: ReturnType<typeof useFormDialog>
   roster: Show[]
   draft: { current: string } // what's typed, kept by the page across a remount
   importRoster: (text: string, format: RosterFormat) => Promise<void>
   keepsSettledShows: boolean // whether an import keeps the shows already on the roster, as a network's does
-  dropped?: () => void
 }) {
   const [text, setTyped] = useState(() => draft.current)
   const setText = (value: string) => {
@@ -69,14 +69,18 @@ export function RosterImport({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setImporting(`Looking up ${count} shows…`)
-    if (await run(() => importRoster(text, 'lines'))) setText('')
+    if (await run(() => importRoster(text, 'lines'))) {
+      setText('')
+      dialog.close()
+    }
   }
-  const upload = (files: File[]) => {
+  const upload = async (files: File[]) => {
     setImporting(files.length === 1 ? `Importing ${files[0].name}…` : 'Importing…')
-    return run(async () => {
+    const imported = await run(async () => {
       const { text, format } = await readRosterUpload(files)
       await importRoster(text, format)
     })
+    if (imported) dialog.close()
   }
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = [...(e.target.files ?? [])]
@@ -86,11 +90,11 @@ export function RosterImport({
   // A file dropped while an import is still running isn't imported; the cue says to wait.
   const dragging = useFileDrop((files) => {
     if (busy) return null
-    dropped?.()
+    dialog.show()
     return upload(files)
   })
   return (
-    <form className="flex flex-col gap-2" onSubmit={submit} data-roster-import>
+    <>
       {dragging && (
         <DropCue busy={busy}>
           {busy
@@ -98,51 +102,61 @@ export function RosterImport({
             : 'Drop the file to import it: a CSV, or a text file with one show name per line.'}
         </DropCue>
       )}
-      <Field>
-        <FieldLabel htmlFor="roster-names">Show names</FieldLabel>
-        <div className="flex flex-col gap-2">
-          <Textarea
-            id="roster-names"
-            rows={4}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={'The Rewatchables\nThe Big Picture\nBinge Mode'}
-            disabled={busy}
-            className="max-h-60 min-h-24"
-          />
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" disabled={busy || count === 0}>
-                {busy && <Spinner data-icon="inline-start" />}
-                {pending > 0
-                  ? `Looked up ${roster.length - pending} of ${roster.length}…`
-                  : busy
-                    ? importing
-                    : 'Import roster'}
-              </Button>
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => file.current?.click()}>
-                <UploadIcon data-icon="inline-start" aria-hidden="true" />
-                Upload a file
-              </Button>
-              <input ref={file} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={pick} />
+      <FormDialog
+        dialog={dialog}
+        description="Paste show names or upload the roster’s file, and Crossfeed looks each new one up in Qloo."
+        form="roster-import"
+        submit={
+          pending > 0 ? `Looked up ${roster.length - pending} of ${roster.length}…` : busy ? importing : 'Import roster'
+        }
+        busy={busy}
+        disabled={count === 0}
+      >
+        <form id="roster-import" className="flex flex-col gap-2" onSubmit={submit} data-roster-import>
+          <Field>
+            <FieldLabel htmlFor="roster-names">Show names</FieldLabel>
+            <div className="flex flex-col gap-2">
+              <Textarea
+                id="roster-names"
+                rows={4}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={'The Rewatchables\nThe Big Picture\nBinge Mode'}
+                disabled={busy}
+                aria-describedby="roster-names-limit"
+                className="max-h-60 min-h-24"
+              />
+              <div className="flex flex-col items-start gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={busy}
+                  aria-describedby="roster-file-format"
+                  onClick={() => file.current?.click()}
+                >
+                  <UploadIcon data-icon="inline-start" aria-hidden="true" />
+                  Upload a file
+                </Button>
+                <input ref={file} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={pick} />
+                <FieldDescription id="roster-names-limit">
+                  {keepsSettledShows
+                    ? 'Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
+                    : 'Replaces the current roster, up to 50 shows.'}
+                </FieldDescription>
+                <FieldDescription id="roster-file-format" className="max-w-[72ch]">
+                  Drop a file anywhere on the page, or upload one: a CSV needs a <Code>name</Code> column, and{' '}
+                  <Code>downloads</Code>, <Code>status</Code>, and <Code>description</Code> are optional; a text file
+                  has one show name per line.
+                </FieldDescription>
+              </div>
             </div>
-            <FieldDescription>
-              {keepsSettledShows
-                ? 'Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
-                : 'Replaces the current roster, up to 50 shows.'}
-            </FieldDescription>
-            <FieldDescription className="max-w-[72ch]">
-              Drop a file anywhere on the page, or upload one: a CSV needs a <Code>name</Code> column, and{' '}
-              <Code>downloads</Code>, <Code>status</Code>, and <Code>description</Code> are optional; a text file has
-              one show name per line.
-            </FieldDescription>
+          </Field>
+          <div>
+            <Alert error={error} />
           </div>
-        </div>
-      </Field>
-      <div>
-        <Alert error={error} />
-      </div>
-    </form>
+        </form>
+      </FormDialog>
+    </>
   )
 }
 

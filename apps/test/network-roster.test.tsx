@@ -10,7 +10,7 @@ import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
-import { RosterImport, ShowEditor } from '../src/client/RosterModules'
+import { ShowEditor } from '../src/client/RosterModules'
 import type { Role } from '../src/directory'
 import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
@@ -473,22 +473,13 @@ describe("the roster page's words", () => {
     expect(new Set(named).size).toBe(named.length)
   })
 
-  it('offers an empty network one way in, the import in its sheet, and nothing a launch does', async () => {
+  it('offers an empty network one way in, the import in its dialog, and nothing a launch does', async () => {
     const ada = await openMember()
     const network = await created(ada)
     // The header is the title alone, and the empty state says what's missing with Import shows, which
-    // opens the import in its sheet. With no shows there's nothing to count, cite, or start from, and
-    // the CPM is the dashboard's and the settings'.
+    // opens the import in its dialog (test/page-forms.test.tsx reads it). With no shows there's nothing
+    // to count, cite, or start from, and the CPM is the dashboard's and the settings'.
     expect(page((await connect(ada, network)).state())).toBe('Roster No shows yet. Import shows')
-    // The sheet's import takes pasted names or a file, dropped anywhere on the page.
-    const form = words(
-      renderToStaticMarkup(
-        <RosterImport roster={[]} draft={{ current: '' }} importRoster={async () => {}} keepsSettledShows />
-      )
-    )
-    expect(form).toBe(
-      'Show names Import roster Upload a file Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up. Drop a file anywhere on the page, or upload one: a CSV needs a name column, and downloads , status , and description are optional; a text file has one show name per line.'
-    )
   })
 
   it('leaves the CPM to the dashboard, where a guest, an owner of the guest network, changes it, and a guest made a member views it', async () => {
@@ -559,7 +550,7 @@ describe("the roster page's words", () => {
     expect(watch).toContain('Downloads per episode sample Status sample Save')
     // The inspector's close button closes it, so the show has no Close of its own.
     expect(watch).not.toContain('Close')
-    // The header: the title, its counts, the inspector's toggle, and the import, in a sheet; then the
+    // The header: the title, its counts, the inspector's toggle, and the import, in a dialog; then the
     // table, whose caption, which describes it, starts with whether it's ready to rank. No notice,
     // explanation, or CPM is above it.
     expect(read).toMatch(
