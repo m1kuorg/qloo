@@ -914,8 +914,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       const sample = kept.sample && { sample: kept.sample.filter((f) => !keep.includes(f)) }
       return { ...kept, ...brought, ...sample, ...looking }
     })
-    // While a kept show still holds a sample figure, the notice naming the sample's network stays too.
-    const stillSample = keep && roster.some((s) => s.sample?.length) ? { sample: this.state.sample } : {}
+    // A network's sample stays while a kept show still holds a sample figure, or while its CPM is still the
+    // sample's, since an import never changes the CPM or its label (#287).
+    const stillSample =
+      keep && (this.state.sample?.cpm || roster.some((s) => s.sample?.length)) ? { sample: this.state.sample } : {}
     this.setState({ ...this.state, ...alongside, ...stillSample, roster })
     // All at once: the gateway paces, limits, and retries the calls.
     void this.keepAliveWhile(() =>
@@ -937,11 +939,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return !kept || kept.resolution === 'failed'
   }
 
-  // What leaving the sample network changes besides the roster: its CPM goes too, unless the visitor
-  // set their own, because a real network's CPM has no default.
+  // What leaving the sample network changes besides the roster: an engine session's CPM goes too, unless
+  // the visitor set their own, because a real network's CPM has no default. A network's import leaves its
+  // CPM as it was (lookUpRoster).
   private leaveSample(): Partial<State> {
     const s = this.state.sample
-    return s ? { sample: null, cpm: s.cpm ? null : this.state.cpm } : {}
+    if (!s) return {}
+    return this.keepsSettledShows ? { sample: null } : { sample: null, cpm: s.cpm ? null : this.state.cpm }
   }
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.

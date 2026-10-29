@@ -1113,6 +1113,34 @@ describe('a launch on the sample roster', () => {
     })
   })
 
+  it('prices a new launch’s slots at the sample CPM after a guest’s import keeps a sample show (#287)', async () => {
+    const { guest, network } = await guestSampleLaunch()
+    await network.importRoster('The Watch\nNight Shift Cinema')
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Rewatchables' })
+    const agent = await connect(guest, `/agents/launch/guest-network/${id}`)
+    fakeInsights([{ entity_id: 'e-0601', name: 'The Watch', affinity: 0.9 }])
+    fakeClaude([
+      turn(resolve('The Rewatchables')),
+      turn(
+        toolUse('rank_candidates', { anchor_ids: ['e-0201'], candidate_ids: ['e-0601'], type: 'urn:entity:podcast' })
+      ),
+      turn(text('The Watch is the one finalist.'))
+    ])
+    await agent.call('startLaunch', { name: 'The Rewatchables' })
+    const ran = await agent.until(ended)
+    expect(ran.run?.status).toBe('completed')
+    expect(ran).toMatchObject({ cpm: 20, sample: null })
+    // The Watch's sample downloads, 340,000, × $20 ÷ 1,000.
+    const [row] = hooked(hooked(guestPage(ran, id), 'data-fit-chart')[0], 'data-show="The Watch"')
+    const value = hooked(row, 'data-slot-value')[0]
+    expect(
+      value
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    ).toBe('$6,800 340,000 downloads')
+  })
+
   it("carries the sample on the guest network's sample launch, which replays its stored run while Qloo is capped or down", async () => {
     const { network, id, agent } = await guestSampleLaunch()
     const { sample } = network.state()!

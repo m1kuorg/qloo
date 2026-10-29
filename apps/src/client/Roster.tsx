@@ -21,7 +21,7 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
 
 // The roster every launch on the network ranks, kept by its agent, which answers "Is my roster ready
 // to rank?": the header with the roster's counts, the inspector's toggle and Import shows, its title
-// badged sample while the network holds the sample data, the page's one sample label (ADR 0007); the
+// badged sample while a show holds a sample figure, the page's one sample label (ADR 0007); the
 // shows Qloo failed on; and the roster table, whose rows' match chips say what's left to settle, and
 // whose shows open in the inspector's Show tab beside it (a sheet under 1360px), closed until then,
 // and whose calls open in its Evidence tab. An empty roster has the empty state instead, with Import shows and
@@ -50,7 +50,7 @@ export function NetworkRoster({
       connection={state ? connection : null}
       empty={roster.length === 0}
       summary={rosterSummary(roster)}
-      badge={state?.sample && <Badge>sample</Badge>}
+      badge={roster.some((s) => s.sample?.length) && <Badge>sample</Badge>}
       actions={
         <>
           <InspectorToggle open={inspector.open} toggle={inspector.toggle} ref={inspector.toggleButton} />

@@ -327,6 +327,51 @@ describe('settings', () => {
     expect(words(await settings(guest, 'guest-network', set))).toContain('Dollars per 1,000 downloads. Save')
   })
 
+  it("keep the guest network's CPM the sample's over a roster import, whether it keeps a sample show or none, until an owner sets another (#287)", async () => {
+    env.SAMPLE_NETWORK = 'on'
+    fakeQloo({ search: {} })
+    const guest = await openGuest()
+    const agent = await connect(guest, 'guest-network')
+    await agent.until((s) => s.roster.length > 0 && s.roster.every((r) => r.resolution !== 'pending'))
+    // The settings' CPM field, as an owner reads it: its value, and the line under it.
+    const cpmField = async (state: State) => {
+      const html = await settings(guest, 'guest-network', state)
+      const value = html.match(/<input\b(?=[^>]*\sid="set-cpm")[^>]*?\svalue="([^"]*)"/)?.[1]
+      return `$${value} ${words(html).match(/Dollars per 1,000 downloads\.(?: An arbitrary [^.]*\.)?/)?.[0]}`
+    }
+    const labelled =
+      '$20 Dollars per 1,000 downloads. An arbitrary sample figure until an owner sets the network’s own.'
+
+    // The Watch stays, its figures the sample's; Night Shift Cinema is new.
+    const kept = await agent.importRoster('The Watch\nNight Shift Cinema')
+    expect(kept).toMatchObject({ cpm: 20, sample: { cpm: true } })
+    expect(kept.roster.map((s) => [s.name, s.sample])).toEqual([
+      ['The Watch', ['downloads', 'status', 'description']],
+      ['Night Shift Cinema', undefined]
+    ])
+    expect(await cpmField(kept)).toBe(labelled)
+    expect(words(await dashboard(guest, 'guest-network', kept))).toContain('CPM $20 per 1,000 downloads Change')
+
+    // No show of the sample's is left.
+    const own = await agent.importRoster('Night Shift Cinema')
+    expect(own).toMatchObject({ cpm: 20, sample: { cpm: true } })
+    expect(await cpmField(own)).toBe(labelled)
+
+    // An owner's own CPM drops the label, and an import keeps it too.
+    const res = await guest.fetch('/app/guest-network/settings/network', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Guest network', cpm: 25 })
+    })
+    expect(res.status).toBe(200)
+    const set = await agent.until((s) => s.cpm === 25)
+    expect(set.sample).toMatchObject({ cpm: false })
+    expect(await cpmField(set)).toBe('$25 Dollars per 1,000 downloads.')
+    const again = await agent.importRoster('Night Shift Cinema\nThe Watch')
+    expect(again.cpm).toBe(25)
+    expect(await cpmField(again)).toBe('$25 Dollars per 1,000 downloads.')
+  })
+
   it('stand each module in a tab of its own, in the order a new owner needs them, with every panel in the page', async () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)

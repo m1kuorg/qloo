@@ -17,6 +17,7 @@ import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
 import { fakeClaude, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
 import {
+  api,
   currentLinks,
   detailsToggle,
   inspectorClosed,
@@ -271,26 +272,45 @@ describe('re-importing the roster', () => {
     ])
   })
 
-  it("takes the sample labels off the figures the file brings, and the sample's notice once none is left", async () => {
+  it("takes the sample labels off the figures the file brings, and the roster's sample notice and label once none is left", async () => {
     fakeQloo({ search: {} })
     env.SAMPLE_NETWORK = 'on'
-    const agent = await connect(await openGuest(), 'guest-network')
+    const guest = await openGuest()
+    const agent = await connect(guest, 'guest-network')
     await agent.until((s) => s.roster.length > 0 && settled(s))
+    // The roster's notice as a program reads it, with an API key a guest made, and its page's labels.
+    const made = await guest.fetch('/app/guest-network/settings/api-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nightly sync' })
+    })
+    const call = api((await made.json<{ secret: string }>()).secret)
+    const labelled = async (state: State) => ({
+      notice: (await (await call('/api/v1/networks/guest-network/roster')).json<{ sample: unknown }>()).sample,
+      labels: sampleLabels(
+        renderToStaticMarkup(<NetworkRoster agent={{ state, stub: {} } as unknown as NetworkConnection} />)
+      )
+    })
 
-    await agent.importRoster('name,downloads\nThe Watch,41000\nHouse of R,', 'csv')
-    expect(agent.state()!.roster.map((s) => [s.name, s.downloads, s.status, s.sample])).toEqual([
+    const kept = await agent.importRoster('name,downloads\nThe Watch,41000\nHouse of R,', 'csv')
+    expect(kept.roster.map((s) => [s.name, s.downloads, s.status, s.sample])).toEqual([
       ['The Watch', 41000, 'active', ['status', 'description']],
       ['House of R', null, 'active', ['status', 'description']]
     ])
     // Sample figures are left, so the notice naming the sample's network stays with them.
-    expect(agent.state()!.sample).toMatchObject({ network: 'The Ringer' })
+    expect(await labelled(kept)).toEqual({
+      notice: { network: 'The Ringer', notice: sample.notice },
+      labels: ['h1: Roster']
+    })
 
-    await agent.importRoster(
+    const own = await agent.importRoster(
       'name,status,description\nThe Watch,active,Our TV show\nHouse of R,hiatus,Our fantasy show',
       'csv'
     )
-    expect(agent.state()!.roster.map((s) => s.sample)).toEqual([[], []])
-    expect(agent.state()!.sample).toBeNull()
+    expect(own.roster.map((s) => s.sample)).toEqual([[], []])
+    // The roster is the guest's own, though the CPM is still the sample's (test/dashboard.test.tsx).
+    expect(await labelled(own)).toEqual({ notice: null, labels: [] })
+    expect(own).toMatchObject({ cpm: 20, sample: { cpm: true } })
   })
 
   it("replaces the demo's roster as before, settled shows and all", async () => {
