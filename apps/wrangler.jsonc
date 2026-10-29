@@ -34,6 +34,9 @@
     "GUEST_PITCHES": "on",
     // The guest network loads the sample network each day (ADR 0007, TRD demo data); tests turn it off.
     "SAMPLE_NETWORK": "on",
+    // "on" lets search engines index the public pages (routes/crawlers.ts). Production's alone: the
+    // preview leaves it out, so nothing there is indexed, and tests turn it off.
+    "SEARCH_INDEXING": "on",
     // The passkey relying party's ID, and the origins (comma-separated) a member's browser may send
     // from: each environment's own host, never read from the request.
     "RP_ID": "crossfeed.m1kuorg.workers.dev",
@@ -96,8 +99,8 @@
     // its own D1 database, Durable Objects, and secrets. Wrangler doesn't inherit vars, secrets, D1,
     // Durable Object, or rate limit bindings, so each is repeated here: keep vars and limits in step
     // with the top level's, apart from the host in RP_ID and APP_ORIGINS, ACCOUNTS, on here to check
-    // the product, and the rate limits' namespace IDs. Deploy it only with `bun run deploy:preview`
-    // (apps/README.md).
+    // the product, SEARCH_INDEXING, left out here so search engines index nothing, and the rate limits'
+    // namespace IDs. Deploy it only with `bun run deploy:preview` (apps/README.md).
     "preview": {
       "vars": {
         "QLOO_BASE_URL": "https://hackathon.api.qloo.com",

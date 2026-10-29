@@ -21,7 +21,9 @@ export default defineConfig({
       // sample data's resets a day are wrangler.jsonc's, whatever .dev.vars says; a test lowers them itself.
       // Passkeys belong to the origin tests send from.
       // Accounts are on, as the product's tests need; a test without them turns them off. The engine's
-      // sessions answer at /agents/session (routes/demo.ts) only here, where TEST_SESSIONS is on.
+      // sessions answer at /agents/session (routes/demo.ts) only here, where TEST_SESSIONS is on. Search
+      // engines may index nothing, as on the preview: SEARCH_INDEXING is off, since wrangler.jsonc's "on"
+      // can be overridden here but not left out; a test of production's crawler rules turns it on.
       miniflare: {
         bindings: {
           QLOO_BASE_URL: 'https://qloo.test',
@@ -38,6 +40,7 @@ export default defineConfig({
           FREE_START_DAILY_CAP: '100',
           QLOO_VISITOR_DAILY_CALL_CAP: '2000',
           SAMPLE_NETWORK: 'off',
+          SEARCH_INDEXING: 'off',
           GUEST_PITCHES: 'off',
           ACCOUNTS: 'on',
           RP_ID: 'crossfeed.test',

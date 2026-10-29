@@ -1,9 +1,11 @@
 /** @jsxImportSource hono/jsx */
-// The marketing pages: the landing page at /, the privacy page, the beta terms, and the 404 page.
-// Server-rendered with no island. Nothing here is a Qloo response: the re-rank and every piece of the app
-// the landing page shows use one made-up network, launch, and shows, and the re-rank says so.
+// The marketing pages: the landing page at /, the privacy page, the beta terms, the 404 page, and the
+// error page. Server-rendered with no island. Nothing here is a Qloo response: the re-rank and every
+// piece of the app the landing page shows use one made-up network, launch, and shows, and the re-rank
+// says so.
 import { cn } from 'cn'
-import { Hono, type NotFoundHandler } from 'hono'
+import { Hono, type Context, type ErrorHandler, type NotFoundHandler } from 'hono'
+import { HTTPException } from 'hono/http-exception'
 import { html } from 'hono/html'
 import type { Child } from 'hono/jsx'
 import { appOrigins } from '../auth'
@@ -23,7 +25,7 @@ import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
-import { GuestButton, MarketingPage, marketingShell } from '../shell'
+import { GuestButton, MarketingPage, marketingShell, networkLinks, type AppVariables } from '../shell'
 import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
 import { CLIMB, topicFinding } from '../topic'
 
@@ -1582,18 +1584,20 @@ const NotFound = ({ accounts }: { accounts: boolean }) => (
   </main>
 )
 
+// Whether a request is a browser asking for a page: a GET that accepts HTML, outside /api, /agents,
+// /mcp, and /auth, and not a CSV download. Only such a request is answered with a page of the marketing
+// shell when there's none or it fails; programs and WebSocket upgrades read the plain answers.
+const pageRequest = (c: Context) =>
+  c.req.method === 'GET' &&
+  (c.req.header('Accept') ?? '').includes('text/html') &&
+  !/^\/(api|agents|mcp|auth)(\/|$)/.test(c.req.path) &&
+  !c.req.path.endsWith('.csv')
+
 // What the Worker answers when nothing serves a request, or a route refuses one as not found: the 404
-// page, in the marketing shell, to a browser asking for a page (a GET that accepts HTML); otherwise,
-// and always under /api, /agents, /mcp, and /auth and for a CSV download, Hono's plain 404, which
-// programs and WebSocket upgrades read.
+// page, in the marketing shell, to a browser asking for a page; otherwise Hono's plain 404.
 export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
   const path = c.req.path
-  const page =
-    c.req.method === 'GET' &&
-    (c.req.header('Accept') ?? '').includes('text/html') &&
-    !/^\/(api|agents|mcp|auth)(\/|$)/.test(path) &&
-    !path.endsWith('.csv')
-  if (!page) return c.text('404 Not Found', 404)
+  if (!pageRequest(c)) return c.text('404 Not Found', 404)
   const accounts = c.env.ACCOUNTS === 'on'
   return c.html(
     html`<!DOCTYPE html>${(
@@ -1609,4 +1613,81 @@ export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
       )}`,
     404
   )
+}
+
+// The error page's body: that the page failed, one way back, and the request's Ray ID, by which
+// Cloudflare's logs find it, when Cloudflare's edge named one.
+const Failed = ({ back, ray }: { back: { href: string; label: string }; ray?: string }) => (
+  <main
+    class={cn(
+      marketingFrame,
+      'grid min-h-[60svh] content-start gap-x-10 gap-y-6 pt-16 md:pt-32 lg:grid-cols-2 lg:items-baseline'
+    )}
+  >
+    <h1 class="type-display">
+      <span class="line-mask">
+        <span class="block motion-safe:animate-line-up">Dead air.</span>
+      </span>
+    </h1>
+    <div class="motion-safe:animate-rise-in">
+      <p class="max-w-[46ch]">Something went wrong in Crossfeed as it loaded this page: try again in a moment.</p>
+      <ul class="mt-8 flex flex-wrap gap-3">
+        <li>
+          <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href={back.href}>
+            {back.label}
+          </a>
+        </li>
+      </ul>
+      {ray && (
+        <p class="mt-8 type-ui text-muted-foreground">
+          Ray ID{' '}
+          <code class="font-mono break-all" translate="no">
+            {ray}
+          </code>
+        </p>
+      )}
+    </div>
+  </main>
+)
+
+// What the Worker answers when a route throws, outside the API, which answers its own (routes/api.ts).
+// An HTTPException is its own answer, with its status, such as a 413, and the headers set before it was
+// thrown, as in Hono's own handler. Any other error is logged, and then a browser asking for a page gets
+// the error page in the marketing shell, with a 500: on a network's page, its way back is the network's
+// dashboard; on another of the app's, the networks; and elsewhere, home. Everything else gets a plain
+// 500, as does a page whose error page fails too.
+export const serverError: ErrorHandler<{ Bindings: Env }> = async (err, c) => {
+  if (err instanceof HTTPException) {
+    const res = err.getResponse()
+    return c.newResponse(res.body, res)
+  }
+  const path = c.req.path
+  console.error(JSON.stringify({ event: 'request_error', method: c.req.method, path, error: String(err) }))
+  if (!pageRequest(c)) return c.text('500 Internal Server Error', 500)
+  const { network } = c.var as AppVariables
+  const back = network
+    ? { href: networkLinks(c.env, network.id).dashboard, label: 'Dashboard' }
+    : /^\/app(\/|$)/.test(path)
+      ? { href: '/app', label: 'Your networks' }
+      : { href: '/', label: 'Home' }
+  try {
+    const accounts = c.env.ACCOUNTS === 'on'
+    return await c.html(
+      html`<!DOCTYPE html>${(
+          <MarketingPage
+            title="Something went wrong"
+            description="Crossfeed couldn’t load this page, as something went wrong on its side."
+            origin={appOrigins(c.env)[0]}
+            path={path}
+            accounts={accounts}
+          >
+            <Failed back={back} ray={c.req.header('cf-ray')} />
+          </MarketingPage>
+        )}`,
+      500
+    )
+  } catch (failed) {
+    console.error(JSON.stringify({ event: 'error_page_failed', path, error: String(failed) }))
+    return c.text('500 Internal Server Error', 500)
+  }
 }
