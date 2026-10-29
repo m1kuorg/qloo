@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CircleDashedIcon, ClockIcon, SquareXIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Spinner } from '@/components/ui/spinner'
 import type { LaunchSummary, Run, SlowCall } from '../agent'
 import type { Pitch } from '../inbox'
@@ -54,6 +54,28 @@ export function StateLine({
         </>
       )}
       {children}
+    </span>
+  )
+}
+
+// An inspector tab's object changing state while the tab is open, told to screen readers politely in
+// its new state sentence: a visually hidden status region, empty as the tab opens, since its heading and
+// sentence are read then, and filled when `state` changes, not when only the sentence's words do. It's
+// emptied a few seconds later, so reading the tab doesn't meet the sentence twice. Selecting another
+// object remounts the tab, so it isn't a change; a hidden tab's region says nothing.
+export function StateChange({ state, sentence }: { state: string; sentence: string }) {
+  const last = useRef(state)
+  const [told, setTold] = useState('')
+  useEffect(() => {
+    if (state === last.current) return
+    last.current = state
+    setTold(sentence)
+    const clear = setTimeout(() => setTold(''), 5_000)
+    return () => clearTimeout(clear)
+  }, [state])
+  return (
+    <span role="status" className="vh" data-state-change>
+      {told}
     </span>
   )
 }

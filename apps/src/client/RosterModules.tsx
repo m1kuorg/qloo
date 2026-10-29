@@ -32,7 +32,7 @@ import { CallButton, type OpenCall } from './Evidence'
 import type { NetworkPage } from './NetworkPage'
 import { count, FormDialog, Section, summaryLine, useFormDialog } from './PageHeader'
 import { Source } from './Source'
-import { sentence, SlowCalls, slowText, StateLine } from './states'
+import { sentence, SlowCalls, slowText, StateChange, StateLine } from './states'
 
 // The roster's modules, shared by a network's roster page and a launch's page: its import, its counts,
 // its table, the show editor, the roster check, and the CPM its slots are priced at.
@@ -459,11 +459,11 @@ const showState = (show: Show) =>
       }[show.resolution]
 
 // The selected show, in the inspector's Show tab, in the inspector's anatomy: its name with its chips,
-// its state in a sentence, and its facts, its Qloo match with the call that found it, its popularity
-// and what it's about; then settle its match, edit its figures, or leave it out. Each part is its own
-// form, so a search or a pick doesn't send the figures being typed. Downloads and status are the form's,
-// so they aren't facts too. It has no Close of its own: the inspector's closes it, and selecting
-// another row changes the show.
+// its state in a sentence, told to screen readers as it changes, and its facts, its Qloo match with the
+// call that found it, its popularity and what it's about; then settle its match, edit its figures, or
+// leave it out. Each part is its own form, so a search or a pick doesn't send the figures being typed.
+// Downloads and status are the form's, so they aren't facts too. It has no Close of its own: the
+// inspector's closes it, and selecting another row changes the show.
 export function ShowEditor({
   show,
   agent,
@@ -478,6 +478,7 @@ export function ShowEditor({
   const { busy, error, run } = useAction()
   const update = (patch: ShowPatch) => run(() => agent.stub.updateShow(show.name, patch))
   const ref = useIntoView<HTMLDivElement>()
+  const stateWords = showState(show)
   return (
     // Scrolled to, it stops clear of the inspector's sticky tabs.
     <div className="min-w-0 scroll-mt-16" ref={ref} data-show-editor>
@@ -490,8 +491,9 @@ export function ShowEditor({
             {show.excluded && <Badge>Excluded</Badge>}
           </>
         }
-        description={showState(show)}
+        description={stateWords}
       >
+        <StateChange state={show.excluded ? 'excluded' : show.resolution} sentence={stateWords} />
         <KeyValues>
           {/* A settled lookup cites its search, matched or not; a pending one has no record yet. */}
           <KeyValue label="Qloo match">

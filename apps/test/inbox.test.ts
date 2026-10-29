@@ -448,6 +448,8 @@ describe("the inspector's Pitch tab", () => {
     expect(sections(html)).toEqual([
       ['Ada Quill on Night Ferry Matched', 'Its work matched in Qloo, so a run can rank it.']
     ])
+    // Its state's live region tells screen readers only of a change while the tab is open, so it opens empty.
+    expect(hooked(html, 'data-state-change').map((r) => [/\srole="status"/.test(r), words(r)])).toEqual([[true, '']])
     expect(facts(html)).toEqual([
       ['From', 'Pat Lindqvist <pat.lindqvist@example.com>'],
       ['Guest', 'Ada Quill'],

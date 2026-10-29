@@ -63,6 +63,7 @@ import {
   pitchTally,
   sentence,
   SlowCalls,
+  StateChange,
   stateLabel,
   StateLine,
   type Connection
@@ -1791,11 +1792,11 @@ function pitchState(p: Pitch, confirming: boolean) {
 }
 
 // The pitch opened from a list or the table, in the inspector's Pitch tab, in the inspector's anatomy:
-// its subject as the heading, which takes focus as it opens, with its chip; its state in a sentence;
-// its facts, its sender, what Claude read from it, or the sample gives, and its work's Qloo match with
-// the call that found it; then its work's candidates to confirm, unless it's an earlier run's
-// (`confirmWork` null); and its text. It has no Close of its own: the inspector's closes it, and
-// selecting another pitch changes it.
+// its subject as the heading, which takes focus as it opens, with its chip; its state in a sentence,
+// told to screen readers as it changes; its facts, its sender, what Claude read from it, or the sample
+// gives, and its work's Qloo match with the call that found it; then its work's candidates to confirm,
+// unless it's an earlier run's (`confirmWork` null); and its text. It has no Close of its own: the
+// inspector's closes it, and selecting another pitch changes it.
 function PitchDetail({
   pitch: p,
   sample,
@@ -1815,6 +1816,7 @@ function PitchDetail({
   // sticky tabs.
   const heading = useRef<HTMLHeadingElement>(null)
   const ref = useIntoView<HTMLDivElement>(heading)
+  const stateWords = pitchState(p, confirmWork !== null)
   return (
     // Scrolled to, it stops clear of the inspector's sticky tabs.
     <div className="min-w-0 scroll-mt-16" ref={ref} data-pitch-detail>
@@ -1823,8 +1825,9 @@ function PitchDetail({
         title={title(p)}
         heading={heading}
         badge={<PitchChip pitch={p} />}
-        description={pitchState(p, confirmWork !== null)}
+        description={stateWords}
       >
+        <StateChange state={`${p.status} ${match?.resolution ?? ''}`} sentence={stateWords} />
         <KeyValues>
           {/* A sender's address has no spaces to wrap at. */}
           {p.from && (
