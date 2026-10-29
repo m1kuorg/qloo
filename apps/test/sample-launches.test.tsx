@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LaunchSummary, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
+import { utcDay } from '../src/client/controls'
 import { EvidencePanel } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
@@ -343,6 +344,10 @@ describe("the guest network's sample launches", () => {
       expect(sampleLabels(html), name!).toEqual([`h1: ${name}`])
       expect(page, name!).not.toContain('This run is from the sample data')
       expect(page, name!).toMatch(/Run 1 · .+ · Sample data Shown/)
+      // The run log says the day the run was captured (ADR 0007), in words rather than a badge.
+      expect(page, name!).toContain(
+        `Each step the run took when it was captured from the sample data on ${utcDay(state.run!.capturedAt!)}, and how it ended.`
+      )
       expect(page, name!).not.toContain('Replayed')
       const evidence = renderToStaticMarkup(
         <EvidencePanel opened={{ call: cited[0], status: 'loaded', record: log[0] }} />
