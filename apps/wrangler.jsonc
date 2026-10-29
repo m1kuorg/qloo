@@ -41,8 +41,8 @@
     // Sign-ups one visitor makes in a UTC day, joining through an invite aside, the networks one member
     // can create, and the launches one network can keep at once. Invite links stand outside the
     // sign-up cap, so a network keeps a number open at once, and one member's links bring in a number
-    // of new accounts a UTC day. Each API key has its own requests a minute, so a network keeps a
-    // number in use at once.
+    // of new accounts a UTC day. Each API key has its own rate limit, so a network keeps a number of
+    // keys in use at once, or more keys would raise its requests a minute.
     "SIGNUP_VISITOR_DAILY_CAP": "5",
     "NETWORKS_PER_MEMBER": "3",
     "LAUNCHES_PER_NETWORK": "100",
