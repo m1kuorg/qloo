@@ -1860,7 +1860,7 @@ function PitchDetail({
         </KeyValues>
         {confirmWork && match && match.candidates.length > 0 && p.work && (
           <PickOne
-            legend={`Which Qloo ${typeLabel[p.work.type].toLowerCase()} is ${p.work.title}?`}
+            legend={`Which Qloo ${workNoun[p.work.type]} is ${p.work.title}?`}
             options={match.candidates}
             current={match.resolution === 'resolved' ? match.entity?.id : undefined}
             note={
