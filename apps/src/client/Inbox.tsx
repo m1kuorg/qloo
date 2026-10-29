@@ -1544,10 +1544,11 @@ const ReadBy = ({ sample }: { sample: boolean }) => (sample ? <Badge>sample</Bad
 // text, the pitch's name a button that opens it in the inspector's Pitch tab, with its sender under
 // it; the guest and work as Claude read them, or as the sample gives them; the work's Qloo match, or
 // why it has none and the way to settle it; and the search's call. Its caption says where each comes
-// from, and for an earlier run viewed (`viewing`), which run's they are; the Pitches section's sentence
-// says what reaches Qloo. A set-aside pitch's guest and work cells look empty, and say "None" to screen readers rather
-// than "blank". The pitch open in the inspector, or whose evidence is, holds the tone step. Narrower
-// than the table, it scrolls sideways in its region with the pitch's column held at the left.
+// from, and for an earlier run viewed (`viewing`), which run's they are; the Pitches section's
+// sentence says what reaches Qloo. A set-aside pitch's guest and work cells look empty, and say
+// "None" to screen readers rather than "blank". The pitch open in the inspector, or whose evidence
+// is, holds the tone step. Narrower than the table, it scrolls sideways in its region with the
+// pitch's column held at the left.
 function PitchTable({
   pitches,
   sample,
