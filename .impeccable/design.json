@@ -469,7 +469,7 @@
       {
         "name": "lg",
         "value": "1024px",
-        "purpose": "24px gutters; two-column auth, new-network and settings layouts; the dashboard's 320px column; the docs' nav beside the article."
+        "purpose": "24px gutters; two-column auth and new-network layouts; the dashboard's 320px column; the docs' nav beside the article."
       },
       {
         "name": "xl",
