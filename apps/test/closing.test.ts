@@ -119,4 +119,47 @@ describe("a run's closing line", () => {
     expect(log.indexOf('data-run-error')).toBeGreaterThan(log.lastIndexOf('data-status='))
     expect(log).not.toContain('data-closing')
   })
+
+  it('keeps the punctuation around a call number against it, on its line, each call its own button', async () => {
+    const said =
+      'Ranked Back Row first (C-23, C-24, C-25 to C-29). Its budget check (C-30 to C-31) failed (see C-40; C-41: ok).'
+    fakeClaude([turn(text(said))])
+    const s = await session()
+    const { runId } = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
+    const state = await ended(s, runId)
+
+    const [closing] = hooked(
+      renderToStaticMarkup(
+        createElement(LaunchWorkspace, { agent: { state, stub: {} } as unknown as Agent, ...launchPage })
+      ),
+      'data-closing'
+    )
+    const words = (html: string) => html.replace(/<[^>]+>/g, '')
+    expect(words(closing)).toBe(`Agent${said}`)
+    // What each unbreakable run holds: a call with the punctuation against it. A parenthesis away from
+    // a call stays in the text.
+    expect(
+      [...closing.matchAll(/<span class="whitespace-nowrap">(.*?)<\/span>/g)].map(([, run]) => words(run))
+    ).toEqual(['(C-23,', 'C-24,', 'C-29).', '(C-30', 'C-31)', 'C-40;', 'C-41:'])
+    // Each call is its own button. On a side with punctuation against it, its padding narrows to a
+    // hairline and its touch target reaches out by what the padding gave up.
+    const left = ['pl-px', 'pointer-coarse:after:-left-[7px]']
+    const right = ['pr-px', 'pointer-coarse:after:-right-[7px]']
+    const sides = Object.fromEntries(
+      [...closing.matchAll(/<button[^>]* class="([^"]*)"[^>]*>(C-\d+)<\/button>/g)].map(([, classes, call]) => [
+        call,
+        classes.split(' ').filter((c) => [...left, ...right].includes(c))
+      ])
+    )
+    expect(sides).toEqual({
+      'C-23': [...left, ...right],
+      'C-24': right,
+      'C-25': [],
+      'C-29': right,
+      'C-30': left,
+      'C-31': right,
+      'C-40': right,
+      'C-41': right
+    })
+  })
 })

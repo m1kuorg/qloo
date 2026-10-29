@@ -35,21 +35,44 @@ export const runLabel: Record<Run['status'], string> = {
 }
 
 // Claude's closing line on a completed run, as an Agent block below the trace. Each call number it
-// cites opens that call's evidence.
+// cites opens that call's evidence. An opening parenthesis before a call number and , . ; : ) after it
+// sit against it and wrap with it. The button's padding on that side narrows to 1px, not 0, so its fill
+// still clears the number's edge, and the punctuation stays outside the fill. On a touch screen its hit
+// area reaches out on that side by the 3px the padding gave up, 7px instead of 4, so it's as wide.
 function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenCall; opened: string | null }) {
   return (
     <div className="flex flex-col items-start gap-1.5 rounded-lg bg-muted p-3" data-closing>
       <Source of="agent" />
       <p className="whitespace-pre-line">
-        {text
-          .split(/\b(C-\d+)\b/)
-          .map((part, i) =>
-            i % 2 ? (
-              <CallButton key={i} call={part} label="Evidence Claude cites" opened={opened} openCall={openCall} />
-            ) : (
-              part
-            )
-          )}
+        {/* Text, the parenthesis before a call (often none), the call, then the punctuation after it
+            (often none), in turn. */}
+        {text.split(/(\(?)\b(C-\d+)\b([,.;:)]*)/).map((part, i, parts) => {
+          if (i % 4 === 0) return part
+          if (i % 4 !== 2) return null
+          const [before, after] = [parts[i - 1], parts[i + 1]]
+          const call = (
+            <CallButton
+              key={i}
+              call={part}
+              label="Evidence Claude cites"
+              opened={opened}
+              openCall={openCall}
+              className={cn(
+                before && 'pl-px pointer-coarse:after:-left-[7px]',
+                after && 'pr-px pointer-coarse:after:-right-[7px]'
+              )}
+            />
+          )
+          return before || after ? (
+            <span key={i} className="whitespace-nowrap">
+              {before}
+              {call}
+              {after}
+            </span>
+          ) : (
+            call
+          )
+        })}
       </p>
     </div>
   )
