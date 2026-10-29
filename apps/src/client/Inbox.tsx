@@ -1836,14 +1836,21 @@ function PitchDetail({
           <KeyValue label="Public work">
             {p.work ? `${p.work.title} · ${typeLabel[p.work.type]}${p.work.year ? ` · ${p.work.year}` : ''}` : '–'}
           </KeyValue>
+          {/* A settled search cites its call, matched or not; while it's looked up there's no record yet. */}
           <KeyValue label="Qloo match">
-            {match?.resolution === 'resolved' && match.entity ? (
+            {match ? (
               <>
-                {match.entity.name}
-                {match.entity.disambiguation && ` (${match.entity.disambiguation})`}{' '}
+                {match.resolution === 'resolved' && match.entity ? (
+                  <>
+                    {match.entity.name}
+                    {match.entity.disambiguation && ` (${match.entity.disambiguation})`}
+                  </>
+                ) : (
+                  'None'
+                )}{' '}
                 <CallButton
                   call={match.evidence}
-                  label={`Evidence for ${p.work?.title ?? match.entity.name}`}
+                  label={`Evidence for ${p.work?.title ?? match.entity?.name ?? 'the work'}`}
                   opened={opened}
                   openCall={openCall}
                 />

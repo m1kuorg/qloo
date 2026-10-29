@@ -600,7 +600,7 @@ describe("the roster page's words", () => {
     const about = state.roster.find((show) => show.name === 'The Watch')!.description!
     expect(about).toMatch(/^Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts/)
     expect(facts(watch)).toEqual([
-      ['Qloo match', '–'],
+      ['Qloo match', 'None C-06'],
       ['Popularity percentile', '–'],
       ['About', about]
     ])

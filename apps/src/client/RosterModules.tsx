@@ -463,10 +463,13 @@ export function ShowEditor({
         description={showState(show)}
       >
         <KeyValues>
+          {/* A settled lookup cites its search, matched or not; a pending one has no record yet. */}
           <KeyValue label="Qloo match">
-            {show.entity ? (
+            {show.resolution === 'pending' ? (
+              '–'
+            ) : (
               <>
-                {show.entity.name}{' '}
+                {show.entity?.name ?? 'None'}{' '}
                 <CallButton
                   call={show.evidence}
                   label={`Evidence for ${show.name}`}
@@ -474,8 +477,6 @@ export function ShowEditor({
                   openCall={openCall}
                 />
               </>
-            ) : (
-              '–'
             )}
           </KeyValue>
           <KeyValue label="Popularity percentile">{percentile(show.entity?.popularity ?? null)}</KeyValue>

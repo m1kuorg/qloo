@@ -335,9 +335,9 @@ describe('the roster as its page shows it', () => {
     expect(sections(html)).toEqual([
       ['Deep Cuts Ambiguous', 'Qloo found more than one show by this name. Pick the match.']
     ])
-    // Nothing is matched until it's picked, so its match and popularity are missing.
+    // Nothing is matched until it's picked, so its popularity is missing; its match cites its search.
     expect(facts(html)).toEqual([
-      ['Qloo match', '–'],
+      ['Qloo match', 'None C-02'],
       ['Popularity percentile', '–'],
       ['About', '–']
     ])
@@ -361,7 +361,7 @@ describe('the roster as its page shows it', () => {
       ['The Ghost Signal Show Missed', 'No show by this name in Qloo. Map a comparable show or leave it out.']
     ])
     expect(facts(missed)).toEqual([
-      ['Qloo match', '–'],
+      ['Qloo match', 'None C-03'],
       ['Popularity percentile', '–'],
       ['About', '–']
     ])
