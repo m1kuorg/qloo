@@ -298,7 +298,7 @@ export function FitChart({
                     <CallButton call={call} label={label} opened={opened} openCall={openCall} />
                   )
                   const tint = r.finalist ? 'bg-signal-tint' : 'bg-background'
-                  const end = Array.from(r.show).at(-1) ?? '' // the name's last character, a surrogate pair whole
+                  const end = move?.climber ? lastGrapheme(r.show) : '' // what the climber's chevron rides on
                   return (
                     <Fragment key={r.show}>
                       <div
@@ -495,6 +495,11 @@ export function FitChart({
     </>
   )
 }
+
+// A name's last character as a reader sees it, whole: a letter with its accent, an emoji with its
+// modifiers, or a flag.
+const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' })
+const lastGrapheme = (name: string) => [...graphemes.segment(name)].at(-1)?.segment ?? ''
 
 // A row's two ranks in words, the lens's first: "2nd by who listens, 6th by topic". A show the topic
 // ranking doesn't place has no topic rank.

@@ -527,5 +527,7 @@ export function OpenQuestion({
 }
 
 // One option of a question: a full-width row whose whole width picks it, on the tone step once picked.
+// It never widens the card (`min-w-0`, as a radio group's grid would otherwise size its column to the
+// row's words), so an option with no spaces breaks.
 const optionRow =
-  'flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted has-checked:bg-muted max-md:min-h-11 max-md:py-3'
+  'flex min-w-0 cursor-pointer items-start gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted has-checked:bg-muted max-md:min-h-11 max-md:py-3'
