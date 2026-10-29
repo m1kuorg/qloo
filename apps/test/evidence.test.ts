@@ -261,7 +261,7 @@ describe('the evidence behind each Qloo call', () => {
     // The stored record, closed, keeps the request as it was sent.
     const stored = hooked(html, 'data-stored')[0]
     expect(stored).toMatch(/^<details\b(?![^>]*\sopen)/)
-    expect(words(stored)).toMatch(/^Stored record Copy /)
+    expect(words(stored)).toMatch(/^Stored record Copy record \{/)
     for (const name of names) expect(stored).toContain(id(name))
     expect(stored).toContain('urn:entity:podcast')
   })

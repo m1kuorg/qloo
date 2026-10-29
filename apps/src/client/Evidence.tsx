@@ -72,8 +72,11 @@ export function EvidencePanel({ opened, names, runs }: { opened: Opened | null; 
     <div className="min-w-0 scroll-mt-16" id="evidence" ref={ref}>
       {!opened ? (
         <p className="text-muted-foreground">
-          Every Qloo figure cites its call, such as <code className="font-mono text-xs">C-01</code>. Select one to see
-          what was asked and what Qloo returned.
+          Every Qloo figure cites its call, such as{' '}
+          <code className="font-mono text-xs" translate="no">
+            C-01
+          </code>
+          . Select one to see what was asked and what Qloo returned.
         </p>
       ) : (
         <Section
@@ -242,40 +245,43 @@ function EvidenceRecord({ record, names, run }: { record: Evidence; names: Names
   const demographics = record.params['filter.type'] === 'urn:demographics'
   return (
     <>
-      <KeyValues>
-        <KeyValue label="Request">
-          <code className="font-mono text-xs break-all" translate="no">
-            {record.method} {record.endpoint}
-          </code>
-        </KeyValue>
-        <KeyValue label="Status">{record.status ?? 'No response'}</KeyValue>
-        <KeyValue label="Called">{called(record)}</KeyValue>
-        {run > 0 && <KeyValue label="Run">Run {run}</KeyValue>}
-        {record.replayed ? (
-          <KeyValue label="Answer">From the stored sample run, as Qloo answered it then; no new request</KeyValue>
-        ) : record.fromSample ? (
-          <KeyValue label="Answer">
-            From the sample data, as Qloo answered it when it was captured; no new request
+      {/* Its facts and what was sent share one edge for their values. */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-4">
+        <KeyValues className="col-span-full grid-cols-subgrid">
+          <KeyValue label="Request">
+            <code className="font-mono text-xs break-all" translate="no">
+              {record.method} {record.endpoint}
+            </code>
           </KeyValue>
-        ) : (
-          record.copiedFrom && (
-            // The network's call, not this log's, which may have a call by the same number.
+          <KeyValue label="Status">{record.status ?? 'No response'}</KeyValue>
+          <KeyValue label="Called">{called(record)}</KeyValue>
+          {run > 0 && <KeyValue label="Run">Run {run}</KeyValue>}
+          {record.replayed ? (
+            <KeyValue label="Answer">From the stored sample run, as Qloo answered it then; no new request</KeyValue>
+          ) : record.fromSample ? (
             <KeyValue label="Answer">
-              From the network’s roster, its call{' '}
-              <code className="font-mono text-xs" translate="no">
-                {record.copiedFrom}
-              </code>
-              , as Qloo answered it then; the run made no new request
+              From the sample data, as Qloo answered it when it was captured; no new request
             </KeyValue>
-          )
-        )}
-        {record.error && (
-          <KeyValue label="Error">
-            <Named text={record.error} names={names} />
-          </KeyValue>
-        )}
-      </KeyValues>
-      {Object.keys(record.params).length > 0 && <WhatWasSent record={record} names={names} />}
+          ) : (
+            record.copiedFrom && (
+              // The network's call, not this log's, which may have a call by the same number.
+              <KeyValue label="Answer">
+                From the network’s roster, its call{' '}
+                <code className="font-mono text-xs" translate="no">
+                  {record.copiedFrom}
+                </code>
+                , as Qloo answered it then; the run made no new request
+              </KeyValue>
+            )
+          )}
+          {record.error && (
+            <KeyValue label="Error">
+              <Named text={record.error} names={names} />
+            </KeyValue>
+          )}
+        </KeyValues>
+        {Object.keys(record.params).length > 0 && <WhatWasSent record={record} names={names} />}
+      </div>
       {entities.length > 0 && (
         <ValueTable
           title={`Entities · ${entities.length}`}
@@ -356,9 +362,9 @@ function WhatWasSent({ record, names }: { record: Evidence; names: Names }) {
     return <EntityNames ids={ids} noun={noun} names={names} />
   }
   return (
-    <div className="flex flex-col gap-1.5">
-      <h3 className="font-semibold">What was sent</h3>
-      <KeyValues>
+    <div className="col-span-full grid grid-cols-subgrid gap-y-1.5">
+      <h3 className="col-span-full font-semibold">What was sent</h3>
+      <KeyValues className="col-span-full grid-cols-subgrid">
         {Object.entries(params).map(([key, value]) => (
           <KeyValue key={key} label={label(key)}>
             {shown(key, value)}
@@ -433,8 +439,9 @@ function Named({ text, names }: { text: string; names: Names }) {
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 
 // The record as the gateway stored it, closed until opened: its parameters and results with their IDs,
-// URNs and every figure in full, as JSON, with a button that copies it. Stored, not Qloo's response,
-// as the gateway keeps only these fields. Key it by the call, so a new one starts uncopied.
+// URNs and every figure in full, as JSON, scrolling in its own region, with a button that copies it.
+// Stored, not Qloo's response, as the gateway keeps only these fields. Key it by the call, so a new
+// one starts uncopied.
 function StoredRecord({ record }: { record: Evidence }) {
   const json = JSON.stringify(record, null, 2)
   const { copied, copy } = useCopy(json)
@@ -443,7 +450,7 @@ function StoredRecord({ record }: { record: Evidence }) {
       <div className="mt-2 flex flex-col items-start gap-2">
         <Button variant="secondary" size="sm" onClick={() => void copy()}>
           {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? 'Copied' : 'Copy record'}
         </Button>
         {/* The button's "Copied", told to screen readers too. */}
         <span role="status" className="vh">
@@ -454,8 +461,10 @@ function StoredRecord({ record }: { record: Evidence }) {
             This browser didn’t let Crossfeed copy it. Select the record and copy it yourself.
           </StateLine>
         )}
-        <ScrollTable label="Stored record" className="w-full">
-          <pre className="font-mono text-xs">{json}</pre>
+        <ScrollTable label="Stored record" className="max-h-[60svh] w-full overflow-y-auto">
+          <pre className="font-mono text-xs" translate="no">
+            {json}
+          </pre>
         </ScrollTable>
       </div>
     </Fold>
