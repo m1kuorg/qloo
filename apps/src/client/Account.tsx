@@ -103,7 +103,7 @@ function GuestSignIn({ next, runs, refused }: { next: string; runs: number; refu
       <Section
         id="way-guest"
         title="Look around as a guest"
-        description="Try Crossfeed for a day on the sample network, with no account of your own."
+        description="Try Crossfeed for a day with the sample data, with no account of your own."
       >
         {/* The guest's terms, read before the button, which a screen reader announces them with. */}
         <p id="guest-terms" className="type-caption text-pretty text-muted-foreground">
