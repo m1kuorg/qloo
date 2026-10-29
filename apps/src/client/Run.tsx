@@ -36,8 +36,8 @@ export const runLabel: Record<Run['status'], string> = {
 
 // Claude's closing line on a completed run, as an Agent block below the trace. Each call number it
 // cites opens that call's evidence. An opening parenthesis right before a call and punctuation right
-// after it sit against its number and wrap with it: the button drops its padding on that side, so the
-// punctuation stays outside its fill.
+// after it sit against its number and wrap with it: the button's padding on that side narrows to 1px,
+// so its fill stays clear of the call's text and the punctuation stays outside it.
 function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenCall; opened: string | null }) {
   return (
     <div className="flex flex-col items-start gap-1.5 rounded-lg bg-muted p-3" data-closing>
@@ -56,7 +56,7 @@ function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenC
               label="Evidence Claude cites"
               opened={opened}
               openCall={openCall}
-              className={cn(before && 'pl-0', after && 'pr-0')}
+              className={cn(before && 'pl-px', after && 'pr-px')}
             />
           )
           return before || after ? (

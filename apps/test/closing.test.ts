@@ -135,8 +135,8 @@ describe("a run's closing line", () => {
     )
     expect(closing.replace(/<[^>]+>/g, '')).toBe(`Agent${said}`)
     // Each call's button, the opening parenthesis right before it and the punctuation right after it,
-    // whether one unbreakable run holds them, and which of its paddings the button drops, so the
-    // punctuation sits against the number.
+    // whether one unbreakable run holds them, and which of its paddings the button narrows to a
+    // hairline, so the punctuation sits against the number.
     const calls = [
       ...closing.matchAll(
         /(<span class="whitespace-nowrap">)?(\(?)<button([^>]*)>(C-\d+)<\/button>([,.;:)]*)(<\/span>)?/g
@@ -146,15 +146,15 @@ describe("a run's closing line", () => {
       before,
       after,
       kept: Boolean(open && close),
-      dropped: ['pl-0', 'pr-0'].filter((padding) => new RegExp(`class="[^"]*\\b${padding}\\b`).test(attrs))
+      hairline: ['pl-px', 'pr-px'].filter((padding) => new RegExp(`class="[^"]*\\b${padding}\\b`).test(attrs))
     }))
     expect(calls).toEqual([
-      { call: 'C-23', before: '(', after: ',', kept: true, dropped: ['pl-0', 'pr-0'] },
-      { call: 'C-24', before: '', after: ',', kept: true, dropped: ['pr-0'] },
-      { call: 'C-25', before: '', after: '', kept: false, dropped: [] },
-      { call: 'C-29', before: '', after: ').', kept: true, dropped: ['pr-0'] },
-      { call: 'C-30', before: '(', after: '', kept: true, dropped: ['pl-0'] },
-      { call: 'C-31', before: '', after: ')', kept: true, dropped: ['pr-0'] }
+      { call: 'C-23', before: '(', after: ',', kept: true, hairline: ['pl-px', 'pr-px'] },
+      { call: 'C-24', before: '', after: ',', kept: true, hairline: ['pr-px'] },
+      { call: 'C-25', before: '', after: '', kept: false, hairline: [] },
+      { call: 'C-29', before: '', after: ').', kept: true, hairline: ['pr-px'] },
+      { call: 'C-30', before: '(', after: '', kept: true, hairline: ['pl-px'] },
+      { call: 'C-31', before: '', after: ')', kept: true, hairline: ['pr-px'] }
     ])
   })
 })
