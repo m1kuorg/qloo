@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TabsContent } from '@/components/ui/tabs'
-import type { Show } from '../agent'
 import { EvidencePanel, useEvidence } from './Evidence'
 import { canvas, frame, Inspector, InspectorToggle, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
@@ -20,10 +20,11 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
 }
 
 // The roster every launch on the network ranks, kept by its agent, which answers "Is my roster ready
-// to rank?": the header with the roster's counts, the inspector's toggle and Import shows, the shows
-// Qloo failed on, and the roster table, whose caption says whether it's ready to rank, and whose shows
-// open in the inspector's Show tab beside it (a sheet under 1360px), closed until then, and whose
-// calls open in its Evidence tab. An empty roster has the empty state instead, with Import shows and
+// to rank?": the header with the roster's counts, the inspector's toggle and Import shows, its title
+// badged sample while the network holds the sample data, the page's one sample label (ADR 0007); the
+// shows Qloo failed on; and the roster table, whose rows' match chips say what's left to settle, and
+// whose shows open in the inspector's Show tab beside it (a sheet under 1360px), closed until then,
+// and whose calls open in its Evidence tab. An empty roster has the empty state instead, with Import shows and
 // no inspector; either opens the import in its dialog. Every member's edits reach the others through
 // synced state. Tests render it from a network agent's synced state.
 export function NetworkRoster({
@@ -49,6 +50,7 @@ export function NetworkRoster({
       connection={state ? connection : null}
       empty={roster.length === 0}
       summary={rosterSummary(roster)}
+      badge={state?.sample && <Badge>sample</Badge>}
       actions={
         <>
           <InspectorToggle open={inspector.open} toggle={inspector.toggle} ref={inspector.toggleButton} />
@@ -84,7 +86,6 @@ export function NetworkRoster({
             <RosterFailures roster={roster} />
             <RosterTable
               roster={roster}
-              readiness={readiness(roster)}
               selected={show?.name ?? null}
               select={(name, from) => {
                 setSelected(name)
@@ -128,20 +129,4 @@ export function NetworkRoster({
       />
     </>
   )
-}
-
-// Whether a run can score every show yet, said in the table's caption, as the table settles them:
-// shows ambiguous, missed or failed in Qloo aren't scored until they're settled or left out. Nothing
-// while shows are still being looked up.
-function readiness(roster: Show[]) {
-  if (roster.some((s) => s.resolution === 'pending')) return null
-  const unsettled = roster.filter(
-    (s) => !s.excluded && (s.resolution === 'ambiguous' || s.resolution === 'missed' || s.resolution === 'failed')
-  ).length
-  const scorable = roster.filter((s) => !s.excluded && (s.resolution === 'resolved' || s.resolution === 'mapped'))
-  return unsettled > 0
-    ? `${unsettled} ${unsettled === 1 ? 'show isn’t' : 'shows aren’t'} scored until you settle or leave ${unsettled === 1 ? 'it' : 'them'} out.`
-    : scorable.length > 0
-      ? 'Ready to rank: every show can be scored.'
-      : 'Every show is left out, so a run has nothing to rank.'
 }

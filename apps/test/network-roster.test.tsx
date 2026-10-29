@@ -24,6 +24,7 @@ import {
   openMember,
   openSession,
   regions,
+  sampleLabels,
   type Member,
   type Session
 } from './session'
@@ -450,15 +451,13 @@ describe("the roster page's words", () => {
   const page = (state: State | undefined) => words(markup(state))
   // The inspector's Show tab for one of the roster's shows, as selecting its row opens it.
   const editor = (state: State, name: string) =>
-    words(
-      renderToStaticMarkup(
-        <ShowEditor
-          show={state.roster.find((show) => show.name === name)!}
-          agent={{ state, stub: {} } as unknown as NetworkConnection}
-          openCall={() => {}}
-          opened={null}
-        />
-      )
+    renderToStaticMarkup(
+      <ShowEditor
+        show={state.roster.find((show) => show.name === name)!}
+        agent={{ state, stub: {} } as unknown as NetworkConnection}
+        openCall={() => {}}
+        opened={null}
+      />
     )
 
   it("leaves the shell's top bar the one banner, and names each region once", async () => {
@@ -512,57 +511,41 @@ describe("the roster page's words", () => {
     expect(dashboard('member')).toContain('CPM $20 per 1,000 downloads View')
   })
 
-  it("labels the guest network's sample roster figure by figure, under no notice", async () => {
+  it("labels the guest network's sample roster once, beside its title, under no notice, and leaves what's left to settle to its rows and counts", async () => {
     fakeQloo({ search: {} })
     env.SAMPLE_NETWORK = 'on'
     const network = 'guest-network'
     const agent = await connect(await openGuest(), network)
     const state = await agent.until((s) => s.roster.length > 0 && settled(s))
     const read = page(state)
-    // One sample label a row, beside the show's name, however many of its figures are the sample's. It's
-    // hidden from screen readers, as the row's header is read out before each of its cells, so they
-    // hear "sample" after each sample figure instead.
+    // The header's one "sample" badge says the roster is the sample data's; its rows and the Show tab
+    // carry none of their own, and say no "sample" for screen readers.
+    expect(sampleLabels(markup(state))).toEqual(['h1: Roster'])
     expect(read).toContain(
-      "The Watch sample Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts, break down the week's TV, movies, and music. Missed No show by this name in Qloo. Map a comp or leave out 340,000 sample active sample C-06"
+      "The Watch Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts, break down the week's TV, movies, and music. Missed No show by this name in Qloo. Map a comp or leave out 340,000 active C-06"
     )
-    const chip = /<span\b[^>]*\saria-hidden="true"[^>]*>sample<\/span>/g
-    const rows = (s: State) =>
-      markup(s)
-        .match(/<tbody>.*<\/tbody>/s)![0]
-        .split('</tr>')
-        .slice(0, -1)
-    expect(rows(state)).toHaveLength(19)
-    for (const row of rows(state)) {
-      const [header] = row.match(/<th\b.*<\/th>/s)!
-      expect(row.match(/>sample</g)).toHaveLength(1)
-      expect(header.match(chip)).toHaveLength(1)
-      expect(words(header.replace(chip, ''))).not.toMatch(/sample/i)
-    }
-    // A figure changed loses its label for screen readers; the row keeps its own while any is the sample's.
-    await agent.call('updateShow', 'The Watch', { downloads: 350000 })
-    const edited = await agent.until((s) => s.roster.some((show) => show.downloads === 350000))
-    const watchRow = rows(edited).find((row) => row.includes('>The Watch<'))!
-    expect(watchRow.match(chip)).toHaveLength(1)
-    expect(words(watchRow)).toContain('Map a comp or leave out 350,000 active sample C-06')
-    // The Show tab says which figures are the sample's.
     const watch = editor(state, 'The Watch')
-    expect(watch).toContain('Sample: Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
-    expect(watch).toContain('Downloads per episode sample Status sample Save')
+    expect(sampleLabels(watch)).toEqual([])
+    expect(words(watch)).toContain('Missed Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts')
+    expect(words(watch)).toContain('Downloads per episode Status Save')
     // The inspector's close button closes it, so the show has no Close of its own.
-    expect(watch).not.toContain('Close')
+    expect(words(watch)).not.toContain('Close')
     // The header: the title, its counts, the inspector's toggle, and the import, in a dialog; then the
-    // table, whose caption, which describes it, starts with whether it's ready to rank. No notice,
-    // explanation, or CPM is above it.
+    // table, whose caption says where its matches come from. No notice, explanation, or CPM is above
+    // it, and no line of what's left to settle: the rows' match chips and the header's counts say it.
     expect(read).toMatch(
-      /^Roster 19 shows · 19 missed Details Import shows 19 shows aren’t scored until you settle or leave them out\. Qloo data Matches from Qloo search, one call per show\. /
+      /^Roster sample 19 shows · 19 missed Details Import shows Qloo data Matches from Qloo search, one call per show\. /
     )
+    expect(read).not.toContain('scored until')
     // The inspector is closed as the page opens, so the table takes the width; Details opens it.
     expect(markup(state)).toMatch(inspectorClosed)
     expect(markup(state)).toMatch(detailsToggle)
-    expect(markup(state)).toMatch(
-      /\sid="roster-cap"[^>]*>(<[^>]+>)*19 shows aren’t scored until you settle or leave them out\./
-    )
     for (const gone of ['Sample roster', 'Crossfeed isn’t affiliated', 'Start from the sample roster', 'CPM'])
       expect(read).not.toContain(gone)
+    // A member's own roster isn't the sample data's.
+    const ada = await openMember()
+    const own = await (await connect(ada, await created(ada))).importRoster('The Watch\nHouse of R')
+    expect(sampleLabels(markup(own))).toEqual([])
+    expect(page(own)).toMatch(/^Roster 2 shows · 2 missed /)
   })
 })
