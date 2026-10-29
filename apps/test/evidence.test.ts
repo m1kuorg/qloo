@@ -225,17 +225,17 @@ describe('the evidence behind each Qloo call', () => {
     )
   })
 
-  it('shows raw figures exactly as Qloo returned them, never rounded', () => {
-    // A demographics call, whose buckets are signed decimals. Qloo's own JSON carries binary-float noise
-    // in some (its answer for The Watch had "30_to_34": -0.11400000000000002), and more significant
-    // digits than 12 in others: each prints as Qloo wrote it.
-    const record: Evidence = {
-      call: 'C-07',
+  it("shows each figure in its metric's one format", () => {
+    // Synthetic records of each call type, with figures as Qloo's JSON writes them: binary-float noise
+    // (its answer for The Watch had "30_to_34": -0.11400000000000002), more digits than the view needs,
+    // and a demographic bucket of -0, which reads as no lean either way.
+    const record = (call: string, endpoint: string, results: Partial<Evidence>): Evidence => ({
+      call,
       run: null,
       at: '2026-10-19T12:00:00.000Z',
-      method: 'POST',
-      endpoint: '/v2/insights',
-      params: { 'filter.type': 'urn:demographics', 'signal.interests.entities': 'e-0001' },
+      method: endpoint === '/v2/insights' ? 'POST' : 'GET',
+      endpoint,
+      params: {},
       status: 200,
       latencyMs: 12,
       retries: 0,
@@ -243,24 +243,45 @@ describe('the evidence behind each Qloo call', () => {
       error: null,
       entities: [],
       tags: [],
-      affinities: [
-        {
-          id: 'e-0001',
-          name: 'Night Shift Cinema',
-          affinity: null,
-          explainability: [
-            ...(JSON.parse(
-              '[{"id":"age.25_to_29","score":-0.11400000000000002},{"id":"age.30_to_34","score":0.1234567890123456},{"id":"gender.male","score":0.417}]'
-            ) as { id: string; score: number }[])
-          ]
-        }
+      affinities: [],
+      ...results
+    })
+    const shown = (r: Evidence) =>
+      renderToStaticMarkup(createElement(EvidencePanel, { opened: { call: r.call, status: 'loaded', record: r } }))
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+    const search = record('C-01', '/search', {
+      entities: [
+        { id: 'e-0001', name: 'Night Shift Cinema', type: 'urn:entity:podcast', popularity: 0.9971234567890123 },
+        { id: 'e-0002', name: 'Deep Cuts', type: 'urn:entity:podcast', popularity: null }
       ]
-    }
-    const html = renderToStaticMarkup(
-      createElement(EvidencePanel, { opened: { call: 'C-07', status: 'loaded', record } })
+    })
+    const compare = record('C-02', '/v2/analysis/compare', {
+      tags: [{ id: 't-0001', name: 'Film criticism', score: 0.9780580150851146 }]
+    })
+    const ranking = record('C-03', '/v2/insights', {
+      affinities: [{ id: 'e-0002', name: 'Deep Cuts', affinity: 0.6667777, explainability: [] }]
+    })
+    const scores = JSON.parse(
+      '[{"id":"age.25_to_29","score":-0.11400000000000002},{"id":"age.30_to_34","score":0.1234567890123456},{"id":"age.35_to_44","score":-0},{"id":"gender.male","score":0.42},{"id":"gender.female","score":-0.0004}]'
+    ) as { id: string; score: number }[]
+    const demographics = record('C-04', '/v2/insights', {
+      params: { 'filter.type': 'urn:demographics', 'signal.interests.entities': 'e-0001' },
+      affinities: [{ id: 'e-0001', name: 'Night Shift Cinema', affinity: null, explainability: scores }]
+    })
+
+    // Popularity is a percentile to one decimal, and a missing one is a dash.
+    expect(shown(search)).toContain(
+      'Name Popularity percentile Night Shift Cinema e-0001 urn:entity:podcast 99.7 Deep Cuts e-0002 urn:entity:podcast –'
     )
-    const read = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
-    expect(read).toContain('Affinities · 1 Name Affinity, raw Night Shift Cinema e-0001')
-    expect(read).toContain('age.25_to_29 -0.11400000000000002 age.30_to_34 0.1234567890123456 gender.male 0.417 –')
+    // A tag's score and an affinity are to three decimals.
+    expect(shown(compare)).toContain('Name Score Film criticism t-0001 0.978')
+    expect(shown(ranking)).toContain('Name Affinity Deep Cuts e-0002 0.667')
+    // A demographic score is signed to three decimals with a true minus sign, and no lean, -0 or a
+    // figure that rounds to it, is 0.000, unsigned.
+    const minus = '\u2212'
+    expect(shown(demographics)).toContain(
+      `age.25_to_29 ${minus}0.114 age.30_to_34 +0.123 age.35_to_44 0.000 gender.male +0.420 gender.female 0.000 –`
+    )
   })
 })
