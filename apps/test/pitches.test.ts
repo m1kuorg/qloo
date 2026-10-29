@@ -252,12 +252,12 @@ describe('ranking pitched works against the show', () => {
     ])
     // Ranks and bands reach the browser; the raw affinities stay in the evidence.
     for (const a of affinities) expect(s.frames().filter((f) => f.includes(a))).toEqual([])
-    // The page lists each type on its own with its call and anchors: by rank, each work with the guest
+    // The page lists each type on its own with its anchors and call: by rank, each work with the guest
     // as Claude read them, and its band.
     expect(words(list(state, 'book'))).toBe(
-      'Books · 2 ranked C-08 Ranked against Night Shift Cinema and Glass Harbor. Rank Public work · guest Agent Fit 1 Paper Moons Rue Vance Strong 2 Night Ferry Ada Quill Good'
+      'Books · 2 ranked Ranked against Night Shift Cinema and Glass Harbor. C-08 Rank Public work · guest Agent Fit 1 Paper Moons Rue Vance Strong 2 Night Ferry Ada Quill Good'
     )
-    expect(words(list(state, 'tv_show'))).toContain('TV shows · 1 ranked C-10')
+    expect(words(list(state, 'tv_show'))).toMatch(/^TV shows · 1 ranked Ranked against .+\. C-10 /)
     // Each work opens its pitch.
     expect(list(state, 'film')).toMatch(/<button\b[^>]*>Static Bloom<\/button>/)
   })
@@ -310,10 +310,10 @@ describe('ranking pitched works against the show', () => {
     ])
     // The page says which anchors each list used, and why a type isn't ranked, with its pitches.
     expect(words(list(state, 'book'))).toContain(
-      'Books · 2 ranked C-09 C-12 Ranked against the past guests’ books alone: Salt Roads. Qloo scored no book against the show and every past guest (C-09).'
+      'Books · 2 ranked Ranked against the past guests’ books alone: Salt Roads. Qloo scored no book against the show and every past guest (C-09). C-09 C-12'
     )
     const unranked = words(list(state, 'tv_show'))
-    expect(unranked).toMatch(/^TV shows · 0 ranked C-11 Failed Not ranked: .*no past guest's work is a TV show/)
+    expect(unranked).toMatch(/^TV shows · 0 ranked Failed Not ranked: .*no past guest's work is a TV show.* C-11 /)
     expect(unranked).toMatch(/Not scored · 1 Pitch Reason Dead Air Not ranked/)
   })
 })
@@ -333,7 +333,7 @@ describe("the inbox's Run tab", () => {
 
     const [glass, lights] = state.booking!.pastGuests.map((g) => g.match!.evidence)
     expect(words(module(state, 'anchors-h'))).toBe(
-      `Ranked against Qloo data Night Shift Cinema The show Glass Harbor ${glass} Mae Ford · Film · 2020 · Matched Harbor Lights ${lights} Lu Park · Film · 2001 · Not in Qloo A past guest’s work that didn’t match isn’t an anchor. Edit it and rank again.`
+      `Ranked against Qloo data The show and past guests’ works the run ranked the pitches against, each as Qloo matched it. Night Shift Cinema The show Glass Harbor ${glass} Mae Ford · Film · 2020 · Matched Harbor Lights ${lights} Lu Park · Film · 2001 · Not in Qloo A past guest’s work that didn’t match isn’t an anchor. Edit it and rank again.`
     )
   })
 

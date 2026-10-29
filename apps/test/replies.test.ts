@@ -19,7 +19,7 @@ import {
   type ModelRequest,
   type QlooEntity
 } from './fake'
-import { hooked, links, openSession, type Session } from './session'
+import { hooked, links, openSession, sections, tabsOf, type Session } from './session'
 
 // The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
 const pitchText = (request: ModelRequest): string =>
@@ -108,12 +108,9 @@ afterEach(() => {
 
 const finished = (s: Session) => s.until((state: State) => state.run !== null && state.run.status !== 'running')
 
-// A session with the show imported, the pitches loaded, and a pitch run against the show alone
-// started and scripted through `script`, its compares answered from `compared`.
-async function startRun(
-  script: Parameters<typeof fakeClaude>[0],
-  compared: Parameters<typeof fakeCompare>[0] = compare
-) {
+// A session with the show imported and the pitches loaded and read, its compares answered from
+// `compared` once a run starts.
+async function loadedInbox(compared: Parameters<typeof fakeCompare>[0] = compare) {
   fakeQloo({ search })
   fakeInsights((body) => scores[String(body['filter.type'])])
   fakeCompare(compared)
@@ -131,6 +128,15 @@ async function startRun(
   await s.importRoster('Night Shift Cinema')
   await s.call('loadInbox', { text: inboxText })
   await s.until((state) => state.inbox?.status === 'done')
+  return s
+}
+
+// The same, with a pitch run against the show alone started and scripted through `script`.
+async function startRun(
+  script: Parameters<typeof fakeClaude>[0],
+  compared: Parameters<typeof fakeCompare>[0] = compare
+) {
+  const s = await loadedInbox(compared)
   const extractions = modelRequests().length
   fakeClaude(script)
   await s.call('startPitches', { show: 'Night Shift Cinema', pastGuests: [] })
@@ -552,9 +558,7 @@ describe('the booker clearing the inbox', () => {
     // The header says which run it is, in place of the inbox's counts, in the summary's one muted form,
     // the inspector's toggle, and the way back.
     expect(words(html)).toMatch(/^Inbox Run 1 · earlier, read-only Details Back to the latest run Read Run log /)
-    expect(words(html)).toContain(
-      'shares with Night Shift Cinema in Qloo. Run 1’s replies, read-only; an approved one can still be copied.'
-    )
+    expect(words(html)).toContain('Agent Run 1’s replies, read-only; an approved one can still be copied.')
     expect(actionsOf(html, 'pitch-02')).toEqual([['Copy reply about Paper Moons', false]])
     expect(words(replyOn(html, 'pitch-02'))).toMatch(
       /Copy reply about Paper Moons Copy it into your own email to send\.$/
@@ -562,7 +566,7 @@ describe('the booker clearing the inbox', () => {
     expect(hooked(replyOn(html, 'pitch-01'), 'data-actions')).toEqual([])
     expect(words(replyOn(html, 'pitch-03'))).toBe('Fen Light · Oda Brink Discarded')
     // Its pitches as they were, with no way to load others or rank them again.
-    expect(words(html)).toContain('Pitches As they were when run 1 ended.')
+    expect(words(html)).toContain('As they were when run 1 ended. Agent Guest and work as Claude read them')
     expect(words(html)).not.toContain('Rank against a show')
     const named = buttons(html).map(([, name]) => name)
     for (const absent of ['Rank pitches', 'Read pitches', 'Approve', 'Edit', 'Discard', 'Restore'])
@@ -637,13 +641,12 @@ describe('the booker clearing the inbox', () => {
 
     // The readout says the run waits, and its Run log opens the inspector on the run's log.
     expect(words(html)).toContain('Waiting on you Answer the agent’s question to go on. Run log')
-    // Before the lists, so a single column reaches it first.
+    // Before the tabs and the lists, so a single column reaches it first.
     expect(html.indexOf('Hold the film pitches for next season?')).toBeGreaterThan(-1)
+    expect(html.indexOf('Hold the film pitches for next season?')).toBeLessThan(html.indexOf('role="tablist"'))
     expect(html.indexOf('Hold the film pitches for next season?')).toBeLessThan(html.indexOf('id="lists-h"'))
     // The replies say why they're locked, and every action waits.
-    expect(words(html)).toContain(
-      'Only an approved reply can be copied, to send from your own email. Claude is still drafting: approve once the run has ended.'
-    )
+    expect(words(html)).toContain('Claude is still drafting: approve once the run has ended.')
     expect(actionsOf(html, 'pitch-02')).toEqual([
       ['Approve reply about Paper Moons', true],
       ['Copy reply about Paper Moons', true],
@@ -761,5 +764,95 @@ describe('a closing line the replies have changed since', () => {
     expect(changed.replace(/<[^>]+>/g, '')).toBe(note)
     // Right under the closing line.
     expect(edited).toContain(closing + changed)
+  })
+})
+
+// Once there are pitches, the inbox's sections stand in tabs under its header, readout and question:
+// Pitches, Rank with the ranked lists under its form, and Replies once there are some.
+describe("the inbox's tabs", () => {
+  // The canvas, beside the inspector and its own tabs, and its sections, by heading, in each tab's panel.
+  const canvas = (html: string) => hooked(html, 'data-canvas')[0]
+  const panels = (html: string) =>
+    hooked(canvas(html), 'role="tabpanel"').map((panel) => sections(panel).map(([heading]) => heading))
+  const lists = [
+    'Pitches for Night Shift Cinema Qloo data',
+    'Books · 3 ranked',
+    'Films · 2 ranked',
+    'TV shows · 1 ranked'
+  ]
+
+  it('tabs the inbox once it has pitches, Pitches then Rank, and adds Replies once the run drafts them', async () => {
+    const s = await loadedInbox()
+    const read = inboxPage(s.state()!)
+    expect(tabsOf(canvas(read))).toEqual({
+      label: 'Inbox sections',
+      tabs: ['Pitches', 'Rank'],
+      panels: ['shown', 'hidden']
+    })
+    expect(panels(read)).toEqual([['Pitches'], ['Rank against a show']])
+
+    fakeClaude(drafted)
+    await s.call('startPitches', { show: 'Night Shift Cinema', pastGuests: [] })
+    const ranked = inboxPage(await finished(s))
+    expect(tabsOf(canvas(ranked))).toEqual({
+      label: 'Inbox sections',
+      tabs: ['Pitches', 'Rank', 'Replies'],
+      panels: ['shown', 'hidden', 'hidden']
+    })
+    expect(panels(ranked)).toEqual([
+      ['Pitches'],
+      ['Rank against a show', ...lists],
+      ['Replies · 0 of 7 approved Agent']
+    ])
+  })
+
+  it('has no Rank tab while an earlier run is viewed, its ranked lists shown with its pitches', async () => {
+    const { s, state } = await pitchRun(drafted)
+    const ended = await s.call<State>('getRun', state.run!.id)
+    const html = inboxPage(ended, { runs: s.state()!.runs, id: state.run!.id })
+
+    expect(tabsOf(canvas(html))).toEqual({
+      label: 'Inbox sections',
+      tabs: ['Pitches', 'Replies'],
+      panels: ['shown', 'hidden']
+    })
+    expect(panels(html)).toEqual([[...lists, 'Pitches'], ['Replies · 0 of 7 approved Agent']])
+  })
+
+  it('heads each of its sections, and the inspector’s, with one sentence of what it holds', async () => {
+    const { state } = await pitchRun(drafted)
+    const html = renderToStaticMarkup(
+      createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
+    )
+    const calls = (type: string) => state.booking!.lists!.find((l) => l.type === type)!.calls.join(' ')
+
+    expect(sections(canvas(html))).toEqual([
+      ['Pitches', 'Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'],
+      [
+        'Rank against a show',
+        'Each type of pitched work is ranked in its own Qloo call against a roster show and its best past guests’ public works.'
+      ],
+      [
+        'Pitches for Night Shift Cinema Qloo data',
+        'One list per type of work, each from its own Qloo call, so a rank in one list can’t be compared with a rank in another.'
+      ],
+      ['Books · 3 ranked', `Ranked against Night Shift Cinema. ${calls('book')}`],
+      ['Films · 2 ranked', `Ranked against Night Shift Cinema. ${calls('film')}`],
+      ['TV shows · 1 ranked', `Ranked against Night Shift Cinema. ${calls('tv_show')}`],
+      [
+        'Replies · 0 of 7 approved Agent',
+        'Claude drafted a reply to each pitch with a verdict, and an episode angle for each top pitch from the tags its work shares with Night Shift Cinema in Qloo.'
+      ]
+    ])
+    expect(sections(hooked(html, 'id="inspector"')[0])).toEqual([
+      ['Run log Completed', 'Each step the run took, and how it ended.'],
+      [
+        'Ranked against Qloo data',
+        'The show and past guests’ works the run ranked the pitches against, each as Qloo matched it.'
+      ],
+      ['Runs', 'Each run starts fresh; earlier ones stay here to compare.'],
+      ['Inbox check', 'Matched works are the ones that can be ranked against the show.'],
+      ['Evidence', 'The Qloo request behind a call, and what Qloo returned.']
+    ])
   })
 })
