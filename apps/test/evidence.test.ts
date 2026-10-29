@@ -268,7 +268,8 @@ describe('the evidence behind each Qloo call', () => {
 
   // Synthetic records of each call type, with figures as Qloo's JSON writes them: binary-float noise
   // (its answer for The Watch had "30_to_34": -0.11400000000000002), more digits than the view needs,
-  // and a demographic bucket of -0, which reads as no lean either way.
+  // and a demographic bucket of -0, which reads as no lean either way. Entity IDs are shaped as Qloo's.
+  const e = (n: number) => `0B8D2671-52FC-4AD8-9934-${String(n).padStart(12, '0')}`
   const record = (call: string, endpoint: string, results: Partial<Evidence>): Evidence => ({
     call,
     run: null,
@@ -289,30 +290,30 @@ describe('the evidence behind each Qloo call', () => {
   const search = record('C-01', '/search', {
     params: { query: 'Night Shift Cinema', types: 'urn:entity:podcast', take: 5 },
     entities: [
-      { id: 'e-0001', name: 'Night Shift Cinema', type: 'urn:entity:podcast', popularity: 0.9971234567890123 },
-      { id: 'e-0002', name: 'Deep Cuts', type: 'urn:entity:podcast', popularity: null }
+      { id: e(1), name: 'Night Shift Cinema', type: 'urn:entity:podcast', popularity: 0.9971234567890123 },
+      { id: e(2), name: 'Deep Cuts', type: 'urn:entity:podcast', popularity: null }
     ]
   })
   const compare = record('C-02', '/v2/analysis/compare', {
-    params: { 'a.signal.interests.entities': 'e-0001', 'b.signal.interests.entities': 'e-0002', take: 50 },
-    tags: [{ id: 't-0001', name: 'Film criticism', score: 0.9780580150851146 }]
+    params: { 'a.signal.interests.entities': e(1), 'b.signal.interests.entities': e(2), take: 50 },
+    tags: [{ id: 'urn:tag:keyword:media:film_criticism', name: 'Film criticism', score: 0.9780580150851146 }]
   })
   const ranking = record('C-03', '/v2/insights', {
     params: {
       'filter.type': 'urn:entity:podcast',
-      'signal.interests.entities': 'e-0001',
-      'filter.results.entities': 'e-0002,e-0003',
+      'signal.interests.entities': e(1),
+      'filter.results.entities': `${e(2)},${e(3)}`,
       'feature.explainability': true,
       take: 50
     },
-    affinities: [{ id: 'e-0002', name: 'Deep Cuts', affinity: 0.6667777, explainability: [] }]
+    affinities: [{ id: e(2), name: 'Deep Cuts', affinity: 0.6667777, explainability: [{ id: e(1), score: 1 }] }]
   })
   const scores = JSON.parse(
-    '[{"id":"age.25_to_29","score":-0.11400000000000002},{"id":"age.30_to_34","score":0.1234567890123456},{"id":"age.35_to_44","score":-0},{"id":"gender.male","score":0.42},{"id":"gender.female","score":-0.0004}]'
+    '[{"id":"age.55_and_older","score":0.2},{"id":"age.35_to_44","score":-0},{"id":"age.25_to_29","score":-0.11400000000000002},{"id":"age.30_to_34","score":0.1234567890123456},{"id":"gender.female","score":-0.0004},{"id":"gender.male","score":0.42}]'
   ) as { id: string; score: number }[]
   const demographics = record('C-04', '/v2/insights', {
-    params: { 'filter.type': 'urn:demographics', 'signal.interests.entities': 'e-0001' },
-    affinities: [{ id: 'e-0001', name: 'Night Shift Cinema', affinity: null, explainability: scores }]
+    params: { 'filter.type': 'urn:demographics', 'signal.interests.entities': e(1) },
+    affinities: [{ id: e(1), name: 'Night Shift Cinema', affinity: null, explainability: scores }]
   })
   // The Evidence tab for a record, its names drawn from `log`, as the session's log would hold it.
   const panel = (r: Evidence, log = [r]) =>
@@ -324,20 +325,119 @@ describe('the evidence behind each Qloo call', () => {
       })
     )
   const shown = (r: Evidence, log?: Evidence[]) => words(panel(r, log))
+  // What a reader sees of a record: the panel's words, but for its closed stored record's.
+  const inView = (r: Evidence, log?: Evidence[]) => {
+    const html = panel(r, log)
+    return words(html.replace(hooked(html, 'data-stored')[0], ''))
+  }
+  const UUID = /[0-9A-F]{8}-[0-9A-F]{4}-/i
 
   it("shows each figure in its metric's one format", () => {
     // Popularity is a percentile to one decimal, and a missing one is a dash.
-    expect(shown(search)).toContain(
-      'Name Popularity percentile Night Shift Cinema e-0001 urn:entity:podcast 99.7 Deep Cuts e-0002 urn:entity:podcast –'
+    expect(shown(search)).toContain('Name Popularity percentile Night Shift Cinema 99.7 Deep Cuts –')
+    // The type a search returned is in the caption, and no row shows its ID or its type's URN.
+    expect(shown(search)).toContain('Podcasts · 2 Name')
+    expect(inView(search)).not.toMatch(UUID)
+    expect(inView(search)).not.toContain('urn:')
+    // A call that returned types that differ says each under its name.
+    const mixed = record('C-08', '/search', {
+      params: { query: 'Night Shift Cinema', take: 5 },
+      entities: [
+        { id: e(1), name: 'Night Shift Cinema', type: 'urn:entity:podcast', popularity: 0.9 },
+        { id: e(4), name: 'Night Shift Cinema', type: 'urn:entity:movie', popularity: 0.12345 }
+      ]
+    })
+    expect(shown(mixed)).toContain(
+      'Entities · 2 Name Popularity percentile Night Shift Cinema Podcast 90.0 Night Shift Cinema Film 12.3'
     )
-    // A tag's score and an affinity are to three decimals.
-    expect(shown(compare)).toContain('Name Score Film criticism t-0001 0.978')
-    expect(shown(ranking)).toContain('Name Affinity Deep Cuts e-0002 0.667')
+    expect(inView(mixed)).not.toMatch(UUID)
+    expect(inView(mixed)).not.toContain('urn:')
+    // A call that returned nothing says so.
+    expect(inView({ ...search, entities: [] })).toMatch(/Results Up to 5 Qloo returned no results\.$/)
+    // A tag's score and an affinity are to three decimals. A tag's kind is under its name, in a word.
+    expect(shown(compare)).toContain('Tags · 1 Name Score Film criticism Keyword 0.978')
+    expect(inView(compare)).not.toContain('urn:')
+    expect(shown(ranking)).toContain('Affinities · 1 Name Affinity Deep Cuts 0.667 Stored record')
+    expect(inView(ranking)).not.toMatch(UUID)
     // A demographic score is signed to three decimals with a true minus sign, and no lean, -0 or a
-    // figure that rounds to it, is 0.000, unsigned.
+    // figure that rounds to it, is 0.000, unsigned. Each entity's ages come youngest first, in words,
+    // then its genders, male first, whatever order Qloo sent them in.
     const minus = '\u2212'
     expect(shown(demographics)).toContain(
-      `age.25_to_29 ${minus}0.114 age.30_to_34 +0.123 age.35_to_44 0.000 gender.male +0.420 gender.female 0.000 –`
+      `Demographics · 1 Night Shift Cinema 25 to 29 ${minus}0.114 30 to 34 +0.123 35 to 44 0.000 55 and older +0.200 Male +0.420 Female 0.000 Stored record`
+    )
+    expect(inView(demographics)).not.toMatch(/age\.|gender\.|_/)
+    expect(inView(demographics)).not.toMatch(UUID)
+  })
+
+  it('says which comp led each affinity, only where one clearly did and only with two or more anchors', () => {
+    // A ranking from two comps, named by their searches in the log. Blank Check's share of Deep Cuts'
+    // affinity beats Filmspotting's by more than 0.05; neither's of Signal Boost's does.
+    const comps = record('C-09', '/search', {
+      params: { query: 'Blank Check', types: 'urn:entity:podcast', take: 5 },
+      entities: [
+        { id: e(5), name: 'Blank Check', type: 'urn:entity:podcast', popularity: 0.9 },
+        { id: e(6), name: 'Filmspotting', type: 'urn:entity:podcast', popularity: 0.8 }
+      ]
+    })
+    const fromComps = record('C-10', '/v2/insights', {
+      params: { ...ranking.params, 'signal.interests.entities': `${e(5)},${e(6)}` },
+      affinities: [
+        {
+          id: e(2),
+          name: 'Deep Cuts',
+          affinity: 0.71,
+          explainability: [
+            { id: e(5), score: 0.6123456 },
+            { id: e(6), score: 0.3876544 }
+          ]
+        },
+        {
+          id: e(3),
+          name: 'Signal Boost',
+          affinity: 0.7,
+          explainability: [
+            { id: e(6), score: 0.52 },
+            { id: e(5), score: 0.48 }
+          ]
+        }
+      ]
+    })
+    expect(inView(fromComps, [comps, fromComps])).toContain(
+      'Affinities · 2 Name Affinity Deep Cuts Led by Blank Check 0.710 Signal Boost 0.700'
+    )
+    // The shares themselves are only in the stored record.
+    expect(inView(fromComps, [comps, fromComps])).not.toContain('0.612')
+    // With one anchor, its share is always all of it, and no row says what led it.
+    expect(inView(ranking, [search, ranking])).not.toContain('Led by')
+  })
+
+  it('shows the Qloo IDs of rows in one list that read the same, and only theirs (#128)', () => {
+    // Qloo's compare answer for one of the sample launches had three tags named Music, two of them
+    // genres. Their scores differ past the three decimals shown.
+    const music = record('C-11', '/v2/analysis/compare', {
+      params: compare.params,
+      tags: [
+        { id: 'urn:tag:genre:media:music', name: 'Music', score: 0.90012 },
+        { id: 'urn:tag:keyword:qloo:music', name: 'Music', score: 0.9002 },
+        { id: 'urn:tag:genre:qloo:music', name: 'Music', score: 0.90037 },
+        { id: 'urn:tag:genre:media:podcasts', name: 'Podcasts', score: 0.9 }
+      ]
+    })
+    expect(inView(music)).toContain(
+      'Tags · 4 Name Score Music Genre Qloo ID urn:tag:genre:media:music 0.900 Music Keyword 0.900 Music Genre Qloo ID urn:tag:genre:qloo:music 0.900 Podcasts Genre 0.900'
+    )
+    // Two shows of one name with one affinity show the shortest start of their IDs that tells them apart.
+    const binge = record('C-12', '/v2/insights', {
+      params: ranking.params,
+      affinities: [
+        { id: 'D95B20A8-0CEA-4BDC-8074-000000000001', name: 'Binge Mode', affinity: 0.5, explainability: [] },
+        { id: 'D95B20A8-6D5D-4102-9138-000000000002', name: 'Binge Mode', affinity: 0.5, explainability: [] },
+        { id: e(2), name: 'Deep Cuts', affinity: 0.5, explainability: [] }
+      ]
+    })
+    expect(inView(binge)).toContain(
+      'Affinities · 3 Name Affinity Binge Mode Qloo ID D95B20A8-0CE 0.500 Binge Mode Qloo ID D95B20A8-6D5 0.500 Deep Cuts 0.500'
     )
   })
 
@@ -382,9 +482,9 @@ describe('the evidence behind each Qloo call', () => {
     )
     // An ID no record names is a short code, whole in its tooltip.
     expect(shown(ranking, [search, ranking])).toContain(
-      'What was sent Type Podcast Ranked against Night Shift Cinema Candidates Deep Cuts and e-0003 Explainability On Results Up to 50 '
+      'What was sent Type Podcast Ranked against Night Shift Cinema Candidates Deep Cuts and 0B8D2671 Explainability On Results Up to 50 '
     )
-    expect(panel(ranking)).toContain('title="e-0003"')
+    expect(panel(ranking)).toContain(`title="${e(3)}"`)
     expect(shown(demographics, [search, demographics])).toContain(
       'What was sent Type Demographics For Night Shift Cinema '
     )

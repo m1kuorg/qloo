@@ -190,8 +190,8 @@ export function markFinalists(ranking: Ranking, exclusions: string[]): Ranking {
 export const finalistsOf = (ranking: Ranking | null) => ranking?.rows.filter((r) => r.finalist) ?? []
 
 // The anchor whose explainability share beats the next one's by LEAD or more on this result. An
-// anchor a result doesn't list contributed nothing to it.
-function leadingComp(anchors: Anchor[], shares: { id: string; score: number }[]): Anchor | null {
+// anchor a result doesn't list contributed nothing to it. The evidence's affinities say it too.
+export function leadingComp(anchors: Anchor[], shares: { id: string; score: number }[]): Anchor | null {
   if (anchors.length < 2) return null
   const [top, next] = anchors
     .map((anchor) => ({ anchor, share: shares.find((s) => s.id === anchor.id)?.score ?? 0 }))
