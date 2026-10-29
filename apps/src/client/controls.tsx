@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { round } from '../demographics'
 import { bandMeter, type Band } from '../fit'
 import type { Candidate } from '../resolve'
 import { StateLine } from './states'
@@ -173,7 +174,25 @@ export const NotScored = ({
   </table>
 )
 
+// Each metric's one format, wherever its figure shows (docs/DESIGN.md, Figures), a missing one as "–".
+// A count in words takes `count` (PageHeader.tsx), which separates thousands as `downloads` does.
+
+// Downloads per episode, with thousands separators: "700,000".
+export const downloads = (n: number | null) => (n == null ? '–' : n.toLocaleString('en-US'))
+
+// Popularity, as a percentile to one decimal: "99.7".
 export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).toFixed(1))
+
+// An affinity, or a tag's score, to three decimals: "0.978".
+export const score = (x: number | null) => (x === null ? '–' : x.toFixed(3))
+
+// A demographic score, to three decimals, as Qloo sends it and the mismatch check rounds it
+// (demographics.ts), signed with a true minus sign: "−0.248", "+0.420". No lean, −0 included, is "0.000".
+export const demographic = (x: number | null) => {
+  if (x === null) return '–'
+  const r = round(x)
+  return r === 0 ? '0.000' : `${r > 0 ? '+' : '\u2212'}${Math.abs(r).toFixed(3)}`
+}
 
 // A day as the app writes it, such as "Oct 19", from an ISO string or epoch ms.
 export const day = (when: string | number) =>
@@ -185,7 +204,8 @@ export const utcDay = (when: string | number) =>
   new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 
 // A radio list of Qloo entities with their popularity, and for works their year and a line on what
-// each is, and a button that commits the pick. Options that Qloo gives nothing else to tell apart
+// each is, and a button that commits the pick, beside `note`, where the options came from, which goes
+// on to name the figure each shows. Options that Qloo gives nothing else to tell apart
 // show their Qloo IDs, and the list says so (#128). The button disables itself while the pick is sent
 // and once it's the match, which leaves focus on nothing, so focus goes back to the picked option:
 // the match as it now stands, from where Tab reaches what follows.
@@ -274,7 +294,7 @@ export function PickOne({
           {busy && <Spinner data-icon="inline-start" />}
           {submit}
         </Button>
-        <small className="type-caption text-muted-foreground">{note}</small>
+        <small className="type-caption text-muted-foreground">{note}, with each one’s popularity percentile</small>
       </div>
     </form>
   )

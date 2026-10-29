@@ -317,7 +317,7 @@ describe('the roster as its page shows it', () => {
       ['Deep Cuts', 'The show’s Qloo match, its figures, and whether a launch can propose it.']
     ])
     expect(words(html)).toContain(
-      'Deep Cuts The show’s Qloo match, its figures, and whether a launch can propose it. Ambiguous Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
+      'Deep Cuts The show’s Qloo match, its figures, and whether a launch can propose it. Ambiguous Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 , with each one’s popularity percentile Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
     )
     expect(html).toMatch(/<label\b[^>]*\sfor="comp-q"/)
     expect(html).toMatch(/<input\b[^>]*\sid="comp-q"/)
@@ -332,7 +332,7 @@ describe('the roster as its page shows it', () => {
     const searched = await s.searchComps('The Ghost Signal Show', 'Ghost Hour')
 
     expect(words(editor(searched, 'The Ghost Signal Show'))).toContain(
-      'Missed Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04 Downloads per episode'
+      'Missed Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04, with each one’s popularity percentile Downloads per episode'
     )
     await s.call('updateShow', 'The Ghost Signal Show', { compId: 'e-0201' })
     const read = words(workspace(s.state()!))
@@ -375,6 +375,20 @@ describe('the roster as its page shows it', () => {
     expect(words(editor(s.state()!, 'The Ghost Signal Show'))).toContain(
       'Include again Excluded: kept here, never proposed for a launch.'
     )
+  })
+
+  it("opens a show's downloads per episode with thousands separators, as its row shows them", async () => {
+    fakeQloo({ search })
+    const s = await session()
+    await s.importRoster(roster)
+    await s.call('updateShow', 'Night Shift Cinema', { downloads: 700000 })
+
+    expect(words(workspace(s.state()!))).toContain('Night Shift Cinema Resolved Night Shift Cinema 91.0 700,000 – C-01')
+    expect(editor(s.state()!, 'Night Shift Cinema')).toMatch(
+      /<input\b(?=[^>]*\sid="show-downloads")[^>]*\svalue="700,000"/
+    )
+    // A show with none opens with the field empty.
+    expect(editor(s.state()!, 'Deep Cuts')).toMatch(/<input\b(?=[^>]*\sid="show-downloads")[^>]*\svalue=""/)
   })
 })
 

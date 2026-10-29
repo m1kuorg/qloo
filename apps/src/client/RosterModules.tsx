@@ -17,6 +17,7 @@ import type { Session } from './App'
 import {
   Alert,
   Code,
+  downloads,
   DropCue,
   KeyValue,
   KeyValues,
@@ -348,9 +349,7 @@ export function RosterTable({
                     settle={select && ((from) => select(show.name, from))}
                   />
                 </td>
-                <td className={cn(cell, 'text-right')}>
-                  {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
-                </td>
+                <td className={cn(cell, 'text-right')}>{downloads(show.downloads)}</td>
                 <td className={cell}>{show.status ?? '–'}</td>
                 <td className={cn(cell, 'pr-2 text-right')}>
                   {/* A pending call has no evidence record yet, so it opens once the search settles. */}
@@ -579,14 +578,15 @@ function ShowFields({
   update: (patch: ShowPatch) => Promise<boolean>
   busy: boolean
 }) {
-  const [downloads, setDownloads] = useState(show.downloads == null ? '' : String(show.downloads))
+  // It opens on the figure as the row shows it, "700,000", which saves unchanged, as commas are dropped.
+  const [typed, setTyped] = useState(show.downloads == null ? '' : downloads(show.downloads))
   const [status, setStatus] = useState(show.status ?? '')
   const [invalid, setInvalid] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const downloadsField = useRef<HTMLInputElement>(null)
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    const digits = downloads.replace(/[,\s]/g, '')
+    const digits = typed.replace(/[,\s]/g, '')
     if (digits && !/^\d+$/.test(digits)) {
       setInvalid('Downloads per episode must be a whole number.')
       // Back to the field to fix, which the error describes.
@@ -608,8 +608,8 @@ function ShowFields({
             inputMode="numeric"
             aria-invalid={invalid !== null || undefined}
             aria-describedby={invalid !== null ? 'show-downloads-error' : undefined}
-            value={downloads}
-            onChange={(e) => setDownloads(e.target.value)}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
           />
         </Field>
         <Field>

@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { callVariants } from '@/components/ui/variants'
 import type { Evidence } from '../evidence'
 import type { Session } from './App'
-import { KeyValue, KeyValues } from './controls'
+import { demographic, KeyValue, KeyValues, percentile, score } from './controls'
 import { Section } from './PageHeader'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
@@ -126,10 +126,9 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour12: false })
 
-// A raw figure as Qloo returned it: the number's shortest round trip, which is the figure Qloo's JSON
-// wrote. Qloo's own answers carry binary-float noise, such as a demographics bucket of
-// -0.11400000000000002, and that stays, since rounding it would no longer be what Qloo sent.
-const raw = (n: number | null) => (n === null ? '–' : String(n))
+// A ranking's share of an affinity for one of its signals, as Qloo returned it: the number's shortest
+// round trip, which is the figure Qloo's JSON wrote.
+const raw = (n: number) => String(n)
 
 // A code, such as an entity's Qloo ID, on one line: cut short with an ellipsis where it doesn't fit,
 // whole in its tooltip and to screen readers, and never translated.
@@ -141,6 +140,8 @@ const Code = ({ children }: { children: string }) => (
 
 function EvidenceRecord({ record }: { record: Evidence }) {
   const { entities, tags, affinities } = record
+  // A demographics call keeps each entity's buckets as its explainability, each a demographic score.
+  const demographics = record.params['filter.type'] === 'urn:demographics'
   return (
     <>
       <KeyValues>
@@ -181,41 +182,42 @@ function EvidenceRecord({ record }: { record: Evidence }) {
       {entities.length > 0 && (
         <ValueTable
           title={`Entities · ${entities.length}`}
-          value="Popularity, raw"
+          value="Popularity percentile"
           rows={entities.map((e) => ({
             key: e.id,
             name: e.name,
             id: e.id,
             notes: <Code>{e.type}</Code>,
-            value: e.popularity
+            figure: percentile(e.popularity)
           }))}
         />
       )}
       {tags.length > 0 && (
         <ValueTable
           title={`Tags · ${tags.length}`}
-          value="Score, raw"
-          rows={tags.map((t) => ({ key: t.id, name: t.name, id: t.id, notes: null, value: t.score }))}
+          value="Score"
+          rows={tags.map((t) => ({ key: t.id, name: t.name, id: t.id, notes: null, figure: score(t.score) }))}
         />
       )}
       {affinities.length > 0 && (
         <ValueTable
           title={`Affinities · ${affinities.length}`}
-          value="Affinity, raw"
+          value="Affinity"
           rows={affinities.map((a) => ({
             key: a.id,
             name: a.name,
             id: a.id,
-            // Its explainability: each signal's ID and its share of the affinity, the share never cut.
+            // Its explainability: each signal's ID and its share of the affinity, the share never cut, or
+            // in a demographics call each bucket and its score.
             notes: a.explainability.map((x) => (
               <span key={x.id} className="flex min-w-0 items-baseline gap-2">
                 <span className="min-w-0">
                   <Code>{x.id}</Code>
                 </span>
-                <span className="shrink-0 type-caption">{raw(x.score)}</span>
+                <span className="shrink-0 type-caption">{demographics ? demographic(x.score) : raw(x.score)}</span>
               </span>
             )),
-            value: a.affinity
+            figure: score(a.affinity)
           }))}
         />
       )}
@@ -276,10 +278,10 @@ function EntityIds({ ids }: { ids: string[] }) {
   )
 }
 
-type ValueRow = { key: string; name: string; id: string; notes: React.ReactNode; value: number | null }
+type ValueRow = { key: string; name: string; id: string; notes: React.ReactNode; figure: string }
 
-// What Qloo returned, as it returned it: the name, the Qloo ID and the raw figure, which the roster
-// shows as a percentile and the chart as a rank and band.
+// What Qloo returned: the name, the Qloo ID and the figure, in its metric's format, which the chart
+// shows as a rank and band. The record getEvidence answers keeps each figure as Qloo wrote it.
 function ValueTable({ title, value, rows }: { title: string; value: string; rows: ValueRow[] }) {
   return (
     <table className="w-full table-fixed">
@@ -304,7 +306,7 @@ function ValueTable({ title, value, rows }: { title: string; value: string; rows
                 {r.notes}
               </span>
             </td>
-            <td className="py-1.5 pl-3 text-right type-caption break-all">{raw(r.value)}</td>
+            <td className="py-1.5 pl-3 text-right type-caption break-all">{r.figure}</td>
           </tr>
         ))}
       </tbody>

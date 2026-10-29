@@ -40,8 +40,9 @@ export type FinalistCheck = {
   maleDelta: number // finalist minus launch profile, in skew towards male listeners
 }
 
-// Qloo's values carry float noise, such as 0.20600000000000004; three places is its own precision.
-const round = (x: number) => Math.round(x * 1000) / 1000
+// Qloo's values carry float noise, such as 0.20600000000000004; three places is its own precision,
+// and the inspector shows a demographic score as this rounds it (`demographic` in client/controls.tsx).
+export const round = (x: number) => Math.round(x * 1000) / 1000
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
 
