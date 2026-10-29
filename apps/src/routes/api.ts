@@ -1660,6 +1660,52 @@ api.openapi(
   }
 )
 
+// What each operation costs, as the API reference shows it before anyone sends one: it
+// reads, changes something, deletes something, spends one of the network's model runs, or calls Qloo,
+// counted against the network's daily caps. Answering a run's question resumes a run already counted,
+// whose turns call Qloo. The document gives each as `x-crossfeed-cost`.
+type Cost = 'Reads' | 'Changes' | 'Deletes' | 'Spends a model run' | 'Calls Qloo'
+const COSTS: Record<string, Cost> = {
+  'GET /api/v1/networks/{networkId}': 'Reads',
+  'PATCH /api/v1/networks/{networkId}': 'Changes',
+  'GET /api/v1/networks/{networkId}/usage': 'Reads',
+  'GET /api/v1/networks/{networkId}/roster': 'Reads',
+  'POST /api/v1/networks/{networkId}/roster': 'Calls Qloo',
+  'PATCH /api/v1/networks/{networkId}/roster/shows/{name}': 'Changes',
+  'POST /api/v1/networks/{networkId}/roster/shows/{name}/comp-search': 'Calls Qloo',
+  'GET /api/v1/networks/{networkId}/inbox': 'Reads',
+  'POST /api/v1/networks/{networkId}/inbox': 'Spends a model run',
+  'PATCH /api/v1/networks/{networkId}/inbox/pitches/{pitchId}': 'Changes',
+  'POST /api/v1/networks/{networkId}/pitch-runs': 'Spends a model run',
+  'GET /api/v1/networks/{networkId}/pitch-runs': 'Reads',
+  'GET /api/v1/networks/{networkId}/pitch-runs/{runId}': 'Reads',
+  'POST /api/v1/networks/{networkId}/pitch-runs/{runId}/answer': 'Calls Qloo',
+  'PATCH /api/v1/networks/{networkId}/pitch-runs/{runId}/replies/{pitchId}': 'Changes',
+  'POST /api/v1/networks/{networkId}/pitch-runs/{runId}/replies/{pitchId}/discard': 'Changes',
+  'GET /api/v1/networks/{networkId}/launches': 'Reads',
+  'POST /api/v1/networks/{networkId}/launches': 'Changes',
+  'GET /api/v1/networks/{networkId}/launches/{launchId}': 'Reads',
+  'DELETE /api/v1/networks/{networkId}/launches/{launchId}': 'Deletes',
+  'GET /api/v1/networks/{networkId}/launches/{launchId}/evidence': 'Reads',
+  'POST /api/v1/networks/{networkId}/launches/{launchId}/runs': 'Spends a model run',
+  'GET /api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}': 'Reads',
+  'POST /api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}/answer': 'Calls Qloo',
+  'PATCH /api/v1/networks/{networkId}/launches/{launchId}/insertion-orders/{orderId}': 'Changes',
+  'GET /api/v1/networks/{networkId}/launches/{launchId}/insertion-orders/{orderId}/csv': 'Reads'
+}
+// The operations only a member's session sends, from one of Crossfeed's pages, as
+// `x-crossfeed-session-only: true`: an API key answers 403.
+const SESSION_ONLY = ['DELETE /api/v1/networks/{networkId}/launches/{launchId}']
+// Each operation registered above takes its cost, and its flag where it has one, into the document.
+for (const definition of api.openAPIRegistry.definitions) {
+  if (definition.type !== 'route') continue
+  const operation = `${definition.route.method.toUpperCase()} ${definition.route.path}`
+  Object.assign(definition.route, {
+    'x-crossfeed-cost': COSTS[operation],
+    ...(SESSION_ONLY.includes(operation) && { 'x-crossfeed-session-only': true })
+  })
+}
+
 // The API's contract, generated from the routes' schemas, for the deployment at `origin`: served
 // below, and read by the developer docs.
 const contract = (origin: string) => ({

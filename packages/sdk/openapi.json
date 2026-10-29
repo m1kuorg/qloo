@@ -2636,6 +2636,7 @@
           "Network"
         ],
         "summary": "Read the network",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -2698,6 +2699,7 @@
         ],
         "summary": "Rename the network or set its CPM",
         "description": "A field left out stays as it is. A member's session must be an owner's; an API key, which an owner made, may.",
+        "x-crossfeed-cost": "Changes",
         "parameters": [
           {
             "schema": {
@@ -2792,6 +2794,7 @@
         ],
         "summary": "Read today's usage",
         "description": "The network's Qloo calls and model runs today against its own daily caps, whichever member or key made them. Crossfeed's caps across all networks apply too.",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -2855,6 +2858,7 @@
           "Roster"
         ],
         "summary": "Read the roster",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -2917,6 +2921,7 @@
         ],
         "summary": "Import a roster",
         "description": "Send the roster file as the body: a CSV with a `name` column and optional `downloads`, `status`, and `description` columns, or plain text with one show name per line, at most 50 shows and 5 MB. It answers 202 at once with the new shows pending; poll the roster until it settles. Over a roster that has shows, it needs `replace=true`: shows already on it keep their matches, comps, and exclusions, the figures the file brings change, and only new shows are looked up.",
+        "x-crossfeed-cost": "Calls Qloo",
         "parameters": [
           {
             "schema": {
@@ -3063,6 +3068,7 @@
         ],
         "summary": "Settle or edit a show",
         "description": "Pick one of an ambiguous show's candidates (`entityId`), map a show to one of its comp search's results (`compId`), or change its figures or exclusion. A field left out stays as it is.",
+        "x-crossfeed-cost": "Changes",
         "parameters": [
           {
             "schema": {
@@ -3168,6 +3174,7 @@
         ],
         "summary": "Search for a comp",
         "description": "Search Qloo for a comparable show to stand in for one it has no match for. It answers 202 with the show's comp search pending; poll the roster until it's done, then map the show to a result with `compId`.",
+        "x-crossfeed-cost": "Calls Qloo",
         "parameters": [
           {
             "schema": {
@@ -3282,6 +3289,7 @@
           "Inbox"
         ],
         "summary": "Read the inbox",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -3344,6 +3352,7 @@
         ],
         "summary": "Load the inbox",
         "description": "Send the pitches as the body: one email as `message/rfc822` (an .eml file), an mbox export as `application/mbox`, plain text with a line of three dashes between pitches as `text/plain` (a pitch's first lines may give its `From:` and `Subject:`), or JSON pitches, at most 50 pitches and 5 MB. Of each email, only its sender, subject, and text are kept, never its attachments or other headers, and only its work's title and type reach Qloo. An email with no text, or over 10,000 characters, is skipped and named. It answers 202 at once with the pitches reading; poll the inbox until it's done. Reading the pitches counts as one of the network's model runs. Over an inbox that has pitches, it needs `replace=true`: they go, with the last pitch run's lists and replies.",
+        "x-crossfeed-cost": "Spends a model run",
         "parameters": [
           {
             "schema": {
@@ -3501,6 +3510,7 @@
         ],
         "summary": "Confirm a pitch's work",
         "description": "Confirm which of an ambiguous work's same-title candidates the pitch is about (`entityId`). Only a work matched in Qloo is ranked.",
+        "x-crossfeed-cost": "Changes",
         "parameters": [
           {
             "schema": {
@@ -3604,6 +3614,7 @@
         ],
         "summary": "Start a pitch run",
         "description": "Rank the inbox's pitched works against a roster show matched in Qloo, and against its best past guests' works too, then draft a reply to every pitch. Only each work's title and type reach Qloo, never a guest's name or a sender. It answers 202 at once with the run running; poll it until it's done or waiting on a question. It counts as one of the network's model runs, and a new run ends one left waiting.",
+        "x-crossfeed-cost": "Spends a model run",
         "parameters": [
           {
             "schema": {
@@ -3706,6 +3717,7 @@
         ],
         "summary": "List pitch runs",
         "description": "The network's pitch runs, newest first: the first is the latest, whose replies the inbox holds until another run or a new inbox replaces them. Read one in full by its ID.",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -3781,6 +3793,7 @@
         ],
         "summary": "Read a pitch run",
         "description": "Its status, any question it waits on, and as they arrive, its ranked lists and drafted replies. An earlier run reads as it ended.",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -3855,6 +3868,7 @@
         ],
         "summary": "Answer a pitch run's question",
         "description": "Answer the question the run is waiting on, by its ID: with one of its options as `choice`, or your own words as `text`. The run resumes, answering 202; poll it again. A run started later, or loading the inbox, ends a run left waiting.",
+        "x-crossfeed-cost": "Calls Qloo",
         "parameters": [
           {
             "schema": {
@@ -3969,6 +3983,7 @@
         ],
         "summary": "Edit a reply",
         "description": "Reword one of the latest pitch run's drafted replies, once the run has ended. Editing an approved reply returns it to draft, and editing a discarded one restores it. Only a member approves a reply, in the app.",
+        "x-crossfeed-cost": "Changes",
         "parameters": [
           {
             "schema": {
@@ -4092,6 +4107,7 @@
         ],
         "summary": "Discard a reply",
         "description": "Leave one of the latest pitch run's drafted replies out, once the run has ended. Editing it restores it.",
+        "x-crossfeed-cost": "Changes",
         "parameters": [
           {
             "schema": {
@@ -4195,6 +4211,7 @@
         ],
         "summary": "List launches",
         "description": "The network's launches, newest first, as its Launches page lists them.",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -4268,6 +4285,7 @@
         ],
         "summary": "Create a launch",
         "description": "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's Launches page, with status `new`; start a run to rank the roster for it. A network keeps a limited number of launches at once, as the terms say: past it, a new one is refused with `limit` until a member deletes one on the Launches page.",
+        "x-crossfeed-cost": "Changes",
         "parameters": [
           {
             "schema": {
@@ -4362,6 +4380,7 @@
         ],
         "summary": "Read a launch",
         "description": "Its status and figures, its runs, and its latest run in full: any question it waits on, the chart, the topic baseline, the demographics check, and the insertion order, as they arrive.",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -4434,6 +4453,8 @@
         ],
         "summary": "Delete a launch",
         "description": "Delete the launch for every member, with its runs, their insertion orders, and their evidence, which can't be brought back. Only a member's session from one of Crossfeed's pages may, as the Launches page does; an API key answers 403.",
+        "x-crossfeed-cost": "Deletes",
+        "x-crossfeed-session-only": true,
         "parameters": [
           {
             "schema": {
@@ -4511,6 +4532,7 @@
         ],
         "summary": "Read a launch's evidence",
         "description": "The launch's evidence log, oldest first: one record per Qloo call its runs made, and the roster's lookups each run copied as it started. Every call number a run cites opens one of these.",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -4596,6 +4618,7 @@
         ],
         "summary": "Start a run",
         "description": "Rank the network's roster, as it stands now, by fit with the launch's listeners in Qloo, then plan its promos to a draft insertion order priced at the network's CPM. With no body, the run plans the launch as it stands; a name or comps plan it anew. It answers 202 at once with the run running; poll it until it's done or waiting on a question. It counts as one of the network's model runs: past the network's daily model runs, it stops at once, saying why. A new run ends one left waiting.",
+        "x-crossfeed-cost": "Spends a model run",
         "parameters": [
           {
             "schema": {
@@ -4710,6 +4733,7 @@
         ],
         "summary": "Read a run",
         "description": "Its status, any question it waits on, and as they arrive, its chart, topic baseline, demographics check, and insertion order. An earlier run reads as it ended, with its order as it was left, to compare with a re-run.",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {
@@ -4794,6 +4818,7 @@
         ],
         "summary": "Answer a run's question",
         "description": "Answer the question the run is waiting on, by its ID, with the fields its kind takes: `choice` or `text` for a `choice` question; `choice` (one of its options) or `text` (the name Qloo lists the launch under) for `launch`; `slots` or `dollars` for `budget`; `exclude`, from its options, for `exclusions`; `comps` or `text` for `comps`; and `picks` for `confirm_comps`. Relay the question to the person planning the launch and answer with their words. The run resumes, answering 202; poll it again.",
+        "x-crossfeed-cost": "Calls Qloo",
         "parameters": [
           {
             "schema": {
@@ -4918,6 +4943,7 @@
         ],
         "summary": "Edit a draft insertion order",
         "description": "Change the lines of the launch's current order, once its run has ended: each finalist's promo slots and host-read angle, or drop a show by leaving its line out. Code prices it again at the network's CPM. Editing an approved order returns it to draft. Only a member approves an order, in the app.",
+        "x-crossfeed-cost": "Changes",
         "parameters": [
           {
             "schema": {
@@ -5041,6 +5067,7 @@
         ],
         "summary": "Export an approved insertion order",
         "description": "The order as a CSV file for ad operations: a row per line, then the total, in whole dollars. Only an order a member approved in the app exports; a draft answers 409. An earlier run's order exports as it was left.",
+        "x-crossfeed-cost": "Reads",
         "parameters": [
           {
             "schema": {

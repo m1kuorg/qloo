@@ -437,6 +437,38 @@ describe('the OpenAPI document', () => {
     expect(nullable.map(([name]) => name)).toEqual([])
   })
 
+  // The API's classes of operation: every read is a GET and the one delete a DELETE; of the rest, those
+  // that spend a model run or call Qloo cost that, and every other one changes something. Answering a
+  // run's question resumes a run already counted, whose turns call Qloo.
+  it('labels every operation with what it costs, and flags the one only a session sends', async () => {
+    const { paths } = await doc()
+    const operations = Object.entries(paths).flatMap(([path, methods]) =>
+      Object.entries(methods as Record<string, Record<string, unknown>>).map(([method, op]) => ({
+        name: `${method.toUpperCase()} ${path.replace('/api/v1/networks/{networkId}', '') || '/'}`,
+        method,
+        op
+      }))
+    )
+    const costly: Record<string, string> = {
+      'POST /roster': 'Calls Qloo',
+      'POST /roster/shows/{name}/comp-search': 'Calls Qloo',
+      'POST /inbox': 'Spends a model run',
+      'POST /pitch-runs': 'Spends a model run',
+      'POST /pitch-runs/{runId}/answer': 'Calls Qloo',
+      'POST /launches/{launchId}/runs': 'Spends a model run',
+      'POST /launches/{launchId}/runs/{runId}/answer': 'Calls Qloo'
+    }
+    expect(operations.length).toBeGreaterThan(20)
+    for (const { name, method, op } of operations)
+      expect(op['x-crossfeed-cost'], name).toBe(
+        costly[name] ?? (method === 'get' ? 'Reads' : method === 'delete' ? 'Deletes' : 'Changes')
+      )
+    const flagged = operations.filter(({ op }) => 'x-crossfeed-session-only' in op)
+    expect(flagged.map(({ name, op }) => [name, op['x-crossfeed-session-only']])).toEqual([
+      ['DELETE /launches/{launchId}', true]
+    ])
+  })
+
   it('has no route that approves anything', async () => {
     const { paths } = await doc()
     expect(JSON.stringify(Object.keys(paths))).not.toMatch(/approv/i)

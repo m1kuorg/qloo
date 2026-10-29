@@ -583,6 +583,8 @@ type Operation = {
   parameters?: { name: string; in: string; required?: boolean; description?: string }[]
   requestBody?: { required?: boolean; content: Record<string, { schema?: { $ref?: string } }> }
   responses: Record<string, { description: string; content?: Record<string, { schema?: { $ref?: string } }> }>
+  'x-crossfeed-cost'?: string
+  'x-crossfeed-session-only'?: boolean
 }
 const METHODS = ['get', 'post', 'patch', 'put', 'delete'] as const
 const slug = (text: string) =>
@@ -613,8 +615,18 @@ const Method = ({ method }: { method: string }) => (
   </code>
 )
 
-// One route as the reference sets it: what it does, then a compact table of what it takes and what it
-// answers, each parameter, the body, each answer, and the refusals with their codes.
+// What a route costs, and whether only a member's session sends it, as the document labels it: chips,
+// as the MCP tools' effects are.
+const Cost = ({ op }: { op: Operation }) => (
+  <span class="inline-flex flex-wrap gap-1.5">
+    <span class={badgeVariants()}>{op['x-crossfeed-cost']}</span>
+    {op['x-crossfeed-session-only'] && <span class={badgeVariants({ variant: 'outline' })}>Session only</span>}
+  </span>
+)
+
+// One route as the reference sets it: what it does, its method, path and cost, then a compact table of
+// what it takes and what it answers, each parameter, the body, each answer, and the refusals with their
+// codes.
 function RouteEntry({ route }: { route: Route }) {
   const { op } = route
   const params = (op.parameters ?? []).filter((p) => p.name !== 'networkId')
@@ -629,9 +641,13 @@ function RouteEntry({ route }: { route: Route }) {
       </h3>
       <p class="flex items-baseline gap-2">
         <Method method={route.method} />{' '}
-        <code class="min-w-0 bg-transparent p-0">
-          <UrlPath path={route.path} />
-        </code>
+        {/* The cost follows the path's last line, so a long path keeps the line's width on a phone. */}
+        <span class="min-w-0">
+          <code class="bg-transparent p-0">
+            <UrlPath path={route.path} />
+          </code>{' '}
+          <Cost op={op} />
+        </span>
       </p>
       {op.description && (
         <p>
@@ -758,6 +774,9 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
                     <th role="columnheader" scope="col">
                       What it does
                     </th>
+                    <th role="columnheader" scope="col">
+                      Cost
+                    </th>
                   </tr>
                 </thead>
                 <tbody role="rowgroup">
@@ -774,11 +793,22 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
                       <td role="cell">
                         <a href={`#${r.id}`}>{r.op.summary}</a>
                       </td>
+                      <td role="cell">
+                        <Cost op={r.op} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </TableScroll>
+            <p>
+              Each route says what a call costs: Reads change nothing; Changes edit or add to what the network has;
+              Deletes remove something for good; Spends a model run counts one of the network’s daily model runs, whose
+              turns call Qloo too; and Calls Qloo counts against its daily Qloo calls, as an import’s lookups, a comp
+              search and a run resumed by an answer do. Session only marks a route only a member’s session sends, from
+              one of Crossfeed’s pages: an API key answers 403. The OpenAPI document gives each route’s cost as{' '}
+              <code>x-crossfeed-cost</code>, and a session-only route <code>x-crossfeed-session-only: true</code>.
+            </p>
           </>
         )
       },
