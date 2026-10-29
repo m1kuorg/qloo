@@ -46,6 +46,24 @@ export const launchPage: { network: NetworkPage; orders: string } = {
 }
 export const links: Links = { roster: launchPage.network.links.roster }
 
+// The data attributes the server gave a page's #root, decoded, by the names main.tsx reads them by
+// (`data-api-keys` is `apiKeys`).
+export async function rootData(member: { fetch: (path: string) => Promise<Response> }, path: string) {
+  const html = await (await member.fetch(path)).text()
+  const root = html.match(/<div id="root"([^>]*)>/)![1]
+  return Object.fromEntries(
+    [...root.matchAll(/data-([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [
+      k.replace(/-(\w)/g, (_, c: string) => c.toUpperCase()),
+      v
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+    ])
+  ) as Record<string, string>
+}
+
 // The name of each region a screen reader lists on a rendered page: its label, or its heading's
 // words. The shell's top bar is the page's one banner, so a page renders no <header> of its own.
 export const regions = (html: string) =>

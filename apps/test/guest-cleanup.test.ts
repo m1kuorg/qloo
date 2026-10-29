@@ -9,7 +9,7 @@ import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import worker from '../src/index'
 import { fakeQloo } from './fake'
-import { api, guestSignIn, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
+import { api, guestSignIn, openGuest, openMember, readAfterReset, rootData, type Guest, type Session } from './session'
 
 const HOUR = 60 * 60_000
 
@@ -167,9 +167,8 @@ describe('the daily clearing', () => {
     }
     // Whether the guest network's setup has a teammate invited, and a key used ("Connect your AI").
     const setup = async () => {
-      const html = await (await guest.fetch('/app/guest-network')).text()
-      const keys = JSON.parse(html.match(/data-keys="([^"]*)"/)![1].replace(/&quot;/g, '"'))
-      return [html.match(/data-invited="(\w+)"/)![1], String(keys.last !== null)]
+      const { invited, keys } = await rootData(guest, '/app/guest-network')
+      return [invited, String(JSON.parse(keys).last !== null)]
     }
     expect(await setup()).toEqual(['true', 'true'])
 

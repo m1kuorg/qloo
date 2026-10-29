@@ -21,6 +21,7 @@ import {
   openGuest,
   openMember,
   regions,
+  rootData,
   sampleLabels,
   sections,
   tabsOf,
@@ -56,21 +57,9 @@ const connect = async (member: Pick<Member, 'connect'>, id: string) => {
   return agent
 }
 
-// The data attributes the server gave a page's #root, as main.tsx reads them.
+// The props the server gave a page through its #root, as main.tsx reads them.
 async function island(member: Pick<Member, 'fetch'>, path: string) {
-  const html = await (await member.fetch(path)).text()
-  const root = html.match(/<div id="root"([^>]*)>/)![1]
-  const d = Object.fromEntries(
-    [...root.matchAll(/data-([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [
-      k.replace(/-(\w)/g, (_, c: string) => c.toUpperCase()),
-      v
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-    ])
-  )
+  const d = await rootData(member, path)
   return {
     memberId: d.memberId,
     members: d.members ? JSON.parse(d.members) : [],
@@ -80,6 +69,7 @@ async function island(member: Pick<Member, 'fetch'>, path: string) {
     qlooKey: d.qlooKey ? JSON.parse(d.qlooKey) : null,
     setup: { invited: d.invited === 'true' },
     ownKey: d.ownKey === 'true',
+    usageRead: Number(d.usageRead),
     keys: d.keys ? JSON.parse(d.keys) : null,
     notice: d.notice,
     network: {
@@ -188,7 +178,7 @@ describe('the dashboard', () => {
       'Today’s usage What Night Shift Audio can use each UTC day, whichever member or API key uses it. Model runs 0 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 0 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min As of 2:30 PM, when the page loaded.'
     )
     expect(read).toContain(
-      'short of approving anything. Keys in use 0 No assistant or script has used a key yet. Open API keys Network'
+      'short of approving anything. Active keys 0 No assistant or script has used a key yet. Open API keys Network'
     )
     expect(html).toMatch(new RegExp(`href="/app/${id}/settings#api-keys"[^>]*>Open API keys</a>`))
     expect(html).toMatch(/<span class="text-muted-foreground" data-state="empty">Nothing needs you\.<\/span>/)
@@ -404,9 +394,24 @@ describe('the dashboard', () => {
       )
     }
     env.QLOO_VISITOR_DAILY_CALL_CAP = '1'
+    const capped = await island(ada, `/app/${id}`)
     expect(words(await dashboard(ada, id, agent.state()))).toContain(
       'Qloo calls 1 of 1 today Cached answers included Resets 00:00 UTC, in 9 h 30 min Limit reached No more Qloo calls today: roster imports and comp searches are refused until 00:00 UTC. As of 2:30 PM'
     )
+    // The page says when the server read the counts, and counts the time to the reset from then, however
+    // long it stays open.
+    expect(capped.usageRead).toBe(Date.parse('2026-10-19T14:30:00Z'))
+    vi.setSystemTime(new Date('2026-10-19T15:10:00Z'))
+    const later = renderToStaticMarkup(
+      <Dashboard
+        {...capped}
+        state={agent.state()}
+        dismiss={async () => {}}
+        createLaunch={async () => ({ id: 'l-1' })}
+      />
+    )
+    expect(words(later)).toContain('Resets 00:00 UTC, in 9 h 30 min Limit reached')
+    expect(words(later)).toContain('As of 2:30 PM, when the page loaded.')
 
     const guest = await openGuest()
     const { usage } = await island(guest, '/app/guest-network')
@@ -433,22 +438,22 @@ describe('the dashboard', () => {
 
     // Made, but not used yet: the step waits for its first request.
     const unused = await dashboard(ada, id, agent.state())
-    expect(keysOf(unused)).toEqual([['Keys in use', '1']])
-    expect(words(unused)).toContain('Keys in use 1 No assistant or script has used a key yet. Open API keys')
+    expect(keysOf(unused)).toEqual([['Active keys', '1']])
+    expect(words(unused)).toContain('Active keys 1 No assistant or script has used a key yet. Open API keys')
     expect(steps(unused)[4]).toMatch(/^Connect your AI Make a key in settings/)
 
     vi.setSystemTime(new Date('2026-10-19T15:02:00Z'))
     expect((await api(secret)(`/api/v1/networks/${id}`)).status).toBe(200)
     const owners = await dashboard(ada, id, agent.state())
     expect(keysOf(owners)).toEqual([
-      ['Keys in use', '1'],
+      ['Active keys', '1'],
       ['Last used', 'Oct 19, 3:02 PM by “Claude Code”']
     ])
     expect(steps(owners)[4]).toBe('Connect your AI A key has been used.')
     // A member sees when, but not which key: only owners see the network's keys.
     const members = await dashboard(grace, id, agent.state())
     expect(keysOf(members)).toEqual([
-      ['Keys in use', '1'],
+      ['Active keys', '1'],
       ['Last used', 'Oct 19, 3:02 PM']
     ])
     expect(steps(members)[4]).toBe('Connect your AI A key has been used.')
@@ -466,7 +471,7 @@ describe('the dashboard', () => {
     expect((await ada.fetch(`/app/${id}/settings/api-keys/${key}/revoke`, { method: 'POST' })).status).toBe(200)
     const revoked = await dashboard(ada, id, agent.state())
     expect(keysOf(revoked)).toEqual([
-      ['Keys in use', '0'],
+      ['Active keys', '0'],
       ['Last used', 'Oct 19, 3:02 PM by “Claude Code”, since revoked']
     ])
     expect(steps(revoked)[4]).toBe('Connect your AI A key has been used.')
@@ -520,7 +525,14 @@ describe('the dashboard', () => {
       const running = await dashboard(ada, id, { ...base, run: pitchRun('running'), booking: booking(drafted) })
       const ended = await dashboard(ada, id, { ...base, run: pitchRun('completed'), booking: booking(drafted) })
       const ghost = ['Ghost Signal Waiting', `/app/${id}/launches/l-1`]
+      // The header counts what Needs you lists.
+      const counted = (html: string) => words(html).match(/^Dashboard (.+?) Setup /)?.[1]
       if (inbox === 'on') {
+        expect([waiting, running, ended].map(counted)).toEqual([
+          '1 launch · 2 need you',
+          '1 launch · 1 needs you',
+          '1 launch · 2 need you'
+        ])
         expect(needingYou(waiting)).toEqual([ghost, ['Pitch run for The Big Picture Waiting', `/app/${id}/inbox`]])
         expect(needingYou(running)).toEqual([ghost])
         expect(needingYou(ended)).toEqual([
@@ -531,7 +543,11 @@ describe('the dashboard', () => {
           'Needs you',
           'Launches and pitch runs with a question to answer, orders and replies to approve, and runs that failed or stopped.'
         ])
-      } else for (const html of [waiting, running, ended]) expect(needingYou(html)).toEqual([ghost])
+      } else
+        for (const html of [waiting, running, ended]) {
+          expect(needingYou(html)).toEqual([ghost])
+          expect(counted(html)).toBe('1 launch · 1 needs you')
+        }
     }
   })
 
@@ -1237,11 +1253,11 @@ describe("a network page's connection", () => {
     // that says whether this member dismissed it. What the server read as the page loaded, today's
     // usage and the keys' use, shows at once.
     expect(read).toBe(
-      'Dashboard Working Connecting to the network… Needs you Launches with a question to answer or an order to approve, and runs that failed or stopped. Latest runs The launches run last, with when each run started and who started it. All launches Today’s usage What Night Shift Audio can use each UTC day, whichever member or API key uses it. Model runs 0 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 0 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min As of 2:30 PM, when the page loaded. Assistants and API Scripts and assistants act for Night Shift Audio with its API keys, short of approving anything. Keys in use 0 No assistant or script has used a key yet. Open API keys Network The roster your launches rank, and the CPM that prices their slots.'
+      'Dashboard Working Connecting to the network… Needs you Launches with a question to answer or an order to approve, and runs that failed or stopped. Latest runs The launches run last, with when each run started and who started it. All launches Today’s usage What Night Shift Audio can use each UTC day, whichever member or API key uses it. Model runs 0 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 0 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min As of 2:30 PM, when the page loaded. Assistants and API Scripts and assistants act for Night Shift Audio with its API keys, short of approving anything. Active keys 0 No assistant or script has used a key yet. Open API keys Network The roster your launches rank, and the CPM that prices their slots.'
     )
   })
 
-  it("says in its block that the keys' use or today's usage didn't load, logged, and opens the rest of the page", async () => {
+  it("says in its block that the keys' use or today's usage didn't load, logged, leaves Connect your AI uncounted, and opens the rest of the page", async () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
     // The directory's API keys can't be read: the page opens all the same, with no keys' use for it.
@@ -1255,31 +1271,35 @@ describe("a network page's connection", () => {
         .map(String)
         .filter((line) => line.includes('"event":"dashboard_read"'))
         .map((line) => JSON.parse(line))
-    ).toEqual([{ event: 'dashboard_read', block: 'keys', error: expect.stringContaining('no such table: api_keys') }])
+    ).toEqual([
+      { event: 'dashboard_read', network: id, block: 'keys', error: expect.stringContaining('no such table: api_keys') }
+    ])
     failed.mockRestore()
     const page = await island(ada, `/app/${id}`)
     expect([page.keys, page.usage]).toEqual([null, expect.objectContaining({ modelRuns: { used: 0, limit: 10 } })])
     const render = (loaded: Partial<typeof page>) =>
-      words(
-        renderToStaticMarkup(
-          <Dashboard
-            {...page}
-            {...loaded}
-            state={agent.state()}
-            dismiss={async () => {}}
-            createLaunch={async () => ({ id: 'l-1' })}
-          />
-        )
+      renderToStaticMarkup(
+        <Dashboard
+          {...page}
+          {...loaded}
+          state={agent.state()}
+          dismiss={async () => {}}
+          createLaunch={async () => ({ id: 'l-1' })}
+        />
       )
-    const read = render({})
+    const html = render({})
+    const read = words(html)
     expect(read).toContain(
       'Assistants and API Scripts and assistants act for Night Shift Audio with its API keys, short of approving anything. Error The API keys’ use didn’t load. Reload the page to try again. Open API keys Network'
     )
+    // Whether a key was used is unknown, so Setup's step says so, and its count takes it neither way.
+    expect(sections(html)[0]).toEqual(['Setup', '0 of 5 done, 1 unknown'])
+    expect(steps(html)[4]).toBe('Connect your AI Error Couldn’t check whether a key has been used.')
     expect(read).toMatch(
-      /^Dashboard Setup 0 of 5 done .+ Nothing needs you\. Import a roster Latest runs .+ No runs yet\. .+ Model runs 0 of 10 today /
+      /Nothing needs you\. Import a roster Latest runs .+ No runs yet\. .+ Model runs 0 of 10 today /
     )
     // Nor did today's usage, as when its gateway didn't answer.
-    expect(render({ usage: null })).toContain(
+    expect(words(render({ usage: null }))).toContain(
       'Today’s usage What Night Shift Audio can use each UTC day, whichever member or API key uses it. Error Today’s usage didn’t load. Reload the page to try again. Assistants and API'
     )
   })

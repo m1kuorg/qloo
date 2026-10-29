@@ -629,23 +629,21 @@ export async function setupProgress(db: D1Database, networkId: string) {
 
 // How a network's API keys are used, as its dashboard says it and its setup checklist ticks off "Connect
 // your AI" from it: how many are in use, and the latest use of any key it ever made, revoked or not, to
-// the minute (`apiKeyFor`), with that key's name and whether it's revoked since, or null while no key
-// has been used. The dashboard tells only an owner the name and whether it's revoked, as only an owner
-// sees the network's keys (`apiKeys`).
+// the minute (`apiKeyFor`), or null while no key has been used. For an `owner`, that use names its key
+// and whether it's revoked since; for anyone else the statement doesn't read them, as only owners are
+// shown the network's keys (`apiKeys`).
 export type KeyUse = { inUse: number; last: { at: number; name?: string; revoked?: boolean } | null }
 
-export async function keyUse(db: D1Database, networkId: string): Promise<KeyUse> {
+export async function keyUse(db: D1Database, networkId: string, owner: boolean): Promise<KeyUse> {
   const row = await db
     .prepare(
-      'SELECT (SELECT count(*) FROM api_keys WHERE network_id = ?1 AND revoked IS NULL) AS inUse, k.last_used AS at, k.name, k.revoked IS NOT NULL AS revoked FROM (SELECT 1) LEFT JOIN api_keys k ON k.id = (SELECT id FROM api_keys WHERE network_id = ?1 AND last_used IS NOT NULL ORDER BY last_used DESC, id LIMIT 1)'
+      'SELECT (SELECT count(*) FROM api_keys WHERE network_id = ?1 AND revoked IS NULL) AS inUse, k.last_used AS at, CASE WHEN ?2 THEN k.name END AS name, CASE WHEN ?2 THEN k.revoked IS NOT NULL END AS revoked FROM (SELECT 1) LEFT JOIN api_keys k ON k.id = (SELECT id FROM api_keys WHERE network_id = ?1 AND last_used IS NOT NULL ORDER BY last_used DESC, id LIMIT 1)'
     )
-    .bind(networkId)
+    .bind(networkId, owner ? 1 : 0)
     .first<{ inUse: number; at: number | null; name: string | null; revoked: number | null }>()
   const at = row?.at ?? null
-  return {
-    inUse: row?.inUse ?? 0,
-    last: at === null ? null : { at, name: row!.name!, revoked: row!.revoked === 1 }
-  }
+  if (at === null) return { inUse: row?.inUse ?? 0, last: null }
+  return { inUse: row!.inUse, last: owner ? { at, name: row!.name!, revoked: row!.revoked === 1 } : { at } }
 }
 
 // An invite link works once, for seven days, unless an owner revokes it first.

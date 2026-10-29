@@ -508,6 +508,7 @@ describe("the roster's page", () => {
         setup={{ invited: true }}
         usage={null}
         ownKey={false}
+        usageRead={0}
         keys={null}
         dismiss={async () => {}}
         createLaunch={async () => ({ id: 'l-1' })}
@@ -576,6 +577,7 @@ describe("the roster page's words", () => {
             setup={{ invited: false }}
             usage={null}
             ownKey={false}
+            usageRead={0}
             keys={null}
             dismiss={async () => {}}
             createLaunch={async () => ({ id: 'l-1' })}

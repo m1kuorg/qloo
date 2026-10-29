@@ -16,8 +16,9 @@ export const usageScope = (network: NetworkPage) =>
 // Each counter as "3 of 10 today", with what it counts and its meter, then when they reset, at 00:00
 // UTC and in the browser's own time; then a line for each counter at its cap, saying what's refused
 // until then. The network's Qloo calls count on its own key while it has one (`hasOwnKey`), which their
-// line says.
-export function UsageLines({ usage, hasOwnKey }: { usage: Usage; hasOwnKey: boolean }) {
+// line says. How long until the reset is counted from `read`, when the counts were read, where a page
+// gives it, so it stays with the counts beside it; and otherwise from now.
+export function UsageLines({ usage, hasOwnKey, read }: { usage: Usage; hasOwnKey: boolean; read?: number }) {
   const rows = [
     {
       name: 'Model runs',
@@ -49,7 +50,7 @@ export function UsageLines({ usage, hasOwnKey }: { usage: Usage; hasOwnKey: bool
           </KeyValue>
         ))}
         <KeyValue label="Resets">
-          00:00 UTC, {fromNow(usage.resets)}
+          00:00 UTC, {fromNow(usage.resets, read ?? Date.now())}
           {local && <span className="block type-caption text-muted-foreground">{local} your time</span>}
         </KeyValue>
       </KeyValues>
@@ -80,9 +81,9 @@ function Meter({ used, limit }: { used: number; limit: number }) {
   )
 }
 
-// How long until `when`, as "in 9 h 30 min".
-function fromNow(when: string) {
-  const minutes = Math.max(0, Math.floor((Date.parse(when) - Date.now()) / 60_000))
+// How long `when` is after `from` (epoch ms), as "in 9 h 30 min".
+function fromNow(when: string, from: number) {
+  const minutes = Math.max(0, Math.floor((Date.parse(when) - from) / 60_000))
   const [h, m] = [Math.floor(minutes / 60), minutes % 60]
   if (h === 0) return m === 0 ? 'in under a minute' : `in ${m} min`
   return m === 0 ? `in ${h}\u00a0h` : `in ${h}\u00a0h ${m}\u00a0min`

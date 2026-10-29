@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,14 +23,15 @@ import { UsageLines, usageScope } from './usage'
 export type Setup = { invited: boolean }
 
 // What the server read for the dashboard as the page loaded, besides the network: who's looking, the
-// setup checklist's progress, today's usage and whether the network's Qloo calls count on its own key,
-// and how its API keys are used, the last key's name for an owner alone. Usage and the keys are null
-// when their read failed, which their blocks say.
+// setup checklist's progress, today's usage, whether the network's Qloo calls count on its own key, and
+// when the server read them (`usageRead`, epoch ms), and how its API keys are used, the last key's name
+// for an owner alone. Usage and the keys are null when their read failed, which their blocks say.
 type Loaded = {
   memberId: string
   setup: Setup
   usage: Usage | null
   ownKey: boolean
+  usageRead: number
   keys: KeyUse | null
   notice?: string
 }
@@ -52,17 +53,23 @@ export function DashboardPage(props: { agentPath: string; network: NetworkPage }
 
 // Each of the dashboard's blocks is a `Section` on a card.
 const card = 'rounded-xl bg-card p-4'
+// A card set beside another, as tall as the row: its section fills it, so a link last in the section
+// sits at the foot of either card (`mt-auto`).
+const paired = cn(card, 'flex flex-col [&>section]:flex-1')
 
 // The network's home, which answers "What needs me?": the header, its title badged sample while the
-// network holds the sample data, the page's one sample label (ADR 0007), and its launches' counts, as
-// the Launches page's header gives them; under it, a `notice` the server gave the page, as a reset of
-// the guest network's sample data that's still finishing opens it with; then the blocks, each on a
-// card. From 1024px they stand in two columns: the main one holds Needs you over Latest runs, and the
-// side one Setup, until this member dismisses it, then Network, Today's usage, and Assistants and API.
-// Under 1024px they stack in one in the order of what needs a member first, which is also their order
-// in the page: Setup while it shows, Needs you, Latest runs, Today's usage, Assistants and API, then
-// Network. Tests render it from a network agent's synced state; `state` is undefined until it arrives.
-// At 1440 the grid is 56 (rail) + 24 + 992 + 24 + 320 + 24 = 1440.
+// network holds the sample data, the page's one sample label (ADR 0007), and the counts of its
+// launches, what Needs you lists among them, the inbox's rows included; under it, a `notice` the server
+// gave the page, as a reset of the guest network's sample data that's still finishing opens it with;
+// then the blocks, each on a card. From 1024px they stand in two columns, the old split's: the main one
+// holds Needs you, Latest runs, then Today's usage and Assistants and API, side by side where both fit
+// 288px, at 1440 but not at 1024; the side one Setup, until this member dismisses it, over Network.
+// The main column spans both of the side column's rows, so neither column waits on the other's
+// heights. Under 1024px they stack in one in the order of what needs a member first, which is also
+// their order in the page: Setup while it shows, Needs you, Latest runs, Today's usage, Assistants and
+// API, then Network. Tests render it from a network agent's synced state; `state` is undefined until it
+// arrives. At 1440 the grid is 56 (rail) + 24 + 992 + 24 + 320 + 24 = 1440, and the main column's pair
+// 484 + 24 + 484 = 992.
 export function Dashboard({
   state,
   connection = { lost: null, reconnecting: false },
@@ -71,6 +78,7 @@ export function Dashboard({
   setup,
   usage,
   ownKey,
+  usageRead,
   keys,
   notice,
   dismiss,
@@ -86,18 +94,16 @@ export function Dashboard({
   const planning = useFormDialog('New launch')
   // Setup's place, kept while the agent's state is on its way, since it shows until it's dismissed.
   const checklist = !state || !state.checklistDismissed?.includes(memberId)
-  // From 1024px, each of the side column's blocks takes a row of its own, in its order, Setup's first
-  // while it shows; the last row takes what height is left, and the main column spans them all, so
-  // neither column waits on the other's heights.
-  const row = (i: number) => SIDE_ROWS[checklist ? i : i - 1]
   const launches = state?.launches ?? []
+  // What waits on a member in the inbox while it's on, which Needs you lists after the launches.
+  const inbox = state && network.links.inbox ? inboxWaiting(state, network.links.inbox) : []
   return (
     <main className="flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6" aria-busy={!state || undefined}>
       <PageHeader
         title="Dashboard"
         connection={state ? connection : null}
         badge={state?.sample && <Badge>sample</Badge>}
-        summary={launches.length > 0 && countsLine(launches)}
+        summary={(launches.length > 0 || inbox.length > 0) && countsLine(launches, inbox.length)}
       />
       {notice && (
         <p className="max-w-[72ch]">
@@ -109,15 +115,10 @@ export function Dashboard({
       <NewLaunch network={network} create={createLaunch} dialog={planning} />
       {/* One column, as wide as the page and never wider, so a long name in a block is cut short or wraps
           rather than widening it. */}
-      <div
-        className={cn(
-          'grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]',
-          checklist ? 'lg:grid-rows-[auto_auto_auto_1fr]' : 'lg:grid-rows-[auto_auto_1fr]'
-        )}
-      >
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr]">
         {checklist &&
           (state ? (
-            <div className={cn(card, 'lg:col-start-2', row(0))}>
+            <div className={cn(card, 'lg:col-start-2 lg:row-start-1')}>
               <Checklist
                 state={state}
                 network={network}
@@ -128,37 +129,31 @@ export function Dashboard({
               />
             </div>
           ) : (
-            <Skeleton className={cn('h-64 rounded-xl lg:col-start-2', row(0))} />
+            <Skeleton className="h-64 rounded-xl lg:col-start-2 lg:row-start-1" />
           ))}
-        <div
-          className={cn(
-            'flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1',
-            checklist ? 'lg:row-span-4' : 'lg:row-span-3'
-          )}
-        >
+        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-span-2 lg:row-start-1">
           <div className={card}>
-            <NeedsYou state={state} network={network} newLaunch={planning.button()} />
+            <NeedsYou state={state} network={network} inbox={inbox} newLaunch={planning.button()} />
           </div>
           <div className={card}>
             <LatestRuns state={state} network={network} />
           </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+            <div className={paired}>
+              <TodaysUsage network={network} usage={usage} ownKey={ownKey} read={usageRead} />
+            </div>
+            <div className={paired}>
+              <KeysUsed network={network} keys={keys} />
+            </div>
+          </div>
         </div>
-        <div className={cn(card, 'lg:col-start-2', row(2))}>
-          <TodaysUsage network={network} usage={usage} ownKey={ownKey} />
-        </div>
-        <div className={cn(card, 'lg:col-start-2', row(3))}>
-          <KeysUsed network={network} keys={keys} />
-        </div>
-        <div className={cn(card, 'lg:col-start-2', row(1))}>
+        <div className={cn(card, 'lg:col-start-2', checklist ? 'lg:row-start-2' : 'lg:row-span-2 lg:row-start-1')}>
           <NetworkLines state={state} network={network} />
         </div>
       </div>
     </main>
   )
 }
-
-// The side column's rows from 1024px, as literal classes so the build finds them.
-const SIDE_ROWS = ['lg:row-start-1', 'lg:row-start-2', 'lg:row-start-3', 'lg:row-start-4']
 
 // Where a launch that needs a person is worked on: the plan's tab of its page for an order to approve,
 // and otherwise its page, which opens on a waiting question and says why a run failed or stopped.
@@ -169,18 +164,19 @@ const workedOn = (launch: LaunchSummary, network: NetworkPage) =>
 type Waiting = { key: string; title: string; href: string; state: ReactNode }
 
 // The launches waiting on a member, as the Launches page's first group lists them, latest run first;
-// then, while the inbox is on, what waits there (`inboxWaiting`). Each row is its link, with its state
-// in a word. With none, it says so, with the next useful thing to do (`NextStep`).
+// then, while the inbox is on, what waits there (`inbox`, from `inboxWaiting`). Each row is its link,
+// with its state in a word. With none, it says so, with the next useful thing to do (`NextStep`).
 function NeedsYou({
   state,
   network,
+  inbox,
   newLaunch
 }: {
   state: State | undefined
   network: NetworkPage
+  inbox: Waiting[]
   newLaunch: ReactNode // New launch, for the empty state
 }) {
-  const { inbox } = network.links
   const rows: Waiting[] = [
     ...needsYou(state?.launches ?? []).map((l) => ({
       key: l.id,
@@ -188,14 +184,14 @@ function NeedsYou({
       href: workedOn(l, network),
       state: <LaunchStatus status={l.status} />
     })),
-    ...(state && inbox ? inboxWaiting(state, inbox) : [])
+    ...inbox
   ]
   return (
     <Section
       id="needs-you-h"
       title="Needs you"
       description={
-        inbox
+        network.links.inbox
           ? 'Launches and pitch runs with a question to answer, orders and replies to approve, and runs that failed or stopped.'
           : 'Launches with a question to answer or an order to approve, and runs that failed or stopped.'
       }
@@ -304,16 +300,26 @@ function LatestRuns({ state, network }: { state: State | undefined; network: Net
   )
 }
 
-// Today's usage of the network's daily caps, as the settings' Usage tab shows it, with when it was
-// read: as the page loaded, since it isn't on the agent's socket, so it doesn't follow the day's use
-// as Needs you follows the launches. A read that failed says so.
-function TodaysUsage({ network, usage, ownKey }: { network: NetworkPage; usage: Usage | null; ownKey: boolean }) {
-  const [read] = useState(() => Date.now())
+// Today's usage of the network's daily caps, as the settings' Usage tab shows it, with when the server
+// read it (`read`), as the page loaded, since it isn't on the agent's socket, so it doesn't follow the
+// day's use as Needs you follows the launches; how long until the reset is counted from then too. A
+// read that failed says so.
+function TodaysUsage({
+  network,
+  usage,
+  ownKey,
+  read
+}: {
+  network: NetworkPage
+  usage: Usage | null
+  ownKey: boolean
+  read: number
+}) {
   return (
     <Section id="usage-h" title="Today’s usage" description={`${usageScope(network)}.`} data-usage>
       {usage ? (
         <>
-          <UsageLines usage={usage} hasOwnKey={ownKey} />
+          <UsageLines usage={usage} hasOwnKey={ownKey} read={read} />
           <p className="type-caption text-muted-foreground">As of {clock(read)}, when the page loaded.</p>
         </>
       ) : (
@@ -325,9 +331,10 @@ function TodaysUsage({ network, usage, ownKey }: { network: NetworkPage; usage: 
   )
 }
 
-// How the network's API keys are used: how many are in use, and when any key, revoked or not, was
-// last used, by which key for an owner, who alone sees the network's keys; or that none has been. It
-// leads to the API keys in settings, where an owner makes one. A read that failed says so.
+// How the network's API keys are used: how many are active, not revoked, and when any key, revoked or
+// not, was last used, naming the key to an owner alone, as settings lists the keys to owners alone
+// (a run still says who started it, an API key by its name); or that none has been. It leads to the API
+// keys in settings, where an owner makes one, at the card's foot. A read that failed says so.
 function KeysUsed({ network, keys }: { network: NetworkPage; keys: KeyUse | null }) {
   const last = keys?.last
   return (
@@ -344,7 +351,7 @@ function KeysUsed({ network, keys }: { network: NetworkPage; keys: KeyUse | null
       ) : (
         <>
           <KeyValues>
-            <KeyValue label="Keys in use">{keys.inUse.toLocaleString('en-US')}</KeyValue>
+            <KeyValue label="Active keys">{keys.inUse.toLocaleString('en-US')}</KeyValue>
             {last && (
               <KeyValue label="Last used">
                 {day(last.at)}, {clock(last.at)}
@@ -359,7 +366,7 @@ function KeysUsed({ network, keys }: { network: NetworkPage; keys: KeyUse | null
           )}
         </>
       )}
-      <a className={linkVariants({ className: 'self-start' })} href={`${network.links.settings}#api-keys`}>
+      <a className={linkVariants({ className: 'mt-auto self-start' })} href={`${network.links.settings}#api-keys`}>
         Open API keys
       </a>
     </Section>
@@ -478,7 +485,8 @@ function inboxLine(inbox: Inbox | null) {
 
 // What a new network needs, ticked off from its agent's state and the directory as each arrives, as
 // a numbered list under its count; "Connect your AI" once any of its keys, revoked or not, has been
-// used for a request, as Assistants and API says (`keys`). A member can dismiss it for themselves; it
+// used for a request, as Assistants and API says (`keys`), and while that couldn't be read, neither done
+// nor not: the step says so, and the count leaves it out. A member can dismiss it for themselves; it
 // stays for everyone else.
 function Checklist({
   state,
@@ -500,8 +508,15 @@ function Checklist({
   const { roster, settings } = network.links
   // A step links where it's done only for a member who can do it there, in settings the tab it's done
   // in; planning a launch opens New launch's dialog. Done, it says so, in its own words where it has
-  // them (`said`).
-  const items: { title: string; how: string; go: string | (() => void) | null; done: boolean; said?: string }[] = [
+  // them (`said`); `done` is null while it couldn't be told, with `unknown` saying so.
+  const items: {
+    title: string
+    how: string
+    go: string | (() => void) | null
+    done: boolean | null
+    said?: string
+    unknown?: string
+  }[] = [
     {
       title: 'Import the roster',
       how: 'Paste your shows’ names, or upload the roster’s CSV, and Crossfeed finds each one in Qloo.',
@@ -536,16 +551,22 @@ function Checklist({
         ? 'Make a key in settings for an assistant or a script to act for the network, short of approving anything. It’s done once a key is used.'
         : 'An owner makes API keys in settings, for scripts and assistants.',
       go: owner ? `${settings}#api-keys` : null,
-      done: Boolean(keys?.last),
-      said: 'A key has been used.'
+      done: keys ? keys.last !== null : null,
+      said: 'A key has been used.',
+      unknown: 'Couldn’t check whether a key has been used.'
     }
   ]
   const done = items.filter((i) => i.done).length
+  const unknown = items.filter((i) => i.done === null).length
   return (
     <Section
       id="setup-h"
       title="Setup"
-      description={done === items.length ? 'Done' : `${done} of ${items.length} done`}
+      description={
+        done === items.length
+          ? 'Done'
+          : `${done} of ${items.length} done${unknown ? `, ${count(unknown, 'unknown', 'unknown')}` : ''}`
+      }
       actions={
         <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={() => void run(dismiss)}>
           Dismiss
@@ -572,6 +593,10 @@ function Checklist({
               <span className="flex items-center gap-1 type-caption">
                 <CheckIcon aria-hidden="true" className="size-3.5" />
                 {item.said ?? 'Done'}
+              </span>
+            ) : item.done === null ? (
+              <span className="block type-caption">
+                <StateLine kind="error">{item.unknown}</StateLine>
               </span>
             ) : (
               <span className="block type-caption text-muted-foreground">{item.how}</span>

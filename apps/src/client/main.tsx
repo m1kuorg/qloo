@@ -53,6 +53,7 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         setup={{ invited: d.invited === 'true' }}
         usage={d.usage ? JSON.parse(d.usage) : null}
         ownKey={d.ownKey === 'true'}
+        usageRead={Number(d.usageRead)}
         keys={d.keys ? JSON.parse(d.keys) : null}
         notice={d.notice}
       />

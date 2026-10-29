@@ -43,11 +43,12 @@ export const latestRuns = (launches: LaunchSummary[]) =>
   ).slice(0, 5)
 
 // The launches in the Launches page's and the dashboard's summary line: "7 launches · 4 need you, 1
-// running".
-export function countsLine(launches: LaunchSummary[]) {
+// running". The dashboard adds what else its Needs you lists (`alsoNeeds`), the inbox's rows, so its
+// header counts what the block lists.
+export function countsLine(launches: LaunchSummary[], alsoNeeds = 0) {
   const running = launches.filter((l) => l.status === 'running').length
   return summaryLine(count(launches.length, 'launch', 'launches'), [
-    [needsYou(launches).length, 'needs you', 'need you'],
+    [needsYou(launches).length + alsoNeeds, 'needs you', 'need you'],
     [running, 'running']
   ])
 }

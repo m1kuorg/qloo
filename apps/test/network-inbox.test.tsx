@@ -559,6 +559,7 @@ describe("the inbox's members", () => {
         setup={{ invited: true }}
         usage={null}
         ownKey={false}
+        usageRead={0}
         keys={null}
         dismiss={async () => {}}
         createLaunch={async () => ({ id: 'l-1' })}
