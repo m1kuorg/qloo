@@ -95,7 +95,8 @@ const search: Record<string, QlooEntity[]> = {
   'Dead Air': work('t-0001', 'Dead Air', '2017'),
   // The past guests' works.
   'Glass Harbor': work('f-0101', 'Glass Harbor', '2020'),
-  'Salt Roads': work('b-0101', 'Salt Roads', '2015, Ivo Marsh')
+  'Salt Roads': work('b-0101', 'Salt Roads', '2015, Ivo Marsh'),
+  'Quiet Hours': work('t-0101', 'Quiet Hours', '2014')
 }
 
 const pitches = [
@@ -143,6 +144,7 @@ const inboxText = [...pitches.map((p) => p.text), noWork, declined].join('\n---\
 
 const film = { guest: 'Mae Ford', work: { title: 'Glass Harbor', type: 'film', year: 2020 } }
 const book = { guest: 'Ivo Marsh', work: { title: 'Salt Roads', type: 'book', year: 2015 } }
+const tvShow = { guest: 'Lou Pike', work: { title: 'Quiet Hours', type: 'tv_show', year: 2014 } }
 
 // A session with the show imported, the pitches loaded, and a pitch run started with `pastGuests`
 // and scripted through `script`.
@@ -315,6 +317,23 @@ describe('ranking pitched works against the show', () => {
     const unranked = words(list(state, 'tv_show'))
     expect(unranked).toMatch(/^TV shows · 0 ranked Failed Not ranked: .*no past guest's work is a TV show.* C-11 /)
     expect(unranked).toMatch(/Not scored · 1 Pitch Reason Dead Air Not ranked/)
+  })
+
+  it('words a TV show as one where its list is ranked against a past guest’s TV show alone', async () => {
+    fakeInsights((body) =>
+      body['filter.type'] === 'urn:entity:tv_show' && body['signal.interests.entities'] !== 't-0101'
+        ? []
+        : scores[String(body['filter.type'])]
+    )
+    const { state } = await rank([film, tvShow], [turn(rankPitches(['f-0101', 't-0101'])), turn(text('Ranked.'))])
+
+    expect(state.booking!.lists!.find((l) => l.type === 'tv_show')).toMatchObject({ path: 'same_type' })
+    const tv = list(state, 'tv_show')
+    expect(words(tv)).toContain(
+      'TV shows · 1 ranked Ranked against the past guests’ TV shows alone: Quiet Hours. Qloo scored no TV show against the show and every past guest (C-11). C-11 C-12'
+    )
+    expect(tv).toContain('aria-label="Evidence for the TV show ranking: call C-11"')
+    expect(tv).toContain('aria-label="Evidence for the TV show ranking: call C-12"')
   })
 })
 

@@ -1011,7 +1011,7 @@ function RankedPitches({
   const id = `list-${list.type}`
   const pitch = (id: string) => pitches.find((p) => p.id === id)
   const names = listOf(list.anchors.map((a) => a.name))
-  const noun = typeLabel[list.type].toLowerCase()
+  const noun = workNoun[list.type]
   const against =
     list.path === 'same_type'
       ? `Ranked against the past guests’ ${noun}s alone: ${names}. Qloo scored no ${noun} against the show and every past guest (${list.calls[0]}).`
