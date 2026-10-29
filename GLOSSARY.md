@@ -47,7 +47,7 @@ _Avoid_: Guest workspace, demo account
 The daily caps everyone who signs in as a guest uses up together, in the guest network and in every network the guest member creates.
 
 **Sample network**:
-The Ringer's public show names with labelled sample figures, a sample CPM, the sample launch and the sample launches, and an inbox of synthetic pitches, the sample inbox: the data the guest network starts with each day.
+The Ringer's public show names with sample figures, a sample CPM, the sample launch and the sample launches, and an inbox of synthetic pitches, the sample inbox: the data the guest network starts with each day. Each page that shows it is labelled once, by a "sample" badge in its header.
 _Avoid_: Demo, demo account
 
 **Sample launch**:
@@ -55,7 +55,7 @@ The Watch, the one launch the guest network opens with planned and not yet run, 
 _Avoid_: Demo launch; "a sample launch" for one of the sample launches
 
 **Sample launches**:
-The launches the guest network opens with beside the sample launch, one in each other status, each a real run captured once and labelled as the sample data's. Always plural: a single one is "one of the sample launches".
+The launches the guest network opens with beside the sample launch, one in each other status, each a real run captured once, whose page is labelled as the sample data's by the "sample" badge in its header. Always plural: a single one is "one of the sample launches".
 _Avoid_: Seeded launches, other sample launches
 
 ## Launch promos
