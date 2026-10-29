@@ -223,7 +223,7 @@ export function Section({
           id={id}
           ref={heading}
           tabIndex={heading ? -1 : undefined}
-          className={cn('flex items-center gap-2 font-semibold', level === 2 && 'type-body')}
+          className={cn('flex items-center gap-2 font-semibold text-balance', level === 2 && 'type-body')}
         >
           {title}
           {badge}
@@ -284,8 +284,8 @@ export function PageTabs({ label, tabs }: { label: string; tabs: PageTab[] }) {
       }}
       className="gap-6"
     >
-      {/* Room around the track for the focus ring; on a phone it scrolls from edge to edge of the screen. */}
-      <div ref={track} className="-m-1 overflow-x-auto p-1 max-md:-mx-4 max-md:scroll-px-4 max-md:px-4">
+      {/* It scrolls inside the page's margin, as a wide table does, with room around the track for the focus ring. */}
+      <div ref={track} className="-m-1 overflow-x-auto overscroll-x-contain p-1">
         <TabsList aria-label={label} className="max-w-none *:shrink-0">
           {tabs.map((t) => (
             <TabsTrigger key={t.id} value={t.id}>
