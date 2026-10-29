@@ -407,7 +407,7 @@ describe('rate limits', () => {
     expect((await post(ada, `/app/${network}/settings/members/invites/${open.id}/revoke`)).status).toBe(200)
   })
 
-  it("count a member's creations across the networks they own, and refuse them elsewhere as before: 403 as a member, 404 outside", async () => {
+  it("count a member's creations across the networks they own, and not their refusals as a member or outside: 403 and 404 as before", async () => {
     const ada = await openMember()
     const adas = await created(ada)
     const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(adas) })
@@ -415,7 +415,13 @@ describe('rate limits', () => {
     const second = await created(grace, 'Deep Cuts')
     const outside = await created(await openMember({ name: 'Mallory Outsider' }), 'Elsewhere')
 
-    await untilRefused(() => createAndRevoke(grace, first, 'api-keys'), CREATE_LIMIT)
+    // Refused before the owner check, past the limit, as a member and outside: none of it counts.
+    for (let i = 0; i <= CREATE_LIMIT; i++) {
+      const [network, status] = i % 2 ? [outside, 404] : [adas, 403]
+      expect((await post(grace, `/app/${network}/settings/api-keys`, { name: 'Mine' })).status).toBe(status)
+    }
+    const { sent } = await untilRefused(() => createAndRevoke(grace, first, 'api-keys'), CREATE_LIMIT)
+    expect(sent).toBeGreaterThan(CREATE_LIMIT)
     expect(await refusal(await post(grace, `/app/${second}/settings/members/invites`))).toEqual(TOO_MANY_CREATED)
 
     const keys = await post(grace, `/app/${adas}/settings/api-keys`, { name: 'Mine' })
