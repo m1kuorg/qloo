@@ -101,16 +101,16 @@ export type PitchReply = {
   approvedBy?: string // the member who approved it, on a network's agent; absent on an engine session's
 }
 
-// A pitch's sender and subject, apart from its text, as an uploaded email (upload.ts) or a pitch's first
-// lines (headed) give them.
+// A pitch with its sender and subject kept apart from its text. An uploaded email gives them in its
+// headers (upload.ts), and pasted or .txt text in a pitch's leading From and Subject lines (headed).
 export type PitchInput = Pick<Pitch, 'from' | 'subject' | 'body'>
 
 // An uploaded pitch that couldn't be read, named by its subject, its sender, or its place in the
 // upload, and why, in words that follow the name: "has no text".
 export type Skipped = { pitch: string; why: string }
 
-// Pasted text with pitches separated by lines of three or more dashes, or the pitches of uploaded
-// files.
+// Pasted text with pitches separated by lines of three or more dashes, each pitch's leading From and
+// Subject lines read as its sender and subject, or the pitches of uploaded files.
 export type InboxSource = { text: string } | { pitches: PitchInput[] }
 
 // Each pitch costs one model call and one Qloo search, and one ranking takes at most 50 works.
@@ -138,7 +138,7 @@ export function readInbox(
     )
   const read = texts.map(headed)
   const blank = read.findIndex((p) => !p.body)
-  if (blank >= 0) throw new Refusal('unreadable', `Pitch ${blank + 1} has no text after its From and Subject lines.`)
+  if (blank >= 0) throw new Refusal('unreadable', `Pitch ${blank + 1} has no text after its From or Subject lines.`)
   return {
     sample: false,
     notice: null,
