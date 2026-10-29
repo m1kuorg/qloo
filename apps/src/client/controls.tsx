@@ -307,15 +307,16 @@ export function twinIds<T extends { id: string }>(rows: T[], shown: (row: T) => 
 }
 
 // A record as key/value pairs: each key in grey beside its value, on one grid so the values share a
-// left edge. `KeyValue`s go straight inside. `className` places it, such as on a parent's subgrid, so
-// two records share their values' edge.
+// left edge, a word too long for a value's line, such as a network's name with no spaces, breaking.
+// `KeyValue`s go straight inside. `className` places it, such as on a parent's subgrid, so two records
+// share their values' edge.
 export const KeyValues = ({ className, children }: { className?: string; children: ReactNode }) => (
   <dl className={cn('grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5', className)}>{children}</dl>
 )
 export const KeyValue = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="col-span-full grid grid-cols-subgrid">
     <dt className="text-muted-foreground">{label}</dt>
-    <dd className="min-w-0">{children}</dd>
+    <dd className="min-w-0 break-words">{children}</dd>
   </div>
 )
 

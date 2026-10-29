@@ -22,9 +22,11 @@ const frame = cn(marketingFrame, 'grid items-start gap-10 pt-6 pb-16 md:pt-10 lg
 const panel = 'flex w-full max-w-[32rem] flex-col gap-4 rounded-xl bg-card p-4 sm:p-6 lg:justify-self-end'
 const ways = 'flex w-full max-w-[32rem] flex-col gap-4 lg:justify-self-end'
 
-// The left column: the page's h1 at display size, and what it says under it.
+// The left column: the page's h1 at display size, and what it says under it. Below 1024px its column
+// sizes to its content, so a word too long for its line, such as a network's name with no spaces,
+// breaks anywhere rather than widening the page.
 const Lede = ({ title, children }: { title: string; children: ReactNode }) => (
-  <div className="flex flex-col gap-4">
+  <div className="flex flex-col gap-4 wrap-anywhere">
     <h1 className="type-display text-balance">{title}</h1>
     {children}
   </div>
@@ -468,9 +470,11 @@ function JoinAs({ name, network, join }: { name: string; network: string; join: 
   return (
     <div className={panel}>
       <Section id="way-join" title={`Join ${network}`} description={`You’re signed in as ${name}.`}>
-        <Button className="w-full" disabled={busy} onClick={() => void run(join)}>
+        {/* One line however long the network's name: the panel sets its width, never its words
+            (`contain-inline-size`), and a name too long for it is cut short, whole to a screen reader. */}
+        <Button className="w-full contain-inline-size" disabled={busy} onClick={() => void run(join)}>
           {busy && <Spinner data-icon="inline-start" />}
-          {busy ? 'Joining…' : `Join ${network}`}
+          <span className="truncate">{busy ? 'Joining…' : `Join ${network}`}</span>
         </Button>
         <Alert error={error} />
         <p className="text-muted-foreground">

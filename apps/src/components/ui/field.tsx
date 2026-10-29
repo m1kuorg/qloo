@@ -1,7 +1,8 @@
 // Forked from shadcn's field, trimmed to the parts the app uses and set on the tokens: a label 8px over
-// its control, fields 16px apart in a group, help in caption under the control, and no choice-card
-// or separator styles. Errors stay the app's own Alert (role="alert") under the form. Don't re-add
-// the original with `shadcn add field --overwrite`.
+// its control, fields 16px apart in a group, help in caption under the control, which breaks a word
+// too long for its line, such as a network's name with no spaces, and no choice-card or separator
+// styles. Errors stay the app's own Alert (role="alert") under the form. Don't re-add the original
+// with `shadcn add field --overwrite`.
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from 'cn'
 import { Label } from '@/components/ui/label'
@@ -75,7 +76,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
     <p
       data-slot="field-description"
       className={cn(
-        'text-left type-caption font-normal text-muted-foreground [&>a]:underline [&>a]:underline-offset-4',
+        'text-left type-caption font-normal break-words text-muted-foreground [&>a]:underline [&>a]:underline-offset-4',
         className
       )}
       {...props}

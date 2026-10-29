@@ -202,7 +202,8 @@ export function FormDialog({
 // page puts it on a card, or a panel inside it, as the settings' modules do. `heading` takes focus once
 // what had it is gone; `badge`, its chips (Beta, a status), follows the title's last word in the heading,
 // so a long title, such as a show's name, wraps at the column's width and the chips follow its last
-// line rather than squeezing it; `data-*` attributes reach the section.
+// line rather than squeezing it; a word too long for its line, in the heading or the sentence, such as
+// a network's name with no spaces, breaks; `data-*` attributes reach the section.
 export function Section({
   id,
   title,
@@ -244,7 +245,7 @@ export function Section({
           )}
         </Heading>
         {description && (
-          <p className="col-span-full mt-1 max-w-[72ch] text-pretty text-muted-foreground">{description}</p>
+          <p className="col-span-full mt-1 max-w-[72ch] text-pretty break-words text-muted-foreground">{description}</p>
         )}
         {actions && (
           <div className="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2">{actions}</div>

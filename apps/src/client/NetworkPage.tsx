@@ -49,12 +49,13 @@ export function NetworkGate({
 }
 
 // A network's page once its agent has closed the connection for good, as when the member is removed
-// or leaves: what it showed goes, and the page says why. A reload answers 404.
+// or leaves: what it showed goes, and the page says why, under the network's name, which breaks where
+// a word of it is too long for its line. A reload answers 404.
 export function LostAccess({ network, reason }: { network: NetworkPage; reason: string }) {
   return (
     <div className="flex flex-col gap-4 px-4 pt-6 pb-10 lg:px-6">
       <section aria-label="Network">
-        <h1 className="type-title text-balance">{network.name}</h1>
+        <h1 className="type-title text-balance break-words">{network.name}</h1>
       </section>
       <main className="flex max-w-[72ch] flex-col items-start gap-3">
         <p>
