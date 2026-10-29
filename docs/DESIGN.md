@@ -295,7 +295,7 @@ The signature is the re-rank: one list switching between "By topic", what a topi
 
 ### The on-air readout
 
-Every run (a launch run or a pitch run) has an on-air readout, read like a studio's on-air light: a strip on the tone step with a dot, the run's word (Running, Waiting on you, Completed, Stopped at a limit, Failed), the current step ("Scoring 15 shows against The Watch · step 2"), and while it runs the time since it started. The dot is signal orange and breathes while the run is running or waiting on a person, ink once it has ended, an empty ring before the first run; a failure shows the square ✕ and its word instead.
+Every run (a launch run or a pitch run) has an on-air readout, read like a studio's on-air light: a strip on the tone step with a dot, the run's word (Running, Waiting on you, Completed, Stopped at a limit, Failed), the current step ("Scoring 15 shows against The Watch · step 2"), and while it runs the time since it started. The dot is signal orange and breathes while the run is running or waiting on a person, ink once it has ended, an empty ring before the first run; a failure shows the square ✕ and its word instead. It speaks only while it has something to say: a launch's readout gives way once its run has completed, unless the run was replayed, a call is still slow, or the connection drops, and the inbox's at rest; "Details" in the header still opens the run's log.
 
 The identity carries past the launch page: the dashboard's rows carry the on-air dot and a finalist meter, and the roster and the inbox's ranked lists use the fit chart's row anatomy.
 
@@ -533,7 +533,7 @@ The launch workspace (`App.tsx`, on each launch page), the inbox (`Inbox.tsx`) a
 
 ### Launch page
 
-`App.tsx`'s `Workspace`. Under the title row, the readout and the launch form or the question card, a launch's sections stand in `PageTabs`, "Launch sections", from its first run on. Before it there are no tabs, only the Roster section. While the page shows the sample data, the title carries the page's one "sample" badge after its last word, as the page header's does: on the guest network's sample launch, on a run one of the sample launches was seeded with, and on a roster that still holds sample figures, as another launch of the guest network ranks. Nothing else on the page carries one: the readout, the run log, the evidence, the slot values and the plan's lines don't.
+`App.tsx`'s `Workspace`. Under the title row, the readout while it has something to say (never for a completed run alone), and the launch form or the question card, a launch's sections stand in `PageTabs`, "Launch sections", from its first run on. Before it there are no tabs, only the Roster section. While the page shows the sample data, the title carries the page's one "sample" badge after its last word, as the page header's does: on the guest network's sample launch, on a run one of the sample launches was seeded with, and on a roster that still holds sample figures, as another launch of the guest network ranks. Nothing else on the page carries one: the readout, the run log, the evidence, the slot values and the plan's lines don't.
 
 - **Ranking `#ranking`:** the fit chart, then Not scored, a section of its own. Before a run has ranked the roster, the chart's section says it appears once one does, over skeleton rows while a run is ranking.
 - **Plan `#plan`:** once there's an insertion order, the plan, with the insertion order as its h3 section. "Review the plan" in the title row links to `#plan`, which opens this tab and scrolls to the plan.
