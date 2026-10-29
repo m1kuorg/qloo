@@ -103,7 +103,7 @@ async function everyPage() {
 
   const pages = [...Object.keys(previewed), '/invite']
   const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/launches`, `/app/${id}/roster`]
-  app.push(`/app/${id}/inbox`, `/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
+  app.push(`/app/${id}/inbox`, `/app/${id}/developers`, `/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
   const loaded = await Promise.all([
     ...pages.map(async (p) => [p, await exports.default.fetch(`${origin}${p}`, browser)] as const),
     ...app.map(async (p) => [p, await ada.fetch(p)] as const)
@@ -151,6 +151,7 @@ describe('every page', () => {
       [`/app/${id}/launches`]: 'Launches',
       [`/app/${id}/roster`]: 'Roster',
       [`/app/${id}/inbox`]: 'NetworkInbox',
+      [`/app/${id}/developers`]: 'Developers',
       [`/app/${id}/settings`]: 'Settings',
       [`/app/${id}/launches/${launch}`]: 'Launch'
     }
@@ -216,6 +217,7 @@ describe('every page', () => {
       [`/app/${id}/launches`]: `Launches · ${network} · Crossfeed`,
       [`/app/${id}/roster`]: `Roster · ${network} · Crossfeed`,
       [`/app/${id}/inbox`]: `Inbox · ${network} · Crossfeed`,
+      [`/app/${id}/developers`]: `Developers · ${network} · Crossfeed`,
       [`/app/${id}/settings`]: `Settings · ${network} · Crossfeed`,
       // The launch's own name is the island's to set, once its agent says it (Launch.tsx).
       [`/app/${id}/launches/${launch}`]: `Launches · ${network} · Crossfeed`

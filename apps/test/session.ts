@@ -39,7 +39,8 @@ export const launchPage: { network: NetworkPage; orders: string } = {
       roster: '/app/n-1/roster',
       inbox: '/app/n-1/inbox',
       settings: '/app/n-1/settings',
-      launches: '/app/n-1/launches'
+      launches: '/app/n-1/launches',
+      developers: '/app/n-1/developers'
     }
   },
   orders: '/app/n-1/launches/l-1/insertion-orders'

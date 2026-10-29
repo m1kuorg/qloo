@@ -18,6 +18,12 @@ export const moveWords = (move: number) =>
     ? 'Same as topic rank'
     : `${move > 0 ? 'Up' : 'Down'} ${Math.abs(move)} place${Math.abs(move) === 1 ? '' : 's'}`
 
+// What `claude mcp list` prints for a server it reached, its own check mark included, as the developer
+// docs and the Developers page quote it. taste-skill-ignore keeps a line out of the design-taste skill's
+// linter (lint.mjs), which reads ✔ as an emoji: here it's the CLI's output, quoted in a code sample, not
+// an icon.
+export const CONNECTED = '✔ Connected' // taste-skill-ignore
+
 // A rank as words: "2nd".
 export const nth = (n: number) =>
   `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`

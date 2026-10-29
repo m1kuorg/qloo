@@ -15,7 +15,13 @@ const network = () => ({
   name: d.networkName!,
   role: d.role as Role,
   guestBudget: d.guestBudget === 'true',
-  links: { roster: d.rosterLink!, inbox: d.inboxLink ?? null, settings: d.settingsLink!, launches: d.launchesLink! }
+  links: {
+    roster: d.rosterLink!,
+    inbox: d.inboxLink ?? null,
+    settings: d.settingsLink!,
+    launches: d.launchesLink!,
+    developers: d.developersLink!
+  }
 })
 // Each page's code is a chunk of its own, loaded before the island renders the page, so a page fetches
 // only what it shows; what pages share, such as React and the controls, is in shared chunks. It isn't
@@ -69,6 +75,18 @@ const pages: Record<string, () => Promise<ReactNode>> = {
   'network-inbox': () =>
     import('./NetworkInbox').then(({ NetworkInboxPage }) => (
       <NetworkInboxPage agentPath={d.agentPath!} network={network()} />
+    )),
+  developers: () =>
+    import('./Developers').then(({ DevelopersPage }) => (
+      <DevelopersPage
+        agentPath={d.agentPath!}
+        network={network()}
+        mcp={d.mcpUrl!}
+        api={d.apiUrl!}
+        keys={d.keys ? JSON.parse(d.keys) : null}
+        owners={JSON.parse(d.owners!)}
+        tools={JSON.parse(d.tools!)}
+      />
     )),
   settings: () =>
     import('./Settings').then(({ SettingsPage }) => (

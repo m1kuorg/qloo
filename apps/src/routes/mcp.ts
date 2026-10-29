@@ -657,6 +657,13 @@ export async function listedTools(): Promise<ListToolsResult['tools']> {
   return (JSON.parse(message) as { result: ListToolsResult }).result.tools
 }
 
+// What a listed tool does to the network, as its annotations say, which the developer docs and the
+// Developers page group its tools by: a read changes nothing, a destructive tool replaces or edits
+// what the network has, and the rest add to it.
+export type ToolKind = 'Reads' | 'Adds' | 'Changes'
+export const toolKind = (tool: ListToolsResult['tools'][number]): ToolKind =>
+  tool.annotations?.readOnlyHint ? 'Reads' : tool.annotations?.destructiveHint ? 'Changes' : 'Adds'
+
 export const mcp = new Hono<{ Bindings: Env }>()
 
 mcp.all('/mcp', accountsOn, uploadLimit, async (c) => {
