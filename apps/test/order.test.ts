@@ -316,7 +316,7 @@ describe('the insertion order', () => {
     release()
     const ended = words(plan(await finished(s)))
     expect(ended).toMatch(
-      /^The plan The promo slots for this launch, each priced as the ad inventory it displaces\. Insertion order IO-0001 Draft Agent drafted the slots and angles, and code /
+      /^The plan Agent drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷ 1,000\. Insertion order IO-0001 Draft Show · angle /
     )
     expect(ended).toContain(
       'Total 20 $19,076 Budget: 0 of 20 slots left. Approve Edit lines Nothing is final until you approve it. Editing returns it to draft.'

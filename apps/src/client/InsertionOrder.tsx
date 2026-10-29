@@ -27,9 +27,10 @@ import { Source } from './Source'
 import { StateLine } from './states'
 
 // The plan: the run's insertion order as a document on the card, priced as the inventory it spends.
-// The agent drafts the slots and angles and code prices them; only the programmer edits, approves,
-// and exports. Its lines carry the signal mark, since they're what the agent puts forward. Editing
-// turns the lines' cells into fields in place, with the totals and checks following what's typed.
+// The agent drafts the slots and angles and code prices them, as the plan's sentence says, over the
+// card; only the programmer edits, approves, and exports. Its lines carry the signal mark, since
+// they're what the agent puts forward. Editing turns the lines' cells into fields in place, with the
+// totals and checks following what's typed.
 export function InsertionOrderPanel({
   order,
   roster,
@@ -44,7 +45,7 @@ export function InsertionOrderPanel({
   opened
 }: {
   order: InsertionOrder
-  roster: Show[] // for the live totals while editing, and the sample labels
+  roster: Show[] // for the live totals while editing, and whether sample figures price the total
   cpm: number | null
   sampleCpm: boolean // the CPM is still the sample network's
   budget: Budget | null
@@ -95,7 +96,12 @@ export function InsertionOrderPanel({
     <Section
       id="plan-h"
       title="The plan"
-      description="The promo slots for this launch, each priced as the ad inventory it displaces."
+      description={
+        <>
+          <Source of="agent" /> drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷
+          1,000.
+        </>
+      }
       data-io
     >
       <div className="rounded-xl bg-card p-4 lg:p-5">
@@ -119,12 +125,6 @@ export function InsertionOrderPanel({
             ) : (
               <Badge>Draft</Badge>
             )
-          }
-          description={
-            <>
-              <Source of="agent" /> drafted the slots and angles, and code prices each slot at downloads per episode ×
-              CPM ÷ 1,000.
-            </>
           }
         >
           {editing && actions ? (
@@ -163,7 +163,7 @@ export function InsertionOrderPanel({
                   ),
                   slots: line.slots,
                   value: <Value line={line} />,
-                  price: <SlotPrice line={line} sample={sample(line)} />
+                  price: <SlotPrice line={line} />
                 })}
               </Lines>
               <Checks priced={order} budget={budget} />
@@ -307,14 +307,10 @@ function Value({ line }: { line: Pick<OrderLine, 'value' | 'slotValue' | 'gap'> 
   return <span className="font-medium">{dollars(line.value)}</span>
 }
 
-// What one of the line's slots is worth, under its value, labelled sample while a sample figure prices
-// it.
-const SlotPrice = ({ line, sample }: { line: Pick<OrderLine, 'slotValue'>; sample: boolean }) =>
+// What one of the line's slots is worth, under its value.
+const SlotPrice = ({ line }: { line: Pick<OrderLine, 'slotValue'> }) =>
   line.slotValue !== null && (
-    <span className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
-      {sample && <Badge>sample</Badge>}
-      <span className="type-caption text-muted-foreground">{dollars(line.slotValue)} a slot</span>
-    </span>
+    <span className="type-caption text-muted-foreground">{dollars(line.slotValue)} a slot</span>
   )
 
 // The order against the run's budget, and what an incomplete total is missing.
@@ -449,7 +445,7 @@ function EditLines({
             value: <Value line={line} />,
             price: (
               <span className="flex flex-col items-end gap-1">
-                <SlotPrice line={line} sample={sample(line)} />
+                <SlotPrice line={line} />
                 <Button
                   type="button"
                   variant="ghost"

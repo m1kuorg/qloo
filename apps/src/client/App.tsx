@@ -42,9 +42,10 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
   // The latest run, unless it's a guest pitch run, which the inbox page shows instead.
   const run = shown?.run && shown.booking?.run !== shown.run.id ? shown.run : null
   const runs = agent.state?.runs ?? []
-  // The guest network's sample launch carries the sample (ADR 0007), for its badge and labels.
-  const sample = agent.state?.sample ?? null
-  const sampleLaunch = sample && 'name' in sample.launch ? sample.launch.name : null
+  // Whether the page shows the sample data (ADR 0007), which its title's one badge says: the guest
+  // network's sample launch, which carries the sample; a run one of the sample launches was seeded with;
+  // or a roster still holding sample figures, as another launch of the guest network ranks.
+  const sample = !!shown?.sample || !!run?.capturedAt || roster.some((s) => (s.sample?.length ?? 0) > 0)
   // Live, never a run's snapshot: calls waiting on Qloo right now. Sessions from before it have none.
   const slowCalls = agent.state?.slowCalls ?? []
   const evidence = useEvidence(agent)
@@ -140,7 +141,7 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
         <LaunchHead
           // The form fills in with the launch the page plans as that arrives or changes.
           key={`launch ${launchName(agent.state.launch)}`}
-          sample={sampleLaunch}
+          sample={sample}
           ran={runs.some((r) => !r.pitchesFor)}
           latest={runs.findLast((r) => !r.pitchesFor) ?? null}
           launch={shown?.launch ?? null}
@@ -259,9 +260,10 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
 }
 
 // The head of the canvas: the title row, the on-air readout, and the launch form. The title row names
-// the launch, with its Qloo match and comps, and holds the inspector's toggle and the run's actions:
-// Start run for the form, or once a run has ended, Run again and Change launch, which opens the form;
-// Back to the latest run while an earlier one is viewed; and Review the plan once there's one. The
+// the launch, badged sample while the page shows the sample data, with its Qloo match and comps, and
+// holds the inspector's toggle and the run's actions: Start run for the form, or once a run has ended,
+// Run again and Change launch, which opens the form; Back to the latest run while an earlier one is
+// viewed; and Review the plan once there's one. The
 // form keeps the launch's name or comps, to run again as they are or changed: from a released launch's
 // name, or from up to three comps for an unreleased one.
 function LaunchHead({
@@ -282,7 +284,7 @@ function LaunchHead({
   details,
   runLog
 }: {
-  sample: string | null // the guest network's sample launch, by name, badged while the form names it
+  sample: boolean // the page shows the sample data, which the title's badge says
   ran: boolean // whether any launch run has started here
   latest: RunSummary | null // the latest launch run, which `run` is unless a pitch run came after it
   launch: Launch | null
@@ -330,8 +332,15 @@ function LaunchHead({
       {/* The name and its lines take what the actions leave, and wrap before the actions do. */}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="flex min-w-0 flex-1 basis-md flex-col gap-1.5">
+          {/* The badge follows the title's last word, as the page header's does, however it wraps. */}
           <h1 className="type-title text-balance" ref={heading} tabIndex={-1}>
             {title ?? 'No launch yet'}
+            {sample && (
+              <>
+                {' '}
+                <Badge className="ml-0.5 align-middle">sample</Badge>
+              </>
+            )}
           </h1>
           <div className="flex flex-col gap-1 type-caption text-muted-foreground">
             {viewing && (
@@ -433,10 +442,7 @@ function LaunchHead({
       </Readout>
       {formShown && (
         <form id="launch-form" className="flex flex-col gap-2" onSubmit={submit}>
-          <div className="flex flex-wrap items-center gap-2">
-            {form.fields(action.busy || running)}
-            {sample && form.named(sample) && <Badge>Sample launch</Badge>}
-          </div>
+          <div className="flex flex-wrap items-center gap-2">{form.fields(action.busy || running)}</div>
           <Alert error={action.error} />
         </form>
       )}

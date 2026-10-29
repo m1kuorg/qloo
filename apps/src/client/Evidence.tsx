@@ -82,7 +82,6 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <Source of="qloo" />
           {record?.replayed && <Badge variant="outline">Replayed</Badge>}
-          {record?.fromSample && <Badge variant="outline">Sample data</Badge>}
           {record?.copiedFrom && <Badge variant="outline">From the roster</Badge>}
         </div>
         {!opened && (

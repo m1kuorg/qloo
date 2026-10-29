@@ -195,11 +195,13 @@ export function FormDialog({
 }
 
 // A section of a page: its heading, one muted sentence of what it's for or what it holds (or, where
-// that's what it most needs to say, a live state such as a count), then its content 16px below. The
-// heading is an h2, 16px semibold, or an h3 at the body size for a section inside another; `actions`
-// sit at the right of its line, as the page header's do, on a phone too. It draws no panel: a page puts
-// it on a card, or a panel inside it, as the settings' modules do. `heading` takes focus once what had
-// it is gone; `badge` sits beside the heading (Beta, Sample); `data-*` attributes reach the section.
+// that's what it most needs to say, a live state such as a count), then its content 16px below. An h3
+// whose section's sentence already says what it holds has none of its own, as the plan's insertion
+// order. The heading is an h2, 16px semibold, or an h3 at the body size for a section inside another;
+// `actions` sit at the right of its line, as the page header's do, on a phone too. It draws no panel: a
+// page puts it on a card, or a panel inside it, as the settings' modules do. `heading` takes focus once
+// what had it is gone; `badge` sits beside the heading (Beta, Sample); `data-*` attributes reach the
+// section.
 export function Section({
   id,
   title,
@@ -213,7 +215,7 @@ export function Section({
 }: {
   id: string // the heading's, which names the section
   title: ReactNode // its words, with a code such as an order's ID in its own type
-  description: ReactNode // one sentence
+  description?: ReactNode // one sentence
   level?: 2 | 3
   badge?: ReactNode
   actions?: ReactNode
@@ -233,7 +235,9 @@ export function Section({
           {title}
           {badge}
         </Heading>
-        <p className="col-span-full mt-1 max-w-[72ch] text-pretty text-muted-foreground">{description}</p>
+        {description && (
+          <p className="col-span-full mt-1 max-w-[72ch] text-pretty text-muted-foreground">{description}</p>
+        )}
         {actions && (
           <div className="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2">{actions}</div>
         )}

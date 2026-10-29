@@ -44,6 +44,7 @@ import {
   openGuest,
   openMember,
   openSession,
+  sampleLabels,
   sections,
   tabsOf,
   type Member,
@@ -1058,6 +1059,20 @@ describe('a launch on the sample roster', () => {
     return state
   }
   const capped = 'The daily cap of 0 Qloo calls is reached; it resets at 00:00 UTC'
+  // A launch's page of the guest network, as a guest, an owner, reads it.
+  const guestPage = (state: State, id: string) =>
+    renderToStaticMarkup(
+      <LaunchWorkspace
+        agent={{ state, stub: {} } as unknown as Agent}
+        network={{
+          id: 'guest-network',
+          name: 'Guest network',
+          role: 'owner',
+          links: networkLinks(env, 'guest-network')
+        }}
+        orders={`/app/guest-network/launches/${id}/insertion-orders`}
+      />
+    )
 
   it('keeps its figures labelled sample on another launch of the guest network, but not the sample, which only its sample launch carries, and never stores its run as the sample run', async () => {
     const { guest, network } = await guestSampleLaunch()
@@ -1065,6 +1080,8 @@ describe('a launch on the sample roster', () => {
     // The Watch planned again by a guest isn't the sample launch.
     const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Watch' })
     const agent = await connect(guest, `/agents/launch/guest-network/${id}`)
+    // Before its first run it holds none of the sample's figures, so nothing on it is labelled.
+    expect(sampleLabels(guestPage(agent.state()!, id))).toEqual([])
     fakeClaude(theWatch())
     await agent.call('startLaunch', { name: 'The Watch' })
     const state = await answerSample(agent)
@@ -1072,6 +1089,9 @@ describe('a launch on the sample roster', () => {
     expect(state.run?.status).toBe('completed')
     expect(state.sample).toBeNull()
     expect(state.roster.map((r) => [r.name, r.sample])).toEqual(network.state()!.roster.map((r) => [r.name, r.sample]))
+    // Its run is priced with the sample's downloads, so the page's title says so, once: the chart's slot
+    // values, the plan and the roster carry no label of their own.
+    expect(sampleLabels(guestPage(state, id))).toEqual(['h1: The Watch'])
     expect(logged.mock.calls.flat().filter((line) => String(line).includes('"event":"sample_run"'))).toEqual([])
     // So the engine has no stored run to replay when Qloo can't be called.
     env.QLOO_DAILY_CALL_CAP = '0'
@@ -1089,19 +1109,9 @@ describe('a launch on the sample roster', () => {
     const { network, id, agent } = await guestSampleLaunch()
     const { sample } = network.state()!
     expect(agent.state()!.sample).toEqual(sample)
-    const page = renderToStaticMarkup(
-      <LaunchWorkspace
-        agent={{ state: agent.state(), stub: {} } as unknown as Agent}
-        network={{
-          id: 'guest-network',
-          name: 'Guest network',
-          role: 'owner',
-          links: networkLinks(env, 'guest-network')
-        }}
-        orders={`/app/guest-network/launches/${id}/insertion-orders`}
-      />
-    )
-    expect(page).toContain('Sample launch')
+    // The sample launch's page labels it once, beside its title, and the launch form nowhere else.
+    const page = guestPage(agent.state()!, id)
+    expect(sampleLabels(page)).toEqual(['h1: The Watch'])
     expect(page).not.toContain('Clear sample network')
     const live = await storeSampleRun(agent)
     expect(live.sample).toEqual(sample)
@@ -1372,7 +1382,7 @@ describe('the pages, as a member reads them', () => {
       'Approve Edit lines Nothing is final until you approve it. Editing returns it to draft.'
     )
     expect(words(draftPlan)).toMatch(
-      /^The plan The promo slots for this launch, each priced as the ad inventory it displaces\. Insertion order IO-0001 Draft /
+      /^The plan Agent drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷ 1,000\. Insertion order IO-0001 Draft Show · angle /
     )
     expect(draftHtml).not.toContain('Export CSV')
 
@@ -1574,11 +1584,12 @@ describe('the pages, as a member reads them', () => {
         `5 finalists. No show climbs 3 or more places over a topic-only plan. ${ranking.call}`
       ],
       ['Not scored · 1', 'The roster’s shows that the ranking left out, and why.'],
-      ['The plan', 'The promo slots for this launch, each priced as the ad inventory it displaces.'],
       [
-        'Insertion order IO-0001 Draft',
+        'The plan',
         'Agent drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷ 1,000.'
       ],
+      // On the card, the order says no more than its heading, its badge and its lines.
+      ['Insertion order IO-0001 Draft'],
       ['Roster', 'The latest run ranks Night Shift Audio’s roster as it stood when that run started.'],
       [
         'Network CPM',
@@ -1594,5 +1605,7 @@ describe('the pages, as a member reads them', () => {
       ],
       ['Evidence', 'The Qloo request behind a call, and what Qloo returned.']
     ])
+    // A member's own network's launch isn't the sample data's, so nothing on it is labelled so.
+    expect(sampleLabels(html)).toEqual([])
   })
 })
