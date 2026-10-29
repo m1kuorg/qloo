@@ -15,6 +15,7 @@ import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
 import {
   api,
   hooked,
+  navLinks,
   openGuest,
   openMember,
   regions,
@@ -113,18 +114,6 @@ const launchesPage = async (member: Pick<Member, 'fetch'>, id: string, state: St
     />
   )
 
-// The rail's links, as [name, address, aria-current], in its order: the mark, then each destination.
-const rail = (html: string) =>
-  [
-    ...(html.match(/<nav\b[^>]*\saria-label="Network"[^>]*>[\s\S]*?<\/nav>/)?.[0] ?? '').matchAll(
-      /<a\b([^>]*)>([\s\S]*?)<\/a>/g
-    )
-  ].map(([, attributes, inner]) => [
-    words(inner),
-    attributes.match(/\shref="([^"]*)"/)?.[1],
-    attributes.match(/\saria-current="([^"]*)"/)?.[1]
-  ])
-
 // Needs you's rows, as each reads and where it links, in its order.
 const needingYou = (html: string) =>
   [...(hooked(html, 'data-needs-you')[0] ?? '').matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(
@@ -209,6 +198,14 @@ describe('the dashboard', () => {
     expect(listed[2]).toMatch(new RegExp(`^${STEPS[2]} Name`))
     expect(listed[3]).toBe(`${STEPS[3]} Done`)
     expect(listed[4]).toMatch(new RegExp(`^${STEPS[4]} Make a key in settings`))
+
+    // With launches not run yet, still nothing needs the member: the next useful thing is the newest
+    // of them, on its page, where Start run is.
+    await agent.call('createLaunch', { name: 'The Night Watch' })
+    const { id: newest } = await agent.call<{ id: string }>('createLaunch', { name: 'Paper Moons' })
+    const planned = await dashboard(ada, id, await agent.until((s) => s.launches?.length === 2))
+    expect(words(planned)).toContain('stopped. Nothing needs you. Open Paper Moons Network')
+    expect(needingYou(planned)).toEqual([['Open Paper Moons', `/app/${id}/launches/${newest}`]])
   })
 
   it('lists all five setup steps in the guest network too, and lets a guest, an owner, change its CPM', async () => {
@@ -343,7 +340,7 @@ describe('the dashboard', () => {
       [`/app/${id}/launches/${launch}`, 'Launches', 'true']
     ]) {
       const html = await (await ada.fetch(path)).text()
-      expect(rail(html), path).toEqual(
+      expect(navLinks(html), path).toEqual(
         destinations.map(([name, href]) => [name, href, name === current ? page : undefined])
       )
     }

@@ -266,8 +266,8 @@ describe("a network's launches", () => {
     expect(listed).toHaveLength(3)
 
     // The Launches page's New launch is refused the same way, with the same words.
-    const dashboard = await ada.connect(`/agents/network/${network}`)
-    await expect(dashboard.call('createLaunch', { name: 'Night Shift Cinema' })).rejects.toThrow(full.message)
+    const launchesPage = await ada.connect(`/agents/network/${network}`)
+    await expect(launchesPage.call('createLaunch', { name: 'Night Shift Cinema' })).rejects.toThrow(full.message)
 
     expect((await ada.fetch(`${launches}/${listed[0].id}`, { method: 'DELETE' })).status).toBe(204)
     expect((await post(call, launches, { name: 'Night Shift Cinema' })).status).toBe(201)

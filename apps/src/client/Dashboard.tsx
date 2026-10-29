@@ -89,10 +89,11 @@ export function Dashboard({
         </p>
       )}
       <NewLaunch network={network} create={createLaunch} dialog={planning} />
-      {/* From 1024px, Needs you fills the main column across both rows, so neither column waits on the
-          other's heights. In the side column the first row is Setup's and the last, which takes what
-          height is left, Network's, or both once Setup is dismissed. */}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr]">
+      {/* One column, as wide as the page and never wider, so a long name in a block is cut short or wraps
+          rather than widening it. From 1024px, Needs you fills the main column across both rows, so
+          neither column waits on the other's heights. In the side column the first row is Setup's and
+          the last, which takes what height is left, Network's, or both once Setup is dismissed. */}
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr]">
         {checklist &&
           (state ? (
             <div className={cn(card, 'lg:col-start-2 lg:row-start-1')}>
@@ -119,7 +120,7 @@ const workedOn = (launch: LaunchSummary, network: NetworkPage) =>
 
 // The launches waiting on a member, as the Launches page's first group lists them, latest run first,
 // each row its link, with its status in a word. With none, it says so, with the next useful thing to
-// do: import a roster while the network has none, and otherwise plan a launch.
+// do (`NextStep`).
 function NeedsYou({
   state,
   network,
@@ -143,17 +144,7 @@ function NeedsYou({
           <Skeleton className="h-5" />
         </div>
       ) : rows.length === 0 ? (
-        <PageEmpty
-          action={
-            state.roster.length === 0 ? (
-              <a className={buttonVariants()} href={network.links.roster}>
-                Import a roster
-              </a>
-            ) : (
-              newLaunch
-            )
-          }
-        >
+        <PageEmpty action={<NextStep state={state} network={network} newLaunch={newLaunch} />}>
           Nothing needs you.
         </PageEmpty>
       ) : (
@@ -174,6 +165,27 @@ function NeedsYou({
         </ul>
       )}
     </Section>
+  )
+}
+
+// What a member with nothing waiting on them does next, as a primary: import a roster while the network
+// has none; then open the newest launch not run yet on its page, where Start run is, as the guest
+// network's sample launch, The Watch, is each day; and otherwise plan a launch, in New launch's dialog.
+// A long name is cut short with an ellipsis, and the link keeps it whole for screen readers.
+function NextStep({ state, network, newLaunch }: { state: State; network: NetworkPage; newLaunch: ReactNode }) {
+  if (state.roster.length === 0)
+    return (
+      <a className={buttonVariants()} href={network.links.roster}>
+        Import a roster
+      </a>
+    )
+  // The agent lists launches newest first.
+  const notRun = state.launches?.find((l) => l.status === 'new')
+  if (!notRun) return newLaunch
+  return (
+    <a className={buttonVariants({ className: 'max-w-full' })} href={`${network.links.launches}/${notRun.id}`}>
+      <span className="truncate">Open {launchTitle(notRun.name, notRun.comps)}</span>
+    </a>
   )
 }
 
