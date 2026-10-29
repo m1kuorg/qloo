@@ -199,8 +199,8 @@ describe('drafting replies to pitches', () => {
       'Drafting 7 replies'
     ])
     // One batch is one step in the Run tab.
-    expect(runTab(state).match(/Drafting/g)).toHaveLength(1)
-    expect(runTab(state)).toContain('Drafting 7 replies')
+    expect(words(runTab(state)).match(/Drafting/g)).toHaveLength(1)
+    expect(words(runTab(state))).toContain('Drafting 7 replies')
     // One compare per top pitch's work, with the show alone on side a and IDs only.
     const compares = requests.filter((r) => r.url.pathname === '/v2/analysis/compare')
     expect(
@@ -325,10 +325,10 @@ describe('drafting replies to pitches', () => {
     ])
 
     const drafting = ['Drafting replies 1 to 3 of 7', 'Drafting replies 4 to 6 of 7', 'Drafting reply 7 of 7']
-    expect(state.run?.notes.slice(-3)).toEqual(drafting.map((text) => ({ text, status: 'done' })))
-    const tab = runTab(state)
+    expect(state.run?.notes.slice(-3)).toEqual(drafting.map((note) => ({ text: note, status: 'done' })))
+    const tab = words(runTab(state))
     expect(tab.match(/Drafting/g)).toHaveLength(3)
-    for (const note of drafting) expect(tab.split(note)).toHaveLength(2)
+    for (const note of drafting) expect(tab.match(new RegExp(note, 'g'))).toHaveLength(1)
   })
 
   it('counts no reply from a refused batch, so its retry names the same ones and the next batch follows on', async () => {
@@ -493,14 +493,12 @@ const inboxPage = (state: State, viewing?: { runs: State['runs']; id: string }) 
     })
   )
 }
-// The inspector's Run tab, its run log, as read from the inbox page the browser renders.
+// The inspector's Run tab, its run log, as the browser renders it on the inbox page from synced state.
 const runTab = (state: State) =>
-  words(
-    hooked(
-      renderToStaticMarkup(createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })),
-      'data-run-log'
-    )[0]
-  )
+  hooked(
+    renderToStaticMarkup(createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+    'data-run-log'
+  )[0]
 // One reply's markup on the page.
 const replyOn = (html: string, pitch: string) => hooked(html, `data-pitch="${pitch}"`)[0] ?? ''
 // The buttons in some markup, in order, each as its attributes and its name as read (tags dropped).
@@ -812,18 +810,12 @@ describe('a closing line the replies have changed since', () => {
 
   it("notes under the closing line, in code's words, that the replies have changed since Claude drafted them", async () => {
     const { s, state } = await pitchRun(drafted)
-    // The inbox rail's Run module as the browser renders it.
-    const runModule = (state: State) =>
-      hooked(
-        renderToStaticMarkup(createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })),
-        'data-run-log'
-      )[0]
     const note = 'The replies have changed since Claude drafted them: each reply as listed is the current one.'
-    expect(runModule(state)).toContain('Drafted.')
-    expect(runModule(state)).not.toContain(note)
+    expect(runTab(state)).toContain('Drafted.')
+    expect(runTab(state)).not.toContain(note)
 
     await s.call('discardReply', 'pitch-03')
-    const edited = runModule(s.state()!)
+    const edited = runTab(s.state()!)
     const [closing] = hooked(edited, 'data-closing')
     const [changed] = hooked(edited, 'data-run-note')
     expect(closing.replace(/<[^>]+>/g, '')).toMatch(/Drafted\.$/)
