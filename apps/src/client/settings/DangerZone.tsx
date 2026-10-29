@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Field, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, send, useAction } from '../controls'
@@ -15,7 +15,7 @@ export function DangerZoneModule({ network }: { network: NetworkPage }) {
     <Module
       id="set-danger-h"
       title="Danger zone"
-      help={`Deleting ${network.name} wipes its roster, CPM, inbox, and launches, with every run, insertion order, and Qloo record behind them, and its invite links and API keys, for every member. It can’t be brought back.`}
+      description={`Deleting ${network.name} wipes it for every member, and it can’t be brought back.`}
     >
       {network.role === 'owner' ? (
         <DeleteNetwork network={network} />
@@ -53,7 +53,12 @@ function DeleteNetwork({ network }: { network: NetworkPage }) {
           onChange={(e) => setTyped(e.target.value)}
           autoComplete="off"
           spellCheck={false}
+          aria-describedby="delete-what"
         />
+        <FieldDescription id="delete-what">
+          Its roster, CPM, inbox, and launches go, with every run, insertion order, and Qloo record behind them, and its
+          invite links and API keys.
+        </FieldDescription>
       </Field>
       <div>
         <Button type="submit" variant="destructive" disabled={busy || typed.trim() !== network.name}>

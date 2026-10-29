@@ -43,7 +43,7 @@ export function SampleDataModule({
     <Module
       id="set-sample-h"
       title="Sample data"
-      help={`The guest network starts every day at ${GUEST_NETWORK_CLEARS} from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches${inbox ? ', and the sample inbox' : ''}. Reset it to start over now, for every guest.`}
+      description={`The guest network starts every day at ${GUEST_NETWORK_CLEARS} from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches${inbox ? ', and the sample inbox' : ''}.`}
     >
       {network.role === 'owner' ? (
         <>

@@ -91,94 +91,96 @@ export function MembersModule({
   }
 
   return (
-    <Module
-      id="set-members-h"
-      title="Members"
-      heading={heading}
-      help={`Everyone who can open ${network.name}. Owners invite people, change roles, and remove members; members work on the roster, launches, and inbox. An owner who leaves, is removed, or is made a member loses the API keys and invite links they made: each is revoked at once.`}
-    >
-      <ScrollTable label="Members table">
-        <table className="relative w-full min-w-[20rem] border-separate border-spacing-0">
-          <thead className="type-caption text-muted-foreground">
-            <tr>
-              <th scope="col" className={head}>
-                Member
-              </th>
-              <th scope="col" className={head}>
-                Role
-              </th>
-              <th scope="col" className={head}>
-                Joined
-              </th>
-              <th scope="col" className={head}>
-                <span className="vh">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m) => {
-              const self = m.id === memberId
-              // A network keeps at least one owner, so its last one has no "Make member", and a guest's own
-              // row has neither it nor Leave.
-              const canSetRole = owner && !(m.role === 'owner' && oneOwner) && !(self && guest)
-              return (
-                <tr key={m.id}>
-                  <th scope="row" className={`${cell} text-left font-medium`}>
-                    <span className="inline-flex flex-wrap items-center gap-2">
-                      {m.name}
-                      {self && <Badge variant="outline">You</Badge>}
-                    </span>
-                  </th>
-                  <td className={`${cell} whitespace-nowrap`}>{m.role === 'owner' ? 'Owner' : 'Member'}</td>
-                  <td className={`${cell} whitespace-nowrap text-muted-foreground`}>{day(m.joined)}</td>
-                  <td className={`${cell} pr-0 text-right`}>
-                    <span className="inline-flex flex-wrap justify-end gap-1">
-                      {canSetRole && (
-                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRole(m)}>
-                          {m.role === 'owner' ? 'Make member' : 'Make owner'}
-                        </Button>
-                      )}
-                      {(self ? !guest : owner) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={busy || (self && lastOwner)}
-                          onClick={() => askOut(m)}
-                        >
-                          {self ? 'Leave' : 'Remove'}
-                        </Button>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </ScrollTable>
-      <Alert error={error} />
-      {lastOwner && members.length > 1 && (
-        <p className="text-muted-foreground">You’re the only owner. Make someone else an owner before you leave.</p>
-      )}
-      {lastOwner && members.length === 1 && (
-        <p className="text-muted-foreground">A network needs an owner, so its only one can’t leave.</p>
-      )}
-      {guest && me && (
-        <p className="text-muted-foreground">
-          You’re signed in as Guest, the account every guest shares, so you can’t leave or change its role.
-        </p>
-      )}
-      {!owner && (
-        <p className="text-muted-foreground">Only an owner can invite people, change roles, or remove members.</p>
-      )}
+    <>
+      <Module
+        id="set-members-h"
+        title="Members"
+        heading={heading}
+        description={`Everyone who can open ${network.name}.`}
+      >
+        <ScrollTable label="Members table">
+          <table className="relative w-full min-w-[20rem] border-separate border-spacing-0">
+            <thead className="type-caption text-muted-foreground">
+              <tr>
+                <th scope="col" className={head}>
+                  Member
+                </th>
+                <th scope="col" className={head}>
+                  Role
+                </th>
+                <th scope="col" className={head}>
+                  Joined
+                </th>
+                <th scope="col" className={head}>
+                  <span className="vh">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => {
+                const self = m.id === memberId
+                // A network keeps at least one owner, so its last one has no "Make member", and a guest's own
+                // row has neither it nor Leave.
+                const canSetRole = owner && !(m.role === 'owner' && oneOwner) && !(self && guest)
+                return (
+                  <tr key={m.id}>
+                    <th scope="row" className={`${cell} text-left font-medium`}>
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        {m.name}
+                        {self && <Badge variant="outline">You</Badge>}
+                      </span>
+                    </th>
+                    <td className={`${cell} whitespace-nowrap`}>{m.role === 'owner' ? 'Owner' : 'Member'}</td>
+                    <td className={`${cell} whitespace-nowrap text-muted-foreground`}>{day(m.joined)}</td>
+                    <td className={`${cell} pr-0 text-right`}>
+                      <span className="inline-flex flex-wrap justify-end gap-1">
+                        {canSetRole && (
+                          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRole(m)}>
+                            {m.role === 'owner' ? 'Make member' : 'Make owner'}
+                          </Button>
+                        )}
+                        {(self ? !guest : owner) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy || (self && lastOwner)}
+                            onClick={() => askOut(m)}
+                          >
+                            {self ? 'Leave' : 'Remove'}
+                          </Button>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </ScrollTable>
+        <Alert error={error} />
+        {lastOwner && members.length > 1 && (
+          <p className="text-muted-foreground">You’re the only owner. Make someone else an owner before you leave.</p>
+        )}
+        {lastOwner && members.length === 1 && (
+          <p className="text-muted-foreground">A network needs an owner, so its only one can’t leave.</p>
+        )}
+        {guest && me && (
+          <p className="text-muted-foreground">
+            You’re signed in as Guest, the account every guest shares, so you can’t leave or change its role.
+          </p>
+        )}
+        {!owner && (
+          <p className="text-muted-foreground">Only an owner can invite people, change roles, or remove members.</p>
+        )}
+        {dialog}
+      </Module>
       {invites && <InviteLinks path={path} invites={invites} />}
-      {dialog}
-    </Module>
+    </>
   )
 }
 
-// An owner's invite links: making one shows it once, to copy; the list shows each one still open by
-// its dates, to revoke.
+// An owner's invite links, a module of their own beside the members: making one shows it once, to copy;
+// the list shows each one still open by its dates, to revoke.
 function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[] }) {
   const [invites, setInvites] = useState(listed)
   const [made, setMade] = useState<{ id: string; link: string } | null>(null)
@@ -204,16 +206,12 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
       }
     })
   return (
-    <div className="mt-2 flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h3 className="font-medium" ref={heading} tabIndex={-1}>
-          Invite links
-        </h3>
-        <p className="text-muted-foreground">
-          Each link lets one person join as a member, with a new account or the one they have. It works once, for seven
-          days.
-        </p>
-      </div>
+    <Module
+      id="set-invites-h"
+      title="Invite links"
+      heading={heading}
+      description="Each link lets one person join as a member, with a new account or the one they have, and works once, for seven days."
+    >
       <div>
         <Button variant="secondary" disabled={busy} onClick={() => void create()}>
           {busy && <Spinner data-icon="inline-start" />}
@@ -250,6 +248,6 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
         </ul>
       )}
       {dialog}
-    </div>
+    </Module>
   )
 }

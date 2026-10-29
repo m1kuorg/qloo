@@ -15,7 +15,7 @@ import { cell, Done, head, Module, settingsColumn } from './settings/Module'
 import { StateLine } from './states'
 
 // The member's account page, at /app/account: their name, their passkeys, a new recovery code, their
-// sessions, their networks, and deleting the account, one module per job in the settings' grammar.
+// sessions, their networks, and deleting the account, one module per job, stacked as settings' are.
 // A recovery code signs a member in here (`recovered`), to add a passkey for the device they're on.
 // Every destructive change confirms first; one that needs the member to confirm it's them (step-up)
 // asks once the confirm has closed, never over it. A guest's page is GuestAccountPage.
@@ -65,7 +65,7 @@ export function GuestAccountPage() {
       <Module
         id="acct-guest-h"
         title="Shared guest account"
-        help="Everyone who signs in as a guest is signed in as Guest, in the guest network, and shares everything in it and its daily limits."
+        description="Everyone who signs in as a guest is signed in as Guest, in the guest network, and shares everything in it and its daily limits."
       >
         <p>
           No guest can add a passkey or a recovery code, rename this account, sign out every guest, delete it, join a
@@ -101,7 +101,7 @@ function NameModule({ name: saved }: { name: string }) {
     <Module
       id="acct-name-h"
       title="Name"
-      help="How your teammates see you in every network you’re in, on its members, its runs, and the orders you approve."
+      description="How your teammates see you in every network you’re in, on its members, its runs, and the orders you approve."
     >
       <form
         className="flex flex-col gap-4"
@@ -179,7 +179,7 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
       id="acct-keys-h"
       title="Passkeys"
       heading={heading}
-      help="Each passkey signs you in from the device or password manager that keeps it. Keep one on a second device, so losing one doesn’t lock you out."
+      description="Each passkey signs you in from the device or password manager that keeps it."
     >
       {asked && (
         <p role="status" className="rounded-lg bg-card p-3">
@@ -238,8 +238,9 @@ function PasskeysModule({ listed, recovered }: { listed: AccountPasskey[]; recov
       </div>
       <Alert error={error} />
       <p className="text-muted-foreground">
-        Your browser asks where to keep it: on this device, a phone nearby, or your password manager. If you haven’t
-        confirmed it’s you in the last five minutes, Crossfeed asks you to first.
+        Keep one on a second device, so losing one doesn’t lock you out. Your browser asks where to keep it: on this
+        device, a phone nearby, or your password manager. If you haven’t confirmed it’s you in the last five minutes,
+        Crossfeed asks you to first.
       </p>
       {code.form}
       {dialog}
@@ -266,7 +267,7 @@ function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
     <Module
       id="acct-code-h"
       title="Recovery code"
-      help="If you lose every passkey, your recovery code signs you in once. Crossfeed keeps no copy it can read."
+      description="If you lose every passkey, your recovery code signs you in once."
     >
       <div>
         <Button variant="secondary" disabled={busy} onClick={() => void renew()}>
@@ -277,7 +278,8 @@ function RecoveryModule({ onCode }: { onCode: (code: string) => void }) {
       <Alert error={error} />
       <p className="text-muted-foreground">
         For a code you’ve lost, or one someone else may have seen: your old code stops working, and the new one shows
-        once. If you haven’t confirmed it’s you in the last five minutes, Crossfeed asks you to first.
+        once. Crossfeed keeps no copy it can read. If you haven’t confirmed it’s you in the last five minutes, Crossfeed
+        asks you to first.
       </p>
       {code.form}
     </Module>
@@ -302,7 +304,7 @@ function SessionsModule({ sessions }: { sessions: number }) {
     <Module
       id="acct-sessions-h"
       title="Sessions"
-      help="Each browser you sign in on stays signed in for 30 days from the last time you use it."
+      description="Each browser you sign in on stays signed in for 30 days from the last time you use it."
     >
       <p>
         You’re signed in on{' '}
@@ -337,11 +339,7 @@ function NetworksModule({ networks, onlyOwner }: { networks: AccountNetwork[]; o
       }
     })
   return (
-    <Module
-      id="acct-networks-h"
-      title="Networks"
-      help="The networks you’re a member of, and your role in each. Leaving one closes your open pages of it."
-    >
+    <Module id="acct-networks-h" title="Networks" description="The networks you’re a member of, and your role in each.">
       {networks.length === 0 ? (
         <p>
           <StateLine kind="empty">You’re not in any network yet.</StateLine>{' '}
@@ -406,7 +404,8 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
   const askDelete = () =>
     confirm({
       title: 'Delete your account?',
-      consequence: 'You’re signed out everywhere, and it can’t be brought back.',
+      consequence:
+        'It deletes your passkeys, recovery code, and sessions with it, takes you out of every network, and revokes the API keys and invite links you made. You’re signed out everywhere, and it can’t be brought back.',
       verb: 'Delete account',
       busy: 'Deleting…',
       keep: 'Keep it',
@@ -421,7 +420,7 @@ function DeleteModule({ onlyOwner }: { onlyOwner: string[] }) {
     <Module
       id="acct-delete-h"
       title="Delete account"
-      help="Deletes your account, passkeys, recovery code, and sessions, takes you out of every network, and revokes the API keys and invite links you made. What you did in your networks, and in those you left before, stays with them, such as the runs you started and the orders you approved, but under “Former member”, not your name."
+      description="What you did in your networks, and in those you left before, stays with them, such as the runs you started and the orders you approved, but under “Former member”, not your name."
     >
       <div>
         <Button variant="destructive" disabled={blocked || busy} onClick={askDelete}>

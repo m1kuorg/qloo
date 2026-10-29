@@ -30,7 +30,7 @@ import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { OnAir } from './Frame'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
-import { count, FormDialog, listCounts, PageEmpty, PageHeader, summaryLine, useFormDialog } from './PageHeader'
+import { count, FormDialog, listCounts, PageEmpty, PageHeader, Section, summaryLine, useFormDialog } from './PageHeader'
 import { connectionOf, endedBadly, isLive, pitchTally, StateLine, type Connection } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
@@ -460,8 +460,9 @@ function LaunchesLoading() {
   )
 }
 
-// One line each for the roster, the inbox, and the CPM, with where to change them. The CPM is labelled
-// sample while it's still the sample network's, as the guest network's starts (ADR 0007).
+// One line each for the roster, the inbox, and the CPM, with where to change them, the CPM in the
+// settings' network tab. The CPM is labelled sample while it's still the sample network's, as the guest
+// network's starts (ADR 0007).
 function NetworkLines({ state, network }: { state: State; network: NetworkPage }) {
   const rows: [string, ReactNode, string, string][] = [
     ['Roster', rosterLine(state.roster), network.links.roster, 'Open']
@@ -476,32 +477,39 @@ function NetworkLines({ state, network }: { state: State; network: NetworkPage }
         {dollars(state.cpm)} per 1,000 downloads {state.sample?.cpm && <Badge>sample</Badge>}
       </>
     ),
-    network.links.settings,
+    `${network.links.settings}#network`,
     network.role === 'owner' ? (state.cpm === null ? 'Set' : 'Change') : 'View'
   ])
   return (
-    <section className="flex flex-col gap-3 rounded-xl bg-card p-4" aria-labelledby="network-h">
-      <h2 className="font-semibold" id="network-h">
-        Network
-      </h2>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-2">
-        {rows.map(([label, line, href, go]) => (
-          <div key={label} className="col-span-full grid grid-cols-subgrid">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="min-w-0">{line}</dd>
-            <dd>
-              <a
-                className={linkVariants()}
-                href={href}
-                aria-label={`${go} ${label === 'CPM' ? 'the CPM' : `the ${label.toLowerCase()}`}`}
-              >
-                {go}
-              </a>
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <div className="rounded-xl bg-card p-4">
+      <Section
+        id="network-h"
+        title="Network"
+        description={
+          network.links.inbox
+            ? 'The roster and inbox your runs rank, and the CPM that prices a launch’s slots.'
+            : 'The roster your launches rank, and the CPM that prices their slots.'
+        }
+      >
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-2">
+          {rows.map(([label, line, href, go]) => (
+            <div key={label} className="col-span-full grid grid-cols-subgrid">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="min-w-0">{line}</dd>
+              <dd>
+                <a
+                  className={linkVariants()}
+                  href={href}
+                  aria-label={`${go} ${label === 'CPM' ? 'the CPM' : `the ${label.toLowerCase()}`}`}
+                >
+                  {go}
+                </a>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </Section>
+    </div>
   )
 }
 
@@ -538,7 +546,7 @@ function inboxLine(inbox: Inbox | null) {
 }
 
 // What a new network needs, ticked off from its agent's state and the directory as each arrives, as
-// a numbered list. A member can dismiss it for themselves; it stays for everyone else.
+// a numbered list under its count. A member can dismiss it for themselves; it stays for everyone else.
 function Checklist({
   state,
   network,
@@ -555,8 +563,8 @@ function Checklist({
   const { error, run } = useAction()
   const owner = network.role === 'owner'
   const { roster, settings } = network.links
-  // A step links where it's done only for a member who can do it there; planning a launch opens New
-  // launch's dialog.
+  // A step links where it's done only for a member who can do it there, in settings the tab it's done
+  // in; planning a launch opens New launch's dialog.
   const items: { title: string; how: string; go: string | (() => void) | null; done: boolean }[] = [
     {
       title: 'Import the roster',
@@ -569,7 +577,7 @@ function Checklist({
       how: owner
         ? 'Your CPM prices every promo slot. Set it in settings.'
         : 'Your CPM prices every promo slot. An owner sets it in settings.',
-      go: owner ? settings : null,
+      go: owner ? `${settings}#network` : null,
       done: state.cpm !== null
     },
     {
@@ -583,7 +591,7 @@ function Checklist({
       how: owner
         ? 'Make an invite link in settings and send it to them. It works once, for seven days.'
         : 'An owner makes invite links in settings.',
-      go: owner ? settings : null,
+      go: owner ? `${settings}#members` : null,
       done: setup.invited
     },
     {
@@ -591,51 +599,52 @@ function Checklist({
       how: owner
         ? 'Make a key in settings for a script or an assistant to act for the network, short of approving anything.'
         : 'An owner makes API keys in settings, for scripts and assistants.',
-      go: owner ? settings : null,
+      go: owner ? `${settings}#api-keys` : null,
       done: setup.apiKey
     }
   ]
   const done = items.filter((i) => i.done).length
   return (
-    <section className="flex flex-col gap-3 rounded-xl bg-card p-4" aria-labelledby="setup-h" data-checklist>
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="font-semibold" id="setup-h">
-          Setup{' '}
-          <span className="font-normal whitespace-nowrap text-muted-foreground">
-            · {done === items.length ? 'Done' : `${done} of ${items.length} done`}
-          </span>
-        </h2>
-        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={() => void run(dismiss)}>
-          Dismiss
-        </Button>
-      </div>
-      {/* The steps' numbers are the list's own, so a screen reader hears "3 of 5" too. */}
-      <ol className="flex list-outside list-decimal flex-col gap-3 pl-5 marker:text-muted-foreground marker:normal-nums">
-        {items.map((item) => (
-          <li key={item.title} data-done={item.done || undefined}>
-            {item.done || !item.go ? (
-              <span className={item.done ? 'text-muted-foreground' : 'font-medium'}>{item.title}</span>
-            ) : typeof item.go === 'string' ? (
-              <a className={linkVariants()} href={item.go}>
-                {item.title}
-              </a>
-            ) : (
-              <button type="button" className={linkVariants({ className: 'cursor-pointer' })} onClick={item.go}>
-                {item.title}
-              </button>
-            )}
-            {item.done ? (
-              <span className="flex items-center gap-1 type-caption">
-                <CheckIcon aria-hidden="true" className="size-3.5" />
-                Done
-              </span>
-            ) : (
-              <span className="block type-caption text-muted-foreground">{item.how}</span>
-            )}
-          </li>
-        ))}
-      </ol>
-      <Alert error={error} />
-    </section>
+    <div className="rounded-xl bg-card p-4">
+      <Section
+        id="setup-h"
+        title="Setup"
+        description={done === items.length ? 'Done' : `${done} of ${items.length} done`}
+        actions={
+          <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={() => void run(dismiss)}>
+            Dismiss
+          </Button>
+        }
+        data-checklist
+      >
+        {/* The steps' numbers are the list's own, so a screen reader hears "3 of 5" too. */}
+        <ol className="flex list-outside list-decimal flex-col gap-3 pl-5 marker:text-muted-foreground marker:normal-nums">
+          {items.map((item) => (
+            <li key={item.title} data-done={item.done || undefined}>
+              {item.done || !item.go ? (
+                <span className={item.done ? 'text-muted-foreground' : 'font-medium'}>{item.title}</span>
+              ) : typeof item.go === 'string' ? (
+                <a className={linkVariants()} href={item.go}>
+                  {item.title}
+                </a>
+              ) : (
+                <button type="button" className={linkVariants({ className: 'cursor-pointer' })} onClick={item.go}>
+                  {item.title}
+                </button>
+              )}
+              {item.done ? (
+                <span className="flex items-center gap-1 type-caption">
+                  <CheckIcon aria-hidden="true" className="size-3.5" />
+                  Done
+                </span>
+              ) : (
+                <span className="block type-caption text-muted-foreground">{item.how}</span>
+              )}
+            </li>
+          ))}
+        </ol>
+        <Alert error={error} />
+      </Section>
+    </div>
   )
 }

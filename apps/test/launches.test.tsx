@@ -1474,6 +1474,8 @@ describe('the pages, as a member reads them', () => {
     )
     expect(read).toContain('Corner Booth Resolved Corner Booth')
     expect(read).toContain('Network CPM CPM $25 per 1,000 downloads')
+    // Changing it opens the settings' network tab.
+    expect(after).toMatch(new RegExp(`href="/app/${network}/settings#network"[^>]*>Change it in settings</a>`))
     expect(read).toContain('Each run takes the network’s CPM as it starts.')
     expect(read).toContain(
       'Model runs are limited per UTC day across the network’s launches and inbox, whoever starts them.'

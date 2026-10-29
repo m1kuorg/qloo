@@ -100,6 +100,23 @@ const steps = (html: string) =>
     .slice(1)
     .map((li) => words(`<li${li}`))
 
+// Each section's heading and the one sentence under it, in the page's order, as a reader meets them.
+const sections = (html: string) =>
+  [...html.matchAll(/<section\b[^>]*\saria-labelledby="([^"]+)"/g)].map(([, by]) => {
+    const [, heading, after] = html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>(.*)`))!
+    return [words(heading), words(after.match(/<p\b[^>]*>(.*?)<\/p>/)![1])]
+  })
+
+// A page's tabs: its tab list's name, each tab's words, and whether each panel shows, every panel
+// being in the page whichever tab is chosen.
+const tabsOf = (html: string) => ({
+  label: html.match(/<div\b(?=[^>]*\srole="tablist")[^>]*\saria-label="([^"]+)"/)?.[1],
+  tabs: [...html.matchAll(/<button\b[^>]*\srole="tab"[^>]*>(.*?)<\/button>/g)].map(([, tab]) => words(tab)),
+  panels: [...html.matchAll(/<div\b[^>]*\srole="tabpanel"[^>]*>/g)].map(([tag]) =>
+    /\shidden=""/.test(tag) ? 'hidden' : 'shown'
+  )
+})
+
 describe('the dashboard', () => {
   it('says plainly that a new network has no launches, roster, or CPM, and lists all five setup steps', async () => {
     const ada = await openMember()
@@ -118,12 +135,24 @@ describe('the dashboard', () => {
     expect(read).toContain('Roster No shows yet Open')
     expect(read).toContain('CPM Not set Set')
     expect(read).not.toContain('Inbox')
-    expect(read).toContain('Setup · 0 of 5 done Dismiss')
+    // Each panel is a section: its heading, one sentence, then its lines; Setup's sentence is its count,
+    // with Dismiss on its heading's line.
+    expect(sections(html)).toEqual([
+      ['Network', 'The roster your launches rank, and the CPM that prices their slots.'],
+      ['Setup', '0 of 5 done']
+    ])
+    expect(read).toContain('Setup 0 of 5 done Dismiss')
     const listed = steps(html)
     expect(listed).toHaveLength(STEPS.length)
     STEPS.forEach((step, i) => expect(listed[i]).toMatch(new RegExp(`^${step} [A-Z][^.]+\\.`)))
     expect(html).toContain(`href="/app/${id}/roster"`)
-    expect(html).toContain(`href="/app/${id}/settings"`)
+    // Every link into settings opens the tab it's about: the CPM's Set and "Set the CPM" the network's,
+    // "Invite a teammate" the members', and "Create an API key" the API keys'.
+    expect(html).toMatch(new RegExp(`href="/app/${id}/settings#network"[^>]*>Set</a>`))
+    expect(html).toMatch(new RegExp(`href="/app/${id}/settings#network"[^>]*>Set the CPM</a>`))
+    expect(html).toMatch(new RegExp(`href="/app/${id}/settings#members"[^>]*>Invite a teammate</a>`))
+    expect(html).toMatch(new RegExp(`href="/app/${id}/settings#api-keys"[^>]*>Create an API key</a>`))
+    expect(html).not.toContain(`href="/app/${id}/settings"`)
   })
 
   it('ticks off setup from the roster, the CPM, and a teammate, and says how the roster matched', async () => {
@@ -148,7 +177,8 @@ describe('the dashboard', () => {
     const read = words(html)
     expect(read).toContain('Roster 3 shows: 2 matched, 1 not in Qloo Open')
     expect(read).toContain('CPM $20 per 1,000 downloads Change')
-    expect(read).toContain('Setup · 3 of 5 done')
+    expect(html).toMatch(new RegExp(`href="/app/${id}/settings#network"[^>]*>Change</a>`))
+    expect(read).toContain('Setup 3 of 5 done')
     const listed = steps(html)
     expect(listed.slice(0, 2)).toEqual([`${STEPS[0]} Done`, `${STEPS[1]} Done`])
     expect(listed[2]).toMatch(new RegExp(`^${STEPS[2]} Name`))
@@ -162,7 +192,7 @@ describe('the dashboard', () => {
     const html = await dashboard(guest, 'guest-network', await agent.until((s) => s.cpm === 20))
     const read = words(html)
     expect(read).toContain('CPM $20 per 1,000 downloads Change')
-    expect(read).toContain('Setup · 1 of 5 done Dismiss')
+    expect(read).toContain('Setup 1 of 5 done Dismiss')
     const listed = steps(html)
     expect(listed).toHaveLength(STEPS.length)
     expect(listed[1]).toBe(`${STEPS[1]} Done`)
@@ -192,7 +222,7 @@ describe('the dashboard', () => {
 
     const state = agent.state()
     expect(words(await dashboard(ada, id, state))).not.toContain('Setup')
-    expect(words(await dashboard(grace, id, state))).toContain('Setup · 1 of 5 done')
+    expect(words(await dashboard(grace, id, state))).toContain('Setup 1 of 5 done')
   })
 
   it('lines up the inbox, while guest pitches are on: its pitches, how they matched, and those set aside', async () => {
@@ -215,7 +245,12 @@ describe('the dashboard', () => {
     )
     const ada = await openMember()
     const { id, agent } = await network(ada)
-    expect(words(await dashboard(ada, id, agent.state()))).toContain('Inbox No pitches loaded Open')
+    const html = await dashboard(ada, id, agent.state())
+    expect(sections(html)[0]).toEqual([
+      'Network',
+      'The roster and inbox your runs rank, and the CPM that prices a launch’s slots.'
+    ])
+    expect(words(html)).toContain('Inbox No pitches loaded Open')
 
     await agent.call('loadInbox', { text: `${pitch(1)}\n---\n${pitch(2)}` })
     const read = words(await dashboard(ada, id, await agent.until((s) => s.inbox?.status === 'done')))
@@ -292,6 +327,78 @@ describe('settings', () => {
     expect(words(await settings(guest, 'guest-network', set))).toContain('Dollars per 1,000 downloads. Save')
   })
 
+  it('stand each module in a tab of its own, in the order a new owner needs them, with every panel in the page', async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    // Kept mounted, every module's panel is in the page, so what's typed in one survives a switch to
+    // another; the first shows until a tab, or the hash, picks another.
+    expect(tabsOf(await settings(ada, id, agent.state()))).toEqual({
+      label: 'Settings sections',
+      tabs: ['Network', 'Members', 'API keys', 'Qloo key', 'Usage', 'Danger zone'],
+      panels: ['shown', 'hidden', 'hidden', 'hidden', 'hidden', 'hidden']
+    })
+    // The guest network's adds its sample data before the danger zone.
+    const guest = await openGuest()
+    const theirs = await settings(
+      guest,
+      'guest-network',
+      await (await connect(guest, 'guest-network')).until(() => true)
+    )
+    expect(tabsOf(theirs).tabs).toEqual([
+      'Network',
+      'Members',
+      'API keys',
+      'Qloo key',
+      'Usage',
+      'Sample data',
+      'Danger zone'
+    ])
+  })
+
+  it('head each module with one sentence of what it holds, and put the rest by what it’s about', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const html = await settings(ada, id, agent.state())
+    expect(sections(html)).toEqual([
+      [
+        'Network',
+        'The name your members see, and the CPM that prices every promo slot: downloads per episode × CPM ÷ 1,000.'
+      ],
+      ['Members', 'Everyone who can open Night Shift Audio.'],
+      [
+        'Invite links',
+        'Each link lets one person join as a member, with a new account or the one they have, and works once, for seven days.'
+      ],
+      [
+        'API keys',
+        'Each key lets a script or an assistant act for Night Shift Audio through Crossfeed’s API, short of approving anything: only a member approves an insertion order or a reply, in the app.'
+      ],
+      [
+        'Qloo key',
+        'During the beta, Night Shift Audio’s Qloo calls run on Crossfeed’s shared key, within its daily caps, unless it has a key of its own.'
+      ],
+      ['Usage Beta', 'What Night Shift Audio can use each UTC day, whichever member or API key uses it.'],
+      ['Danger zone', 'Deleting Night Shift Audio wipes it for every member, and it can’t be brought back.']
+    ])
+    const read = words(html)
+    // What a key of its own changes is under its field, what each cap counts beside its figure, and what
+    // deleting the network wipes under the field that confirms it.
+    expect(html).toMatch(/<input\b(?=[^>]*\sid="qloo-key")(?=[^>]*\saria-describedby="qloo-key-what")/)
+    expect(html).toMatch(
+      /id="qloo-key-what"[^>]*>Night Shift Audio’s Qloo calls and its launches’ then run on it, under its own agreement with Qloo, with a cache and Qloo caps of their own\. Model runs count against Crossfeed’s caps either way\.</
+    )
+    expect(read).toContain(
+      'Model runs 0 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 0 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min'
+    )
+    expect(read).toContain('Crossfeed’s caps across every network apply as well.')
+    expect(html).toMatch(/<input\b(?=[^>]*\sid="delete-name")(?=[^>]*\saria-describedby="delete-what")/)
+    expect(html).toMatch(
+      /id="delete-what"[^>]*>Its roster, CPM, inbox, and launches go, with every run, insertion order, and Qloo record behind them, and its invite links and API keys\.</
+    )
+  })
+
   it("give an owner the network's name and CPM to change", async () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
@@ -347,6 +454,8 @@ describe('settings', () => {
     expect(read).toContain('You’re the only owner. Make someone else an owner before you leave.')
     expect(read).toContain('Invite links Each link lets one person join as a member')
     expect(read).toContain('Create invite link Made Oct 20 by Ada Programmer Expires Oct 27 Revoke')
+    // What a change of role, a removal or leaving revokes is said in the confirm that asks for it.
+    expect(read).not.toContain('loses the API keys and invite links they made')
     expect(await settings(ada, id, agent.state())).toMatch(/<button[^>]*disabled=""[^>]*>Leave<\/button>/)
   })
 
@@ -439,11 +548,13 @@ describe('settings', () => {
       expect(read).toContain(
         'Usage Beta What Night Shift Audio can use each UTC day, whichever member or API key uses it.'
       )
-      expect(read).toContain('Model runs 0 of 10 today Qloo calls 1 of 2,000 today Resets 00:00 UTC, in 9 h 30 min')
+      expect(read).toContain(
+        'Model runs 0 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 1 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min'
+      )
     }
     env.QLOO_VISITOR_DAILY_CALL_CAP = '1'
     expect(words(await settings(ada, id, agent.state()))).toContain(
-      'Qloo calls 1 of 1 today Resets 00:00 UTC, in 9 h 30 min Limit reached No more Qloo calls today: roster imports and comp searches are refused until 00:00 UTC.'
+      'Qloo calls 1 of 1 today Cached answers included Resets 00:00 UTC, in 9 h 30 min Limit reached No more Qloo calls today: roster imports and comp searches are refused until 00:00 UTC.'
     )
   })
 
@@ -453,10 +564,10 @@ describe('settings', () => {
     const html = await settings(ada, id, agent.state())
     const read = words(html)
     expect(read).toContain(
-      'Qloo key During the beta, a network’s Qloo calls run on Crossfeed’s shared key, within its daily caps. With a key of its own, Night Shift Audio’s calls and its launches’ run on that key, under its own agreement with Qloo'
+      'Qloo key During the beta, Night Shift Audio’s Qloo calls run on Crossfeed’s shared key, within its daily caps, unless it has a key of its own.'
     )
     expect(read).toContain(
-      'Host Qloo’s production API api.qloo.com Qloo’s hackathon API hackathon.api.qloo.com, where hackathon keys work Key Test and save key'
+      'Host Qloo’s production API api.qloo.com Qloo’s hackathon API hackathon.api.qloo.com, where hackathon keys work Key Night Shift Audio’s Qloo calls and its launches’ then run on it'
     )
     expect(html).toMatch(/<input\b(?=[^>]*\stype="password")(?=[^>]*\sid="qloo-key")/)
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Test and save key<\/button>/)
@@ -470,7 +581,7 @@ describe('settings', () => {
     expect(added.status).toBe(200)
     await agent.importRoster('Corner Booth')
     const keyed = await settings(ada, id, agent.state())
-    expect(words(keyed)).toContain('either way. Key Ends in 7f3a Host hackathon.api.qloo.com Remove key')
+    expect(words(keyed)).toContain('a key of its own. Key Ends in 7f3a Host hackathon.api.qloo.com Remove key')
     // The key's test search and the lookup, both on the network's key.
     expect(words(keyed)).toContain('Qloo calls 2 of 2,000 today On the network’s own Qloo key')
     expect(keyed).not.toContain('qk-made-up-7f3a')
@@ -479,7 +590,7 @@ describe('settings', () => {
     const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
     const theirs = words(await settings(grace, id, await (await connect(grace, id)).until(() => true)))
     expect(theirs).toContain(
-      'either way. Qloo key The network’s own Only an owner can add or remove the network’s Qloo key.'
+      'a key of its own. Qloo key The network’s own Only an owner can add or remove the network’s Qloo key.'
     )
     expect(theirs).not.toContain('7f3a')
     expect(theirs).not.toContain('Remove key')
@@ -491,7 +602,7 @@ describe('settings', () => {
     const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
     const html = await settings(grace, id, await (await connect(grace, id)).until(() => true))
     expect(words(html)).toContain(
-      'either way. Qloo key Crossfeed’s shared key Only an owner can add or remove the network’s Qloo key.'
+      'a key of its own. Qloo key Crossfeed’s shared key Only an owner can add or remove the network’s Qloo key.'
     )
     expect(html).not.toContain('id="qloo-key"')
   })
@@ -501,8 +612,8 @@ describe('settings', () => {
     const { id, agent } = await network(ada)
     const html = await settings(ada, id, agent.state())
     const read = words(html)
-    expect(read).toContain('Danger zone Deleting Night Shift Audio wipes its roster')
-    expect(read).toContain('Type Night Shift Audio to delete it Delete network')
+    expect(read).toContain('Danger zone Deleting Night Shift Audio wipes it for every member')
+    expect(read).toContain('Type Night Shift Audio to delete it Its roster, CPM, inbox, and launches go')
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Delete network<\/button>/)
 
     const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
@@ -534,7 +645,7 @@ describe('settings', () => {
     expect(read).toContain(
       'From then on it shows only its last four characters. Every guest shares a key added here, and sees its last four characters.'
     )
-    expect(read).toContain('Type Guest network to delete it Delete network')
+    expect(read).toContain('Type Guest network to delete it Its roster')
     expect(read).not.toContain('Only an owner')
 
     // A co-owner with an account can change the guest member's role, or remove it.
@@ -550,7 +661,7 @@ describe('settings', () => {
     const html = await settings(guest, 'guest-network', await (await connect(guest, 'guest-network')).until(() => true))
     const read = words(html)
     expect(read).toContain(
-      'Sample data The guest network starts every day at 12:00 UTC from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches. Reset it to start over now, for every guest. Reset the sample data Resetting closes every guest’s open pages of the guest network. Every guest shares a few resets a day, and after one, the next may wait up to an hour. Danger zone'
+      'Sample data The guest network starts every day at 12:00 UTC from the sample data: The Ringer’s shows, the sample CPM, The Watch and the sample launches. Reset the sample data Resetting closes every guest’s open pages of the guest network. Every guest shares a few resets a day, and after one, the next may wait up to an hour. Danger zone'
     )
     expect(html).toMatch(/<button[^>]*>Reset the sample data<\/button>/)
 
@@ -629,9 +740,11 @@ describe('settings', () => {
       })
       const read = words(await settings(guest, network, state))
       expect(read).toContain(
-        'Usage Beta What all guests together can use each UTC day, in the guest network and the networks guests create. Model runs are'
+        'Usage Beta What all guests together can use each UTC day, in the guest network and the networks guests create. Model runs'
       )
-      expect(read).toContain('Model runs 1 of 10 today Qloo calls 2 of 2,000 today Resets 00:00 UTC, in 9 h 30 min')
+      expect(read).toContain(
+        'Model runs 1 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 2 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min'
+      )
     }
   })
 })

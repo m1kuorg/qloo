@@ -4,6 +4,7 @@ import type { ApiKey, Invite, NetworkMember } from '../directory'
 import type { OwnKey, Usage } from '../gateway'
 import { GUEST_MEMBER, GUEST_NETWORK } from '../text'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
+import { PageTabs } from './PageHeader'
 import { ApiKeysModule } from './settings/ApiKeys'
 import { DangerZoneModule } from './settings/DangerZone'
 import { MembersModule } from './settings/Members'
@@ -53,8 +54,9 @@ export function SettingsPage({
 
 // Tests render it from a network agent's synced state; `state` is undefined until it arrives. The
 // page answers "How is this network set up, and who can do what?": the title row says the viewer's
-// role, then the modules stand in the settings' two columns on a centred 1152px measure. The guest
-// network's alone has the sample data module (ADR 0007).
+// role, then a tab for each module, in the centred column, each tab's hash its name (#network,
+// #members, #api-keys, #qloo-key, #usage, #sample-data, #danger-zone), which the links into settings
+// open. The guest network's alone has the sample data module (ADR 0007).
 export function Settings({
   state,
   connection = { lost: null, reconnecting: false },
@@ -98,20 +100,56 @@ export function Settings({
           </span>
         </p>
       </div>
-      <div className="flex flex-col gap-12">
-        <NetworkModule
-          network={named}
-          cpm={state ? state.cpm : undefined}
-          sampleCpm={state?.sample?.cpm ?? false}
-          onRenamed={setName}
-        />
-        <MembersModule network={named} memberId={memberId} members={members} invites={invites} />
-        <ApiKeysModule network={named} keys={apiKeys} />
-        <QlooKeyModule network={named} qlooKey={qlooKey} guest={memberId === GUEST_MEMBER} onChange={setKeyAndUsage} />
-        <UsageModule network={named} usage={usage} hasOwnKey={qlooKey.set} />
-        {network.id === GUEST_NETWORK && <SampleDataModule network={named} onLeaving={onLeaving} />}
-        <DangerZoneModule network={named} />
-      </div>
+      <PageTabs
+        label="Settings sections"
+        tabs={[
+          {
+            id: 'network',
+            title: 'Network',
+            content: (
+              <NetworkModule
+                network={named}
+                cpm={state ? state.cpm : undefined}
+                sampleCpm={state?.sample?.cpm ?? false}
+                onRenamed={setName}
+              />
+            )
+          },
+          {
+            id: 'members',
+            title: 'Members',
+            content: <MembersModule network={named} memberId={memberId} members={members} invites={invites} />
+          },
+          { id: 'api-keys', title: 'API keys', content: <ApiKeysModule network={named} keys={apiKeys} /> },
+          {
+            id: 'qloo-key',
+            title: 'Qloo key',
+            content: (
+              <QlooKeyModule
+                network={named}
+                qlooKey={qlooKey}
+                guest={memberId === GUEST_MEMBER}
+                onChange={setKeyAndUsage}
+              />
+            )
+          },
+          {
+            id: 'usage',
+            title: 'Usage',
+            content: <UsageModule network={named} usage={usage} hasOwnKey={qlooKey.set} />
+          },
+          ...(network.id === GUEST_NETWORK
+            ? [
+                {
+                  id: 'sample-data',
+                  title: 'Sample data',
+                  content: <SampleDataModule network={named} onLeaving={onLeaving} />
+                }
+              ]
+            : []),
+          { id: 'danger-zone', title: 'Danger zone', content: <DangerZoneModule network={named} /> }
+        ]}
+      />
     </main>
   )
 }

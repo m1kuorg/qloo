@@ -1,4 +1,5 @@
-import { useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react'
+import { cn } from 'cn'
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,10 +11,12 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConnectionState, StateLine, type Connection } from './states'
 
-// The header, the empty state, and the dialog a page's action opens its form in, which the network's
-// pages share: the Launches dashboard, the roster, and the inbox.
+// The page's anatomy: the header, the empty state, and the dialog a page's action opens its form in,
+// which the network's pages share (the Launches dashboard, the roster, and the inbox); and the section
+// every page's blocks are built as, and the tabs a long page breaks its sections into.
 
 // The page's header: its title, the page's one h1, with its actions at the right on the title's line;
 // then one short muted line, the page's summary in counts and the connection's state after it, the
@@ -183,5 +186,119 @@ export function FormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// A section of a page: its heading, one muted sentence of what it's for or what it holds (or, where
+// that's what it most needs to say, a live state such as a count), then its content 16px below. The
+// heading is an h2, 16px semibold, or an h3 at the body size for a section inside another; `actions`
+// sit at the right of its line, as the page header's do, on a phone too. It draws no panel: a page puts
+// it on a card, or a panel inside it, as the settings' modules do. `heading` takes focus once what had
+// it is gone; `badge` sits beside the heading (Beta, Sample); `data-*` attributes reach the section.
+export function Section({
+  id,
+  title,
+  description,
+  level = 2,
+  badge,
+  actions,
+  heading,
+  children,
+  ...data
+}: {
+  id: string // the heading's, which names the section
+  title: string
+  description: ReactNode // one sentence
+  level?: 2 | 3
+  badge?: ReactNode
+  actions?: ReactNode
+  heading?: Ref<HTMLHeadingElement>
+  children: ReactNode
+} & { [attribute: `data-${string}`]: string | boolean | undefined }) {
+  const Heading = level === 2 ? 'h2' : 'h3'
+  return (
+    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-4" {...data}>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4">
+        <Heading
+          id={id}
+          ref={heading}
+          tabIndex={heading ? -1 : undefined}
+          className={cn('flex items-center gap-2 font-semibold', level === 2 && 'type-body')}
+        >
+          {title}
+          {badge}
+        </Heading>
+        <p className="col-span-full mt-1 max-w-[72ch] text-pretty text-muted-foreground">{description}</p>
+        {actions && (
+          <div className="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2">{actions}</div>
+        )}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+// A tab of a page's `PageTabs`: `id` is the hash that opens it, as "members" for #members.
+export type PageTab = { id: string; title: string; content: ReactNode }
+
+// A long page's sections in tabs, on the segmented track the inspector's tabs use, its list named for
+// the page (`label`, as "Settings sections"). Every panel stays mounted, so a draft, a lens or an edit
+// in one survives a switch to another, and a page rendered on the server holds every panel; in each,
+// the sections stand 48px apart, as the settings' modules do. The chosen tab is the URL's hash: one
+// that names a tab as the page opens, or as it changes (a link such as "Review the plan"), opens that
+// tab and scrolls it into view, and choosing a tab writes the hash without a history entry. A hash that
+// names none is left alone, so the first tab shows, as it does once the chosen one goes away. Tabs
+// activate by hand, Base UI's default: arrow keys move focus, and Enter or Space opens a tab. Wider
+// than the page, as on a phone, the list scrolls sideways, keeping the open tab in view.
+export function PageTabs({ label, tabs }: { label: string; tabs: PageTab[] }) {
+  const [chosen, setChosen] = useState(() => (typeof location === 'undefined' ? '' : location.hash.slice(1)))
+  const shown = tabs.some((t) => t.id === chosen) ? chosen : tabs[0].id
+  const named = useRef(tabs)
+  named.current = tabs
+  const track = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const follow = () => {
+      const hash = location.hash.slice(1)
+      if (!named.current.some((t) => t.id === hash)) return
+      setChosen(hash)
+      track.current?.scrollIntoView({ block: 'start' })
+    }
+    follow()
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [])
+  // Sideways only, so the page itself never moves for it.
+  useEffect(() => {
+    const scroller = track.current
+    const tab = scroller?.querySelector('[data-active]')
+    if (!scroller || !tab) return
+    const [s, t] = [scroller.getBoundingClientRect(), tab.getBoundingClientRect()]
+    if (t.left < s.left || t.right > s.right) scroller.scrollLeft += t.left + t.width / 2 - (s.left + s.width / 2)
+  }, [shown])
+  return (
+    <Tabs
+      value={shown}
+      onValueChange={(next: string) => {
+        setChosen(next)
+        history.replaceState(history.state, '', `#${next}`)
+      }}
+      className="gap-6"
+    >
+      {/* Room around the track for the focus ring; on a phone it scrolls from edge to edge of the screen. */}
+      <div ref={track} className="-m-1 overflow-x-auto p-1 max-md:-mx-4 max-md:scroll-px-4 max-md:px-4">
+        <TabsList aria-label={label} className="max-w-none *:shrink-0">
+          {tabs.map((t) => (
+            <TabsTrigger key={t.id} value={t.id}>
+              {t.title}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
+      {tabs.map((t) => (
+        <TabsContent key={t.id} value={t.id} keepMounted className="flex flex-col gap-12">
+          {t.content}
+        </TabsContent>
+      ))}
+    </Tabs>
   )
 }
