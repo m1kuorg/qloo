@@ -7,7 +7,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Run, SlowCall } from '../agent'
-import { utcDay } from './controls'
 import type { OpenCall, Opened } from './Evidence'
 import { PageHeader } from './PageHeader'
 import { runLabel } from './Run'
@@ -347,8 +346,8 @@ export function Readout({
 
 // A run in the readout: the live dot and its word, or a failure's word and why; while it runs, the
 // current step (the latest note still running; between tool calls, Claude is choosing the next); the
-// replay's explanation, or, for one of the sample launches, its captured run's; and its calls still waiting
-// on Qloo.
+// replay's explanation; and its calls still waiting on Qloo. A run one of the sample launches was
+// seeded with says so by the page's title badge alone (#311).
 export function RunState({ run, slowCalls }: { run: Run; slowCalls: SlowCall[] }) {
   const running = run.status === 'running'
   const step = run.notes.findLastIndex((n) => n.status === 'running')
@@ -373,15 +372,6 @@ export function RunState({ run, slowCalls }: { run: Run; slowCalls: SlowCall[] }
           <span>
             {run.replayed}, so this is the stored sample run, replayed with its answers. Nothing new was asked of Qloo
             or Claude.
-          </span>
-        </span>
-      )}
-      {run.capturedAt && (
-        <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 type-caption">
-          <Badge variant="outline">Sample data</Badge>
-          <span>
-            This run is from the sample data, captured on {utcDay(run.capturedAt)} and loaded as it ended then. Nothing
-            new was asked of Qloo or Claude.
           </span>
         </span>
       )}

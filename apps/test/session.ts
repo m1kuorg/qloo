@@ -65,11 +65,13 @@ const said = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-// Each section's heading and the one sentence under it, in the page's order, as a reader meets them.
+// Each section's heading and the one sentence under it, in the page's order, as a reader meets them;
+// the heading alone for an h3 with no sentence of its own.
 export const sections = (html: string) =>
   [...html.matchAll(/<section\b[^>]*\saria-labelledby="([^"]+)"/g)].map(([, by]) => {
     const [, heading, after] = html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>(.*)`))!
-    return [said(heading), said(after.match(/<p\b[^>]*>(.*?)<\/p>/)![1])]
+    const sentence = after.match(/^\s*<p\b[^>]*>(.*?)<\/p>/)?.[1]
+    return sentence === undefined ? [said(heading)] : [said(heading), said(sentence)]
   })
 
 // Each label on a rendered page saying something is the sample data's, a badge such as "sample" or
@@ -77,13 +79,15 @@ export const sections = (html: string) =>
 // meets it: in the page's h1, as the title's words, or elsewhere, as the words leading up to it. A page
 // whose data is the sample's has one, in its h1 beside its title (#311): ['h1: Roster'].
 export const sampleLabels = (html: string) =>
-  [...html.matchAll(/<span\b[^>]*\sdata-slot="badge"[^>]*>[^<]*sample[^<]*<|>\s*sample:?\s*</gi)].map(({ index }) => {
-    const before = html.slice(0, index).replace(/<[^>]*$/, '')
-    const h1 = before.lastIndexOf('<h1')
-    return h1 >= 0 && h1 > before.lastIndexOf('</h1>')
-      ? `h1: ${said(before.slice(h1))}`
-      : `after: ${said(before).slice(-60)}`
-  })
+  [...html.matchAll(/<span\b[^>]*\sdata-slot="badge"[^>]*>[^<]*[Ss]ample[^<]*<|>\s*(?:sample|Sample:)\s*</g)].map(
+    ({ index }) => {
+      const before = html.slice(0, index).replace(/<[^>]*$/, '')
+      const h1 = before.lastIndexOf('<h1')
+      return h1 >= 0 && h1 > before.lastIndexOf('</h1>')
+        ? `h1: ${said(before.slice(h1))}`
+        : `after: ${said(before).slice(-60)}`
+    }
+  )
 
 // A page's tabs: its tab list's name, each tab's words, and whether each panel shows, every panel
 // being in the page whichever tab is chosen.

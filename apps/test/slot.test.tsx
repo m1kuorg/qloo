@@ -5,7 +5,7 @@ import type { State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { LaunchWorkspace } from '../src/client/Launch'
 import { fakeClaude, fakeInsights, fakeQloo, fakeTopic, text, toolUse, turn } from './fake'
-import { hooked, launchPage, openSession, type Session } from './session'
+import { hooked, launchPage, openSession, sampleLabels, type Session } from './session'
 
 // Made-up IDs and scores for four of the sample's public show names; every other name misses.
 const ids: Record<string, string> = {
@@ -65,7 +65,7 @@ const words = (html: string) =>
     .trim()
 const page = (state: State) =>
   renderToStaticMarkup(<LaunchWorkspace agent={{ state, stub: {} } as unknown as Agent} {...launchPage} />)
-// A fit chart row's slot value cell, as read: the value, the downloads it's priced from, any sample label.
+// A fit chart row's slot value cell, as read: the value and the downloads it's priced from.
 const slot = (state: State, show: string) => {
   const [chart] = hooked(page(state), 'data-fit-chart')
   const [row] = hooked(chart, `data-show="${show}"`)
@@ -89,21 +89,21 @@ async function sampleRun() {
 }
 
 describe('the fit chart’s slot value', () => {
-  it('prices each scored show’s slot, labelled sample while sample figures price it', async () => {
+  it('prices each scored show’s slot from the sample figures, which the page’s title and the footnote say once', async () => {
     const s = await sampleRun()
 
-    expect(slot(s.state()!, 'The Rewatchables')).toBe('$9,600 480,000 downloads sample')
-    expect(slot(s.state()!, 'The Bill Simmons Podcast')).toBe('$14,000 700,000 downloads sample')
-    expect(slot(s.state()!, 'The Big Picture')).toBe('$8,000 400,000 downloads sample')
+    expect(slot(s.state()!, 'The Rewatchables')).toBe('$9,600 480,000 downloads')
+    expect(slot(s.state()!, 'The Bill Simmons Podcast')).toBe('$14,000 700,000 downloads')
+    expect(slot(s.state()!, 'The Big Picture')).toBe('$8,000 400,000 downloads')
     expect(footnote(s.state()!)).toBe('Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures')
+    expect(sampleLabels(page(s.state()!))).toEqual(['h1: The Watch'])
   })
 
-  it('reprices a row when the network changes its figures, dropping their sample label', async () => {
+  it('reprices a row when the network changes its figures', async () => {
     const s = await sampleRun()
 
     await s.call('setCpm', 25)
-    // The downloads are still the sample's, so the row still says so.
-    expect(slot(s.state()!, 'The Rewatchables')).toBe('$12,000 480,000 downloads sample')
+    expect(slot(s.state()!, 'The Rewatchables')).toBe('$12,000 480,000 downloads')
     expect(footnote(s.state()!)).toBe('Slot value = downloads × $25 CPM ÷ 1,000')
 
     await s.call('updateShow', 'The Rewatchables', { downloads: 500_000 })

@@ -24,7 +24,7 @@ import { LaunchAgent } from '../src/launch-agent'
 import { networkLinks } from '../src/shell'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
 import { capturedRunOf, sampleLaunchesSql } from './capture'
-import { api, openGuest, openMember, readAfterReset, type Guest, type Session } from './session'
+import { api, openGuest, openMember, readAfterReset, sampleLabels, type Guest, type Session } from './session'
 
 // Made-up IDs for three of the sample's public show names, and for the made-up launches; every other
 // name finds nothing.
@@ -325,29 +325,31 @@ describe("the guest network's sample launches", () => {
       // The run list's View opens it as it ended.
       expect(await launch.call<RunSnapshot>('getRun', state.run!.id)).toEqual(state)
 
-      const page = words(
-        renderToStaticMarkup(
-          <LaunchWorkspace
-            agent={{ state: launch.state(), stub: {} } as unknown as Agent}
-            network={{
-              id: 'guest-network',
-              name: 'Guest network',
-              role: 'owner',
-              links: networkLinks(env, 'guest-network')
-            }}
-            orders={`/app/guest-network/launches/${id}/insertion-orders`}
-          />
-        )
+      const html = renderToStaticMarkup(
+        <LaunchWorkspace
+          agent={{ state: launch.state(), stub: {} } as unknown as Agent}
+          network={{
+            id: 'guest-network',
+            name: 'Guest network',
+            role: 'owner',
+            links: networkLinks(env, 'guest-network')
+          }}
+          orders={`/app/guest-network/launches/${id}/insertion-orders`}
+        />
       )
-      expect(page, name!).toContain('Sample data')
-      expect(page, name!).toContain('This run is from the sample data')
+      const page = words(html)
+      // Its page's title carries the one "sample" badge; the readout, the run log and the rest carry none,
+      // and the list of runs says where the run is from.
+      expect(sampleLabels(html), name!).toEqual([`h1: ${name}`])
+      expect(page, name!).not.toContain('This run is from the sample data')
+      expect(page, name!).toMatch(/Run 1 · .+ · Sample data Shown/)
       expect(page, name!).not.toContain('Replayed')
-      const record = words(
-        renderToStaticMarkup(<EvidencePanel opened={{ call: cited[0], status: 'loaded', record: log[0] }} />)
+      const evidence = renderToStaticMarkup(
+        <EvidencePanel opened={{ call: cited[0], status: 'loaded', record: log[0] }} />
       )
-      expect(record, name!).toContain('Sample data')
-      expect(record, name!).toContain('From the sample data, as Qloo answered it')
-      expect(record, name!).not.toContain('Replayed')
+      expect(sampleLabels(evidence), name!).toEqual([])
+      expect(words(evidence), name!).toContain('From the sample data, as Qloo answered it')
+      expect(words(evidence), name!).not.toContain('Replayed')
 
       if (name === 'Night Shift Cinema') {
         expect(state.insertionOrder).toMatchObject({ status: 'approved', approvedBy: 'Guest', fromSample: true })

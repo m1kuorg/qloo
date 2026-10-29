@@ -82,9 +82,9 @@ export function FitChart({
   running: boolean
   openCall: OpenCall
   opened: string | null
-  roster: Show[] // for each show's downloads and its sample labels
+  roster: Show[] // for each show's downloads
   cpm: number | null
-  sampleCpm: boolean // the CPM is still the sample network's
+  sampleCpm: boolean // the CPM is still the sample network's, as the footnote says
 }) {
   const [lens, setLens] = useState<Lens>('listeners')
   const [all, setAll] = useState(false)
@@ -409,7 +409,7 @@ export function FitChart({
                           <FitBand band={r.band} finalist={r.finalist} quiet />
                         </span>
                         <span role="cell" className="[grid-area:slot]" data-slot-value>
-                          <SlotValue show={show(r.show)} cpm={cpm} sampleCpm={sampleCpm} />
+                          <SlotValue show={show(r.show)} cpm={cpm} />
                         </span>
                       </div>
                       {open && (
@@ -507,10 +507,9 @@ function rowOrder(rows: FitRow[], lens: Lens, moves: Move[] | null) {
   return rows.toSorted((a, b) => (rank.get(a.show) ?? Infinity) - (rank.get(b.show) ?? Infinity) || a.rank - b.rank)
 }
 
-// What one promo slot on a show displaces, from its downloads and the CPM, labelled sample while a sample
-// figure prices it; or the figure it's missing. The value and its sample chip share a right edge, the
-// downloads under them; on a phone's second line they run on.
-function SlotValue({ show, cpm, sampleCpm }: { show: Show | undefined; cpm: number | null; sampleCpm: boolean }) {
+// What one promo slot on a show displaces, from its downloads and the CPM; or the figure it's missing.
+// The value and the downloads under it share a right edge; on a phone's second line they run on.
+function SlotValue({ show, cpm }: { show: Show | undefined; cpm: number | null }) {
   const downloads = show?.downloads ?? null // shows from before downloads have none
   const { slotValue, gap } = slotPrice(downloads, cpm)
   if (slotValue === null)
@@ -531,7 +530,6 @@ function SlotValue({ show, cpm, sampleCpm }: { show: Show | undefined; cpm: numb
       <span className="type-caption text-muted-foreground md:basis-full md:text-right">
         {downloads!.toLocaleString('en-US')} downloads
       </span>
-      {(sampleCpm || show?.sample?.includes('downloads')) && <Badge className="order-first">sample</Badge>}
     </span>
   )
 }

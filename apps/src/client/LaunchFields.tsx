@@ -21,8 +21,6 @@ export function useLaunchFields(prefill: { name: string | null; comps: string[] 
   return {
     input: (unreleased ? { comps: named } : { name }) satisfies LaunchInput,
     ready: unreleased ? named.length > 0 : name.trim() !== '',
-    // Whether the form holds this released launch's name, as typed.
-    named: (launch: string) => !unreleased && name === launch,
     clear: () => (unreleased ? setComps(Array(MAX_COMPS).fill('')) : setName('')),
     fields: (disabled: boolean, stacked = false) => (
       <>

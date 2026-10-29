@@ -97,7 +97,6 @@ export function RunLog({
       badge={
         <>
           {run.replayed && <Badge variant="outline">Replayed</Badge>}
-          {run.capturedAt && <Badge variant="outline">Sample data</Badge>}
           <Badge mark={live ? 'signal' : 'none'}>{runLabel[run.status]}</Badge>
         </>
       }
