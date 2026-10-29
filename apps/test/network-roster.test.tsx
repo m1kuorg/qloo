@@ -22,12 +22,14 @@ import {
   api,
   currentLinks,
   detailsToggle,
+  facts,
   inspectorClosed,
   openGuest,
   openMember,
   openSession,
   regions,
   sampleLabels,
+  sections,
   type Member,
   type Session
 } from './session'
@@ -591,9 +593,18 @@ describe("the roster page's words", () => {
     )
     const watch = editor(state, 'The Watch')
     expect(sampleLabels(watch)).toEqual([])
-    expect(words(watch)).toContain(
-      'The Watch Missed The show’s Qloo match, its figures, and whether a launch can propose it. Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts'
-    )
+    expect(sections(watch)).toEqual([
+      ['The Watch Missed', 'No show by this name in Qloo. Map a comparable show or leave it out.']
+    ])
+    // Its description is what it's about, clamped to three lines with the whole of it in its tooltip.
+    const about = state.roster.find((show) => show.name === 'The Watch')!.description!
+    expect(about).toMatch(/^Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts/)
+    expect(facts(watch)).toEqual([
+      ['Qloo match', 'None C-06'],
+      ['Popularity percentile', '–'],
+      ['About', about]
+    ])
+    expect(watch).toContain(`title="${about.replace(/'/g, '&#x27;')}"`)
     expect(words(watch)).toContain('Downloads per episode Status Save')
     // The inspector's close button closes it, so the show has no Close of its own.
     expect(words(watch)).not.toContain('Close')
