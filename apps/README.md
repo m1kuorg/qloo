@@ -171,7 +171,7 @@ Client files under `src/client/` use React JSX. Server files that render the HTM
 
 ## CI
 
-[`.github/workflows/ci.yml`](/.github/workflows/ci.yml) runs on every pull request, including a retitle, and on every push to `main`. One job installs the repo root, `apps/`, and `packages/sdk` with `bun install --frozen-lockfile` (the SDK without its build script), then runs these steps. Each step runs even when an earlier one fails, so one run reports every failure:
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml) is written for every pull request, including a retitle, and every push to `main`, but GitHub's hosted runners don't run this repo's workflows (#368), so it runs on your machine instead, with [act](https://github.com/nektos/act) (below). One job installs the repo root, `apps/`, and `packages/sdk` with `bun install --frozen-lockfile` (the SDK without its build script), then runs these steps. Each step runs even when an earlier one fails, so one run reports every failure:
 
 1.  **Format:** `bun run lint` at the repo root, Prettier's check.
 1.  **Typecheck:** `bun run typecheck` in `apps/`.
@@ -180,7 +180,9 @@ Client files under `src/client/` use React JSX. Server files that render the HTM
 1.  **PR title:** the title through `bunx commitlint`, on pull requests only.
 1.  **Secrets:** `gitleaks git` on the commits the pull request or push adds.
 
-Before merging, wait for green with `gh pr checks <pr> --watch`. Locally, run the listed commands where they're listed, check a title with `echo '<title>' | bunx commitlint` at the repo root, and check your commits with `gitleaks git --log-opts="origin/main..HEAD"`.
+Before merging, run the job with `scripts/ci.sh <pr>` at the repo root, and wait for act's "Job succeeded". The pull request's own GitHub check fails within seconds, before its first step; ignore it. The script needs `gh`, `jq`, `act`, and Docker running. It tests the commit GitHub would: the pull request's merge ref, the pull request merged into its base branch's tip, so rebase a pull request that conflicts first. It clones the repo afresh into a scratch folder, since a worktree's `.git` is a file the job's container can't follow. It gives act the pull request's number, title, and base and head commits, and runs the job as amd64, the build the Secrets step downloads, on 4 of Docker's CPUs in 6 GB. It takes about 12 minutes, about 5 of them setting up Bun and its cache, and it's heavy, so run it while nothing else runs the suite. Post its result on the pull request with `gh pr comment`.
+
+While you work, run the listed commands where they're listed, check a title with `echo '<title>' | bunx commitlint` at the repo root, and check your commits with `gitleaks git --log-opts="origin/main..HEAD"`.
 
 ## Deploy
 
