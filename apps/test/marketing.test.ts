@@ -583,7 +583,7 @@ describe('the developer docs', () => {
   it('say how to install the SDK from the repo, make a client, wait for long work, and handle errors', async () => {
     const text = words(main(await page('/docs/sdk')))
     expect(text).toContain('git clone https://github.com/m1kuorg/qloo.git')
-    expect(text).toContain('bun add <path to qloo>/packages/sdk')
+    expect(text).toContain('bun add ../qloo/packages/sdk')
     expect(text).toContain("baseUrl: 'https://crossfeed.test'")
     for (const helper of [
       'waitForRoster()',
@@ -645,6 +645,79 @@ describe('the developer docs', () => {
     const closed = await (await get('/llms.txt')).text()
     expect(closed).not.toMatch(/\]\(https:\/\/crossfeed\.test\/(api|mcp|app|sign-in)\b/)
     expect(closed).toContain(`](${origin}/docs/mcp)`)
+  })
+
+  // Each figure on a page: its caption, its Copy button's name or null for none, and its code. A
+  // copyable block keeps its button in an inert <template>, which copy.ts puts in place, so the page as
+  // served has no button anywhere else: without the script, there's none.
+  const figures = (html: string) =>
+    main(html)
+      .split(/(?=<figure\b)/)
+      .slice(1)
+      .map((f) => {
+        const figure = f.slice(0, f.indexOf('</figure>'))
+        expect(figure.replace(/<template\b[\s\S]*?<\/template>/g, '')).not.toMatch(/<button\b/)
+        const button = figure.match(
+          /<template data-copy\b[^>]*>[\s\S]*?(<button\b[\s\S]*?<\/button>)[\s\S]*?<\/template>/
+        )?.[1]
+        return {
+          caption: words(figure.match(/<figcaption\b[\s\S]*?<\/figcaption>/)?.[0] ?? '').trim(),
+          copy: button ? words(button).trim() : null,
+          code: words(figure.match(/<pre\b[\s\S]*?<\/pre>/)?.[0] ?? '').trim()
+        }
+      })
+
+  it('offer Copy on what runs as it is pasted, named for its block, never on what a command prints, a sketch, or a transcript', async () => {
+    const shown: Record<string, unknown> = {}
+    for (const path of docs) shown[path] = figures(await page(path)).map(({ caption, copy }) => [caption, copy])
+    expect(shown).toEqual({
+      '/docs': [
+        // The header's format, with a placeholder for the key.
+        ['HTTP', null],
+        ['Shell', 'Copy Shell'],
+        ['Shell', 'Copy Shell'],
+        // An error the API answers.
+        ['JSON', null]
+      ],
+      '/docs/api': [],
+      '/docs/sdk': [
+        ['Shell', 'Copy Shell'],
+        ['TypeScript', 'Copy TypeScript'],
+        // Flows that need the reader's own parts, such as askThePerson.
+        ['TypeScript', null],
+        ['TypeScript', null],
+        ['TypeScript', null]
+      ],
+      '/docs/mcp': [
+        ['Shell', 'Copy Shell'],
+        ['Output', null],
+        ['A launch through the MCP server Illustration', null]
+      ],
+      '/docs/agents': [
+        ['plugins/crossfeed/.mcp.json', 'Copy plugins/crossfeed/.mcp.json'],
+        ['Shell', 'Copy Shell'],
+        ['Shell', 'Copy Shell'],
+        ['Output', null]
+      ]
+    })
+    // The landing page's samples, a run's answer and how to read it, have no script to copy them
+    // (csp.test.ts checks which pages load copy.ts).
+    expect(await page('/')).not.toContain('<template data-copy')
+  })
+
+  // Interactive zsh without interactivecomments, as macOS's default shell comes, runs a # comment as
+  // words, so a shell block to copy holds commands alone, and none has a placeholder to fill in, such as
+  // a key's cf_live_… or a <path>: what either said is in the caption or the prose around it.
+  it('copy shell blocks with no comment or placeholder, so each runs as it is pasted', async () => {
+    const shells: string[] = []
+    for (const path of docs)
+      for (const { caption, copy, code } of figures(await page(path)))
+        if (copy && caption === 'Shell') shells.push(code)
+    expect(shells).toHaveLength(6)
+    for (const code of shells) {
+      expect(code).not.toMatch(/(^|\s)#/)
+      expect(code).not.toMatch(/…|<[^>]*>/)
+    }
   })
 
   it("are linked from the landing page's developers band and the top bar's Developers", async () => {

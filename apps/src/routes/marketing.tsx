@@ -1126,16 +1126,46 @@ export const TableScroll = ({ label, children }: { label: string; children: Chil
 // A code sample, captioned above by its language or the file it is, on a tone-step panel: 14px
 // monospace that scrolls sideways inside the panel, and the keyboard can reach to scroll. The
 // developer docs and the landing page's developers section set theirs in it. Code isn't translated, and
-// a sideways scroll stops at its ends rather than going on to swipe the page back.
-export const Code = ({ label, file, children }: { label?: string; file?: string; children: string }) => (
-  <figure class="overflow-hidden rounded-xl bg-muted">
-    <figcaption class="px-4 pt-3 type-caption text-muted-foreground">
+// a sideways scroll stops at its ends rather than going on to swipe the page back. A `copy` sample is
+// commands or a configuration that run as they're pasted: no shell comment, which interactive zsh
+// without interactivecomments reads as words, no placeholder to fill in, and never what a command
+// prints, which is a block of its own. It has a Copy button across from its caption, in an inert
+// <template> that the docs' copy.ts puts in place, so without JavaScript there's no button, and the
+// code is still there to select. The button's name says what it copies after its visible word, "Copy
+// Shell" or "Copy plugins/crossfeed/.mcp.json", as the island's name theirs ("Copy record"). Its words,
+// "Copy", "Copied" and "Copy failed", are the ticket's (#360); its states, not tried, copied and
+// refused, are the island's (useCopy), and a visually hidden status says each.
+export const Code = ({
+  label,
+  file,
+  copy = false,
+  children
+}: {
+  label?: string
+  file?: string
+  copy?: boolean
+  children: string
+}) => (
+  <figure class="grid grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-xl bg-muted">
+    {/* Beside its button, the caption is centred on it. */}
+    <figcaption class="px-4 pt-3 type-caption text-muted-foreground has-[+button]:self-center has-[+button]:pt-1.5">
       {file ? <code class="bg-transparent p-0 text-xs">{file}</code> : label}
     </figcaption>
+    {copy && (
+      <template data-copy>
+        <button type="button" class={buttonVariants({ variant: 'secondary', size: 'sm', className: 'mt-1.5 mr-1.5' })}>
+          <Copy class="group-data-[copied=true]/button:hidden" />
+          <Check class="hidden group-data-[copied=true]/button:block" />
+          <span data-copy-label>Copy</span>
+          <span class="vh">{` ${file ?? label}`}</span>
+        </button>
+        <span role="status" class="vh" />
+      </template>
+    )}
     <pre
       tabindex={0}
       translate="no"
-      class="overflow-x-auto overscroll-x-contain px-4 pt-2 pb-4 type-ui leading-[1.6] focus-visible:-outline-offset-2"
+      class="col-span-full overflow-x-auto overscroll-x-contain px-4 pt-2 pb-4 type-ui leading-[1.6] focus-visible:-outline-offset-2"
     >
       <code>{children.trim()}</code>
     </pre>

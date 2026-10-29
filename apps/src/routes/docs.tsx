@@ -68,8 +68,6 @@ const frontmatter = (text: string) =>
     [...(text.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '').matchAll(/^([a-z-]+): (.*)$/gm)].map((m) => [m[1], m[2]])
   ) as Record<string, string>
 
-// A made-up network ID, as the OpenAPI document's examples use.
-const NETWORK_ID = '0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40'
 // Where every route of a network is.
 const NETWORK_PATH = '/api/v1/networks/{networkId}'
 // API_LIMITER's limit in wrangler.jsonc, which the binding doesn't expose to read.
@@ -133,14 +131,20 @@ const OpenApi = ({ accounts }: { accounts: boolean }) =>
 // an emoji: here it's the CLI's output, quoted in a code sample, not an icon.
 const CONNECTED = '✔ Connected' // taste-skill-ignore
 
-// The command that connects Claude Code to the MCP server of the deployment at `origin`.
+// The commands that connect Claude Code to the MCP server of the deployment at `origin` and check it,
+// then, in a block of its own, the line the check prints once it's connected.
 const McpAdd = ({ origin }: { origin: string }) => (
-  <Code label="Shell">{`
+  <>
+    <Code label="Shell" copy>{`
 claude mcp add --transport http crossfeed ${origin}/mcp \\
   --header "Authorization: Bearer $CROSSFEED_API_KEY"
-
-claude mcp list   # crossfeed: ${origin}/mcp (HTTP) - ${CONNECTED}
+claude mcp list
 `}</Code>
+    <p>
+      <code>claude mcp list</code> should then show it connected:
+    </p>
+    <Code label="Output">{`crossfeed: ${origin}/mcp (HTTP) - ${CONNECTED}`}</Code>
+  </>
 )
 
 // The note every page carries while accounts are off, as in production until the product opens.
@@ -400,20 +404,20 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
             An import, a comp search, an inbox load, and a run answer 202 at once with the resource as it stands; read
             the resource until the work settles. A run is <code>running</code>, or <code>waiting</code> on its question;
             then <code>completed</code>, or <code>stopped</code> or <code>failed</code> with the reason in{' '}
-            <code>error</code>. With a made-up roster:
+            <code>error</code>. With one of the network’s API keys in <code>CROSSFEED_API_KEY</code> and its ID in{' '}
+            <code>CROSSFEED_NETWORK_ID</code>, both from its settings, import a made-up roster:
           </p>
-          <Code label="Shell">{`
-export CROSSFEED=${origin}
-export CROSSFEED_API_KEY=cf_live_…   # from the network's settings
-export NETWORK_ID=${NETWORK_ID}
-
-curl -X POST "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" \\
+          <Code label="Shell" copy>{`
+curl -X POST "${origin}/api/v1/networks/$CROSSFEED_NETWORK_ID/roster" \\
   -H "Authorization: Bearer $CROSSFEED_API_KEY" \\
   -H 'Content-Type: text/csv' \\
   --data-binary $'name,downloads\\nDeep Cuts,12000\\nField Notes,8000\\n'
-
-# 202, the new shows pending. Read the roster until its status is "settled":
-curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $CROSSFEED_API_KEY"
+`}</Code>
+          <p>
+            It answers 202, with the new shows pending. Read the roster until its status is <code>settled</code>:
+          </p>
+          <Code label="Shell" copy>{`
+curl "${origin}/api/v1/networks/$CROSSFEED_NETWORK_ID/roster" -H "Authorization: Bearer $CROSSFEED_API_KEY"
 `}</Code>
         </>
       )
@@ -857,6 +861,8 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
   }
 }
 
+// The SDK's page. Its install commands and its client run as they're pasted, so they copy; its flows are
+// sketches that need the reader's own parts (`askThePerson`, a CSV, a show's candidate), so they don't.
 const sdkPage = (origin: string): Page => ({
   path: '/docs/sdk',
   lede: (
@@ -872,16 +878,19 @@ const sdkPage = (origin: string): Page => ({
       title: 'Install from the repo',
       body: (
         <>
-          <p>It isn’t on npm yet. Clone the repo and build the package, then add it to your project by its path:</p>
-          <Code label="Shell">{`
-git clone https://github.com/m1kuorg/qloo.git
-cd qloo/packages/sdk && bun install   # builds dist/
-
-# then, in your project:
-bun add <path to qloo>/packages/sdk   # or: npm install <path to qloo>/packages/sdk
+          <p>
+            It isn’t on npm yet. From your project’s directory, clone the repo beside it, build the package, and add it
+            by its path:
+          </p>
+          <Code label="Shell" copy>{`
+git clone https://github.com/m1kuorg/qloo.git ../qloo
+(cd ../qloo/packages/sdk && bun install)
+bun add ../qloo/packages/sdk
 `}</Code>
           <p>
-            Bun and Deno can also import <code>packages/sdk/src/index.ts</code> as it is.
+            <code>bun install</code> builds the package’s <code>dist/</code>. With npm, add it with{' '}
+            <code>npm install ../qloo/packages/sdk</code>. Bun and Deno can also import{' '}
+            <code>packages/sdk/src/index.ts</code> as it is.
           </p>
         </>
       )
@@ -892,7 +901,7 @@ bun add <path to qloo>/packages/sdk   # or: npm install <path to qloo>/packages/
       body: (
         <>
           <p>The client takes one of the network’s API keys and its ID, both from its settings:</p>
-          <Code label="TypeScript">{`
+          <Code label="TypeScript" copy>{`
 import { Crossfeed } from '@crossfeed/sdk'
 
 const crossfeed = new Crossfeed({
@@ -1273,7 +1282,9 @@ const agentsPage = (origin: string): Page => ({
             The plugin, <code>crossfeed</code>, sits in the repo’s <code>plugins/crossfeed</code>, beside a marketplace
             file at the repo’s root. It holds both skills and this MCP server config:
           </p>
-          <Code file="plugins/crossfeed/.mcp.json">{mcpConfig}</Code>
+          <Code file="plugins/crossfeed/.mcp.json" copy>
+            {mcpConfig}
+          </Code>
           <p>
             <code>CROSSFEED_API_KEY</code> is one of the network’s API keys. <code>CROSSFEED_URL</code> points it at
             another deployment, such as <code>{origin}</code>; without it, the plugin connects to{' '}
@@ -1288,14 +1299,15 @@ const agentsPage = (origin: string): Page => ({
       body: (
         <>
           <p>It isn’t in a public marketplace yet. From a clone of the repo:</p>
-          <Code label="Shell">{`
+          <Code label="Shell" copy>{`
 git clone https://github.com/m1kuorg/qloo.git
 claude plugin marketplace add ./qloo
 claude plugin install crossfeed@crossfeed
-
-export CROSSFEED_API_KEY=cf_live_…   # from the network's settings
-claude                                # then: "Plan promos for our launch"
 `}</Code>
+          <p>
+            Then start <code>claude</code> with one of the network’s API keys, from its settings, in{' '}
+            <code>CROSSFEED_API_KEY</code>, and ask it to plan promos for your launch.
+          </p>
           <p>
             <code>claude plugin marketplace add m1kuorg/qloo</code> adds the same marketplace from GitHub for anyone who
             can read the repo.
@@ -1337,10 +1349,12 @@ const originOf = (c: Context) => new URL(c.req.url).origin
 const renderPage = (c: Context<{ Bindings: Env }>, page: Page) =>
   c.render(<Docs page={page} accounts={c.env.ACCOUNTS === 'on'} />)
 // A docs page's shell, titled and described from PAGES: the overview as the docs themselves, each
-// other page under them.
+// other page under them, with the script that puts the Copy buttons on its commands and configurations.
 const shell = (path: Path) => {
   const at = PAGES.findIndex((p) => p.path === path)
-  return marketingShell(at === 0 ? 'Developer docs' : `${PAGES[at].title} · Developer docs`, PAGES[at].description)
+  return marketingShell(at === 0 ? 'Developer docs' : `${PAGES[at].title} · Developer docs`, PAGES[at].description, {
+    copy: true
+  })
 }
 
 docs.get('/docs', shell('/docs'), async (c) =>

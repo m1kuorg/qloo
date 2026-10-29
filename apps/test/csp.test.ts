@@ -158,6 +158,28 @@ describe('every page', () => {
       expect(await preloads(res), path).toEqual(modules[path] ? [`/src/client/${modules[path]}.tsx`] : [])
   })
 
+  // The app's own scripts a page loads, each a module from its own origin: the island's on its pages,
+  // and on a marketing page the menus', with the landing page's entrances and field, and the docs' Copy
+  // buttons. As above, the development build's are the source modules, which the Worker's build swaps
+  // for their chunks.
+  it("loads only the app's own modules each page needs", async () => {
+    // The error page is a marketing page, whatever page failed.
+    const expected = (path: string) =>
+      path === '/sign-in' || path === '/invite' || path.startsWith('/app/')
+        ? ['main.tsx']
+        : path === '/'
+          ? ['menus.ts', 'reveal.ts', 'ascii.ts']
+          : path === '/docs' || path.startsWith('/docs/')
+            ? ['menus.ts', 'copy.ts']
+            : ['menus.ts']
+    for (const [path, res] of (await everyPage()).loaded) {
+      const scripts = [...(await res.text()).matchAll(/<script\b([^>]*)>/g)]
+        .map(([, attributes]) => [/\btype="([^"]*)"/.exec(attributes)?.[1], /\bsrc="([^"]*)"/.exec(attributes)?.[1]])
+        .filter(([, src]) => src?.startsWith('/src/'))
+      expect(scripts, path).toEqual(expected(path).map((file) => ['module', `/src/client/${file}`]))
+    }
+  })
+
   // The files are in public/, which Workers Assets serves before the Worker, so only the head that
   // links them is seen here; apps/README.md's production check fetches the files themselves.
   it("links the mark's icons and the web app manifest, and tints the browser to the page's ground in light and dark", async () => {
