@@ -20,6 +20,7 @@ import {
   fakeInsights,
   fakeQloo,
   fakeReader,
+  modelRequests,
   qlooRequests,
   requests,
   text,
@@ -643,5 +644,145 @@ describe("the inbox page's words", () => {
     expect(inboxPage(await loaded(agent), network)).toContain(
       'Skipped “Weekly Digest <digest@example.com>” is over the 10,000-character limit and “Press kit attached” has no text, so they aren’t in the inbox.'
     )
+  })
+})
+
+describe('pasting pitches', () => {
+  it('takes the From and Subject lines atop a pitch as its sender and subject, naming it by its subject', async () => {
+    fakeQloo({ search: {} })
+    fakeReader(1, () => ({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } }))
+    const ada = await openMember()
+    const network = await created(ada)
+    const agent = await connect(ada, network)
+
+    await agent.call('loadInbox', {
+      text: 'From: Pat Lindqvist <pat@example.com>\nSubject: Ada Quill on Night Ferry\n\nHi team, Ada Quill would love to talk about Night Ferry.'
+    })
+    const state = await loaded(agent)
+
+    expect(state.inbox!.pitches).toMatchObject([
+      {
+        id: 'pitch-01',
+        from: 'Pat Lindqvist <pat@example.com>',
+        subject: 'Ada Quill on Night Ferry',
+        body: 'Hi team, Ada Quill would love to talk about Night Ferry.'
+      }
+    ])
+    expect(state.inbox).not.toHaveProperty('uploaded')
+    // The pitches' table names it by its subject, with its sender under the name.
+    const [rows] = inboxMarkup(state, network).match(/<tbody>.*?<\/tbody>/s)!
+    expect(words(rows)).toMatch(/^Ada Quill on Night Ferry Pat Lindqvist <pat@example\.com> Ada Quill /)
+    // Claude reads its sender and subject once, as header lines ahead of its text.
+    expect(modelRequests().map((r) => r.messages)).toEqual([
+      [
+        {
+          role: 'user',
+          content: expect.stringMatching(
+            /^Today is \d{4}-\d{2}-\d{2}\.\nFrom: Pat Lindqvist <pat@example\.com>\nSubject: Ada Quill on Night Ferry\n\nHi team, Ada Quill would love to talk about Night Ferry\.$/
+          )
+        }
+      ]
+    ])
+  })
+
+  it("reads each pitch's own header lines, as the same text in a .txt file is read", async () => {
+    fakeQloo({ search: {} })
+    fakeReader(6, () => ({ guest: 'Ada Quill', work: null }))
+    const ada = await openMember()
+    const network = await created(ada)
+    const agent = await connect(ada, network)
+    // Six pitches, pasted with Windows line endings.
+    const text = [
+      // A sender alone, with no blank line before the text.
+      'From: pat@example.com',
+      'Ada Quill on her novel Night Ferry.',
+      '---',
+      // A quoted display name, kept as typed.
+      'From: "Lindqvist, Pat" <pat@example.com>',
+      '',
+      'Rue Vance on Paper Moons.',
+      '---',
+      // Subject before From, in any case, with no space after the colon.
+      'subject: Static Bloom',
+      'FROM:Ben <ben@example.com>',
+      '',
+      'Ben Ochoa directed Static Bloom.',
+      '---',
+      // Headers only count at the top: a forward's From line stays in the text.
+      'Hi team, forwarding this one.',
+      'From: Cy Lund <cy@example.com>',
+      'Cy Lund on Low Tide.',
+      '---',
+      // A repeated key ends the headers and stays in the text.
+      'From: Kit Arno <kit@example.com>',
+      'From: Dot Pruitt <dot@example.com>',
+      'Kit Arno created Dead Air.',
+      '---',
+      // An empty From line comes off the text, and gives no sender.
+      'From:',
+      'Subject: Lantern',
+      'Ida Moss on her film Lantern.'
+    ].join('\r\n')
+
+    await agent.call('loadInbox', { text })
+    const state = await loaded(agent)
+
+    const read = [
+      { from: 'pat@example.com', subject: null, body: 'Ada Quill on her novel Night Ferry.' },
+      { from: '"Lindqvist, Pat" <pat@example.com>', subject: null, body: 'Rue Vance on Paper Moons.' },
+      { from: 'Ben <ben@example.com>', subject: 'Static Bloom', body: 'Ben Ochoa directed Static Bloom.' },
+      {
+        from: null,
+        subject: null,
+        body: 'Hi team, forwarding this one.\nFrom: Cy Lund <cy@example.com>\nCy Lund on Low Tide.'
+      },
+      {
+        from: 'Kit Arno <kit@example.com>',
+        subject: null,
+        body: 'From: Dot Pruitt <dot@example.com>\nKit Arno created Dead Air.'
+      },
+      { from: null, subject: 'Lantern', body: 'Ida Moss on her film Lantern.' }
+    ]
+    expect(state.inbox!.pitches.map(({ from, subject, body }) => ({ from, subject, body }))).toEqual(read)
+    expect(await readPitchUpload([new File([text], 'pitches.txt')])).toEqual(read)
+    // A pitch with no subject is named by its text's first line, with its sender under the name.
+    const [rows] = inboxMarkup(state, network).match(/<tbody>.*?<\/tbody>/s)!
+    expect(words(rows)).toMatch(/^Ada Quill on her novel Night Ferry\. pat@example\.com Ada Quill /)
+  })
+
+  it("sets aside a pitch whose work's title Claude reads with its sender's name, and nothing reaches Qloo", async () => {
+    fakeQloo({ search: {} })
+    fakeReader(1, () => ({
+      guest: 'Ada Quill',
+      work: { title: 'Night Ferry, pitched by Pat Lindqvist', type: 'book', year: null }
+    }))
+    const ada = await openMember()
+    const agent = await connect(ada, await created(ada))
+
+    await agent.call('loadInbox', {
+      text: 'From: Pat Lindqvist <pat@example.com>\nSubject: Night Ferry\n\nAda Quill on her novel Night Ferry.'
+    })
+    const { inbox } = await loaded(agent)
+
+    expect(inbox!.pitches.map((p) => [p.status, p.error])).toEqual([
+      ['unreadable', "The work's title holds the guest's or sender's name, so it isn't sent to Qloo."]
+    ])
+    expect(qlooRequests()).toEqual([])
+  })
+
+  it('refuses a pitch with nothing after its header lines, naming it, and leaves the inbox as it was', async () => {
+    fakeQloo({ search: {} })
+    fakeReader(1, () => ({ guest: 'Rue Vance', work: null }))
+    const ada = await openMember()
+    const agent = await connect(ada, await created(ada))
+    await agent.call('loadInbox', { text: 'Rue Vance on Paper Moons.' })
+    const before = (await loaded(agent)).inbox
+
+    await expect(
+      agent.call('loadInbox', {
+        text: 'Ada Quill on Night Ferry.\n---\nFrom: Pat Lindqvist <pat@example.com>\nSubject: Night Ferry\n'
+      })
+    ).rejects.toThrow('Pitch 2 has no text after its From and Subject lines.')
+    expect(agent.state()!.inbox).toEqual(before)
   })
 })

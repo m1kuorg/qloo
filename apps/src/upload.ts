@@ -3,7 +3,7 @@
 // becomes roster text and its format; pitch files become pitches of sender, subject, and plain-text
 // body. Files are never kept, and anything that can't be read is refused with a message that says
 // why, before the agent sees it, and a code for the API (refusal.ts).
-import { splitPitches, type PitchInput } from './inbox'
+import { headed, splitPitches, type PitchInput } from './inbox'
 import { Refusal } from './refusal'
 import type { RosterFormat } from './roster'
 
@@ -44,7 +44,7 @@ export async function readPitchUpload(files: readonly Upload[]): Promise<PitchIn
   for (const file of files) {
     const type = extension(file.name)
     if (type === 'txt') {
-      const texts = splitPitches((await read(file)).replace(/\r\n?/g, '\n'))
+      const texts = splitPitches(await read(file))
       if (texts.length === 0) throw new Refusal('unreadable', `"${file.name}" has no pitch in it.`)
       pitches.push(...texts.map(headed))
       continue
@@ -66,20 +66,6 @@ export async function readPitchUpload(files: readonly Upload[]): Promise<PitchIn
 }
 
 const PITCH_TYPES = ['eml', 'mbox', 'txt']
-
-// A pitch from a text file, whose first lines may give its sender and subject as an email's would.
-function headed(text: string): PitchInput {
-  const pitch: PitchInput = { from: null, subject: null, body: text }
-  const seen = new Set<string>()
-  for (let header; (header = /^(from|subject):[ \t]*(.*)(?:\n|$)/i.exec(pitch.body));) {
-    const key = header[1].toLowerCase() as 'from' | 'subject'
-    if (seen.has(key)) break
-    seen.add(key)
-    pitch[key] = header[2].trim() || null
-    pitch.body = pitch.body.slice(header[0].length)
-  }
-  return { ...pitch, body: pitch.body.trim() }
-}
 
 // The emails of an mbox export, as bytes, or null when it doesn't start with one. Each email starts
 // with a "From " line, at the top of the file or after a blank line, naming the sender and the time it

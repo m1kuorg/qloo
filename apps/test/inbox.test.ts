@@ -89,9 +89,9 @@ describe('loading a pasted pitch', () => {
       pitches: [
         {
           id: 'pitch-01',
-          from: null,
-          subject: null,
-          body: pasted,
+          from: 'Pat Lindqvist <pat.lindqvist@example.com>',
+          subject: 'Ada Quill on Night Ferry',
+          body: "Hi team, Ada Quill's novel Night Ferry is about a projectionist on a car ferry. She'd love to talk movies.",
           status: 'read',
           guest: 'Ada Quill',
           work: { title: 'Night Ferry', type: 'book', year: 2019 },
