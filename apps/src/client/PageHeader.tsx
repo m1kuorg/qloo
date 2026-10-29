@@ -246,8 +246,9 @@ export type PageTab = { id: string; title: string; content: ReactNode }
 // in one survives a switch to another, and a page rendered on the server holds every panel; in each,
 // the sections stand 48px apart, as the settings' modules do. The chosen tab is the URL's hash: one
 // that names a tab as the page opens, or as it changes (a link such as "Review the plan"), opens that
-// tab and scrolls it into view, and choosing a tab writes the hash without a history entry. A hash that
-// names none is left alone, so the first tab shows, as it does once the chosen one goes away. Tabs
+// tab, and scrolls its list into view, clear of the sticky top bar, only when it's out of view. Choosing
+// a tab writes the hash without a history entry. A hash that names none is left alone, so the first tab
+// shows, as it does once the chosen one goes away. Tabs
 // activate by hand, Base UI's default: arrow keys move focus, and Enter or Space opens a tab. Wider
 // than the page, as on a phone, the list scrolls sideways, keeping the open tab in view.
 export function PageTabs({ label, tabs }: { label: string; tabs: PageTab[] }) {
@@ -261,7 +262,7 @@ export function PageTabs({ label, tabs }: { label: string; tabs: PageTab[] }) {
       const hash = location.hash.slice(1)
       if (!named.current.some((t) => t.id === hash)) return
       setChosen(hash)
-      track.current?.scrollIntoView({ block: 'start' })
+      track.current?.scrollIntoView({ block: 'nearest' })
     }
     follow()
     window.addEventListener('hashchange', follow)
@@ -293,7 +294,7 @@ export function PageTabs({ label, tabs }: { label: string; tabs: PageTab[] }) {
       className="gap-6"
     >
       {/* It scrolls inside the page's margin, as a wide table does, with room around the track for the focus ring. */}
-      <div ref={track} className="-m-1 overflow-x-auto overscroll-x-contain p-1">
+      <div ref={track} className="-m-1 scroll-mt-16 overflow-x-auto overscroll-x-contain p-1">
         <TabsList aria-label={label} className="max-w-none *:shrink-0">
           {tabs.map((t) => (
             <TabsTrigger key={t.id} value={t.id}>
