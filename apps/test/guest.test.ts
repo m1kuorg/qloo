@@ -367,6 +367,22 @@ describe('what a guest can change, as an owner', () => {
     expect((await call('/api/v1/networks/guest-network')).status).toBe(401)
   })
 
+  it('makes at most 10 API keys in use in the guest network, for every guest together, as any network keeps', async () => {
+    const ada = await openGuest()
+    const grace = await openGuest()
+    for (const guest of [ada, grace])
+      for (let i = 0; i < 5; i++)
+        expect((await post(guest, `${settings}/api-keys`, { name: 'Nightly sync' })).status).toBe(200)
+    const capped = await post(grace, `${settings}/api-keys`, { name: 'Nightly sync' })
+    expect([capped.status, await capped.json()]).toEqual([
+      429,
+      {
+        error:
+          'Guest network has 10 API keys in use, the most a network can keep at once. Revoke one to create another.'
+      }
+    ])
+  })
+
   it('creates networks, with IDs that start with guest-, which every guest owns', async () => {
     const ada = await openGuest()
     const created = await post(ada, '/app/new', { name: 'Night Shift Audio' })

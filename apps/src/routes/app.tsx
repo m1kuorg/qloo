@@ -486,7 +486,15 @@ appPages.post('/app/:networkId/settings/api-keys', async (c) => {
   if (refused) return refused
   const read = readName((await jsonBody(c)).name, 'Name the key, such as the script or assistant that will use it.')
   if ('error' in read) return c.json({ error: read.error }, 400)
-  const key = await createApiKey(c.env.DB, id, c.var.member.id, read.name)
+  const cap = Number(c.env.API_KEYS_PER_NETWORK) || 0
+  const key = await createApiKey(c.env.DB, id, c.var.member.id, read.name, cap)
+  if (key === 'capped')
+    return c.json(
+      {
+        error: `${await networkName(c.env.DB, id)} has ${cap} API keys in use, the most a network can keep at once. Revoke one to create another.`
+      },
+      429
+    )
   if (!key) return c.json({ error: KEYS_OWNERS_ONLY }, 403)
   return c.json({ id: key.id, secret: key.secret, keys: await apiKeys(c.env.DB, id) })
 })
