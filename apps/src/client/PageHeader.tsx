@@ -231,7 +231,7 @@ export function Section({
           id={id}
           ref={heading}
           tabIndex={heading ? -1 : undefined}
-          className={cn('font-semibold text-balance', level === 2 && 'type-body')}
+          className={cn('font-semibold text-balance break-words', level === 2 && 'type-body')}
         >
           {title}
           {/* 8px after the title's last word, a space widened rather than a margin, so chips wrapped
