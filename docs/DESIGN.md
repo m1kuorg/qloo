@@ -514,7 +514,7 @@ A long page puts its sections in tabs with `PageTabs` (same module), on the segm
 - **Kept mounted:** every panel is in the page whichever tab shows, Base UI hiding and inerting the rest, so a draft, a lens or an edit in one survives a switch to another, and a page rendered on the server (as the tests render it) holds every panel's words.
 - **The hash:** a hash that names a tab, as the page opens or as it changes (a link to `#plan` on the same page), opens that tab and scrolls the tab list to the top of the window. Choosing a tab writes its hash with `history.replaceState`, so tabs add no history entries. A hash that names no tab is left alone and doesn't move the tabs, so the inspector's `#evidence` and the sign-in page's `#guest` keep working. The first tab shows when no hash names one, and when the chosen tab goes away, as one that needs data not there yet; it comes back with the tab. A link into a tabbed page carries its tab's hash, as every link into settings does.
 - **Keys:** Base UI's manual activation: arrow keys move focus along the tabs, and Enter or Space opens one.
-- **Phones:** wider than the screen, the list scrolls sideways from edge to edge, the open tab scrolled into view; the page never scrolls sideways. It's a class on `PageTabs`'s list, not a change to the segmented recipe.
+- **Phones:** wider than the page, the list scrolls sideways inside the page's margin, as a wide table does, the open tab scrolled into view; the page never scrolls sideways. It's a class on `PageTabs`'s list, not a change to the segmented recipe.
 
 ### Canvas and inspector
 
