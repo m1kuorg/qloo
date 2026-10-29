@@ -396,9 +396,10 @@ function EntityNames({ ids, noun, names }: { ids: string[]; noun: Noun; names: N
     ))
   return (
     <Fold summary={count(ids.length, ...noun)}>
-      <ul className="flex flex-col">
+      {/* A name that wraps hangs its next lines, so it reads as one. */}
+      <ul className="mt-1 flex flex-col gap-1">
         {ids.map((id, i) => (
-          <li key={i}>
+          <li key={i} className="-indent-3 pl-3">
             <EntityName id={id} names={names} />
           </li>
         ))}
@@ -407,16 +408,19 @@ function EntityNames({ ids, noun, names }: { ids: string[]; noun: Noun; names: N
   )
 }
 
-// A disclosure, closed, its summary underlined with a chevron, 44px tall on a phone.
+// A disclosure, closed, its summary underlined with a chevron, 44px tall on a phone, where its words
+// stay on the first line, level with a label beside them.
 function Fold({ summary, children, ...data }: { summary: string; children: ReactNode } & DataAttributes) {
   return (
     <details className="group/fold" {...data}>
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-sm underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11 [&::-webkit-details-marker]:hidden">
-        {summary}
-        <ChevronDownIcon
-          aria-hidden="true"
-          className="size-4 text-muted-foreground transition-transform group-open/fold:rotate-180"
-        />
+      <summary className="group/summary block w-fit cursor-pointer list-none rounded-sm max-md:min-h-11 [&::-webkit-details-marker]:hidden">
+        <span className="inline-flex items-center gap-1 underline decoration-muted-foreground decoration-1 underline-offset-4 group-hover/summary:decoration-foreground">
+          {summary}
+          <ChevronDownIcon
+            aria-hidden="true"
+            className="size-4 text-muted-foreground transition-transform group-open/fold:rotate-180"
+          />
+        </span>
       </summary>
       {children}
     </details>
