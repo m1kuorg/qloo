@@ -944,14 +944,28 @@ export async function wipeReason(db: D1Database, binding: string, name: string) 
     .first<string>('reason')
 }
 
-// The first `limit` wipes noted before `before` (epoch ms) and not yet done, oldest first, and of those
-// noted together, a launch's before its network's own Qloo gateway instance's, as the binding's name sorts.
+// The first `limit` wipes noted before `before` (epoch ms) and not yet done: those the hourly retry hasn't
+// tried, oldest first, and of those noted together, a launch's before its network's own Qloo gateway
+// instance's, as the binding's name sorts; then those that failed, the least recently tried first (migration
+// 0013), so wipes that fail every time can't hold back the rest.
 export async function wipesDue(db: D1Database, before: number, limit: number) {
   const { results } = await db
-    .prepare('SELECT binding, name, reason FROM wipes WHERE created < ? ORDER BY created, binding, name LIMIT ?')
+    .prepare(
+      'SELECT binding, name, reason FROM wipes WHERE created < ? ORDER BY failed NULLS FIRST, created, binding, name LIMIT ?'
+    )
     .bind(before, limit)
     .all<Instance>()
   return results
+}
+
+// Notes that the hourly retry tried each of `instances` at time `at` and it failed, in one batch, so the
+// next runs try the wipes no run has tried before them (wipesDue).
+export async function noteFailedWipes(db: D1Database, instances: Instance[], at: number) {
+  await db.batch(
+    instances.map(({ binding, name }) =>
+      db.prepare('UPDATE wipes SET failed = ? WHERE binding = ? AND name = ?').bind(at, binding, name)
+    )
+  )
 }
 
 // What the hourly cron clears: sessions, challenges, and invites that have expired, and the logs of guest
