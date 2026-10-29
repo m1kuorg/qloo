@@ -3351,7 +3351,7 @@
           "Inbox"
         ],
         "summary": "Load the inbox",
-        "description": "Send the pitches as the body: one email as `message/rfc822` (an .eml file), an mbox export as `application/mbox`, plain text with a line of three dashes between pitches as `text/plain` (a pitch's first lines may give its `From:` and `Subject:`), or JSON pitches, at most 50 pitches and 5 MB. Of each email, only its sender, subject, and text are kept, never its attachments or other headers, and only its work's title and type reach Qloo. An email with no text, or over 10,000 characters, is skipped and named. It answers 202 at once with the pitches reading; poll the inbox until it's done. Reading the pitches counts as one of the network's model runs. Over an inbox that has pitches, it needs `replace=true`: they go, with the last pitch run's lists and replies.",
+        "description": "Send the pitches as the body: one email as `message/rfc822` (an .eml file), an mbox export as `application/mbox`, plain text with a line of three dashes between pitches as `text/plain` (a pitch's first lines may give its `From:` and `Subject:`), or JSON pitches, at most 50 pitches and 5 MB. Of each email, only its sender, subject, and text are kept, never its attachments or other headers, and only its work's title and type reach Qloo. An email with no text, or over 10,000 characters, is skipped and named. It answers 202 at once with the pitches reading; poll the inbox until it's done. Reading the pitches counts as one of the network's model runs. Over an inbox that has pitches, it needs `replace=true`: they go, with the last pitch run's lists and replies, and a pitch run waiting on a question ends.",
         "x-crossfeed-cost": "Spends a model run",
         "parameters": [
           {
@@ -3867,7 +3867,7 @@
           "Pitch runs"
         ],
         "summary": "Answer a pitch run's question",
-        "description": "Answer the question the run is waiting on, by its ID: with one of its options as `choice`, or your own words as `text`. The run resumes, answering 202; poll it again. A run started later, or loading the inbox, ends a run left waiting.",
+        "description": "Answer the question the run is waiting on, by its ID: with one of its options as `choice`, or your own words as `text`. The run resumes, answering 202; poll it again. It goes on with what's left of the run's Claude turns and Qloo calls, not as a new model run. A run started later, or loading the inbox, ends a run left waiting.",
         "x-crossfeed-cost": "Calls Qloo",
         "parameters": [
           {
@@ -4453,6 +4453,11 @@
         ],
         "summary": "Delete a launch",
         "description": "Delete the launch for every member, with its runs, their insertion orders, and their evidence, which can't be brought back. Only a member's session from one of Crossfeed's pages may, as the Launches page does; an API key answers 403.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
         "x-crossfeed-cost": "Deletes",
         "x-crossfeed-session-only": true,
         "parameters": [
@@ -4817,7 +4822,7 @@
           "Runs"
         ],
         "summary": "Answer a run's question",
-        "description": "Answer the question the run is waiting on, by its ID, with the fields its kind takes: `choice` or `text` for a `choice` question; `choice` (one of its options) or `text` (the name Qloo lists the launch under) for `launch`; `slots` or `dollars` for `budget`; `exclude`, from its options, for `exclusions`; `comps` or `text` for `comps`; and `picks` for `confirm_comps`. Relay the question to the person planning the launch and answer with their words. The run resumes, answering 202; poll it again.",
+        "description": "Answer the question the run is waiting on, by its ID, with the fields its kind takes: `choice` or `text` for a `choice` question; `choice` (one of its options) or `text` (the name Qloo lists the launch under) for `launch`; `slots` or `dollars` for `budget`; `exclude`, from its options, for `exclusions`; `comps` or `text` for `comps`; and `picks` for `confirm_comps`. Relay the question to the person planning the launch and answer with their words. The run resumes, answering 202; poll it again. It goes on with what's left of the run's Claude turns and Qloo calls, not as a new model run.",
         "x-crossfeed-cost": "Calls Qloo",
         "parameters": [
           {

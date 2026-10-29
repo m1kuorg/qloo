@@ -440,7 +440,7 @@ describe('the OpenAPI document', () => {
   // The API's classes of operation: every read is a GET and the one delete a DELETE; of the rest, those
   // that spend a model run or call Qloo cost that, and every other one changes something. Answering a
   // run's question resumes a run already counted, whose turns call Qloo.
-  it('labels every operation with what it costs, and flags the one only a session sends', async () => {
+  it('labels every operation with what it costs, and flags the one only a session sends, which takes no key', async () => {
     const { paths } = await doc()
     const operations = Object.entries(paths).flatMap(([path, methods]) =>
       Object.entries(methods as Record<string, Record<string, unknown>>).map(([method, op]) => ({
@@ -463,9 +463,10 @@ describe('the OpenAPI document', () => {
       expect(op['x-crossfeed-cost'], name).toBe(
         costly[name] ?? (method === 'get' ? 'Reads' : method === 'delete' ? 'Deletes' : 'Changes')
       )
-    const flagged = operations.filter(({ op }) => 'x-crossfeed-session-only' in op)
-    expect(flagged.map(({ name, op }) => [name, op['x-crossfeed-session-only']])).toEqual([
-      ['DELETE /launches/{launchId}', true]
+    // It alone overrides the document's security, an API key or a session, with the session alone.
+    const flagged = operations.filter(({ op }) => 'x-crossfeed-session-only' in op || 'security' in op)
+    expect(flagged.map(({ name, op }) => [name, op['x-crossfeed-session-only'], op.security])).toEqual([
+      ['DELETE /launches/{launchId}', true, [{ session: [] }]]
     ])
   })
 

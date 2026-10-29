@@ -615,12 +615,17 @@ const Method = ({ method }: { method: string }) => (
   </code>
 )
 
-// What a route costs, and whether only a member's session sends it, as the document labels it: chips,
-// as the MCP tools' effects are.
+// A route's cost as a chip, "Deletes" in the destructive one, so it doesn't look like a read.
+const CostChip = ({ cost }: { cost?: string }) => (
+  <span class={badgeVariants({ variant: cost === 'Deletes' ? 'destructive' : 'default' })}>{cost}</span>
+)
+const SessionOnly = () => <span class={badgeVariants({ variant: 'outline' })}>Session only</span>
+
+// What a route costs, and whether only a member's session sends it, as the document labels it.
 const Cost = ({ op }: { op: Operation }) => (
   <span class="inline-flex flex-wrap gap-1.5">
-    <span class={badgeVariants()}>{op['x-crossfeed-cost']}</span>
-    {op['x-crossfeed-session-only'] && <span class={badgeVariants({ variant: 'outline' })}>Session only</span>}
+    <CostChip cost={op['x-crossfeed-cost']} />
+    {op['x-crossfeed-session-only'] && <SessionOnly />}
   </span>
 )
 
@@ -761,6 +766,37 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
               <a href="/docs#limits">limits</a> are the same for every route. The inbox and pitch run routes answer 404
               while guest pitches are switched off.
             </p>
+            <p>Each route’s cost says what a call does before you send it:</p>
+            <ul>
+              <li>
+                <CostChip cost="Reads" /> The call changes nothing.
+              </li>
+              <li>
+                <CostChip cost="Changes" /> It edits or adds to what the network has.
+              </li>
+              <li>
+                <CostChip cost="Deletes" /> It removes something for good.
+              </li>
+              <li>
+                <CostChip cost="Spends a model run" /> It counts as one of the network’s daily model runs, whose turns
+                call Qloo too.
+              </li>
+              <li>
+                <CostChip cost="Calls Qloo" /> It counts in the network’s daily Qloo calls: an import’s lookups, a comp
+                search, or a run resumed by an answer.
+              </li>
+              <li>
+                <SessionOnly /> Only a member’s session, from one of Crossfeed’s pages, can send it. An API key answers
+                403.
+              </li>
+            </ul>
+            <p>
+              Two routes do more with <code>replace=true</code>. Importing a roster over one that has shows also changes
+              the figures the file brings. Loading the inbox over one that has pitches also deletes them, with the last
+              pitch run’s lists and replies, and ends a pitch run waiting on a question. The OpenAPI document gives each
+              route’s cost as <code>x-crossfeed-cost</code>, and a session-only route{' '}
+              <code>x-crossfeed-session-only: true</code> with the session alone as its <code>security</code>.
+            </p>
             <TableScroll label="Every route">
               <table role="table" class="table-doc table-fold sm:min-w-[36rem]">
                 <thead role="rowgroup">
@@ -801,14 +837,6 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
                 </tbody>
               </table>
             </TableScroll>
-            <p>
-              Each route says what a call costs: Reads change nothing; Changes edit or add to what the network has;
-              Deletes remove something for good; Spends a model run counts one of the network’s daily model runs, whose
-              turns call Qloo too; and Calls Qloo counts against its daily Qloo calls, as an import’s lookups, a comp
-              search and a run resumed by an answer do. Session only marks a route only a member’s session sends, from
-              one of Crossfeed’s pages: an API key answers 403. The OpenAPI document gives each route’s cost as{' '}
-              <code>x-crossfeed-cost</code>, and a session-only route <code>x-crossfeed-session-only: true</code>.
-            </p>
           </>
         )
       },
