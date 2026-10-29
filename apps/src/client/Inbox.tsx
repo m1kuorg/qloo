@@ -52,7 +52,7 @@ import { CallButton, EvidencePanel, useEvidence, type OpenCall, type Opened } fr
 import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
 import { FormDialog, PageEmpty, PageHeader, PageTabs, Section, summaryLine, useFormDialog } from './PageHeader'
-import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
+import { OpenQuestion, REPLIES_CHANGED, runLabel, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
 import {
   connectionOf,
@@ -210,13 +210,15 @@ export function InboxPage({
     <div className={frame}>
       <main className={canvas} data-canvas>
         {/* The inbox counted, with the show it's for once one is known, the sample's or the latest
-            run's, or while an earlier run is viewed, which it is and the way back to the latest. Load
-            pitches is secondary here: once pitches are in, ranking them is the page's primary. */}
+            run's, or while an earlier run is viewed, which it is and the way back to the latest; the
+            sample inbox's title badged sample, the page's one sample label. Load pitches is secondary
+            here: once pitches are in, ranking them is the page's primary. */}
         <PageHeader
           title="Inbox"
           heading={heading}
           connection={connection}
           empty={!inbox}
+          badge={inbox?.sample && <Badge>sample</Badge>}
           summary={
             viewing
               ? `Run ${viewing} · earlier, read-only`
@@ -244,6 +246,7 @@ export function InboxPage({
         <InboxReadout
           inbox={inbox}
           pitchRun={pitchRun}
+          latest={history?.runs.findLast((r) => r.pitchesFor) ?? null}
           startedAt={startedAt}
           slowCalls={slowCalls}
           // Once there's a pitch run, the latest or an earlier one, for the Run tab to log.
@@ -416,23 +419,28 @@ function inboxSummary(inbox: Inbox, show: string | null) {
 }
 
 // The on-air readout under the header, which says the inbox's state and progress, never the counts
-// the header says: a pitch run's state, or while there's none, the inbox's reading, or the sample's
-// lookups, and its slow calls. With no inbox and no run there's none: the empty state says what's
-// missing.
+// the header says: a pitch run's state; or while there's none, the inbox's reading, or the sample's
+// lookups, and its slow calls; or once a new inbox has replaced the one the latest pitch run ranked,
+// that run's state from its summary, as a launch's page says its latest run's. With no pitch run and
+// nothing being read, the inbox is at rest and there's none: the header's counts say what it holds,
+// and with no inbox, the empty state says what's missing.
 function InboxReadout({
   inbox,
   pitchRun,
+  latest,
   startedAt,
   slowCalls,
   runLog
 }: {
   inbox: Inbox | null
   pitchRun: Run | null
+  latest: RunSummary | null // the latest pitch run, which `pitchRun` is unless a new inbox replaced its own
   startedAt: string | null
   slowCalls: SlowCall[]
   runLog: ((from: HTMLElement) => void) | null // opens the inspector on its Run tab, once there's a run
 }) {
-  if (!inbox && !pitchRun) return null
+  const reading = inbox?.status === 'reading'
+  if (!pitchRun && !reading && !latest) return null
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
   // The sample's pitches come already read, so while it loads, its works' lookups are counted instead.
   const works = inbox?.pitches.filter((p) => p.work).length ?? 0
@@ -441,23 +449,24 @@ function InboxReadout({
     <Readout since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
       {pitchRun ? (
         <RunState run={pitchRun} slowCalls={slowCalls} />
+      ) : !reading ? (
+        latest && (
+          <span className="inline-flex items-center gap-2">
+            <OnAir live={false} />
+            <b className="font-semibold">{runLabel[latest.status]}</b>
+          </span>
+        )
       ) : (
         inbox && (
           <>
-            {inbox.status === 'reading' && inbox.sample ? (
+            {inbox.sample ? (
               <StateLine kind="loading" word="Looking up">
                 · {looked} of {works} {works === 1 ? 'work' : 'works'} looked up
               </StateLine>
-            ) : inbox.status === 'reading' ? (
+            ) : (
               <StateLine kind="loading" word="Reading">
                 · {done} of {pitchCount(inbox.pitches.length)} read
               </StateLine>
-            ) : (
-              // At rest, the on-air light's empty ring, as before a launch's first run.
-              <span className="inline-flex items-center gap-2">
-                <OnAir live={false} idle />
-                <b className="font-semibold">Read</b>
-              </span>
             )}
             {slowCalls.length > 0 && (
               <span className="basis-full type-caption">
@@ -1026,7 +1035,7 @@ function RankedPitches({
                 <th scope="col" className="border-b pb-2 pl-3 text-left align-bottom font-normal">
                   {/* The guest is Claude's reading of the pitch, or the sample's, not Qloo data. */}
                   <span className="inline-flex flex-wrap items-center gap-1.5">
-                    Public work · guest <ReadBy sample={sample} />
+                    Public work · guest {!sample && <Source of="agent" />}
                   </span>
                 </th>
                 <th scope="col" className="w-24 border-b pr-2 pb-2 pl-3 text-left align-bottom font-normal">
@@ -1536,15 +1545,12 @@ function AnchorMatch({ match }: { match: WorkMatch | null }) {
 // A pitch's subject, or the first line of a pasted one.
 const title = (p: Pitch) => p.subject ?? p.body.split('\n').find((l) => l.trim()) ?? p.id
 
-// Where a pitch's guest and work came from: Claude's reading, or the sample inbox, which comes already
-// read, labelled sample as the sample roster's figures are.
-const ReadBy = ({ sample }: { sample: boolean }) => (sample ? <Badge>sample</Badge> : <Source of="agent" />)
-
 // Every pitch as read, in the roster table's anatomy: a real table whose rules bleed 8px past the
 // text, the pitch's name a button that opens it in the inspector's Pitch tab, with its sender under
 // it; the guest and work as Claude read them, or as the sample gives them; the work's Qloo match, or
 // why it has none and the way to settle it; and the search's call. Its caption says where each comes
-// from, and for an earlier run viewed (`viewing`), which run's they are; the Pitches section's
+// from, but for the sample's guests and works, which the page's title badge says are the sample's;
+// and for an earlier run viewed (`viewing`), which run's they are; the Pitches section's
 // sentence says what reaches Qloo. A set-aside pitch's guest and work cells look empty, and say
 // "None" to screen readers rather than "blank". The pitch open in the inspector, or whose evidence
 // is, holds the tone step. Narrower than the table, it scrolls sideways in its region with the
@@ -1575,10 +1581,13 @@ function PitchTable({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground" id="pitches-cap">
-        {viewing && `As they were when run ${viewing} ended.`} <ReadBy sample={sample} />{' '}
-        {sample
-          ? 'Guest and work as the sample gives them for each pitch.'
-          : 'Guest and work as Claude read them from each pitch.'}{' '}
+        {viewing && `As they were when run ${viewing} ended.`}{' '}
+        {/* The sample inbox's come already read, which the page's title badge says. */}
+        {!sample && (
+          <>
+            <Source of="agent" /> Guest and work as Claude read them from each pitch.
+          </>
+        )}{' '}
         <Source of="qloo" /> Matches from Qloo search, one call per work. Select a pitch to read it or confirm its
         match.
       </p>
@@ -1782,9 +1791,11 @@ function PitchDetail({
           <KeyValue label="Public work">
             {p.work ? `${p.work.title} · ${typeLabel[p.work.type]}${p.work.year ? ` · ${p.work.year}` : ''}` : '–'}
           </KeyValue>
-          <KeyValue label={sample ? 'Source' : 'Read by'}>
-            <ReadBy sample={sample} />
-          </KeyValue>
+          {!sample && (
+            <KeyValue label="Read by">
+              <Source of="agent" />
+            </KeyValue>
+          )}
         </KeyValues>
         {confirmWork && match && match.candidates.length > 0 && p.work && (
           <PickOne

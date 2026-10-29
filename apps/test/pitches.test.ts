@@ -501,9 +501,10 @@ describe('the sample inbox', () => {
       ['podcast', 'show']
     ])
     expect(rankings()).toHaveLength(4)
-    // Each list's guests are the sample's, already read, not the agent's reading.
+    // Each list's guests are the sample's, already read, not the agent's reading, and carry no label of
+    // their own: the page's title says the inbox is the sample's.
     for (const type of ['book', 'film', 'tv_show', 'podcast'])
-      expect(words(list(state, type)), type).toContain('Rank Public work · guest sample Fit')
+      expect(words(list(state, type)), type).toContain('Rank Public work · guest Fit')
     // Each request as Qloo reads it: the path, every decoded parameter, and the body.
     const sent = qlooRequests().map((r) =>
       [r.url.pathname, ...[...r.url.searchParams].map(([k, v]) => `${k}=${v}`), r.body].join('\n').toLowerCase()
