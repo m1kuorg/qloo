@@ -252,7 +252,7 @@ describe("a network's launches", () => {
     const full = {
       code: 'limit',
       message:
-        'A network keeps at most 3 launches at once. Delete one it no longer needs, on the dashboard, to plan another.'
+        'A network keeps at most 3 launches at once. Delete one it no longer needs, on the Launches page, to plan another.'
     }
 
     const created = await Promise.all(
@@ -265,9 +265,9 @@ describe("a network's launches", () => {
     const { launches: listed } = await (await call(launches)).json<{ launches: Launch[] }>()
     expect(listed).toHaveLength(3)
 
-    // The dashboard's New launch is refused the same way, with the same words.
-    const dashboard = await ada.connect(`/agents/network/${network}`)
-    await expect(dashboard.call('createLaunch', { name: 'Night Shift Cinema' })).rejects.toThrow(full.message)
+    // The Launches page's New launch is refused the same way, with the same words.
+    const launchesPage = await ada.connect(`/agents/network/${network}`)
+    await expect(launchesPage.call('createLaunch', { name: 'Night Shift Cinema' })).rejects.toThrow(full.message)
 
     expect((await ada.fetch(`${launches}/${listed[0].id}`, { method: 'DELETE' })).status).toBe(204)
     expect((await post(call, launches, { name: 'Night Shift Cinema' })).status).toBe(201)

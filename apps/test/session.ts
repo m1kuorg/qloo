@@ -105,16 +105,20 @@ export const tabsOf = (html: string) => ({
   )
 })
 
-// The links a server-rendered page's navigation marks current, as [name, href, aria-current]: its
-// <nav> elements' links with aria-current, each named by its words, as a screen reader names it.
-export const currentLinks = (html: string) =>
-  [...(html.match(/<nav\b[\s\S]*?<\/nav>/g) ?? []).join('').matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)]
-    .map(([, attributes, inner]) => [
+// The links in a server-rendered page's navigation, as [name, href, aria-current] in their order, as
+// the app's rail lists them: its <nav> elements' links, each named by its words, as a screen reader
+// names it.
+export const navLinks = (html: string) =>
+  [...(html.match(/<nav\b[\s\S]*?<\/nav>/g) ?? []).join('').matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map(
+    ([, attributes, inner]) => [
       inner.replace(/<[^>]+>/g, '').trim(),
       attributes.match(/\shref="([^"]*)"/)?.[1],
       attributes.match(/\saria-current="([^"]*)"/)?.[1]
-    ])
-    .filter(([, , current]) => current)
+    ]
+  )
+
+// The links a server-rendered page's navigation marks current, as [name, href, aria-current].
+export const currentLinks = (html: string) => navLinks(html).filter(([, , current]) => current)
 
 // A rendered run page's inspector, closed as every page opens it, its panels there for what opens it,
 // and the header's Details toggle saying so.

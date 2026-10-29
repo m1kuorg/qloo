@@ -18,6 +18,7 @@ import type { Evidence } from '../src/evidence'
 import { Invite, SignInPage } from '../src/client/Account'
 import type { Session as AppSession } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
+import { Launches } from '../src/client/Launches'
 import { InboxWorkspace } from '../src/client/Inbox'
 import { globalGateway } from '../src/gateway'
 import type { NetworkConnection } from '../src/client/NetworkPage'
@@ -491,24 +492,31 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-// The guest network's dashboard as a guest, its owner, reads it.
+// The guest network's dashboard and Launches page as a guest, its owner, reads them.
+const guestNetwork = {
+  id: 'guest-network',
+  name: 'Guest network',
+  role: 'owner' as const,
+  guestBudget: true,
+  links: networkLinks(env, 'guest-network')
+}
 const dashboardWords = (state: State) =>
   words(
     renderToStaticMarkup(
       createElement(Dashboard, {
         state,
-        network: {
-          id: 'guest-network',
-          name: 'Guest network',
-          role: 'owner',
-          guestBudget: true,
-          links: networkLinks(env, 'guest-network')
-        },
+        network: guestNetwork,
         memberId: 'guest-member',
         setup: { invited: false, apiKey: false },
         dismiss: async () => {},
         createLaunch: async () => ({ id: 'l-1' })
       })
+    )
+  )
+const launchesWords = (state: State) =>
+  words(
+    renderToStaticMarkup(
+      createElement(Launches, { state, network: guestNetwork, createLaunch: async () => ({ id: 'l-1' }) })
     )
   )
 
@@ -709,9 +717,10 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       entity: { id: 'e-0601' }
     })
     expect(state.cpm).toBe(20)
-    // The dashboard's title says its data is the sample's, the CPM with it, as the roster page's title
-    // says the roster is.
-    expect(dashboardWords(state)).toMatch(/^Launches sample 1 launch /)
+    // The dashboard's and the Launches page's titles say their data is the sample's, the dashboard's
+    // CPM with it, as the roster page's title says the roster is.
+    expect(dashboardWords(state)).toMatch(/^Dashboard sample /)
+    expect(launchesWords(state)).toMatch(/^Launches sample 1 launch /)
     expect(dashboardWords(state)).toContain('CPM $20 per 1,000 downloads Change')
     expect(state.sample).toEqual({
       network: 'The Ringer',
@@ -762,7 +771,7 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
         .replace(/\s+/g, ' ')
         .trim()
     ).toBe('Roster No shows yet. Import shows')
-    expect(dashboardWords(refused)).toMatch(/^Launches sample 1 launch /)
+    expect(launchesWords(refused)).toMatch(/^Launches sample 1 launch /)
     expect(dashboardWords(refused)).toContain('CPM $20 per 1,000 downloads Change')
 
     // As after an idle eviction or a deploy: the agent starts again, with its storage.
@@ -785,7 +794,7 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     // The roster still waits for the sample's, so the network holds the sample under the owner's CPM (#337).
     const set = await network.until((s) => s.cpm === 25)
     expect(set).toMatchObject({ roster: [], sample: { network: 'The Ringer', cpm: false } })
-    expect(dashboardWords(set)).toMatch(/^Launches sample 1 launch /)
+    expect(launchesWords(set)).toMatch(/^Launches sample 1 launch /)
 
     env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
     await evictAllDurableObjects({ webSockets: 'close' })
@@ -926,14 +935,14 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     const network = await connect(guest)
     await network.until(settled)
     const left = await leaveSample(guest, network)
-    expect(dashboardWords(left)).toMatch(/^Launches 1 launch /)
+    expect(launchesWords(left)).toMatch(/^Launches 1 launch /)
 
     expect((await post(guest, '/app/guest-network/settings/network', { name: 'Guest network', cpm: 20 })).status).toBe(
       200
     )
     const twenty = await network.until((s) => s.cpm === 20)
     expect(twenty.sample).toBeNull()
-    expect(dashboardWords(twenty)).toMatch(/^Launches 1 launch /)
+    expect(launchesWords(twenty)).toMatch(/^Launches 1 launch /)
 
     // As after an idle eviction or a deploy: the sample doesn't load again, so nothing is looked up.
     const sent = requests.length

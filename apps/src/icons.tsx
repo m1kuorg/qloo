@@ -20,6 +20,15 @@ const Icon = ({ class: className, children }: { class?: string; children: Child 
 )
 type IconProps = { class?: string }
 
+// Lucide's "layout-dashboard": the dashboard is the network's overview.
+export const LayoutDashboard = (p: IconProps) => (
+  <Icon {...p}>
+    <rect width="7" height="9" x="3" y="3" rx="1" />
+    <rect width="7" height="5" x="14" y="3" rx="1" />
+    <rect width="7" height="9" x="14" y="12" rx="1" />
+    <rect width="7" height="5" x="3" y="16" rx="1" />
+  </Icon>
+)
 export const Rocket = (p: IconProps) => (
   <Icon {...p}>
     <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />

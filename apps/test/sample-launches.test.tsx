@@ -15,7 +15,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LaunchSummary, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
-import { Dashboard } from '../src/client/Dashboard'
+import { Launches } from '../src/client/Launches'
 import { utcDay } from '../src/client/controls'
 import { EvidencePanel, namesOf } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
@@ -169,10 +169,10 @@ const words = (html: string) =>
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-const dashboardWords = (state: State) =>
+const launchesWords = (state: State) =>
   words(
     renderToStaticMarkup(
-      <Dashboard
+      <Launches
         state={state}
         network={{
           id: 'guest-network',
@@ -181,9 +181,6 @@ const dashboardWords = (state: State) =>
           guestBudget: true,
           links: networkLinks(env, 'guest-network')
         }}
-        memberId="guest-member"
-        setup={{ invited: false, apiKey: false }}
-        dismiss={async () => {}}
         createLaunch={async () => ({ id: 'l-1' })}
       />
     )
@@ -220,7 +217,7 @@ describe("the guest network's sample launches", () => {
         ['The Watch', 'new', 0, null, null, null]
       ])
     )
-    expect(dashboardWords(fresh)).toMatch(
+    expect(launchesWords(fresh)).toMatch(
       /Needs you 2 .+ Ranked 1 Slow Burn .+ Not run yet 1 The Watch .+ Approved 1 Night Shift Cinema /
     )
     // The load called no model, and Qloo for nothing but the cron's health check and the sample roster.

@@ -6,8 +6,8 @@ Crossfeed is an agent that tells a podcast network which of its own shows should
 
 ## Try it as a guest
 
-1. On `/`, select **Open the sample network**. It signs you in as a guest, for a day, and opens the guest network's dashboard: The Ringer's 19 public show names on its roster, with labelled sample figures and a sample CPM, and the sample launch, The Watch, planned. Every guest shares the guest network, which is cleared every day at 12:00 UTC.
-2. Open **The Watch** and select **Start run**. The fit chart ranks the roster by listener overlap in Qloo, with each show's rank in a topic-only plan in the Topic column, and the on-air readout at the top of the page says what the agent is doing.
+1. On `/`, select **Open the sample network**. It signs you in as a guest, for a day, and opens the guest network's dashboard. The guest network holds The Ringer's 19 public show names on its roster, with labelled sample figures and a sample CPM, and the sample launch, The Watch, planned. Every guest shares the guest network, which is cleared every day at 12:00 UTC.
+2. Select **Launches** in the rail, open **The Watch**, and select **Start run**. The fit chart ranks the roster by listener overlap in Qloo, with each show's rank in a topic-only plan in the Topic column, and the on-air readout at the top of the page says what the agent is doing.
 3. Select a show marked ▲ in the Move column, such as The Bill Simmons Podcast, for why it moved, then the call number in that line, such as `C-21`: the inspector's Evidence tab shows the Qloo request behind the ranking and the raw scores the chart leaves out. Switch the chart to **By topic** to watch the shows move to the topic-only plan's order.
 4. Answer the agent's questions in the card above the chart: a slot budget, such as 20 promo slots, then which shows to leave out.
 5. When the run completes, read **The plan**, the insertion order the agent drafted and code priced, then select **Approve** and **Export CSV**.
@@ -21,7 +21,7 @@ Open at <https://crossfeed.m1kuorg.workers.dev> as a free beta, behind the `ACCO
 
 - **Sign-in:** sign up with your name and a passkey, keep the one-time recovery code, and sign in with the passkey alone. No password and no email.
 - **Networks:** create a network, invite teammates with a link that works once, and work on one roster, one inbox, and every launch together, seeing each other's changes live.
-- **Launches:** the dashboard lists each launch with its status, finalists, slots, and slot value, beside a setup checklist. Each launch has its own page and keeps every run; a run ranks the network's roster as it stands when it starts.
+- **Launches:** the dashboard, each network's home, lists the launches that need you beside a setup checklist, and the Launches page lists each launch with its status, finalists, slots, and slot value. Each launch has its own page and keeps every run; a run ranks the network's roster as it stands when it starts.
 - **Your files:** drop a roster CSV on the roster page, or pitch emails (`.eml`, `.mbox`, or text) on the inbox.
 - **Settings:** the network's name and CPM, members and invite links, API keys, its own Qloo key, today's usage against the beta's daily caps, and deleting the network; your account page holds your passkeys, recovery code, sessions, and networks.
 - **For developers:** a REST API under `/api/v1` with an OpenAPI document, the TypeScript SDK in [`packages/sdk`](packages/sdk/), an MCP server at `/mcp`, two Agent Skills and a Claude Code plugin in [`plugins/crossfeed`](plugins/crossfeed/), and developer docs at `/docs` and `/llms.txt`. None of them can approve anything: only a member, in the app, approves an insertion order or a reply.

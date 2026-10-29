@@ -74,7 +74,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - Write an insertion order that prices each slot from the network's own downloads and CPM.
 - Read a booking inbox, resolve each guest through their public work, rank the pitched works against the show and its best past guests, and draft book, decline, or later replies.
 - Show the evidence behind every claim: the Qloo call, its entities and tags, and the affinities it returned, kept apart from the model's interpretation.
-- Keep a network's roster, inbox, and launches for its members: passkey sign-in with a recovery code, networks with owners and members, invite links, a dashboard of launches with a setup checklist, each launch planned on its own with every run kept, and teammates' changes shown live.
+- Keep a network's roster, inbox, and launches for its members: passkey sign-in with a recovery code, networks with owners and members, invite links, a dashboard of what needs a member with a setup checklist, a Launches page listing the launches, each launch planned on its own with every run kept, and teammates' changes shown live.
 - Take the network's own files: a roster CSV or a text file of names, and pitch emails as `.eml`, `.mbox`, or text, re-importing a roster without undoing what was settled.
 - Let owners set the network's name and CPM, manage members, invite links, and API keys, bring the network's own Qloo key, see today's usage against the daily caps, and delete the network; let every member manage their own account, and delete it so that Crossfeed forgets them in every network they were in, now or before.
 - Serve programs and assistants: a REST API with an OpenAPI document, a typed TypeScript SDK, an MCP server, two Agent Skills, a Claude Code plugin, and developer docs at `/docs` and `/llms.txt`.
@@ -144,7 +144,7 @@ Taken on 2026-10-19 in the product spec, [#155](https://github.com/m1kuorg/qloo/
 1.  **A network can bring its own Qloo key** ([ADR 0004](/docs/adr/0004-qloo-key-per-network.md)): the beta runs on the hackathon key within per-network caps.
 1.  **Release:** the same Worker; `/` is the landing page, the sample network moves to `/demo` with no sign-in, and signed-in networks live under `/app`, behind the `ACCOUNTS` switch until the product passes on the preview, by 2026-10-29 or after judging ends on 2026-11-16 ([PRD](PRD.md#release-plan)). On 2026-10-28 the demo retired: the sample network became the guest network's data, and `/demo` leads to guest sign-in ([ADR 0007](/docs/adr/0007-the-sample-network-is-the-guest-networks-data.md)).
 1.  **Networks and members:** a network has owners and members; a person can belong to several networks and joins through an invite link.
-1.  **Launches:** the spec's "projects" are launches. The dashboard lists them; the roster and the inbox belong to the network.
+1.  **Launches:** the spec's "projects" are launches. The Launches page lists them; the roster and the inbox belong to the network.
 1.  **Billing:** none. No payments and no invented prices; settings show usage against the daily caps under a "Beta" label.
 1.  **Publishing:** the SDK, the MCP server, the skills, and the plugin are built in the repo and served by the live app; publishing to npm or a public marketplace waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63), like the repository itself.
 

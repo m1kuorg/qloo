@@ -6,7 +6,7 @@ import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
 import { appOrigins } from './auth'
 import { buttonVariants, linkVariants, marketingFrame } from './components/ui/variants'
 import { isGuestMember, type Member, type Network } from './directory'
-import { Check, ChevronDown, ChevronsUpDown, Inbox, Podcast, Rocket, Settings } from './icons'
+import { Check, ChevronDown, ChevronsUpDown, Inbox, LayoutDashboard, Podcast, Rocket, Settings } from './icons'
 import { Mark } from './mark'
 import { GUEST_NETWORK_CLEARS, initials } from './text'
 
@@ -103,6 +103,7 @@ const pageModules = {
   account: 'AccountPage',
   'new-network': 'NewNetwork',
   dashboard: 'Dashboard',
+  launches: 'Launches',
   launch: 'Launch',
   'network-roster': 'Roster',
   'network-inbox': 'NetworkInbox',
@@ -683,14 +684,14 @@ export const networkLinks = (env: Env, id: string) => ({
   roster: `/app/${id}/roster`,
   inbox: env.GUEST_PITCHES === 'on' ? `/app/${id}/inbox` : null,
   settings: `/app/${id}/settings`,
-  launches: `/app/${id}/launches` // each launch's page is under it, by the launch's ID
+  launches: `/app/${id}/launches` // the Launches page, with each launch's page under it, by the launch's ID
 })
 
 // The pages outside a network, by path, named as the switcher and the account menu name them.
 const outsideNetwork: Record<string, string> = { '/app/new': 'New network', '/app/account': 'Your account' }
 
-// The app shell, for a signed-in member's pages: the rail with the network's pages (Launches, the
-// dashboard, which lists them; Roster; Inbox while GUEST_PITCHES is on; Settings), and a 48px top bar
+// The app shell, for a signed-in member's pages: the rail with the network's pages (Dashboard, its
+// home; Launches, which lists them; Roster; Inbox while GUEST_PITCHES is on; Settings), and a 48px top bar
 // with the network switcher, the page's name, and the account menu, then the React island in #root.
 // A page outside a network, such as /app/new or /app/account, has the mark alone in its rail. The
 // tab's title names the page and its network, or a page outside a network by itself; a launch's page
@@ -701,18 +702,19 @@ export const appShell = jsxRenderer(({ children }, c) => {
   const links = network && networkLinks(c.env, network.id)
   const destinations: Destination[] = links
     ? [
-        { href: links.dashboard, label: 'Launches', icon: Rocket },
+        { href: links.dashboard, label: 'Dashboard', icon: LayoutDashboard },
+        { href: links.launches, label: 'Launches', icon: Rocket },
         { href: links.roster, label: 'Roster', icon: Podcast },
         ...(links.inbox ? [{ href: links.inbox, label: 'Inbox', icon: Inbox }] : []),
         { href: links.settings, label: 'Settings', icon: Settings, utility: true }
       ]
     : []
   for (const d of destinations)
-    // A launch's page belongs to the dashboard, which lists it.
+    // A launch's page belongs to Launches, which lists it.
     d.current =
       path === d.href
         ? 'page'
-        : d.href === links?.dashboard && path.startsWith(`${links.launches}/`)
+        : d.href === links?.launches && path.startsWith(`${links.launches}/`)
           ? 'true'
           : undefined
   // The page's name, after the switcher: on a launch's page, Launches, as a link back to the list.

@@ -210,17 +210,23 @@ function serverFor(ctx: OperationContext) {
     }
   )
 
-  tool('list_launches', "List the network's launches, newest first, as its dashboard does.", none, READ, async () => {
-    const launches = await listLaunches(ctx)
-    const text = launches.length
-      ? launches.map((l) => `- ${launchLine(l)}. ${launchPage(l.id)}`).join('\n')
-      : 'No launches yet: plan one with create_launch.'
-    return { text, structured: { launches } }
-  })
+  tool(
+    'list_launches',
+    "List the network's launches, newest first, as its Launches page does.",
+    none,
+    READ,
+    async () => {
+      const launches = await listLaunches(ctx)
+      const text = launches.length
+        ? launches.map((l) => `- ${launchLine(l)}. ${launchPage(l.id)}`).join('\n')
+        : 'No launches yet: plan one with create_launch.'
+      return { text, structured: { launches } }
+    }
+  )
 
   tool(
     'create_launch',
-    "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's dashboard; start a run with start_launch_run to rank the roster for it. A network keeps a limited number of launches at once; past it, a member deletes one on the dashboard to make room.",
+    "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's Launches page; start a run with start_launch_run to rank the roster for it. A network keeps a limited number of launches at once; past it, a member deletes one on the Launches page to make room.",
     LaunchPlan,
     WRITE,
     async (plan) => {
