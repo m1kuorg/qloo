@@ -18,7 +18,7 @@ import type { Evidence } from '../src/evidence'
 import { Invite, SignInPage } from '../src/client/Account'
 import type { Session as AppSession } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
-import { InboxLoad, InboxWorkspace } from '../src/client/Inbox'
+import { InboxWorkspace } from '../src/client/Inbox'
 import { globalGateway } from '../src/gateway'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
@@ -942,14 +942,6 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       )
       expect(looking).toContain('sample Guest and work as the sample gives them for each pitch.')
       expect(looking).toContain('Rank them once every work is looked up.')
-      // The sheet's form, which loads another inbox in its place, waits for the lookups.
-      expect(
-        words(
-          renderToStaticMarkup(
-            createElement(InboxLoad, { loadInbox: async () => {}, reading: true, sample: true, wipes: false })
-          )
-        )
-      ).toContain('Looking up the sample’s works…')
       expect(looking).toContain('36 still looking up')
       expect(looking).not.toContain('Reading')
       expect(looking).not.toContain('pitch is read')

@@ -5,7 +5,7 @@ import type { Show } from '../agent'
 import { EvidencePanel, useEvidence } from './Evidence'
 import { canvas, frame, Inspector, InspectorToggle, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
-import { FormSheet, PageEmpty, PageHeader, useFormSheet } from './PageHeader'
+import { PageEmpty, PageHeader, useFormDialog } from './PageHeader'
 import { RosterFailures, RosterImport, rosterSummary, RosterTable, ShowEditor } from './RosterModules'
 import { connectionOf, type Connection } from './states'
 
@@ -24,7 +24,7 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
 // Qloo failed on, and the roster table, whose caption says whether it's ready to rank, and whose shows
 // open in the inspector's Show tab beside it (a sheet under 1360px), closed until then, and whose
 // calls open in its Evidence tab. An empty roster has the empty state instead, with Import shows and
-// no inspector; either opens the import in a sheet. Every member's edits reach the others through
+// no inspector; either opens the import in its dialog. Every member's edits reach the others through
 // synced state. Tests render it from a network agent's synced state.
 export function NetworkRoster({
   agent,
@@ -40,8 +40,8 @@ export function NetworkRoster({
   const evidence = useEvidence(agent)
   // The Show tab is there with no show selected too, saying how to open one.
   const inspector = useInspector(['show', 'evidence'], evidence)
-  // Import shows, in the header or the empty state, and the sheet it opens the import in.
-  const importing = useFormSheet('Import shows')
+  // Import shows, in the header or the empty state, and the dialog it opens the import in.
+  const importing = useFormDialog('Import shows')
   const importDraft = useRef('')
   const head = (
     <PageHeader
@@ -119,18 +119,13 @@ export function NetworkRoster({
           </Inspector>
         </div>
       )}
-      <FormSheet
-        sheet={importing}
-        description="Paste show names or upload the roster’s file. Crossfeed looks each new one up in Qloo."
-      >
-        <RosterImport
-          roster={roster}
-          draft={importDraft}
-          importRoster={(text, format) => agent.stub.importRoster(text, format)}
-          keepsSettledShows
-          dropped={importing.show}
-        />
-      </FormSheet>
+      <RosterImport
+        dialog={importing}
+        roster={roster}
+        draft={importDraft}
+        importRoster={(text, format) => agent.stub.importRoster(text, format)}
+        keepsSettledShows
+      />
     </>
   )
 }

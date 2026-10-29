@@ -14,15 +14,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -39,7 +30,7 @@ import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { OnAir } from './Frame'
 import { launchTitle, useLaunchFields } from './LaunchFields'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
-import { count, listCounts, PageEmpty, PageHeader, summaryLine } from './PageHeader'
+import { count, FormDialog, listCounts, PageEmpty, PageHeader, summaryLine, useFormDialog } from './PageHeader'
 import { connectionOf, endedBadly, isLive, pitchTally, StateLine, type Connection } from './states'
 
 // What the setup checklist reads from the directory rather than the agent: whether anyone has been
@@ -95,10 +86,9 @@ export function Dashboard({
 }) {
   const launches = state?.launches ?? []
   // New launch's dialog, which the header, the empty state and the checklist open.
-  const [planning, setPlanning] = useState(false)
-  const plan = () => setPlanning(true)
+  const planning = useFormDialog('New launch')
   // The page's one action, in the header once there are launches, and until then in the empty state.
-  const newLaunch = <Button onClick={plan}>New launch</Button>
+  const newLaunch = planning.button()
   // Where focus goes once a launch it was on is deleted.
   const heading = useRef<HTMLHeadingElement>(null)
   return (
@@ -118,7 +108,7 @@ export function Dashboard({
           </StateLine>
         </p>
       )}
-      <NewLaunch network={network} create={createLaunch} open={planning} setOpen={setPlanning} />
+      <NewLaunch network={network} create={createLaunch} dialog={planning} />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         {state ? (
           <Launches launches={launches} network={network} newLaunch={newLaunch} heading={heading} />
@@ -130,7 +120,7 @@ export function Dashboard({
             <>
               <NetworkLines state={state} network={network} />
               {!state.checklistDismissed?.includes(memberId) && (
-                <Checklist state={state} network={network} setup={setup} dismiss={dismiss} plan={plan} />
+                <Checklist state={state} network={network} setup={setup} dismiss={dismiss} plan={planning.show} />
               )}
             </>
           ) : (
@@ -177,18 +167,16 @@ function countsLine(launches: LaunchSummary[]) {
   ])
 }
 
-// The dashboard's decision: a new launch, named or from comps, in a dialog; created, it opens on its
-// own page. A refusal, such as the network's 100-launch limit, stays in the dialog.
+// The dashboard's decision: a new launch, named or from comps, in the page's form dialog; created, it
+// opens on its own page. A refusal, such as the network's 100-launch limit, stays in the dialog.
 function NewLaunch({
   network,
   create,
-  open,
-  setOpen
+  dialog
 }: {
   network: NetworkPage
   create: (input: LaunchInput) => Promise<{ id: string }>
-  open: boolean
-  setOpen: (open: boolean) => void
+  dialog: ReturnType<typeof useFormDialog>
 }) {
   const form = useLaunchFields(null)
   const { busy, error, run } = useAction()
@@ -198,29 +186,21 @@ function NewLaunch({
     void run(async () => location.assign(`${network.links.launches}/${(await create(form.input)).id}`))
   }
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      {/* It opens on the launch's name, past the kind already chosen. */}
-      <DialogContent initialFocus={() => fields.current?.querySelector<HTMLElement>('[data-slot=input]') ?? true}>
-        <DialogHeader>
-          <DialogTitle>New launch</DialogTitle>
-          <DialogDescription>
-            Name a released launch, or up to three comps for an unreleased one. It opens on its own page, where a run
-            ranks the roster against it.
-          </DialogDescription>
-        </DialogHeader>
-        <form id="new-launch" ref={fields} className="flex flex-col gap-3" onSubmit={submit}>
-          {form.fields(busy, true)}
-          <Alert error={error} />
-        </form>
-        <DialogFooter>
-          <DialogClose render={<Button variant="secondary" />}>Cancel</DialogClose>
-          <Button type="submit" form="new-launch" disabled={busy || !form.ready}>
-            {busy && <Spinner data-icon="inline-start" />}
-            {busy ? 'Creating…' : 'Create launch'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      dialog={dialog}
+      description="Name a released launch, or up to three comps for an unreleased one."
+      form="new-launch"
+      submit={busy ? 'Creating…' : 'Create launch'}
+      busy={busy}
+      disabled={!form.ready}
+      // It opens on the launch's name, past the kind already chosen.
+      initialFocus={() => fields.current?.querySelector<HTMLElement>('[data-slot=input]') ?? true}
+    >
+      <form id="new-launch" ref={fields} className="flex flex-col gap-3" onSubmit={submit}>
+        {form.fields(busy, true)}
+        <Alert error={error} />
+      </form>
+    </FormDialog>
   )
 }
 

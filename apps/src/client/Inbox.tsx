@@ -51,7 +51,7 @@ import {
 import { CallButton, EvidencePanel, useEvidence, type OpenCall, type Opened } from './Evidence'
 import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
-import { FormSheet, PageEmpty, PageHeader, summaryLine, useFormSheet } from './PageHeader'
+import { FormDialog, PageEmpty, PageHeader, summaryLine, useFormDialog } from './PageHeader'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
 import {
@@ -153,7 +153,7 @@ export function InboxWorkspace({ agent, links, network }: { agent: Session; link
 // reply. It's a loop, so every section stays on the canvas once it has something to show, in the
 // order the loop asks: the header and its readout, the run's question, the show to rank against, the
 // ranked lists, the replies, then the pitches; with no pitches, the empty state instead. Load pitches,
-// in the header or the empty state, opens the form in a sheet. The inspector, closed until something
+// in the header or the empty state, opens the form in a dialog. The inspector, closed until something
 // opens it, holds the run and the earlier pitch runs, a call's evidence, and the pitch opened from a
 // list or the table; the header's Details opens it while there are pitches. An earlier pitch run,
 // viewed from Runs, shows read-only as it ended: its lists, replies and pitches, with nothing to
@@ -189,8 +189,8 @@ export function InboxPage({
   const opened = actions.opened?.call ?? null
   // The number of the earlier pitch run shown, read-only.
   const viewing = history?.viewing ? runNumber(history.runs, history.viewing) : null
-  // Load pitches, in the header or the empty state, and the sheet it opens the load form in.
-  const loading = useFormSheet('Load pitches')
+  // Load pitches, in the header or the empty state, and the dialog it opens the load form in.
+  const loading = useFormDialog('Load pitches')
   // Back to the latest run, its button goes, and focus goes to the page's heading.
   const heading = useRef<HTMLHeadingElement>(null)
   return (
@@ -349,18 +349,13 @@ export function InboxPage({
       {/* Kept mounted while closed, so files dropped anywhere on the page load, opening it. An earlier
           run, viewed, loads nothing. */}
       {!viewing && (
-        <FormSheet
-          sheet={loading}
-          description={`Paste pitch emails or upload them. Claude reads each one for its guest and public work. ${QLOO_PRIVACY}`}
-        >
-          <InboxLoad
-            loadInbox={actions.loadInbox}
-            reading={reading}
-            sample={sample}
-            wipes={Boolean(booking?.lists?.length || booking?.replies?.length)}
-            dropped={loading.show}
-          />
-        </FormSheet>
+        <InboxLoad
+          dialog={loading}
+          loadInbox={actions.loadInbox}
+          reading={reading}
+          sample={sample}
+          wipes={Boolean(booking?.lists?.length || booking?.replies?.length)}
+        />
       )}
     </div>
   )
@@ -443,44 +438,49 @@ function InboxReadout({
   )
 }
 
-// The load form, in the inbox page's sheet, as the roster's import is: pitches pasted, uploaded as
-// email files, or dropped anywhere on the page, read in the browser by the upload module and sent as
-// pitches. Each replaces the inbox; over one with ranked lists or replies (`wipes`), which go with it,
-// a load confirms first. `dropped` hears of dropped files it loads, so the page can show the form.
+// The load form, in the inbox page's form dialog (`dialog`), as the roster's import is: pitches
+// pasted, uploaded as email files, or dropped anywhere on the page, which opens the dialog, read in the
+// browser by the upload module and sent as pitches. Accepted, the dialog closes and the readout says
+// how the reading goes; a refusal stays in the dialog. Each load replaces the inbox; over one with
+// ranked lists or replies (`wipes`), which go with it, a load confirms first, in a dialog over this one.
 export function InboxLoad({
+  dialog,
   loadInbox,
   reading,
   sample,
-  wipes,
-  dropped
+  wipes
 }: {
+  dialog: ReturnType<typeof useFormDialog>
   loadInbox: Actions['loadInbox']
   reading: boolean
   sample: boolean // the inbox is the sample, whose works are looked up as it loads
   wipes: boolean
-  dropped?: () => void
 }) {
   const [text, setText] = useState('')
   const { busy, error, run } = useAction()
-  const { confirm, dialog } = useConfirm()
+  const { confirm, dialog: confirmation } = useConfirm()
   const locked = busy || reading
   const file = useRef<HTMLInputElement>(null)
-  const load = async (go: () => Promise<unknown>) => {
-    if (!wipes) return run(go)
-    confirm({
-      title: 'Replace the inbox?',
-      consequence:
-        'Its ranked lists and replies go with it, approved replies included, and can’t be brought back. Earlier pitch runs stay in Runs, read-only.',
-      verb: 'Replace inbox',
-      busy: 'Loading…',
-      keep: 'Keep',
-      action: go
-    })
-    return false
+  const send = async (go: () => Promise<unknown>) => {
+    if (await run(go)) dialog.close()
   }
-  const paste = async (e: React.FormEvent) => {
+  // The confirm closes before the load runs, so the load's refusal shows in the form, as without one.
+  const load = (go: () => Promise<unknown>) =>
+    wipes
+      ? confirm({
+          title: 'Replace the inbox?',
+          consequence:
+            'Its ranked lists and replies go with it, approved replies included, and can’t be brought back. Earlier pitch runs stay in Runs, read-only.',
+          verb: 'Replace inbox',
+          busy: 'Loading…',
+          keep: 'Keep',
+          action: () => send(go),
+          after: true
+        })
+      : send(go)
+  const paste = (e: React.FormEvent) => {
     e.preventDefault()
-    await load(async () => {
+    void load(async () => {
       await loadInbox({ text })
       setText('')
     })
@@ -494,11 +494,11 @@ export function InboxLoad({
   // Files dropped while the inbox is still loading aren't read; the cue says to wait.
   const dragging = useFileDrop((files) => {
     if (locked) return null
-    dropped?.()
+    dialog.show()
     return upload(files)
   })
   return (
-    <form className="flex flex-col gap-2" onSubmit={paste}>
+    <>
       {dragging && (
         <DropCue busy={locked}>
           {locked
@@ -508,53 +508,70 @@ export function InboxLoad({
             : 'Drop the files to load their pitches: .eml files, an .mbox export, or a .txt of pitches.'}
         </DropCue>
       )}
-      <Field>
-        <FieldLabel htmlFor="inbox-pitches">Pitch emails</FieldLabel>
-        <Textarea
-          id="inbox-pitches"
-          rows={4}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={'Paste one or more pitch emails.\n---\nPut a line of three dashes between pitches.'}
-          disabled={locked}
-          className="max-h-60 min-h-24"
-        />
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={locked || !text.trim()}>
-              Read pitches
-            </Button>
-            <Button type="button" variant="secondary" disabled={locked} onClick={() => file.current?.click()}>
-              <UploadIcon data-icon="inline-start" aria-hidden="true" />
-              Upload files
-            </Button>
-            <input
-              ref={file}
-              type="file"
-              accept=".eml,.mbox,.txt,message/rfc822,application/mbox,text/plain"
-              multiple
-              hidden
-              onChange={pick}
+      <FormDialog
+        dialog={dialog}
+        description="Paste pitch emails or upload them, and Claude reads each one for its guest and public work."
+        form="inbox-load"
+        submit={
+          reading
+            ? sample
+              ? 'Looking up the sample’s works…'
+              : 'Reading the inbox…'
+            : busy
+              ? 'Loading…'
+              : 'Read pitches'
+        }
+        busy={locked}
+        disabled={!text.trim()}
+      >
+        <form id="inbox-load" className="flex flex-col gap-2" onSubmit={paste}>
+          <Field>
+            <FieldLabel htmlFor="inbox-pitches">Pitch emails</FieldLabel>
+            <Textarea
+              id="inbox-pitches"
+              rows={4}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={'Paste one or more pitch emails.\n---\nPut a line of three dashes between pitches.'}
+              disabled={locked}
+              aria-describedby="inbox-pitches-limit"
+              className="max-h-60 min-h-24"
             />
+            <div className="flex flex-col items-start gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={locked}
+                aria-describedby="inbox-file-format"
+                onClick={() => file.current?.click()}
+              >
+                <UploadIcon data-icon="inline-start" aria-hidden="true" />
+                Upload files
+              </Button>
+              <input
+                ref={file}
+                type="file"
+                accept=".eml,.mbox,.txt,message/rfc822,application/mbox,text/plain"
+                multiple
+                hidden
+                onChange={pick}
+              />
+              <FieldDescription id="inbox-pitches-limit">
+                Replaces the current inbox, up to 50 pitches. {QLOO_PRIVACY}
+              </FieldDescription>
+              <FieldDescription id="inbox-file-format" className="max-w-[72ch]">
+                Drop email files anywhere on the page, or upload them: <Code>.eml</Code> files, an <Code>.mbox</Code>{' '}
+                export, or a <Code>.txt</Code> with a line of three dashes between pitches.
+              </FieldDescription>
+            </div>
+          </Field>
+          <div>
+            <Alert error={error} />
           </div>
-          <FieldDescription>
-            {reading
-              ? sample
-                ? 'Looking up the sample’s works…'
-                : 'Reading the inbox…'
-              : 'Replaces the current inbox, up to 50 pitches.'}
-          </FieldDescription>
-          <FieldDescription className="max-w-[72ch]">
-            Drop email files anywhere on the page, or upload them: <Code>.eml</Code> files, an <Code>.mbox</Code>{' '}
-            export, or a <Code>.txt</Code> with a line of three dashes between pitches.
-          </FieldDescription>
-        </div>
-      </Field>
-      <div>
-        <Alert error={error} />
-      </div>
-      {dialog}
-    </form>
+          {confirmation}
+        </form>
+      </FormDialog>
+    </>
   )
 }
 

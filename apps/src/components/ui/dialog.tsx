@@ -2,8 +2,9 @@
 // corners and the one floating shadow (a light ring and a deeper shadow in the dark), over the scrim,
 // with no backdrop blur, a footer without a rule or band, secondary in place of the outline variant,
 // the close button 44px on a phone, and, while it's open, the page under it inert (./modal-layer.ts).
-// Base UI injects no <style> under the island's CSPProvider, so it runs under the production policy.
-// Don't re-add the original with `shadcn add dialog --overwrite`.
+// `keepMounted`, as the sheet has, keeps the popup in the DOM while it's closed, so ids inside it stay
+// present. Base UI injects no <style> under the island's CSPProvider, so it runs under the production
+// policy. Don't re-add the original with `shadcn add dialog --overwrite`.
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { cn } from 'cn'
 import { XIcon } from 'lucide-react'
@@ -30,13 +31,15 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  keepMounted = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  keepMounted?: boolean
 }) {
   const layer = useModalLayer()
   return (
-    <DialogPrimitive.Portal data-slot="dialog-portal">
+    <DialogPrimitive.Portal data-slot="dialog-portal" keepMounted={keepMounted}>
       <DialogPrimitive.Backdrop
         data-slot="dialog-overlay"
         className="fixed inset-0 isolate z-50 bg-scrim transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"

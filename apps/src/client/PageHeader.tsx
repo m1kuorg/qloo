@@ -1,9 +1,18 @@
-import { useRef, useState, type ReactNode, type Ref } from 'react'
+import { useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Spinner } from '@/components/ui/spinner'
 import { ConnectionState, StateLine, type Connection } from './states'
 
-// The header, the empty state, and the sheet a page's action opens its form in, which the network's
+// The header, the empty state, and the dialog a page's action opens its form in, which the network's
 // pages share: the Launches dashboard, the roster, and the inbox.
 
 // The page's header: its title, the page's one h1, with its actions at the right on the title's line;
@@ -81,7 +90,7 @@ export const summaryLine = (total: string, counts: Counts) => [total, listCounts
 // What a page shows in place of its body while it has nothing yet: one short line saying what's
 // missing, in the empty state's words, and the page's one primary action, which brings in the first.
 // The header has no action then (`empty`), so there's one way in. An action that takes a form opens
-// it in the page's `FormSheet`. `detail`, under the line, is what the page promises of what the action
+// it in the page's `FormDialog`. `detail`, under the line, is what the page promises of what the action
 // brings in, as the inbox's privacy promise.
 export function PageEmpty({
   action,
@@ -105,45 +114,73 @@ export function PageEmpty({
   )
 }
 
-// The page's action that opens a form, the roster's "Import shows" or the inbox's "Load pitches", and
-// the sheet it opens, titled as the action is. `button` is the action, in the header's actions or in
-// the empty state, never both at once, so as the sheet closes, focus goes back to whichever is there:
-// the header's, once the first import or load has taken the empty state away. `show` opens it, as a
-// file dropped anywhere on the page does.
-export function useFormSheet(title: string) {
+// The page's action that opens a form, the dashboard's "New launch", the roster's "Import shows" or the
+// inbox's "Load pitches", and the dialog it opens the form in, titled as the action is. `button` is the
+// action, in the header's actions or in the empty state, never both at once. `show` opens it, as a file
+// dropped anywhere on the page does, and the form closes it once what it sent is accepted. Closing it
+// returns focus to what opened it while that's still on the page, or else to the page's action as it is
+// then: the header's, once the first import or load has taken the empty state away.
+export function useFormDialog(title: string) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
-  const show = () => setOpen(true)
+  const opener = useRef<Element | null>(null)
+  const show = () => {
+    if (!open) opener.current = document.activeElement
+    setOpen(true)
+  }
+  const close = () => setOpen(false)
+  const finalFocus = () => {
+    const from = opener.current
+    return from instanceof HTMLElement && from !== document.body && from.isConnected ? from : (trigger.current ?? true)
+  }
   const button = (variant?: 'secondary') => (
     <Button ref={trigger} variant={variant} onClick={show}>
       {title}
     </Button>
   )
-  return { title, open, setOpen, trigger, show, button }
+  return { title, open, setOpen, show, close, finalFocus, button }
 }
 
-// The sheet itself, a right sheet: the title and what the form takes, then the form in its own
-// scroller, which keeps a scroll at its ends from moving the page. It's kept mounted while closed, so
-// a file dropped anywhere on the page reaches the form, and stays open after the form is sent, so a
-// refusal shows where it was asked and the first import or load fills the page behind it.
-export function FormSheet({
-  sheet: { title, open, setOpen, trigger },
+// The dialog a page's form opens in, centred: the action's name as its title and one sentence of what
+// the form takes, then the form's fields, each with its limit or format under it, then a footer with
+// Cancel and the primary submit, which sits outside the form and sends it by its id (`form`). The
+// submit's label says what the form is doing while it's busy. It's kept mounted while closed, so the
+// form's ids are always there, and a refusal stays in it under the fields.
+export function FormDialog({
+  dialog: { title, open, setOpen, finalFocus },
   description,
+  form,
+  submit,
+  busy,
+  disabled = false,
+  initialFocus,
   children
 }: {
-  sheet: ReturnType<typeof useFormSheet>
-  description: ReactNode
+  dialog: ReturnType<typeof useFormDialog>
+  description: ReactNode // one sentence
+  form: string // the id of the form among `children`
+  submit: ReactNode // the submit's label, or while busy, what the form is doing
+  busy: boolean
+  disabled?: boolean // the form has nothing to send yet
+  initialFocus?: ComponentProps<typeof DialogContent>['initialFocus']
   children: ReactNode
 }) {
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent keepMounted className="gap-0" finalFocus={() => trigger.current ?? true}>
-        <SheetHeader className="pr-14">
-          <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>{description}</SheetDescription>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">{children}</div>
-      </SheetContent>
-    </Sheet>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent keepMounted finalFocus={finalFocus} initialFocus={initialFocus}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        {children}
+        <DialogFooter>
+          <DialogClose render={<Button variant="secondary" />}>Cancel</DialogClose>
+          <Button type="submit" form={form} disabled={busy || disabled}>
+            {busy && <Spinner data-icon="inline-start" />}
+            {submit}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

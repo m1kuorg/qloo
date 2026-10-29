@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
-import { InboxLoad, InboxWorkspace } from '../src/client/Inbox'
+import { InboxWorkspace } from '../src/client/Inbox'
 import type { Pitch } from '../src/inbox'
 import { networkLinks } from '../src/shell'
 import { readPitchUpload, type Upload } from '../src/upload'
@@ -568,8 +568,9 @@ describe("the inbox page's words", () => {
     const network = await created(ada)
     const agent = await connect(ada, network)
     // The header is the title alone, and the empty state says what's missing and what reaches Qloo of a
-    // pitch, with Load pitches, which opens the form in its sheet. Nothing says "Not loaded" too. The
-    // inspector is closed, with nothing to show yet, so the header has no toggle for it either.
+    // pitch, with Load pitches, which opens the form in its dialog (test/page-forms.test.tsx reads it).
+    // Nothing says "Not loaded" too. The inspector is closed, with nothing to show yet, so the header has
+    // no toggle for it either.
     const empty = inboxPage(agent.state(), network)
     expect(empty).toMatch(
       /^Inbox No pitches yet\. Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are\. Load pitches /
@@ -577,13 +578,6 @@ describe("the inbox page's words", () => {
     expect(empty).not.toContain('Not loaded')
     expect(inboxMarkup(agent.state(), network)).toMatch(inspectorClosed)
     expect(empty).not.toContain('Details')
-    // The sheet's form takes pasted pitches or email files, and says what reaches Qloo.
-    expect(
-      words(renderToStaticMarkup(<InboxLoad loadInbox={async () => {}} reading={false} sample={false} wipes={false} />))
-    ).toBe(
-      'Pitch emails Read pitches Upload files Replaces the current inbox, up to 50 pitches. Drop email files anywhere on the page, or upload them: .eml files, an .mbox export, or a .txt with a line of three dashes between pitches.'
-    )
-
     await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
     const read = inboxPage(await loaded(agent), network)
     // The header: the title, the pitches counted, the inspector's toggle, and Load pitches. The readout
