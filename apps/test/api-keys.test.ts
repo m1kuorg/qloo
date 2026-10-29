@@ -38,6 +38,12 @@ const he = (value: string) =>
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
 
+// The keys in use the settings page lists, as the API keys module reads them.
+async function listed(member: Member, network: string) {
+  const page = await (await member.fetch(`/app/${network}/settings`)).text()
+  return JSON.parse(he(/data-api-keys="([^"]*)"/.exec(page)![1])) as ApiKey[]
+}
+
 const origin = 'https://crossfeed.test'
 
 afterEach(() => vi.useRealTimers())
@@ -122,6 +128,55 @@ describe('API keys in settings', () => {
     const outsider = await openMember({ name: 'Mallory Outsider' })
     expect((await post(outsider, `/app/${network}/settings/api-keys`, { name: 'Mine' })).status).toBe(404)
     expect((await post(outsider, `/app/${network}/settings/api-keys/${made.id}/revoke`)).status).toBe(404)
+  })
+
+  it('stop at 10 in use in a network, until one is revoked', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const make = () => post(ada, `/app/${network}/settings/api-keys`, { name: 'Nightly sync' })
+    const made: { id: string; keys: ApiKey[] }[] = []
+    for (let i = 0; i < 10; i++) made.push(await (await make()).json())
+
+    const capped = await make()
+    expect([capped.status, await capped.json()]).toEqual([
+      429,
+      {
+        error:
+          'Night Shift Audio has 10 API keys in use, the most a network can keep at once. Revoke one to create another.'
+      }
+    ])
+    expect(await listed(ada, network)).toHaveLength(10)
+
+    await post(ada, `/app/${network}/settings/api-keys/${made[0].id}/revoke`)
+    expect((await make()).status).toBe(200)
+    expect((await make()).status).toBe(429)
+    expect(await listed(ada, network)).toHaveLength(10)
+  })
+
+  it("don't count the keys revoked as their maker stops being an owner", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(network) })
+    const role = (role: string) => post(ada, `/app/${network}/settings/members/${grace.id}/role`, { role })
+    expect((await role('owner')).status).toBe(200)
+    for (let i = 0; i < 10; i++) await key(grace, network)
+    expect((await post(ada, `/app/${network}/settings/api-keys`, { name: 'Mine' })).status).toBe(429)
+
+    expect((await role('member')).status).toBe(200)
+    expect(await listed(ada, network)).toEqual([])
+    expect((await post(ada, `/app/${network}/settings/api-keys`, { name: 'Mine' })).status).toBe(200)
+  })
+
+  it('let only one of two made at once take the last place', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    for (let i = 0; i < 9; i++) await key(ada, network)
+
+    const answers = await Promise.all(
+      [1, 2].map(() => post(ada, `/app/${network}/settings/api-keys`, { name: 'Mine' }))
+    )
+    expect(answers.map((a) => a.status).sort()).toEqual([200, 429])
+    expect(await listed(ada, network)).toHaveLength(10)
   })
 
   it('need a name', async () => {

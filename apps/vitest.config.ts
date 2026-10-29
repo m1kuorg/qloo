@@ -46,6 +46,7 @@ export default defineConfig({
           NETWORKS_PER_MEMBER: '3',
           LAUNCHES_PER_NETWORK: '100',
           INVITES_PER_NETWORK: '20',
+          API_KEYS_PER_NETWORK: '10',
           INVITED_SIGNUP_DAILY_CAP: '20',
           GUEST_SIGNINS_PER_MINUTE: '30',
           GUEST_SIGNINS_PER_DAY: '1000',

@@ -768,18 +768,24 @@ export type ApiKey = {
 // How much of a key's secret it's listed by: `cf_live_` and four characters of its random part.
 const PREFIX_LENGTH = 12
 
-// Makes an API key for network `networkId`, named `name`, when member `by` is one of its owners,
-// checked in the statement that writes it. Returns its ID and its secret, which only its hash is kept
-// for; null when they aren't an owner.
-export async function createApiKey(db: D1Database, networkId: string, by: string, name: string) {
+// Makes an API key for network `networkId`, named `name`, when member `by` is one of its owners and
+// the network has fewer than `cap` in use, checked in the statement that writes it, so two made at
+// once can't both pass the cap. Returns its ID and its secret, which only its hash is kept for;
+// `capped` when the network has `cap` in use, and null when they aren't an owner.
+export async function createApiKey(db: D1Database, networkId: string, by: string, name: string, cap: number) {
   const key = { id: crypto.randomUUID(), secret: `cf_live_${token()}` }
-  const { meta } = await db
-    .prepare(
-      "INSERT INTO api_keys (id, network_id, name, prefix, secret_hash, created_by, created) SELECT ?, network_id, ?, ?, ?, member_id, ? FROM memberships WHERE network_id = ? AND member_id = ? AND role = 'owner'"
-    )
-    .bind(key.id, name, key.secret.slice(0, PREFIX_LENGTH), await sha256(key.secret), Date.now(), networkId, by)
-    .run()
-  return meta.changes ? key : null
+  // How many of the network's keys are in use, the ones `apiKeys` lists, an SQL parameter.
+  const inUse = (network: string) => `(SELECT count(*) FROM api_keys WHERE network_id = ${network} AND revoked IS NULL)`
+  const [made, counted] = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO api_keys (id, network_id, name, prefix, secret_hash, created_by, created) SELECT ?1, network_id, ?2, ?3, ?4, member_id, ?5 FROM memberships WHERE network_id = ?6 AND member_id = ?7 AND role = 'owner' AND ${inUse('?6')} < ?8`
+      )
+      .bind(key.id, name, key.secret.slice(0, PREFIX_LENGTH), await sha256(key.secret), Date.now(), networkId, by, cap),
+    db.prepare(`SELECT ${inUse('?1')} AS n`).bind(networkId)
+  ])
+  if (made.meta.changes) return key
+  return ((counted.results[0] as { n: number } | undefined)?.n ?? 0) >= cap ? ('capped' as const) : null
 }
 
 // Network `networkId`'s API keys still in use, newest first.

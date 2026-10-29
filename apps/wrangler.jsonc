@@ -41,11 +41,13 @@
     // Sign-ups one visitor makes in a UTC day, joining through an invite aside, the networks one member
     // can create, and the launches one network can keep at once. Invite links stand outside the
     // sign-up cap, so a network keeps a number open at once, and one member's links bring in a number
-    // of new accounts a UTC day.
+    // of new accounts a UTC day. Each API key has its own requests a minute, so a network keeps a
+    // number in use at once.
     "SIGNUP_VISITOR_DAILY_CAP": "5",
     "NETWORKS_PER_MEMBER": "3",
     "LAUNCHES_PER_NETWORK": "100",
     "INVITES_PER_NETWORK": "20",
+    "API_KEYS_PER_NETWORK": "10",
     "INVITED_SIGNUP_DAILY_CAP": "20",
     // Guest sign-ins a minute and a UTC day, for everyone at once, from any address or none (ADR 0006):
     // counted exactly in the D1 directory's log of them as each guest member is written, not per
@@ -118,6 +120,7 @@
         "NETWORKS_PER_MEMBER": "3",
         "LAUNCHES_PER_NETWORK": "100",
         "INVITES_PER_NETWORK": "20",
+        "API_KEYS_PER_NETWORK": "10",
         "INVITED_SIGNUP_DAILY_CAP": "20",
         "GUEST_SIGNINS_PER_MINUTE": "30",
         "GUEST_SIGNINS_PER_DAY": "1000",
