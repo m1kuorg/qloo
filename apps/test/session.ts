@@ -74,6 +74,12 @@ export const sections = (html: string) =>
     return sentence === undefined ? [said(heading)] : [said(heading), said(sentence)]
   })
 
+// Each fact of a rendered `KeyValues` list, as its label and its value, in order, as a reader meets them.
+export const facts = (html: string) =>
+  [...html.matchAll(/<dt\b[^>]*>(.*?)<\/dt>\s*<dd\b[^>]*>(.*?)<\/dd>/g)].map(([, label, value]) =>
+    [label, value].map((part) => said(part).replace(/&lt;/g, '<').replace(/&gt;/g, '>'))
+  )
+
 // Each label on a rendered page saying something is the sample data's, a badge such as "sample" or
 // "Sample data", or a word standing in for one ("sample" for screen readers, "Sample:"), as a reader
 // meets it: in the page's h1, as the title's words, or elsewhere, as the words leading up to it. A page

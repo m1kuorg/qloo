@@ -414,9 +414,26 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
   )
 }
 
-// The selected show, in the inspector's Show tab: settle its match, edit its figures, or leave it
-// out. Each part is its own form, so a search or a pick doesn't send the figures being typed. It has
-// no Close of its own: the inspector's closes it, and selecting another row changes the show.
+// A show's state in words, saying what's next when it needs something: left out, whatever its match;
+// or how Qloo matched it.
+const showState = (show: Show) =>
+  show.excluded
+    ? 'Left out, so it’s never proposed.'
+    : {
+        pending: 'Looking it up in Qloo.',
+        resolved: 'Matched in Qloo, so a launch can propose it.',
+        mapped: 'Mapped to a comparable show in Qloo.',
+        ambiguous: 'Qloo found more than one show by this name. Pick the match.',
+        missed: 'No show by this name in Qloo. Map a comparable show or leave it out.',
+        failed: `${sentence(show.error ?? 'The lookup failed')} Not scored.`
+      }[show.resolution]
+
+// The selected show, in the inspector's Show tab, in the inspector's anatomy: its name with its chips,
+// its state in a sentence, and its facts, its Qloo match with the call that found it, its popularity
+// and what it's about; then settle its match, edit its figures, or leave it out. Each part is its own
+// form, so a search or a pick doesn't send the figures being typed. Downloads and status are the form's,
+// so they aren't facts too. It has no Close of its own: the inspector's closes it, and selecting
+// another row changes the show.
 export function ShowEditor({
   show,
   agent,
@@ -443,9 +460,36 @@ export function ShowEditor({
             {show.excluded && <Badge>Excluded</Badge>}
           </>
         }
-        description="The show’s Qloo match, its figures, and whether a launch can propose it."
+        description={showState(show)}
       >
-        {show.description && <p className="text-muted-foreground">{show.description}</p>}
+        <KeyValues>
+          <KeyValue label="Qloo match">
+            {show.entity ? (
+              <>
+                {show.entity.name}{' '}
+                <CallButton
+                  call={show.evidence}
+                  label={`Evidence for ${show.name}`}
+                  opened={opened}
+                  openCall={openCall}
+                />
+              </>
+            ) : (
+              '–'
+            )}
+          </KeyValue>
+          <KeyValue label="Popularity percentile">{percentile(show.entity?.popularity ?? null)}</KeyValue>
+          {/* Three lines at most, the whole of it in its tooltip. */}
+          <KeyValue label="About">
+            {show.description ? (
+              <span className="line-clamp-3" title={show.description}>
+                {show.description}
+              </span>
+            ) : (
+              '–'
+            )}
+          </KeyValue>
+        </KeyValues>
         {show.candidates.length > 0 && (
           <PickOne
             legend={`Which Qloo show is ${show.name}?`}
@@ -467,13 +511,6 @@ export function ShowEditor({
             pick={(entityId) => update({ entityId })}
           />
         )}
-        {show.resolution === 'pending' && (
-          <p>
-            <StateLine kind="loading" word={null}>
-              Looking it up in Qloo. You can edit its figures or leave it out meanwhile.
-            </StateLine>
-          </p>
-        )}
         {show.resolution !== 'resolved' && show.resolution !== 'pending' && (
           <CompSearch show={show} agent={agent} update={update} busy={busy} />
         )}
@@ -482,9 +519,10 @@ export function ShowEditor({
           <Button variant="secondary" disabled={busy} onClick={() => void update({ excluded: !show.excluded })}>
             {show.excluded ? 'Include again' : 'Leave out'}
           </Button>
-          <small className="type-caption text-muted-foreground">
-            {show.excluded ? 'Excluded: kept here, never proposed for a launch.' : 'Excluded shows are never proposed.'}
-          </small>
+          {/* Once it's left out, its sentence says so. */}
+          {!show.excluded && (
+            <small className="type-caption text-muted-foreground">Excluded shows are never proposed.</small>
+          )}
         </div>
         <Alert error={error} />
       </Section>

@@ -10,7 +10,7 @@ import { NetworkRoster } from '../src/client/Roster'
 import { ShowEditor } from '../src/client/RosterModules'
 import type { Evidence } from '../src/evidence'
 import { fakeQloo, network, requests } from './fake'
-import { launchPage, openSession, sections, type Session } from './session'
+import { facts, launchPage, openSession, sections, type Session } from './session'
 
 // Synthetic shows: one exact match, one name shared by two spin-off feeds, one Qloo doesn't have.
 const search = {
@@ -307,6 +307,24 @@ describe('the roster as its page shows it', () => {
     expect(html).toMatch(/<tr\b(?=[^>]*\sdata-resolution="ambiguous")[^>]*>/)
   })
 
+  it('opens a resolved show on its state, then its Qloo match with its call, its popularity percentile, and what it’s about', async () => {
+    fakeQloo({ search })
+    const s = await session()
+    const html = editor(await s.importRoster(roster), 'Night Shift Cinema')
+
+    expect(html).toMatch(
+      /<h2\b[^>]*\sid="show-ed"[^>]*>Night Shift Cinema<(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Resolved</
+    )
+    expect(sections(html)).toEqual([['Night Shift Cinema Resolved', 'Matched in Qloo, so a launch can propose it.']])
+    // A pasted name comes with no description. Downloads and status are the form's, not facts.
+    expect(facts(html)).toEqual([
+      ['Qloo match', 'Night Shift Cinema C-01'],
+      ['Popularity percentile', '91.0'],
+      ['About', '–']
+    ])
+    expect(html).toMatch(/<button\b[^>]*\saria-label="Evidence for Night Shift Cinema: call C-01"[^>]*>C-01<\/button>/)
+  })
+
   it('opens an ambiguous show to pick its match, edit its figures, or leave it out', async () => {
     fakeQloo({ search })
     const s = await session()
@@ -315,10 +333,16 @@ describe('the roster as its page shows it', () => {
     // Its match chip follows the show's name in the heading, after its last line however it wraps.
     expect(html).toMatch(/<h2\b[^>]*\sid="show-ed"[^>]*>Deep Cuts<(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Ambiguous</)
     expect(sections(html)).toEqual([
-      ['Deep Cuts Ambiguous', 'The show’s Qloo match, its figures, and whether a launch can propose it.']
+      ['Deep Cuts Ambiguous', 'Qloo found more than one show by this name. Pick the match.']
+    ])
+    // Nothing is matched until it's picked, so its match and popularity are missing.
+    expect(facts(html)).toEqual([
+      ['Qloo match', '–'],
+      ['Popularity percentile', '–'],
+      ['About', '–']
     ])
     expect(words(html)).toContain(
-      'Deep Cuts Ambiguous The show’s Qloo match, its figures, and whether a launch can propose it. Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 with each one’s popularity percentile Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
+      'About – Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 with each one’s popularity percentile Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
     )
     expect(html).toMatch(/<label\b[^>]*\sfor="comp-q"/)
     expect(html).toMatch(/<input\b[^>]*\sid="comp-q"/)
@@ -332,13 +356,30 @@ describe('the roster as its page shows it', () => {
     await s.importRoster(roster)
     const searched = await s.searchComps('The Ghost Signal Show', 'Ghost Hour')
 
-    expect(words(editor(searched, 'The Ghost Signal Show'))).toContain(
-      'The Ghost Signal Show Missed The show’s Qloo match, its figures, and whether a launch can propose it. Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04 with each one’s popularity percentile Downloads per episode'
+    const missed = editor(searched, 'The Ghost Signal Show')
+    expect(sections(missed)).toEqual([
+      ['The Ghost Signal Show Missed', 'No show by this name in Qloo. Map a comparable show or leave it out.']
+    ])
+    expect(facts(missed)).toEqual([
+      ['Qloo match', '–'],
+      ['Popularity percentile', '–'],
+      ['About', '–']
+    ])
+    expect(words(missed)).toContain(
+      'About – Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04 with each one’s popularity percentile Downloads per episode'
     )
     await s.call('updateShow', 'The Ghost Signal Show', { compId: 'e-0201' })
     const read = words(workspace(s.state()!))
     expect(read).toContain('3 shows · 1 resolved, 1 mapped to a comp, 1 ambiguous')
     expect(read).toContain('The Ghost Signal Show Mapped Mapped to The Ghost Hour Show 88.0 – – C-04')
+    // Its Qloo match is the comp, cited by the comp's search.
+    const mapped = editor(s.state()!, 'The Ghost Signal Show')
+    expect(sections(mapped)).toEqual([['The Ghost Signal Show Mapped', 'Mapped to a comparable show in Qloo.']])
+    expect(facts(mapped)).toEqual([
+      ['Qloo match', 'The Ghost Hour Show C-04'],
+      ['Popularity percentile', '88.0'],
+      ['About', '–']
+    ])
   })
 
   it('says a comp search is under way, citing its call, until Qloo answers', async () => {
@@ -374,8 +415,9 @@ describe('the roster as its page shows it', () => {
     expect(words(html)).toContain('The Ghost Signal Show Missed Excluded No show by this name in Qloo. – – C-03')
     expect(html).toMatch(/<tr\b(?=[^>]*\sdata-excluded="true")[^>]*>\s*<th\b[^>]*>[\s\S]*?The Ghost Signal Show/)
     const left = editor(s.state()!, 'The Ghost Signal Show')
-    expect(sections(left)[0][0]).toBe('The Ghost Signal Show Missed Excluded')
-    expect(words(left)).toContain('Include again Excluded: kept here, never proposed for a launch.')
+    // Left out, it needs nothing settled, so its sentence says so, whatever its match.
+    expect(sections(left)).toEqual([['The Ghost Signal Show Missed Excluded', 'Left out, so it’s never proposed.']])
+    expect(words(left)).toMatch(/Save Include again$/)
   })
 
   it("opens a show's downloads per episode with thousands separators, as its row shows them", async () => {
