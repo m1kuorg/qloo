@@ -99,12 +99,13 @@ describe('the fit chart’s slot value', () => {
     expect(sampleLabels(page(s.state()!))).toEqual(['h1: The Watch'])
   })
 
-  it('reprices a row when the network changes its figures', async () => {
+  it('reprices a row when the network changes its figures, the footnote saying what of them is still the sample’s (#333)', async () => {
     const s = await sampleRun()
 
     await s.call('setCpm', 25)
     expect(slot(s.state()!, 'The Rewatchables')).toBe('$12,000 480,000 downloads')
-    expect(footnote(s.state()!)).toBe('Slot value = downloads × $25 CPM ÷ 1,000')
+    // The CPM is the network's own, but the shows' downloads are still the sample's.
+    expect(footnote(s.state()!)).toBe('Slot value = downloads × $25 CPM ÷ 1,000 · sample figures')
 
     await s.call('updateShow', 'The Rewatchables', { downloads: 500_000 })
     expect(slot(s.state()!, 'The Rewatchables')).toBe('$12,500 500,000 downloads')

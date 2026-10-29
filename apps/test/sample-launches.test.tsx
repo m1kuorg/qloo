@@ -22,11 +22,12 @@ import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
+import { readSampleLaunches, type SampleLaunchesRow } from '../src/sample-launches'
 import { networkLinks } from '../src/shell'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
 import { capturedRunOf, sampleLaunchesSql } from './capture'
 import { counting } from './counting'
-import { api, openGuest, openMember, readAfterReset, sampleLabels, type Guest, type Session } from './session'
+import { api, hooked, openGuest, openMember, readAfterReset, sampleLabels, type Guest, type Session } from './session'
 
 // Made-up IDs for three of the sample's public show names, and for the made-up launches; every other
 // name finds nothing.
@@ -251,7 +252,8 @@ describe("the guest network's sample launches", () => {
         log.every((e) => e.fromSample === true && !e.replayed && !e.copiedFrom),
         name!
       ).toBe(true)
-      expect(state).toMatchObject({ sample: null, rosterChanged: false, slowCalls: [] })
+      // Captured at the sample CPM, so it's priced at the sample's, but it carries no sample (#333).
+      expect(state).toMatchObject({ sample: null, sampleCpm: true, rosterChanged: false, slowCalls: [] })
       expect(state.run).toMatchObject({ capturedAt: expect.any(String) })
       expect(runs).toEqual([expect.objectContaining({ id: state.run!.id, fromSample: true, startedBy: 'Guest' })])
       // The run list's View opens it as it ended.
@@ -273,6 +275,9 @@ describe("the guest network's sample launches", () => {
       // Its page's title carries the one "sample" badge; the readout, the run log and the rest carry none,
       // and the list of runs says where the run is from.
       expect(sampleLabels(html), name!).toEqual([`h1: ${name}`])
+      expect(hooked(html, 'data-chart-foot').map(words), name!).toEqual(
+        state.ranking ? ['Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures'] : []
+      )
       expect(page, name!).not.toContain('This run is from the sample data')
       expect(page, name!).toMatch(/Run 1 · .+ · Sample data Shown/)
       // The run log says the day the run was captured (ADR 0007), in words rather than a badge.
@@ -335,7 +340,66 @@ describe("the guest network's sample launches", () => {
       ['completed', false]
     ])
     expect(rerun.insertionOrder).toMatchObject({ id: 'IO-0002', status: 'draft' })
+    // Its copy takes the guest network's CPM and the CPM's label as any launch's does (#333).
+    expect(rerun).toMatchObject({ cpm: 20, sampleCpm: true, sample: null })
     expect(await usage()).toBe(before + 1)
+  })
+
+  it('read their CPM as the sample’s when captured at the sample CPM, those captured before the label included, and not when captured at another (#333)', async () => {
+    const guest = await openGuest()
+    await captureSampleLaunches(guest)
+    // As an environment's rows may stand: captured before the label, and one at an owner's $25.
+    const { results } = await env.DB.prepare(
+      'SELECT key, chunk FROM sample_launches ORDER BY key, seq'
+    ).all<SampleLaunchesRow>()
+    const unlabelled = readSampleLaunches(results).map(({ key, run }) => {
+      const { sampleCpm: _, ...state } = run.state
+      return { key, run: { ...run, state: key === 'ranked' ? { ...state, cpm: 25 } : state } }
+    })
+    expect(unlabelled.map(({ key }) => key)).toEqual(['approved', 'drafted', 'ranked', 'stopped'])
+    await env.DB.exec(sampleLaunchesSql(unlabelled))
+    const fresh = await nextDay(guest, 5)
+
+    const seeded = fresh.launches!.filter((l) => l.name !== 'The Watch')
+    const read = await Promise.all(
+      seeded.map(async ({ id, name }) => {
+        const state = (await connect(guest, `/agents/launch/guest-network/${id}`)).state()!
+        const html = renderToStaticMarkup(
+          <LaunchWorkspace
+            agent={{ state, stub: {} } as unknown as Agent}
+            network={{
+              id: 'guest-network',
+              name: 'Guest network',
+              role: 'owner',
+              links: networkLinks(env, 'guest-network')
+            }}
+            orders={`/app/guest-network/launches/${id}/insertion-orders`}
+          />
+        )
+        return [name, state.cpm, state.sampleCpm, sampleLabels(html), hooked(html, 'data-chart-foot').map(words)]
+      })
+    )
+    expect(read).toEqual(
+      expect.arrayContaining([
+        [
+          'Night Shift Cinema',
+          20,
+          true,
+          ['h1: Night Shift Cinema'],
+          ['Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures']
+        ],
+        [
+          'Paper Moons',
+          20,
+          true,
+          ['h1: Paper Moons'],
+          ['Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures']
+        ],
+        ['Slow Burn', 25, false, ['h1: Slow Burn'], ['Slot value = downloads × $25 CPM ÷ 1,000 · sample figures']],
+        ['Ghost Signal', 20, true, ['h1: Ghost Signal'], []]
+      ])
+    )
+    expect(read).toHaveLength(4)
   })
 
   it('take no more work from a page still open once the next clearing has let go of them, changing nothing', async () => {

@@ -8,7 +8,7 @@ import { env, exports } from 'cloudflare:workers'
 import { http } from 'msw'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { State } from '../src/agent'
+import type { RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
 import { EvidencePanel, namesOf } from '../src/client/Evidence'
@@ -1082,7 +1082,22 @@ describe('a launch on the sample roster', () => {
       />
     )
 
-  it('keeps its figures labelled sample on another launch of the guest network, but not the sample, which only its sample launch carries, and never stores its run as the sample run', async () => {
+  const words = (html: string) =>
+    html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  // The line under a guest page's fit chart that says how its slot values are priced.
+  const footnote = (state: State, id: string) => words(hooked(guestPage(state, id), 'data-chart-foot')[0])
+  // An owner's CPM for the guest network, set in its settings.
+  const setGuestCpm = (guest: Pick<Member, 'fetch'>, cpm: number) =>
+    guest.fetch('/app/guest-network/settings/network', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Guest network', cpm })
+    })
+
+  it('keeps its figures and CPM labelled sample on another launch of the guest network, but not the sample, which only its sample launch carries, and never stores its run as the sample run (#333)', async () => {
     const { guest, network } = await guestSampleLaunch()
     const logged = vi.spyOn(console, 'log')
     // The Watch planned again by a guest isn't the sample launch.
@@ -1095,11 +1110,13 @@ describe('a launch on the sample roster', () => {
     const state = await answerSample(agent)
 
     expect(state.run?.status).toBe('completed')
-    expect(state.sample).toBeNull()
+    // Its copy takes the CPM's label with the CPM, and no sample.
+    expect(state).toMatchObject({ cpm: 20, sampleCpm: true, sample: null })
     expect(state.roster.map((r) => [r.name, r.sample])).toEqual(network.state()!.roster.map((r) => [r.name, r.sample]))
-    // Its run is priced with the sample's downloads, so the page's title says so, once: the chart's slot
-    // values, the plan and the roster carry no label of their own.
+    // Its run is priced with the sample's downloads and CPM, so the page's title says so, once, and the
+    // chart's footnote in words: the chart's slot values, the plan and the roster carry no label of their own.
     expect(sampleLabels(guestPage(state, id))).toEqual(['h1: The Watch'])
+    expect(footnote(state, id)).toBe('Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures')
     expect(logged.mock.calls.flat().filter((line) => String(line).includes('"event":"sample_run"'))).toEqual([])
     // So the engine has no stored run to replay when Qloo can't be called.
     env.QLOO_DAILY_CALL_CAP = '0'
@@ -1113,7 +1130,7 @@ describe('a launch on the sample roster', () => {
     })
   })
 
-  it('prices a new launch’s slots at the sample CPM after a guest’s import keeps a sample show (#287)', async () => {
+  it('prices a new launch’s slots at the sample CPM after a guest’s import keeps a sample show, and says so (#287, #333)', async () => {
     const { guest, network } = await guestSampleLaunch()
     await network.importRoster('The Watch\nNight Shift Cinema')
     const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Rewatchables' })
@@ -1129,7 +1146,9 @@ describe('a launch on the sample roster', () => {
     await agent.call('startLaunch', { name: 'The Rewatchables' })
     const ran = await agent.until(ended)
     expect(ran.run?.status).toBe('completed')
-    expect(ran).toMatchObject({ cpm: 20, sample: null })
+    expect(ran).toMatchObject({ cpm: 20, sampleCpm: true, sample: null })
+    expect(footnote(ran, id)).toBe('Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures')
+    expect(sampleLabels(guestPage(ran, id))).toEqual(['h1: The Rewatchables'])
     // The Watch's sample downloads, 340,000, × $20 ÷ 1,000.
     const [row] = hooked(hooked(guestPage(ran, id), 'data-fit-chart')[0], 'data-show="The Watch"')
     const value = hooked(row, 'data-slot-value')[0]
@@ -1139,6 +1158,99 @@ describe('a launch on the sample roster', () => {
         .replace(/\s+/g, ' ')
         .trim()
     ).toBe('$6,800 340,000 downloads')
+  })
+
+  it("labels the sample CPM on a run over the guest's own shows, and its order's total, but not a later run's at an owner's CPM, while the earlier run keeps its label (#333)", async () => {
+    const { guest, network } = await guestSampleLaunch()
+    fakeQloo({
+      search: {
+        'Night Shift Cinema': show('e-0001', 'Night Shift Cinema'),
+        'Corner Booth': show('e-0501', 'Corner Booth'),
+        'Slow Burn': show('e-0502', 'Slow Burn')
+      }
+    })
+    const imported = await network.importRoster('name,downloads\nCorner Booth,48000\nSlow Burn,40000', 'csv')
+    // No show holds a sample figure, but the CPM is still the sample's.
+    expect(imported).toMatchObject({ cpm: 20, sample: { cpm: true } })
+    expect(imported.roster.some((r) => r.sample?.length)).toBe(false)
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const agent = await connect(guest, `/agents/launch/guest-network/${id}`)
+    const shows = ['e-0501', 'e-0502']
+    fakeInsights([
+      { entity_id: 'e-0501', name: 'Corner Booth', affinity: 0.913 },
+      { entity_id: 'e-0502', name: 'Slow Burn', affinity: 0.902 }
+    ])
+    fakeCompare(
+      Object.fromEntries(shows.map((s) => [s, [{ tag_id: 'urn:tag:keyword:media:film', name: 'Film', score: 0.61 }]]))
+    )
+    const ranks = toolUse('rank_candidates', {
+      anchor_ids: ['e-0001'],
+      candidate_ids: shows,
+      type: 'urn:entity:podcast'
+    })
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(ranks),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: shows })),
+      turn(
+        toolUse('draft_insertion_order', {
+          lines: [
+            { show: 'Corner Booth', slots: 6, angle: 'Film talk.' },
+            { show: 'Slow Burn', slots: 4, angle: 'Film talk.' }
+          ]
+        })
+      ),
+      turn(text('Drafted the order.')),
+      turn(resolve('Night Shift Cinema')),
+      turn(ranks),
+      turn(text('Ranked again.'))
+    ])
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const first = await answerSample(agent)
+    expect(first.run?.status).toBe('completed')
+    expect(first).toMatchObject({ cpm: 20, sampleCpm: true, sample: null })
+    // Priced at the sample CPM from the guest's own downloads, so the footnote says the CPM alone, and the
+    // page's title carries its one badge.
+    expect(footnote(first, id)).toBe('Slot value = downloads × $20 sample CPM ÷ 1,000')
+    expect(sampleLabels(guestPage(first, id))).toEqual(['h1: Night Shift Cinema'])
+    // 6 × 48,000 × $20 ÷ 1,000 + 4 × 40,000 × $20 ÷ 1,000.
+    expect(words(hooked(guestPage(first, id), 'data-io')[0])).toContain(' Total 10 $8,960 sample figures ')
+
+    // An owner's CPM leaves nothing of the sample (#337), so the next run's copy takes no label.
+    expect((await setGuestCpm(guest, 25)).status).toBe(200)
+    await network.until((s) => s.cpm === 25 && s.sample === null)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const second = await agent.until((s) => ended(s) && s.run?.closing === 'Ranked again.')
+    expect(second).toMatchObject({ cpm: 25, sampleCpm: false, sample: null })
+    expect(footnote(second, id)).toBe('Slot value = downloads × $25 CPM ÷ 1,000')
+    expect(sampleLabels(guestPage(second, id))).toEqual([])
+    // The earlier run, as the run list's View shows it, keeps the label its own copy took.
+    const viewed = { ...(await agent.call<RunSnapshot>('getRun', first.run!.id)), runs: second.runs }
+    expect(footnote(viewed, id)).toBe('Slot value = downloads × $20 sample CPM ÷ 1,000')
+    expect(sampleLabels(guestPage(viewed, id))).toEqual(['h1: Night Shift Cinema'])
+  })
+
+  it("leaves an owner's CPM unlabelled while shows keep their sample downloads, which the footnote still says, on another launch and on the sample launch alike (#333)", async () => {
+    const { guest, network, id: watch, agent: sampleLaunch } = await guestSampleLaunch()
+    expect((await setGuestCpm(guest, 25)).status).toBe(200)
+    expect(await network.until((s) => s.cpm === 25)).toMatchObject({ sample: { cpm: false } })
+    // The Watch planned again by a guest isn't the sample launch.
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'The Watch' })
+    const other = await connect(guest, `/agents/launch/guest-network/${id}`)
+    fakeClaude([...theWatch(), ...theWatch()])
+    await other.call('startLaunch', { name: 'The Watch' })
+    const ran = await answerSample(other)
+    expect(ran).toMatchObject({ cpm: 25, sampleCpm: false, sample: null })
+    expect(footnote(ran, id)).toBe('Slot value = downloads × $25 CPM ÷ 1,000 · sample figures')
+    expect(sampleLabels(guestPage(ran, id))).toEqual(['h1: The Watch'])
+
+    await sampleLaunch.call('startLaunch', { name: 'The Watch' })
+    const sampled = await answerSample(sampleLaunch)
+    expect(sampled).toMatchObject({ cpm: 25, sampleCpm: false, sample: { cpm: false } })
+    expect(footnote(sampled, watch)).toBe('Slot value = downloads × $25 CPM ÷ 1,000 · sample figures')
+    expect(sampleLabels(guestPage(sampled, watch))).toEqual(['h1: The Watch'])
   })
 
   it("carries the sample on the guest network's sample launch, which replays its stored run while Qloo is capped or down", async () => {
@@ -1163,6 +1275,12 @@ describe('a launch on the sample roster', () => {
     expect(agent.state()!.ranking?.rows).toEqual(live.ranking?.rows)
     expect(agent.state()!.sample).toEqual(sample)
     expect(requests).toHaveLength(sent)
+    const replayed = agent.state()!
+    expect(footnote(replayed, id)).toBe('Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures')
+    // A run from before the copy took the CPM's label, as the stored sample run may be, reads it from the
+    // sample it carries (#333).
+    const { sampleCpm: _, ...unlabelled } = replayed
+    expect(footnote(unlabelled, id)).toBe('Slot value = downloads × $20 sample CPM ÷ 1,000 · sample figures')
 
     env.QLOO_DAILY_CALL_CAP = saved.QLOO_DAILY_CALL_CAP
     fakeQlooDown()
@@ -1190,7 +1308,8 @@ describe('a launch on the sample roster', () => {
     await other.call('startLaunch', { name: 'The Watch' })
     const stopped = await other.until(ended)
     expect(stopped.run).toMatchObject({ status: 'stopped', error: expect.stringContaining(own) })
-    expect(stopped.sample).toBeNull()
+    // It takes the CPM's label as any launch does, but not the sample (#333).
+    expect(stopped).toMatchObject({ sample: null, sampleCpm: true })
 
     await network.call('updateShow', 'The Watch', { downloads: 12_345 })
     await agent.call('startLaunch', { name: 'The Watch' })
@@ -1442,6 +1561,10 @@ describe('the pages, as a member reads them', () => {
       /^The plan Agent drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷ 1,000\. Insertion order IO-0001 Draft Show · angle /
     )
     expect(draftHtml).not.toContain('Export CSV')
+    // A member's network never labels its CPM, nor its figures, the sample's (#333).
+    expect(agent.state()!.sampleCpm).toBe(false)
+    expect(words(hooked(draftHtml, 'data-chart-foot')[0])).toBe('Slot value = downloads × $25 CPM ÷ 1,000')
+    expect(sampleLabels(draftHtml)).toEqual([])
 
     const graces = await connect(grace, `/agents/launch/${network}/${id}`)
     await graces.call('approveInsertionOrder', 'IO-0001')
