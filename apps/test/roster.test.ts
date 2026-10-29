@@ -312,12 +312,13 @@ describe('the roster as its page shows it', () => {
     const s = await session()
     const html = editor(await s.importRoster(roster), 'Deep Cuts')
 
-    expect(html).toMatch(/<h2\b[^>]*\sid="show-ed"[^>]*>Deep Cuts<\/h2>/)
+    // Its match chip follows the show's name in the heading, after its last line however it wraps.
+    expect(html).toMatch(/<h2\b[^>]*\sid="show-ed"[^>]*>Deep Cuts<(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Ambiguous</)
     expect(sections(html)).toEqual([
-      ['Deep Cuts', 'The show’s Qloo match, its figures, and whether a launch can propose it.']
+      ['Deep Cuts Ambiguous', 'The show’s Qloo match, its figures, and whether a launch can propose it.']
     ])
     expect(words(html)).toContain(
-      'Deep Cuts The show’s Qloo match, its figures, and whether a launch can propose it. Ambiguous Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 with each one’s popularity percentile Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
+      'Deep Cuts Ambiguous The show’s Qloo match, its figures, and whether a launch can propose it. Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 with each one’s popularity percentile Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
     )
     expect(html).toMatch(/<label\b[^>]*\sfor="comp-q"/)
     expect(html).toMatch(/<input\b[^>]*\sid="comp-q"/)
@@ -332,7 +333,7 @@ describe('the roster as its page shows it', () => {
     const searched = await s.searchComps('The Ghost Signal Show', 'Ghost Hour')
 
     expect(words(editor(searched, 'The Ghost Signal Show'))).toContain(
-      'Missed Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04 with each one’s popularity percentile Downloads per episode'
+      'The Ghost Signal Show Missed The show’s Qloo match, its figures, and whether a launch can propose it. Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04 with each one’s popularity percentile Downloads per episode'
     )
     await s.call('updateShow', 'The Ghost Signal Show', { compId: 'e-0201' })
     const read = words(workspace(s.state()!))
@@ -372,9 +373,9 @@ describe('the roster as its page shows it', () => {
     // Left out, it needs nothing settled.
     expect(words(html)).toContain('The Ghost Signal Show Missed Excluded No show by this name in Qloo. – – C-03')
     expect(html).toMatch(/<tr\b(?=[^>]*\sdata-excluded="true")[^>]*>\s*<th\b[^>]*>[\s\S]*?The Ghost Signal Show/)
-    expect(words(editor(s.state()!, 'The Ghost Signal Show'))).toContain(
-      'Include again Excluded: kept here, never proposed for a launch.'
-    )
+    const left = editor(s.state()!, 'The Ghost Signal Show')
+    expect(sections(left)[0][0]).toBe('The Ghost Signal Show Missed Excluded')
+    expect(words(left)).toContain('Include again Excluded: kept here, never proposed for a launch.')
   })
 
   it("opens a show's downloads per episode with thousands separators, as its row shows them", async () => {

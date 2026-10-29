@@ -200,8 +200,9 @@ export function FormDialog({
 // order. The heading is an h2, 16px semibold, or an h3 at the body size for a section inside another;
 // `actions` sit at the right of its line, as the page header's do, on a phone too. It draws no panel: a
 // page puts it on a card, or a panel inside it, as the settings' modules do. `heading` takes focus once
-// what had it is gone; `badge` sits beside the heading (Beta, Sample); `data-*` attributes reach the
-// section.
+// what had it is gone; `badge`, its chips (Beta, a status), follows the title's last word in the heading,
+// so a long title, such as a show's name, wraps at the column's width and the chips follow its last
+// line rather than squeezing it; `data-*` attributes reach the section.
 export function Section({
   id,
   title,
@@ -230,10 +231,17 @@ export function Section({
           id={id}
           ref={heading}
           tabIndex={heading ? -1 : undefined}
-          className={cn('flex items-center gap-2 font-semibold text-balance', level === 2 && 'type-body')}
+          className={cn('font-semibold text-balance', level === 2 && 'type-body')}
         >
           {title}
-          {badge}
+          {/* 8px after the title's last word, a space widened rather than a margin, so chips wrapped
+              onto a line of their own start at the title's left edge. */}
+          {badge && (
+            <>
+              <span className="[word-spacing:0.25rem]"> </span>
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 align-middle">{badge}</span>
+            </>
+          )}
         </Heading>
         {description && (
           <p className="col-span-full mt-1 max-w-[72ch] text-pretty text-muted-foreground">{description}</p>
