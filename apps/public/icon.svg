@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="2 2 20 20">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .ink { stroke: #ececf1 }
+      .signal { fill: #ff8a3d }
+    }
+  </style>
+  <path class="ink" d="M3.54 8.92 20.46 15.08M3.54 15.08 20.46 8.92" fill="none" stroke="#121318" stroke-width="3"/>
+  <path class="signal" d="M7.61 12 12 10.4 16.39 12 12 13.6Z" fill="#e4630c"/>
+</svg>
