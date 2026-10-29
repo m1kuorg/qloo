@@ -76,7 +76,9 @@ git -C "$work/repo" fetch --quiet origin "refs/pull/$pr/merge" || {
   echo "#$pr has no merge ref: it conflicts with its base, so rebase it first" >&2
   exit 1
 }
-git -C "$work/repo" checkout --quiet --detach FETCH_HEAD
+# On a branch of its own, not detached: a clone of a detached checkout has an empty refs/, which act's
+# copy into the job's container leaves out, and git there won't take a .git without refs/ as a repo.
+git -C "$work/repo" checkout --quiet -B "pr-$pr" FETCH_HEAD
 jq '{number, pull_request: {number, title, base: {sha: .baseRefOid}, head: {sha: .headRefOid}}}' \
   <<<"$view" >"$work/event.json"
 
