@@ -175,8 +175,8 @@ export class QlooGateway extends DurableObject<Env> {
   // and counts. It resets a moment later, cutting off any request still queued or in flight, so the
   // next call meets a new, empty instance. From the wipe's start until then, any call it's still making,
   // and any that reaches it, fails saying so (WIPED), rather than meeting the tables it dropped. The
-  // reset says WIPED too, which tells the wipe's caller it worked should the reset reach it first, as on
-  // Cloudflare (wipe.ts). A wipe that fails resets it too, with what it kept, saying WIPE_FAILED.
+  // reset says WIPED too, so its caller can count it as the wipe done (awaitWipe in wipe.ts). A wipe that
+  // fails resets it too, with what it kept, saying WIPE_FAILED.
   async wipe() {
     this.wiped = true
     let reset = WIPE_FAILED
