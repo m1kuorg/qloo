@@ -3,7 +3,12 @@
 // its instance's own reset before it answers, then drives the Worker's routes and its scheduled handler,
 // and reads the wipes left from the hourly retry's log.
 import { getAgentByName } from 'agents'
-import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
+import {
+  createExecutionContext,
+  createScheduledController,
+  runInDurableObject,
+  waitOnExecutionContext
+} from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QlooGateway, WIPED } from '../src/gateway'
@@ -82,17 +87,21 @@ async function wipeThenReset(this: QlooGateway) {
   }
 }
 
-// An instance's own state, which its class keeps to itself.
-const stateOf = (instance: object) => (instance as unknown as { ctx: DurableObjectState }).ctx
-// A reset for another reason than a wipe, as Cloudflare resets every instance as a deploy starts.
+// The instances a stand-in reaches: a network's agent, and its own gateway instance.
+const networkAgent = (id: string) => env.NetworkAgent.get(env.NetworkAgent.idFromName(id))
+const ownGateway = (id: string) => env.QlooGateway.getByName(`network:${id}`)
+// The state of `stub`'s instance, as a storage test reads it, for a stand-in to use as a later call reaches it.
+const stateOf = (stub: DurableObjectStub) => runInDurableObject(stub, (_, state) => state)
+// A wipe of `stub`'s instance that meets a reset for another reason before it starts, as Cloudflare resets
+// every instance as a deploy starts.
 const DEPLOYED = 'Durable Object reset because its code was updated.'
-async function deployReset(this: object) {
-  stateOf(this).abort(DEPLOYED)
+async function deployReset(stub: DurableObjectStub) {
+  const state = await stateOf(stub)
+  return async () => state.abort(DEPLOYED)
 }
-// A gateway's wipe whose storage deletion fails, resetting first all the same.
-async function failedDeletion(this: QlooGateway) {
-  vi.spyOn(stateOf(this).storage, 'deleteAll').mockRejectedValueOnce(new Error('Storage is overloaded.'))
-  return wipeThenReset.call(this)
+// Has the next wipe of `stub`'s gateway instance fail to delete its storage.
+async function failDeletion(stub: DurableObjectStub) {
+  vi.spyOn((await stateOf(stub)).storage, 'deleteAll').mockRejectedValueOnce(new Error('Storage is overloaded.'))
 }
 
 // Runs the Worker's scheduled handler at a cron in wrangler.jsonc: the daily one, or the hourly one two
@@ -159,7 +168,7 @@ describe('a wipe whose instance resets before it answers, as on Cloudflare', () 
     expect(await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, id)).state)).toMatchObject({
       launches: []
     })
-    expect(await readAfterReset(() => env.QlooGateway.getByName(`network:${id}`).ownKey())).toEqual({ set: false })
+    expect(await readAfterReset(() => ownGateway(id).ownKey())).toEqual({ set: false })
 
     await runHourlyCron()
     expect(lines(logged, 'wipes_retried')).toEqual([retried(0)])
@@ -220,7 +229,7 @@ describe('a wipe that fails, its instance resetting before it answers', () => {
     const ada = await openMember()
     const { id, name } = await network(ada)
     resetFirst()
-    vi.spyOn(NetworkAgent.prototype, 'destroy').mockImplementationOnce(deployReset)
+    vi.spyOn(NetworkAgent.prototype, 'destroy').mockImplementationOnce(await deployReset(networkAgent(id)))
     const failed = vi.spyOn(console, 'error')
     const logged = vi.spyOn(console, 'log')
     const failure = JSON.stringify({
@@ -232,7 +241,7 @@ describe('a wipe that fails, its instance resetting before it answers', () => {
 
     expect((await post(ada, `/app/${id}/settings/delete`, { name })).status).toBe(200)
     expect(lines(failed, 'wipe_failed')).toEqual([failure])
-    vi.spyOn(NetworkAgent.prototype, 'destroy').mockImplementationOnce(deployReset)
+    vi.spyOn(NetworkAgent.prototype, 'destroy').mockImplementationOnce(await deployReset(networkAgent(id)))
     await expect(runHourlyCron()).rejects.toThrow('1 agent wipe failed; the next hourly run tries again.')
     expect(lines(failed, 'wipe_failed')).toEqual([failure, failure])
 
@@ -248,7 +257,7 @@ describe('a wipe that fails, its instance resetting before it answers', () => {
     const guest = await openGuest()
     await network(guest, 'guest-network')
     resetFirst()
-    vi.spyOn(NetworkAgent.prototype, 'destroy').mockImplementationOnce(deployReset)
+    vi.spyOn(NetworkAgent.prototype, 'destroy').mockImplementationOnce(await deployReset(networkAgent('guest-network')))
     const failed = vi.spyOn(console, 'error')
 
     const res = await post(guest, '/app/guest-network/settings/sample-data/reset')
@@ -262,7 +271,7 @@ describe('a wipe that fails, its instance resetting before it answers', () => {
     const key = { set: true, host: HACKATHON, last4: '7f3a' }
     resetFirst()
 
-    vi.spyOn(QlooGateway.prototype, 'wipe').mockImplementationOnce(deployReset)
+    vi.spyOn(QlooGateway.prototype, 'wipe').mockImplementationOnce(await deployReset(ownGateway(id)))
     expect((await post(ada, `/app/${id}/settings/qloo-key/remove`)).status).toBe(500)
     expect(await qlooKey(ada, id)).toEqual(key)
     // An error the gateway's code throws once its wipe has begun says the same as its reset, unmarked.
@@ -275,7 +284,7 @@ describe('a wipe that fails, its instance resetting before it answers', () => {
     const ada = await openMember()
     const { id, name, dashboard } = await network(ada)
     resetFirst()
-    vi.spyOn(QlooGateway.prototype, 'wipe').mockImplementationOnce(failedDeletion)
+    await failDeletion(ownGateway(id))
 
     expect((await post(ada, `/app/${id}/settings/qloo-key/remove`)).status).toBe(500)
     expect(await qlooKey(ada, id)).toEqual({ set: true, host: HACKATHON, last4: '7f3a' })
@@ -283,16 +292,16 @@ describe('a wipe that fails, its instance resetting before it answers', () => {
     await dashboard.importRoster('Corner Booth')
     expect(sent()).toEqual([[HACKATHON, OWN]])
 
-    vi.spyOn(QlooGateway.prototype, 'wipe').mockImplementationOnce(failedDeletion)
+    await failDeletion(ownGateway(id))
     const failed = vi.spyOn(console, 'error')
     const logged = vi.spyOn(console, 'log')
     expect((await post(ada, `/app/${id}/settings/delete`, { name })).status).toBe(200)
     expect(lines(failed, 'wipe_failed').map((line) => JSON.parse(String(line)).binding)).toEqual(['QlooGateway'])
-    expect(await readAfterReset(() => env.QlooGateway.getByName(`network:${id}`).ownKey())).toMatchObject({
+    expect(await readAfterReset(() => ownGateway(id).ownKey())).toMatchObject({
       set: true
     })
     await runHourlyCron()
     expect(lines(logged, 'wipes_retried')).toEqual([retried(1)])
-    expect(await readAfterReset(() => env.QlooGateway.getByName(`network:${id}`).ownKey())).toEqual({ set: false })
+    expect(await readAfterReset(() => ownGateway(id).ownKey())).toEqual({ set: false })
   })
 })
