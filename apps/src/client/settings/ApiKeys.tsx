@@ -51,13 +51,17 @@ function OwnerKeys({
   const { confirm, dialog } = useConfirm(heading)
   const path = `/app/${network.id}/settings/api-keys`
 
-  const create = () =>
-    run(async () => {
+  const create = async () => {
+    const created = await run(async () => {
       const answer = await send<{ id: string; secret: string; keys: ApiKey[] }>(path, { name })
       setMade({ id: answer.id, secret: answer.secret })
       setKeys(answer.keys)
       setName('')
     })
+    // A refusal, or a request that failed, stops showing the key made before, so the refusal doesn't
+    // read as if this key was made. A success has already replaced it.
+    if (!created) setMade(null)
+  }
   const askRevoke = (k: ApiKey) =>
     confirm({
       title: `Revoke ${k.name}?`,

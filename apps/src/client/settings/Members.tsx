@@ -187,12 +187,16 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
   const { busy, error, run } = useAction()
   const heading = useRef<HTMLHeadingElement>(null)
   const { confirm, dialog } = useConfirm(heading)
-  const create = () =>
-    run(async () => {
+  const create = async () => {
+    const created = await run(async () => {
       const answer = await send<{ id: string; link: string; invites: Invite[] }>(`${path}/invites`)
       setMade({ id: answer.id, link: answer.link })
       setInvites(answer.invites)
     })
+    // A refusal, or a request that failed, stops showing the link made before, so the refusal doesn't
+    // read as if this link was made. A success has already replaced it.
+    if (!created) setMade(null)
+  }
   const askRevoke = (i: Invite) =>
     confirm({
       title: `Revoke the invite link made ${day(i.created)}${i.by ? ` by ${i.by}` : ''}?`,
