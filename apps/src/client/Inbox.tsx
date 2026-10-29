@@ -1772,14 +1772,15 @@ function notInQloo(work: Work | null) {
   return `No ${work ? workNoun[work.type] : 'work'} with this title${by} in Qloo`
 }
 
-// A pitch's state in words, one for each of its chip's, saying what's next when it needs something. A
-// pitch of an earlier run can't be confirmed (`confirming` false), so its ambiguous match says what it
-// meant for that run instead.
+// A pitch's state in words, one for each of its chip's, saying what's next when it needs something. An
+// unreadable one's is why, which says when that keeps its work from Qloo (extract.ts). A pitch of an
+// earlier run can't be confirmed (`confirming` false), so its ambiguous match says what it meant for
+// that run instead.
 function pitchState(p: Pitch, confirming: boolean) {
   const { match, work } = p
   if (p.status === 'reading') return 'Claude is reading it for its guest and public work.'
   if (p.status === 'no_work') return 'No public work, so it never reaches Qloo.'
-  if (p.status === 'unreadable') return `${sentence(p.error ?? 'Claude couldn’t read it')} It never reaches Qloo.`
+  if (p.status === 'unreadable') return sentence(p.error ?? 'Claude couldn’t read it')
   if (p.status === 'failed') return `${sentence(p.error ?? 'Reading it failed')} Not scored.`
   if (!match || !work) return 'Looking its work up in Qloo.'
   if (match.resolution === 'resolved') return 'Its work matched in Qloo, so a run can rank it.'
