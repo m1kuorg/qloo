@@ -47,7 +47,7 @@ function OwnerKeys({
   const [keys, setKeys] = useState(listed)
   const [name, setName] = useState('')
   const [made, setMade] = useState<{ id: string; secret: string } | null>(null)
-  const { busy, error, run } = useAction()
+  const { busy, error, run, clear } = useAction()
   const { confirm, dialog } = useConfirm(heading)
   const path = `/app/${network.id}/settings/api-keys`
 
@@ -72,6 +72,9 @@ function OwnerKeys({
       action: async () => {
         setKeys((await send<{ keys: ApiKey[] }>(`${path}/${k.id}/revoke`)).keys)
         if (made?.id === k.id) setMade(null)
+        // A refusal shown from creating one no longer describes the list. A failed revoke shows its
+        // own refusal in the confirm.
+        clear()
       }
     })
 

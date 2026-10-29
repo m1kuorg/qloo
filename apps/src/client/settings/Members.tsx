@@ -184,7 +184,7 @@ export function MembersModule({
 function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[] }) {
   const [invites, setInvites] = useState(listed)
   const [made, setMade] = useState<{ id: string; link: string } | null>(null)
-  const { busy, error, run } = useAction()
+  const { busy, error, run, clear } = useAction()
   const heading = useRef<HTMLHeadingElement>(null)
   const { confirm, dialog } = useConfirm(heading)
   const create = async () => {
@@ -207,6 +207,9 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
       action: async () => {
         setInvites((await send<{ invites: Invite[] }>(`${path}/invites/${i.id}/revoke`)).invites)
         if (made?.id === i.id) setMade(null)
+        // A refusal shown from creating one no longer describes the list. A failed revoke shows its
+        // own refusal in the confirm.
+        clear()
       }
     })
   return (

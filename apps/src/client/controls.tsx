@@ -36,7 +36,8 @@ export class Refused extends Error {
   }
 }
 
-// Runs one action at a time for a form, keeping its error for the form to show.
+// Runs one action at a time for a form, keeping its error for the form to show until the next run, or
+// until `clear`, once something else has made it stale.
 export function useAction() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,7 +54,7 @@ export function useAction() {
       setBusy(false)
     }
   }
-  return { busy, error, run }
+  return { busy, error, run, clear: () => setError(null) }
 }
 
 // While `dirty`, leaving the page (a link in the shell, a reload, closing the tab) asks first, so edits
