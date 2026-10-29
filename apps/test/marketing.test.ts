@@ -93,9 +93,39 @@ describe('the landing page', () => {
     for (const path of pages) {
       const text = words(await page(path))
       for (const name of looked) expect(text, `${path} names ${name}`).not.toContain(name)
-      // Qloo's affinities are decimals; the chart shows ranks and bands only.
-      expect(text, path).not.toMatch(/\b0?\.\d{2,}\b/)
+      // Qloo writes its figures to 16 decimals; a picture of the app shows each in its metric's format,
+      // three decimals at most, as the inspector does.
+      expect(text, path).not.toMatch(/\d\.\d{4,}/)
     }
+  })
+
+  it('pictures a call’s evidence as the inspector words it, with no ID or URN and each figure in its format', async () => {
+    const html = main(await page('/'))
+    const figure = html.split(/(?=<figure\b)/).find((f) => words(f).includes('Evidence · C-14')) ?? ''
+    const text = words(figure.slice(0, figure.indexOf('</figure>')))
+    for (const part of [
+      'Evidence · C-14 Qloo data Qloo scored 8 of 8 candidates.',
+      'Request POST /v2/insights Status 200 Called Oct 28, 14:01:58 · 1,240 ms Run Run 1',
+      'What was sent Type Podcast Ranked against Low Tide Candidates 8 podcasts Explainability On Results Up to 50',
+      'Stored record'
+    ])
+      expect(text).toContain(part)
+    // The roster in listener order, each by its name and its affinity to three decimals, highest first.
+    const affinities = text.match(/Affinities · 8 Name Affinity (.*?) Stored record/)?.[1] ?? ''
+    const rows = [...affinities.matchAll(/(?:^| )(\D+?) (\d\.\d{3})(?= |$)/g)]
+    expect(rows.map(([, name]) => name)).toEqual([
+      'Case Notes',
+      'The Harbour',
+      'Plain Sight',
+      'Tide Tables',
+      'Static',
+      'Small Claims',
+      'Night Desk',
+      'Dry Ink'
+    ])
+    const figures = rows.map(([, , affinity]) => Number(affinity))
+    expect(figures).toEqual([...figures].sort((a, b) => b - a))
+    expect(text).not.toMatch(/urn:|[0-9a-f]{8}-[0-9a-f]{4}-/i)
   })
 
   it('links nowhere behind accounts while they are off', async () => {

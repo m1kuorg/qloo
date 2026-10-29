@@ -35,16 +35,17 @@ const NETWORK = 'Kiln Street Audio'
 const LAUNCH = 'Low Tide'
 // The roster in listener order, as Qloo's ranking would put it: each show's place is its fit rank.
 // `topic` is the rank a topic-only plan gives it. Bands are thirds of the ranking, as fit.ts sets
-// them; `tags` are the tags its listeners share with the launch's.
-const roster: { show: string; topic: number; band: Band; tags: string[] }[] = [
-  { show: 'Case Notes', topic: 1, band: 'top', tags: ['Cold case', 'Small-town'] },
-  { show: 'The Harbour', topic: 6, band: 'top', tags: ['Coastal', 'Oral history'] },
-  { show: 'Plain Sight', topic: 2, band: 'top', tags: ['Investigative', 'Courtroom'] },
-  { show: 'Tide Tables', topic: 8, band: 'middle', tags: ['Coastal', 'Working life'] },
-  { show: 'Static', topic: 7, band: 'middle', tags: ['Slow-burn', 'Late night'] },
-  { show: 'Small Claims', topic: 3, band: 'middle', tags: ['Courtroom'] },
-  { show: 'Night Desk', topic: 4, band: 'bottom', tags: ['Local news'] },
-  { show: 'Dry Ink', topic: 5, band: 'bottom', tags: ['Mystery'] }
+// them; `tags` are the tags its listeners share with the launch's; `affinity` is the score the
+// ranking's evidence shows for it.
+const roster: { show: string; topic: number; band: Band; tags: string[]; affinity: number }[] = [
+  { show: 'Case Notes', topic: 1, band: 'top', tags: ['Cold case', 'Small-town'], affinity: 0.912 },
+  { show: 'The Harbour', topic: 6, band: 'top', tags: ['Coastal', 'Oral history'], affinity: 0.887 },
+  { show: 'Plain Sight', topic: 2, band: 'top', tags: ['Investigative', 'Courtroom'], affinity: 0.871 },
+  { show: 'Tide Tables', topic: 8, band: 'middle', tags: ['Coastal', 'Working life'], affinity: 0.846 },
+  { show: 'Static', topic: 7, band: 'middle', tags: ['Slow-burn', 'Late night'], affinity: 0.828 },
+  { show: 'Small Claims', topic: 3, band: 'middle', tags: ['Courtroom'], affinity: 0.803 },
+  { show: 'Night Desk', topic: 4, band: 'bottom', tags: ['Local news'], affinity: 0.779 },
+  { show: 'Dry Ink', topic: 5, band: 'bottom', tags: ['Mystery'], affinity: 0.754 }
 ]
 const ranked = roster.map((r, i) => ({ ...r, rank: i + 1, move: r.topic - (i + 1), finalist: i < FINALISTS }))
 const finalists = ranked.filter((r) => r.finalist)
@@ -518,9 +519,20 @@ const PlanFragment = () => (
   </section>
 )
 
-// The inspector open on call C-14's evidence, the ranking's request as a record (Evidence.tsx). The
-// raw scores Qloo returned follow it in the app, below this crop.
+// The inspector open on call C-14's evidence, the ranking of the roster against the launch, as the app
+// words it (Evidence.tsx): its heading with the Qloo data chip, what Qloo did, the call's facts, what
+// was sent, the affinities Qloo returned to three decimals, and the stored record, closed.
 const RANKING_CALL = 'C-14'
+// A disclosure's summary as the app's Fold draws it, closed: underlined with its chevron, 44px tall on a
+// phone.
+const Fold = ({ children }: { children: Child }) => (
+  <span class="block w-fit max-md:min-h-11">
+    <span class="inline-flex items-center gap-1 underline decoration-muted-foreground decoration-1 underline-offset-4">
+      {children}
+      <ChevronDown class="size-4 text-muted-foreground" />
+    </span>
+  </span>
+)
 const EvidenceFragment = () => (
   <div class="flex w-full max-w-[360px] flex-col gap-4 rounded-xl bg-card p-4">
     <span class={segmentedTrackVariants()}>
@@ -529,55 +541,74 @@ const EvidenceFragment = () => (
         Evidence
       </span>
     </span>
-    <div class="flex flex-col gap-1.5">
-      <p class="font-semibold">
-        Evidence · <code class="font-medium">{RANKING_CALL}</code>
-      </p>
-      <div class="flex flex-wrap items-center gap-1.5">
-        <Source of="qloo" />
+    {/* The app's Section: its chips follow the heading's last word, its sentence under it. */}
+    <section class="flex min-w-0 flex-col gap-4">
+      <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4">
+        <p class="type-body font-semibold text-balance break-words">
+          Evidence ·{' '}
+          <code class="font-mono font-medium" translate="no">
+            {RANKING_CALL}
+          </code>
+          <span class="[word-spacing:0.25rem]"> </span>
+          <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-1 align-middle">
+            <Source of="qloo" />
+          </span>
+        </p>
+        <p class="col-span-full mt-1 max-w-[72ch] text-pretty break-words text-muted-foreground">
+          Qloo scored {roster.length} of {roster.length} candidates.
+        </p>
       </div>
-    </div>
-    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">
-      <KeyValue label="Request">
-        <code class="text-xs break-all">POST /v2/insights</code>
-      </KeyValue>
-      <KeyValue label="Parameters">
-        <ul class="flex flex-col gap-2">
-          <li class="flex min-w-0 flex-col">
-            <code class="text-xs break-all text-muted-foreground">filter.type</code>
-            <span>urn:entity:podcast</span>
-          </li>
-          <li class="flex min-w-0 flex-col">
-            <code class="text-xs break-all text-muted-foreground">signal.interests.entities</code>
-            <span>1 entity ID</span>
-            <code class="block truncate text-xs">3b9f6c1e-7d2a-4e85-b1c4-9a0e5f27d6b3</code>
-          </li>
-          <li class="flex min-w-0 flex-col">
-            <code class="text-xs break-all text-muted-foreground">filter.results.entities</code>
-            <span class="flex items-center gap-1 underline decoration-muted-foreground decoration-1 underline-offset-4">
-              {roster.length} entity IDs
-              <ChevronDown class="size-4 text-muted-foreground" />
-            </span>
-          </li>
-          <li class="flex min-w-0 flex-col">
-            <code class="text-xs break-all text-muted-foreground">feature.explainability</code>
-            <span>true</span>
-          </li>
-          <li class="flex min-w-0 flex-col">
-            <code class="text-xs break-all text-muted-foreground">take</code>
-            <span>50</span>
-          </li>
-        </ul>
-      </KeyValue>
-      <KeyValue label="Status">200</KeyValue>
-      <KeyValue label="Latency">{'1,240\u00a0ms'}</KeyValue>
-      <KeyValue label="Retries">0</KeyValue>
-      <KeyValue label="Cache">Miss, called Qloo</KeyValue>
-      <KeyValue label="Called at">14:01:58</KeyValue>
-      <KeyValue label="Run">
-        <code class="block truncate text-xs">6f0d9c4e-2b7a-4c1e-9f53-8a1d2e7b4c90</code>
-      </KeyValue>
-    </dl>
+      {/* Its facts and what was sent share one edge for their values. */}
+      <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-4">
+        <dl class="col-span-full grid grid-cols-subgrid gap-x-4 gap-y-1.5">
+          <KeyValue label="Request">
+            <code class="font-mono text-xs break-all" translate="no">
+              POST /v2/insights
+            </code>
+          </KeyValue>
+          <KeyValue label="Status">200</KeyValue>
+          <KeyValue label="Called">{'Oct 28, 14:01:58 · 1,240\u00a0ms'}</KeyValue>
+          <KeyValue label="Run">Run 1</KeyValue>
+        </dl>
+        <div class="col-span-full grid grid-cols-subgrid gap-y-1.5">
+          <p class="col-span-full font-semibold">What was sent</p>
+          <dl class="col-span-full grid grid-cols-subgrid gap-x-4 gap-y-1.5">
+            <KeyValue label="Type">Podcast</KeyValue>
+            <KeyValue label="Ranked against">{LAUNCH}</KeyValue>
+            <KeyValue label="Candidates">
+              <Fold>{roster.length} podcasts</Fold>
+            </KeyValue>
+            <KeyValue label="Explainability">On</KeyValue>
+            <KeyValue label="Results">Up to 50</KeyValue>
+          </dl>
+        </div>
+      </div>
+      <table class="w-full table-fixed">
+        <caption class="pb-1.5 text-left font-semibold">Affinities · {roster.length}</caption>
+        <thead class="type-caption text-muted-foreground">
+          <tr class={rowRuleBelow}>
+            <th scope="col" class="pb-1.5 text-left font-normal">
+              Name
+            </th>
+            <th scope="col" class="w-20 pb-1.5 pl-3 text-right font-normal">
+              Affinity
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {ranked.map((r) => (
+            <tr class={cn(rowRuleBelow, 'align-baseline')}>
+              <td class="py-1.5">
+                <span class="block break-words">{r.show}</span>
+              </td>
+              {/* An affinity's format, as the app's score: three decimals. */}
+              <td class="py-1.5 pl-3 text-right type-caption">{r.affinity.toFixed(3)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Fold>Stored record</Fold>
+    </section>
   </div>
 )
 
