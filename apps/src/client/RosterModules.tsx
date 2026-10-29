@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CircleDashedIcon, ClockIcon, SquareXIcon, UploadIcon } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -414,6 +414,36 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
   )
 }
 
+// A show's description, three lines at most, with More after it when they cut it short, which shows
+// the whole of it, then Less. Clamping is visual, so a screen reader reads all of it either way. It's
+// measured as it opens and as its width changes until they first cut it short; from then on it keeps
+// its button whatever the width, so More and Less never take focus away with them.
+function About({ text }: { text: string }) {
+  const clamped = useRef<HTMLSpanElement>(null)
+  const [cut, setCut] = useState(false)
+  const [whole, setWhole] = useState(false)
+  useEffect(() => {
+    const span = clamped.current
+    if (!span || cut) return
+    // It reports the span's size as it starts watching, too.
+    const resized = new ResizeObserver(() => setCut(span.scrollHeight > span.clientHeight))
+    resized.observe(span)
+    return () => resized.disconnect()
+  }, [text, cut])
+  return (
+    <span className="flex flex-col gap-1">
+      <span ref={clamped} className={whole ? undefined : 'line-clamp-3'}>
+        {text}
+      </span>
+      {cut && (
+        <Button variant="link" className="self-start" aria-expanded={whole} onClick={() => setWhole(!whole)}>
+          {whole ? 'Less' : 'More'}
+        </Button>
+      )}
+    </span>
+  )
+}
+
 // A show's state in words, saying what's next when it needs something: left out, whatever its match;
 // or how Qloo matched it.
 const showState = (show: Show) =>
@@ -480,16 +510,7 @@ export function ShowEditor({
             )}
           </KeyValue>
           <KeyValue label="Popularity percentile">{percentile(show.entity?.popularity ?? null)}</KeyValue>
-          {/* Three lines at most, the whole of it in its tooltip. */}
-          <KeyValue label="About">
-            {show.description ? (
-              <span className="line-clamp-3" title={show.description}>
-                {show.description}
-              </span>
-            ) : (
-              '–'
-            )}
-          </KeyValue>
+          <KeyValue label="About">{show.description ? <About text={show.description} /> : '–'}</KeyValue>
         </KeyValues>
         {show.candidates.length > 0 && (
           <PickOne
