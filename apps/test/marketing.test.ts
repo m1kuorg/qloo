@@ -47,6 +47,7 @@ const vars = {
   NETWORKS_PER_MEMBER: env.NETWORKS_PER_MEMBER,
   LAUNCHES_PER_NETWORK: env.LAUNCHES_PER_NETWORK,
   INVITES_PER_NETWORK: env.INVITES_PER_NETWORK,
+  API_KEYS_PER_NETWORK: env.API_KEYS_PER_NETWORK,
   INVITED_SIGNUP_DAILY_CAP: env.INVITED_SIGNUP_DAILY_CAP,
   GUEST_PITCHES: env.GUEST_PITCHES,
   RUN_VISITOR_DAILY_CAP: env.RUN_VISITOR_DAILY_CAP
@@ -282,12 +283,13 @@ describe('the privacy page and the beta terms', () => {
     env.NETWORKS_PER_MEMBER = '2'
     env.LAUNCHES_PER_NETWORK = '40'
     env.INVITES_PER_NETWORK = '15'
+    env.API_KEYS_PER_NETWORK = '6'
     env.INVITED_SIGNUP_DAILY_CAP = '12'
     const kept = 'With an account: your name'
     const approvals = 'with the member who approved each reply'
     const counts = 'each network’s counts for the day'
     const cap =
-      'A member can create at most 2 networks, and a network can keep at most 40 launches and 15 open invite links at once. One member’s invite links can bring in at most 12 new accounts a UTC day.'
+      'A member can create at most 2 networks, and a network can keep at most 40 launches, 15 open invite links, and 6 API keys in use at once. One member’s invite links can bring in at most 12 new accounts a UTC day.'
     const network =
       'A network counts as one visitor of its own, whichever of its members makes the network’s calls and runs.'
     const keys = 'A network’s API keys are kept only as hashes'
@@ -441,6 +443,7 @@ describe('the developer docs', () => {
   const docs = ['/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
 
   it('open on what programs can and cannot do, API keys, limits, and every error code', async () => {
+    env.API_KEYS_PER_NETWORK = '6'
     const html = await page('/docs')
     expect(html).not.toContain('id="root"')
     const text = words(main(html))
@@ -449,6 +452,7 @@ describe('the developer docs', () => {
     expect(text).toContain('Authorization: Bearer cf_live_…')
     expect(text).toContain('120 requests a minute')
     expect(text).toContain(`${env.RUN_VISITOR_DAILY_CAP} a day per network`)
+    expect(text).toContain('API keys At most 6 a network keeps in use at once')
     for (const [code, status] of Object.entries(REFUSALS)) expect(text).toMatch(new RegExp(`\\b${code} ${status}\\b`))
     expect(text).toMatch(/\binternal 500\b/)
     for (const path of docs) expect(hrefs(main(html)), path).toContain(path)
