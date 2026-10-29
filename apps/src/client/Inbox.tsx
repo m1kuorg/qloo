@@ -936,18 +936,21 @@ function PitchLists({
       badge={<Source of="qloo" />}
       description="One list per type of work, each from its own Qloo call, so a rank in one list can’t be compared with a rank in another."
     >
-      {lists.map((list) => (
-        <RankedPitches
-          key={list.type}
-          list={list}
-          pitches={pitches}
-          sample={sample}
-          selected={selected}
-          select={select}
-          openCall={openCall}
-          opened={opened}
-        />
-      ))}
+      {/* Each list's table ends it, so its h3 sections stand further apart than their own parts. */}
+      <div className="flex flex-col gap-8">
+        {lists.map((list) => (
+          <RankedPitches
+            key={list.type}
+            list={list}
+            pitches={pitches}
+            sample={sample}
+            selected={selected}
+            select={select}
+            openCall={openCall}
+            opened={opened}
+          />
+        ))}
+      </div>
       <p className="max-w-[72ch] type-caption text-muted-foreground">
         Bands are thirds of their own list.
         {setAside.length > 0 && ` ${setAside.length} set-aside pitches were never sent to Qloo.`}
