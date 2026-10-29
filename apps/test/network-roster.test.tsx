@@ -315,7 +315,7 @@ describe('re-importing the roster', () => {
     expect(own).toMatchObject({ cpm: 20, sample: { cpm: true } })
   })
 
-  it("leaves a member's network's CPM as it was, unset or set, and says a lookup a restart interrupted is to be imported again", async () => {
+  it("leaves a member's network's CPM as it was, unset or set, and holds no sample", async () => {
     fakeQloo({ search })
     const ada = await openMember()
     const network = await created(ada)
@@ -328,7 +328,13 @@ describe('re-importing the roster', () => {
     })
     expect(res.status).toBe(200)
     expect(await agent.importRoster('Deep Cuts\nSignal Boost')).toMatchObject({ cpm: 25, sample: null })
+  })
 
+  it("says a lookup a restart interrupted in a member's network is to be imported again", async () => {
+    fakeQloo({ search })
+    const ada = await openMember()
+    const network = await created(ada)
+    await (await connect(ada, network)).importRoster('Deep Cuts\nSignal Boost')
     // Stand in for an agent a deploy stopped mid-import, Signal Boost's lookup still out, as the deploy
     // restarts it.
     await runInDurableObject(env.NetworkAgent.get(env.NetworkAgent.idFromName(network)), (n: NetworkAgent) => {
