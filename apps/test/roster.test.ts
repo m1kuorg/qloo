@@ -10,7 +10,7 @@ import { NetworkRoster } from '../src/client/Roster'
 import { ShowEditor } from '../src/client/RosterModules'
 import type { Evidence } from '../src/evidence'
 import { fakeQloo, network, requests } from './fake'
-import { launchPage, openSession, type Session } from './session'
+import { launchPage, openSession, sections, type Session } from './session'
 
 // Synthetic shows: one exact match, one name shared by two spin-off feeds, one Qloo doesn't have.
 const search = {
@@ -313,8 +313,11 @@ describe('the roster as its page shows it', () => {
     const html = editor(await s.importRoster(roster), 'Deep Cuts')
 
     expect(html).toMatch(/<h2\b[^>]*\sid="show-ed"[^>]*>Deep Cuts<\/h2>/)
+    expect(sections(html)).toEqual([
+      ['Deep Cuts', 'The show’s Qloo match, its figures, and whether a launch can propose it.']
+    ])
     expect(words(html)).toContain(
-      'Deep Cuts Ambiguous Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
+      'Deep Cuts The show’s Qloo match, its figures, and whether a launch can propose it. Ambiguous Which Qloo show is Deep Cuts? Deep Cuts: Marvel 97.0 Deep Cuts: Harry Potter 62.0 Cut Deep 12.0 Use this match Candidates from Qloo search C-02 Or map it to a comparable show Search Downloads per episode Status Save Leave out Excluded shows are never proposed.'
     )
     expect(html).toMatch(/<label\b[^>]*\sfor="comp-q"/)
     expect(html).toMatch(/<input\b[^>]*\sid="comp-q"/)
@@ -329,7 +332,7 @@ describe('the roster as its page shows it', () => {
     const searched = await s.searchComps('The Ghost Signal Show', 'Ghost Hour')
 
     expect(words(editor(searched, 'The Ghost Signal Show'))).toContain(
-      'The Ghost Signal Show Missed Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04 Downloads per episode'
+      'Missed Map it to a comparable show Search Results for “Ghost Hour” The Ghost Hour Show 88.0 Map to comp Qloo search C-04 Downloads per episode'
     )
     await s.call('updateShow', 'The Ghost Signal Show', { compId: 'e-0201' })
     const read = words(workspace(s.state()!))

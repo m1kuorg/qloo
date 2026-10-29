@@ -1585,9 +1585,13 @@ describe('the pages, as a member reads them', () => {
         'Each run takes the network’s CPM as it starts, to price each promo slot: downloads per episode × CPM ÷ 1,000.'
       ]
     ])
-    expect(sections(hooked(html, 'id="inspector"')[0]).filter(([heading]) => heading !== 'Roster check')).toEqual([
+    expect(sections(hooked(html, 'id="inspector"')[0])).toEqual([
       ['Run log Completed', 'Each step the run took, and how it ended.'],
       ['Runs', 'Each run starts fresh; earlier ones stay here to compare.'],
+      [
+        'Roster check Qloo data',
+        'Rankings score resolved and mapped shows, and list an ambiguous, missed, or failed one as not scored until it’s settled or left out.'
+      ],
       ['Evidence', 'The Qloo request behind a call, and what Qloo returned.']
     ])
   })
