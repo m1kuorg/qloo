@@ -119,4 +119,36 @@ describe("a run's closing line", () => {
     expect(log.indexOf('data-run-error')).toBeGreaterThan(log.lastIndexOf('data-status='))
     expect(log).not.toContain('data-closing')
   })
+
+  it('keeps the punctuation after a call number against it, on its line, each call its own button', async () => {
+    const said = 'Ranked Back Row first (C-23, C-24, C-25 to C-29).'
+    fakeClaude([turn(text(said))])
+    const s = await session()
+    const { runId } = await s.call<{ runId: string }>('startLaunch', { name: 'Static Hour' })
+    const state = await ended(s, runId)
+
+    const [closing] = hooked(
+      renderToStaticMarkup(
+        createElement(LaunchWorkspace, { agent: { state, stub: {} } as unknown as Agent, ...launchPage })
+      ),
+      'data-closing'
+    )
+    expect(closing.replace(/<[^>]+>/g, '')).toBe(`Agent${said}`)
+    // Each call's button, what follows it up to the next tag, whether one unbreakable run holds the two,
+    // and whether the button drops its right padding, so the punctuation sits against the number.
+    const calls = [
+      ...closing.matchAll(/(<span class="whitespace-nowrap">)?<button([^>]*)>(C-\d+)<\/button>([,.;:)]*)(<\/span>)?/g)
+    ].map(([, open, attrs, call, after, close]) => ({
+      call,
+      after,
+      kept: Boolean(open && close),
+      flush: /class="[^"]*\bpr-0\b/.test(attrs)
+    }))
+    expect(calls).toEqual([
+      { call: 'C-23', after: ',', kept: true, flush: true },
+      { call: 'C-24', after: ',', kept: true, flush: true },
+      { call: 'C-25', after: '', kept: false, flush: false },
+      { call: 'C-29', after: ').', kept: true, flush: true }
+    ])
+  })
 })

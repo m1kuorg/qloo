@@ -40,22 +40,24 @@ export type OpenCall = (call: string, from: HTMLElement) => void
 
 // A cited call number: opens that call's evidence in the inspector, or closes it when it's open, passing
 // itself as what opened it. `label` says what it's evidence for, and screen readers hear it before the
-// number. Codes aren't translated.
+// number. Codes aren't translated. `className` adds to its classes.
 export function CallButton({
   call,
   label,
   opened,
-  openCall
+  openCall,
+  className
 }: {
   call: string
   label: string
   opened: string | null
   openCall: OpenCall
+  className?: string
 }) {
   return (
     <button
       type="button"
-      className={callVariants()}
+      className={cn(callVariants(), className)}
       aria-pressed={call === opened}
       aria-controls="evidence"
       aria-label={`${label}: call ${call}`}
