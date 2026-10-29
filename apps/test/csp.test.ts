@@ -158,16 +158,18 @@ describe('every page', () => {
       expect(await preloads(res), path).toEqual(modules[path] ? [`/src/client/${modules[path]}.tsx`] : [])
   })
 
-  // The app's own scripts a page loads, each a module from its own origin: as above, the development
-  // build's are the source modules, which the Worker's build swaps for their chunks.
-  it("loads the island's script on an island page, and on a marketing page the menus', with the landing page's entrances and field and the docs' Copy buttons", async () => {
+  // The app's own scripts a page loads, each a module from its own origin: the island's on its pages,
+  // and on a marketing page the menus', with the landing page's entrances and field, and the docs' Copy
+  // buttons. As above, the development build's are the source modules, which the Worker's build swaps
+  // for their chunks.
+  it("loads only the app's own modules each page needs", async () => {
     // The error page is a marketing page, whatever page failed.
     const expected = (path: string) =>
       path === '/sign-in' || path === '/invite' || path.startsWith('/app/')
         ? ['main.tsx']
         : path === '/'
           ? ['menus.ts', 'reveal.ts', 'ascii.ts']
-          : path.startsWith('/docs')
+          : path === '/docs' || path.startsWith('/docs/')
             ? ['menus.ts', 'copy.ts']
             : ['menus.ts']
     for (const [path, res] of (await everyPage()).loaded) {

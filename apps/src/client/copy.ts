@@ -1,9 +1,10 @@
 // The developer docs' Copy buttons, which the marketing shell loads on docs pages alone. A code block
-// marked copyable (routes/marketing's Code: a command or a configuration, never expected output or a
-// transcript) keeps its button in an inert <template>, which this puts in place, so without this
+// marked copyable (routes/marketing's Code: commands or a configuration that run as they're pasted,
+// never what a command prints) keeps its button in an inert <template>, which this puts in place, so without this
 // script there's no button. A button copies its block's code, then reads "Copied", the last block
-// copied alone, or "Copy failed" when the browser refuses or has no clipboard, as the island's copy
-// buttons do (controls.tsx, useCopy), and its block's hidden status says the same to screen readers.
+// copied alone, or "Copy failed" when the browser refuses or has no clipboard, and its block's hidden
+// status says the same to screen readers. The words are the ticket's (#360); the states, not tried,
+// copied and refused, are the island's (controls.tsx, useCopy).
 const blocks = [...document.querySelectorAll<HTMLTemplateElement>('figure > template[data-copy]')].map((template) => {
   const figure = template.parentElement!
   template.replaceWith(template.content)
@@ -17,7 +18,8 @@ const blocks = [...document.querySelectorAll<HTMLTemplateElement>('figure > temp
 
 // Sets a block's button to "Copy", or to whether the browser let it copy.
 function show(block: (typeof blocks)[number], copied: boolean | null) {
-  block.button.dataset.copied = String(copied)
+  if (copied === null) delete block.button.dataset.copied
+  else block.button.dataset.copied = String(copied)
   block.label.textContent = copied === null ? 'Copy' : copied ? 'Copied' : 'Copy failed'
   block.status.textContent = copied === null ? '' : block.label.textContent
 }
@@ -30,6 +32,7 @@ for (const block of blocks)
       show(block, false)
       return
     }
-    for (const other of blocks) if (other !== block && other.button.dataset.copied === 'true') show(other, null)
+    // Any other block's word, "Copied" or "Copy failed", goes back to "Copy".
+    for (const other of blocks) if (other !== block && 'copied' in other.button.dataset) show(other, null)
     show(block, true)
   })
