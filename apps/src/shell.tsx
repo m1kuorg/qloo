@@ -229,7 +229,8 @@ const menuItem =
 // changes the name and the initials in place (data-signed-in, data-initials). For a guest (ADR 0008) it
 // also says they're signed in as the one guest member every guest shares, that guests' networks are
 // cleared daily and their limits shared, and its Sign out is "Sign out and create an account", which
-// opens the sign-in page all the same.
+// opens the sign-in page all the same. The panel is as wide as its words, so a name with no spaces
+// breaks anywhere in "Signed in as" rather than widening it past the window's edge.
 const AccountMenu = ({ member, path }: { member: Member; path: string }) => {
   const guest = isGuestMember(member)
   return (
@@ -251,7 +252,7 @@ const AccountMenu = ({ member, path }: { member: Member; path: string }) => {
       <div class={cn(menuPanel, 'right-0 origin-top-right', guest && 'w-72 max-w-[calc(100vw-2rem)]')}>
         <p class="px-2 pt-1.5 pb-1 type-caption text-muted-foreground">
           Signed in as{' '}
-          <b class="font-medium break-words text-foreground" data-signed-in>
+          <b class="font-medium wrap-anywhere text-foreground" data-signed-in>
             {member.name}
           </b>
         </p>
@@ -386,6 +387,9 @@ function Rail({ label, home, destinations }: { label: string; home: string; dest
 // The app's frame, under the tab's `title`: the rail beside a column of the top bar over the page,
 // the React island in #root. Under 768px the rail is a bottom bar, which the page leaves room for. The
 // page scrolls what Tab reaches clear of the 48px top bar, which sticks, and of the phone's bottom bar.
+// A word too long for its line, such as a name typed with no spaces, breaks (`break-words` on the body,
+// so the dialogs and menus portalled into it inherit it too); it changes no box's size, so a table that
+// scrolls sideways keeps its names whole.
 const AppFrame = ({
   title,
   rail,
@@ -404,7 +408,7 @@ const AppFrame = ({
     class={cn('scroll-pt-12', bottomBar && 'max-md:scroll-pb-[calc(3.5rem+env(safe-area-inset-bottom))]')}
   >
     <IslandHead title={title} />
-    <body>
+    <body class="break-words">
       <SkipLink />
       <div class="min-h-svh md:grid md:grid-cols-[3.5rem_minmax(0,1fr)]">
         {rail}
@@ -780,7 +784,8 @@ export const appShell = jsxRenderer(({ children }, c) => {
 // The sign-in and invite pages' shell: the marketing pages' wordmark, with no links, over the React
 // island in #root, and on the invite page, a signed-in visitor's account menu (the handler sets the
 // member). `title` names the page; a public page, sign-in, has a `description` for its card, whose
-// address leaves out the query, such as sign-in's `next`.
+// address leaves out the query, such as sign-in's `next`. A word too long for its line breaks, as in the
+// app's frame.
 export const authShell = (title: string, description?: string) =>
   jsxRenderer(({ children }, c) => {
     const { member } = c.var as AppVariables
@@ -790,7 +795,7 @@ export const authShell = (title: string, description?: string) =>
           title={`${title} · Crossfeed`}
           card={description ? { title, description, origin: appOrigins(c.env)[0], path: c.req.path } : undefined}
         />
-        <body>
+        <body class="break-words">
           <SkipLink />
           <header class={cn(marketingFrame, 'flex h-16 items-center justify-between gap-6 md:h-20')}>
             <Wordmark />

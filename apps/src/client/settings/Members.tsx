@@ -240,7 +240,8 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
           {invites.map((i) => (
             <li key={i.id} className="flex items-center justify-between gap-3 rounded-lg bg-card py-1 pr-1 pl-3">
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span>
+                {/* As wide as its words, so a member's name with no spaces breaks anywhere. */}
+                <span className="wrap-anywhere">
                   Made {day(i.created)}
                   {i.by && ` by ${i.by}`}
                 </span>

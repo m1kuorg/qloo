@@ -81,7 +81,11 @@ const chart = (state: State) =>
 // The chart's rows, by show, in the order they're listed.
 const rows = (state: State) =>
   [...hooked(chart(state), 'data-fit-chart')[0].matchAll(/\sdata-show="([^"]+)"/g)].map((m) => m[1])
-const row = (state: State, show: string) => words(hooked(chart(state), `data-show="${show}"`)[0])
+// A button's words run together across the inline markup in it, as its accessible name does: a
+// climber's chevron rides on its name's last character.
+const named = (html: string) =>
+  html.replace(/<button\b[^>]*>[\s\S]*?<\/button>/g, (b) => `<button>${b.replace(/<[^>]+>/g, '')}</button>`)
+const row = (state: State, show: string) => words(named(hooked(chart(state), `data-show="${show}"`)[0]))
 
 const ranked = (s: State) => s.ranking !== null && s.run?.status === 'completed'
 
@@ -138,7 +142,7 @@ describe('the fit chart', () => {
     // A climber's name opens why it moved; no other show's does.
     const climber = hooked(chart(state), 'data-show="Signal Boost"')[0]
     expect(climber).toMatch(/<button\b(?=[^>]*\saria-expanded="false")(?=[^>]*\saria-controls="why-2")/)
-    expect(words(climber.match(/<button\b[\s\S]*?<\/button>/)![0])).toBe('Signal Boost')
+    expect(words(named(climber.match(/<button\b[\s\S]*?<\/button>/)![0]))).toBe('Signal Boost')
     expect(hooked(chart(state), 'data-show="Paper Trail"')[0]).not.toContain('<button')
   })
 

@@ -298,6 +298,7 @@ export function FitChart({
                     <CallButton call={call} label={label} opened={opened} openCall={openCall} />
                   )
                   const tint = r.finalist ? 'bg-signal-tint' : 'bg-background'
+                  const end = Array.from(r.show).at(-1) ?? '' // the name's last character, a surrogate pair whole
                   return (
                     <Fragment key={r.show}>
                       <div
@@ -347,19 +348,21 @@ export function FitChart({
                         )}
                         <div role="cell" className="flex min-w-0 flex-col gap-1 [grid-area:show]">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {/* A name sizes to its words, so one too long for the row, such as a name with no
+                                spaces, breaks anywhere. */}
                             {move?.climber ? (
-                              // The chevron rides on the name's last word, so a name that wraps keeps it beside
-                              // its end rather than at the row's far edge.
+                              // The chevron rides on the name's last character, so a name that wraps, or breaks
+                              // inside a word, keeps it beside its end rather than at the row's far edge.
                               <button
                                 type="button"
-                                className="group/why inline-block cursor-pointer text-left text-[15px] leading-snug font-semibold underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11"
+                                className="group/why inline-block cursor-pointer text-left text-[15px] leading-snug font-semibold wrap-anywhere underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11"
                                 aria-expanded={open}
                                 aria-controls={`why-${r.rank}`}
                                 onClick={() => setWhy(open ? null : r.show)}
                               >
-                                {r.show.includes(' ') && `${r.show.slice(0, r.show.lastIndexOf(' '))} `}
+                                {r.show.slice(0, r.show.length - end.length)}
                                 <span className="whitespace-nowrap">
-                                  {r.show.slice(r.show.lastIndexOf(' ') + 1)}
+                                  {end}
                                   <ChevronDownIcon
                                     aria-hidden="true"
                                     className="ml-1 inline-block size-4 align-[-0.1875rem] text-muted-foreground transition-transform group-aria-expanded/why:rotate-180"
@@ -367,7 +370,7 @@ export function FitChart({
                                 </span>
                               </button>
                             ) : (
-                              <span className="text-[15px] leading-snug font-semibold">{r.show}</span>
+                              <span className="text-[15px] leading-snug font-semibold wrap-anywhere">{r.show}</span>
                             )}
                             {r.finalist && <Badge mark="signal">Finalist</Badge>}
                             {out && <Badge>Left out</Badge>}

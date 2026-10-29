@@ -1,8 +1,8 @@
 // Forked from shadcn's field, trimmed to the parts the app uses and set on the tokens: a label 8px over
 // its control, fields 16px apart in a group, help in caption under the control, and no choice-card
 // or separator styles. Help breaks a word too long for its line, such as a network's name with no
-// spaces. Errors stay the app's own Alert (role="alert") under the form. Don't re-add the original
-// with `shadcn add field --overwrite`.
+// spaces, and a legend, as wide as its words, breaks it anywhere. Errors stay the app's own Alert
+// (role="alert") under the form. Don't re-add the original with `shadcn add field --overwrite`.
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from 'cn'
 import { Label } from '@/components/ui/label'
@@ -12,7 +12,7 @@ function FieldSet({ className, ...props }: React.ComponentProps<'fieldset'>) {
 }
 
 function FieldLegend({ className, ...props }: React.ComponentProps<'legend'>) {
-  return <legend data-slot="field-legend" className={cn('mb-2 font-medium', className)} {...props} />
+  return <legend data-slot="field-legend" className={cn('mb-2 font-medium wrap-anywhere', className)} {...props} />
 }
 
 function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {

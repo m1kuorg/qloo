@@ -38,12 +38,13 @@ export const runLabel: Record<Run['status'], string> = {
 // cites opens that call's evidence. An opening parenthesis before a call number and , . ; : ) after it
 // sit against it and wrap with it. The button's padding on that side narrows to 1px, not 0, so its fill
 // still clears the number's edge, and the punctuation stays outside the fill. On a touch screen its hit
-// area reaches out on that side by the 3px the padding gave up, 7px instead of 4, so it's as wide.
+// area reaches out on that side by the 3px the padding gave up, 7px instead of 4, so it's as wide. The
+// line is as wide as its words, so a name it quotes with no spaces breaks anywhere.
 function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenCall; opened: string | null }) {
   return (
     <div className="flex flex-col items-start gap-1.5 rounded-lg bg-muted p-3" data-closing>
       <Source of="agent" />
-      <p className="whitespace-pre-line">
+      <p className="whitespace-pre-line wrap-anywhere">
         {/* Text, the parenthesis before a call (often none), the call, then the punctuation after it
             (often none), in turn. */}
         {text.split(/(\(?)\b(C-\d+)\b([,.;:)]*)/).map((part, i, parts) => {
@@ -410,7 +411,7 @@ export function OpenQuestion({
                           />
                           <span className="flex min-w-0 flex-1 flex-col">
                             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className="font-medium">{name}</span>
+                              <span className="font-medium wrap-anywhere">{name}</span>
                               {now.includes(name) && <Badge mark="signal">Finalist</Badge>}
                             </span>
                             {entering.length > 0 && (

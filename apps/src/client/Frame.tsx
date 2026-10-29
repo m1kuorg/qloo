@@ -318,7 +318,8 @@ export function Readout({
   const elapsed = useElapsed(since)
   return (
     <div className={readout}>
-      <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+      {/* Each part is as wide as its words, so a step or an error quoting a name with no spaces breaks anywhere. */}
+      <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 wrap-anywhere">
         {connection && <ConnectionState connection={connection} />}
         {children}
       </div>
