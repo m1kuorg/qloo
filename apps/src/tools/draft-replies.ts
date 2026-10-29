@@ -49,14 +49,22 @@ export const draftReplies: Tool<Input> = {
     }
   },
   // A reply to a pitch that already has one replaces it, so the log's figures add up to the Replies count.
-  note: ({ replies }, { booking }) => {
+  // A batch names the replies it brings in, counting from those already stored, so no two read alike (#291).
+  note: ({ replies }, { booking, inbox }) => {
     const drafted = new Set((booking?.replies ?? []).map((r) => r.pitch))
     const pitches = new Set(replies.map((r) => r.pitch))
     const redrafts = [...pitches].filter((p) => drafted.has(p)).length
     const fresh = pitches.size - redrafts
     const n = (count: number) => `${count} ${count === 1 ? 'reply' : 'replies'}`
-    if (redrafts === 0) return `Drafting ${n(fresh)}`
-    return fresh === 0 ? `Redrafting ${n(redrafts)}` : `Drafting ${n(fresh)} and redrafting ${redrafts}`
+    if (fresh === 0 && redrafts > 0) return `Redrafting ${n(redrafts)}`
+    const [from, to, of] = [drafted.size + 1, drafted.size + fresh, inbox?.pitches.length ?? 0]
+    // A call that drafts every reply at once says how many, as does one the tool refuses for having no
+    // inbox or naming more pitches than the inbox has left.
+    const batch =
+      fresh === 0 || to > of || (from === 1 && to === of)
+        ? n(fresh)
+        : `${from === to ? `reply ${to}` : `replies ${from} to ${to}`} of ${of}`
+    return redrafts === 0 ? `Drafting ${batch}` : `Drafting ${batch} and redrafting ${redrafts}`
   },
   async run({ replies }, { run, state, update }) {
     const { booking, inbox } = state()
