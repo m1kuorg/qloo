@@ -68,7 +68,10 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
         title={
           opened ? (
             <span>
-              Evidence · <code className="font-mono font-medium">{opened.call}</code>
+              Evidence ·{' '}
+              <code className="font-mono font-medium" translate="no">
+                {opened.call}
+              </code>
             </span>
           ) : (
             'Evidence'
