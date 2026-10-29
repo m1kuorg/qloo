@@ -24,6 +24,7 @@ import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { readSampleLaunches, type SampleLaunchesRow } from '../src/sample-launches'
 import { networkLinks } from '../src/shell'
+import { WIPES_PER_RUN } from '../src/wipe'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
 import { capturedRunOf, sampleLaunchesSql } from './capture'
 import { counting } from './counting'
@@ -551,7 +552,7 @@ describe("the guest network's sample launches, loaded after it started", () => {
 })
 
 describe('the daily cron, with the sample launches', () => {
-  it('clears the guest network within the Free plan’s 50 subrequests, however many launches it lists, and leaves their agents to the hourly retry', async () => {
+  it('clears the guest network in 50 subrequests at most, D1 queries and Durable Object calls together, however many launches it lists, and leaves their agents to the hourly retry', async () => {
     const guest = await openGuest()
     await captureSampleLaunches(guest)
     const network = await connect(guest, '/agents/network/guest-network')
@@ -587,7 +588,7 @@ describe('the daily cron, with the sample launches', () => {
     ).toBe(200)
     // And a queue of wipes noted earlier, a full hour's retry and more.
     await env.DB.batch(
-      Array.from({ length: 10 }, (_, i) =>
+      Array.from({ length: WIPES_PER_RUN + 3 }, (_, i) =>
         env.DB.prepare('INSERT INTO wipes (binding, name, created) VALUES (?, ?, ?)').bind(
           'LaunchAgent',
           `gone-network:launch-${i}`,
@@ -601,9 +602,10 @@ describe('the daily cron, with the sample launches', () => {
 
     const { counted, env: bindings } = counting()
     await runCron('0 12 * * *', bindings)
-    expect(counted.subrequests).toBeLessThanOrEqual(50)
+    // Stricter than either of the Free plan's limits (TRD crons).
+    expect(counted.d1 + counted.durableObjects).toBeLessThanOrEqual(50)
     expect(logged).toHaveBeenCalledWith(JSON.stringify({ event: 'guest_network_reset', launches: 11, failed: 0 }))
-    // Each launch it listed is noted for the hourly retry, which wipes the oldest seven a run.
+    // Each launch it listed is noted for the hourly retry, which wipes the oldest WIPES_PER_RUN a run.
     const noted = (
       await env.DB.prepare("SELECT name FROM wipes WHERE binding = 'LaunchAgent'").all<{ name: string }>()
     ).results.map((r) => r.name)

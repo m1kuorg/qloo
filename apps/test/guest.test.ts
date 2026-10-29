@@ -29,6 +29,7 @@ import { NetworkAgent, ownGateway } from '../src/network-agent'
 import sampleInbox from '../src/sample-inbox.json'
 import sampleFile from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
+import { WIPES_PER_RUN } from '../src/wipe'
 import { fakeClaude, fakeQloo, fakeQlooDown, fakeReader, modelRequests, requests, text, toolUse, turn } from './fake'
 import {
   api,
@@ -2165,11 +2166,10 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
       expect((await reset(other)).status).toBe(429)
 
       vi.setSystemTime(new Date('2026-10-29T22:01:00Z'))
-      // The last reset leaves eight launches' wipes waiting, more than the retry wipes in a run, but the
-      // day's limit holds longer, so it's what the refusals say.
+      // The last reset leaves one more launch's wipe waiting than the retry wipes in a run, but the day's
+      // limit holds longer, so it's what the refusals say.
       const page = await connect(one)
-      for (const name of ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'])
-        await page.call('createLaunch', { name })
+      for (let i = 1; i <= WIPES_PER_RUN + 1; i++) await page.call('createLaunch', { name: `Launch ${i}` })
       const both = await Promise.all([one, other].map(reset))
       expect(both.map((res) => res.status).sort()).toEqual([200, 429])
       for (const at of ['2026-10-29T22:01:00Z', '2026-10-29T23:59:00Z']) {
@@ -2185,7 +2185,7 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
       }
 
       // At 00:00 UTC the day's limit lifts, and the wipes still waiting are what holds the next, until the
-      // retry wipes seven of them.
+      // retry wipes a run's worth of them.
       vi.setSystemTime(new Date('2026-10-30T00:00:00Z'))
       expect((await (await reset(other)).json<{ error: string }>()).error).toMatch(/Try again after 01:00 UTC\.$/)
       await runHourlyCron()
@@ -2238,15 +2238,15 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
       for (const name of names) await page.call('createLaunch', { name })
       return page
     }
-    // Seven wait after the first reset, as many as a run wipes, so the next goes ahead.
-    await plan('One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven')
+    // As many wait after the first reset as a run wipes, so the next goes ahead.
+    await plan(...Array.from({ length: WIPES_PER_RUN }, (_, i) => `Launch ${i + 1}`))
     expect((await reset(guest)).status).toBe(200)
     vi.setSystemTime(new Date('2026-10-29T11:21:00Z'))
-    await plan('Eight')
+    await plan('One more')
     expect((await reset(guest)).status).toBe(200)
 
-    // Eight wait now, so the next waits for the retry, at 13:00 UTC, since 12:00's daily cron leaves it to
-    // then; inside the minute too, the retry is what it says, as it holds the next reset longer.
+    // More wait now than a run wipes, so the next waits for the retry, at 13:00 UTC, since 12:00's daily cron
+    // leaves it to then; inside the minute too, the retry is what it says, as it holds the next reset longer.
     vi.setSystemTime(new Date('2026-10-29T11:21:30Z'))
     const page = await plan('The Night Watch')
     const refused = await reset(guest)
@@ -2258,7 +2258,7 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
     })
     expect(page.state()!.launches).toMatchObject([{ name: 'The Night Watch' }])
 
-    // The retry wipes seven, leaving one.
+    // The retry wipes a run's worth, leaving one.
     await runHourlyCron()
     expect((await reset(guest)).status).toBe(200)
     expect(await page.closed()).toEqual(RESET)

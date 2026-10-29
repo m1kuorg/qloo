@@ -82,11 +82,13 @@ export const wipeOwnGateway = (env: Env, networkId: string) => WIPERS[GATEWAY](e
 // A wipe the cron retries only once it's this old, so it never races a deletion still under way.
 const RETRY_AFTER_MS = 60_000
 
-// The most wipes one run of the cron's retry makes, so an hourly run stays within the Workers Free plan's
-// 50 subrequests, D1 queries and Durable Object calls alike (TRD): each takes at most six, a launch's
-// whose network is still in the directory, and the run's own three directory batches take three more,
-// one noting the wipes it takes as tried. The rest stay noted for the next hour's run.
-const WIPES_PER_RUN = 7
+// The most wipes one run of the cron's retry makes, so an hourly run makes at most 49 D1 queries, within the
+// 50 D1's limits give a Workers Free invocation, though the probe on #336 ran 1,000 on this account: each
+// wipe makes at most two, and the run's own three directory batches three more, one noting the wipes it
+// takes as tried. Its Durable Object calls, at most four a wipe, a launch's whose network is still in the
+// directory, count with the D1 queries toward the 1,000 subrequests to Cloudflare services, not the 50
+// external ones, as the probe showed (TRD). The rest stay noted for the next hour's run.
+export const WIPES_PER_RUN = 23
 
 // Network `networkId`'s agent, to be wiped: started, if it isn't running, knowing it's about to be thrown
 // away, so the guest network's loads no sample (CLEARING).

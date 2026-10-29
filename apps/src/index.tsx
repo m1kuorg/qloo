@@ -68,8 +68,9 @@ export default {
   // and any other schedule's, the directory's clearing too, the Qloo health check, the guest network's
   // clearing, and the clearing of what guests made beyond it: the temporary guest members removed, and
   // what the guest member made cleared (ADR 0008), each in a batch of its own. That run leaves the wipes
-  // to the next hour's retry, so it stays within the Free plan's 50 subrequests (TRD crons, #275). Each
-  // logs what it did, and runs to its end whether or not the others fail, and then a failure fails the run.
+  // to the next hour's retry, so its subrequests stay within the Free plan's limits however many launches
+  // the guest network lists (TRD crons, #275). Each logs what it did, and runs to its end whether or not the
+  // others fail, and then a failure fails the run.
   async scheduled(controller, env) {
     const purged = purgeExpired(env.DB).then((counts) =>
       console.log(JSON.stringify({ event: 'directory_purged', ...counts }))

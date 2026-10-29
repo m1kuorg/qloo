@@ -10,6 +10,7 @@ import { QlooGateway } from '../src/gateway'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent } from '../src/network-agent'
+import { WIPES_PER_RUN } from '../src/wipe'
 import { counting } from './counting'
 import { openMember, type Member } from './session'
 
@@ -31,9 +32,9 @@ const note = (binding: string, names: string[], ago: number) =>
       )
     )
   )
-// Wipes that fail every time: of a binding nothing wipes.
+// Wipes that fail every time: of a binding nothing wipes, named so they sort as they're numbered.
 const NOTHING = 'CrossfeedAgent'
-const stuck = (n: number) => Array.from({ length: n }, (_, i) => `stuck-${i}`)
+const stuck = (n: number) => Array.from({ length: n }, (_, i) => `stuck-${String(i).padStart(2, '0')}`)
 
 // A write from one of member `who`'s pages, as `send` in the island makes it.
 const post = (who: Member, path: string, body: object) =>
@@ -64,33 +65,53 @@ const failedNames = (spy: { mock: { calls: unknown[][] } }) =>
   lines(spy, 'wipe_failed').map((line) => JSON.parse(String(line)).name)
 
 describe('the hourly retry', () => {
-  it('tries a wipe noted after seven that fail every time in the next run, and crosses it off', async () => {
-    await note(NOTHING, stuck(7), 2 * HOUR)
+  it('wipes WIPES_PER_RUN a run, the oldest first, and leaves the rest noted for the next', async () => {
+    const ada = await openMember()
+    const id = await created(ada)
+    // Launches its network, still in the directory, doesn't list, so each wipe asks the network first.
+    const launches = Array.from({ length: WIPES_PER_RUN + 1 }, (_, i) => `${id}:launch-${i}`)
+    await note('LaunchAgent', launches.slice(0, WIPES_PER_RUN), 2 * HOUR)
+    await note('LaunchAgent', launches.slice(WIPES_PER_RUN), HOUR)
+    const logged = vi.spyOn(console, 'log')
+
+    await runHourlyCron()
+    expect(lines(logged, 'wipes_retried')).toEqual([retried(WIPES_PER_RUN, 0)])
+    const { results } = await env.DB.prepare('SELECT name FROM wipes').all<{ name: string }>()
+    expect(results.map((r) => r.name)).toEqual(launches.slice(WIPES_PER_RUN))
+  })
+
+  it('tries a wipe noted after a run’s worth that fail every time in the next run, and crosses it off', async () => {
+    await note(NOTHING, stuck(WIPES_PER_RUN), 2 * HOUR)
     await note('LaunchAgent', ['gone-network:launch-1'], HOUR)
     const logged = vi.spyOn(console, 'log')
 
-    await expect(runHourlyCron()).rejects.toThrow(failedRun(7))
-    await expect(runHourlyCron()).rejects.toThrow(failedRun(6))
-    // Its wipe was crossed off, so the next run tries the seven alone.
-    await expect(runHourlyCron()).rejects.toThrow(failedRun(7))
-    expect(lines(logged, 'wipes_retried')).toEqual([retried(0, 7), retried(1, 6), retried(0, 7)])
+    await expect(runHourlyCron()).rejects.toThrow(failedRun(WIPES_PER_RUN))
+    await expect(runHourlyCron()).rejects.toThrow(failedRun(WIPES_PER_RUN - 1))
+    // Its wipe was crossed off, so the next run tries those that fail alone.
+    await expect(runHourlyCron()).rejects.toThrow(failedRun(WIPES_PER_RUN))
+    expect(lines(logged, 'wipes_retried')).toEqual([
+      retried(0, WIPES_PER_RUN),
+      retried(1, WIPES_PER_RUN - 1),
+      retried(0, WIPES_PER_RUN)
+    ])
   })
 
-  it('tries each of eight wipes that fail every time within two runs, each staying noted and failing the run', async () => {
-    await note(NOTHING, stuck(8), 2 * HOUR)
+  it('tries each of one more than a run’s worth of wipes that fail every time within two runs, each staying noted and failing the run', async () => {
+    const names = stuck(WIPES_PER_RUN + 1)
+    await note(NOTHING, names, 2 * HOUR)
     const failed = vi.spyOn(console, 'error')
 
-    await expect(runHourlyCron()).rejects.toThrow(failedRun(7))
-    expect(failedNames(failed)).toEqual(stuck(7))
+    await expect(runHourlyCron()).rejects.toThrow(failedRun(WIPES_PER_RUN))
+    expect(failedNames(failed)).toEqual(names.slice(0, WIPES_PER_RUN))
     failed.mockClear()
     // The one no run has tried first, then those that failed, those the last run reached last first.
-    await expect(runHourlyCron()).rejects.toThrow(failedRun(7))
-    expect(failedNames(failed)).toEqual(['stuck-7', 'stuck-6', 'stuck-5', 'stuck-4', 'stuck-3', 'stuck-2', 'stuck-1'])
+    await expect(runHourlyCron()).rejects.toThrow(failedRun(WIPES_PER_RUN))
+    expect(failedNames(failed)).toEqual([names[WIPES_PER_RUN], ...names.slice(1, WIPES_PER_RUN).reverse()])
     expect(lines(failed, 'wipe_failed')[0]).toBe(
       JSON.stringify({
         event: 'wipe_failed',
         binding: NOTHING,
-        name: 'stuck-7',
+        name: names[WIPES_PER_RUN],
         error: `Error: Nothing wipes a ${NOTHING} yet.`
       })
     )
@@ -142,14 +163,14 @@ describe('the hourly retry', () => {
     expect(first).toEqual([...first].sort((a, b) => a - b))
   })
 
-  it('stays within the Free plan’s 50 subrequests when each of its launch wipes fails as it’s crossed off', async () => {
+  it('stays within the Free plan’s 50 D1 queries and 1,000 subrequests to Cloudflare services when each of its launch wipes fails as it’s crossed off', async () => {
     const ada = await openMember()
     const id = await created(ada)
     // Launches its network, still in the directory, doesn't list, so each wipe asks the network first: the
     // most subrequests a wipe takes. One more than a run takes, so its batch is full.
     await note(
       'LaunchAgent',
-      Array.from({ length: 8 }, (_, i) => `${id}:launch-${i}`),
+      Array.from({ length: WIPES_PER_RUN + 1 }, (_, i) => `${id}:launch-${i}`),
       2 * HOUR
     )
     // A wipe's crossing off, its last step, fails. It's a D1 statement with no agent in it, so it fails at
@@ -162,10 +183,11 @@ describe('the hourly retry', () => {
     const failed = vi.spyOn(console, 'error')
 
     const { counted, env: bindings } = counting()
-    await expect(runHourlyCron(bindings)).rejects.toThrow(failedRun(7))
-    expect(counted.subrequests).toBeLessThanOrEqual(50)
+    await expect(runHourlyCron(bindings)).rejects.toThrow(failedRun(WIPES_PER_RUN))
+    expect(counted.d1).toBeLessThanOrEqual(50)
+    expect(counted.d1 + counted.durableObjects).toBeLessThanOrEqual(1000)
     expect(lines(failed, 'wipe_failed').map((line) => JSON.parse(String(line)).error)).toEqual(
-      Array(7).fill('Error: D1 is overloaded.')
+      Array(WIPES_PER_RUN).fill('Error: D1 is overloaded.')
     )
   })
 })
