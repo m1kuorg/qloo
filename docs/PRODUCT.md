@@ -77,7 +77,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - Keep a network's roster, inbox, and launches for its members: passkey sign-in with a recovery code, networks with owners and members, invite links, a dashboard of what needs a member, the latest runs, today's usage, and the API keys' use, with a setup checklist, a Launches page listing the launches, each launch planned on its own with every run kept, and teammates' changes shown live.
 - Take the network's own files: a roster CSV or a text file of names, and pitch emails as `.eml`, `.mbox`, or text, re-importing a roster without undoing what was settled.
 - Let owners set the network's name and CPM, manage members, invite links, and API keys, bring the network's own Qloo key, see today's usage against the daily caps, and delete the network; let every member manage their own account, and delete it so that Crossfeed forgets them in every network they were in, now or before.
-- Serve programs and assistants: a REST API with an OpenAPI document, a typed TypeScript SDK, an MCP server, two Agent Skills, a Claude Code plugin, and developer docs at `/docs` and `/llms.txt`.
+- Serve programs and assistants: a REST API with an OpenAPI document, a typed TypeScript SDK, an MCP server, two Agent Skills, a Claude Code plugin, and developer docs at `/docs` and `/llms.txt`, with a Developers page in the app where a member connects an assistant to their network and sees its first request arrive.
 
 ### Constraints
 

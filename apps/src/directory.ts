@@ -784,6 +784,9 @@ export type ApiKey = {
   lastUsed: number | null
 }
 
+// An API key as the Developers page's connection check reads it, with neither its prefix nor who made it.
+export type CheckedKey = Pick<ApiKey, 'id' | 'name' | 'created' | 'lastUsed'>
+
 // How much of a key's secret it's listed by: `cf_live_` and four characters of its random part.
 const PREFIX_LENGTH = 12
 

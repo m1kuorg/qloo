@@ -6,7 +6,7 @@ import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
 import { appOrigins } from './auth'
 import { buttonVariants, linkVariants, marketingFrame } from './components/ui/variants'
 import { isGuestMember, type Member, type Network } from './directory'
-import { Check, ChevronDown, ChevronsUpDown, Inbox, LayoutDashboard, Podcast, Rocket, Settings } from './icons'
+import { Check, ChevronDown, ChevronsUpDown, CodeXml, Inbox, LayoutDashboard, Podcast, Rocket, Settings } from './icons'
 import { Mark } from './mark'
 import { GUEST_NETWORK_CLEARS, initials } from './text'
 
@@ -107,6 +107,7 @@ const pageModules = {
   launch: 'Launch',
   'network-roster': 'Roster',
   'network-inbox': 'NetworkInbox',
+  developers: 'Developers',
   settings: 'Settings'
 }
 type Page = keyof typeof pageModules
@@ -336,7 +337,9 @@ type Destination = {
 
 // The app's rail: the mark, then the destinations, each an 18px icon on a 44px pitch,
 // the current one on a tone-step square. Under 768px the same nav is the bottom bar, each icon over its
-// name, and the mark moves to the top bar, so there's one nav and one current item at every width.
+// name, each item as wide as its name or its icon's square and an equal share of the width left, so six
+// names stay whole at 360px; and the mark moves to the top bar, so there's one nav and one current item
+// at every width.
 // Without destinations, as on the pages outside a network, it's the mark alone.
 function Rail({ label, home, destinations }: { label: string; home: string; destinations: Destination[] }) {
   if (destinations.length === 0)
@@ -353,7 +356,7 @@ function Rail({ label, home, destinations }: { label: string; home: string; dest
       <MarkLink href={home} class="max-md:hidden md:h-12 md:w-full" />
       <ul class="flex md:mt-1 md:w-full md:flex-1 md:flex-col md:items-center md:gap-1">
         {destinations.map(({ href, label, icon: Icon, current, utility }) => (
-          <li class={cn('flex-1 md:flex-none', utility && 'md:mt-auto')}>
+          <li class={cn('min-w-0 flex-auto md:flex-none', utility && 'md:mt-auto')}>
             <a
               href={href}
               aria-current={current}
@@ -370,10 +373,12 @@ function Rail({ label, home, destinations }: { label: string; home: string; dest
               >
                 <Icon class="size-[18px]" />
               </span>
-              {/* From 768px the name is the icon's tooltip. Until the link is hovered or focused it's clipped
-                  to nothing, as a visually hidden label is, so it never lies over the page beside the
-                  rail, and it stays the link's accessible name. */}
-              <span class="type-caption font-medium md:pointer-events-none md:absolute md:top-1/2 md:left-full md:z-50 md:ml-2 md:-translate-y-1/2 md:rounded-md md:bg-foreground md:px-2.5 md:py-1 md:whitespace-nowrap md:text-background md:opacity-0 md:transition-opacity md:[clip-path:inset(50%)] md:group-hover/rail:opacity-100 md:group-hover/rail:[clip-path:none] md:group-focus-visible/rail:opacity-100 md:group-focus-visible/rail:[clip-path:none]">
+              {/* Under 768px the name sits 4px in from each side of its share of the bar, and one too long
+                  for it, as on a screen narrower than 360px, is cut short with an ellipsis, its words still
+                  whole in the link's accessible name. From 768px the name is the icon's tooltip. Until the
+                  link is hovered or focused it's clipped to nothing, as a visually hidden label is, so it
+                  never lies over the page beside the rail, and it stays the link's accessible name. */}
+              <span class="type-caption font-medium max-md:max-w-full max-md:truncate max-md:px-1 md:pointer-events-none md:absolute md:top-1/2 md:left-full md:z-50 md:ml-2 md:-translate-y-1/2 md:rounded-md md:bg-foreground md:px-2.5 md:py-1 md:whitespace-nowrap md:text-background md:opacity-0 md:transition-opacity md:[clip-path:inset(50%)] md:group-hover/rail:opacity-100 md:group-hover/rail:[clip-path:none] md:group-focus-visible/rail:opacity-100 md:group-focus-visible/rail:[clip-path:none]">
                 {label}
               </span>
             </a>
@@ -696,6 +701,7 @@ export const networkLinks = (env: Env, id: string) => ({
   dashboard: `/app/${id}`,
   roster: `/app/${id}/roster`,
   inbox: env.GUEST_PITCHES === 'on' ? `/app/${id}/inbox` : null,
+  developers: `/app/${id}/developers`,
   settings: `/app/${id}/settings`,
   launches: `/app/${id}/launches` // the Launches page, with each launch's page under it, by the launch's ID
 })
@@ -704,7 +710,8 @@ export const networkLinks = (env: Env, id: string) => ({
 const outsideNetwork: Record<string, string> = { '/app/new': 'New network', '/app/account': 'Your account' }
 
 // The app shell, for a signed-in member's pages: the rail with the network's pages (Dashboard, its
-// home; Launches, which lists them; Roster; Inbox while GUEST_PITCHES is on; Settings), and a 48px top bar
+// home; Launches, which lists them; Roster; Inbox while GUEST_PITCHES is on; Developers, where an
+// assistant is connected; Settings), and a 48px top bar
 // with the network switcher, the page's name, and the account menu, then the React island in #root.
 // A page outside a network, such as /app/new or /app/account, has the mark alone in its rail. The
 // tab's title names the page and its network, or a page outside a network by itself; a launch's page
@@ -719,6 +726,7 @@ export const appShell = jsxRenderer(({ children }, c) => {
         { href: links.launches, label: 'Launches', icon: Rocket },
         { href: links.roster, label: 'Roster', icon: Podcast },
         ...(links.inbox ? [{ href: links.inbox, label: 'Inbox', icon: Inbox }] : []),
+        { href: links.developers, label: 'Developers', icon: CodeXml },
         { href: links.settings, label: 'Settings', icon: Settings, utility: true }
       ]
     : []

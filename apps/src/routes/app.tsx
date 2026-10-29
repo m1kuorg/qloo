@@ -6,6 +6,7 @@ import { getAgentByName } from 'agents'
 import { Hono, type Context } from 'hono'
 import {
   accountsOn,
+  appOrigins,
   endSession,
   fromAppOrigin,
   guestRefused,
@@ -46,6 +47,7 @@ import {
   setupProgress,
   signOutEverywhere,
   takeSampleReset,
+  type CheckedKey,
   type Member,
   type Network
 } from '../directory'
@@ -76,6 +78,7 @@ import {
   wipeOwnGateway,
   WipesFailed
 } from '../wipe'
+import { listedTools, toolKind } from './mcp'
 
 type AppEnv = { Bindings: Env; Variables: AppVariables & { member: Member } }
 
@@ -101,18 +104,31 @@ appPages.use(
 )
 appPages.use('/app/*', appShell)
 
-// /app opens the network the member opened last, or asks them to create their first. A guest opens the
-// guest network, since the network the guest member opened last is any guest's, and always has it to open:
-// the guest member is an owner of it again if anyone demoted or removed it, or deleted it (ADR 0008). It
-// asks by the ID, not the guest mark, so a temporary guest member ADR 0006 made, left until the 12:00
-// clearing, still opens the network it opened last, as its own.
-appPages.get('/app', async (c) => {
+// The network /app opens: the one the member opened last, or null when they have none to open, and
+// /app asks them to create their first. A guest opens the guest network, since the network the guest
+// member opened last is any guest's, and always has it to open: the guest member is an owner of it again
+// if anyone demoted or removed it, or deleted it (ADR 0008). It asks by the ID, not the guest mark, so a
+// temporary guest member ADR 0006 made, left until the 12:00 clearing, still opens the network it opened
+// last, as its own.
+async function openedNetwork(c: Context<AppEnv>) {
   if (c.var.member.id === GUEST_MEMBER) {
     await restoreGuestOwner(c.env.DB)
-    return c.redirect(`/app/${GUEST_NETWORK}`, 302)
+    return GUEST_NETWORK
   }
-  const last = await lastNetwork(c.env.DB, c.var.member.id)
-  return c.redirect(last ? `/app/${last}` : '/app/new', 302)
+  return lastNetwork(c.env.DB, c.var.member.id)
+}
+
+appPages.get('/app', async (c) => {
+  const id = await openedNetwork(c)
+  return c.redirect(id ? `/app/${id}` : '/app/new', 302)
+})
+
+// The Developers page of the network /app opens, for the docs to link to with no network's ID; with no
+// network, /app/new, as /app leads there. It comes before the network pages, whose IDs it would
+// otherwise look like.
+appPages.get('/app/developers', async (c) => {
+  const id = await openedNetwork(c)
+  return c.redirect(id ? networkLinks(c.env, id).developers : '/app/new', 302)
 })
 
 // Naming a new network. The landing page's "Create your network" leads here.
@@ -263,14 +279,14 @@ appPages.get('/app/:networkId', async (c) => {
   if (!network) return c.notFound()
   const [{ invited }, today, keys] = await Promise.all([
     setupProgress(c.env.DB, network.id),
-    blockRead(network.id, 'usage', async () => {
+    blockRead('dashboard', network.id, 'usage', async () => {
       const [usage, ownKey] = await Promise.all([
         getUsage({ env: c.env, network: network.id, caller: { member: c.var.member, role: network.role } }),
         getAgentByName(c.env.NetworkAgent, network.id).then((a) => a.hasOwnKey())
       ])
       return { usage, ownKey, at: Date.now() }
     }),
-    blockRead(network.id, 'keys', () => keyUse(c.env.DB, network.id, network.role === 'owner'))
+    blockRead('dashboard', network.id, 'keys', () => keyUse(c.env.DB, network.id, network.role === 'owner'))
   ])
   const pending = network.id === GUEST_NETWORK && c.req.query('reset') === 'pending'
   return c.render(
@@ -288,11 +304,12 @@ appPages.get('/app/:networkId', async (c) => {
   )
 })
 
-// What one of network `network`'s dashboard blocks reads as the page loads, or null when the read
-// fails, logged, so the block says it failed and the rest of the page still opens. It never rejects.
-const blockRead = <T,>(network: string, block: string, read: () => Promise<T>) =>
+// What one of the blocks of network `network`'s `page`, its dashboard or its Developers page, reads as
+// the page loads, or null when the read fails, logged as `<page>_read`, so the block says it failed and
+// the rest of the page still opens. It never rejects.
+const blockRead = <T,>(page: 'dashboard' | 'developers', network: string, block: string, read: () => Promise<T>) =>
   read().catch((e: unknown) => {
-    console.error(JSON.stringify({ event: 'dashboard_read', network, block, error: String(e) }))
+    console.error(JSON.stringify({ event: `${page}_read`, network, block, error: String(e) }))
     return null
   })
 
@@ -355,6 +372,49 @@ appPages.post('/app/:networkId/launches/:launchId/delete', async (c) => {
   await deleteLaunch(c.env, networkId, launchId)
   return c.json({})
 })
+
+// The network's Developers page, where a member connects an assistant: the addresses its clients ask
+// for, on the app's own origin (APP_ORIGINS' first), never the request's; for an owner, the network's
+// keys in use as the connection check reads them (`checkedKeys`), and for anyone else, who its owners
+// are; and the tools the MCP server lists, by what each does, or, when listing them failed, logged,
+// nothing, which its section says while the rest of the page opens. No key's secret or prefix reaches it.
+appPages.get('/app/:networkId/developers', async (c) => {
+  const network = await networkPage(c, c.req.param('networkId'))
+  if (!network) return c.notFound()
+  const origin = appOrigins(c.env)[0]
+  const owner = network.role === 'owner'
+  const [keys, members, tools] = await Promise.all([
+    owner ? checkedKeys(c.env.DB, network.id) : null,
+    owner ? null : networkMembers(c.env.DB, network.id),
+    blockRead('developers', network.id, 'tools', listedTools)
+  ])
+  return c.render(
+    <Island
+      page="developers"
+      data-mcp-url={`${origin}/mcp`}
+      data-api-url={`${origin}/api/v1`}
+      data-keys={keys ? JSON.stringify(keys) : undefined}
+      data-owners={members ? JSON.stringify(members.filter((m) => m.role === 'owner').map((m) => m.name)) : undefined}
+      data-tools={tools ? JSON.stringify(tools.map((t) => ({ name: t.name, kind: toolKind(t) }))) : undefined}
+      {...island(c, network)}
+    />
+  )
+})
+
+// The network's API keys in use, for its owners alone, as the Developers page's connection check reads
+// them while it waits for a new key's first request: each one's name and when it was made and last used,
+// to the minute (`apiKeyFor`). No secret, which can't be read back, and no prefix, which the check
+// doesn't need.
+appPages.get('/app/:networkId/developers/keys', async (c) => {
+  const id = c.req.param('networkId')
+  const refused = await refuseNonOwner(c, id, 'Only an owner can see the network’s API keys.')
+  if (refused) return refused
+  return c.json({ keys: await checkedKeys(c.env.DB, id) })
+})
+
+// Network `id`'s API keys in use as the Developers page lists them.
+const checkedKeys = async (db: D1Database, id: string): Promise<CheckedKey[]> =>
+  (await apiKeys(db, id)).map(({ id, name, created, lastUsed }) => ({ id, name, created, lastUsed }))
 
 // The network's settings, one module per job. Its members see every module; only its owners change
 // what the network module holds.
@@ -709,7 +769,8 @@ const island = (c: Context<AppEnv>, network: Network) => {
     'data-roster-link': links.roster,
     'data-inbox-link': links.inbox ?? undefined,
     'data-settings-link': links.settings,
-    'data-launches-link': links.launches
+    'data-launches-link': links.launches,
+    'data-developers-link': links.developers
   }
 }
 

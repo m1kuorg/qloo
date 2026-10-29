@@ -18,10 +18,11 @@ import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { REFUSALS, type RefusalCode } from '../refusal'
 import { marketingShell } from '../shell'
+import { CONNECTED } from '../text'
 import { MAX_UPLOAD_BYTES, megabytes } from '../upload'
 import { apiDocument } from './api'
 import { cap, Code, PRIVACY, TableScroll, TERMS } from './marketing'
-import { RELAY, listedTools } from './mcp'
+import { RELAY, listedTools, toolKind } from './mcp'
 
 export const docs = new Hono<{ Bindings: Env }>()
 
@@ -125,11 +126,6 @@ const OpenApi = ({ accounts }: { accounts: boolean }) =>
       <UrlPath path="/api/v1/openapi.json" />
     </code>
   )
-
-// What `claude mcp list` prints for a server it reached, its own check mark included.
-// taste-skill-ignore keeps a line out of the design-taste skill's linter (lint.mjs), which reads ✔ as
-// an emoji: here it's the CLI's output, quoted in a code sample, not an icon.
-const CONNECTED = '✔ Connected' // taste-skill-ignore
 
 // The commands that connect Claude Code to the MCP server of the deployment at `origin` and check it,
 // then, in a block of its own, the line the check prints once it's connected.
@@ -1036,10 +1032,6 @@ try {
 
 type Tool = Awaited<ReturnType<typeof listedTools>>[number]
 
-// What a tool's annotations say it does to the network.
-const effect = (tool: Tool) =>
-  tool.annotations?.readOnlyHint ? 'Reads' : tool.annotations?.destructiveHint ? 'Changes' : 'Adds'
-
 const mcpPage = (tools: Tool[], origin: string): Page => ({
   path: '/docs/mcp',
   lede: (
@@ -1095,7 +1087,7 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
                     <tr role="row" data-tool={tool.name}>
                       <th role="rowheader" scope="row">
                         <code class="bg-transparent p-0">{tool.name}</code>
-                        <span class={badgeVariants({ className: 'mt-1.5 flex' })}>{effect(tool)}</span>
+                        <span class={badgeVariants({ className: 'mt-1.5 flex' })}>{toolKind(tool)}</span>
                       </th>
                       <td role="cell">
                         <span class="block">

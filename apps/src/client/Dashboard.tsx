@@ -333,8 +333,9 @@ function TodaysUsage({
 
 // How the network's API keys are used: how many are active, not revoked, and when any key, revoked or
 // not, was last used, naming the key to an owner alone, as settings lists the keys to owners alone
-// (a run still says who started it, an API key by its name); or that none has been. It leads to the API
-// keys in settings, where an owner makes one, at the card's foot. A read that failed says so.
+// (a run still says who started it, an API key by its name); or that none has been. It leads to Connect
+// your AI on the Developers page, where an owner makes a key and every member reads how an assistant
+// connects with one, at the card's foot. A read that failed says so.
 function KeysUsed({ network, keys }: { network: NetworkPage; keys: KeyUse | null }) {
   const last = keys?.last
   return (
@@ -366,8 +367,8 @@ function KeysUsed({ network, keys }: { network: NetworkPage; keys: KeyUse | null
           )}
         </>
       )}
-      <a className={linkVariants({ className: 'mt-auto self-start' })} href={`${network.links.settings}#api-keys`}>
-        Open API keys
+      <a className={linkVariants({ className: 'mt-auto self-start' })} href={`${network.links.developers}#connect`}>
+        Connect your AI
       </a>
     </Section>
   )
@@ -507,7 +508,8 @@ function Checklist({
   const owner = network.role === 'owner'
   const { roster, settings } = network.links
   // A step links where it's done only for a member who can do it there, in settings the tab it's done
-  // in; planning a launch opens New launch's dialog. Done, it says so, in its own words where it has
+  // in; planning a launch opens New launch's dialog. Connect your AI links every member to the Developers
+  // page, whose steps a member follows with a key an owner made. Done, it says so, in its own words where it has
   // them (`said`); `done` is null while it couldn't be told, with `unknown` saying so.
   const items: {
     title: string
@@ -548,9 +550,9 @@ function Checklist({
     {
       title: 'Connect your AI',
       how: owner
-        ? 'Make a key in settings for an assistant or a script to act for the network, short of approving anything. It’s done once a key is used.'
-        : 'An owner makes API keys in settings, for scripts and assistants.',
-      go: owner ? `${settings}#api-keys` : null,
+        ? 'Make a key on the Developers page for an assistant or a script to act for the network, short of approving anything. It’s done once a key is used.'
+        : 'An owner makes the key an assistant or a script acts with. The Developers page shows how one connects.',
+      go: `${network.links.developers}#connect`,
       done: keys ? keys.last !== null : null,
       said: 'A key has been used.',
       unknown: 'Couldn’t check whether a key has been used.'

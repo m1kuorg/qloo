@@ -16,7 +16,8 @@ import { cell, head, Module } from './Module'
 // The settings' API keys module: the keys a script or an assistant acts for the network with, through
 // the API, short of approving anything (ADR 0002). An owner creates one, sees its secret this once,
 // and revokes it, which stops it at once; the list shows each by its prefix and dates. `keys` is null
-// for a member, who sees only who makes them.
+// for a member, who sees only who makes them. Its last line leads owners and members alike to Connect
+// your AI, on the Developers page, for how an assistant connects with a key.
 export function ApiKeysModule({ network, keys }: { network: NetworkPage; keys: ApiKey[] | null }) {
   const heading = useRef<HTMLHeadingElement>(null)
   return (
@@ -31,6 +32,13 @@ export function ApiKeysModule({ network, keys }: { network: NetworkPage; keys: A
       ) : (
         <p className="text-muted-foreground">Only an owner can create and revoke API keys.</p>
       )}
+      <p className="text-muted-foreground">
+        To connect an assistant such as Claude Code with a key, follow{' '}
+        <a className={linkVariants()} href={`${network.links.developers}#connect`}>
+          Connect your AI
+        </a>{' '}
+        on the Developers page.
+      </p>
     </Module>
   )
 }
