@@ -449,9 +449,9 @@ export class NetworkAgent extends CrossfeedAgent {
 
   // The roster and CPM a run of launch `id` starts from, with whether the CPM is labelled the sample's,
   // the evidence records the roster cites, whether the network has a Qloo key of its own, and the sample
-  // for the guest network's sample launch, for the launch's agent to copy (launch-agent.ts). Over RPC only. Comp searches stay here, since a
-  // launch never edits a show. Refused for a launch the list no longer has, and while a show is still
-  // being looked up, so no run ranks a roster half looked up.
+  // for the guest network's sample launch, for the launch's agent to copy (launch-agent.ts). Over RPC
+  // only. Comp searches stay here, since a launch never edits a show. Refused for a launch the list no
+  // longer has, and while a show is still being looked up, so no run ranks a roster half looked up.
   rosterForLaunch(id: string): RosterCopy {
     // A launch off the list runs no more, as when the daily clearing has taken it off and left its agent,
     // and a page of it still open, for the hourly retry to wipe (wipe.ts).

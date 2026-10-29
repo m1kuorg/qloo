@@ -203,7 +203,8 @@ export type State = {
   rosterChanged?: boolean
   // A launch's agent only: whether the CPM the latest run copied was labelled the sample's, as its
   // network's was as the run started (RosterCopy), or as the run it was seeded with was priced at the
-  // sample CPM (seedRun); absent until a run has, and on runs from before it, which read as not (#333).
+  // sample CPM (seedRun). Absent until a run has, and on runs from before #333: their page reads the label
+  // from the sample they carry, as The Watch's do, or reads none.
   sampleCpm?: boolean
 }
 
@@ -629,12 +630,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   private copyRoster({
     roster,
     cpm,
-    sampleCpm,
+    sampleCpm: labelled,
     evidence,
     sample
   }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'sampleCpm' | 'sample' | 'rosterChanged'> {
     const copied = this.copyEvidence(roster, evidence, (copy, from) => ({ ...copy, copiedFrom: from.call }))
-    return { roster: copied, cpm, sampleCpm, sample, rosterChanged: this.rosterChangedSince(copied) }
+    return { roster: copied, cpm, sampleCpm: labelled, sample, rosterChanged: this.rosterChangedSince(copied) }
   }
 
   // Starts a guest pitch run and returns at once. The past guests' works are looked up in Qloo like

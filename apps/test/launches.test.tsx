@@ -25,12 +25,14 @@ import {
   fakeInsights,
   fakeQloo,
   fakeQlooDown,
+  fakeTopic,
   modelRequests,
   network as outbound,
   refusal,
   requests,
   text,
   toolUse,
+  topicNames,
   turn,
   type ModelRequest
 } from './fake'
@@ -1251,6 +1253,47 @@ describe('a launch on the sample roster', () => {
     expect(sampled).toMatchObject({ cpm: 25, sampleCpm: false, sample: { cpm: false } })
     expect(footnote(sampled, watch)).toBe('Slot value = downloads × $25 CPM ÷ 1,000 · sample figures')
     expect(sampleLabels(guestPage(sampled, watch))).toEqual(['h1: The Watch'])
+  })
+
+  it('says “sample figures” for a ranked show with sample downloads that the chart folds behind “Show all” (#333)', async () => {
+    const { guest, network } = await guestSampleLaunch()
+    // Shows of the guest's own, by their made-up IDs, with no figures.
+    const own: Record<string, string> = {
+      'Corner Booth': 'e-0501',
+      'Slow Burn': 'e-0502',
+      'Paper Route': 'e-0503',
+      'Back Lot': 'e-0505',
+      'The Long Take': 'e-0002'
+    }
+    fakeQloo({ search: { ...search, 'The Watch': show('e-0601', 'The Watch') } })
+    // And The Watch, which keeps its sample downloads.
+    const imported = await network.importRoster([...Object.keys(own), 'The Watch'].join('\n'))
+    expect(imported.roster.filter((r) => r.sample?.includes('downloads')).map((r) => r.name)).toEqual(['The Watch'])
+    // An owner's CPM, so only the figures are left to label.
+    expect((await setGuestCpm(guest, 25)).status).toBe(200)
+    await network.until((s) => s.cpm === 25)
+    const { id } = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
+    const agent = await connect(guest, `/agents/launch/guest-network/${id}`)
+    const ranked = [...Object.values(own), 'e-0601']
+    // The Watch last by fit and by topic: not a finalist, a topic pick or a climber.
+    fakeInsights(
+      [...Object.keys(own), 'The Watch'].map((name, i) => ({ entity_id: ranked[i], name, affinity: 0.9 - i / 100 }))
+    )
+    fakeTopic((request) => [...topicNames(request).filter((n) => n !== 'The Watch'), 'The Watch'])
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(toolUse('rank_candidates', { anchor_ids: ['e-0001'], candidate_ids: ranked, type: 'urn:entity:podcast' })),
+      turn(text('Ranked.'))
+    ])
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const ran = await agent.until((s) => ended(s) && s.topic?.status !== 'ranking')
+    expect(ran).toMatchObject({ cpm: 25, sampleCpm: false })
+    const html = guestPage(ran, id)
+    const [chart] = hooked(html, 'data-fit-chart')
+    expect(ran.ranking?.rows.at(-1)).toMatchObject({ show: 'The Watch', finalist: false })
+    expect(hooked(chart, 'data-show="The Watch"')).toEqual([])
+    expect(words(html)).toContain(`Show all ${ran.ranking!.rows.length}`)
+    expect(footnote(ran, id)).toBe('Slot value = downloads × $25 CPM ÷ 1,000 · sample figures')
   })
 
   it("carries the sample on the guest network's sample launch, which replays its stored run while Qloo is capped or down", async () => {
