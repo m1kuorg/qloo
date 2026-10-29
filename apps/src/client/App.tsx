@@ -131,7 +131,7 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
         )}
       </TabsContent>
       <TabsContent value="evidence" keepMounted>
-        <EvidencePanel opened={opened} />
+        <EvidencePanel opened={opened} names={evidence.names} runs={runs} />
       </TabsContent>
     </>
   )

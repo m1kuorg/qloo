@@ -489,6 +489,7 @@ const inboxPage = (state: State, viewing?: { runs: State['runs']; id: string }) 
       discardReply: noop,
       openCall: () => {},
       opened: null,
+      names: new Map(),
       links
     })
   )
@@ -909,8 +910,7 @@ describe("the inbox's tabs", () => {
         'The show and past guests’ works the run ranked the pitches against, each as Qloo matched it.'
       ],
       ['Runs', 'Each run starts fresh; earlier ones stay here to compare.'],
-      ['Inbox check', 'Matched works are the ones that can be ranked against the show.'],
-      ['Evidence', 'The Qloo request behind a call, and what Qloo returned.']
+      ['Inbox check', 'Matched works are the ones that can be ranked against the show.']
     ])
   })
 })

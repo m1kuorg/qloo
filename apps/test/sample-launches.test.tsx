@@ -17,7 +17,7 @@ import type { LaunchSummary, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
 import { utcDay } from '../src/client/controls'
-import { EvidencePanel } from '../src/client/Evidence'
+import { EvidencePanel, namesOf } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
 import worker from '../src/index'
@@ -350,7 +350,7 @@ describe("the guest network's sample launches", () => {
       )
       expect(page, name!).not.toContain('Replayed')
       const evidence = renderToStaticMarkup(
-        <EvidencePanel opened={{ call: cited[0], status: 'loaded', record: log[0] }} />
+        <EvidencePanel opened={{ call: cited[0], status: 'loaded', record: log[0] }} names={namesOf(log)} runs={runs} />
       )
       expect(sampleLabels(evidence), name!).toEqual([])
       expect(words(evidence), name!).toContain('From the sample data, as Qloo answered it')

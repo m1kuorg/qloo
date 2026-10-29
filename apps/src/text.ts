@@ -1,8 +1,14 @@
 // Text helpers with no home of their own, shared by the Worker and the page.
 
 // Items as a sentence lists them: "A and B", or "A, B, and C".
-export const listOf = (items: string[]) =>
-  items.length < 3 ? items.join(' and ') : `${items.slice(0, -1).join(', ')}, and ${items.at(-1)}`
+export const listOf = (items: string[]) => listParts(items).join('')
+
+// The same as parts, each item after the words that join it to the one before, so a page can set an
+// item in its own type, such as an ID beside names.
+export const listParts = <T>(items: T[]): (T | string)[] =>
+  items.flatMap((item, i) =>
+    i === 0 ? [item] : [i < items.length - 1 ? ', ' : items.length < 3 ? ' and ' : ', and ', item]
+  )
 
 // A show's move from its topic rank to its fit rank, as the charts set it (positive is a climb):
 // the glyph, and the words a screen reader hears instead.

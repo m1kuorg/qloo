@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { Dashboard } from '../src/client/Dashboard'
-import { EvidencePanel } from '../src/client/Evidence'
+import { EvidencePanel, namesOf } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
 import type { Evidence } from '../src/evidence'
 import worker from '../src/index'
@@ -485,18 +485,26 @@ describe("a launch's run", () => {
     ])
     // Nothing is replayed, and the network's log is as it was.
     expect(log.some((e) => e.replayed)).toBe(false)
-    // The evidence says where a copy came from.
+    // The evidence says where a copy came from: the network's call, as text, since it numbers a call in
+    // the network's log, not this one, which has a C-08 of its own.
     const opened = renderToStaticMarkup(
-      <EvidencePanel opened={{ call: 'C-06', status: 'loaded', record: copies[5] }} />
+      <EvidencePanel
+        opened={{ call: 'C-06', status: 'loaded', record: copies[5] }}
+        names={namesOf(log)}
+        runs={state.runs}
+      />
     )
+    expect(sections(opened)[0][0]).toBe('Evidence · C-06 Qloo data From the roster')
     expect(
       opened
         .replace(/<[^>]+>/g, ' ')
         .replace(/&#x27;/g, "'")
         .replace(/\s+/g, ' ')
     ).toContain(
-      'Evidence · C-06 The Qloo request behind a call, and what Qloo returned. Qloo data From the roster Copied From the network’s roster, its call C-08 , as Qloo answered it then; the run made no new request'
+      'Answer From the network’s roster, its call C-08 , as Qloo answered it then; the run made no new request'
     )
+    expect(opened).toMatch(/<code\b[^>]*>C-08<\/code>/)
+    expect(opened).not.toMatch(/<button\b[^>]*>C-08</)
     expect(state.run?.replayed).toBeUndefined()
     expect(await roster.call<Evidence[]>('getEvidence')).toEqual(networkLog)
   })
@@ -1603,8 +1611,7 @@ describe('the pages, as a member reads them', () => {
       [
         'Roster check Qloo data',
         'Rankings score resolved and mapped shows, and list an ambiguous, missed, or failed one as not scored until it’s settled or left out.'
-      ],
-      ['Evidence', 'The Qloo request behind a call, and what Qloo returned.']
+      ]
     ])
     // A member's own network's launch isn't the sample data's, so nothing on it is labelled so.
     expect(sampleLabels(html)).toEqual([])

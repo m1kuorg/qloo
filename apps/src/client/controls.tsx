@@ -106,7 +106,7 @@ export function SignOut({
 }
 
 export { bandMeter } from '../fit'
-export { listOf } from '../text'
+export { listOf, listParts } from '../text'
 
 // A show's fit band as a three-step meter, filled from the left, then its word: in signal for a
 // finalist, what the agent puts forward, in ink otherwise. The word says it, so the meter is hidden
@@ -341,6 +341,20 @@ export const ScrollTable = ({
   </div>
 )
 
+// Copies `value` to the clipboard: `copied` says whether the browser let it, and is null until it's tried.
+export function useCopy(value: string) {
+  const [copied, setCopied] = useState<boolean | null>(null)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+  return { copied, copy }
+}
+
 // Something shown once, such as a new invite link or API key, in a read-only field that selects
 // itself, with a button that copies it, and `children` saying what to do with it. Key it by what it
 // shows, so a new one starts uncopied.
@@ -359,15 +373,7 @@ export function ShownOnce({
   mono?: boolean
   children: ReactNode
 }) {
-  const [copied, setCopied] = useState<boolean | null>(null)
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-    } catch {
-      setCopied(false)
-    }
-  }
+  const { copied, copy } = useCopy(value)
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="font-medium">
