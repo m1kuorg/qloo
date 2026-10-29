@@ -1477,9 +1477,10 @@ describe('the pages, as a member reads them', () => {
     await agent.until(ended)
     const after = workspace(network, agent)
     // The title row runs this launch again as it is, or opens the form, still planning it, to change it.
-    // The readout's Run log opens the inspector on the run's log.
+    // A completed run leaves nothing for the readout to say, so the tabs follow the title row, and
+    // Details opens the run's log.
     expect(words(after)).toMatch(
-      /^The Night Watch Qloo data The Night Watch popularity \S+ C-\d+ Details Change launch Run again Completed Run log /
+      /^The Night Watch Qloo data The Night Watch popularity \S+ C-\d+ Details Change launch Run again Ranking Roster /
     )
     const read = words(after)
     expect(read).toContain(

@@ -327,6 +327,16 @@ function LaunchHead({
     launch?.name ?? (launchComps.length ? `From comps: ${launchComps.map((c) => c.name).join(' · ')}` : null)
   // Back to the latest run, its button goes, and focus goes to the page's heading.
   const heading = useRef<HTMLHeadingElement>(null)
+  // A run that completed with nothing more to say, not replayed and with no call still slow, leaves the
+  // readout nothing to add while the connection holds: the title row and the tabs say the rest, and
+  // Details opens the run's log. It's back as a run starts, fails or stops, or the connection drops.
+  const lastRun = run ?? latest
+  const atRest =
+    lastRun?.status === 'completed' &&
+    !run?.replayed &&
+    !slowCalls.some((c) => c.run === lastRun.id) &&
+    !connection.lost &&
+    !connection.reconnecting
   return (
     <>
       {/* The name and its lines take what the actions leave, and wrap before the actions do. */}
@@ -420,26 +430,28 @@ function LaunchHead({
         </div>
       </div>
       {!formShown && <Alert error={action.error} />}
-      <Readout
-        connection={connection}
-        since={running && !viewing && latest && latest.id === run?.id ? latest.startedAt : null}
-        runLog={runLog}
-      >
-        {run ? (
-          <RunState run={run} slowCalls={slowCalls} />
-        ) : latest ? (
-          // A guest pitch run came after the latest launch run, which the inbox shows instead.
-          <span className="inline-flex items-center gap-2">
-            <OnAir live={false} />
-            <b className="font-semibold">{runLabel[latest.status]}</b>
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-2">
-            <OnAir live={false} idle />
-            Not run yet. A run looks it up in Qloo.
-          </span>
-        )}
-      </Readout>
+      {!atRest && (
+        <Readout
+          connection={connection}
+          since={running && !viewing && latest && latest.id === run?.id ? latest.startedAt : null}
+          runLog={runLog}
+        >
+          {run ? (
+            <RunState run={run} slowCalls={slowCalls} />
+          ) : latest ? (
+            // A guest pitch run came after the latest launch run, which the inbox shows instead.
+            <span className="inline-flex items-center gap-2">
+              <OnAir live={false} />
+              <b className="font-semibold">{runLabel[latest.status]}</b>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              <OnAir live={false} idle />
+              Not run yet. A run looks it up in Qloo.
+            </span>
+          )}
+        </Readout>
+      )}
       {formShown && (
         <form id="launch-form" className="flex flex-col gap-2" onSubmit={submit}>
           <div className="flex flex-wrap items-center gap-2">{form.fields(action.busy || running)}</div>
