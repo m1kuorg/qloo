@@ -946,24 +946,27 @@ export async function wipeReason(db: D1Database, binding: string, name: string) 
 
 // The first `limit` wipes noted before `before` (epoch ms) and not yet done: those the hourly retry hasn't
 // tried, oldest first, and of those noted together, a launch's before its network's own Qloo gateway
-// instance's, as the binding's name sorts; then those that failed, the least recently tried first (migration
-// 0013), so wipes that fail every time can't hold back the rest.
+// instance's, as the binding's name sorts; then those it tried before, the least recently tried first
+// (migration 0013), so wipes that fail every time can't hold back the rest.
 export async function wipesDue(db: D1Database, before: number, limit: number) {
   const { results } = await db
     .prepare(
-      'SELECT binding, name, reason FROM wipes WHERE created < ? ORDER BY failed NULLS FIRST, created, binding, name LIMIT ?'
+      'SELECT binding, name, reason FROM wipes WHERE created < ? ORDER BY tried NULLS FIRST, created, binding, name LIMIT ?'
     )
     .bind(before, limit)
     .all<Instance>()
   return results
 }
 
-// Notes that the hourly retry tried each of `instances` at time `at` and it failed, in one batch, so the
-// next runs try the wipes no run has tried before them (wipesDue).
-export async function noteFailedWipes(db: D1Database, instances: Instance[], at: number) {
+// Notes that the hourly retry tries `instances`, in that order, at time `at`, in one batch before it tries
+// them: each at `at` less a millisecond for each wipe ahead of it, so of these, the next runs take first
+// those it reached last. So a wipe that fails, or whose run is cut off as it tries it, goes after those no
+// run has tried (wipesDue), and after those its run never reached. A wipe that succeeds is deleted, its time
+// with it.
+export async function noteWipesTried(db: D1Database, instances: Instance[], at: number) {
   await db.batch(
-    instances.map(({ binding, name }) =>
-      db.prepare('UPDATE wipes SET failed = ? WHERE binding = ? AND name = ?').bind(at, binding, name)
+    instances.map(({ binding, name }, ahead) =>
+      db.prepare('UPDATE wipes SET tried = ? WHERE binding = ? AND name = ?').bind(at - ahead, binding, name)
     )
   )
 }

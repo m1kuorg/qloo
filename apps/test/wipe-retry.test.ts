@@ -1,6 +1,6 @@
 // The hourly cron's retry of the wipes noted and not done (#275): each run takes the wipes no run has tried
-// first, then those that failed, the least recently tried first, so wipes that fail every time can't fill
-// every run and hold back the wipes noted after them. Each test notes wipes in D1, as a deletion or the
+// first, then those tried before, the least recently tried first, so wipes that fail every time, or whose
+// run is cut off, can't fill every run and hold back the wipes noted after them. Each test notes wipes in D1, as a deletion or the
 // daily clearing does, runs the Worker's scheduled handler at the hourly cron, and reads what each run
 // tried from its logs.
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
@@ -83,9 +83,9 @@ describe('the hourly retry', () => {
     await expect(runHourlyCron()).rejects.toThrow(failedRun(7))
     expect(failedNames(failed)).toEqual(stuck(7))
     failed.mockClear()
-    // The one no run has tried first, then those that failed.
+    // The one no run has tried first, then those that failed, those the last run reached last first.
     await expect(runHourlyCron()).rejects.toThrow(failedRun(7))
-    expect(failedNames(failed)).toEqual(['stuck-7', ...stuck(6)])
+    expect(failedNames(failed)).toEqual(['stuck-7', 'stuck-6', 'stuck-5', 'stuck-4', 'stuck-3', 'stuck-2', 'stuck-1'])
     expect(lines(failed, 'wipe_failed')[0]).toBe(
       JSON.stringify({
         event: 'wipe_failed',
@@ -94,6 +94,29 @@ describe('the hourly retry', () => {
         error: `Error: Nothing wipes a ${NOTHING} yet.`
       })
     )
+  })
+
+  it('tries a wipe whose run was cut off as it tried it after a wipe noted later', async () => {
+    await note('LaunchAgent', ['gone-network:launch-1'], 2 * HOUR)
+    await note('LaunchAgent', ['gone-network:launch-2'], HOUR)
+    const { destroy } = LaunchAgent.prototype
+    const tried: string[] = []
+    vi.spyOn(LaunchAgent.prototype, 'destroy').mockImplementation(function (this: LaunchAgent, reason) {
+      tried.push(this.name)
+      // The first wipe never answers, as one whose instance hangs until Cloudflare cuts its run off.
+      if (tried.length === 1) return new Promise<void>(() => {})
+      return destroy.call(this, reason)
+    })
+    const logged = vi.spyOn(console, 'log')
+
+    const first = runHourlyCron()
+    await vi.waitFor(() => expect(tried).toHaveLength(1))
+    await runHourlyCron()
+    expect(tried).toEqual(['gone-network:launch-1', 'gone-network:launch-2', 'gone-network:launch-1'])
+    expect(lines(logged, 'wipes_retried')).toEqual([retried(2, 0)])
+    // The second run's wipe reset the instance, which ends the first run's call still out to it, so the test
+    // ends with nothing left running, as Cloudflare would have cut the first run off by then.
+    await first
   })
 
   it('wipes a network’s launches before its own Qloo gateway instance, as their wipes were noted together', async () => {
@@ -129,7 +152,8 @@ describe('the hourly retry', () => {
       Array.from({ length: 8 }, (_, i) => `${id}:launch-${i}`),
       2 * HOUR
     )
-    // A wipe's crossing off, its last step, fails.
+    // A wipe's crossing off, its last step, fails. It's a D1 statement with no agent in it, so it fails at
+    // the D1 binding, the one statement that deletes a wipe's row.
     const prepare = env.DB.prepare.bind(env.DB)
     const overloaded = { bind: () => overloaded, run: () => Promise.reject(new Error('D1 is overloaded.')) }
     vi.spyOn(env.DB, 'prepare').mockImplementation((sql) =>
