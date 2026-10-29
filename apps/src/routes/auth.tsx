@@ -59,8 +59,15 @@ import { visitorTag } from '../visitor'
 
 export const auth = new Hono<{ Bindings: Env }>()
 
-auth.use('/sign-in', accountsOn, authShell)
-auth.use('/invite', accountsOn, authShell)
+auth.use(
+  '/sign-in',
+  accountsOn,
+  authShell(
+    'Sign in',
+    'Sign in to Crossfeed with a passkey, create an account, or look around the sample network as a guest.'
+  )
+)
+auth.use('/invite', accountsOn, authShell('Invite'))
 auth.use(
   '/auth/*',
   accountsOn,

@@ -1,0 +1,189 @@
+<!doctype html>
+<!-- Crossfeed's link-embed banner, which scripts/banner.sh photographs into public/og-1.png at
+     1200x630 (docs/DESIGN.md, "Link-embed banner"). It's type-led on the light ground, in
+     Schibsted Grotesk: the mark and wordmark top left, as the marketing header sets them, the landing
+     page's claim under them, and one fragment of the app beside it, a ranked list of made-up shows
+     with one climber and the one pick, labelled an illustration as the landing page's re-rank is. The
+     colours are the light scheme's, literal, as nothing here has style.css's classes; the mark is
+     src/mark.tsx's drawing, alike with scripts/mark.svg, which the favicon is drawn from. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Crossfeed link-embed banner</title>
+    <style>
+      @font-face {
+        font-family: 'Schibsted Grotesk Variable';
+        font-weight: 400 900;
+        src: url('../node_modules/@fontsource-variable/schibsted-grotesk/files/schibsted-grotesk-latin-wght-normal.woff2')
+          format('woff2-variations');
+      }
+      :root {
+        --ground: #f8f8fa;
+        --ink: #121318;
+        --muted: #5f626d;
+        --rule: #e3e4ea;
+        --signal: #e4630c;
+        --signal-ink: #a24a00;
+        --signal-tint: #fdeee2;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 456px;
+        align-items: last baseline;
+        gap: 56px;
+        width: 1200px;
+        height: 630px;
+        padding: 64px;
+        overflow: hidden;
+        background: var(--ground);
+        color: var(--ink);
+        font-family: 'Schibsted Grotesk Variable', Arial, sans-serif;
+        font-kerning: normal;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wordmark {
+        position: absolute;
+        top: 64px;
+        left: 64px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 36px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .wordmark svg {
+        width: 52px;
+        height: 52px;
+      }
+      h1 {
+        font-size: 112px;
+        font-weight: 600;
+        line-height: 0.88;
+        letter-spacing: -0.05em;
+      }
+      /* The list's rows are ruled as the app's tables are, bleeding past the text. taste-skill-ignore keeps
+         a line out of the design-taste skill's linter, which flags a 1px rule outside a real table. */
+      .row {
+        display: grid;
+        grid-template-columns: 36px 64px minmax(0, 1fr) auto;
+        align-items: baseline;
+        column-gap: 16px;
+        margin: 0 -16px;
+        padding: 18px 16px;
+        border-top: 1px solid var(--rule); /* taste-skill-ignore */
+      }
+      .row:last-child {
+        border-bottom: 1px solid var(--rule); /* taste-skill-ignore */
+      }
+      .row.pick {
+        background: var(--signal-tint);
+      }
+      .rank {
+        text-align: right;
+        font-size: 28px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .move {
+        font-size: 28px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+      }
+      .move.up {
+        color: var(--signal-ink);
+      }
+      .name {
+        font-size: 40px;
+        font-weight: 500;
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        white-space: nowrap;
+      }
+      .tags {
+        margin-top: 8px;
+        font-size: 22px;
+        color: var(--muted);
+      }
+      .fit {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 6px;
+      }
+      .fit i {
+        width: 9px;
+        height: 28px;
+        border-radius: 1px;
+        background: var(--ink);
+      }
+      .fit i.off {
+        background: var(--rule);
+      }
+      .pick .fit i:not(.off) {
+        background: var(--signal);
+      }
+      .caption {
+        margin-top: 20px;
+        font-size: 22px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <p class="wordmark">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3.54 8.92 20.46 15.08M3.54 15.08 20.46 8.92" fill="none" stroke="#121318" stroke-width="3" />
+        <path d="M7.61 12 12 10.4 16.39 12 12 13.6Z" fill="#e4630c" />
+      </svg>
+      Crossfeed
+    </p>
+    <h1>Rank by<br />who listens</h1>
+    <div class="list" data-ui>
+      <div class="rows">
+        <div class="row pick">
+          <span class="rank">1</span>
+          <span class="move up">▲5</span>
+          <div>
+            <p class="name">The Harbour</p>
+            <p class="tags">Coastal · Oral history</p>
+          </div>
+          <span class="fit"><i></i><i></i><i></i></span>
+        </div>
+        <div class="row">
+          <span class="rank">2</span>
+          <span class="move">▼1</span>
+          <div>
+            <p class="name">Case Notes</p>
+            <p class="tags">Cold case · Small-town</p>
+          </div>
+          <span class="fit"><i></i><i></i><i></i></span>
+        </div>
+        <div class="row">
+          <span class="rank">3</span>
+          <span class="move">▼1</span>
+          <div>
+            <p class="name">Plain Sight</p>
+            <p class="tags">Investigative · Courtroom</p>
+          </div>
+          <span class="fit"><i></i><i></i><i class="off"></i></span>
+        </div>
+        <div class="row">
+          <span class="rank">4</span>
+          <span class="move">▼1</span>
+          <div>
+            <p class="name">Small Claims</p>
+            <p class="tags">Courtroom</p>
+          </div>
+          <span class="fit"><i></i><i class="off"></i><i class="off"></i></span>
+        </div>
+      </div>
+      <p class="caption">Illustration: made-up shows, not Qloo data.</p>
+    </div>
+  </body>
+</html>

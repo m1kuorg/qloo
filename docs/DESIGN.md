@@ -257,6 +257,8 @@ Contents:
     1.  [Marketing shell](#marketing-shell)
     1.  [Menus and the skip link](#menus-and-the-skip-link)
     1.  [Icons](#icons)
+    1.  [Titles and link previews](#titles-and-link-previews)
+    1.  [Link-embed banner](#link-embed-banner)
 1.  [Components and recipes](#components-and-recipes)
     1.  [Where things live](#where-things-live)
     1.  [Recipes in variants.ts](#recipes-in-variantsts)
@@ -446,22 +448,53 @@ The favicon is the mark, and nothing else stands for Crossfeed in a tab, a bookm
 
 Every shell's head (`Head` in `shell.tsx`) links four files: the ICO, the SVG, the apple-touch icon and `manifest.webmanifest`. The ICO's link carries `sizes="32x32"`, so Chrome, which takes the SVG, doesn't fetch the ICO too. Two `theme-color`s by `media` tint a phone's browser to the page's ground, `#f8f8fa` light and `#0e0f12` dark, never the signal. The manifest names the app Crossfeed, opens it standalone at `/app`, and sets its background and theme colour to the light ground. There's no service worker. With `ACCOUNTS` off, `/app` answers 404, so an installed app opens on the 404 page; production runs with it on.
 
+### Titles and link previews
+
+Every page's `<title>` names the page, then the product, so a member can tell tabs apart:
+
+- **Marketing pages:** the page's name ("Privacy · Crossfeed", "REST API · Developer docs · Crossfeed", "Not found · Crossfeed"), and "Crossfeed" alone on the landing page.
+- **A network's pages:** the page as the rail names it, then the network: "Roster · Guest network · Crossfeed". A launch's page is "Launches · …" from the server, until its island knows the launch's name and sets the title to it: "The Watch · Guest network · Crossfeed". A renamed network shows in titles from the next page load.
+- **Pages outside a network:** the page alone, as the switcher and the account menu name it: "New network · Crossfeed", "Your account · Crossfeed", "Sign in · Crossfeed", and "Invite · Crossfeed", which the invite page's island sets to "Join <network> · Crossfeed" once it has read the link.
+
+The public pages, the landing page, privacy, the beta terms, each docs page, sign-in and the 404 page, are what a link preview or a search result shows, so each one's head (`Head`'s `card`) also carries:
+
+- one sentence on what the page is, its own, as `<meta name="description">`;
+- `<link rel="canonical">` and `og:url`, the page's path on `APP_ORIGINS`' first origin, never the request's, so preview links stay on preview and no `Host` header can steer them. The address leaves out the query, so `/sign-in?next=…` is `/sign-in`, and the 404 page's is the address asked for;
+- `og:type` (`website`), `og:site_name` (Crossfeed), `og:title` (the page's title) and `og:description` (its sentence);
+- `og:image`, the [banner](#link-embed-banner), with its width, height and alt text;
+- `twitter:card` `summary_large_image`, so X shows the banner large; X reads the rest from the Open Graph tags.
+
+App pages, behind sign-in, and the invite page, whose token is in its fragment, carry none of them.
+
+### Link-embed banner
+
+One picture stands for every public page in a link preview: `apps/public/og-1.png`, 1200×630 and under 300KB. `apps/scripts/banner.html` is its one source, and `apps/scripts/banner.sh` photographs it with Playwright, as [apps/README.md](/apps/README.md#link-embed-banner) shows. The banner and the favicon are one system: the same mark, the same ground and ink, the one signal.
+
+- **Type-led:** on the light ground, in Schibsted Grotesk, in the light scheme's colours, written out as `mark.svg`'s are. The mark and wordmark stand top left as the marketing header sets them, and the landing page's claim, "Rank by who listens", bottom left at 112px, set as the poster is, so at about 600px wide, as Slack and iMessage show it, the claim is still 56px.
+- **One artefact:** beside the claim, a fragment of the re-rank, its rows ruled as the app's tables are: four made-up shows by rank, each with its move, its tags and its fit meter. One climber, ▲5 in signal ink, is the one pick: its row on the signal tint, its meter in signal; the rest moved down one, muted. Under it, "Illustration: made-up shows, not Qloo data.", as the landing page's re-rank says it. No figure but the ranks and the moves.
+- **Nothing else:** no gradient, glow, texture or ASCII field, and no other picture or words.
+- **Alt text:** `og:image:alt` states the claim, and what the list shows.
+- **Its name is versioned:** unfurlers keep an image by its address for days, so a changed banner takes the next number, `og-2.png`, in `banner.sh` and in `BANNER` in `shell.tsx`.
+
+Look at the PNG at full size and at about 600px wide before committing it.
+
 ## Components and recipes
 
 ### Where things live
 
-| Path                                   | What                                                                                                         |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `apps/src/style.css`                   | Tailwind v4's entry: the tokens, the type scale, the focus ring, the reading pages' prose, the re-rank's CSS |
-| `apps/src/components/ui/variants.ts`   | the class recipes the island and the server pages share, with no React in it                                 |
-| `apps/src/components/ui/*.tsx`         | the shadcn components (Base UI primitives), forked onto the tokens                                           |
-| `apps/src/client/`                     | the island: one module per page, and the shared modules below                                                |
-| `apps/src/shell.tsx`                   | the server-rendered shells                                                                                   |
-| `apps/src/mark.tsx`, `client/Mark.tsx` | the mark, twice, as Hono JSX can't render the island's React; keep them and `apps/scripts/mark.svg` alike    |
-| `apps/src/icons.tsx`                   | the lucide icons the server pages use, as Hono JSX                                                           |
-| `apps/scripts/mark.svg`, `icons.sh`    | the mark in literal colours, alike with `mark.tsx`, and the script that renders the [icons](#icons) from it  |
-| `apps/public/`                         | the icons and the web app manifest, which Workers Assets serves before the Worker runs                       |
-| `apps/components.json`                 | shadcn's config: `base-nova`, aliases under `@/`, utils pointing at the `cn` package                         |
+| Path                                    | What                                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `apps/src/style.css`                    | Tailwind v4's entry: the tokens, the type scale, the focus ring, the reading pages' prose, the re-rank's CSS |
+| `apps/src/components/ui/variants.ts`    | the class recipes the island and the server pages share, with no React in it                                 |
+| `apps/src/components/ui/*.tsx`          | the shadcn components (Base UI primitives), forked onto the tokens                                           |
+| `apps/src/client/`                      | the island: one module per page, and the shared modules below                                                |
+| `apps/src/shell.tsx`                    | the server-rendered shells                                                                                   |
+| `apps/src/mark.tsx`, `client/Mark.tsx`  | the mark, twice, as Hono JSX can't render the island's React; keep them and `apps/scripts/mark.svg` alike    |
+| `apps/src/icons.tsx`                    | the lucide icons the server pages use, as Hono JSX                                                           |
+| `apps/scripts/mark.svg`, `icons.sh`     | the mark in literal colours, alike with `mark.tsx`, and the script that renders the [icons](#icons) from it  |
+| `apps/scripts/banner.html`, `banner.sh` | the [link-embed banner](#link-embed-banner)'s source, and the script that photographs it                     |
+| `apps/public/`                          | the icons, the web app manifest and the banner, which Workers Assets serves before the Worker runs           |
+| `apps/components.json`                  | shadcn's config: `base-nova`, aliases under `@/`, utils pointing at the `cn` package                         |
 
 ### Recipes in variants.ts
 

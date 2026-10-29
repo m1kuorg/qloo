@@ -3,6 +3,7 @@ import { cn } from 'cn'
 import type { Child } from 'hono/jsx'
 import { jsxRenderer, useRequestContext } from 'hono/jsx-renderer'
 import { Link, Script, ViteClient } from 'vite-ssr-components/hono'
+import { appOrigins } from './auth'
 import { buttonVariants, linkVariants, marketingFrame } from './components/ui/variants'
 import { isGuestMember, type Member, type Network } from './directory'
 import { Check, ChevronDown, ChevronsUpDown, Inbox, Podcast, Rocket, Settings } from './icons'
@@ -16,10 +17,48 @@ window.$RefreshReg$ = () => {}
 window.$RefreshSig$ = () => (type) => type
 window.__vite_plugin_react_preamble_installed__ = true`
 
-// The head every shell shares: the page's title, the mark's icons and the web app manifest, Vite's
-// client in development, and the stylesheet. A shell adds what else its pages load, such as the
-// island's script.
-const Head = ({ title, children }: { title: string; children?: Child }) => (
+// The link-embed banner, which scripts/banner.sh renders into public/ from scripts/banner.html: the
+// picture of every public page's link preview, its size, and what it says for anyone who can't see
+// it. A changed banner takes the next number, as unfurlers keep an image by its address for days.
+const BANNER = {
+  path: '/og-1.png',
+  width: 1200,
+  height: 630,
+  alt: 'Crossfeed. Rank by who listens: an illustration of made-up shows ranked by listener overlap, one climbing five places to first as the pick.'
+}
+
+// What a public page tells search results and link previews besides its title: one sentence on what
+// it is, and its address, `path` on `origin`, which is APP_ORIGINS' first, never the request's, so no
+// Host header can steer it. App pages, behind sign-in, have none.
+type Card = { description: string; origin: string; path: string }
+
+// A public page's description, canonical address and link preview: its title, its description and
+// the banner, as Open Graph sets them out, and the X card that shows the banner large, whose other
+// fields X reads from the Open Graph ones.
+const Preview = ({ title, description, origin, path }: Card & { title: string }) => {
+  const url = `${origin}${path}`
+  return (
+    <>
+      <meta name="description" content={description} />
+      <link rel="canonical" href={url} />
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content="Crossfeed" />
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:url" content={url} />
+      <meta property="og:image" content={`${origin}${BANNER.path}`} />
+      <meta property="og:image:width" content={String(BANNER.width)} />
+      <meta property="og:image:height" content={String(BANNER.height)} />
+      <meta property="og:image:alt" content={BANNER.alt} />
+      <meta name="twitter:card" content="summary_large_image" />
+    </>
+  )
+}
+
+// The head every shell shares: the page's title, a public page's card, the mark's icons and the web
+// app manifest, Vite's client in development, and the stylesheet. A shell adds what else its pages
+// load, such as the island's script.
+const Head = ({ title, card, children }: { title: string; card?: Card; children?: Child }) => (
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -29,6 +68,7 @@ const Head = ({ title, children }: { title: string; children?: Child }) => (
     <meta name="theme-color" content="#f8f8fa" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)" />
     <title>{title}</title>
+    {card && <Preview title={title} {...card} />}
     {/* The mark, from public/, which scripts/icons.sh renders: the ICO, which Safari takes, the SVG,
         which Chrome takes, light or dark as the browser is, and the home screen's icons. */}
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
@@ -121,10 +161,10 @@ export const Island = ({ page, ...data }: { page: Page; [attribute: `data-${stri
 
 // The head of a page with the React island: the shared head, React's refresh preamble in
 // development, under the policy's nonce (index.tsx), and the island's script.
-const IslandHead = () => {
+const IslandHead = ({ title, card }: { title: string; card?: Card }) => {
   const nonce = useRequestContext().get('secureHeadersNonce')
   return (
-    <Head title="Crossfeed">
+    <Head title={title} card={card}>
       {import.meta.env.DEV && <script type="module" nonce={nonce} dangerouslySetInnerHTML={{ __html: reactRefresh }} />}
       {/* A literal: vite-ssr-components finds the client build's entries by reading these. */}
       <Script src="/src/client/main.tsx" />
@@ -341,15 +381,17 @@ function Rail({ label, home, destinations }: { label: string; home: string; dest
   )
 }
 
-// The app's frame: the rail beside a column of the top bar over the page, the React island in #root.
-// Under 768px the rail is a bottom bar, which the page leaves room for. The page scrolls what Tab
-// reaches clear of the 48px top bar, which sticks, and of the phone's bottom bar.
+// The app's frame, under the tab's `title`: the rail beside a column of the top bar over the page,
+// the React island in #root. Under 768px the rail is a bottom bar, which the page leaves room for. The
+// page scrolls what Tab reaches clear of the 48px top bar, which sticks, and of the phone's bottom bar.
 const AppFrame = ({
+  title,
   rail,
   bar,
   bottomBar,
   children
 }: {
+  title: string
   rail: Child
   bar: Child
   bottomBar: boolean
@@ -359,7 +401,7 @@ const AppFrame = ({
     lang="en"
     class={cn('scroll-pt-12', bottomBar && 'max-md:scroll-pb-[calc(3.5rem+env(safe-area-inset-bottom))]')}
   >
-    <IslandHead />
+    <IslandHead title={title} />
     <body>
       <SkipLink />
       <div class="min-h-svh md:grid md:grid-cols-[3.5rem_minmax(0,1fr)]">
@@ -556,7 +598,8 @@ const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
 )
 
 // A marketing page: server-rendered with no island, at 16px, under the marketing header and over the
-// footer, which a short page keeps at the window's foot. `title` names the page before the product; the
+// footer, which a short page keeps at the window's foot. `title` names the page before the product, and
+// `description` says what it is in one sentence, for its card, whose address is `path` on `origin`; the
 // 404 handler renders it too (routes/marketing). menus.ts closes the phone's Menu on a click outside
 // and on Escape; `reveal` adds reveal.ts, the landing page's section entrances, and `ascii` its ASCII
 // field: a canvas fixed behind the page, which ascii.ts draws, sized by its classes and its own width
@@ -566,6 +609,7 @@ const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
 export const MarketingPage = ({
   title,
   description,
+  origin,
   path,
   accounts,
   reveal = false,
@@ -573,7 +617,8 @@ export const MarketingPage = ({
   children
 }: {
   title: string | null
-  description?: string
+  description: string
+  origin: string
   path: string
   accounts: boolean
   reveal?: boolean
@@ -581,9 +626,8 @@ export const MarketingPage = ({
   children: Child
 }) => (
   <html lang="en">
-    <Head title={title ? `${title} · Crossfeed` : 'Crossfeed'}>
+    <Head title={title ? `${title} · Crossfeed` : 'Crossfeed'} card={{ description, origin, path }}>
       {latinFont && <link rel="preload" href={latinFont} as="font" type="font/woff2" crossorigin="" />}
-      {description && <meta name="description" content={description} />}
       {/* A literal: vite-ssr-components finds the client build's entries by reading these. */}
       <Script src="/src/client/menus.ts" />
       {reveal && <Script src="/src/client/reveal.ts" />}
@@ -609,12 +653,14 @@ export const MarketingPage = ({
   </html>
 )
 
-// The marketing shell, for a route group's pages: MarketingPage, with the request's path and flags.
-export const marketingShell = (title: string | null, description?: string, { reveal = false, ascii = false } = {}) =>
+// The marketing shell, for a route group's pages: MarketingPage, with the app's own origin, and the
+// request's path and flags.
+export const marketingShell = (title: string | null, description: string, { reveal = false, ascii = false } = {}) =>
   jsxRenderer(({ children }, c) => (
     <MarketingPage
       title={title}
       description={description}
+      origin={appOrigins(c.env)[0]}
       path={c.req.path}
       accounts={c.env.ACCOUNTS === 'on'}
       reveal={reveal}
@@ -638,10 +684,15 @@ export const networkLinks = (env: Env, id: string) => ({
   launches: `/app/${id}/launches` // each launch's page is under it, by the launch's ID
 })
 
+// The pages outside a network, by path, named as the switcher and the account menu name them.
+const outsideNetwork: Record<string, string> = { '/app/new': 'New network', '/app/account': 'Your account' }
+
 // The app shell, for a signed-in member's pages: the rail with the network's pages (Launches, the
 // dashboard, which lists them; Roster; Inbox while GUEST_PITCHES is on; Settings), and a 48px top bar
 // with the network switcher, the page's name, and the account menu, then the React island in #root.
-// A page outside a network, such as /app/new or /app/account, has the mark alone in its rail.
+// A page outside a network, such as /app/new or /app/account, has the mark alone in its rail. The
+// tab's title names the page and its network, or a page outside a network by itself; a launch's page
+// names the launch once its island knows it (Launch.tsx).
 export const appShell = jsxRenderer(({ children }, c) => {
   const { member, networks = [], network } = c.var as AppVariables
   const path = c.req.path
@@ -664,8 +715,10 @@ export const appShell = jsxRenderer(({ children }, c) => {
           : undefined
   // The page's name, after the switcher: on a launch's page, Launches, as a link back to the list.
   const here = destinations.find((d) => d.current)
+  const title = [here?.label ?? outsideNetwork[path], network?.name, 'Crossfeed'].filter(Boolean).join(' · ')
   return (
     <AppFrame
+      title={title}
       rail={<Rail label="Network" home="/app" destinations={destinations} />}
       bottomBar={destinations.length > 0}
       bar={
@@ -722,23 +775,28 @@ export const appShell = jsxRenderer(({ children }, c) => {
 
 // The sign-in and invite pages' shell: the marketing pages' wordmark, with no links, over the React
 // island in #root, and on the invite page, a signed-in visitor's account menu (the handler sets the
-// member).
-export const authShell = jsxRenderer(({ children }, c) => {
-  const { member } = c.var as AppVariables
-  return (
-    <html lang="en">
-      <IslandHead />
-      <body>
-        <SkipLink />
-        <header class={cn(marketingFrame, 'flex h-16 items-center justify-between gap-6 md:h-20')}>
-          <Wordmark />
-          {member && <AccountMenu member={member} path={c.req.path} />}
-        </header>
-        <div>
-          <SkipTarget />
-          {children}
-        </div>
-      </body>
-    </html>
-  )
-})
+// member). `title` names the page; a public page, sign-in, has a `description` for its card, whose
+// address leaves out the query, such as sign-in's `next`.
+export const authShell = (title: string, description?: string) =>
+  jsxRenderer(({ children }, c) => {
+    const { member } = c.var as AppVariables
+    return (
+      <html lang="en">
+        <IslandHead
+          title={`${title} · Crossfeed`}
+          card={description ? { description, origin: appOrigins(c.env)[0], path: c.req.path } : undefined}
+        />
+        <body>
+          <SkipLink />
+          <header class={cn(marketingFrame, 'flex h-16 items-center justify-between gap-6 md:h-20')}>
+            <Wordmark />
+            {member && <AccountMenu member={member} path={c.req.path} />}
+          </header>
+          <div>
+            <SkipTarget />
+            {children}
+          </div>
+        </body>
+      </html>
+    )
+  })

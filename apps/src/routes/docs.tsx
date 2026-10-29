@@ -1262,17 +1262,42 @@ const originOf = (c: Context) => new URL(c.req.url).origin
 // A docs page on the marketing shell.
 const renderPage = (c: Context<{ Bindings: Env }>, page: Page) =>
   c.render(<Docs page={page} accounts={c.env.ACCOUNTS === 'on'} />)
-const shell = (title: string) => marketingShell(`${title} · Developer docs`)
+const shell = (title: string, description: string) => marketingShell(`${title} · Developer docs`, description)
 
-docs.get('/docs', marketingShell('Developer docs'), async (c) =>
-  renderPage(c, overview(c.env, originOf(c), (await listedTools()).length))
+docs.get(
+  '/docs',
+  marketingShell(
+    'Developer docs',
+    'How programs and assistants drive a Crossfeed network: what they can and can’t do, API keys, limits, and errors.'
+  ),
+  async (c) => renderPage(c, overview(c.env, originOf(c), (await listedTools()).length))
 )
-docs.get('/docs/api', shell('REST API'), (c) =>
-  renderPage(c, apiPage(apiDocument(originOf(c)), originOf(c), c.env.ACCOUNTS === 'on'))
+docs.get(
+  '/docs/api',
+  shell('REST API', 'Every route of Crossfeed’s REST API under /api/v1, generated from its OpenAPI document.'),
+  (c) => renderPage(c, apiPage(apiDocument(originOf(c)), originOf(c), c.env.ACCOUNTS === 'on'))
 )
-docs.get('/docs/sdk', shell('TypeScript SDK'), (c) => renderPage(c, sdkPage(originOf(c))))
-docs.get('/docs/mcp', shell('MCP server'), async (c) => renderPage(c, mcpPage(await listedTools(), originOf(c))))
-docs.get('/docs/agents', shell('Skills and plugin'), (c) => renderPage(c, agentsPage(originOf(c))))
+docs.get(
+  '/docs/sdk',
+  shell(
+    'TypeScript SDK',
+    'How to install Crossfeed’s TypeScript SDK from the repo, make a client, wait for long work, and handle errors.'
+  ),
+  (c) => renderPage(c, sdkPage(originOf(c)))
+)
+docs.get(
+  '/docs/mcp',
+  shell('MCP server', 'The tools Crossfeed’s MCP server offers at /mcp, and the command that adds it to Claude Code.'),
+  async (c) => renderPage(c, mcpPage(await listedTools(), originOf(c)))
+)
+docs.get(
+  '/docs/agents',
+  shell(
+    'Skills and plugin',
+    'Two Agent Skills, for planning launch promos and triaging guest pitches, and the Claude Code plugin that installs them with Crossfeed’s MCP server.'
+  ),
+  (c) => renderPage(c, agentsPage(originOf(c)))
+)
 
 // Each skill's text, as its SKILL.md holds it.
 docs.get('/docs/agents/:name/SKILL.md', (c) => {
