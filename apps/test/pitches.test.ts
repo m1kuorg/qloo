@@ -342,7 +342,7 @@ describe("the inbox's Run tab", () => {
     const { state } = await rank([film], [turn(rankPitches(['f-0101'])), turn(text('Ranked.'))])
 
     expect(words(module(state, 'runs-h'))).toMatch(
-      /^Runs Run 1 · Pitches for Night Shift Cinema .+ · Completed Shown Each run starts fresh; earlier ones stay here to compare\. Model runs are limited per visitor/
+      /^Runs Each run starts fresh; earlier ones stay here to compare\. Run 1 · Pitches for Night Shift Cinema .+ · Completed Shown Model runs are limited per visitor/
     )
   })
 })

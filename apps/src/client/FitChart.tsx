@@ -15,6 +15,7 @@ import { moveGlyph, moveWords, nth } from '../text'
 import { topicFinding, type Move, type Topic } from '../topic'
 import { FitBand, listOf, NotScored } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
+import { Section } from './PageHeader'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
 
@@ -52,11 +53,12 @@ const whoShares = (names: string[]) =>
 const finding = (ranking: Ranking, moves: Move[] | null) =>
   topicFinding(ranking.rows.filter((r) => r.finalist).length, moves && moves.filter((m) => m.climber))
 
-// The fit chart: the roster ranked by listener overlap with the launch, its finding first. Fit shows as
-// rank and band; raw affinities stay in the ranking call's evidence. Once the topic column is in, the
-// lens re-orders the rows by topic alone, and each show's move is what Qloo changed. By default it
-// shows what's in contention: the finalists, the shows a topic-only plan picks, the climbers and any
-// left out; "Show all" lists every ranked show.
+// The fit chart: the roster ranked by listener overlap with the launch, its finding its sentence, then
+// what the ranking didn't score, a section of its own. Fit shows as rank and band; raw affinities stay
+// in the ranking call's evidence. Once the topic column is in, the lens re-orders the rows by topic
+// alone, and each show's move is what Qloo changed. By default it shows what's in contention: the
+// finalists, the shows a topic-only plan picks, the climbers and any left out; "Show all" lists every
+// ranked show.
 export function FitChart({
   ranking,
   launch,
@@ -117,31 +119,37 @@ export function FitChart({
     })
   }, [lens])
 
-  const heading = (
-    <h2 className="text-base font-semibold text-balance" id="fit-h">
-      {whoShares(
-        ranking?.anchors.map((a) => a.name) ?? (launch?.name ? [launch.name] : (launch?.comps.map((c) => c.name) ?? []))
-      )}
-    </h2>
+  const title = whoShares(
+    ranking?.anchors.map((a) => a.name) ?? (launch?.name ? [launch.name] : (launch?.comps.map((c) => c.name) ?? []))
   )
   if (!ranking)
-    return running ? (
-      <section className="flex flex-col gap-3" aria-label="Fit chart">
-        {heading}
-        <StateLine kind="loading">The fit chart appears once the agent ranks the roster.</StateLine>
-        {/* The chart's rows in their shape, still. */}
-        <div aria-hidden="true">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className={cn(rowGrid.plain, bleed, 'items-center border-b py-3')}>
-              <Skeleton className="h-7 w-6 justify-self-end [grid-area:rank]" />
-              <Skeleton className="h-4 w-48 max-w-full [grid-area:show]" />
-              <Skeleton className="h-3 w-5 [grid-area:fit]" />
-              <Skeleton className="h-4 w-16 justify-self-end [grid-area:slot]" />
-            </div>
-          ))}
-        </div>
-      </section>
-    ) : null
+    return (
+      <Section
+        id="fit-h"
+        title={title}
+        description={
+          running ? (
+            <StateLine kind="loading">The fit chart appears once the agent ranks the roster.</StateLine>
+          ) : (
+            <StateLine kind="empty">The fit chart appears once a run ranks the roster.</StateLine>
+          )
+        }
+      >
+        {running && (
+          // The chart's rows in their shape, still.
+          <div aria-hidden="true">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className={cn(rowGrid.plain, bleed, 'items-center border-b py-3')}>
+                <Skeleton className="h-7 w-6 justify-self-end [grid-area:rank]" />
+                <Skeleton className="h-4 w-48 max-w-full [grid-area:show]" />
+                <Skeleton className="h-3 w-5 [grid-area:fit]" />
+                <Skeleton className="h-4 w-16 justify-self-end [grid-area:slot]" />
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+    )
 
   const anchors = listOf(ranking.anchors.map((a) => a.name))
   const byShow = new Map(moves?.map((m) => [m.show, m]))
@@ -172,295 +180,314 @@ export function FitChart({
   const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   const show = (name: string) => roster.find((s) => s.name === name)
   return (
-    <section className="flex flex-col gap-3" aria-label="Fit chart">
-      <div className="flex flex-col gap-1">
-        {heading}
+    <>
+      <Section
+        id="fit-h"
+        title={title}
+        description={
+          ranking.error ? (
+            <StateLine kind="failed">Nothing is ranked: {sentence(ranking.error)}</StateLine>
+          ) : (
+            <>
+              {finding(ranking, moves)}{' '}
+              <CallButton
+                call={ranking.call}
+                label="Evidence for the fit ranking"
+                opened={opened}
+                openCall={openCall}
+              />
+            </>
+          )
+        }
+      >
         {!ranking.error && (
-          <p>
-            {finding(ranking, moves)}{' '}
-            <CallButton call={ranking.call} label="Evidence for the fit ranking" opened={opened} openCall={openCall} />
-          </p>
-        )}
-      </div>
-      {ranking.error ? (
-        <StateLine kind="failed">Nothing is ranked: {sentence(ranking.error)}</StateLine>
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {moves && (
-              <RadioGroup
-                aria-label="Order the chart"
-                value={lens}
-                onValueChange={(next) => switchLens(next as Lens)}
-                className={segmentedTrackVariants({ className: 'flex' })}
-              >
-                <RadioGroupSegment value="listeners" className={segmentedItemVariants()}>
-                  By who listens
-                </RadioGroupSegment>
-                <RadioGroupSegment value="topic" className={segmentedItemVariants()}>
-                  By topic
-                </RadioGroupSegment>
-              </RadioGroup>
-            )}
-            {/* Where the order on screen comes from. */}
-            <p className="type-caption text-muted-foreground">
-              {moves && lens === 'topic' ? (
-                <>
-                  <Source of="agent" /> Ranked by topic alone, from show names and descriptions
-                </>
-              ) : (
-                <>
-                  <Source of="qloo" /> Ranked by listener overlap with {anchors}
-                </>
+          <>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {moves && (
+                <RadioGroup
+                  aria-label="Order the chart"
+                  value={lens}
+                  onValueChange={(next) => switchLens(next as Lens)}
+                  className={segmentedTrackVariants({ className: 'flex' })}
+                >
+                  <RadioGroupSegment value="listeners" className={segmentedItemVariants()}>
+                    By who listens
+                  </RadioGroupSegment>
+                  <RadioGroupSegment value="topic" className={segmentedItemVariants()}>
+                    By topic
+                  </RadioGroupSegment>
+                </RadioGroup>
               )}
-            </p>
-            {topic?.status === 'ranking' ? (
-              <StateLine kind="loading">Ranking the roster by topic alone for the Topic column…</StateLine>
-            ) : topic && topic.status !== 'ranked' ? (
-              <StateLine kind="error">No topic column: {topic.error}. The fit ranking stands without it.</StateLine>
-            ) : null}
-          </div>
-          <div role="table" aria-labelledby="fit-h" data-fit-chart>
-            <div role="rowgroup">
-              <div
-                role="row"
-                className={cn(grid, bleed, 'border-b pb-2 type-caption text-muted-foreground max-md:sr-only')}
-              >
-                <span role="columnheader" className="text-right [grid-area:rank]">
-                  Rank
-                </span>
-                {moves && (
-                  <span role="columnheader" className="[grid-area:move]">
-                    Move
-                  </span>
+              {/* Where the order on screen comes from. */}
+              <p className="type-caption text-muted-foreground">
+                {moves && lens === 'topic' ? (
+                  <>
+                    <Source of="agent" /> Ranked by topic alone, from show names and descriptions
+                  </>
+                ) : (
+                  <>
+                    <Source of="qloo" /> Ranked by listener overlap with {anchors}
+                  </>
                 )}
-                <span role="columnheader" className="[grid-area:show]">
-                  Show
-                </span>
-                {/* The other lens's rank, labelled by who ranked it: the topic rank Claude gave it, or under
+              </p>
+              {topic?.status === 'ranking' ? (
+                <StateLine kind="loading">Ranking the roster by topic alone for the Topic column…</StateLine>
+              ) : topic && topic.status !== 'ranked' ? (
+                <StateLine kind="error">No topic column: {topic.error}. The fit ranking stands without it.</StateLine>
+              ) : null}
+            </div>
+            <div role="table" aria-labelledby="fit-h" data-fit-chart>
+              <div role="rowgroup">
+                <div
+                  role="row"
+                  className={cn(grid, bleed, 'border-b pb-2 type-caption text-muted-foreground max-md:sr-only')}
+                >
+                  <span role="columnheader" className="text-right [grid-area:rank]">
+                    Rank
+                  </span>
+                  {moves && (
+                    <span role="columnheader" className="[grid-area:move]">
+                      Move
+                    </span>
+                  )}
+                  <span role="columnheader" className="[grid-area:show]">
+                    Show
+                  </span>
+                  {/* The other lens's rank, labelled by who ranked it: the topic rank Claude gave it, or under
                     "By topic" the listener rank Qloo's data gave it. Wider than its column, the header runs
                     left into the show's, which has room. */}
-                {moves && (
-                  <span
-                    role="columnheader"
-                    className="flex w-max items-center gap-1.5 justify-self-end [grid-area:topic]"
-                  >
-                    {topicLens ? (
-                      <>
-                        Listeners <Source of="qloo" />
-                      </>
-                    ) : (
-                      <>
-                        Topic <Source of="agent" />
-                      </>
-                    )}
-                  </span>
-                )}
-                <span role="columnheader" className="[grid-area:fit]">
-                  Fit
-                </span>
-                <span role="columnheader" className="text-right [grid-area:slot]">
-                  Slot value
-                </span>
-              </div>
-            </div>
-            <div role="rowgroup">
-              {shown.map((r) => {
-                const move = byShow.get(r.show)
-                const open = move?.climber === true && why === r.show
-                const out = leftOut.includes(r.show)
-                const flagged = r.finalist ? demographics?.rows.find((d) => d.show === r.show)?.reasons : null
-                const shared = r.sharedTags ?? null // runs from before shared tags have none
-                const notes = [
-                  !sameName(r.entity.name, r.show) && `Mapped to ${r.entity.name}`,
-                  ranking.anchors.length > 1 &&
-                    (r.leadingComp ? `Led by ${r.leadingComp.name}` : 'Comps contributed evenly')
-                ].filter(Boolean)
-                const callButton = (call: string, label: string) => (
-                  <CallButton call={call} label={label} opened={opened} openCall={openCall} />
-                )
-                const tint = r.finalist ? 'bg-signal-tint' : 'bg-background'
-                return (
-                  <Fragment key={r.show}>
-                    <div
-                      role="row"
-                      ref={(el) => {
-                        if (el) rowEls.current.set(r.show, el)
-                        else rowEls.current.delete(r.show)
-                      }}
-                      className={cn(
-                        grid,
-                        bleed,
-                        'group/row items-baseline border-b py-3',
-                        tint,
-                        open && 'border-b-transparent'
-                      )}
-                      data-show={r.show}
-                      data-finalist={r.finalist || undefined}
-                      data-left-out={out || undefined}
+                  {moves && (
+                    <span
+                      role="columnheader"
+                      className="flex w-max items-center gap-1.5 justify-self-end [grid-area:topic]"
                     >
-                      {/* The rank in the lens's order, the order the rows are in; screen readers hear both
-                          ranks, the lens's first. */}
-                      <span role="cell" className="text-right type-title tabular-nums [grid-area:rank]">
-                        {moves ? (
-                          <>
-                            <span aria-hidden="true">{topicLens ? (move?.topicRank ?? '–') : r.rank}</span>
-                            <span className="vh">{rankWords(r.rank, move?.topicRank ?? null, lens)}</span>
-                          </>
-                        ) : (
-                          r.rank
+                      {topicLens ? (
+                        <>
+                          Listeners <Source of="qloo" />
+                        </>
+                      ) : (
+                        <>
+                          Topic <Source of="agent" />
+                        </>
+                      )}
+                    </span>
+                  )}
+                  <span role="columnheader" className="[grid-area:fit]">
+                    Fit
+                  </span>
+                  <span role="columnheader" className="text-right [grid-area:slot]">
+                    Slot value
+                  </span>
+                </div>
+              </div>
+              <div role="rowgroup">
+                {shown.map((r) => {
+                  const move = byShow.get(r.show)
+                  const open = move?.climber === true && why === r.show
+                  const out = leftOut.includes(r.show)
+                  const flagged = r.finalist ? demographics?.rows.find((d) => d.show === r.show)?.reasons : null
+                  const shared = r.sharedTags ?? null // runs from before shared tags have none
+                  const notes = [
+                    !sameName(r.entity.name, r.show) && `Mapped to ${r.entity.name}`,
+                    ranking.anchors.length > 1 &&
+                      (r.leadingComp ? `Led by ${r.leadingComp.name}` : 'Comps contributed evenly')
+                  ].filter(Boolean)
+                  const callButton = (call: string, label: string) => (
+                    <CallButton call={call} label={label} opened={opened} openCall={openCall} />
+                  )
+                  const tint = r.finalist ? 'bg-signal-tint' : 'bg-background'
+                  return (
+                    <Fragment key={r.show}>
+                      <div
+                        role="row"
+                        ref={(el) => {
+                          if (el) rowEls.current.set(r.show, el)
+                          else rowEls.current.delete(r.show)
+                        }}
+                        className={cn(
+                          grid,
+                          bleed,
+                          'group/row items-baseline border-b py-3',
+                          tint,
+                          open && 'border-b-transparent'
                         )}
-                      </span>
-                      {moves && (
-                        <span
-                          role="cell"
-                          className={cn(
-                            'tabular-nums [grid-area:move]',
-                            move?.climber ? 'font-semibold text-signal-ink' : 'text-muted-foreground'
-                          )}
-                        >
-                          {move && (
+                        data-show={r.show}
+                        data-finalist={r.finalist || undefined}
+                        data-left-out={out || undefined}
+                      >
+                        {/* The rank in the lens's order, the order the rows are in; screen readers hear both
+                          ranks, the lens's first. */}
+                        <span role="cell" className="text-right type-title tabular-nums [grid-area:rank]">
+                          {moves ? (
                             <>
-                              <span aria-hidden="true">{moveGlyph(move.move)}</span>
-                              <span className="vh">{moveWords(move.move)}</span>
+                              <span aria-hidden="true">{topicLens ? (move?.topicRank ?? '–') : r.rank}</span>
+                              <span className="vh">{rankWords(r.rank, move?.topicRank ?? null, lens)}</span>
                             </>
+                          ) : (
+                            r.rank
                           )}
                         </span>
-                      )}
-                      <div role="cell" className="flex min-w-0 flex-col gap-1 [grid-area:show]">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          {move?.climber ? (
-                            // The chevron rides on the name's last word, so a name that wraps keeps it beside
-                            // its end rather than at the row's far edge.
-                            <button
-                              type="button"
-                              className="group/why inline-block cursor-pointer text-left text-[15px] leading-snug font-semibold underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11"
-                              aria-expanded={open}
-                              aria-controls={`why-${r.rank}`}
-                              onClick={() => setWhy(open ? null : r.show)}
-                            >
-                              {r.show.includes(' ') && `${r.show.slice(0, r.show.lastIndexOf(' '))} `}
-                              <span className="whitespace-nowrap">
-                                {r.show.slice(r.show.lastIndexOf(' ') + 1)}
-                                <ChevronDownIcon
-                                  aria-hidden="true"
-                                  className="ml-1 inline-block size-4 align-[-0.1875rem] text-muted-foreground transition-transform group-aria-expanded/why:rotate-180"
-                                />
-                              </span>
-                            </button>
-                          ) : (
-                            <span className="text-[15px] leading-snug font-semibold">{r.show}</span>
-                          )}
-                          {r.finalist && <Badge mark="signal">Finalist</Badge>}
-                          {out && <Badge>Left out</Badge>}
-                          {flagged?.length ? <Badge variant="outline">Listeners differ</Badge> : null}
-                        </div>
-                        {(shared || notes.length > 0) && (
-                          <p className="type-caption text-muted-foreground">
-                            {shared && (
+                        {moves && (
+                          <span
+                            role="cell"
+                            className={cn(
+                              'tabular-nums [grid-area:move]',
+                              move?.climber ? 'font-semibold text-signal-ink' : 'text-muted-foreground'
+                            )}
+                          >
+                            {move && (
                               <>
-                                {shared.error
-                                  ? `Shared tags failed: ${shared.error}`
-                                  : shared.tags.length > 0
-                                    ? shared.tags.join('\u00a0· ') // a separator never starts a line
-                                    : 'No distinctive shared tags'}{' '}
-                                {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
-                                {notes.length > 0 && ' · '}
+                                <span aria-hidden="true">{moveGlyph(move.move)}</span>
+                                <span className="vh">{moveWords(move.move)}</span>
                               </>
                             )}
-                            {notes.join(' · ')}
-                          </p>
-                        )}
-                        {flagged?.length ? (
-                          <p className="type-caption text-muted-foreground">{flagged.join('. ')}.</p>
-                        ) : null}
-                      </div>
-                      {moves && (
-                        <span role="cell" className="text-right text-muted-foreground [grid-area:topic]">
-                          <span className="md:hidden" aria-hidden="true">
-                            {topicLens ? 'Listeners' : 'Topic'}{' '}
                           </span>
-                          {topicLens ? (
-                            <span className="tabular-nums">#{r.rank}</span>
-                          ) : move ? (
-                            <span className="tabular-nums">#{move.topicRank}</span>
-                          ) : (
-                            '–'
-                          )}
-                        </span>
-                      )}
-                      <span role="cell" className="[grid-area:fit]">
-                        <FitBand band={r.band} finalist={r.finalist} quiet />
-                      </span>
-                      <span role="cell" className="[grid-area:slot]" data-slot-value>
-                        <SlotValue show={show(r.show)} cpm={cpm} sampleCpm={sampleCpm} />
-                      </span>
-                    </div>
-                    {open && (
-                      <div role="row" id={`why-${r.rank}`} className={cn(grid, bleed, 'border-b pb-3', tint)}>
-                        {/* Under the show and the columns after it. */}
-                        <div
-                          role="cell"
-                          aria-colspan={moves ? 6 : 4}
-                          className="flex flex-col gap-1.5 [grid-column:show-start/-1] [grid-row:1/-1]"
-                        >
-                          <p className="font-semibold">Why it moved</p>
-                          {/* Topic rank is Claude's baseline, fit rank Qloo's: each labelled, neither
-                              wrapped off its words. */}
-                          <p>
-                            <Source of="agent" /> Topic alone ranks it{'\u00a0'}
-                            {move.topicRank}.
-                          </p>
-                          <p>
-                            <Source of="qloo" /> Listener overlap with {anchors} ranks it{'\u00a0'}
-                            {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}’s fit`)}
-                          </p>
-                          {r.leadingComp && <p>Led by {r.leadingComp.name}.</p>}
-                          {shared && !shared.error && shared.tags.length > 0 && (
-                            <p>
-                              Shared tags: {listOf(shared.tags)}.{' '}
-                              {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
+                        )}
+                        <div role="cell" className="flex min-w-0 flex-col gap-1 [grid-area:show]">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {move?.climber ? (
+                              // The chevron rides on the name's last word, so a name that wraps keeps it beside
+                              // its end rather than at the row's far edge.
+                              <button
+                                type="button"
+                                className="group/why inline-block cursor-pointer text-left text-[15px] leading-snug font-semibold underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11"
+                                aria-expanded={open}
+                                aria-controls={`why-${r.rank}`}
+                                onClick={() => setWhy(open ? null : r.show)}
+                              >
+                                {r.show.includes(' ') && `${r.show.slice(0, r.show.lastIndexOf(' '))} `}
+                                <span className="whitespace-nowrap">
+                                  {r.show.slice(r.show.lastIndexOf(' ') + 1)}
+                                  <ChevronDownIcon
+                                    aria-hidden="true"
+                                    className="ml-1 inline-block size-4 align-[-0.1875rem] text-muted-foreground transition-transform group-aria-expanded/why:rotate-180"
+                                  />
+                                </span>
+                              </button>
+                            ) : (
+                              <span className="text-[15px] leading-snug font-semibold">{r.show}</span>
+                            )}
+                            {r.finalist && <Badge mark="signal">Finalist</Badge>}
+                            {out && <Badge>Left out</Badge>}
+                            {flagged?.length ? <Badge variant="outline">Listeners differ</Badge> : null}
+                          </div>
+                          {(shared || notes.length > 0) && (
+                            <p className="type-caption text-muted-foreground">
+                              {shared && (
+                                <>
+                                  {shared.error
+                                    ? `Shared tags failed: ${shared.error}`
+                                    : shared.tags.length > 0
+                                      ? shared.tags.join('\u00a0· ') // a separator never starts a line
+                                      : 'No distinctive shared tags'}{' '}
+                                  {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
+                                  {notes.length > 0 && ' · '}
+                                </>
+                              )}
+                              {notes.join(' · ')}
                             </p>
                           )}
+                          {flagged?.length ? (
+                            <p className="type-caption text-muted-foreground">{flagged.join('. ')}.</p>
+                          ) : null}
                         </div>
+                        {moves && (
+                          <span role="cell" className="text-right text-muted-foreground [grid-area:topic]">
+                            <span className="md:hidden" aria-hidden="true">
+                              {topicLens ? 'Listeners' : 'Topic'}{' '}
+                            </span>
+                            {topicLens ? (
+                              <span className="tabular-nums">#{r.rank}</span>
+                            ) : move ? (
+                              <span className="tabular-nums">#{move.topicRank}</span>
+                            ) : (
+                              '–'
+                            )}
+                          </span>
+                        )}
+                        <span role="cell" className="[grid-area:fit]">
+                          <FitBand band={r.band} finalist={r.finalist} quiet />
+                        </span>
+                        <span role="cell" className="[grid-area:slot]" data-slot-value>
+                          <SlotValue show={show(r.show)} cpm={cpm} sampleCpm={sampleCpm} />
+                        </span>
                       </div>
-                    )}
-                  </Fragment>
-                )
-              })}
+                      {open && (
+                        <div role="row" id={`why-${r.rank}`} className={cn(grid, bleed, 'border-b pb-3', tint)}>
+                          {/* Under the show and the columns after it. */}
+                          <div
+                            role="cell"
+                            aria-colspan={moves ? 6 : 4}
+                            className="flex flex-col gap-1.5 [grid-column:show-start/-1] [grid-row:1/-1]"
+                          >
+                            <p className="font-semibold">Why it moved</p>
+                            {/* Topic rank is Claude's baseline, fit rank Qloo's: each labelled, neither
+                              wrapped off its words. */}
+                            <p>
+                              <Source of="agent" /> Topic alone ranks it{'\u00a0'}
+                              {move.topicRank}.
+                            </p>
+                            <p>
+                              <Source of="qloo" /> Listener overlap with {anchors} ranks it{'\u00a0'}
+                              {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}’s fit`)}
+                            </p>
+                            {r.leadingComp && <p>Led by {r.leadingComp.name}.</p>}
+                            {shared && !shared.error && shared.tags.length > 0 && (
+                              <p>
+                                Shared tags: {listOf(shared.tags)}.{' '}
+                                {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-          {(folded > 0 || all) && (
-            <Button variant="ghost" size="sm" className="-ml-2.5 self-start" onClick={() => setAll(!all)}>
-              {all ? 'Show fewer' : `Show all ${order.length}`}
-            </Button>
-          )}
-          <div className="flex flex-col gap-1.5 type-caption text-muted-foreground">
-            <p>
-              Fit bands are thirds of this ranking, and the top five, after any shows left out, are finalists.
-              {moves && ' Topic is the rank a topic-only plan gives each show, from names and descriptions alone.'}
-            </p>
-            <p data-chart-foot>
-              {cpm === null
-                ? 'Slot values need the network’s CPM: set it under Network CPM.'
-                : `Slot value = downloads × ${dollars(cpm)}${sampleCpm ? ' sample' : ''} CPM ÷ 1,000${sampleCpm ? ' · sample figures' : ''}`}
-            </p>
-            {demographics && (
-              <DemographicSummary check={demographics} ranking={ranking} openCall={openCall} opened={opened} />
+            {(folded > 0 || all) && (
+              <Button variant="ghost" size="sm" className="-ml-2.5 self-start" onClick={() => setAll(!all)}>
+                {all ? 'Show fewer' : `Show all ${order.length}`}
+              </Button>
             )}
-          </div>
-          {missing.length > 0 && (
-            <StateLine kind="failed">
-              Partial ranking: {listOf(missing)} {missing.length === 1 ? 'isn’t' : 'aren’t'} in it, because{' '}
-              {missing.length === 1 ? 'its Qloo lookup' : 'their Qloo lookups'} failed.
-            </StateLine>
-          )}
-        </>
-      )}
+            <div className="flex flex-col gap-1.5 type-caption text-muted-foreground">
+              <p>
+                Fit bands are thirds of this ranking, and the top five, after any shows left out, are finalists.
+                {moves && ' Topic is the rank a topic-only plan gives each show, from names and descriptions alone.'}
+              </p>
+              <p data-chart-foot>
+                {cpm === null
+                  ? 'Slot values need the network’s CPM: set it under Network CPM.'
+                  : `Slot value = downloads × ${dollars(cpm)}${sampleCpm ? ' sample' : ''} CPM ÷ 1,000${sampleCpm ? ' · sample figures' : ''}`}
+              </p>
+              {demographics && (
+                <DemographicSummary check={demographics} ranking={ranking} openCall={openCall} opened={opened} />
+              )}
+            </div>
+            {missing.length > 0 && (
+              <StateLine kind="failed">
+                Partial ranking: {listOf(missing)} {missing.length === 1 ? 'isn’t' : 'aren’t'} in it, because{' '}
+                {missing.length === 1 ? 'its Qloo lookup' : 'their Qloo lookups'} failed.
+              </StateLine>
+            )}
+          </>
+        )}
+      </Section>
       {ranking.notScored.length > 0 && (
-        <NotScored noun="Show" rows={ranking.notScored.map((n) => ({ key: n.show, name: n.show, reason: n.reason }))} />
+        <Section
+          id="not-scored-h"
+          title={`Not scored · ${ranking.notScored.length}`}
+          description="The roster’s shows that the ranking left out, and why."
+        >
+          <NotScored
+            noun="Show"
+            labelledBy="not-scored-h"
+            rows={ranking.notScored.map((n) => ({ key: n.show, name: n.show, reason: n.reason }))}
+          />
+        </Section>
       )}
-    </section>
+    </>
   )
 }
 

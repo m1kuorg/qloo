@@ -6,6 +6,7 @@ import { callVariants } from '@/components/ui/variants'
 import type { Evidence } from '../evidence'
 import type { Session } from './App'
 import { KeyValue, KeyValues } from './controls'
+import { Section } from './PageHeader'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
 
@@ -52,7 +53,7 @@ export function CallButton({
 // returned, as raw tables. Its id is what every call number's aria-controls names, so it's always
 // mounted.
 export function EvidencePanel({ opened }: { opened: Opened | null }) {
-  const ref = useRef<HTMLElement>(null)
+  const ref = useRef<HTMLDivElement>(null)
   const status = opened?.status
   // Bring the record into view once it's there, such as below the chart at narrow widths.
   useEffect(() => {
@@ -61,60 +62,63 @@ export function EvidencePanel({ opened }: { opened: Opened | null }) {
   const record = opened?.status === 'loaded' ? opened.record : undefined
   return (
     // Scrolled to, it stops clear of the inspector's sticky tabs.
-    <section className="flex min-w-0 scroll-mt-16 flex-col gap-4" id="evidence" ref={ref} aria-labelledby="evidence-h">
-      <div className="flex flex-col gap-1.5">
-        <h2 className="font-semibold" id="evidence-h">
-          {opened ? (
-            <>
+    <div className="min-w-0 scroll-mt-16" id="evidence" ref={ref}>
+      <Section
+        id="evidence-h"
+        title={
+          opened ? (
+            <span>
               Evidence · <code className="font-mono font-medium">{opened.call}</code>
-            </>
+            </span>
           ) : (
             'Evidence'
-          )}
-        </h2>
+          )
+        }
+        description="The Qloo request behind a call, and what Qloo returned."
+      >
         <div className="flex flex-wrap items-center gap-1.5">
           <Source of="qloo" />
           {record?.replayed && <Badge variant="outline">Replayed</Badge>}
           {record?.fromSample && <Badge variant="outline">Sample data</Badge>}
           {record?.copiedFrom && <Badge variant="outline">From the roster</Badge>}
         </div>
-      </div>
-      {!opened && (
-        <p className="text-muted-foreground">
-          Every Qloo figure cites its call, such as <code className="font-mono text-xs">C-01</code>. Select one to see
-          the request and what Qloo returned.
-        </p>
-      )}
-      {opened?.status === 'loading' && (
-        <>
-          <p role="status">
-            <StateLine kind="loading" word={null}>
-              Loading {opened.call}…
-            </StateLine>
+        {!opened && (
+          <p className="text-muted-foreground">
+            Every Qloo figure cites its call, such as <code className="font-mono text-xs">C-01</code>. Select one to
+            open it.
           </p>
-          {/* The record's rows in their shape, still. */}
-          <div className="flex flex-col gap-2.5" aria-hidden="true">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex gap-4">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-4 flex-1" />
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-      {opened?.status === 'failed' && (
-        <StateLine kind="error" role="alert">
-          Couldn’t load {opened.call}: {sentence(opened.error)} Select the call again to try again.
-        </StateLine>
-      )}
-      {opened?.status === 'loaded' &&
-        (record ? (
-          <EvidenceRecord record={record} />
-        ) : (
-          <p className="text-muted-foreground">This session has no call {opened.call}.</p>
-        ))}
-    </section>
+        )}
+        {opened?.status === 'loading' && (
+          <>
+            <p role="status">
+              <StateLine kind="loading" word={null}>
+                Loading {opened.call}…
+              </StateLine>
+            </p>
+            {/* The record's rows in their shape, still. */}
+            <div className="flex flex-col gap-2.5" aria-hidden="true">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex gap-4">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 flex-1" />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        {opened?.status === 'failed' && (
+          <StateLine kind="error" role="alert">
+            Couldn’t load {opened.call}: {sentence(opened.error)} Select the call again to try again.
+          </StateLine>
+        )}
+        {opened?.status === 'loaded' &&
+          (record ? (
+            <EvidenceRecord record={record} />
+          ) : (
+            <p className="text-muted-foreground">This session has no call {opened.call}.</p>
+          ))}
+      </Section>
+    </div>
   )
 }
 

@@ -76,7 +76,7 @@ const words = (html: string) =>
 const chart = (state: State) =>
   hooked(
     renderToStaticMarkup(<LaunchWorkspace agent={{ state, stub: {} } as unknown as Agent} {...launchPage} />),
-    'aria-label="Fit chart"'
+    'aria-labelledby="fit-h"'
   )[0]
 // The chart's rows, by show, in the order they're listed.
 const rows = (state: State) =>

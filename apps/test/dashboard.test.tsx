@@ -10,7 +10,7 @@ import { LostAccess, NetworkGate } from '../src/client/NetworkPage'
 import { Settings } from '../src/client/Settings'
 import { connectionOf } from '../src/client/states'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
-import { api, openGuest, openMember, regions, type Member, type Session } from './session'
+import { api, openGuest, openMember, regions, sections, tabsOf, type Member, type Session } from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 const saved = {
@@ -99,23 +99,6 @@ const steps = (html: string) =>
     .split(/<li\b/)
     .slice(1)
     .map((li) => words(`<li${li}`))
-
-// Each section's heading and the one sentence under it, in the page's order, as a reader meets them.
-const sections = (html: string) =>
-  [...html.matchAll(/<section\b[^>]*\saria-labelledby="([^"]+)"/g)].map(([, by]) => {
-    const [, heading, after] = html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>(.*)`))!
-    return [words(heading), words(after.match(/<p\b[^>]*>(.*?)<\/p>/)![1])]
-  })
-
-// A page's tabs: its tab list's name, each tab's words, and whether each panel shows, every panel
-// being in the page whichever tab is chosen.
-const tabsOf = (html: string) => ({
-  label: html.match(/<div\b(?=[^>]*\srole="tablist")[^>]*\saria-label="([^"]+)"/)?.[1],
-  tabs: [...html.matchAll(/<button\b[^>]*\srole="tab"[^>]*>(.*?)<\/button>/g)].map(([, tab]) => words(tab)),
-  panels: [...html.matchAll(/<div\b[^>]*\srole="tabpanel"[^>]*>/g)].map(([tag]) =>
-    /\shidden=""/.test(tag) ? 'hidden' : 'shown'
-  )
-})
 
 describe('the dashboard', () => {
   it('says plainly that a new network has no launches, roster, or CPM, and lists all five setup steps', async () => {

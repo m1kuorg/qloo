@@ -56,6 +56,32 @@ export const regions = (html: string) =>
     return label ? [label] : heading ? [heading.replace(/<[^>]+>/g, '').trim()] : []
   })
 
+// A rendered page's words, as a reader hears them.
+const said = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;|&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+// Each section's heading and the one sentence under it, in the page's order, as a reader meets them.
+export const sections = (html: string) =>
+  [...html.matchAll(/<section\b[^>]*\saria-labelledby="([^"]+)"/g)].map(([, by]) => {
+    const [, heading, after] = html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>(.*)`))!
+    return [said(heading), said(after.match(/<p\b[^>]*>(.*?)<\/p>/)![1])]
+  })
+
+// A page's tabs: its tab list's name, each tab's words, and whether each panel shows, every panel
+// being in the page whichever tab is chosen.
+export const tabsOf = (html: string) => ({
+  label: html.match(/<div\b(?=[^>]*\srole="tablist")[^>]*\saria-label="([^"]+)"/)?.[1],
+  tabs: [...html.matchAll(/<button\b[^>]*\srole="tab"[^>]*>(.*?)<\/button>/g)].map(([, tab]) => said(tab)),
+  panels: [...html.matchAll(/<div\b[^>]*\srole="tabpanel"[^>]*>/g)].map(([tag]) =>
+    /\shidden=""/.test(tag) ? 'hidden' : 'shown'
+  )
+})
+
 // The links a server-rendered page's navigation marks current, as [name, href, aria-current]: its
 // <nav> elements' links with aria-current, each named by its words, as a screen reader names it.
 export const currentLinks = (html: string) =>

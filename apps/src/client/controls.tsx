@@ -140,10 +140,18 @@ export function FitBand({ band, finalist, quiet = false }: { band: Band; finalis
 }
 
 // What a ranking left out, and why: the fit chart's shows and a pitch list's pitches, as a compact
-// table under the ranked rows.
-export const NotScored = ({ noun, rows }: { noun: string; rows: { key: string; name: string; reason: string }[] }) => (
-  <table className="type-caption">
-    <caption className="pb-1.5 text-left type-ui font-semibold">Not scored · {rows.length}</caption>
+// table under the ranked rows, captioned, or named by the heading of a section of its own (`labelledBy`).
+export const NotScored = ({
+  noun,
+  rows,
+  labelledBy
+}: {
+  noun: string
+  rows: { key: string; name: string; reason: string }[]
+  labelledBy?: string
+}) => (
+  <table className="type-caption" aria-labelledby={labelledBy}>
+    {!labelledBy && <caption className="pb-1.5 text-left type-ui font-semibold">Not scored · {rows.length}</caption>}
     <thead className="text-muted-foreground">
       <tr className="border-b">
         <th scope="col" className="py-1.5 pr-4 text-left font-normal">

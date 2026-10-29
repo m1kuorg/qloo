@@ -7,7 +7,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
-import { linkVariants } from '@/components/ui/variants'
+import { buttonVariants } from '@/components/ui/variants'
 import type { Show, ShowPatch, SlowCall } from '../agent'
 import { dollars } from '../order'
 import { MAX_TITLE } from '../text'
@@ -30,7 +30,7 @@ import {
 } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
 import type { NetworkPage } from './NetworkPage'
-import { count, FormDialog, summaryLine, useFormDialog } from './PageHeader'
+import { count, FormDialog, Section, summaryLine, useFormDialog } from './PageHeader'
 import { Source } from './Source'
 import { sentence, SlowCalls, slowText, StateLine } from './states'
 
@@ -685,50 +685,32 @@ export function RosterCheck({ roster }: { roster: Show[] }) {
   )
 }
 
-// The CPM's heading, with "Not set" while there's none, and what it prices. `cpm` is undefined until
-// the agent is connected.
-function CpmHead({ cpm }: { cpm: number | null | undefined }) {
+// The CPM that prices every slot of a launch's run, as the run took it, read-only: an owner changes the
+// network's in its settings, on its network tab. It says "Not set" while there's none.
+export function CpmRecord({ cpm, network }: { cpm: number | null; network: NetworkPage }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <h2 className="font-semibold" id="cpm-h">
-        Network CPM
-      </h2>
-      {cpm === null && <Badge>Not set</Badge>}
-    </div>
-  )
-}
-const PRICES = 'Prices each promo slot: downloads per episode × CPM ÷ 1,000.'
-
-// The CPM that prices every launch's slots, read-only, which an owner changes in the network's
-// settings, on its network tab: on the network's roster page, and as a launch's run took it. `cpm` is
-// undefined until the agent is connected.
-export function CpmRecord({
-  cpm,
-  network,
-  note
-}: {
-  cpm: number | null | undefined
-  network: NetworkPage
-  note?: string
-}) {
-  return (
-    <section className="flex flex-col gap-2" aria-labelledby="cpm-h">
-      <CpmHead cpm={cpm} />
-      {cpm != null && (
+    <Section
+      id="cpm-h"
+      title="Network CPM"
+      badge={cpm === null && <Badge>Not set</Badge>}
+      description="Each run takes the network’s CPM as it starts, to price each promo slot: downloads per episode × CPM ÷ 1,000."
+      actions={
+        network.role === 'owner' && (
+          <a
+            className={buttonVariants({ variant: 'ghost', size: 'sm', className: '-my-1 -mr-1.5' })}
+            href={`${network.links.settings}#network`}
+          >
+            {cpm === null ? 'Set it in settings' : 'Change it in settings'}
+          </a>
+        )
+      }
+    >
+      {cpm !== null && (
         <KeyValues>
           <KeyValue label="CPM">{dollars(cpm)} per 1,000 downloads</KeyValue>
         </KeyValues>
       )}
-      <p className="type-caption text-muted-foreground">
-        {PRICES} {note && `${note} `}
-        {network.role === 'owner' ? (
-          <a className={linkVariants()} href={`${network.links.settings}#network`}>
-            {cpm === null ? 'Set it in settings' : 'Change it in settings'}
-          </a>
-        ) : (
-          'An owner sets it in settings.'
-        )}
-      </p>
-    </section>
+      {network.role !== 'owner' && <p className="type-caption text-muted-foreground">An owner sets it in settings.</p>}
+    </Section>
   )
 }
