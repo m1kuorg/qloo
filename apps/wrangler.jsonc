@@ -84,11 +84,14 @@
     ]
   },
   // Requests a minute: per API key on /api/v1, on top of the network's daily caps, and per visitor on
-  // the auth routes that write a challenge or a session before anyone is signed in (#167). The
+  // the auth routes that write a challenge or a session before anyone is signed in (#167). And the API
+  // keys and invite links one member creates a minute, together, across their networks (#330): the caps
+  // count only those in use or open, so a loop that revokes each as it goes is slowed by this alone. The
   // namespace IDs are the account's own, one per limit and environment.
   "ratelimits": [
     { "name": "API_LIMITER", "namespace_id": "1671", "simple": { "limit": 120, "period": 60 } },
-    { "name": "AUTH_LIMITER", "namespace_id": "1672", "simple": { "limit": 20, "period": 60 } }
+    { "name": "AUTH_LIMITER", "namespace_id": "1672", "simple": { "limit": 20, "period": 60 } },
+    { "name": "CREATE_LIMITER", "namespace_id": "1675", "simple": { "limit": 30, "period": 60 } }
   ],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["CrossfeedAgent", "QlooGateway"] },
@@ -148,7 +151,8 @@
       },
       "ratelimits": [
         { "name": "API_LIMITER", "namespace_id": "1673", "simple": { "limit": 120, "period": 60 } },
-        { "name": "AUTH_LIMITER", "namespace_id": "1674", "simple": { "limit": 20, "period": 60 } }
+        { "name": "AUTH_LIMITER", "namespace_id": "1674", "simple": { "limit": 20, "period": 60 } },
+        { "name": "CREATE_LIMITER", "namespace_id": "1676", "simple": { "limit": 30, "period": 60 } }
       ]
     }
   }

@@ -1505,8 +1505,8 @@ function Terms({ env }: { env: Env }) {
           {env.ACCOUNTS === 'on' && (
             <>
               {' '}
-              Each API key, and each visitor’s sign-in requests, are also limited per minute; a request past the limit
-              is refused, and says to wait a minute.
+              Each API key, each visitor’s sign-in requests, and the API keys and invite links each member creates are
+              also limited per minute; a request past the limit is refused, and says to wait a minute.
             </>
           )}
         </p>
