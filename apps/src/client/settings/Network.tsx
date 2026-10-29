@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -12,9 +11,9 @@ import type { NetworkPage } from '../NetworkPage'
 import { Done, Module } from './Module'
 
 // The settings' network module: the network's name and its CPM. An owner changes them here; a member
-// reads them. `cpm` is the agent's, live, and undefined until it's connected, labelled while it's still
-// the sample network's, `sampleCpm`, as the guest network's starts (ADR 0007); `onRenamed` hears a saved
-// new name.
+// reads them. `cpm` is the agent's, live, and undefined until it's connected; while it's still the
+// sample network's, `sampleCpm`, as the guest network's starts (ADR 0007), the field says it's an
+// arbitrary figure; `onRenamed` hears a saved new name.
 export function NetworkModule({
   network,
   cpm,
@@ -39,8 +38,7 @@ export function NetworkModule({
           <KeyValues>
             <KeyValue label="Name">{network.name}</KeyValue>
             <KeyValue label="CPM">
-              {cpm === undefined ? 'Connecting…' : cpm === null ? 'Not set' : dollars(cpm)}{' '}
-              {sampleCpm && <Badge variant="outline">sample</Badge>}
+              {cpm === undefined ? 'Connecting…' : cpm === null ? 'Not set' : dollars(cpm)}
             </KeyValue>
           </KeyValues>
           <p className="text-muted-foreground">Only an owner can change these.</p>
@@ -132,13 +130,7 @@ function NetworkForm({
           </InputGroup>
           <FieldDescription>
             Dollars per 1,000 downloads.
-            {sampleCpm && (
-              <>
-                {' '}
-                <Badge variant="outline">sample</Badge> An arbitrary sample figure until an owner sets the network’s
-                own.
-              </>
-            )}
+            {sampleCpm && ' An arbitrary sample figure until an owner sets the network’s own.'}
           </FieldDescription>
         </Field>
       </FieldGroup>

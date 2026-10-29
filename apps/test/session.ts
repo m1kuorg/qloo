@@ -72,6 +72,19 @@ export const sections = (html: string) =>
     return [said(heading), said(after.match(/<p\b[^>]*>(.*?)<\/p>/)![1])]
   })
 
+// Each label on a rendered page saying something is the sample data's, a badge such as "sample" or
+// "Sample data", or a word standing in for one ("sample" for screen readers, "Sample:"), as a reader
+// meets it: in the page's h1, as the title's words, or elsewhere, as the words leading up to it. A page
+// whose data is the sample's has one, in its h1 beside its title (#311): ['h1: Roster'].
+export const sampleLabels = (html: string) =>
+  [...html.matchAll(/<span\b[^>]*\sdata-slot="badge"[^>]*>[^<]*sample[^<]*<|>\s*sample:?\s*</gi)].map(({ index }) => {
+    const before = html.slice(0, index).replace(/<[^>]*$/, '')
+    const h1 = before.lastIndexOf('<h1')
+    return h1 >= 0 && h1 > before.lastIndexOf('</h1>')
+      ? `h1: ${said(before.slice(h1))}`
+      : `after: ${said(before).slice(-60)}`
+  })
+
 // A page's tabs: its tab list's name, each tab's words, and whether each panel shows, every panel
 // being in the page whichever tab is chosen.
 export const tabsOf = (html: string) => ({

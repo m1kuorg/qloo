@@ -10,7 +10,17 @@ import { LostAccess, NetworkGate } from '../src/client/NetworkPage'
 import { Settings } from '../src/client/Settings'
 import { connectionOf } from '../src/client/states'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
-import { api, openGuest, openMember, regions, sections, tabsOf, type Member, type Session } from './session'
+import {
+  api,
+  openGuest,
+  openMember,
+  regions,
+  sampleLabels,
+  sections,
+  tabsOf,
+  type Member,
+  type Session
+} from './session'
 
 const open: Omit<Session, 'cookie'>[] = []
 const saved = {
@@ -285,18 +295,25 @@ describe('settings', () => {
     )
   }
 
-  it("label the guest network's sample CPM as a sample figure, as its dashboard does, until an owner sets one (ADR 0007)", async () => {
+  it("label the guest network's sample data once, beside the title, as its dashboard does, and say the sample CPM is arbitrary until an owner sets one (ADR 0007)", async () => {
     env.SAMPLE_NETWORK = 'on'
     fakeQloo({ search: {} })
     const guest = await openGuest()
     const agent = await connect(guest, 'guest-network')
     const loaded = await agent.until((s) => s.sample !== null && s.roster.every((r) => r.resolution !== 'pending'))
-    expect(words(await dashboard(guest, 'guest-network', loaded))).toContain(
-      'CPM $20 per 1,000 downloads sample Change'
+    const board = await dashboard(guest, 'guest-network', loaded)
+    expect(sampleLabels(board)).toEqual(['h1: Launches'])
+    expect(words(board)).toContain('CPM $20 per 1,000 downloads Change')
+    const page = await settings(guest, 'guest-network', loaded)
+    expect(sampleLabels(page)).toEqual(['h1: Settings'])
+    expect(words(page)).toContain(
+      'Dollars per 1,000 downloads. An arbitrary sample figure until an owner sets the network’s own.'
     )
-    expect(words(await settings(guest, 'guest-network', loaded))).toContain(
-      'Dollars per 1,000 downloads. sample An arbitrary sample figure until an owner sets the network’s own.'
-    )
+    // A member's own network has no sample data to label.
+    const ada = await openMember()
+    const { id, agent: own } = await network(ada)
+    expect(sampleLabels(await dashboard(ada, id, own.state()))).toEqual([])
+    expect(sampleLabels(await settings(ada, id, own.state()))).toEqual([])
 
     const res = await guest.fetch('/app/guest-network/settings/network', {
       method: 'POST',
