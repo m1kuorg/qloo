@@ -477,7 +477,8 @@ function JoinAs({ name, network, join }: { name: string; network: string; join: 
           <span className="truncate">{busy ? 'Joining…' : `Join ${network}`}</span>
         </Button>
         <Alert error={error} />
-        <p className="text-muted-foreground">
+        {/* Its words set the panel's width, and below 1024px the page's, so a name with no spaces breaks anywhere. */}
+        <p className="wrap-anywhere text-muted-foreground">
           Not {name}?{' '}
           <SignOut
             variant="link"

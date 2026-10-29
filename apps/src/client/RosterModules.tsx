@@ -265,8 +265,10 @@ export function RosterTable({
   const hot = selected ?? roster.find((s) => s.evidence === opened)?.name
   const cell = 'border-b py-3 pl-3 align-top group-data-selected/row:bg-muted'
   const head = 'border-b pb-2 pl-3 text-left align-bottom font-normal'
-  // The show's column, held at the left while the rest scrolls under it, ruled where they meet.
-  const held = 'sticky left-0 bg-background pl-2 max-md:border-r max-md:pr-3'
+  // The show's column, held at the left while the rest scrolls under it, ruled where they meet. A word
+  // too long for it, such as a show's name with no spaces, breaks anywhere rather than widening it past
+  // the region and over the other columns.
+  const held = 'sticky left-0 bg-background pl-2 wrap-anywhere max-md:border-r max-md:pr-3'
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground" id="roster-cap">

@@ -201,9 +201,11 @@ function LaunchList({
 // roster's do, figures right-aligned; narrower than the table, it scrolls in its region with the
 // launch's column held at the left, ruled where they meet. Under 1024px its columns tighten and a run's
 // starter goes under its day, so at 768px the whole table, its row menus included, fits the canvas.
+// The held column breaks a word too long for it, such as a launch's name with no spaces, anywhere
+// rather than widening past the region and covering the columns that scroll under it.
 const head = 'border-b pb-2 pl-3 text-left align-bottom font-normal'
 const cell = 'border-b py-3 pl-3 align-top'
-const held = 'sticky left-0 bg-background pl-2 max-lg:border-r max-lg:pr-3'
+const held = 'sticky left-0 bg-background pl-2 wrap-anywhere max-lg:border-r max-lg:pr-3'
 function LaunchesTable({ children }: { children: React.ReactNode }) {
   return (
     <ScrollTable label="Launches table" className="-mx-2 max-w-none">

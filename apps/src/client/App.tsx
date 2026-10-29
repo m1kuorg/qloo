@@ -517,7 +517,8 @@ function LaunchMatch({
 }
 
 // The comps standing in for an unreleased launch: each confirmed one as its Qloo match, the rest
-// with what's still needed, and each with the search it came from.
+// with what's still needed, and each with the search it came from. Each is as wide as its words, so a
+// comp's name with no spaces breaks anywhere.
 function LaunchComps({
   comps,
   running,
@@ -537,7 +538,7 @@ function LaunchComps({
     return 'to confirm'
   }
   return (
-    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 wrap-anywhere">
       <Source of="qloo" /> Comps:{' '}
       {comps.map((c, i) => (
         <span key={c.name} className="inline-flex flex-wrap items-center gap-x-1.5">

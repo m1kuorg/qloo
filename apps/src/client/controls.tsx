@@ -68,10 +68,12 @@ export function useLeaveGuard(dirty: boolean) {
   }, [dirty])
 }
 
+// A refusal can quote a name, such as a show's with no spaces, and sit in a box as wide as its words, as
+// a form dialog's is, so a word too long for its line breaks anywhere.
 export const Alert = ({ error }: { error: string | null }) =>
   error && (
     <StateLine kind="error" role="alert">
-      {error}
+      <span className="wrap-anywhere">{error}</span>
     </StateLine>
   )
 
@@ -143,6 +145,9 @@ export function FitBand({ band, finalist, quiet = false }: { band: Band; finalis
 
 // What a ranking left out, and why: the fit chart's shows and a pitch list's pitches, as a compact
 // table under the ranked rows, captioned, or named by the heading of a section of its own (`labelledBy`).
+// The table is as wide as its words, so a name with a word longer than 20 characters, such as a show's
+// with no spaces, breaks anywhere rather than widening the table past its section. Other names keep
+// their words whole: breaking anywhere would let a long reason squeeze them mid-word.
 export const NotScored = ({
   noun,
   rows,
@@ -167,7 +172,9 @@ export const NotScored = ({
     <tbody>
       {rows.map((n) => (
         <tr key={n.key} className="border-b">
-          <td className="py-1.5 pr-4 align-top font-medium">{n.name}</td>
+          <td className={cn('py-1.5 pr-4 align-top font-medium', /\S{21}/.test(n.name) && 'wrap-anywhere')}>
+            {n.name}
+          </td>
           <td className="py-1.5 align-top text-muted-foreground">{n.reason}</td>
         </tr>
       ))}
@@ -246,7 +253,8 @@ export function PickOne({
       }}
     >
       <fieldset className="flex min-w-0 flex-col gap-1">
-        <legend className="mb-2 font-medium">{legend}</legend>
+        {/* As wide as its words, so a show's name or a search with no spaces breaks anywhere. */}
+        <legend className="mb-2 font-medium wrap-anywhere">{legend}</legend>
         {options.map((c) => (
           <label
             key={c.id}

@@ -62,7 +62,8 @@ export function PageHeader({
       </h1>
       {/* Spaced from the title only while something in it shows: an empty live region takes no room. */}
       <p className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground has-[>:not(:empty)]:mt-1.5">
-        {!empty && summary && <span>{summary}</span>}
+        {/* As wide as its words, so a show's name with no spaces breaks anywhere. */}
+        {!empty && summary && <span className="wrap-anywhere">{summary}</span>}
         <span role="status">
           {connection ? (
             <ConnectionState connection={connection} />

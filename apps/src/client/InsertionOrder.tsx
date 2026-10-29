@@ -170,8 +170,9 @@ export function InsertionOrderPanel({
               {approved && order.approvedBy && order.approvedAt && (
                 <p className="flex items-start gap-1.5" ref={approvedLine} tabIndex={-1}>
                   <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                  {/* An approval in one of the sample launches is the sample data's, not a sign-off anyone gave here (ADR 0002). */}
-                  <span>
+                  {/* An approval in one of the sample launches is the sample data's, not a sign-off anyone gave here (ADR 0002).
+                      A member's name with no spaces breaks anywhere. */}
+                  <span className="wrap-anywhere">
                     {order.fromSample ? (
                       <>
                         Approved in the sample data, by {order.approvedBy} as it was captured, not by anyone in this
@@ -258,7 +259,8 @@ function Lines({
           <tbody key={line.show} className="border-b" data-line={line.show}>
             <tr className="align-baseline">
               <th scope="row" className="pt-3 text-left font-normal">
-                <span className="inline-flex items-center gap-2 text-[15px] leading-snug font-semibold">
+                {/* As wide as its words, so a show's name with no spaces breaks anywhere. */}
+                <span className="inline-flex items-center gap-2 text-[15px] leading-snug font-semibold wrap-anywhere">
                   {/* The signal mark: a line the agent put forward. */}
                   <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-signal" />
                   {line.show}

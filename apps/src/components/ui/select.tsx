@@ -1,7 +1,8 @@
 // shadcn's base-nova select on the tokens: the trigger is a control on the card, outlined at --input's
 // 3:1, with the stylesheet's focus ring and no dark-mode override; the popup floats at 8px on the one
 // floating shadow, at least as wide as the trigger and as wide as its longest item where there's room,
-// its items at 4px; the trigger and the items are 44px tall on a phone. Base UI injects no <style>
+// its items at 4px; the trigger and the items are 44px tall on a phone. The value and each item stay one
+// line, cutting a name too long for it short with an ellipsis, whole in the DOM. Base UI injects no <style>
 // under the island's CSPProvider, so it runs under the production policy. Don't re-add the original
 // with `shadcn add select --overwrite`.
 import * as React from 'react'
@@ -17,7 +18,11 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
 
 function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
-    <SelectPrimitive.Value data-slot="select-value" className={cn('flex flex-1 text-left', className)} {...props} />
+    <SelectPrimitive.Value
+      data-slot="select-value"
+      className={cn('min-w-0 flex-1 truncate text-left', className)}
+      {...props}
+    />
   )
 }
 
@@ -34,7 +39,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-fit cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-input bg-card py-2 pr-2 pl-2.5 text-sm whitespace-nowrap text-foreground transition-colors outline-none hover:bg-muted select-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-placeholder:text-muted-foreground h-8 data-[size=sm]:h-7 max-md:h-11 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex w-fit cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-input bg-card py-2 pr-2 pl-2.5 text-sm whitespace-nowrap text-foreground transition-colors outline-none hover:bg-muted select-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-placeholder:text-muted-foreground h-8 data-[size=sm]:h-7 max-md:h-11 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -107,7 +112,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
       )}
       {...props}
     >
-      <SelectPrimitive.ItemText className="flex flex-1 gap-2">{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemText className="min-w-0 flex-1 truncate">{children}</SelectPrimitive.ItemText>
       <SelectPrimitive.ItemIndicator
         render={<span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center" />}
       >
