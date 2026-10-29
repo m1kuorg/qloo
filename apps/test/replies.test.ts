@@ -198,6 +198,9 @@ describe('drafting replies to pitches', () => {
       'Finding the tags 3 top pitches share with Night Shift Cinema',
       'Drafting 7 replies'
     ])
+    // One batch is one step in the Run tab.
+    expect(runTab(state).match(/Drafting/g)).toHaveLength(1)
+    expect(runTab(state)).toContain('Drafting 7 replies')
     // One compare per top pitch's work, with the show alone on side a and IDs only.
     const compares = requests.filter((r) => r.url.pathname === '/v2/analysis/compare')
     expect(
@@ -249,7 +252,10 @@ describe('drafting replies to pitches', () => {
       turn(draftReplies(replies.slice(0, 3)), draftReplies(replies.slice(3))),
       turn(text('Drafted.'))
     ])
-    expect(state.run?.notes.slice(-2).map((n) => n.text)).toEqual(['Drafting 3 replies', 'Drafting 4 replies'])
+    expect(state.run?.notes.slice(-2).map((n) => n.text)).toEqual([
+      'Drafting replies 1 to 3 of 7',
+      'Drafting replies 4 to 7 of 7'
+    ])
 
     const [first, second] = agentRequests()[3]
       .messages.at(-1)
@@ -281,8 +287,8 @@ describe('drafting replies to pitches', () => {
     expect(JSON.parse(result.content).verdictsSoFar).toEqual({ book: 4, later: 1, decline: 2 })
     // The log's figures add up to the 7 replies: 3, then 4 new and 1 replaced.
     expect(state.run?.notes.slice(-2).map((n) => n.text)).toEqual([
-      'Drafting 3 replies',
-      'Drafting 4 replies and redrafting 1'
+      'Drafting replies 1 to 3 of 7',
+      'Drafting replies 4 to 7 of 7 and redrafting 1'
     ])
     expect(state.booking?.replies?.filter((r) => r.verdict === 'book')).toHaveLength(4)
   })
@@ -298,11 +304,48 @@ describe('drafting replies to pitches', () => {
     ])
 
     expect(state.run?.notes.slice(-3).map((n) => n.text)).toEqual([
-      'Drafting 3 replies',
-      'Drafting 4 replies',
+      'Drafting replies 1 to 3 of 7',
+      'Drafting replies 4 to 7 of 7',
       'Redrafting 1 reply'
     ])
     expect(state.booking?.replies).toHaveLength(7)
+  })
+
+  // A run drafts its replies in batches, as Haiku drafts the sample inbox's 40 in two calls of 20 (#291).
+  it.each([
+    ['in separate turns', [turn(draftReplies(replies.slice(0, 3))), turn(draftReplies(replies.slice(3, 6)))]],
+    ['in one turn', [turn(draftReplies(replies.slice(0, 3)), draftReplies(replies.slice(3, 6)))]]
+  ])('names each batch of replies by the ones it brings in, %s, so the Run tab lists each once', async (_, batches) => {
+    const { state } = await pitchRun([
+      turn(rankPitches),
+      turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
+      ...batches,
+      turn(draftReplies(replies.slice(6))),
+      turn(text('Drafted.'))
+    ])
+
+    const drafting = ['Drafting replies 1 to 3 of 7', 'Drafting replies 4 to 6 of 7', 'Drafting reply 7 of 7']
+    expect(state.run?.notes.slice(-3)).toEqual(drafting.map((text) => ({ text, status: 'done' })))
+    const tab = runTab(state)
+    expect(tab.match(/Drafting/g)).toHaveLength(3)
+    for (const note of drafting) expect(tab.split(note)).toHaveLength(2)
+  })
+
+  it('counts no reply from a refused batch, so its retry names the same ones and the next batch follows on', async () => {
+    const { state } = await pitchRun([
+      turn(rankPitches),
+      turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
+      turn(draftReplies([...replies.slice(0, 2), { ...replies[2], draft: '  ' }])),
+      turn(draftReplies(replies.slice(0, 3))),
+      turn(draftReplies(replies.slice(3))),
+      turn(text('Drafted.'))
+    ])
+
+    expect(state.run?.notes.slice(-3)).toEqual([
+      { text: 'Drafting replies 1 to 3 of 7', status: 'failed' },
+      { text: 'Drafting replies 1 to 3 of 7', status: 'done' },
+      { text: 'Drafting replies 4 to 7 of 7', status: 'done' }
+    ])
   })
 
   it('refuses tags and replies before the ranking, tags for anything but the show and its top pitches, replies before the tags, and ungrounded angles', async () => {
@@ -450,6 +493,14 @@ const inboxPage = (state: State, viewing?: { runs: State['runs']; id: string }) 
     })
   )
 }
+// The inspector's Run tab, its run log, as read from the inbox page the browser renders.
+const runTab = (state: State) =>
+  words(
+    hooked(
+      renderToStaticMarkup(createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+      'data-run-log'
+    )[0]
+  )
 // One reply's markup on the page.
 const replyOn = (html: string, pitch: string) => hooked(html, `data-pitch="${pitch}"`)[0] ?? ''
 // The buttons in some markup, in order, each as its attributes and its name as read (tags dropped).
