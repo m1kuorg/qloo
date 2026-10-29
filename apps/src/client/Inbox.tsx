@@ -48,7 +48,7 @@ import {
   useIntoView,
   useLeaveGuard
 } from './controls'
-import { CallButton, EvidencePanel, useEvidence, type OpenCall, type Opened } from './Evidence'
+import { CallButton, EvidencePanel, useEvidence, type Names, type OpenCall, type Opened } from './Evidence'
 import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
 import { FormDialog, PageEmpty, PageHeader, PageTabs, Section, summaryLine, useFormDialog } from './PageHeader'
@@ -75,6 +75,7 @@ type Actions = {
   discardReply: (pitchId: string) => Promise<unknown>
   openCall: (call: string) => void
   opened: Opened | null
+  names: Names
 }
 
 // The agent's runs, of which the Run tab lists the pitch runs: the one the page shows when none is
@@ -104,7 +105,7 @@ type Page = {
 // latest run when it's a pitch run, or an earlier pitch run being viewed, read-only, as it ended. Tests
 // render it from synced state.
 export function InboxWorkspace({ agent, links, network }: { agent: Session; links: Links; network?: NetworkPage }) {
-  const { opened, openCall } = useEvidence(agent)
+  const { opened, openCall, names } = useEvidence(agent)
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
   if (!agent.state) return <Connecting label="Connecting to the inbox…" title="Inbox" />
   const shown = viewing?.state ?? agent.state
@@ -142,6 +143,7 @@ export function InboxWorkspace({ agent, links, network }: { agent: Session; link
       discardReply={(pitchId) => agent.stub.discardReply(pitchId)}
       openCall={openCall}
       opened={opened}
+      names={names}
       links={links}
     />
   )
@@ -367,7 +369,7 @@ export function InboxPage({
           <InboxCheck pitches={inbox?.pitches ?? []} sample={sample} />
         </TabsContent>
         <TabsContent value="evidence" keepMounted>
-          <EvidencePanel opened={actions.opened} />
+          <EvidencePanel opened={actions.opened} names={actions.names} runs={history?.runs ?? []} />
         </TabsContent>
         {pitch && (
           <TabsContent value="pitch" keepMounted>

@@ -115,7 +115,7 @@ export function NetworkRoster({
               )}
             </TabsContent>
             <TabsContent value="evidence" keepMounted>
-              <EvidencePanel opened={evidence.opened} />
+              <EvidencePanel opened={evidence.opened} names={evidence.names} runs={state.runs ?? []} />
             </TabsContent>
           </Inspector>
         </div>
