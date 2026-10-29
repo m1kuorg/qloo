@@ -265,6 +265,7 @@ Contents:
     1.  [Page header and empty state](#page-header-and-empty-state)
     1.  [Sections and tabs](#sections-and-tabs)
     1.  [Canvas and inspector](#canvas-and-inspector)
+    1.  [Launch page](#launch-page)
     1.  [Question card](#question-card)
     1.  [Fit chart](#fit-chart)
     1.  [The plan](#the-plan)
@@ -512,7 +513,7 @@ A long page puts its sections in tabs with `PageTabs` (same module), on the segm
 
 - **Its props:** `label`, the tab list's accessible name, which names the page ("Settings sections"), and `tabs`, each `{ id, title, content }`: `id` is the tab's hash (`members` for `#members`), `title` its words, and `content` its sections, which stand 48px apart in the panel.
 - **Kept mounted:** every panel is in the page whichever tab shows, Base UI hiding and inerting the rest, so a draft, a lens or an edit in one survives a switch to another, and a page rendered on the server (as the tests render it) holds every panel's words.
-- **The hash:** a hash that names a tab, as the page opens or as it changes (a link to `#plan` on the same page), opens that tab and scrolls the tab list to the top of the window. Choosing a tab writes its hash with `history.replaceState`, so tabs add no history entries. A hash that names no tab is left alone and doesn't move the tabs, so the inspector's `#evidence` and the sign-in page's `#guest` keep working. The first tab shows when no hash names one, and when the chosen tab goes away, as one that needs data not there yet; it comes back with the tab. A link into a tabbed page carries its tab's hash, as every link into settings does.
+- **The hash:** a hash that names a tab, as the page opens or as it changes (a link to `#plan` on the same page), opens that tab and scrolls the tab list into view, clear of the sticky top bar, only when it's out of view. When the hash is also the id of an element in that tab's panel, as `#plan` is the plan's, it scrolls to that element instead once the panel shows, the jump the browser couldn't make while the panel was hidden. Choosing a tab writes its hash with `history.replaceState`, so tabs add no history entries. A hash that names no tab is left alone and doesn't move the tabs, so the inspector's `#evidence` and the sign-in page's `#guest` keep working. The first tab shows when no hash names one, and when the chosen tab goes away, as one that needs data not there yet; it comes back with the tab. A link into a tabbed page carries its tab's hash, as every link into settings does.
 - **Keys:** Base UI's manual activation: arrow keys move focus along the tabs, and Enter or Space opens one.
 - **Phones:** wider than the page, the list scrolls sideways inside the page's margin, as a wide table does, the open tab scrolled into view; the page never scrolls sideways. It's a class on `PageTabs`'s list, not a change to the segmented recipe.
 
@@ -527,7 +528,17 @@ The launch workspace (`App.tsx`, on each launch page), the inbox (`Inbox.tsx`) a
 - **From 1360px:** open, it's a 360px column on the card, sticky under the top bar for the window's height, with its close button at the end of its tabs. It's at rest, so it casts no shadow. At 1440 that's 56 (rail) + 24 + 976 (canvas) + 24 + 360 = 1440.
 - **Under 1360px:** it's a right sheet, non-modal and kept mounted, titled "Details" with its close button by the title; it floats, so it has the floating shadow, and no scrim. The canvas stays usable beside it, and Tab moving focus onto something the sheet covers closes it.
 - **Its tabs:** it's a Base UI Tabs panel: Run (the trace, the agent's closing line, the run record, then Runs), Evidence (the open call's request and what Qloo returned), and Pitch in the inbox while one is selected. The roster page's inspector has Show and Evidence. Every panel stays mounted, so `aria-controls="evidence"` on a call number always finds its panel; nothing has `aria-modal`.
-- **The canvas, in reading order on a launch:** the title row (the launch's name, its Qloo match with its call, the primary action), the on-air readout, the launch form or the question card, the fit chart, the plan, and the roster.
+- **The canvas, in reading order on a launch:** the title row (the launch's name, its Qloo match with its call, the primary action), the on-air readout, the launch form or the question card, then the run's sections, in tabs from the first run on ([Launch page](#launch-page)).
+
+### Launch page
+
+`App.tsx`'s `Workspace`. Under the title row, the readout and the launch form or the question card, a launch's sections stand in `PageTabs`, "Launch sections", from its first run on. Before it there are no tabs, only the Roster section.
+
+- **Ranking `#ranking`:** the fit chart, then Not scored, a section of its own. Before a run has ranked the roster, the chart's section says it appears once one does, over skeleton rows while a run is ranking.
+- **Plan `#plan`:** once there's an insertion order, the plan, with the insertion order as its h3 section. "Review the plan" in the title row links to `#plan`, which opens this tab and scrolls to the plan.
+- **Roster `#roster`:** the roster the run ranked, its sentence saying as of when, or, once a teammate has changed it since, that it has changed and a run again ranks it as it is, with "Edit the roster" (the roster page) as its action; then Network CPM, its sentence how a run takes it and what it prices, with an owner's "Change it in settings" (`#network`) as its action, or a member's line that an owner sets it.
+- **An earlier run viewed:** the tabs are the ones that run has, so Plan goes with an order it doesn't have, and the first tab shows until it comes back.
+- **The inspector's panels:** Run log (its sample and status badges beside its heading), Runs and Evidence are `Section`s, as the inbox's are, with one sentence each. The daily limits on model runs stay under the list of runs.
 
 ### Question card
 
@@ -535,17 +546,17 @@ The launch workspace (`App.tsx`, on each launch page), the inbox (`Inbox.tsx`) a
 
 ### Fit chart
 
-`FitChart.tsx`: "Who shares The Watch's listeners", then the finding, a sentence from the ranking and the topic moves ("5 finalists. The Bill Simmons Podcast climbs 5 places over a topic-only plan, and 6 more shows climb 3 or more.", worded by `topicFinding` in `topic.ts`, which the landing page shares) with the ranking's call.
+`FitChart.tsx`: a `Section` headed "Who shares The Watch's listeners", its sentence the finding, a sentence from the ranking and the topic moves ("5 finalists. The Bill Simmons Podcast climbs 5 places over a topic-only plan, and 6 more shows climb 3 or more.", worded by `topicFinding` in `topic.ts`, which the landing page shares) with the ranking's call.
 
 - **The lens:** a radio group styled as a segmented control, "By who listens" and "By topic", once the topic column is in. Switching re-orders the rows with a FLIP and collapses any open "Why it moved".
 - **Rows** are a div grid with table roles (`role="table"`, `row`, `cell`, `columnheader`), so they can travel. Columns: Rank (`type-title`, the lens's rank, both ranks in words for screen readers), Move (▲3 in `--signal-ink` and 600 for a climber, ▼2 or = muted), Show (15px 600; under it the shared tags with their call, "Mapped to", "Led by", the demographics reason; chips Finalist, Left out, Listeners differ), Topic ("#6", headed with the Agent chip; under "By topic" it's the listener rank instead, headed Listeners with the Qloo data chip), Fit (a three-step meter, signal for finalists, its word on hover and for screen readers), Slot value (right-aligned money over its downloads, "sample" while a sample figure prices it). Finalist rows carry `--signal-tint`.
 - **What it shows by default:** the finalists, the topic-only plan's top five, the climbers and any shows left out, with "Show all N" for the rest. A climber's name is a button that opens "Why it moved": "Topic alone ranks it 9." (Agent) and "Listener overlap with The Watch ranks it 4." (Qloo data) with the call, the leading comp and the shared tags.
-- **Under it:** the bands and slot value footnotes, the demographics line, a partial ranking's line, and "Not scored · n" as a real table.
+- **Under it:** the bands and slot value footnotes, the demographics line and a partial ranking's line. Then "Not scored · n", a section of its own whose sentence says what it holds, over a real table its heading names.
 - **Loading:** skeleton rows in the chart's shape with "Working: the fit chart appears once the agent ranks the roster."
 
 ### The plan
 
-`InsertionOrder.tsx`: "The plan", then "Insertion order IO-0001" with a Draft or Approved badge, as a document on `--card`. Each line is the show with the signal mark, its slots and value, and under it the host-read angle with its tags' call and the slot price; then the total and the budget check. While the run is live there are no actions; once it ends, "Approve" (primary) with "Nothing is final until you approve it. Editing returns it to draft." and "Edit lines" (ghost), and once approved, "Export CSV" (an `<a download>` styled secondary). Edit mode turns the cells into fields in place, each in a `Field` with `data-invalid`, with live totals and checks and Save off until every line is valid. An earlier run's order is read-only, still exportable once approved.
+`InsertionOrder.tsx`: "The plan", a `Section` whose sentence says what it holds, then on `--card`, as a document, its h3 section "Insertion order IO-0001" with a Draft or Approved badge, its sentence saying the Agent drafted the slots and angles and how code prices each slot. Each line is the show with the signal mark, its slots and value, and under it the host-read angle with its tags' call and the slot price; then the total and the budget check. While the run is live there are no actions; once it ends, "Approve" (primary) with "Nothing is final until you approve it. Editing returns it to draft." and "Edit lines" (ghost), and once approved, "Export CSV" (an `<a download>` styled secondary). Edit mode turns the cells into fields in place, each in a `Field` with `data-invalid`, with live totals and checks and Save off until every line is valid. An earlier run's order is read-only, still exportable once approved.
 
 ### Ranked lists
 
