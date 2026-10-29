@@ -448,66 +448,69 @@ export function ShowEditor({
 }) {
   const { busy, error, run } = useAction()
   const update = (patch: ShowPatch) => run(() => agent.stub.updateShow(show.name, patch))
-  const ref = useIntoView<HTMLElement>()
+  const ref = useIntoView<HTMLDivElement>()
   return (
     // Scrolled to, it stops clear of the inspector's sticky tabs.
-    <section className="flex min-w-0 scroll-mt-16 flex-col gap-6" ref={ref} aria-labelledby="show-ed" data-show-editor>
-      <div className="flex flex-col gap-2">
-        <h2 className="text-base leading-snug font-semibold text-balance" id="show-ed">
-          {show.name}
-        </h2>
-        <span className="flex flex-wrap gap-1">
-          <MatchChip show={show} slow={false} />
-          {show.excluded && <Badge>Excluded</Badge>}
-        </span>
-        {show.description && (
-          <p className="text-muted-foreground">
-            {sampled(show, 'description') && <span className="font-medium">Sample:</span>} {show.description}
+    <div className="min-w-0 scroll-mt-16" ref={ref} data-show-editor>
+      <Section
+        id="show-ed"
+        title={show.name}
+        description="The show’s Qloo match, its figures, and whether a launch can propose it."
+      >
+        <div className="flex flex-col items-start gap-2">
+          <span className="flex flex-wrap gap-1">
+            <MatchChip show={show} slow={false} />
+            {show.excluded && <Badge>Excluded</Badge>}
+          </span>
+          {show.description && (
+            <p className="text-muted-foreground">
+              {sampled(show, 'description') && <span className="font-medium">Sample:</span>} {show.description}
+            </p>
+          )}
+        </div>
+        {show.candidates.length > 0 && (
+          <PickOne
+            legend={`Which Qloo show is ${show.name}?`}
+            options={show.candidates}
+            current={show.resolution === 'resolved' ? show.entity?.id : undefined}
+            note={
+              <>
+                Candidates from Qloo search{' '}
+                <CallButton
+                  call={show.evidence}
+                  label={`Evidence for ${show.name}`}
+                  opened={opened}
+                  openCall={openCall}
+                />
+              </>
+            }
+            submit="Use this match"
+            busy={busy}
+            pick={(entityId) => update({ entityId })}
+          />
+        )}
+        {show.resolution === 'pending' && (
+          <p>
+            <StateLine kind="loading" word={null}>
+              Looking it up in Qloo. You can edit its figures or leave it out meanwhile.
+            </StateLine>
           </p>
         )}
-      </div>
-      {show.candidates.length > 0 && (
-        <PickOne
-          legend={`Which Qloo show is ${show.name}?`}
-          options={show.candidates}
-          current={show.resolution === 'resolved' ? show.entity?.id : undefined}
-          note={
-            <>
-              Candidates from Qloo search{' '}
-              <CallButton
-                call={show.evidence}
-                label={`Evidence for ${show.name}`}
-                opened={opened}
-                openCall={openCall}
-              />
-            </>
-          }
-          submit="Use this match"
-          busy={busy}
-          pick={(entityId) => update({ entityId })}
-        />
-      )}
-      {show.resolution === 'pending' && (
-        <p>
-          <StateLine kind="loading" word={null}>
-            Looking it up in Qloo. You can edit its figures or leave it out meanwhile.
-          </StateLine>
-        </p>
-      )}
-      {show.resolution !== 'resolved' && show.resolution !== 'pending' && (
-        <CompSearch show={show} agent={agent} update={update} busy={busy} />
-      )}
-      <ShowFields show={show} update={update} busy={busy} />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Button variant="secondary" disabled={busy} onClick={() => void update({ excluded: !show.excluded })}>
-          {show.excluded ? 'Include again' : 'Leave out'}
-        </Button>
-        <small className="type-caption text-muted-foreground">
-          {show.excluded ? 'Excluded: kept here, never proposed for a launch.' : 'Excluded shows are never proposed.'}
-        </small>
-      </div>
-      <Alert error={error} />
-    </section>
+        {show.resolution !== 'resolved' && show.resolution !== 'pending' && (
+          <CompSearch show={show} agent={agent} update={update} busy={busy} />
+        )}
+        <ShowFields show={show} update={update} busy={busy} />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Button variant="secondary" disabled={busy} onClick={() => void update({ excluded: !show.excluded })}>
+            {show.excluded ? 'Include again' : 'Leave out'}
+          </Button>
+          <small className="type-caption text-muted-foreground">
+            {show.excluded ? 'Excluded: kept here, never proposed for a launch.' : 'Excluded shows are never proposed.'}
+          </small>
+        </div>
+        <Alert error={error} />
+      </Section>
+    </div>
   )
 }
 
@@ -660,17 +663,12 @@ function ShowFields({
 // compact key/value list, two pairs to a row.
 export function RosterCheck({ roster }: { roster: Show[] }) {
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="roster-check">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold" id="roster-check">
-          Roster check
-        </h2>
-        <Source of="qloo" />
-      </div>
-      <p className="type-caption text-muted-foreground">
-        Resolved and mapped shows can be scored. Until an ambiguous, missed, or failed show is settled or left out,
-        rankings list it as not scored.
-      </p>
+    <Section
+      id="roster-check"
+      title="Roster check"
+      badge={<Source of="qloo" />}
+      description="Rankings score resolved and mapped shows, and list an ambiguous, missed, or failed one as not scored until it’s settled or left out."
+    >
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1">
         {rosterCounts(roster)
           .filter((c) => c.always || c.n > 0)
@@ -681,7 +679,7 @@ export function RosterCheck({ roster }: { roster: Show[] }) {
             </div>
           ))}
       </dl>
-    </section>
+    </Section>
   )
 }
 
