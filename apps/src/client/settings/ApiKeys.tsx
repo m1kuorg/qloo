@@ -71,7 +71,7 @@ function OwnerKeys({
       keep: 'Keep',
       action: async () => {
         setKeys((await send<{ keys: ApiKey[] }>(`${path}/${k.id}/revoke`)).keys)
-        if (made?.id === k.id) setMade(null)
+        setMade((m) => (m?.id === k.id ? null : m))
         // A refusal shown from creating one no longer describes the list. A failed revoke shows its
         // own refusal in the confirm.
         clear()

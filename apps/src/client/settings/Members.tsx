@@ -206,7 +206,7 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
       keep: 'Keep',
       action: async () => {
         setInvites((await send<{ invites: Invite[] }>(`${path}/invites/${i.id}/revoke`)).invites)
-        if (made?.id === i.id) setMade(null)
+        setMade((m) => (m?.id === i.id ? null : m))
         // A refusal shown from creating one no longer describes the list. A failed revoke shows its
         // own refusal in the confirm.
         clear()
