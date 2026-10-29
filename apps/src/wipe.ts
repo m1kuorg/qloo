@@ -15,6 +15,7 @@ import {
   guestOwnedNetworks,
   networkName,
   networksPerMember,
+  noteFailedWipes,
   noteWipe,
   pastNetworks,
   wipeDone,
@@ -83,8 +84,8 @@ const RETRY_AFTER_MS = 60_000
 
 // The most wipes one run of the cron's retry makes, so an hourly run stays within the Workers Free plan's
 // 50 subrequests, D1 queries and Durable Object calls alike (TRD): each takes at most six, a launch's
-// whose network is still in the directory, and the run's own two directory batches take two more. The
-// rest stay noted for the next hour's run.
+// whose network is still in the directory, and the run's own three directory batches take three more,
+// the last noting the wipes that failed. The rest stay noted for the next hour's run.
 const WIPES_PER_RUN = 7
 
 // Network `networkId`'s agent, to be wiped: started, if it isn't running, knowing it's about to be thrown
@@ -223,16 +224,20 @@ export async function clearGuests(env: Env) {
   console.log(JSON.stringify({ event: 'guest_member_cleared', networks, left: left.length }))
 }
 
-// The hourly cron's retry of the oldest wipes noted over a minute ago and not done, at most
-// WIPES_PER_RUN, logging how many it wiped, kept, and failed: the wipes that failed, and those the daily
-// clearing left to it, each closing its pages with the reason it was noted with. A launch its network still
+// The hourly cron's retry of the wipes noted over a minute ago and not done, at most WIPES_PER_RUN, logging
+// how many it wiped, kept, and failed: the wipes that failed, and those the daily clearing left to it, each
+// closing its pages with the reason it was noted with. It takes those no run has tried first, oldest first,
+// then those that failed, the least recently tried first (wipesDue), so wipes that fail every time take
+// turns in what's left of each run and never hold back those noted after them. A launch its network still
 // lists, while the network is still in the directory, was never let go of, as when its deletion stopped
 // before the list let go, so it's kept and its wipe crossed off. A network's agent is wiped as wipeNetwork
 // says. Every wipe is tried, and then any that failed, or that names a binding nothing here wipes, fails
-// the cron's run; they stay noted for the next.
+// the cron's run; they stay noted for the next, with when this run tried them.
 export async function retryWipes(env: Env) {
+  const now = Date.now()
   const done = { wiped: 0, kept: 0, failed: 0 }
-  for (const instance of await wipesDue(env.DB, Date.now() - RETRY_AFTER_MS, WIPES_PER_RUN)) {
+  const failed: Instance[] = []
+  for (const instance of await wipesDue(env.DB, now - RETRY_AFTER_MS, WIPES_PER_RUN)) {
     try {
       if (await keptLaunch(env, instance)) {
         await wipeDone(env.DB, instance.binding, instance.name)
@@ -243,14 +248,17 @@ export async function retryWipes(env: Env) {
       }
     } catch (e) {
       done.failed++
+      failed.push(instance)
       wipeFailed(instance, e)
     }
   }
   console.log(JSON.stringify({ event: 'wipes_retried', ...done }))
-  if (done.failed > 0)
+  if (done.failed > 0) {
+    await noteFailedWipes(env.DB, failed, now)
     throw new Error(
       `${done.failed} agent ${done.failed === 1 ? 'wipe' : 'wipes'} failed; the next hourly run tries again.`
     )
+  }
 }
 
 // The guest network's launches' wipes, as its clearing and its resets note them for the hourly retry
