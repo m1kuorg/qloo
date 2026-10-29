@@ -357,6 +357,8 @@ The scale is a set of `type-*` utilities in `style.css` rather than `text-*` the
 
 The app's body is `type-ui`; a show's name in a ranked list is 15px at 600 (`text-[15px] leading-snug font-semibold`); a page's h1 in the app is `type-title`.
 
+A heading or sentence that holds a name someone typed, such as a network's, up to 64 characters with no space required, breaks a word too long for its line, so no page scrolls sideways; a name with spaces wraps between its words as any text does. Where the box's width is set by what holds it, `break-words` does it: a `Section`'s heading and sentence, a `KeyValue`'s value, a field's help (`FieldDescription`), and the lost-access page's h1. Where the box sizes to its content, so an unbroken word would widen it, only `wrap-anywhere` does: the sign-in and invite pages' left column (`Lede`), a confirm's title and consequence (`AlertDialogTitle`, `AlertDialogDescription`), and the danger zone's "Type <network> to delete it". The wrap is on those components, not one global rule, so tables that scroll sideways keep their names whole. A one-line control cuts the name short with an ellipsis instead, as the network switcher does and the invite page's "Join <network>" button does (`contain-inline-size` and a `truncate` span), its accessible name still the whole name.
+
 ### Shape and space
 
 - Radius: `--radius` is 6px. `rounded-lg` (6px) is for controls: buttons, inputs, chips, segmented controls. `rounded-xl` (8px) is for panels, menus, popovers, dialogs and sheets. `rounded-sm` and `rounded-md` (4px) are for items inside a menu and inline code. Only the live dot and avatars are `rounded-full`. Edit a component's recipe rather than overriding a radius per use.
