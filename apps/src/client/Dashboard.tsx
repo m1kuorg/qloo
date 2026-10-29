@@ -6,26 +6,37 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { buttonVariants, linkVariants } from '@/components/ui/variants'
 import type { LaunchInput, LaunchSummary, Show, State } from '../agent'
+import type { KeyUse } from '../directory'
+import type { Usage } from '../gateway'
 import type { Inbox } from '../inbox'
 import { dollars } from '../order'
-import { Alert, useAction } from './controls'
+import { Alert, clock, day, KeyValue, KeyValues, useAction } from './controls'
 import { launchTitle, NewLaunch } from './LaunchFields'
-import { LaunchStatus, needsYou } from './LaunchStatus'
+import { countsLine, latestRuns, LaunchStatus, needsYou } from './LaunchStatus'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { count, listCounts, PageEmpty, PageHeader, Section, useFormDialog } from './PageHeader'
-import { connectionOf, pitchTally, StateLine, type Connection } from './states'
+import { connectionOf, isLive, pitchTally, StateLine, type Connection } from './states'
+import { UsageLines, usageScope } from './usage'
 
-// What the setup checklist reads from the directory rather than the agent: whether anyone has been
-// invited or has joined, and whether an API key was ever created.
-export type Setup = { invited: boolean; apiKey: boolean }
+// What the setup checklist reads from the directory rather than the agent, besides its keys' use:
+// whether anyone has been invited or has joined.
+export type Setup = { invited: boolean }
 
-export function DashboardPage(props: {
-  agentPath: string
-  network: NetworkPage
+// What the server read for the dashboard as the page loaded, besides the network: who's looking, the
+// setup checklist's progress, today's usage, whether the network's Qloo calls count on its own key, and
+// when the server read them (`usageRead`, epoch ms), and how its API keys are used, the last key's name
+// for an owner alone. Usage and the keys are null when their read failed, which their blocks say.
+type Loaded = {
   memberId: string
   setup: Setup
+  usage: Usage | null
+  ownKey: boolean
+  usageRead: number
+  keys: KeyUse | null
   notice?: string
-}) {
+}
+
+export function DashboardPage(props: { agentPath: string; network: NetworkPage } & Loaded) {
   const agent = useNetwork(props.agentPath)
   return (
     <NetworkGate agent={agent} network={props.network}>
@@ -42,21 +53,33 @@ export function DashboardPage(props: {
 
 // Each of the dashboard's blocks is a `Section` on a card.
 const card = 'rounded-xl bg-card p-4'
+// A card set beside another, as tall as the row: its section fills it, so a link last in the section
+// sits at the foot of either card (`mt-auto`).
+const paired = cn(card, 'flex flex-col [&>section]:flex-1')
 
 // The network's home, which answers "What needs me?": the header, its title badged sample while the
-// network holds the sample data, the page's one sample label (ADR 0007); under it, a `notice` the
-// server gave the page, as a reset of the guest network's sample data that's still finishing opens it
-// with; then the blocks, each on a card. From 1024px they stand in two columns, the main one holding
-// Needs you and the side one Setup, until this member dismisses it, over Network; under 1024px they
-// stack in one, Setup first while it shows, then Needs you, then Network. Tests render it from a network
-// agent's synced state; `state` is undefined until it arrives. At 1440 the grid is 56 (rail) + 24 +
-// 992 + 24 + 320 + 24 = 1440.
+// network holds the sample data, the page's one sample label (ADR 0007), and the counts of its
+// launches, what Needs you lists among them, the inbox's rows included; under it, a `notice` the server
+// gave the page, as a reset of the guest network's sample data that's still finishing opens it with;
+// then the blocks, each on a card. From 1024px they stand in two columns, the old split's: the main one
+// holds Needs you, Latest runs, then Today's usage and Assistants and API, side by side where both fit
+// 288px, at 1440 but not at 1024; the side one Setup, until this member dismisses it, over Network.
+// The main column spans both of the side column's rows, so neither column waits on the other's
+// heights. Under 1024px they stack in one in the order of what needs a member first, which is also
+// their order in the page: Setup while it shows, Needs you, Latest runs, Today's usage, Assistants and
+// API, then Network. Tests render it from a network agent's synced state; `state` is undefined until it
+// arrives. At 1440 the grid is 56 (rail) + 24 + 992 + 24 + 320 + 24 = 1440, and the main column's pair
+// 484 + 24 + 484 = 992.
 export function Dashboard({
   state,
   connection = { lost: null, reconnecting: false },
   network,
   memberId,
   setup,
+  usage,
+  ownKey,
+  usageRead,
+  keys,
   notice,
   dismiss,
   createLaunch
@@ -64,22 +87,23 @@ export function Dashboard({
   state: State | undefined
   connection?: Connection
   network: NetworkPage
-  memberId: string
-  setup: Setup
-  notice?: string
   dismiss: () => Promise<unknown>
   createLaunch: (input: LaunchInput) => Promise<{ id: string }>
-}) {
+} & Loaded) {
   // New launch's dialog, which Needs you's empty state and the checklist open.
   const planning = useFormDialog('New launch')
   // Setup's place, kept while the agent's state is on its way, since it shows until it's dismissed.
   const checklist = !state || !state.checklistDismissed?.includes(memberId)
+  const launches = state?.launches ?? []
+  // What waits on a member in the inbox while it's on, which Needs you lists after the launches.
+  const inbox = state && network.links.inbox ? inboxWaiting(state, network.links.inbox) : []
   return (
     <main className="flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6" aria-busy={!state || undefined}>
       <PageHeader
         title="Dashboard"
         connection={state ? connection : null}
         badge={state?.sample && <Badge>sample</Badge>}
+        summary={(launches.length > 0 || inbox.length > 0) && countsLine(launches, inbox.length)}
       />
       {notice && (
         <p className="max-w-[72ch]">
@@ -90,20 +114,38 @@ export function Dashboard({
       )}
       <NewLaunch network={network} create={createLaunch} dialog={planning} />
       {/* One column, as wide as the page and never wider, so a long name in a block is cut short or wraps
-          rather than widening it. From 1024px, Needs you fills the main column across both rows, so
-          neither column waits on the other's heights. In the side column the first row is Setup's and
-          the last, which takes what height is left, Network's, or both once Setup is dismissed. */}
+          rather than widening it. */}
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr]">
         {checklist &&
           (state ? (
             <div className={cn(card, 'lg:col-start-2 lg:row-start-1')}>
-              <Checklist state={state} network={network} setup={setup} dismiss={dismiss} plan={planning.show} />
+              <Checklist
+                state={state}
+                network={network}
+                keys={keys}
+                setup={setup}
+                dismiss={dismiss}
+                plan={planning.show}
+              />
             </div>
           ) : (
             <Skeleton className="h-64 rounded-xl lg:col-start-2 lg:row-start-1" />
           ))}
-        <div className={cn(card, 'lg:col-start-1 lg:row-span-2 lg:row-start-1')}>
-          <NeedsYou state={state} network={network} newLaunch={planning.button()} />
+        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+          <div className={card}>
+            <NeedsYou state={state} network={network} inbox={inbox} newLaunch={planning.button()} />
+          </div>
+          <div className={card}>
+            <LatestRuns state={state} network={network} />
+          </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]">
+            <div className={paired}>
+              <TodaysUsage network={network} usage={usage} ownKey={ownKey} read={usageRead} />
+            </div>
+            <div className={paired}>
+              <KeysUsed network={network} keys={keys} />
+            </div>
+          </div>
         </div>
         <div className={cn(card, 'lg:col-start-2', checklist ? 'lg:row-start-2' : 'lg:row-span-2 lg:row-start-1')}>
           <NetworkLines state={state} network={network} />
@@ -118,24 +160,41 @@ export function Dashboard({
 const workedOn = (launch: LaunchSummary, network: NetworkPage) =>
   `${network.links.launches}/${launch.id}${launch.status === 'order drafted' ? '#plan' : ''}`
 
-// The launches waiting on a member, as the Launches page's first group lists them, latest run first,
-// each row its link, with its status in a word. With none, it says so, with the next useful thing to
-// do (`NextStep`).
+// A row of Needs you: what waits, where it's worked on, and its state in a word.
+type Waiting = { key: string; title: string; href: string; state: ReactNode }
+
+// The launches waiting on a member, as the Launches page's first group lists them, latest run first;
+// then, while the inbox is on, what waits there (`inbox`, from `inboxWaiting`). Each row is its link,
+// with its state in a word. With none, it says so, with the next useful thing to do (`NextStep`).
 function NeedsYou({
   state,
   network,
+  inbox,
   newLaunch
 }: {
   state: State | undefined
   network: NetworkPage
+  inbox: Waiting[]
   newLaunch: ReactNode // New launch, for the empty state
 }) {
-  const rows = needsYou(state?.launches ?? [])
+  const rows: Waiting[] = [
+    ...needsYou(state?.launches ?? []).map((l) => ({
+      key: l.id,
+      title: launchTitle(l.name, l.comps),
+      href: workedOn(l, network),
+      state: <LaunchStatus status={l.status} />
+    })),
+    ...inbox
+  ]
   return (
     <Section
       id="needs-you-h"
       title="Needs you"
-      description="Launches with a question to answer or an order to approve, and runs that failed or stopped."
+      description={
+        network.links.inbox
+          ? 'Launches and pitch runs with a question to answer, orders and replies to approve, and runs that failed or stopped.'
+          : 'Launches with a question to answer or an order to approve, and runs that failed or stopped.'
+      }
       data-needs-you
     >
       {!state ? (
@@ -149,21 +208,167 @@ function NeedsYou({
         </PageEmpty>
       ) : (
         <ul className="flex flex-col">
-          {rows.map((l) => (
-            <li key={l.id}>
-              <a
-                className="group flex items-baseline justify-between gap-4 py-2 max-md:min-h-11"
-                href={workedOn(l, network)}
-              >
+          {rows.map((r) => (
+            <li key={r.key}>
+              <a className="group flex items-baseline justify-between gap-4 py-2 max-md:min-h-11" href={r.href}>
                 <span className="min-w-0 font-semibold break-words decoration-1 underline-offset-4 group-hover:underline">
-                  {launchTitle(l.name, l.comps)}
+                  {r.title}
                 </span>
-                <LaunchStatus status={l.status} />
+                {r.state}
               </a>
             </li>
           ))}
         </ul>
       )}
+    </Section>
+  )
+}
+
+// What waits on a member in the inbox, at `inbox`: the latest pitch run while it waits on an answer,
+// which the inbox page opens on, and once it has ended, the replies it drafted that no one has
+// approved or discarded yet, which the inbox's Replies tab holds.
+function inboxWaiting({ run, booking }: State, inbox: string): Waiting[] {
+  if (!booking) return []
+  const pitchRun = run?.id === booking.run ? run : null
+  const drafts = isLive(pitchRun?.status) ? 0 : (booking.replies ?? []).filter((r) => r.status === 'draft').length
+  const rows: Waiting[] = []
+  if (pitchRun?.status === 'waiting')
+    rows.push({
+      key: 'pitch-run',
+      title: `Pitch run for ${booking.show.name}`,
+      href: inbox,
+      state: <LaunchStatus status="waiting" />
+    })
+  if (drafts > 0)
+    rows.push({
+      key: 'replies',
+      title: `Replies for ${booking.show.name}`,
+      href: `${inbox}#replies`,
+      state: <span className="whitespace-nowrap">{drafts.toLocaleString('en-US')} to approve</span>
+    })
+  return rows
+}
+
+// The five launches run last, each row its link: the launch, its status in a word as the Launches page
+// marks it, the on-air dot while a run is running or waiting, and when its last run started and who
+// started it, a member or an API key by its name, as runs say; then the way to the Launches page. From
+// 768px the three are columns, the when and who as wide as the widest, up to 352px, past which a long
+// key's name wraps; under it, a row is two lines, the when and who under the name.
+function LatestRuns({ state, network }: { state: State | undefined; network: NetworkPage }) {
+  const rows = latestRuns(state?.launches ?? [])
+  return (
+    <Section
+      id="latest-runs-h"
+      title="Latest runs"
+      description="The launches run last, with when each run started and who started it."
+      data-latest-runs
+    >
+      {!state ? (
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-5" />
+          <Skeleton className="h-5" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p>
+          <StateLine kind="empty">No runs yet.</StateLine>
+        </p>
+      ) : (
+        <ul className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 md:grid-cols-[minmax(0,1fr)_auto_fit-content(22rem)]">
+          {rows.map((l) => (
+            <li key={l.id} className="col-span-full grid grid-cols-subgrid">
+              <a
+                className="group col-span-full grid grid-cols-subgrid items-baseline py-2"
+                href={`${network.links.launches}/${l.id}`}
+              >
+                <span className="min-w-0 font-semibold break-words decoration-1 underline-offset-4 group-hover:underline">
+                  {launchTitle(l.name, l.comps)}
+                </span>
+                <LaunchStatus status={l.status} />
+                <span className="col-span-full break-words text-muted-foreground max-md:type-caption md:col-span-1">
+                  {day(l.lastRun!)}, {clock(l.lastRun!)}
+                  {l.startedBy && ` · ${l.startedBy}`}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      <a className={linkVariants({ className: 'self-start' })} href={network.links.launches}>
+        All launches
+      </a>
+    </Section>
+  )
+}
+
+// Today's usage of the network's daily caps, as the settings' Usage tab shows it, with when the server
+// read it (`read`), as the page loaded, since it isn't on the agent's socket, so it doesn't follow the
+// day's use as Needs you follows the launches; how long until the reset is counted from then too. A
+// read that failed says so.
+function TodaysUsage({
+  network,
+  usage,
+  ownKey,
+  read
+}: {
+  network: NetworkPage
+  usage: Usage | null
+  ownKey: boolean
+  read: number
+}) {
+  return (
+    <Section id="usage-h" title="Today’s usage" description={`${usageScope(network)}.`} data-usage>
+      {usage ? (
+        <>
+          <UsageLines usage={usage} hasOwnKey={ownKey} read={read} />
+          <p className="type-caption text-muted-foreground">As of {clock(read)}, when the page loaded.</p>
+        </>
+      ) : (
+        <p>
+          <StateLine kind="error">Today’s usage didn’t load. Reload the page to try again.</StateLine>
+        </p>
+      )}
+    </Section>
+  )
+}
+
+// How the network's API keys are used: how many are active, not revoked, and when any key, revoked or
+// not, was last used, naming the key to an owner alone, as settings lists the keys to owners alone
+// (a run still says who started it, an API key by its name); or that none has been. It leads to the API
+// keys in settings, where an owner makes one, at the card's foot. A read that failed says so.
+function KeysUsed({ network, keys }: { network: NetworkPage; keys: KeyUse | null }) {
+  const last = keys?.last
+  return (
+    <Section
+      id="keys-h"
+      title="Assistants and API"
+      description={`Scripts and assistants act for ${network.name} with its API keys, short of approving anything.`}
+      data-keys
+    >
+      {!keys ? (
+        <p>
+          <StateLine kind="error">The API keys’ use didn’t load. Reload the page to try again.</StateLine>
+        </p>
+      ) : (
+        <>
+          <KeyValues>
+            <KeyValue label="Active keys">{keys.inUse.toLocaleString('en-US')}</KeyValue>
+            {last && (
+              <KeyValue label="Last used">
+                {day(last.at)}, {clock(last.at)}
+                {last.name && ` by “${last.name}”${last.revoked ? ', since revoked' : ''}`}
+              </KeyValue>
+            )}
+          </KeyValues>
+          {!last && (
+            <p>
+              <StateLine kind="empty">No assistant or script has used a key yet.</StateLine>
+            </p>
+          )}
+        </>
+      )}
+      <a className={linkVariants({ className: 'mt-auto self-start' })} href={`${network.links.settings}#api-keys`}>
+        Open API keys
+      </a>
     </Section>
   )
 }
@@ -279,17 +484,22 @@ function inboxLine(inbox: Inbox | null) {
 }
 
 // What a new network needs, ticked off from its agent's state and the directory as each arrives, as
-// a numbered list under its count. A member can dismiss it for themselves; it stays for everyone else.
+// a numbered list under its count; "Connect your AI" once any of its keys, revoked or not, has been
+// used for a request, as Assistants and API says (`keys`), and while that couldn't be read, neither done
+// nor not: the step says so, and the count leaves it out. A member can dismiss it for themselves; it
+// stays for everyone else.
 function Checklist({
   state,
   network,
   setup,
+  keys,
   dismiss,
   plan
 }: {
   state: State
   network: NetworkPage
   setup: Setup
+  keys: KeyUse | null
   dismiss: () => Promise<unknown>
   plan: () => void
 }) {
@@ -297,8 +507,16 @@ function Checklist({
   const owner = network.role === 'owner'
   const { roster, settings } = network.links
   // A step links where it's done only for a member who can do it there, in settings the tab it's done
-  // in; planning a launch opens New launch's dialog.
-  const items: { title: string; how: string; go: string | (() => void) | null; done: boolean }[] = [
+  // in; planning a launch opens New launch's dialog. Done, it says so, in its own words where it has
+  // them (`said`); `done` is null while it couldn't be told, with `unknown` saying so.
+  const items: {
+    title: string
+    how: string
+    go: string | (() => void) | null
+    done: boolean | null
+    said?: string
+    unknown?: string
+  }[] = [
     {
       title: 'Import the roster',
       how: 'Paste your shows’ names, or upload the roster’s CSV, and Crossfeed finds each one in Qloo.',
@@ -328,20 +546,27 @@ function Checklist({
       done: setup.invited
     },
     {
-      title: 'Create an API key',
+      title: 'Connect your AI',
       how: owner
-        ? 'Make a key in settings for a script or an assistant to act for the network, short of approving anything.'
+        ? 'Make a key in settings for an assistant or a script to act for the network, short of approving anything. It’s done once a key is used.'
         : 'An owner makes API keys in settings, for scripts and assistants.',
       go: owner ? `${settings}#api-keys` : null,
-      done: setup.apiKey
+      done: keys ? keys.last !== null : null,
+      said: 'A key has been used.',
+      unknown: 'Couldn’t check whether a key has been used.'
     }
   ]
   const done = items.filter((i) => i.done).length
+  const unknown = items.filter((i) => i.done === null).length
   return (
     <Section
       id="setup-h"
       title="Setup"
-      description={done === items.length ? 'Done' : `${done} of ${items.length} done`}
+      description={
+        done === items.length
+          ? 'Done'
+          : `${done} of ${items.length} done${unknown ? `, ${count(unknown, 'unknown', 'unknown')}` : ''}`
+      }
       actions={
         <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={() => void run(dismiss)}>
           Dismiss
@@ -367,7 +592,11 @@ function Checklist({
             {item.done ? (
               <span className="flex items-center gap-1 type-caption">
                 <CheckIcon aria-hidden="true" className="size-3.5" />
-                Done
+                {item.said ?? 'Done'}
+              </span>
+            ) : item.done === null ? (
+              <span className="block type-caption">
+                <StateLine kind="error">{item.unknown}</StateLine>
               </span>
             ) : (
               <span className="block type-caption text-muted-foreground">{item.how}</span>

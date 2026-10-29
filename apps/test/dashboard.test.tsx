@@ -4,21 +4,24 @@
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { LaunchSummary, State } from '../src/agent'
+import type { LaunchSummary, Run, State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
 import { Launches } from '../src/client/Launches'
 import { LostAccess, NetworkGate, type NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
 import { Settings } from '../src/client/Settings'
 import { connectionOf } from '../src/client/states'
+import type { Booking, PitchReply } from '../src/inbox'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
 import {
   api,
+  facts,
   hooked,
   navLinks,
   openGuest,
   openMember,
   regions,
+  rootData,
   sampleLabels,
   sections,
   tabsOf,
@@ -54,21 +57,9 @@ const connect = async (member: Pick<Member, 'connect'>, id: string) => {
   return agent
 }
 
-// The data attributes the server gave a page's #root, as main.tsx reads them.
+// The props the server gave a page through its #root, as main.tsx reads them.
 async function island(member: Pick<Member, 'fetch'>, path: string) {
-  const html = await (await member.fetch(path)).text()
-  const root = html.match(/<div id="root"([^>]*)>/)![1]
-  const d = Object.fromEntries(
-    [...root.matchAll(/data-([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [
-      k.replace(/-(\w)/g, (_, c: string) => c.toUpperCase()),
-      v
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-    ])
-  )
+  const d = await rootData(member, path)
   return {
     memberId: d.memberId,
     members: d.members ? JSON.parse(d.members) : [],
@@ -76,7 +67,10 @@ async function island(member: Pick<Member, 'fetch'>, path: string) {
     apiKeys: d.apiKeys ? JSON.parse(d.apiKeys) : null,
     usage: d.usage ? JSON.parse(d.usage) : null,
     qlooKey: d.qlooKey ? JSON.parse(d.qlooKey) : null,
-    setup: { invited: d.invited === 'true', apiKey: d.apiKey === 'true' },
+    setup: { invited: d.invited === 'true' },
+    ownKey: d.ownKey === 'true',
+    usageRead: Number(d.usageRead),
+    keys: d.keys ? JSON.parse(d.keys) : null,
     notice: d.notice,
     network: {
       id: d.networkId,
@@ -114,13 +108,35 @@ const launchesPage = async (member: Pick<Member, 'fetch'>, id: string, state: St
     />
   )
 
-// Needs you's rows, as each reads and where it links, in its order.
-const needingYou = (html: string) =>
-  [...(hooked(html, 'data-needs-you')[0] ?? '').matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(
+// A block's links, Needs you's (`data-needs-you`) or Latest runs' (`data-latest-runs`), each as it
+// reads and where it links, in its order.
+const linksIn = (html: string, hook: string) =>
+  [...(hooked(html, hook)[0] ?? '').matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(
     ([, href, inner]) => [words(inner), href]
   )
+const needingYou = (html: string) => linksIn(html, 'data-needs-you')
 
-const STEPS = ['Import the roster', 'Set the CPM', 'Plan a launch', 'Invite a teammate', 'Create an API key']
+// A launch as its network's agent lists it, numbered `n`, unreleased when it has no name, its last run
+// started by Ada unless `by` says who.
+const launch = (
+  n: number,
+  status: LaunchSummary['status'],
+  lastRun: string | null,
+  name: string | null,
+  by = 'Ada Programmer'
+): LaunchSummary => ({
+  id: `l-${n}`,
+  name,
+  comps: name ? [] : ['Blank Check', 'Filmspotting'],
+  status,
+  finalists: 0,
+  slots: null,
+  slotValue: null,
+  startedBy: lastRun && by,
+  lastRun
+})
+
+const STEPS = ['Import the roster', 'Set the CPM', 'Plan a launch', 'Invite a teammate', 'Connect your AI']
 // The setup checklist's steps, each as a reader hears it, in the order of its numbered list.
 const steps = (html: string) =>
   (html.match(/<ol\b[^>]*>(.*?)<\/ol>/)?.[1] ?? '')
@@ -129,23 +145,42 @@ const steps = (html: string) =>
     .map((li) => words(`<li${li}`))
 
 describe('the dashboard', () => {
-  it('says plainly that a new network has nothing needing it, no roster, or CPM, and lists all five setup steps first', async () => {
+  it('says plainly that a new network has nothing needing it, no runs, no key used, no roster, or CPM, and lists all five setup steps first', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
     const ada = await openMember()
     const { id, agent } = await network(ada)
     const html = await dashboard(ada, id, agent.state())
     const read = words(html)
     // The page is the network's home; the top bar's switcher names the network.
     expect(await (await ada.fetch(`/app/${id}`)).text()).toMatch(/data-current-network[^>]*>Night Shift Audio</)
-    // The header is the title alone. Each block is a section: its heading, one sentence, then its
-    // lines; Setup comes first while it shows, its sentence its count, with Dismiss on its heading's line.
+    // The header is the title alone, with no launch to count. Each block is a section: its heading, one
+    // sentence, then its lines; Setup comes first while it shows, its sentence its count, with Dismiss on
+    // its heading's line; Network comes last, in the page as on a phone.
     expect(sections(html)).toEqual([
       ['Setup', '0 of 5 done'],
       ['Needs you', 'Launches with a question to answer or an order to approve, and runs that failed or stopped.'],
+      ['Latest runs', 'The launches run last, with when each run started and who started it.'],
+      ['Today’s usage', 'What Night Shift Audio can use each UTC day, whichever member or API key uses it.'],
+      [
+        'Assistants and API',
+        'Scripts and assistants act for Night Shift Audio with its API keys, short of approving anything.'
+      ],
       ['Network', 'The roster your launches rank, and the CPM that prices their slots.']
     ])
     expect(read).toMatch(/^Dashboard Setup 0 of 5 done Dismiss /)
     // Nothing needs the member yet, and with no roster, the next useful thing is to import one.
-    expect(read).toContain('stopped. Nothing needs you. Import a roster Network')
+    expect(read).toContain('stopped. Nothing needs you. Import a roster Latest runs')
+    // Nothing has run, and no key has been used; each block says so, with its way on.
+    expect(read).toContain('who started it. No runs yet. All launches Today’s usage')
+    expect(html).toMatch(new RegExp(`<a\\b[^>]*href="/app/${id}/launches"[^>]*>All launches</a>`))
+    expect(read).toContain(
+      'Today’s usage What Night Shift Audio can use each UTC day, whichever member or API key uses it. Model runs 0 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 0 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min As of 2:30 PM, when the page loaded.'
+    )
+    expect(read).toContain(
+      'short of approving anything. Active keys 0 No assistant or script has used a key yet. Open API keys Network'
+    )
+    expect(html).toMatch(new RegExp(`href="/app/${id}/settings#api-keys"[^>]*>Open API keys</a>`))
     expect(html).toMatch(/<span class="text-muted-foreground" data-state="empty">Nothing needs you\.<\/span>/)
     expect(html).toMatch(new RegExp(`<a\\b[^>]*href="/app/${id}/roster"[^>]*>Import a roster</a>`))
     expect(read).not.toContain('New launch')
@@ -158,11 +193,11 @@ describe('the dashboard', () => {
     STEPS.forEach((step, i) => expect(listed[i]).toMatch(new RegExp(`^${step} [A-Z][^.]+\\.`)))
     expect(html).toContain(`href="/app/${id}/roster"`)
     // Every link into settings opens the tab it's about: the CPM's Set and "Set the CPM" the network's,
-    // "Invite a teammate" the members', and "Create an API key" the API keys'.
+    // "Invite a teammate" the members', and "Connect your AI" and Open API keys the API keys'.
     expect(html).toMatch(new RegExp(`href="/app/${id}/settings#network"[^>]*>Set</a>`))
     expect(html).toMatch(new RegExp(`href="/app/${id}/settings#network"[^>]*>Set the CPM</a>`))
     expect(html).toMatch(new RegExp(`href="/app/${id}/settings#members"[^>]*>Invite a teammate</a>`))
-    expect(html).toMatch(new RegExp(`href="/app/${id}/settings#api-keys"[^>]*>Create an API key</a>`))
+    expect(html).toMatch(new RegExp(`href="/app/${id}/settings#api-keys"[^>]*>Connect your AI</a>`))
     expect(html).not.toContain(`href="/app/${id}/settings"`)
   })
 
@@ -191,20 +226,20 @@ describe('the dashboard', () => {
     expect(html).toMatch(new RegExp(`href="/app/${id}/settings#network"[^>]*>Change</a>`))
     expect(read).toContain('Setup 3 of 5 done')
     // Nothing needs the member, and with a roster in, the next useful thing is to plan a launch.
-    expect(read).toContain('stopped. Nothing needs you. New launch Network')
+    expect(read).toContain('stopped. Nothing needs you. New launch Latest runs')
     expect(html).toMatch(/<button\b[^>]*>New launch<\/button>/)
     const listed = steps(html)
     expect(listed.slice(0, 2)).toEqual([`${STEPS[0]} Done`, `${STEPS[1]} Done`])
     expect(listed[2]).toMatch(new RegExp(`^${STEPS[2]} Name`))
     expect(listed[3]).toBe(`${STEPS[3]} Done`)
-    expect(listed[4]).toMatch(new RegExp(`^${STEPS[4]} Make a key in settings`))
+    expect(listed[4]).toMatch(new RegExp(`^${STEPS[4]} Make a key in settings .+ It’s done once a key is used\\.$`))
 
     // With launches not run yet, still nothing needs the member: the next useful thing is the newest
     // of them, on its page, where Start run is.
     await agent.call('createLaunch', { name: 'The Night Watch' })
     const { id: newest } = await agent.call<{ id: string }>('createLaunch', { name: 'Paper Moons' })
     const planned = await dashboard(ada, id, await agent.until((s) => s.launches?.length === 2))
-    expect(words(planned)).toContain('stopped. Nothing needs you. Open Paper Moons Network')
+    expect(words(planned)).toContain('stopped. Nothing needs you. Open Paper Moons Latest runs')
     expect(needingYou(planned)).toEqual([['Open Paper Moons', `/app/${id}/launches/${newest}`]])
   })
 
@@ -220,7 +255,7 @@ describe('the dashboard', () => {
     expect(listed[1]).toBe(`${STEPS[1]} Done`)
     for (const i of [0, 2, 3, 4]) expect(listed[i]).toMatch(new RegExp(`^${STEPS[i]} [A-Z]`))
     expect(listed[3]).toMatch(/^Invite a teammate Make an invite link in settings/)
-    expect(listed[4]).toMatch(/^Create an API key Make a key in settings/)
+    expect(listed[4]).toMatch(/^Connect your AI Make a key in settings/)
   })
 
   it('says, as a reset of the sample data opens the guest network’s with part of the reset left to the hourly retry, that it may take a moment to finish', async () => {
@@ -282,17 +317,6 @@ describe('the dashboard', () => {
   it('lists in Needs you exactly the launches waiting on a member, latest run first, each linking to where it waits', async () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
-    const launch = (n: number, status: LaunchSummary['status'], lastRun: string | null, name: string | null) => ({
-      id: `l-${n}`,
-      name,
-      comps: name ? [] : ['Blank Check', 'Filmspotting'],
-      status,
-      finalists: 0,
-      slots: null,
-      slotValue: null,
-      startedBy: lastRun && 'Ada Programmer',
-      lastRun
-    })
     const state: State = {
       ...agent.state()!,
       launches: [
@@ -319,6 +343,212 @@ describe('the dashboard', () => {
     expect(words(await launchesPage(ada, id, state))).toMatch(
       /^Launches 8 launches · 4 need you, 1 running New launch .+ Needs you 4 Deep Cuts .+ Paper Trail .+ Ghost Signal .+ Blank Check · Filmspotting .+ Running 1 Paper Moons /
     )
+  })
+
+  it('lists the five launches run last, latest first, each with its status, when its run started and who started it, then All launches, and counts them in the header as the Launches page does', async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const state: State = {
+      ...agent.state()!,
+      launches: [
+        launch(1, 'new', null, 'Night Shift Cinema'),
+        launch(2, 'running', '2026-10-20T12:00:00Z', 'Paper Moons', 'API key “Nightly sync”'),
+        launch(3, 'waiting', '2026-10-18T12:00:00Z', 'Ghost Signal'),
+        launch(4, 'ranked', '2026-10-22T09:05:00Z', 'Slow Burn'),
+        launch(5, 'order drafted', '2026-10-21T12:00:00Z', null),
+        launch(6, 'order approved', '2026-10-23T18:30:00Z', 'Signal Boost'),
+        launch(7, 'failed', '2026-10-19T12:00:00Z', 'Paper Trail')
+      ]
+    }
+    const html = await dashboard(ada, id, state)
+    expect(linksIn(html, 'data-latest-runs')).toEqual([
+      ['Signal Boost Order approved Oct 23, 6:30 PM · Ada Programmer', `/app/${id}/launches/l-6`],
+      ['Slow Burn Ranked Oct 22, 9:05 AM · Ada Programmer', `/app/${id}/launches/l-4`],
+      ['Blank Check · Filmspotting Order drafted Oct 21, 12:00 PM · Ada Programmer', `/app/${id}/launches/l-5`],
+      ['Paper Moons Running Oct 20, 12:00 PM · API key “Nightly sync”', `/app/${id}/launches/l-2`],
+      ['Paper Trail Failed Oct 19, 12:00 PM · Ada Programmer', `/app/${id}/launches/l-7`],
+      ['All launches', `/app/${id}/launches`]
+    ])
+    // A running run wears the on-air dot, as on the Launches page.
+    expect(hooked(html, 'data-latest-runs')[0]).toMatch(/data-mark="live"[^]*?Running/)
+    expect(words(html)).toMatch(/^Dashboard 7 launches · 3 need you, 1 running Setup /)
+    expect(words(await launchesPage(ada, id, state))).toMatch(
+      /^Launches 7 launches · 3 need you, 1 running New launch /
+    )
+  })
+
+  it("shows today's usage as the usage route reads it, with when it resets and when it was read, what's refused at a cap, and the guest budget every guest shares in the guest network", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
+    fakeQloo({ search: { 'Corner Booth': [{ entity_id: 'e-0501', name: 'Corner Booth', popularity: 0.6 }] } })
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    await agent.importRoster('Corner Booth')
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+    for (const member of [ada, grace]) {
+      const { usage } = await island(member, `/app/${id}`)
+      expect(usage).toMatchObject({ qlooCalls: { used: 1 } })
+      expect(usage).toEqual(await (await member.fetch(`/api/v1/networks/${id}/usage`)).json())
+      expect(words(await dashboard(member, id, agent.state()))).toContain(
+        'Today’s usage What Night Shift Audio can use each UTC day, whichever member or API key uses it. Model runs 0 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 1 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min As of 2:30 PM, when the page loaded. Assistants and API'
+      )
+    }
+    env.QLOO_VISITOR_DAILY_CALL_CAP = '1'
+    const capped = await island(ada, `/app/${id}`)
+    expect(words(await dashboard(ada, id, agent.state()))).toContain(
+      'Qloo calls 1 of 1 today Cached answers included Resets 00:00 UTC, in 9 h 30 min Limit reached No more Qloo calls today: roster imports and comp searches are refused until 00:00 UTC. As of 2:30 PM'
+    )
+    // The page says when the server read the counts, and counts the time to the reset from then, however
+    // long it stays open.
+    expect(capped.usageRead).toBe(Date.parse('2026-10-19T14:30:00Z'))
+    vi.setSystemTime(new Date('2026-10-19T15:10:00Z'))
+    const later = renderToStaticMarkup(
+      <Dashboard
+        {...capped}
+        state={agent.state()}
+        dismiss={async () => {}}
+        createLaunch={async () => ({ id: 'l-1' })}
+      />
+    )
+    expect(words(later)).toContain('Resets 00:00 UTC, in 9 h 30 min Limit reached')
+    expect(words(later)).toContain('As of 2:30 PM, when the page loaded.')
+
+    const guest = await openGuest()
+    const { usage } = await island(guest, '/app/guest-network')
+    expect(usage).toEqual(await (await guest.fetch('/api/v1/networks/guest-network/usage')).json())
+    const state = await (await connect(guest, 'guest-network')).until(() => true)
+    expect(words(await dashboard(guest, 'guest-network', state))).toContain(
+      'Today’s usage What all guests together can use each UTC day, in the guest network and the networks guests create. Model runs'
+    )
+  })
+
+  it("says how many API keys are in use and when one was last used, naming the key to owners alone, and ticks off Connect your AI at a key's first use, revoked or not", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
+    const made = await ada.fetch(`/app/${id}/settings/api-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Claude Code' })
+    })
+    const { id: key, secret } = await made.json<{ id: string; secret: string }>()
+    const keysOf = (html: string) => facts(hooked(html, 'data-keys')[0])
+
+    // Made, but not used yet: the step waits for its first request.
+    const unused = await dashboard(ada, id, agent.state())
+    expect(keysOf(unused)).toEqual([['Active keys', '1']])
+    expect(words(unused)).toContain('Active keys 1 No assistant or script has used a key yet. Open API keys')
+    expect(steps(unused)[4]).toMatch(/^Connect your AI Make a key in settings/)
+
+    vi.setSystemTime(new Date('2026-10-19T15:02:00Z'))
+    expect((await api(secret)(`/api/v1/networks/${id}`)).status).toBe(200)
+    const owners = await dashboard(ada, id, agent.state())
+    expect(keysOf(owners)).toEqual([
+      ['Active keys', '1'],
+      ['Last used', 'Oct 19, 3:02 PM by “Claude Code”']
+    ])
+    expect(steps(owners)[4]).toBe('Connect your AI A key has been used.')
+    // A member sees when, but not which key: only owners see the network's keys.
+    const members = await dashboard(grace, id, agent.state())
+    expect(keysOf(members)).toEqual([
+      ['Active keys', '1'],
+      ['Last used', 'Oct 19, 3:02 PM']
+    ])
+    expect(steps(members)[4]).toBe('Connect your AI A key has been used.')
+    const [ownerPage, memberPage] = await Promise.all(
+      [ada, grace].map(async (m) => (await m.fetch(`/app/${id}`)).text())
+    )
+    for (const page of [ownerPage, memberPage]) {
+      expect(page).not.toContain(secret)
+      expect(page).not.toContain(secret.slice(0, 12))
+    }
+    expect(ownerPage).toContain('Claude Code')
+    expect(memberPage).not.toContain('Claude Code')
+
+    // Revoked, it's no longer in use, and its use still counts.
+    expect((await ada.fetch(`/app/${id}/settings/api-keys/${key}/revoke`, { method: 'POST' })).status).toBe(200)
+    const revoked = await dashboard(ada, id, agent.state())
+    expect(keysOf(revoked)).toEqual([
+      ['Active keys', '0'],
+      ['Last used', 'Oct 19, 3:02 PM by “Claude Code”, since revoked']
+    ])
+    expect(steps(revoked)[4]).toBe('Connect your AI A key has been used.')
+  })
+
+  it('lists in Needs you, while the inbox is on, a pitch run waiting on an answer and the replies a pitch run drafted that wait for approval, each linking into the inbox', async () => {
+    const pitchRun = (status: Run['status']): Run => ({
+      id: 'run-2',
+      status,
+      notes: [],
+      error: null,
+      question:
+        status === 'waiting'
+          ? { id: 'q-1', kind: 'choice', question: 'Rank the books first?', options: ['Yes', 'No'] }
+          : null,
+      budget: null,
+      exclusions: null,
+      closing: null
+    })
+    const reply = (pitch: string, status: PitchReply['status']): PitchReply => ({
+      pitch,
+      verdict: 'book',
+      angle: null,
+      sharedTags: null,
+      draft: 'Thanks for the pitch.',
+      status
+    })
+    const booking = (replies: PitchReply[] | null): Booking => ({
+      run: 'run-2',
+      show: { name: 'The Big Picture', entity: { id: 'p-0001', name: 'The Big Picture', popularity: 0.9 } },
+      pastGuests: [],
+      lists: null,
+      replies
+    })
+    const drafted = [
+      reply('pitch-01', 'draft'),
+      reply('pitch-02', 'approved'),
+      reply('pitch-03', 'draft'),
+      reply('pitch-04', 'discarded')
+    ]
+    for (const inbox of ['on', 'off']) {
+      env.GUEST_PITCHES = inbox
+      const ada = await openMember()
+      const { id, agent } = await network(ada)
+      const base: State = {
+        ...agent.state()!,
+        launches: [launch(1, 'waiting', '2026-10-20T12:00:00Z', 'Ghost Signal')]
+      }
+      const waiting = await dashboard(ada, id, { ...base, run: pitchRun('waiting'), booking: booking(null) })
+      // Its replies wait until the run has ended, as the inbox locks them until then.
+      const running = await dashboard(ada, id, { ...base, run: pitchRun('running'), booking: booking(drafted) })
+      const ended = await dashboard(ada, id, { ...base, run: pitchRun('completed'), booking: booking(drafted) })
+      const ghost = ['Ghost Signal Waiting', `/app/${id}/launches/l-1`]
+      // The header counts what Needs you lists.
+      const counted = (html: string) => words(html).match(/^Dashboard (.+?) Setup /)?.[1]
+      if (inbox === 'on') {
+        expect([waiting, running, ended].map(counted)).toEqual([
+          '1 launch · 2 need you',
+          '1 launch · 1 needs you',
+          '1 launch · 2 need you'
+        ])
+        expect(needingYou(waiting)).toEqual([ghost, ['Pitch run for The Big Picture Waiting', `/app/${id}/inbox`]])
+        expect(needingYou(running)).toEqual([ghost])
+        expect(needingYou(ended)).toEqual([
+          ghost,
+          ['Replies for The Big Picture 2 to approve', `/app/${id}/inbox#replies`]
+        ])
+        expect(sections(ended)[1]).toEqual([
+          'Needs you',
+          'Launches and pitch runs with a question to answer, orders and replies to approve, and runs that failed or stopped.'
+        ])
+      } else
+        for (const html of [waiting, running, ended]) {
+          expect(needingYou(html)).toEqual([ghost])
+          expect(counted(html)).toBe('1 launch · 1 needs you')
+        }
+    }
   })
 
   it("puts Dashboard first in the rail, then Launches, Roster, Inbox, and Settings, marking the page it's on, and a launch's page as Launches'", async () => {
@@ -814,9 +1044,12 @@ describe('settings', () => {
     await agent.importRoster('Corner Booth')
     const keyed = await settings(ada, id, agent.state())
     expect(words(keyed)).toContain('a key of its own. Key Ends in 7f3a Host hackathon.api.qloo.com Remove key')
-    // The key's test search and the lookup, both on the network's key.
+    // The key's test search and the lookup, both on the network's key, as the dashboard says too.
     expect(words(keyed)).toContain('Qloo calls 2 of 2,000 today On the network’s own Qloo key')
+    const board = await dashboard(ada, id, agent.state())
+    expect(words(board)).toContain('Qloo calls 2 of 2,000 today On the network’s own Qloo key, cached answers included')
     expect(keyed).not.toContain('qk-made-up-7f3a')
+    expect(board).not.toContain('7f3a')
     expect(keyed).not.toContain('Test and save key')
 
     const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id) })
@@ -1013,11 +1246,61 @@ describe("a network page's connection", () => {
   }
 
   it('says it is connecting until the first state arrives', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T14:30:00Z'))
     const read = await gated({ state: undefined, identified: false })
     // Nothing to act on yet: New launch comes with Needs you's empty state, and Setup with the state
-    // that says whether this member dismissed it.
+    // that says whether this member dismissed it. What the server read as the page loaded, today's
+    // usage and the keys' use, shows at once.
     expect(read).toBe(
-      'Dashboard Working Connecting to the network… Needs you Launches with a question to answer or an order to approve, and runs that failed or stopped. Network The roster your launches rank, and the CPM that prices their slots.'
+      'Dashboard Working Connecting to the network… Needs you Launches with a question to answer or an order to approve, and runs that failed or stopped. Latest runs The launches run last, with when each run started and who started it. All launches Today’s usage What Night Shift Audio can use each UTC day, whichever member or API key uses it. Model runs 0 of 10 today Launch runs, inbox loads, and pitch runs Qloo calls 0 of 2,000 today Cached answers included Resets 00:00 UTC, in 9 h 30 min As of 2:30 PM, when the page loaded. Assistants and API Scripts and assistants act for Night Shift Audio with its API keys, short of approving anything. Active keys 0 No assistant or script has used a key yet. Open API keys Network The roster your launches rank, and the CPM that prices their slots.'
+    )
+  })
+
+  it("says in its block that the keys' use or today's usage didn't load, logged, leaves Connect your AI uncounted, and opens the rest of the page", async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    // The directory's API keys can't be read: the page opens all the same, with no keys' use for it.
+    await env.DB.prepare('DROP TABLE api_keys').run()
+    const failed = vi.spyOn(console, 'error')
+    const res = await ada.fetch(`/app/${id}`)
+    expect(res.status).toBe(200)
+    expect(
+      failed.mock.calls
+        .flat()
+        .map(String)
+        .filter((line) => line.includes('"event":"dashboard_read"'))
+        .map((line) => JSON.parse(line))
+    ).toEqual([
+      { event: 'dashboard_read', network: id, block: 'keys', error: expect.stringContaining('no such table: api_keys') }
+    ])
+    failed.mockRestore()
+    const page = await island(ada, `/app/${id}`)
+    expect([page.keys, page.usage]).toEqual([null, expect.objectContaining({ modelRuns: { used: 0, limit: 10 } })])
+    const render = (loaded: Partial<typeof page>) =>
+      renderToStaticMarkup(
+        <Dashboard
+          {...page}
+          {...loaded}
+          state={agent.state()}
+          dismiss={async () => {}}
+          createLaunch={async () => ({ id: 'l-1' })}
+        />
+      )
+    const html = render({})
+    const read = words(html)
+    expect(read).toContain(
+      'Assistants and API Scripts and assistants act for Night Shift Audio with its API keys, short of approving anything. Error The API keys’ use didn’t load. Reload the page to try again. Open API keys Network'
+    )
+    // Whether a key was used is unknown, so Setup's step says so, and its count takes it neither way.
+    expect(sections(html)[0]).toEqual(['Setup', '0 of 5 done, 1 unknown'])
+    expect(steps(html)[4]).toBe('Connect your AI Error Couldn’t check whether a key has been used.')
+    expect(read).toMatch(
+      /Nothing needs you\. Import a roster Latest runs .+ No runs yet\. .+ Model runs 0 of 10 today /
+    )
+    // Nor did today's usage, as when its gateway didn't answer.
+    expect(words(render({ usage: null }))).toContain(
+      'Today’s usage What Night Shift Audio can use each UTC day, whichever member or API key uses it. Error Today’s usage didn’t load. Reload the page to try again. Assistants and API'
     )
   })
 

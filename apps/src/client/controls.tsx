@@ -206,6 +206,10 @@ export const demographic = (x: number | null) => {
 export const day = (when: string | number) =>
   new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
+// And a time of day in the browser's own time, such as "2:02 PM".
+export const clock = (when: string | number) =>
+  new Date(when).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+
 // And the UTC day, as the capture of the run one of the sample launches is seeded with is dated, so its
 // run log reads as the run’s own text does (scripts/capture-sample-launches.ts).
 export const utcDay = (when: string | number) =>

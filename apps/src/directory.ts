@@ -615,16 +615,35 @@ const revokeUnowned = (db: D1Database, networkId: string, memberId: string) =>
       .bind(memberId, Date.now(), networkId)
   )
 
-// What a network's setup checklist reads from the directory: whether a teammate was invited or has
-// joined, and whether an API key was ever made, revoked or not.
+// What a network's setup checklist reads from the directory besides its keys' use (`keyUse`): whether a
+// teammate was invited or has joined.
 export async function setupProgress(db: D1Database, networkId: string) {
   const row = await db
     .prepare(
-      'SELECT (SELECT count(*) FROM memberships WHERE network_id = ?1) > 1 OR EXISTS (SELECT 1 FROM invites WHERE network_id = ?1) AS invited, EXISTS (SELECT 1 FROM api_keys WHERE network_id = ?1) AS apiKey'
+      'SELECT (SELECT count(*) FROM memberships WHERE network_id = ?1) > 1 OR EXISTS (SELECT 1 FROM invites WHERE network_id = ?1) AS invited'
     )
     .bind(networkId)
-    .first<{ invited: number; apiKey: number }>()
-  return { invited: row?.invited === 1, apiKey: row?.apiKey === 1 }
+    .first<{ invited: number }>()
+  return { invited: row?.invited === 1 }
+}
+
+// How a network's API keys are used, as its dashboard says it and its setup checklist ticks off "Connect
+// your AI" from it: how many are in use, and the latest use of any key it ever made, revoked or not, to
+// the minute (`apiKeyFor`), or null while no key has been used. For an `owner`, that use names its key
+// and whether it's revoked since; for anyone else the statement doesn't read them, as only owners are
+// shown the network's keys (`apiKeys`).
+export type KeyUse = { inUse: number; last: { at: number; name?: string; revoked?: boolean } | null }
+
+export async function keyUse(db: D1Database, networkId: string, owner: boolean): Promise<KeyUse> {
+  const row = await db
+    .prepare(
+      'SELECT (SELECT count(*) FROM api_keys WHERE network_id = ?1 AND revoked IS NULL) AS inUse, k.last_used AS at, CASE WHEN ?2 THEN k.name END AS name, CASE WHEN ?2 THEN k.revoked IS NOT NULL END AS revoked FROM (SELECT 1) LEFT JOIN api_keys k ON k.id = (SELECT id FROM api_keys WHERE network_id = ?1 AND last_used IS NOT NULL ORDER BY last_used DESC, id LIMIT 1)'
+    )
+    .bind(networkId, owner ? 1 : 0)
+    .first<{ inUse: number; at: number | null; name: string | null; revoked: number | null }>()
+  const at = row?.at ?? null
+  if (at === null) return { inUse: row?.inUse ?? 0, last: null }
+  return { inUse: row!.inUse, last: owner ? { at, name: row!.name!, revoked: row!.revoked === 1 } : { at } }
 }
 
 // An invite link works once, for seven days, unless an owner revokes it first.

@@ -23,6 +23,7 @@ import {
   createInvite,
   createNetwork,
   isGuestMember,
+  keyUse,
   lastNetwork,
   memberNetworks,
   memberPasskeys,
@@ -250,25 +251,50 @@ async function networkPage(c: Context<AppEnv>, id: string) {
   return network
 }
 
-// The network's dashboard, its home: the launches that need a member, a line each for its roster,
-// inbox and CPM, and the setup checklist. The guest network's, as a reset of its sample data opens it
-// while part of the reset is left to the hourly retry (`?reset=pending`), says so.
+// The network's dashboard, its home: what needs a member, the latest runs, today's usage, how its API
+// keys are used, a line each for its roster, inbox and CPM, and the setup checklist. Today's usage is
+// read as settings read it: as the API reads it (operations.ts), with whether its Qloo calls count on
+// the network's own key, and the time it was read, which the page says. A key's name is read for an
+// owner alone, as settings' API keys list them to owners alone. Either read failing leaves its block
+// saying so, and the rest of the page opens. The guest network's, as a reset of its sample data opens
+// it while part of the reset is left to the hourly retry (`?reset=pending`), says so.
 appPages.get('/app/:networkId', async (c) => {
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
-  const { invited, apiKey } = await setupProgress(c.env.DB, network.id)
+  const [{ invited }, today, keys] = await Promise.all([
+    setupProgress(c.env.DB, network.id),
+    blockRead(network.id, 'usage', async () => {
+      const [usage, ownKey] = await Promise.all([
+        getUsage({ env: c.env, network: network.id, caller: { member: c.var.member, role: network.role } }),
+        getAgentByName(c.env.NetworkAgent, network.id).then((a) => a.hasOwnKey())
+      ])
+      return { usage, ownKey, at: Date.now() }
+    }),
+    blockRead(network.id, 'keys', () => keyUse(c.env.DB, network.id, network.role === 'owner'))
+  ])
   const pending = network.id === GUEST_NETWORK && c.req.query('reset') === 'pending'
   return c.render(
     <Island
       page="dashboard"
       data-member-id={c.var.member.id}
       data-invited={String(invited)}
-      data-api-key={String(apiKey)}
+      data-usage={today ? JSON.stringify(today.usage) : undefined}
+      data-own-key={today ? String(today.ownKey) : undefined}
+      data-usage-read={today ? String(today.at) : undefined}
+      data-keys={keys ? JSON.stringify(keys) : undefined}
       data-notice={pending ? RESET_PENDING : undefined}
       {...island(c, network)}
     />
   )
 })
+
+// What one of network `network`'s dashboard blocks reads as the page loads, or null when the read
+// fails, logged, so the block says it failed and the rest of the page still opens. It never rejects.
+const blockRead = <T,>(network: string, block: string, read: () => Promise<T>) =>
+  read().catch((e: unknown) => {
+    console.error(JSON.stringify({ event: 'dashboard_read', network, block, error: String(e) }))
+    return null
+  })
 
 // The network's launches, grouped by who's blocked, where a member plans and deletes them.
 appPages.get('/app/:networkId/launches', async (c) => {
