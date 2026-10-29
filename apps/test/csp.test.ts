@@ -1,7 +1,8 @@
 // The Content-Security-Policy every page is served under: everything from the app's own origin, and
 // nothing framing it, read from each page as a browser loads it, and checked against what the page
-// itself loads. The browser check, in apps/README.md, confirms no page reports a violation. And what
-// else the head every page shares loads: the island's code, and the mark's icons and the manifest.
+// itself loads. The browser check, in apps/README.md, confirms no page reports a violation. The head
+// every page shares is checked for what else it loads, too: the island's code, the mark's icons and
+// the manifest.
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fakeQloo } from './fake'

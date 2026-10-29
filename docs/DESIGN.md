@@ -444,7 +444,7 @@ The favicon is the mark, and nothing else stands for Crossfeed in a tab, a bookm
 | `icon-192.png`, `icon-512.png` | the manifest's icons, drawn as the apple-touch icon is                                                       |
 | `icon-maskable-512.png`        | the manifest's maskable icon: the mark half the way across, inside the circle a launcher keeps               |
 
-Every shell's head (`Head` in `shell.tsx`) links the ICO with `sizes="32x32"`, so Chrome, which takes the SVG, doesn't fetch both, then the SVG, the apple-touch icon and `manifest.webmanifest`. Two `theme-color`s by `media` tint a phone's browser to the page's ground, `#f8f8fa` light and `#0e0f12` dark, never the signal. The manifest names the app Crossfeed, opens it standalone at `/app`, and sets its background and theme colour to the light ground. There's no service worker. With `ACCOUNTS` off, `/app` answers 404, so an installed app opens on the 404 page; production runs with it on.
+Every shell's head (`Head` in `shell.tsx`) links four files: the ICO, the SVG, the apple-touch icon and `manifest.webmanifest`. The ICO's link carries `sizes="32x32"`, so Chrome, which takes the SVG, doesn't fetch the ICO too. Two `theme-color`s by `media` tint a phone's browser to the page's ground, `#f8f8fa` light and `#0e0f12` dark, never the signal. The manifest names the app Crossfeed, opens it standalone at `/app`, and sets its background and theme colour to the light ground. There's no service worker. With `ACCOUNTS` off, `/app` answers 404, so an installed app opens on the 404 page; production runs with it on.
 
 ## Components and recipes
 
@@ -457,7 +457,7 @@ Every shell's head (`Head` in `shell.tsx`) links the ICO with `sizes="32x32"`, s
 | `apps/src/components/ui/*.tsx`         | the shadcn components (Base UI primitives), forked onto the tokens                                           |
 | `apps/src/client/`                     | the island: one module per page, and the shared modules below                                                |
 | `apps/src/shell.tsx`                   | the server-rendered shells                                                                                   |
-| `apps/src/mark.tsx`, `client/Mark.tsx` | the mark, twice: Hono JSX can't render the island's React, so each has its own; keep them alike              |
+| `apps/src/mark.tsx`, `client/Mark.tsx` | the mark, twice, as Hono JSX can't render the island's React; keep them and `apps/scripts/mark.svg` alike    |
 | `apps/src/icons.tsx`                   | the lucide icons the server pages use, as Hono JSX                                                           |
 | `apps/scripts/mark.svg`, `icons.sh`    | the mark in literal colours, alike with `mark.tsx`, and the script that renders the [icons](#icons) from it  |
 | `apps/public/`                         | the icons and the web app manifest, which Workers Assets serves before the Worker runs                       |
