@@ -1859,11 +1859,9 @@ function PitchDetail({
               '–'
             )}
           </KeyValue>
-          {!sample && (
-            <KeyValue label="Read by">
-              <Source of="agent" />
-            </KeyValue>
-          )}
+          {/* Claude's reading, once it's kept: not while Claude reads it, nor when reading failed or was set
+              aside as unreadable, which keep no guest. */}
+          {!sample && <KeyValue label="Read by">{p.guest !== null ? <Source of="agent" /> : '–'}</KeyValue>}
         </KeyValues>
         {confirmWork && match && match.candidates.length > 0 && p.work && (
           <PickOne
