@@ -1410,7 +1410,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       if (turns >= MAX_TURNS)
         return this.finish(
           run,
-          `Stopped at the limit of ${MAX_TURNS} Claude turns per run, before Claude finished, so this plan is incomplete. Not run: ${calls.flatMap((c) => noteFor(c, this.state) ?? []).join(', ')}.`,
+          `Stopped at the limit of ${MAX_TURNS} Claude turns per run, before Claude finished, so this plan is incomplete. Not run: ${skippedNotes(calls, this.state).join(', ')}.`,
           'stopped'
         )
       const results = await Promise.all(calls.map((call) => this.callTool(run, call)))
@@ -2011,4 +2011,15 @@ function confirmComps(
 function noteFor(call: Anthropic.ToolUseBlock, state: State) {
   const tool = tools.find((t) => t.definition.name === call.name)
   return tool ? tool.note(call.input, state) : `Calling ${call.name}`
+}
+
+// The notes of a turn's calls that won't run, in order, each built as if the calls before it had stored
+// what they name, so two drafting batches read apart (#335). Synced state isn't changed.
+function skippedNotes(calls: Anthropic.ToolUseBlock[], state: State) {
+  let assumed = state
+  return calls.flatMap((call) => {
+    const text = noteFor(call, assumed)
+    assumed = tools.find((t) => t.definition.name === call.name)?.asIfStored?.(call.input, assumed) ?? assumed
+    return text ?? []
+  })
 }

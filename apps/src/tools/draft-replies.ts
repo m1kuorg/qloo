@@ -68,6 +68,14 @@ export const draftReplies: Tool<Input> = {
         : `${first === last ? `reply ${last}` : `replies ${first} to ${last}`} of ${total}`
     return redrafts === 0 ? `Drafting ${which}` : `Drafting ${which} and redrafting ${redrafts}`
   },
+  // Skipped batches follow on from each other in the turn limit's message, as the Run tab's do (#335).
+  // Nothing is checked or stored, and only the pitches are filled in, since the note reads nothing else.
+  asIfStored: ({ replies }, state) => {
+    const { booking } = state
+    if (!booking) return state
+    const named = replies.map((r) => ({ pitch: r.pitch }) as PitchReply)
+    return { ...state, booking: { ...booking, replies: [...(booking.replies ?? []), ...named] } }
+  },
   async run({ replies }, { run, state, update }) {
     const { booking, inbox } = state()
     if (booking?.run !== run || !inbox)

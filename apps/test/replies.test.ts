@@ -348,6 +348,61 @@ describe('drafting replies to pitches', () => {
     ])
   })
 
+  // The 12th Claude turn's calls aren't run, so the reason names each skipped batch as the Run tab would (#335).
+  it.each([
+    [
+      'two batches, none drafted before',
+      [],
+      [replies.slice(0, 3), replies.slice(3, 6)],
+      'Drafting replies 1 to 3 of 7, Drafting replies 4 to 6 of 7'
+    ],
+    [
+      'two batches after 3 drafted',
+      [replies.slice(0, 3)],
+      [replies.slice(3, 5), replies.slice(5)],
+      'Drafting replies 4 to 5 of 7, Drafting replies 6 to 7 of 7'
+    ],
+    [
+      'a second batch repeating one of the first',
+      [],
+      [replies.slice(0, 3), replies.slice(2, 4)],
+      'Drafting replies 1 to 3 of 7, Drafting reply 4 of 7 and redrafting 1'
+    ],
+    ['one batch of every reply', [], [replies], 'Drafting 7 replies']
+  ])(
+    'names each batch of replies the turn limit skips apart, %s, and stores none of them',
+    async (_, drafted, skipped, notRun) => {
+      // Lookups that store nothing bring the run to its 12th turn.
+      const lookUp = turn(toolUse('resolve_entities', { names: ['Night Ferry'], type: 'urn:entity:book' }))
+      const { state } = await pitchRun([
+        turn(rankPitches),
+        turn(sharedTags(['e-0001'], ['pitch-02', 'pitch-04', 'pitch-06'])),
+        ...drafted.map((batch) => turn(draftReplies(batch))),
+        ...Array.from({ length: 9 - drafted.length }, () => lookUp),
+        turn(...skipped.map((batch) => draftReplies(batch)))
+      ])
+
+      expect(state.run).toMatchObject({
+        status: 'stopped',
+        error: `Stopped at the limit of 12 Claude turns per run, before Claude finished, so this plan is incomplete. Not run: ${notRun}.`
+      })
+      // The replies and notes are the earlier turns' alone.
+      expect(state.booking?.replies?.map((r) => r.pitch) ?? null).toEqual(
+        drafted.length > 0 ? drafted.flat().map((r) => r.pitch) : null
+      )
+      expect(state.run?.notes).toEqual(
+        [
+          'Ranking 6 pitched works against Night Shift Cinema',
+          'Finding the tags 3 top pitches share with Night Shift Cinema',
+          ...(drafted.length > 0 ? ['Drafting replies 1 to 3 of 7'] : []),
+          ...Array.from({ length: 9 - drafted.length }, () => 'Resolving Night Ferry')
+        ].map((text) => ({ text, status: 'done' }))
+      )
+      // The Run tab shows the reason under its log.
+      expect(words(runTab(state))).toContain(`Not run: ${notRun}.`)
+    }
+  )
+
   it('refuses tags and replies before the ranking, tags for anything but the show and its top pitches, replies before the tags, and ungrounded angles', async () => {
     const { state, agentRequests } = await pitchRun([
       turn(sharedTags(['e-0001'], ['pitch-02']), draftReplies(replies)),
