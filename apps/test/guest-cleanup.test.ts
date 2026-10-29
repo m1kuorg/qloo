@@ -8,6 +8,7 @@ import { createExecutionContext, createScheduledController, waitOnExecutionConte
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import worker from '../src/index'
+import { WIPES_PER_RUN } from '../src/wipe'
 import { fakeQloo } from './fake'
 import { api, guestSignIn, openGuest, openMember, readAfterReset, rootData, type Guest, type Session } from './session'
 
@@ -253,18 +254,19 @@ describe('the daily clearing', () => {
   })
 
   it('stays green with more wipes due than a run makes, and the next runs make the rest', async () => {
-    // NETWORKS_PER_MEMBER networks, each with a launch, every agent started.
+    // NETWORKS_PER_MEMBER networks, with launches enough between them that their wipes, with the networks'
+    // agents' and gateway instances', are one more than a run makes; every agent started.
     const guest = await openGuest()
     const networks: string[] = []
-    for (const name of ['Night Shift Audio', 'Paper Route', 'Corner Booth']) {
-      const id = await created(guest, name)
-      await (await connect(guest, `/agents/network/${id}`)).call('createLaunch', { name: 'The Night Watch' })
-      networks.push(id)
-    }
+    for (const name of ['Night Shift Audio', 'Paper Route', 'Corner Booth']) networks.push(await created(guest, name))
+    const launches = WIPES_PER_RUN + 1 - 2 * networks.length
+    const pages = await Promise.all(networks.map((id) => connect(guest, `/agents/network/${id}`)))
+    for (let i = 0; i < launches; i++) await pages[i % pages.length].call('createLaunch', { name: `Launch ${i + 1}` })
     const logged = vi.spyOn(console, 'log')
 
-    // The clearing deletes the networks and notes their nine instances' wipes; each later run makes at
-    // most seven, each network's agent noting its launch's again as it's wiped.
+    // The clearing deletes the networks and notes their instances' wipes; each later run makes at most
+    // WIPES_PER_RUN, each network's agent noting its launches' again as it's wiped, so the second makes
+    // those and the one gateway instance's the first didn't reach.
     await clearing()
     const wiped: number[] = []
     for (let run = 0; run < 3; run++) {
@@ -274,7 +276,7 @@ describe('the daily clearing', () => {
       expect(counts).toMatchObject({ kept: 0, failed: 0 })
       wiped.push(counts.wiped)
     }
-    expect(wiped).toEqual([7, 5, 0])
+    expect(wiped).toEqual([WIPES_PER_RUN, launches + 1, 0])
     for (const id of networks)
       expect(await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, id)).state)).toMatchObject({
         cpm: null
