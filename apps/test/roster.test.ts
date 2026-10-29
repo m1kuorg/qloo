@@ -10,7 +10,7 @@ import { NetworkRoster } from '../src/client/Roster'
 import { ShowEditor } from '../src/client/RosterModules'
 import type { Evidence } from '../src/evidence'
 import { fakeQloo, network, requests } from './fake'
-import { facts, launchPage, openSession, sections, type Session } from './session'
+import { facts, hooked, launchPage, openSession, sections, type Session } from './session'
 
 // Synthetic shows: one exact match, one name shared by two spin-off feeds, one Qloo doesn't have.
 const search = {
@@ -316,6 +316,8 @@ describe('the roster as its page shows it', () => {
       /<h2\b[^>]*\sid="show-ed"[^>]*>Night Shift Cinema<(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Resolved</
     )
     expect(sections(html)).toEqual([['Night Shift Cinema Resolved', 'Matched in Qloo, so a launch can propose it.']])
+    // Its state's live region tells screen readers only of a change while the tab is open, so it opens empty.
+    expect(hooked(html, 'data-state-change').map((r) => [/\srole="status"/.test(r), words(r)])).toEqual([[true, '']])
     // A pasted name comes with no description. Downloads and status are the form's, not facts.
     expect(facts(html)).toEqual([
       ['Qloo match', 'Night Shift Cinema C-01'],

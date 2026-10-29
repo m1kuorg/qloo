@@ -63,6 +63,7 @@ import {
   pitchTally,
   sentence,
   SlowCalls,
+  StateChange,
   stateLabel,
   StateLine,
   type Connection
@@ -1011,7 +1012,7 @@ function RankedPitches({
   const id = `list-${list.type}`
   const pitch = (id: string) => pitches.find((p) => p.id === id)
   const names = listOf(list.anchors.map((a) => a.name))
-  const noun = typeLabel[list.type].toLowerCase()
+  const noun = workNoun[list.type]
   const against =
     list.path === 'same_type'
       ? `Ranked against the past guests’ ${noun}s alone: ${names}. Qloo scored no ${noun} against the show and every past guest (${list.calls[0]}).`
@@ -1791,11 +1792,11 @@ function pitchState(p: Pitch, confirming: boolean) {
 }
 
 // The pitch opened from a list or the table, in the inspector's Pitch tab, in the inspector's anatomy:
-// its subject as the heading, which takes focus as it opens, with its chip; its state in a sentence;
-// its facts, its sender, what Claude read from it, or the sample gives, and its work's Qloo match with
-// the call that found it; then its work's candidates to confirm, unless it's an earlier run's
-// (`confirmWork` null); and its text. It has no Close of its own: the inspector's closes it, and
-// selecting another pitch changes it.
+// its subject as the heading, which takes focus as it opens, with its chip; its state in a sentence,
+// told to screen readers as it changes; its facts, its sender, what Claude read from it, or the sample
+// gives, and its work's Qloo match with the call that found it; then its work's candidates to confirm,
+// unless it's an earlier run's (`confirmWork` null); and its text. It has no Close of its own: the
+// inspector's closes it, and selecting another pitch changes it.
 function PitchDetail({
   pitch: p,
   sample,
@@ -1815,6 +1816,7 @@ function PitchDetail({
   // sticky tabs.
   const heading = useRef<HTMLHeadingElement>(null)
   const ref = useIntoView<HTMLDivElement>(heading)
+  const stateWords = pitchState(p, confirmWork !== null)
   return (
     // Scrolled to, it stops clear of the inspector's sticky tabs.
     <div className="min-w-0 scroll-mt-16" ref={ref} data-pitch-detail>
@@ -1823,8 +1825,9 @@ function PitchDetail({
         title={title(p)}
         heading={heading}
         badge={<PitchChip pitch={p} />}
-        description={pitchState(p, confirmWork !== null)}
+        description={stateWords}
       >
+        <StateChange state={`${p.status} ${match?.resolution ?? ''}`} sentence={stateWords} />
         <KeyValues>
           {/* A sender's address has no spaces to wrap at. */}
           {p.from && (
@@ -1859,11 +1862,9 @@ function PitchDetail({
               '–'
             )}
           </KeyValue>
-          {!sample && (
-            <KeyValue label="Read by">
-              <Source of="agent" />
-            </KeyValue>
-          )}
+          {/* Claude's reading, once it's kept: not while Claude reads it, nor when reading failed or was set
+              aside as unreadable, which keep no guest. */}
+          {!sample && <KeyValue label="Read by">{p.guest !== null ? <Source of="agent" /> : '–'}</KeyValue>}
         </KeyValues>
         {confirmWork && match && match.candidates.length > 0 && p.work && (
           <PickOne

@@ -1,4 +1,6 @@
+import { abortAllDurableObjects } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
+import { http } from 'msw'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -12,6 +14,7 @@ import {
   fakeClaude,
   fakeQloo,
   modelRequests,
+  network,
   refusal,
   requests,
   text,
@@ -445,6 +448,8 @@ describe("the inspector's Pitch tab", () => {
     expect(sections(html)).toEqual([
       ['Ada Quill on Night Ferry Matched', 'Its work matched in Qloo, so a run can rank it.']
     ])
+    // Its state's live region tells screen readers only of a change while the tab is open, so it opens empty.
+    expect(hooked(html, 'data-state-change').map((r) => [/\srole="status"/.test(r), words(r)])).toEqual([[true, '']])
     expect(facts(html)).toEqual([
       ['From', 'Pat Lindqvist <pat.lindqvist@example.com>'],
       ['Guest', 'Ada Quill'],
@@ -466,6 +471,52 @@ describe("the inspector's Pitch tab", () => {
       ['Qloo match', '–'],
       ['Read by', 'Agent']
     ])
+  })
+
+  it('credits the agent only once it has read a pitch: not while it reads, nor when reading failed or was declined', async () => {
+    fakeQloo({ search: { 'Night Ferry': [{ entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.81 }] } })
+    // The book's reading is held until the other two have settled, one on a reply that isn't JSON.
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    fakeClaude(
+      Array.from({ length: 3 }, () => async (request: ModelRequest) => {
+        const body = pitchText(request)
+        if (!body.includes(book)) return body.includes(person) ? turn(text('Not JSON.')) : refusal('general_harms')
+        await held
+        return extraction({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: null } })
+      })
+    )
+    const s = await session()
+    await s.call('loadInbox', { text: threePitches })
+    const reading = await s.until(
+      (state: State) => state.inbox?.pitches.filter((p) => p.status !== 'reading').length === 2
+    )
+    const readBy = (state: State, pitch: string) => facts(pitchTab(state, pitch)).find(([label]) => label === 'Read by')
+
+    expect(reading.inbox!.pitches.map((p) => p.status)).toEqual(['reading', 'failed', 'unreadable'])
+    expect(readBy(reading, 'pitch-01')).toEqual(['Read by', '–'])
+    expect(readBy(reading, 'pitch-02')).toEqual(['Read by', '–'])
+    expect(readBy(reading, 'pitch-03')).toEqual(['Read by', '–'])
+    release()
+    expect(readBy(await loaded(s), 'pitch-01')).toEqual(['Read by', 'Agent'])
+  })
+
+  it("keeps crediting the agent when the work's lookup fails after Claude read the pitch", async () => {
+    fakeQloo({ search: { 'Night Ferry': [{ entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.81 }] } })
+    // Holds the work's search, so the agent restarts with the pitch read and its lookup out.
+    const held = Promise.withResolvers<void>()
+    network.use(http.get(`${env.QLOO_BASE_URL}/search`, () => held.promise))
+    fakeReader(1, () => extraction({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } }))
+    const first = await session()
+    await first.call('loadInbox', { text: pasted })
+    await first.until((state: State) => state.inbox?.pitches[0]?.status === 'looking_up')
+    first.close()
+    await abortAllDurableObjects()
+
+    const state = (await session(first.cookie)).state()!
+    expect(state.inbox!.pitches[0]).toMatchObject({ status: 'failed', guest: 'Ada Quill' })
+    expect(facts(pitchTab(state, 'pitch-01')).find(([label]) => label === 'Read by')).toEqual(['Read by', 'Agent'])
+    held.resolve()
   })
 })
 

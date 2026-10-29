@@ -596,7 +596,7 @@ describe("the roster page's words", () => {
     expect(sections(watch)).toEqual([
       ['The Watch Missed', 'No show by this name in Qloo. Map a comparable show or leave it out.']
     ])
-    // Its description is what it's about, clamped to three lines with the whole of it in its tooltip.
+    // Its description is what it's about, all of it, though it's clamped to three lines on screen.
     const about = state.roster.find((show) => show.name === 'The Watch')!.description!
     expect(about).toMatch(/^Andy Greenwald and Chris Ryan, longtime friends and pop culture addicts/)
     expect(facts(watch)).toEqual([
@@ -604,7 +604,6 @@ describe("the roster page's words", () => {
       ['Popularity percentile', '–'],
       ['About', about]
     ])
-    expect(watch).toContain(`title="${about.replace(/'/g, '&#x27;')}"`)
     expect(words(watch)).toContain('Downloads per episode Status Save')
     // The inspector's close button closes it, so the show has no Close of its own.
     expect(words(watch)).not.toContain('Close')

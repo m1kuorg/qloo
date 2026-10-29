@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CircleDashedIcon, ClockIcon, SquareXIcon, UploadIcon } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -32,7 +32,7 @@ import { CallButton, type OpenCall } from './Evidence'
 import type { NetworkPage } from './NetworkPage'
 import { count, FormDialog, Section, summaryLine, useFormDialog } from './PageHeader'
 import { Source } from './Source'
-import { sentence, SlowCalls, slowText, StateLine } from './states'
+import { sentence, SlowCalls, slowText, StateChange, StateLine } from './states'
 
 // The roster's modules, shared by a network's roster page and a launch's page: its import, its counts,
 // its table, the show editor, the roster check, and the CPM its slots are priced at.
@@ -414,6 +414,36 @@ function Match({ show, slow, settle }: { show: Show; slow: SlowCall[]; settle: (
   )
 }
 
+// A show's description, three lines at most, with More after it when they cut it short, which shows
+// the whole of it, then Less. Clamping is visual, so a screen reader reads all of it either way. It's
+// measured as it opens and as its width changes until they first cut it short; from then on it keeps
+// its button whatever the width, so More and Less never take focus away with them.
+function About({ text }: { text: string }) {
+  const clamped = useRef<HTMLSpanElement>(null)
+  const [cut, setCut] = useState(false)
+  const [whole, setWhole] = useState(false)
+  useEffect(() => {
+    const span = clamped.current
+    if (!span || cut) return
+    // It reports the span's size as it starts watching, too.
+    const resized = new ResizeObserver(() => setCut(span.scrollHeight > span.clientHeight))
+    resized.observe(span)
+    return () => resized.disconnect()
+  }, [text, cut])
+  return (
+    <span className="flex flex-col gap-1">
+      <span ref={clamped} className={whole ? undefined : 'line-clamp-3'}>
+        {text}
+      </span>
+      {cut && (
+        <Button variant="link" className="self-start" aria-expanded={whole} onClick={() => setWhole(!whole)}>
+          {whole ? 'Less' : 'More'}
+        </Button>
+      )}
+    </span>
+  )
+}
+
 // A show's state in words, saying what's next when it needs something: left out, whatever its match;
 // or how Qloo matched it.
 const showState = (show: Show) =>
@@ -429,11 +459,11 @@ const showState = (show: Show) =>
       }[show.resolution]
 
 // The selected show, in the inspector's Show tab, in the inspector's anatomy: its name with its chips,
-// its state in a sentence, and its facts, its Qloo match with the call that found it, its popularity
-// and what it's about; then settle its match, edit its figures, or leave it out. Each part is its own
-// form, so a search or a pick doesn't send the figures being typed. Downloads and status are the form's,
-// so they aren't facts too. It has no Close of its own: the inspector's closes it, and selecting
-// another row changes the show.
+// its state in a sentence, told to screen readers as it changes, and its facts, its Qloo match with the
+// call that found it, its popularity and what it's about; then settle its match, edit its figures, or
+// leave it out. Each part is its own form, so a search or a pick doesn't send the figures being typed.
+// Downloads and status are the form's, so they aren't facts too. It has no Close of its own: the
+// inspector's closes it, and selecting another row changes the show.
 export function ShowEditor({
   show,
   agent,
@@ -448,6 +478,7 @@ export function ShowEditor({
   const { busy, error, run } = useAction()
   const update = (patch: ShowPatch) => run(() => agent.stub.updateShow(show.name, patch))
   const ref = useIntoView<HTMLDivElement>()
+  const stateWords = showState(show)
   return (
     // Scrolled to, it stops clear of the inspector's sticky tabs.
     <div className="min-w-0 scroll-mt-16" ref={ref} data-show-editor>
@@ -460,8 +491,9 @@ export function ShowEditor({
             {show.excluded && <Badge>Excluded</Badge>}
           </>
         }
-        description={showState(show)}
+        description={stateWords}
       >
+        <StateChange state={show.excluded ? 'excluded' : show.resolution} sentence={stateWords} />
         <KeyValues>
           {/* A settled lookup cites its search, matched or not; a pending one has no record yet. */}
           <KeyValue label="Qloo match">
@@ -480,16 +512,7 @@ export function ShowEditor({
             )}
           </KeyValue>
           <KeyValue label="Popularity percentile">{percentile(show.entity?.popularity ?? null)}</KeyValue>
-          {/* Three lines at most, the whole of it in its tooltip. */}
-          <KeyValue label="About">
-            {show.description ? (
-              <span className="line-clamp-3" title={show.description}>
-                {show.description}
-              </span>
-            ) : (
-              '–'
-            )}
-          </KeyValue>
+          <KeyValue label="About">{show.description ? <About text={show.description} /> : '–'}</KeyValue>
         </KeyValues>
         {show.candidates.length > 0 && (
           <PickOne
