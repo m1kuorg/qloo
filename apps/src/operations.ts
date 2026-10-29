@@ -31,7 +31,7 @@ import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
 import { Refusal } from './refusal'
 import { offeredBy, type Candidate } from './resolve'
-import type { RosterFormat } from './roster'
+import { holdsSample, type RosterFormat } from './roster'
 import { readName } from './text'
 import type { Topic } from './topic'
 import { deleteLaunch as wipeLaunch } from './wipe'
@@ -576,9 +576,7 @@ const rosterOf = (state: State): Roster => ({
   shows: state.roster,
   // While a show holds a sample figure: the guest network's CPM can stay the sample's once it doesn't (#287).
   sample:
-    state.sample && state.roster.some((s) => s.sample?.length)
-      ? { network: state.sample.network, notice: state.sample.notice }
-      : null
+    state.sample && holdsSample(state.roster) ? { network: state.sample.network, notice: state.sample.notice } : null
 })
 
 const inboxOf = ({ inbox }: State): InboxInfo => ({

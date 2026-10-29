@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TabsContent } from '@/components/ui/tabs'
+import { holdsSample } from '../roster'
 import { EvidencePanel, useEvidence } from './Evidence'
 import { canvas, frame, Inspector, InspectorToggle, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
@@ -50,7 +51,7 @@ export function NetworkRoster({
       connection={state ? connection : null}
       empty={roster.length === 0}
       summary={rosterSummary(roster)}
-      badge={roster.some((s) => s.sample?.length) && <Badge>sample</Badge>}
+      badge={holdsSample(roster) && <Badge>sample</Badge>}
       actions={
         <>
           <InspectorToggle open={inspector.open} toggle={inspector.toggle} ref={inspector.toggleButton} />

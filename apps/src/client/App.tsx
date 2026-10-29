@@ -7,6 +7,7 @@ import { buttonVariants } from '@/components/ui/variants'
 import type { useAgent } from 'agents/react'
 import type { Comp, CrossfeedAgent, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall, State } from '../agent'
 import { inProgress } from '../limits'
+import { holdsSample } from '../roster'
 import { Alert, percentile, useAction } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type OpenCall } from './Evidence'
 import { FitChart } from './FitChart'
@@ -45,7 +46,7 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
   // Whether the page shows the sample data (ADR 0007), which its title's one badge says: the guest
   // network's sample launch, which carries the sample; a run one of the sample launches was seeded with;
   // or a roster still holding sample figures, as another launch of the guest network ranks.
-  const sample = !!shown?.sample || !!run?.capturedAt || roster.some((s) => (s.sample?.length ?? 0) > 0)
+  const sample = !!shown?.sample || !!run?.capturedAt || holdsSample(roster)
   // Live, never a run's snapshot: calls waiting on Qloo right now. Sessions from before it have none.
   const slowCalls = agent.state?.slowCalls ?? []
   const evidence = useEvidence(agent)

@@ -17,6 +17,7 @@ import { globalGateway } from './gateway'
 import { readSampleInbox, type Booking, type Inbox, type Pitch, type PitchReply } from './inbox'
 import type { LaunchAgent } from './launch-agent'
 import { Refusal } from './refusal'
+import { holdsSample } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
 import { readSampleLaunches } from './sample-launches'
 import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX, LOOKUP_RETRIED } from './text'
@@ -158,25 +159,9 @@ export class NetworkAgent extends CrossfeedAgent {
     // stopped reading is (CrossfeedAgent.onStart): its lookups are tried again (loadSampleInbox).
     const inbox = this.state.inbox
     if (inbox?.sample && inbox.status === 'reading') this.finishInbox(inbox.id, LOOKUP_RETRIED)
-    // Nor is the roster's, while the sample is still loading, whose failed lookups this start tries again
-    // (loadSample): until the load is noted as loaded, while a show holds a sample figure.
-    const loadsSample = this.name === GUEST_NETWORK && this.env.SAMPLE_NETWORK === 'on' && !props?.clearing
-    const { roster } = this.state
-    if (
-      loadsSample &&
-      !storage.kv.get(SAMPLE_LOADED) &&
-      roster.some((s) => s.sample?.length) &&
-      roster.some((s) => s.resolution === 'pending')
-    ) {
-      const retried = { resolution: 'failed', error: LOOKUP_RETRIED } as const
-      this.setState({
-        ...this.state,
-        roster: roster.map((s) => (s.resolution === 'pending' ? { ...s, ...retried } : s))
-      })
-    }
     await super.onStart(props)
     if (this.name !== GUEST_NETWORK) return
-    if (loadsSample) {
+    if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) {
       await this.loadSample()
       await this.loadSampleLaunches()
       await this.loadSampleInbox()
@@ -185,6 +170,17 @@ export class NetworkAgent extends CrossfeedAgent {
     // even when the sample roster couldn't load, and an import keeps it. One an import left unset before
     // #287 gets it back here.
     if (this.state.cpm === null) this.setState({ ...this.state, cpm: sampleCpm })
+  }
+
+  // While the guest network's sample is still loading, each start looks up every failed lookup again
+  // (loadSample). So a lookup a restart interrupted then says Crossfeed tries it again.
+  protected interruptedLookup() {
+    const loading =
+      this.name === GUEST_NETWORK &&
+      this.env.SAMPLE_NETWORK === 'on' &&
+      !this.ctx.storage.kv.get(SAMPLE_LOADED) &&
+      holdsSample(this.state.roster)
+    return loading ? LOOKUP_RETRIED : super.interruptedLookup()
   }
 
   // Loads the sample network into the guest network on its first start, each day after the daily cron
@@ -200,7 +196,7 @@ export class NetworkAgent extends CrossfeedAgent {
     const { kv } = this.ctx.storage
     if (kv.get(SAMPLE_LOADED)) return
     const { roster } = this.state
-    if (roster.length > 0 && !roster.some((s) => s.sample?.length)) return kv.put(SAMPLE_LOADED, true)
+    if (roster.length > 0 && !holdsSample(roster)) return kv.put(SAMPLE_LOADED, true)
     const failed = (e: unknown) => console.error(JSON.stringify({ event: 'sample_load', error: String(e) }))
     if (!this.state.sample) {
       // A CPM a guest set before the sample loaded is theirs, so it stays, unlabelled.

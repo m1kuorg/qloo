@@ -1,5 +1,6 @@
 // Turns an imported roster, pasted names or a CSV, into one row per show. Anything it can't read
 // is refused with a message for the programmer, so a roster is never imported in part.
+import type { Show } from './agent'
 import { Refusal } from './refusal'
 
 export type RosterFormat = 'lines' | 'csv'
@@ -13,6 +14,10 @@ export type RosterRow = {
 
 // A show's figures beside its name, which an import may or may not bring.
 export type RosterFigure = Exclude<keyof RosterRow, 'name'>
+
+// Whether any show on a roster still holds a sample figure (sample.ts), so the roster is still the
+// sample's. It's here, not in sample.ts, so the pages can use it without bundling the sample's data.
+export const holdsSample = (roster: Pick<Show, 'sample'>[]) => roster.some((s) => (s.sample?.length ?? 0) > 0)
 
 // The roster's rows, and the figures the text brings: a CSV's columns among them, and none for
 // pasted names.

@@ -32,7 +32,7 @@ import {
   type OrderLine
 } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
-import { parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
+import { holdsSample, parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
 import { keptRun, type CapturedRun, type KeptRun } from './sample-launches'
@@ -280,6 +280,11 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // network's does, rather than looking every show up again, as an engine session's does.
   protected keepsSettledShows = false
 
+  // What a show's lookup a restart interrupted says. An import looks it up again.
+  protected interruptedLookup() {
+    return 'The lookup was interrupted. Import the roster again.'
+  }
+
   // Whether a launch is asking the gateway if it may start (see admit).
   private starting = false
 
@@ -306,7 +311,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const run = this.state.run
     if (run?.status === 'running') this.finish(run.id, 'The run was interrupted. Start it again.')
     // The same goes for a show still waiting on its search.
-    const interrupted = { resolution: 'failed', error: 'The lookup was interrupted. Import the roster again.' } as const
+    const interrupted = { resolution: 'failed', error: this.interruptedLookup() } as const
     if (this.state.roster.some((s) => s.resolution === 'pending'))
       this.setState({
         ...this.state,
@@ -383,7 +388,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const keep = this.keepsSettledShows ? figures : null
     const gateway = await this.reserveCalls(visitor, rows.filter((r) => this.toLookUp(r.name, keep)).length)
     pending() // again, since another import may have started meanwhile
-    this.lookUpRoster(rows, this.leaveSample(), gateway, keep)
+    this.lookUpRoster(rows, (roster) => this.leaveSample(roster), gateway, keep)
   }
 
   // Searches Qloo for a comparable show to stand in for one it can't match, such as a miss. It
@@ -894,13 +899,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Replaces the roster with these rows, each pending on its search, together with any other state
-  // that changes with it, and returns; each row fills in as its search settles, through `gateway`, where
-  // its calls were reserved (reserveCalls). With `keep`, a show already on the roster keeps its name,
-  // match, candidates, comp search, exclusion, and every figure but those in `keep`, which the rows
-  // bring, and only a lookup that failed is made again.
+  // that changes with it (`alongside`, or what it returns for the new roster), and returns; each row fills
+  // in as its search settles, through `gateway`, where its calls were reserved (reserveCalls). With `keep`,
+  // a show already on the roster keeps its name, match, candidates, comp search, exclusion, and every
+  // figure but those in `keep`, which the rows bring, and only a lookup that failed is made again.
   protected lookUpRoster(
     rows: (RosterRow & Pick<Show, 'sample'>)[],
-    alongside: Partial<State>,
+    alongside: Partial<State> | ((roster: Show[]) => Partial<State>),
     gateway: DurableObjectStub<QlooGateway>,
     keep: RosterFigure[] | null = null
   ) {
@@ -916,11 +921,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       const sample = kept.sample && { sample: kept.sample.filter((f) => !keep.includes(f)) }
       return { ...kept, ...brought, ...sample, ...looking }
     })
-    // A network's sample stays while a kept show still holds a sample figure, or while its CPM is still the
-    // sample's, since an import never changes the CPM or its label (#287).
-    const stillSample =
-      keep && (this.state.sample?.cpm || roster.some((s) => s.sample?.length)) ? { sample: this.state.sample } : {}
-    this.setState({ ...this.state, ...alongside, ...stillSample, roster })
+    const changed = typeof alongside === 'function' ? alongside(roster) : alongside
+    this.setState({ ...this.state, ...changed, roster })
     // All at once: the gateway paces, limits, and retries the calls.
     void this.keepAliveWhile(() =>
       Promise.all(
@@ -941,13 +943,15 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return !kept || kept.resolution === 'failed'
   }
 
-  // What leaving the sample network changes besides the roster: an engine session's CPM goes too, unless
-  // the visitor set their own, because a real network's CPM has no default. A network's import leaves its
-  // CPM as it was (lookUpRoster).
-  private leaveSample(): Partial<State> {
+  // What an import that leaves `roster` changes of the sample network. An engine session leaves it, and its
+  // CPM too unless the visitor set their own, because a real network's CPM has no default. A network keeps
+  // its CPM and the CPM's label, and the sample while a show holds a sample figure or the CPM is the
+  // sample's (#287).
+  private leaveSample(roster: Show[]): Partial<State> {
     const s = this.state.sample
     if (!s) return {}
-    return this.keepsSettledShows ? { sample: null } : { sample: null, cpm: s.cpm ? null : this.state.cpm }
+    if (!this.keepsSettledShows) return { sample: null, cpm: s.cpm ? null : this.state.cpm }
+    return s.cpm || holdsSample(roster) ? {} : { sample: null }
   }
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
