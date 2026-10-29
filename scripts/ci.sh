@@ -34,6 +34,32 @@ docker info >/dev/null 2>&1 || {
   exit 1
 }
 
+# Reads the pull request once GitHub knows whether it merges: it works that out after a push or a merge
+# to the base, and answers UNKNOWN until then. A pull request that conflicts stops here.
+read_view() {
+  local view
+  for _ in $(seq 1 12); do
+    view=$(gh pr view "$pr" --repo "$remote" --json number,title,baseRefName,baseRefOid,headRefOid,mergeable)
+    [[ $(jq -r .mergeable <<<"$view") != UNKNOWN ]] && break
+    sleep 5
+  done
+  case $(jq -r .mergeable <<<"$view") in
+    MERGEABLE) echo "$view" ;;
+    CONFLICTING)
+      echo "#$pr conflicts with its base, so rebase it first" >&2
+      return 1
+      ;;
+    *)
+      echo "GitHub hasn't worked out whether #$pr merges; try again in a minute" >&2
+      return 1
+      ;;
+  esac
+}
+repo=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
+remote=$(git -C "$repo" remote get-url origin)
+# Once before waiting for another run, so a pull request that conflicts doesn't wait, and again after.
+read_view >/dev/null
+
 lock=${TMPDIR:-/tmp}/crossfeed-ci.lock
 until mkdir "$lock" 2>/dev/null; do
   holder=$(cat "$lock/pid" 2>/dev/null || true)
@@ -60,10 +86,7 @@ while pgrep -x act >/dev/null; do
   sleep 30
 done
 
-repo=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-remote=$(git -C "$repo" remote get-url origin)
-# One read of the pull request, so its title and commits agree.
-view=$(gh pr view "$pr" --repo "$remote" --json number,title,baseRefOid,headRefOid)
+view=$(read_view)
 base=$(jq -r .baseRefOid <<<"$view")
 head=$(jq -r .headRefOid <<<"$view")
 
@@ -82,8 +105,14 @@ git -C "$work/repo" checkout --quiet -B "pr-$pr" FETCH_HEAD
 jq '{number, pull_request: {number, title, base: {sha: .baseRefOid}, head: {sha: .headRefOid}}}' \
   <<<"$view" >"$work/event.json"
 
-# The merge ref's first parent is the base branch's tip GitHub merged the head into.
+# The merge ref's first parent is the base branch's tip GitHub merged the head into. GitHub remakes the
+# ref a moment after the base moves, so one made before the base's latest merge would test old code.
 tip=$(git -C "$work/repo" rev-parse HEAD^1)
+latest=$(git ls-remote "$remote" "refs/heads/$(jq -r .baseRefName <<<"$view")" | cut -f1)
+[[ $tip == "$latest" ]] || {
+  echo "#$pr's merge ref is on ${tip:0:7}, but its base is at ${latest:0:7}; try again in a minute" >&2
+  exit 1
+}
 echo "CI for #$pr, head ${head:0:7} merged into ${tip:0:7}: $(jq -r .title <<<"$view")"
 cd "$work/repo"
 sed "1s/^name: CI$/name: $run/" .github/workflows/ci.yml >"$work/ci.yml"
