@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Runs CI, .github/workflows/ci.yml, on this machine with act for one pull request, on the commit GitHub
-# would test: its merge ref, the pull request merged into its base branch's tip. GitHub's hosted runners
-# don't run this repo's workflows (#368), so this is the check a pull request passes before it merges
-# (apps/README.md, "CI"). It clones the repo afresh into a scratch folder, since a worktree's .git is a
-# file the job's container can't follow, and fetches the merge ref and the pull request's base and head
-# commits, which the Secrets step's gitleaks reads between. It gives act the pull request's number,
+# would test: the pull request merged into its base branch's tip, which it makes here. GitHub's hosted
+# runners don't run this repo's workflows (#368), so this is the check a pull request passes before it
+# merges (apps/README.md, "CI"). It clones the repo afresh into a scratch folder, since a worktree's .git
+# is a file the job's container can't follow, and fetches the base branch and the pull request's base
+# and head commits, which the Secrets step's gitleaks reads between. It gives act the pull request's number,
 # title, and base and head commits, as GitHub's event does. The job runs as amd64, the build the Secrets
 # step downloads, on 4 of Docker's CPUs and in 6 GB, so the suite leaves the machine room: pinned CPUs,
 # since the suite starts a worker for each CPU it sees.
@@ -94,25 +94,21 @@ git clone --quiet --no-checkout --no-local "$repo" "$work/repo"
 # The job reads the repository's name from origin, so it's GitHub's, not this checkout's path.
 git -C "$work/repo" remote set-url origin "$remote"
 git -C "$work/repo" fetch --quiet origin "$base" "$head"
-# GitHub keeps the merge ref while the pull request merges cleanly; without it, rebase first.
-git -C "$work/repo" fetch --quiet origin "refs/pull/$pr/merge" || {
-  echo "#$pr has no merge ref: it conflicts with its base, so rebase it first" >&2
+# The commit GitHub would test, made here: the head merged into the base branch's tip as it is now.
+# GitHub's own merge ref can lag the base by minutes, or stay where it was once the pull request
+# conflicts. On a branch of its own, not detached: a clone of a detached checkout has an empty refs/,
+# which act's copy into the job's container leaves out, and git there won't take a .git without refs/.
+git -C "$work/repo" fetch --quiet origin "refs/heads/$(jq -r .baseRefName <<<"$view")"
+git -C "$work/repo" checkout --quiet -B "pr-$pr" FETCH_HEAD
+git -C "$work/repo" -c user.name=ci -c user.email=ci@localhost merge --quiet --no-ff --no-edit "$head" || {
+  echo "#$pr conflicts with its base, so rebase it first" >&2
   exit 1
 }
-# On a branch of its own, not detached: a clone of a detached checkout has an empty refs/, which act's
-# copy into the job's container leaves out, and git there won't take a .git without refs/ as a repo.
-git -C "$work/repo" checkout --quiet -B "pr-$pr" FETCH_HEAD
 jq '{number, pull_request: {number, title, base: {sha: .baseRefOid}, head: {sha: .headRefOid}}}' \
   <<<"$view" >"$work/event.json"
 
-# The merge ref's first parent is the base branch's tip GitHub merged the head into. GitHub remakes the
-# ref a moment after the base moves, so one made before the base's latest merge would test old code.
+# The merge's first parent is the base branch's tip it was made on.
 tip=$(git -C "$work/repo" rev-parse HEAD^1)
-latest=$(git ls-remote "$remote" "refs/heads/$(jq -r .baseRefName <<<"$view")" | cut -f1)
-[[ $tip == "$latest" ]] || {
-  echo "#$pr's merge ref is on ${tip:0:7}, but its base is at ${latest:0:7}; try again in a minute" >&2
-  exit 1
-}
 echo "CI for #$pr, head ${head:0:7} merged into ${tip:0:7}: $(jq -r .title <<<"$view")"
 cd "$work/repo"
 sed "1s/^name: CI$/name: $run/" .github/workflows/ci.yml >"$work/ci.yml"
