@@ -111,6 +111,9 @@ const GLOBAL = 'global'
 // Why a network's instance fails a call once its wipe has begun, as when an owner removes its key.
 export const WIPED =
   "The network's own Qloo key was removed, or the network deleted, while this call was out, so it was cut off. Calls made from now on go through Crossfeed's shared key"
+// Why it cut off a call it was making when its wipe failed, as it resets all the same.
+const WIPE_FAILED =
+  "Removing the network's own Qloo key, or deleting the network, failed while this call was out, so it was cut off"
 
 // The only code that calls Qloo, reached over Durable Object RPC: the global instance, on Crossfeed's
 // key, and one instance per network that brings its own key, `network:<networkId>`, on that key, with
@@ -171,14 +174,17 @@ export class QlooGateway extends DurableObject<Env> {
   // Wipes this instance, as removing the network's own key or deleting the network does: its key, cache,
   // and counts. It resets a moment later, cutting off any request still queued or in flight, so the
   // next call meets a new, empty instance. From the wipe's start until then, any call it's still making,
-  // and any that reaches it, fails saying so (WIPED), rather than meeting the tables it dropped. A wipe
-  // that fails resets it too, with what it kept.
+  // and any that reaches it, fails saying so (WIPED), rather than meeting the tables it dropped. The
+  // reset says WIPED too, which tells the wipe's caller it worked should the reset reach it first, as on
+  // Cloudflare (wipe.ts). A wipe that fails resets it too, with what it kept, saying WIPE_FAILED.
   async wipe() {
     this.wiped = true
+    let reset = WIPE_FAILED
     try {
       await this.ctx.storage.deleteAll()
+      reset = WIPED
     } finally {
-      setTimeout(() => this.ctx.abort(WIPED), 0)
+      setTimeout(() => this.ctx.abort(reset), 0)
     }
   }
 
