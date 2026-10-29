@@ -568,7 +568,11 @@ describe('the app, as a guest sees it', () => {
       body: JSON.stringify({ name: 'Night Shift Audio' })
     })
     const link = await ada.invite((await network.json<{ id: string }>()).id)
-    expect(words(await invitePage(ada, link))).toContain('Join Night Shift Audio Not Ada Programmer? Sign out')
+    // The button that joins, its words the whole "Join <network>", whatever markup they sit in.
+    const joinButton = /<button\b[^>]*>(?:<[^>]+>)*Join Night Shift Audio(?:<[^>]+>)*<\/button>/
+    const asMember = await invitePage(ada, link)
+    expect(words(asMember)).toContain('Join Night Shift Audio Not Ada Programmer? Sign out')
+    expect(asMember).toMatch(joinButton)
     const asGuest = await invitePage(await openGuest(), link)
     expect(sections(asGuest)).toEqual([
       [
@@ -577,7 +581,7 @@ describe('the app, as a guest sees it', () => {
       ]
     ])
     expect(words(asGuest)).toContain('which can’t join a network. Sign out and create an account')
-    expect(asGuest).not.toMatch(/<button\b[^>]*>Join Night Shift Audio<\/button>/)
+    expect(asGuest).not.toMatch(joinButton)
   })
 
   const CLEARED =

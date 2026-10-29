@@ -3,7 +3,9 @@
 // button and the escape (Cancel) secondary, since there's no outline variant. 8px corners and the one
 // floating shadow (a light ring and a deeper shadow in the dark), over the scrim, with no backdrop
 // blur, left-aligned at every width, a footer without a rule or band, and while it's open the page
-// under it inert (./modal-layer.ts). Base UI injects no <style> under the island's CSPProvider, so it
+// under it inert (./modal-layer.ts). Its title and consequence break a word too long for their line,
+// such as a network's name with no spaces, anywhere (`wrap-anywhere`), as the dialog's grid otherwise
+// widens to the word and past its edge. Base UI injects no <style> under the island's CSPProvider, so it
 // runs under the production policy. Don't re-add the original with
 // `shadcn add alert-dialog --overwrite`.
 import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
@@ -58,7 +60,7 @@ function AlertDialogTitle({ className, ...props }: AlertDialogPrimitive.Title.Pr
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn('text-base leading-snug font-semibold text-balance text-foreground', className)}
+      className={cn('text-base leading-snug font-semibold text-balance wrap-anywhere text-foreground', className)}
       {...props}
     />
   )
@@ -68,7 +70,7 @@ function AlertDialogDescription({ className, ...props }: AlertDialogPrimitive.De
   return (
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
-      className={cn('text-pretty text-muted-foreground', className)}
+      className={cn('text-pretty wrap-anywhere text-muted-foreground', className)}
       {...props}
     />
   )

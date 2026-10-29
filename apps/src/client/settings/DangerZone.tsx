@@ -43,7 +43,8 @@ function DeleteNetwork({ network }: { network: NetworkPage }) {
       }}
     >
       <Field>
-        <FieldLabel htmlFor="delete-name" className="inline-block">
+        {/* The label is as wide as its words, so a name with no spaces breaks anywhere to fit the panel. */}
+        <FieldLabel htmlFor="delete-name" className="inline-block wrap-anywhere">
           Type <b className="font-semibold">{network.name}</b> to delete it
         </FieldLabel>
         <Input
