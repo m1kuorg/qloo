@@ -754,10 +754,14 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     fakeQloo({ search })
     env.QLOO_VISITOR_DAILY_CALL_CAP = '18'
     const guest = await openGuest()
-    await connect(guest)
+    const network = await connect(guest)
     expect((await post(guest, '/app/guest-network/settings/network', { name: 'Guest network', cpm: 25 })).status).toBe(
       200
     )
+    // The roster still waits for the sample's, so the network holds the sample under the owner's CPM (#337).
+    const set = await network.until((s) => s.cpm === 25)
+    expect(set).toMatchObject({ roster: [], sample: { network: 'The Ringer', cpm: false } })
+    expect(dashboardWords(set)).toMatch(/^Launches sample 1 launch /)
 
     env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
     await evictAllDurableObjects({ webSockets: 'close' })
@@ -879,6 +883,64 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     await evictAllDurableObjects({ webSockets: 'close' })
     expect((await connect(guest)).state()).toMatchObject({ roster: own.roster, cpm: 20, sample: { cpm: true } })
     expect(requests).toHaveLength(sent)
+  })
+
+  // A guest's import of their own shows, then an owner's CPM, leave nothing of the sample (#337).
+  const leaveSample = async (guest: Guest, network: Omit<Session, 'cookie'>) => {
+    await network.importRoster('Night Shift Cinema')
+    expect((await post(guest, '/app/guest-network/settings/network', { name: 'Guest network', cpm: 25 })).status).toBe(
+      200
+    )
+    const left = await network.until((s) => s.cpm === 25)
+    expect(left.sample).toBeNull()
+    return left
+  }
+
+  it('holds no sample once nothing of it is left, start after start, with $20 the owner’s own CPM (#337)', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+    const network = await connect(guest)
+    await network.until(settled)
+    const left = await leaveSample(guest, network)
+    expect(dashboardWords(left)).toMatch(/^Launches 1 launch /)
+
+    expect((await post(guest, '/app/guest-network/settings/network', { name: 'Guest network', cpm: 20 })).status).toBe(
+      200
+    )
+    const twenty = await network.until((s) => s.cpm === 20)
+    expect(twenty.sample).toBeNull()
+    expect(dashboardWords(twenty)).toMatch(/^Launches 1 launch /)
+
+    // As after an idle eviction or a deploy: the sample doesn't load again, so nothing is looked up.
+    const sent = requests.length
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const restarted = (await connect(guest)).state()!
+    expect(restarted).toMatchObject({ roster: left.roster, cpm: 20, sample: null, launches: left.launches })
+    expect(requests).toHaveLength(sent)
+  })
+
+  it('loads the sample again, its CPM labelled, as it next starts after the daily cron clears it or a guest resets the sample data, once it held none (#337)', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+    const loaded = await connect(guest)
+    await loaded.until(settled)
+    await leaveSample(guest, loaded)
+
+    expect((await post(guest, '/app/guest-network/settings/sample-data/reset')).status).toBe(200)
+    await loaded.closed()
+    await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+    const reset = await connect(guest)
+    const afterReset = await reset.until(settled)
+    expect(afterReset).toMatchObject({ cpm: 20, sample: { cpm: true } })
+    expect(afterReset.roster.map((r) => r.name)).toEqual(names)
+
+    await leaveSample(guest, reset)
+    await runCron()
+    await reset.closed()
+    await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+    const cleared = await (await connect(guest)).until(settled)
+    expect(cleared).toMatchObject({ cpm: 20, sample: { cpm: true } })
+    expect(cleared.roster.map((r) => r.name)).toEqual(names)
   })
 
   it('puts the sample CPM back as it next starts where an import before #287 lost it', async () => {

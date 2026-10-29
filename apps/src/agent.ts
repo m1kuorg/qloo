@@ -187,8 +187,9 @@ export type State = {
   demographics: DemographicCheck | null // the current run's finalists checked against the launch's listeners
   topic: Topic | null // the current run's topic baseline, the chart's last-week column
   inbox: Inbox | null // the booker's guest pitches, when GUEST_PITCHES is on
-  // The sample network the session opened on, until an import leaves none of it: on an engine session, any
-  // import; on a network, one that leaves no show holding a sample figure while the CPM isn't the sample's.
+  // The sample network the session opened on, until none of it is left: on an engine session, until any
+  // import; on a network, while the CPM is the sample's, a show holds a sample figure, or the roster is
+  // still empty, waiting for the sample roster (heldSample).
   sample: Sample | null
   booking: Booking | null // the latest guest pitch run's show, past guests, and ranked lists
   insertionOrder: InsertionOrder | null // the current run's order, once drafted; only the programmer edits or approves it
@@ -459,7 +460,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     const problem = cpmProblem(cpm)
     if (problem) throw new Refusal('invalid', problem)
     const s = this.state.sample
-    this.setState({ ...this.state, cpm, sample: s && { ...s, cpm: s.cpm && cpm === this.state.cpm } })
+    const sample = s && { ...s, cpm: s.cpm && cpm === this.state.cpm }
+    this.setState({ ...this.state, cpm, sample: heldSample(sample, this.state.roster) })
     this.repriceOrder()
   }
 
@@ -945,13 +947,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 
   // What an import that leaves `roster` changes of the sample network. An engine session leaves it, and its
   // CPM too unless the visitor set their own, because a real network's CPM has no default. A network keeps
-  // its CPM and the CPM's label, and the sample while a show holds a sample figure or the CPM is the
-  // sample's (#287).
+  // its CPM and the CPM's label, and the sample while it still holds it (heldSample, #287).
   private leaveSample(roster: Show[]): Partial<State> {
     const s = this.state.sample
     if (!s) return {}
     if (!this.keepsSettledShows) return { sample: null, cpm: s.cpm ? null : this.state.cpm }
-    return s.cpm || holdsSample(roster) ? {} : { sample: null }
+    return { sample: heldSample(s, roster) }
   }
 
   // Searches Qloo for an imported show and fills in its row, keeping any edit made while it waited.
@@ -1225,10 +1226,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     return show
   }
 
+  // Replaces the show by this name with what `edit` makes of it. A show edit that changes the last sample
+  // figure under an owner's CPM leaves nothing of the sample (heldSample).
   private editShow(name: string, edit: (show: Show) => Show) {
     const show = this.show(name)
     const next = edit(show)
-    this.setState({ ...this.state, roster: this.state.roster.map((s) => (s === show ? next : s)) })
+    const roster = this.state.roster.map((s) => (s === show ? next : s))
+    this.setState({ ...this.state, roster, sample: heldSample(this.state.sample, roster) })
   }
 
   private guestPitches() {
@@ -1728,6 +1732,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+// `sample` while a network still holds it with `roster`, or null once none of it is left (#337). It holds
+// the sample while its CPM is the sample's, a show holds a sample figure, or the roster is still empty,
+// waiting for the sample roster, as the guest network's is while the guest budget refuses its lookups.
+function heldSample(sample: Sample | null, roster: Show[]) {
+  return sample && (sample.cpm || roster.length === 0 || holdsSample(roster)) ? sample : null
+}
 
 // Whether this is the sample launch on the unchanged sample network: the sample's CPM and every
 // show's sample figures untouched (#44), and no show left out or mapped to a comp. Picking an

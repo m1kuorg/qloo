@@ -329,6 +329,9 @@ describe('re-importing the roster', () => {
       body: JSON.stringify({ name: 'Night Shift Audio', cpm: 25 })
     })
     expect(res.status).toBe(200)
+    expect((await agent.until((s) => s.cpm === 25)).sample).toBeNull()
+    await agent.call('updateShow', 'Deep Cuts', { downloads: 41_000 })
+    expect(agent.state()).toMatchObject({ roster: [{ name: 'Deep Cuts', downloads: 41_000 }], sample: null })
     expect(await agent.importRoster('Deep Cuts\nSignal Boost')).toMatchObject({ cpm: 25, sample: null })
   })
 
