@@ -3,11 +3,14 @@
 // and the network agent's client protocol.
 import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { softwareAuthenticator } from './authenticator'
+import * as Account from '../src/client/Account'
 import type { Invite, NetworkMember } from '../src/directory'
 import worker from '../src/index'
-import { openMember, type Member, type Session } from './session'
+import { openMember, sections, type Member, type Session } from './session'
 
 const origin = 'https://crossfeed.test'
 // A signed-out write from one of the app's pages.
@@ -92,6 +95,22 @@ describe('invite links', () => {
       error:
         'Crossfeed doesn’t know this invite link: it may be incomplete, or it expired. Ask an owner of the network for a new one.'
     })
+  })
+
+  it('offer each way in as a heading, one sentence, then its form or button, signed out or in', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const token = tokenOf(await ada.invite(network))
+    const answer = await exports.default.fetch(`${origin}/auth/invite`, write({ token }))
+    const invite = await answer.json<{ network: string; clearedDaily: boolean }>()
+    // The page as main.tsx renders it once /auth/invite has answered, for whoever is signed in.
+    const page = (memberName: string | null) =>
+      renderToStaticMarkup(createElement(Account.Invite, { token, invite, memberName }))
+    expect(sections(page(null))).toEqual([
+      ['Create an account', 'Your new account joins Night Shift Audio as soon as it’s made.'],
+      ['Sign in', 'Use the passkey you made for Crossfeed on this device, or on a phone nearby.']
+    ])
+    expect(sections(page('Grace Booker'))).toEqual([['Join Night Shift Audio', 'You’re signed in as Grace Booker.']])
   })
 
   it('let a signed-in member join in one step, once: then the link is refused with why', async () => {

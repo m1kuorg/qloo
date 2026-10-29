@@ -9,7 +9,7 @@ import { SignInPage } from '../src/client/Account'
 import { RecoveryCode } from '../src/client/Passkeys'
 import worker from '../src/index'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
-import { openMember } from './session'
+import { openMember, sections } from './session'
 
 const origin = 'https://crossfeed.test'
 const get = (path: string, init?: RequestInit) => exports.default.fetch(`${origin}${path}`, init)
@@ -288,21 +288,28 @@ describe('the way in', () => {
       expect(await nextOf(away)).toBe('/app')
   })
 
-  it('offers a passkey first, then a new account, then a guest’s way in, each in one labelled panel', async () => {
+  it('offers a passkey first, then a new account, then a guest’s way in, each a heading, one sentence, then its form or button', async () => {
     const page = await (await get('/sign-in?next=/app/new')).text()
     const next = page.match(/data-next="([^"]*)"/)![1]
     // The guest network's model runs a day, RUN_VISITOR_DAILY_CAP.
     const runs = Number(page.match(/data-runs="([^"]*)"/)![1])
     const html = renderToStaticMarkup(createElement(SignInPage, { next, runs }))
+    expect(sections(html)).toEqual([
+      ['Sign in', 'Use the passkey you made for Crossfeed on this device, or on a phone nearby.'],
+      ['New here? Create an account', 'Keep networks of your own, and invite your teammates to them.'],
+      ['Look around as a guest', 'Try Crossfeed for a day on the sample network, with no account of your own.']
+    ])
+    // The guest's terms stand before its button, which a screen reader announces them with.
     expect(words(html)).toBe(
-      'Sign in to Crossfeed Crossfeed signs you in with a passkey, kept by your device or password manager. There’s no password, and no email to confirm. Sign in Use the passkey you made for Crossfeed on this device, or on a phone nearby. Sign in with a passkey Lost every passkey? Use a recovery code New here? Create an account Your name, as your teammates will see it Your browser makes a passkey for Crossfeed, then you get a recovery code to keep. Create account Look around as a guest You sign in for a day as Guest, the one account every guest shares, and work in the guest network with every other guest, so put nothing private in it; it’s cleared every day at 12:00 UTC. All guests share one set of daily limits, 10 model runs a day between them. Sign in as a guest'
+      'Sign in to Crossfeed Crossfeed signs you in with a passkey, kept by your device or password manager. There’s no password, and no email to confirm. Sign in Use the passkey you made for Crossfeed on this device, or on a phone nearby. Sign in with a passkey Lost every passkey? Use a recovery code New here? Create an account Keep networks of your own, and invite your teammates to them. Your name, as your teammates will see it Your browser makes a passkey for Crossfeed, then you get a recovery code to keep. Create account Look around as a guest Try Crossfeed for a day on the sample network, with no account of your own. You sign in as Guest, the one account every guest shares, and work in the guest network with every other guest. It’s cleared every day at 12:00 UTC, so put nothing private in it. All guests share one set of daily limits, 10 model runs a day between them. Sign in as a guest'
     )
+    expect(words(html.match(/<p\b[^>]*\sid="guest-terms"[^>]*>(.*?)<\/p>/)?.[1] ?? '')).toBe(
+      'You sign in as Guest, the one account every guest shares, and work in the guest network with every other guest. It’s cleared every day at 12:00 UTC, so put nothing private in it. All guests share one set of daily limits, 10 model runs a day between them.'
+    )
+    expect(html).toMatch(/<button\b[^>]*\saria-describedby="guest-terms"[^>]*>Sign in as a guest<\/button>/)
     expect(words(renderToStaticMarkup(createElement(SignInPage, { next, runs: 1 })))).toContain(
       'daily limits, 1 model run a day between them.'
     )
-    expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-in"/)
-    expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-new"/)
-    expect(html).toMatch(/<section\b[^>]*aria-labelledby="way-guest"/)
     expect(html).toMatch(/<label\b[^>]*\sfor="member-name"/)
     expect(html).toMatch(/<input\b(?=[^>]*\sid="member-name")(?=[^>]*\srequired="")/)
     // The island renders no <header> of its own: the auth shell's is the page's one banner.

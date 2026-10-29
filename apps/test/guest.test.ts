@@ -37,6 +37,7 @@ import {
   openGuest,
   openMember,
   readAfterReset,
+  sections,
   type Guest,
   type Session
 } from './session'
@@ -553,9 +554,13 @@ describe('the app, as a guest sees it', () => {
     const link = await ada.invite((await network.json<{ id: string }>()).id)
     expect(words(await invitePage(ada, link))).toContain('Join Night Shift Audio Not Ada Programmer? Sign out')
     const asGuest = await invitePage(await openGuest(), link)
-    expect(words(asGuest)).toContain(
-      'You’re signed in as Guest, the one account every guest shares, which can’t join a network. Sign out and create an account to join Night Shift Audio. Sign out and create an account'
-    )
+    expect(sections(asGuest)).toEqual([
+      [
+        'Join Night Shift Audio',
+        'You’re signed in as Guest, the one account every guest shares, which can’t join a network.'
+      ]
+    ])
+    expect(words(asGuest)).toContain('which can’t join a network. Sign out and create an account')
     expect(asGuest).not.toMatch(/<button\b[^>]*>Join Night Shift Audio<\/button>/)
   })
 
@@ -1280,7 +1285,7 @@ describe('the guest sign-in limit', () => {
           guestRefused: attr('guest-refused')
         })
       )
-      const section = html.match(/<section\b[^>]*\bid="guest"[\s\S]*?<\/section>/)?.[0] ?? ''
+      const section = html.match(/\bid="guest"[\s\S]*?<\/section>/)?.[0] ?? ''
       return { next: attr('next'), words: section.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ') }
     }
     for (let i = 0; i < 30; i++) expect((await guestSignIn()).status).toBe(200)
