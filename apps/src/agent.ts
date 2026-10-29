@@ -2016,10 +2016,12 @@ function noteFor(call: Anthropic.ToolUseBlock, state: State) {
 // The notes of a turn's calls that won't run, in order, each built as if the calls before it had stored
 // what they name, so two drafting batches read apart (#335). Synced state isn't changed.
 function skippedNotes(calls: Anthropic.ToolUseBlock[], state: State) {
+  const notes: string[] = []
   let assumed = state
-  return calls.flatMap((call) => {
+  for (const call of calls) {
     const text = noteFor(call, assumed)
+    if (text !== null) notes.push(text)
     assumed = tools.find((t) => t.definition.name === call.name)?.asIfStored?.(call.input, assumed) ?? assumed
-    return text ?? []
-  })
+  }
+  return notes
 }
