@@ -35,9 +35,10 @@ export const runLabel: Record<Run['status'], string> = {
 }
 
 // Claude's closing line on a completed run, as an Agent block below the trace. Each call number it
-// cites opens that call's evidence. An opening parenthesis right before a call and punctuation right
-// after it sit against its number and wrap with it: the button's padding on that side narrows to 1px,
-// so its fill stays clear of the call's text and the punctuation stays outside it.
+// cites opens that call's evidence. An opening parenthesis before a call number and , . ; : ) after it
+// sit against it and wrap with it. The button's padding on that side narrows to 1px, not 0, so its fill
+// still clears the number's edge, and the punctuation stays outside the fill. On a touch screen its hit
+// area reaches out on that side by the 3px the padding gave up, 7px instead of 4, so it's as wide.
 function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenCall; opened: string | null }) {
   return (
     <div className="flex flex-col items-start gap-1.5 rounded-lg bg-muted p-3" data-closing>
@@ -56,7 +57,10 @@ function ClosingLine({ text, openCall, opened }: { text: string; openCall: OpenC
               label="Evidence Claude cites"
               opened={opened}
               openCall={openCall}
-              className={cn(before && 'pl-px', after && 'pr-px')}
+              className={cn(
+                before && 'pl-px pointer-coarse:after:-left-[7px]',
+                after && 'pr-px pointer-coarse:after:-right-[7px]'
+              )}
             />
           )
           return before || after ? (
