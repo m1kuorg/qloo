@@ -1,3 +1,4 @@
+import { cn } from 'cn'
 import { CheckIcon, ChevronDownIcon, CopyIcon } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -5,10 +6,23 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { callVariants } from '@/components/ui/variants'
 import type { RunSummary } from '../agent'
+import { AGE_BUCKETS, ageWords } from '../demographics'
 import type { Evidence } from '../evidence'
+import { leadingComp } from '../fit'
 import { qlooType, workNoun, workTypes } from '../inbox'
 import type { Session } from './App'
-import { day, demographic, KeyValue, KeyValues, listParts, percentile, score, ScrollTable, useCopy } from './controls'
+import {
+  day,
+  demographic,
+  KeyValue,
+  KeyValues,
+  listParts,
+  percentile,
+  score,
+  ScrollTable,
+  twinIds,
+  useCopy
+} from './controls'
 import { count, Section } from './PageHeader'
 import { runNumber } from './Run'
 import { Source } from './Source'
@@ -171,6 +185,12 @@ const nounOfIds = (ids: string[], names: Names) => {
 
 const upper = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
+// A tag's kind in a word, from its URN's third part: "Genre" for urn:tag:genre:media:music.
+const tagKind = (id: string) => {
+  const kind = id.split(':')[2]
+  return kind ? upper(kind.replace(/_/g, ' ')) : null
+}
+
 // A count in a sentence, none as "no".
 const some = (n: number, [one, many]: Noun) => (n === 0 ? `no ${many}` : count(n, one, many))
 
@@ -227,22 +247,18 @@ const called = ({ at, latencyMs, cacheHit, retries }: Evidence) =>
     ...(retries > 0 ? [count(retries, 'retry', 'retries')] : [])
   ].join(' · ')
 
-// A ranking's share of an affinity for one of its signals, as Qloo returned it: the number's shortest
-// round trip, which is the figure Qloo's JSON wrote.
-const raw = (n: number) => String(n)
-
-// A code, such as an entity's Qloo ID, on one line: cut short with an ellipsis where it doesn't fit,
-// whole in its tooltip and to screen readers, and never translated.
-const Code = ({ children }: { children: string }) => (
-  <code className="block truncate font-mono text-xs" title={children} translate="no">
-    {children}
-  </code>
-)
-
 function EvidenceRecord({ record, names, run }: { record: Evidence; names: Names; run: number }) {
   const { entities, tags, affinities } = record
   // A demographics call keeps each entity's buckets as its explainability, each a demographic score.
   const demographics = record.params['filter.type'] === 'urn:demographics'
+  // One type names the entities in the caption; types that differ are each under its name.
+  const oneType = new Set(entities.map((e) => e.type)).size === 1
+  // What a ranking ranked against, for the anchor whose share clearly led an affinity, as the fit
+  // chart says it; the shares are in the stored record.
+  const anchors = idsOf(record.params['signal.interests.entities']).map((id) => ({
+    id,
+    name: names.get(id)?.name ?? id
+  }))
   return (
     <>
       {/* Its facts and what was sent share one edge for their values. */}
@@ -284,46 +300,41 @@ function EvidenceRecord({ record, names, run }: { record: Evidence; names: Names
       </div>
       {entities.length > 0 && (
         <ValueTable
-          title={`Entities · ${entities.length}`}
+          title={`${oneType ? upper(nounOf(entities[0].type)[1]) : 'Entities'} · ${entities.length}`}
           value="Popularity percentile"
           rows={entities.map((e) => ({
-            key: e.id,
-            name: e.name,
             id: e.id,
-            notes: <Code>{e.type}</Code>,
+            name: e.name,
+            note: oneType ? null : upper(nounOf(e.type)[0]),
             figure: percentile(e.popularity)
           }))}
+          names={names}
         />
       )}
       {tags.length > 0 && (
         <ValueTable
           title={`Tags · ${tags.length}`}
           value="Score"
-          rows={tags.map((t) => ({ key: t.id, name: t.name, id: t.id, notes: null, figure: score(t.score) }))}
+          rows={tags.map((t) => ({ id: t.id, name: t.name, note: tagKind(t.id), figure: score(t.score) }))}
+          names={names}
         />
       )}
-      {affinities.length > 0 && (
-        <ValueTable
-          title={`Affinities · ${affinities.length}`}
-          value="Affinity"
-          rows={affinities.map((a) => ({
-            key: a.id,
-            name: a.name,
-            id: a.id,
-            // Its explainability: each signal's ID and its share of the affinity, the share never cut, or
-            // in a demographics call each bucket and its score.
-            notes: a.explainability.map((x) => (
-              <span key={x.id} className="flex min-w-0 items-baseline gap-2">
-                <span className="min-w-0">
-                  <Code>{x.id}</Code>
-                </span>
-                <span className="shrink-0 type-caption">{demographics ? demographic(x.score) : raw(x.score)}</span>
-              </span>
-            )),
-            figure: score(a.affinity)
-          }))}
-        />
-      )}
+      {affinities.length > 0 &&
+        (demographics ? (
+          <DemographicsList affinities={affinities} />
+        ) : (
+          <ValueTable
+            title={`Affinities · ${affinities.length}`}
+            value="Affinity"
+            rows={affinities.map((a) => ({
+              id: a.id,
+              name: a.name,
+              lead: leadingComp(anchors, a.explainability)?.id,
+              figure: score(a.affinity)
+            }))}
+            names={names}
+          />
+        ))}
       {!record.error && entities.length + tags.length + affinities.length === 0 && (
         <p className="text-muted-foreground">Qloo returned no results.</p>
       )}
@@ -475,11 +486,58 @@ function StoredRecord({ record }: { record: Evidence }) {
   )
 }
 
-type ValueRow = { key: string; name: string; id: string; notes: React.ReactNode; figure: string }
+// A demographics call's answer, which keeps each entity's buckets as its explainability: per entity,
+// its name, then its scores two pairs to a row, as Roster check lays out its counts, ages youngest
+// first, then male and female, whatever order Qloo sent them in. Entities of one name show their Qloo
+// IDs, as the tables' rows do.
+function DemographicsList({ affinities }: { affinities: Evidence['affinities'] }) {
+  const rows = affinities.map((a) => ({
+    id: a.id,
+    name: a.name,
+    buckets: [...a.explainability]
+      .sort((x, y) => place(x.id) - place(y.id))
+      .map((x) => ({ id: x.id, words: bucketWords(x.id), score: demographic(x.score) }))
+  }))
+  const twins = twinIds(rows, (r) => [r.name])
+  return (
+    <div>
+      <h3 className="pb-1.5 font-semibold">Demographics · {rows.length}</h3>
+      <ul className="border-t">
+        {rows.map((r) => (
+          <li key={r.id} className="border-b py-1.5">
+            <span className="block break-words">{r.name}</span>
+            <TwinId id={r.id} shown={twins.get(r)} />
+            <dl className="mt-1 grid grid-cols-2 gap-x-6 gap-y-0.5 type-caption">
+              {r.buckets.map((b) => (
+                <div key={b.id} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-muted-foreground">{b.words}</dt>
+                  <dd>{b.score}</dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
-// What Qloo returned: the name, the Qloo ID and the figure, in its metric's format, which the chart
-// shows as a rank and band. The record getEvidence answers keeps each figure as Qloo wrote it.
-function ValueTable({ title, value, rows }: { title: string; value: string; rows: ValueRow[] }) {
+// A demographic bucket's place, and its words: "24 and younger", "Male".
+const buckets = [...AGE_BUCKETS.map((b) => `age.${b}`), 'gender.male', 'gender.female']
+const place = (id: string) => (buckets.includes(id) ? buckets.indexOf(id) : buckets.length)
+const bucketWords = (id: string) =>
+  id.startsWith('age.') ? ageWords(id.slice('age.'.length)) : upper(id.replace(/^gender\./, ''))
+
+// One row of what Qloo returned: its name, a line under it, such as a tag's kind, or in a ranking the
+// anchor that led its affinity, by ID, and its figure.
+type ValueRow = { id: string; name: string; note?: string | null; lead?: string; figure: string }
+
+// What Qloo returned, in words: each row's name, its line, and its figure in its metric's format, which
+// the chart shows as a rank and band. Rows whose words are the same show their Qloo IDs (#128): a figure
+// measures a row, it doesn't say which one it is. The record getEvidence answers keeps each ID and
+// figure as Qloo wrote it.
+function ValueTable({ title, value, rows, names }: { title: string; value: string; rows: ValueRow[]; names: Names }) {
+  const twins = twinIds(rows, (r) => [r.name, r.note ?? '', r.lead ?? ''])
   return (
     <table className="w-full table-fixed">
       <caption className="pb-1.5 text-left font-semibold">{title}</caption>
@@ -488,28 +546,57 @@ function ValueTable({ title, value, rows }: { title: string; value: string; rows
           <th scope="col" className="pb-1.5 text-left font-normal">
             Name
           </th>
-          <th scope="col" className="w-36 pb-1.5 pl-3 text-right font-normal">
+          {/* As wide as its header, so a twin's ID has the room it needs beside a short one. */}
+          <th scope="col" className={cn('pb-1.5 pl-3 text-right font-normal', value.length > 8 ? 'w-36' : 'w-20')}>
             {value}
           </th>
         </tr>
       </thead>
       <tbody>
         {rows.map((r) => (
-          <tr key={r.key} className="border-b align-baseline">
+          <tr key={r.id} className="border-b align-baseline">
             <td className="py-1.5">
               <span className="block break-words">{r.name}</span>
-              <span className="block text-muted-foreground">
-                <Code>{r.id}</Code>
-                {r.notes}
-              </span>
+              {(r.note || r.lead) && (
+                <span className="block type-caption text-muted-foreground">
+                  {r.note}
+                  {r.lead && (
+                    <>
+                      Led by <EntityName id={r.lead} names={names} />
+                    </>
+                  )}
+                </span>
+              )}
+              <TwinId id={r.id} shown={twins.get(r)} />
             </td>
-            <td className="py-1.5 pl-3 text-right type-caption break-all">{r.figure}</td>
+            <td className="py-1.5 pl-3 text-right type-caption">{r.figure}</td>
           </tr>
         ))}
       </tbody>
     </table>
   )
 }
+
+// A row's Qloo ID as `twinIds` shows it, when another row in its list reads the same; whole in its
+// tooltip, and never translated. A tag's URN wraps only after a colon.
+const TwinId = ({ id, shown }: { id: string; shown: string | undefined }) =>
+  shown && (
+    <span className="block type-caption text-muted-foreground">
+      Qloo ID{' '}
+      <span className="font-mono" title={id} translate="no">
+        {shown.split(':').map((part, i) => (
+          <Fragment key={i}>
+            {i > 0 && (
+              <>
+                :<wbr />
+              </>
+            )}
+            {part}
+          </Fragment>
+        ))}
+      </span>
+    </span>
+  )
 
 // The evidence on show: `openCall` opens a call's record, or closes it when it's already open.
 // Only the latest click's answer lands, with the log it came in, whose records name the entities

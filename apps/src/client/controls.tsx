@@ -230,12 +230,7 @@ export function PickOne({
   const form = useRef<HTMLFormElement>(null)
   // A missing description (on candidates synced before there were any) reads like none.
   const described = options.some((c) => c.description)
-  const shown = (c: (typeof options)[number]) =>
-    [c.name, c.disambiguation || '', percentile(c.popularity), c.description || ''].join('\n')
-  const twins = options.filter((c) => options.some((o) => o !== c && shown(o) === shown(c)))
-  // The shortest ID prefix, from 8 characters, that tells every twin apart.
-  let size = 8
-  while (size < 36 && new Set(twins.map((c) => c.id.slice(0, size))).size < twins.length) size += 4
+  const twins = twinIds(options, (c) => [c.name, c.disambiguation || '', percentile(c.popularity), c.description || ''])
   return (
     <form
       ref={form}
@@ -274,17 +269,17 @@ export function PickOne({
               {(c.description || described) && (
                 <span className="type-caption text-muted-foreground">{c.description || 'No description in Qloo'}</span>
               )}
-              {twins.includes(c) && (
+              {twins.has(c) && (
                 <span className="type-caption text-muted-foreground">
-                  Qloo ID <span className="font-mono">{c.id.slice(0, size)}</span>
+                  Qloo ID <span className="font-mono">{twins.get(c)}</span>
                 </span>
               )}
             </span>
           </label>
         ))}
-        {twins.length > 0 && (
+        {twins.size > 0 && (
           <p className="mt-1 type-caption text-muted-foreground">
-            Qloo gives nothing else to tell {twins.length === options.length ? 'these' : 'some of these'} apart, so they
+            Qloo gives nothing else to tell {twins.size === options.length ? 'these' : 'some of these'} apart, so they
             show their Qloo IDs.
           </p>
         )}
@@ -298,6 +293,17 @@ export function PickOne({
       </div>
     </form>
   )
+}
+
+// The rows of one list that read the same, by `shown`, so each shows its Qloo ID (#128): each such
+// row's ID as it shows it. An entity's is cut to the shortest start, from 8
+// characters, that tells every twin apart; a tag's URN is whole, as its start tells none apart.
+export function twinIds<T extends { id: string }>(rows: T[], shown: (row: T) => string[]) {
+  const said = (row: T) => shown(row).join('\n')
+  const twins = rows.filter((r) => rows.some((o) => o !== r && said(o) === said(r)))
+  let size = 8
+  while (size < 36 && new Set(twins.map((r) => r.id.slice(0, size))).size < twins.length) size += 4
+  return new Map(twins.map((r) => [r, r.id.startsWith('urn:') ? r.id : r.id.slice(0, size)]))
 }
 
 // A record as key/value pairs: each key in grey beside its value, on one grid so the values share a
