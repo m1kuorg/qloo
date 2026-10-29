@@ -1,7 +1,8 @@
 // A network's inbox: its own page, kept by the network's agent, loaded from pitch files read by the
-// upload module as the page reads them, shared live by its members, with replies only a member
-// approves. Each test drives a network through the Worker's routes, its agent's client protocol, or
-// the Worker's own RPC to the agent, as the API calls it; the API's own tests are in api-inbox.test.ts.
+// upload module as the page reads them or from pasted text, shared live by its members, with replies
+// only a member approves. Each test drives a network through the Worker's routes, its agent's client
+// protocol, or the Worker's own RPC to the agent, as the API calls it; the API's own tests are in
+// api-inbox.test.ts.
 import { getAgentByName } from 'agents'
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -782,7 +783,7 @@ describe('pasting pitches', () => {
       agent.call('loadInbox', {
         text: 'Ada Quill on Night Ferry.\n---\nFrom: Pat Lindqvist <pat@example.com>\nSubject: Night Ferry\n'
       })
-    ).rejects.toThrow('Pitch 2 has no text after its From and Subject lines.')
+    ).rejects.toThrow('Pitch 2 has no text after its From or Subject lines.')
     expect(agent.state()!.inbox).toEqual(before)
   })
 })
