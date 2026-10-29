@@ -54,6 +54,8 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         notice={d.notice}
       />
     )),
+  launches: () =>
+    import('./Launches').then(({ LaunchesPage }) => <LaunchesPage agentPath={d.agentPath!} network={network()} />),
   launch: () =>
     import('./Launch').then(({ LaunchPage }) => (
       <LaunchPage agentPath={d.agentPath!} network={network()} orders={d.ordersLink!} />

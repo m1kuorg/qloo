@@ -27,8 +27,8 @@ export type NetworkConnection = ReturnType<typeof useNetwork>
 // or signs out everywhere; 4410 when the launch or its network is deleted.
 const FORCED = [4403, 4410]
 
-// A network's page (the dashboard, the roster, the inbox, settings, a launch) on its agent's socket.
-// Shut out for good by a forced close, the page gives way to LostAccess, unless it's `leaving` for
+// A network's page (the dashboard, Launches, the roster, the inbox, settings, a launch) on its agent's
+// socket. Shut out for good by a forced close, the page gives way to LostAccess, unless it's `leaving` for
 // another page, having sent the change that closes it, such as a reset of the sample data. Any other drop
 // is the connection's own, which reconnects by itself while the page keeps what it showed, and says so in
 // its on-air readout or its title row.

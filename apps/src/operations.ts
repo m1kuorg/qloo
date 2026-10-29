@@ -141,7 +141,7 @@ const rowOf = (row: LaunchSummary): LaunchRow => ({
   status: row.status.replace(' ', '_') as LaunchRow['status']
 })
 
-// The network's launches as its dashboard lists them, newest first. Each launch reports its row to
+// The network's launches as its Launches page lists them, newest first. Each launch reports its row to
 // the list after it changes, so the list can lag a moment behind the launch itself.
 export async function listLaunches({ env, network }: OperationContext): Promise<LaunchRow[]> {
   return ((await stateOf(await agent(env, network))).launches ?? []).map(rowOf)
@@ -257,7 +257,7 @@ export async function getLaunchEvidence(
   return log.map(({ fromSample: _, ...record }) => record)
 }
 
-// Deletes the launch for every member, with its runs and their evidence, as the dashboard does. It's
+// Deletes the launch for every member, with its runs and their evidence, as the Launches page does. It's
 // a member's, signed in: an API key can't delete one.
 export async function deleteLaunch({ env, network, caller }: OperationContext, input: { launchId: string }) {
   if (!('member' in caller))

@@ -1368,7 +1368,7 @@ api.openapi(
     path: '/api/v1/networks/{networkId}/launches',
     tags: ['Launches'],
     summary: 'List launches',
-    description: "The network's launches, newest first, as its dashboard lists them.",
+    description: "The network's launches, newest first, as its Launches page lists them.",
     request: { params: NetworkParams },
     responses: {
       200: {
@@ -1388,7 +1388,7 @@ api.openapi(
     tags: ['Launches'],
     summary: 'Create a launch',
     description:
-      "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's dashboard, with status `new`; start a run to rank the roster for it. A network keeps a limited number of launches at once, as the terms say: past it, a new one is refused with `limit` until a member deletes one on the dashboard.",
+      "Plan a new launch by its name, as Qloo lists a released show, or by up to three released shows as comps for an unreleased one. It joins the network's list, and every member's Launches page, with status `new`; start a run to rank the roster for it. A network keeps a limited number of launches at once, as the terms say: past it, a new one is refused with `limit` until a member deletes one on the Launches page.",
     request: {
       params: NetworkParams,
       body: { required: true, content: { 'application/json': { schema: LaunchPlan } } }
@@ -1425,7 +1425,7 @@ api.openapi(
     tags: ['Launches'],
     summary: 'Delete a launch',
     description:
-      "Delete the launch for every member, with its runs, their insertion orders, and their evidence, which can't be brought back. Only a member's session from one of Crossfeed's pages may, as the dashboard does; an API key answers 403.",
+      "Delete the launch for every member, with its runs, their insertion orders, and their evidence, which can't be brought back. Only a member's session from one of Crossfeed's pages may, as the Launches page does; an API key answers 403.",
     request: { params: LaunchParams },
     responses: {
       204: { description: 'Deleted.' },

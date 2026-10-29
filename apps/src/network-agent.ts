@@ -368,7 +368,7 @@ export class NetworkAgent extends CrossfeedAgent {
   // Forgets member `memberId`, as their account's deletion does (wipe.ts): the replies they approved stay
   // approved but no longer name them, and they leave the members who dismissed the setup checklist. Then
   // each of its launches forgets their name, and the network lists each launch's row as it then stands,
-  // so the dashboard follows at once; then its runs' records forget them, last, so a pitch run that ended
+  // so the Launches page follows at once; then its runs' records forget them, last, so a pitch run that ended
   // meanwhile, copying the rows as they stood, is caught. Over RPC only.
   async forgetMember(memberId: string) {
     const { booking, checklistDismissed: dismissed = [] } = this.state
@@ -406,7 +406,7 @@ export class NetworkAgent extends CrossfeedAgent {
   }
 
   // Plans a new launch, named or from up to three comps: its own agent takes it, then it joins the
-  // network's list, newest first, where every member's dashboard shows it. Its page is at its ID. A
+  // network's list, newest first, where every member's Launches page shows it. Its page is at its ID. A
   // network keeps at most LAUNCHES_PER_NETWORK launches; deleting one makes room. Launches still being
   // planned count, since several can be planned at once while their agents take them.
   @callable()
@@ -431,7 +431,7 @@ export class NetworkAgent extends CrossfeedAgent {
     if ((this.state.launches ?? []).length + this.planning >= cap)
       throw new Refusal(
         'limit',
-        `A network keeps at most ${cap === 1 ? '1 launch' : `${cap} launches`} at once. Delete one it no longer needs, on the dashboard, to plan another.`
+        `A network keeps at most ${cap === 1 ? '1 launch' : `${cap} launches`} at once. Delete one it no longer needs, on the Launches page, to plan another.`
       )
     this.planning++
     try {
@@ -458,7 +458,7 @@ export class NetworkAgent extends CrossfeedAgent {
     if (!this.listsLaunch(id))
       throw new Refusal(
         'not_found',
-        "This launch was deleted, or its network cleared, so it can't run. Open the dashboard to see the network's launches."
+        "This launch was deleted, or its network cleared, so it can't run. Open the Launches page to see the network's launches."
       )
     const pending = this.state.roster.filter((s) => s.resolution === 'pending').length
     if (pending > 0)
@@ -479,7 +479,7 @@ export class NetworkAgent extends CrossfeedAgent {
   }
 
   // A launch's status and summary, as its agent reports them after each change (launch-agent.ts), for
-  // its row on every member's dashboard. Over RPC only. A launch no longer on the list stays off it.
+  // its row on every member's Launches page. Over RPC only. A launch no longer on the list stays off it.
   reportLaunch(id: string, summary: Omit<LaunchSummary, 'id'>) {
     const launches = this.state.launches ?? []
     if (!launches.some((l) => l.id === id)) return
@@ -487,7 +487,7 @@ export class NetworkAgent extends CrossfeedAgent {
   }
 
   // Takes launch `id` off the network's list, as its deletion does before wiping it (wipe.ts): its row
-  // leaves every member's dashboard, and the Worker's routes to it answer 404. Over RPC only.
+  // leaves every member's Launches page, and the Worker's routes to it answer 404. Over RPC only.
   dropLaunch(id: string) {
     const launches = this.state.launches ?? []
     if (launches.some((l) => l.id === id))

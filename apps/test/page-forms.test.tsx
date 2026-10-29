@@ -1,4 +1,4 @@
-// The forms a network's pages open from their one action: the dashboard's New launch, the roster's
+// The forms a network's pages open from their one action: the Launches page's New launch, the roster's
 // Import shows and the inbox's Load pitches. Each test drives a network through the Worker's routes and
 // its agent into a state, then renders the page from the agent's synced state and reads its form.
 import { env } from 'cloudflare:workers'
@@ -8,8 +8,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import type { NetworkConnection } from '../src/client/NetworkPage'
 import type { Session as AppSession } from '../src/client/App'
-import { Dashboard } from '../src/client/Dashboard'
 import { InboxWorkspace } from '../src/client/Inbox'
+import { Launches } from '../src/client/Launches'
 import { NetworkRoster } from '../src/client/Roster'
 import { networkLinks } from '../src/shell'
 import { fakeClaude, fakeQloo, text, turn } from './fake'
@@ -96,12 +96,9 @@ describe('a page form', () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
     const page = renderToStaticMarkup(
-      <Dashboard
+      <Launches
         state={agent.state()}
         network={{ id, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, id) }}
-        memberId={ada.id}
-        setup={{ invited: false, apiKey: false }}
-        dismiss={async () => {}}
         createLaunch={async () => ({ id: 'l-1' })}
       />
     )

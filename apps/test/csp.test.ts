@@ -102,8 +102,8 @@ async function everyPage() {
   network.close()
 
   const pages = [...Object.keys(previewed), '/invite']
-  const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/roster`, `/app/${id}/inbox`]
-  app.push(`/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
+  const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/launches`, `/app/${id}/roster`]
+  app.push(`/app/${id}/inbox`, `/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
   const loaded = await Promise.all([
     ...pages.map(async (p) => [p, await exports.default.fetch(`${origin}${p}`, browser)] as const),
     ...app.map(async (p) => [p, await ada.fetch(p)] as const)
@@ -148,6 +148,7 @@ describe('every page', () => {
       '/app/new': 'NewNetwork',
       '/app/account': 'AccountPage',
       [`/app/${id}`]: 'Dashboard',
+      [`/app/${id}/launches`]: 'Launches',
       [`/app/${id}/roster`]: 'Roster',
       [`/app/${id}/inbox`]: 'NetworkInbox',
       [`/app/${id}/settings`]: 'Settings',
@@ -189,7 +190,8 @@ describe('every page', () => {
       '/invite': 'Invite · Crossfeed',
       '/app/new': 'New network · Crossfeed',
       '/app/account': 'Your account · Crossfeed',
-      [`/app/${id}`]: `Launches · ${network} · Crossfeed`,
+      [`/app/${id}`]: `Dashboard · ${network} · Crossfeed`,
+      [`/app/${id}/launches`]: `Launches · ${network} · Crossfeed`,
       [`/app/${id}/roster`]: `Roster · ${network} · Crossfeed`,
       [`/app/${id}/inbox`]: `Inbox · ${network} · Crossfeed`,
       [`/app/${id}/settings`]: `Settings · ${network} · Crossfeed`,

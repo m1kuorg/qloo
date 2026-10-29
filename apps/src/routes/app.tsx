@@ -250,9 +250,9 @@ async function networkPage(c: Context<AppEnv>, id: string) {
   return network
 }
 
-// The network's dashboard: its launches, a line each for its roster and inbox, and the setup checklist.
-// The guest network's, as a reset of its sample data opens it while part of the reset is left to the
-// hourly retry (`?reset=pending`), says so.
+// The network's dashboard, its home: the launches that need a member, a line each for its roster,
+// inbox and CPM, and the setup checklist. The guest network's, as a reset of its sample data opens it
+// while part of the reset is left to the hourly retry (`?reset=pending`), says so.
 appPages.get('/app/:networkId', async (c) => {
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
@@ -268,6 +268,13 @@ appPages.get('/app/:networkId', async (c) => {
       {...island(c, network)}
     />
   )
+})
+
+// The network's launches, grouped by who's blocked, where a member plans and deletes them.
+appPages.get('/app/:networkId/launches', async (c) => {
+  const network = await networkPage(c, c.req.param('networkId'))
+  if (!network) return c.notFound()
+  return c.render(<Island page="launches" {...island(c, network)} />)
 })
 
 // The network's roster, which every launch ranks: imported, settled, and edited over the network's
@@ -314,8 +321,8 @@ appPages.get('/app/:networkId/launches/:launchId/insertion-orders/:file{.+\\.csv
   return csvDownload(id, await launch.exportInsertionOrder(id))
 })
 
-// Deletes a launch for every member, once the dashboard has asked: its row leaves every dashboard at
-// once, its address and agent answer 404, and its agent's storage is wiped (wipe.ts).
+// Deletes a launch for every member, once the Launches page has asked: its row leaves every member's
+// list at once, its address and agent answer 404, and its agent's storage is wiped (wipe.ts).
 appPages.post('/app/:networkId/launches/:launchId/delete', async (c) => {
   const { networkId, launchId } = c.req.param()
   if (!(await membersLaunch(c, networkId, launchId))) return c.notFound()

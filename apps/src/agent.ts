@@ -208,7 +208,7 @@ export type State = {
   sampleCpm?: boolean
 }
 
-// A launch as its network's dashboard lists it, reported by the launch's agent (launch-agent.ts).
+// A launch as its network's Launches page lists it, reported by the launch's agent (launch-agent.ts).
 export type LaunchSummary = {
   id: string
   name: string | null // null for an unreleased launch planned from comps

@@ -1,4 +1,4 @@
-// A network's launches, each its own project: created from the dashboard on the network's agent,
+// A network's launches, each its own project: created from the Launches page on the network's agent,
 // opened at its own page and agent, run on a copy of the network's roster, and reported back to the
 // network's list as it changes. Each test drives a network through the Worker's routes and its
 // agents' client protocol, or the Worker's own RPC to an agent, as the API will call it.
@@ -10,9 +10,9 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
-import { Dashboard } from '../src/client/Dashboard'
 import { EvidencePanel, namesOf } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
+import { Launches } from '../src/client/Launches'
 import type { Evidence } from '../src/evidence'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
@@ -255,7 +255,7 @@ describe('creating a launch', () => {
 })
 
 describe("a launch's page and agent", () => {
-  it("open for each of the network's members, the page under the dashboard and the agent the launch's own", async () => {
+  it("open for each of the network's members, the page under the Launches page and the agent the launch's own", async () => {
     const ada = await openMember()
     const network = await created(ada)
     const grace = await teammate(ada, network)
@@ -282,9 +282,11 @@ describe("a launch's page and agent", () => {
         `data-orders-link="/app/${network}/launches/${id}/insertion-orders"`
       ])
         expect(root).toContain(attribute)
-      // A launch belongs to the dashboard, which lists it: the shell's one nav marks Launches.
+      // A launch belongs to the Launches page, which lists it: the shell's one nav marks Launches, and
+      // the top bar's Launches leads back to the list.
       expect(html.match(/<nav\b/g)).toHaveLength(1)
-      expect(currentLinks(html)).toEqual([['Launches', `/app/${network}`, 'true']])
+      expect(currentLinks(html)).toEqual([['Launches', `/app/${network}/launches`, 'true']])
+      expect(html).toMatch(new RegExp(`<a href="/app/${network}/launches"[^>]*>Launches</a>`))
       // The top bar keeps an empty slot after Launches, which the island fills with the launch's name.
       expect(html).toMatch(/<li\b[^>]*\sid="shell-launch"[^>]*><\/li>/)
 
@@ -736,7 +738,7 @@ describe('deleting a launch', () => {
   const wipedOut = async (network: string, id: string) =>
     expect(await readAfterReset(() => held(network, id))).toEqual({ launch: null, runs: 0, evidence: 0 })
 
-  it("takes it off every member's dashboard at once, closes its pages, wipes its agent, and its addresses answer 404", async () => {
+  it("takes it off every member's Launches page at once, closes its pages, wipes its agent, and its addresses answer 404", async () => {
     const ada = await openMember()
     const network = await created(ada)
     const grace = await teammate(ada, network)
@@ -791,7 +793,7 @@ describe('deleting a launch', () => {
     const { id: other } = await launch(ada, network, { name: 'The Long Take' })
     const failed = vi.spyOn(console, 'error')
 
-    // The list lets go of the first, but its wipe fails, twice: it's off the dashboard, and kept for the cron.
+    // The list lets go of the first, but its wipe fails, twice: it's off the Launches page, and kept for the cron.
     vi.spyOn(LaunchAgent.prototype, 'destroy')
       .mockRejectedValueOnce(new Error('The agent is overloaded.'))
       .mockRejectedValueOnce(new Error('The agent is overloaded.'))
@@ -890,7 +892,7 @@ describe('a member who deletes their account', () => {
       approvedBy: 'Former member'
     })
     expect(await startedBy(ada, day, elsewhere.id)).toEqual(['Former member'])
-    // The dashboard's row follows its launch.
+    // The Launches page's row follows its launch.
     await roster.until((s) => s.launches![0].startedBy === 'Former member')
   })
 
@@ -1438,17 +1440,8 @@ describe('the pages, as a member reads them', () => {
     role: 'owner' as const,
     links: networkLinks(env, network)
   })
-  const dashboard = (network: string, state: State | undefined) =>
-    renderToStaticMarkup(
-      <Dashboard
-        state={state}
-        network={page(network)}
-        memberId="m-1"
-        setup={{ invited: false, apiKey: false }}
-        dismiss={async () => {}}
-        createLaunch={async () => ({ id: 'l-1' })}
-      />
-    )
+  const launchesPage = (network: string, state: State | undefined) =>
+    renderToStaticMarkup(<Launches state={state} network={page(network)} createLaunch={async () => ({ id: 'l-1' })} />)
   const workspace = (network: string, agent: Omit<Session, 'cookie'>, id = 'l-1') =>
     renderToStaticMarkup(
       <LaunchWorkspace
@@ -1458,17 +1451,17 @@ describe('the pages, as a member reads them', () => {
       />
     )
 
-  it('offers New launch in the empty state, then atop the dashboard, and lists each launch by name or comps, linked to its page', async () => {
+  it('offers New launch in the empty state, then atop the Launches page, and lists each launch by name or comps, linked to its page', async () => {
     const ada = await openMember()
     const network = await created(ada)
     const agent = await connect(ada, `/agents/network/${network}`)
-    expect(words(dashboard(network, agent.state()))).toMatch(/^Launches No launches yet\. New launch /)
+    expect(words(launchesPage(network, agent.state()))).toBe('Launches No launches yet. New launch')
     const { id } = await agent.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
     const { id: fromComps } = await agent.call<{ id: string }>('createLaunch', {
       comps: ['Blank Check', 'Filmspotting']
     })
 
-    const html = dashboard(network, agent.state())
+    const html = launchesPage(network, agent.state())
     expect(words(html)).toMatch(/^Launches 2 launches New launch /)
     expect(words(html)).toContain(
       'Not run yet 2 Blank Check · Filmspotting Unreleased, from comps New None None None Not run yet The Night Watch New None None None Not run yet'
@@ -1500,7 +1493,7 @@ describe('the pages, as a member reads them', () => {
       lastRun: '2026-10-19T12:00:00Z'
     }
     const statuses = ['running', 'waiting', 'ranked', 'order drafted', 'order approved', 'failed', 'stopped'] as const
-    const html = dashboard('n-1', {
+    const html = launchesPage('n-1', {
       ...agent.state()!,
       launches: statuses.map((status, i) => ({ ...base, id: `l-${i}`, status }))
     })
@@ -1550,7 +1543,7 @@ describe('the pages, as a member reads them', () => {
       { id: 'l-1', name: 'Night Shift Cinema', status: 'running', ...at('2026-10-21T12:00:00Z') }
     ] satisfies NonNullable<State['launches']>
     const order = (list: NonNullable<State['launches']>) =>
-      words(dashboard('n-1', { ...agent.state()!, launches: list })).match(
+      words(launchesPage('n-1', { ...agent.state()!, launches: list })).match(
         /Needs you \d+|Running \d+|Not run yet \d+|Paper Moons|Slow Burn|The Long Take|Corner Booth|Night Shift Cinema/g
       )
     expect(order(launches)).toEqual([

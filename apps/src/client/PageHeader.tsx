@@ -15,8 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConnectionState, StateLine, type Connection } from './states'
 
 // The page's anatomy: the header, the empty state, and the dialog a page's action opens its form in,
-// which the network's pages share (the Launches dashboard, the roster, and the inbox); and the section
-// every page's blocks are built as, and the tabs a long page breaks its sections into.
+// which the network's pages share (the dashboard, the Launches page, the roster, and the inbox); and
+// the section every page's blocks are built as, and the tabs a long page breaks its sections into.
 
 // The page's header: its title, the page's one h1, with its badge beside it and its actions at the right
 // on the title's line; then one short muted line, the page's summary in counts and the connection's state after it, the
@@ -122,7 +122,7 @@ export function PageEmpty({
   )
 }
 
-// The page's action that opens a form, the dashboard's "New launch", the roster's "Import shows" or the
+// The page's action that opens a form, the Launches page's "New launch", the roster's "Import shows" or the
 // inbox's "Load pitches", and the dialog it opens the form in, titled as the action is. `button` is the
 // action, in the header's actions or in the empty state, never both at once. `show` opens it, as a file
 // dropped anywhere on the page does, and the form closes it once what it sent is accepted. Closing it

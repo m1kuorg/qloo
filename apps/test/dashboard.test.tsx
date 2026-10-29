@@ -1,11 +1,12 @@
-// What a network's dashboard and settings say. Each test drives a network through the Worker's routes
-// and its agent into a state, then renders the page from the agent's synced state and the props the
-// server gave the page, and reads its words.
+// What a network's dashboard, Launches page and settings say. Each test drives a network through the
+// Worker's routes and its agent into a state, then renders the page from the agent's synced state and
+// the props the server gave the page, and reads its words.
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { State } from '../src/agent'
+import type { LaunchSummary, State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
+import { Launches } from '../src/client/Launches'
 import { LostAccess, NetworkGate, type NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
 import { Settings } from '../src/client/Settings'
@@ -13,6 +14,7 @@ import { connectionOf } from '../src/client/states'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
 import {
   api,
+  hooked,
   openGuest,
   openMember,
   regions,
@@ -102,6 +104,32 @@ const dashboard = async (member: Pick<Member, 'fetch'>, id: string, state: State
       createLaunch={async () => ({ id: 'l-1' })}
     />
   )
+const launchesPage = async (member: Pick<Member, 'fetch'>, id: string, state: State | undefined) =>
+  renderToStaticMarkup(
+    <Launches
+      network={(await island(member, `/app/${id}/launches`)).network}
+      state={state}
+      createLaunch={async () => ({ id: 'l-1' })}
+    />
+  )
+
+// The rail's links, as [name, address, aria-current], in its order: the mark, then each destination.
+const rail = (html: string) =>
+  [
+    ...(html.match(/<nav\b[^>]*\saria-label="Network"[^>]*>[\s\S]*?<\/nav>/)?.[0] ?? '').matchAll(
+      /<a\b([^>]*)>([\s\S]*?)<\/a>/g
+    )
+  ].map(([, attributes, inner]) => [
+    words(inner),
+    attributes.match(/\shref="([^"]*)"/)?.[1],
+    attributes.match(/\saria-current="([^"]*)"/)?.[1]
+  ])
+
+// Needs you's rows, as each reads and where it links, in its order.
+const needingYou = (html: string) =>
+  [...(hooked(html, 'data-needs-you')[0] ?? '').matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(
+    ([, href, inner]) => [words(inner), href]
+  )
 
 const STEPS = ['Import the roster', 'Set the CPM', 'Plan a launch', 'Invite a teammate', 'Create an API key']
 // The setup checklist's steps, each as a reader hears it, in the order of its numbered list.
@@ -112,30 +140,30 @@ const steps = (html: string) =>
     .map((li) => words(`<li${li}`))
 
 describe('the dashboard', () => {
-  it('says plainly that a new network has no launches, roster, or CPM, and lists all five setup steps', async () => {
+  it('says plainly that a new network has nothing needing it, no roster, or CPM, and lists all five setup steps first', async () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
     const html = await dashboard(ada, id, agent.state())
     const read = words(html)
-    // The page is the network's launches; the top bar's switcher names the network.
+    // The page is the network's home; the top bar's switcher names the network.
     expect(await (await ada.fetch(`/app/${id}`)).text()).toMatch(/data-current-network[^>]*>Night Shift Audio</)
-    // The header is the title alone, and the empty state says what's missing with the page's one
-    // action, where the launches will be.
-    expect(read).toMatch(/^Launches No launches yet\. New launch Network /)
-    expect(html.match(/>New launch</g)).toHaveLength(1)
-    expect(html).toMatch(/<span class="text-muted-foreground" data-state="empty">No launches yet\.<\/span>/)
-    expect(read).not.toContain('0 launches')
+    // The header is the title alone. Each block is a section: its heading, one sentence, then its
+    // lines; Setup comes first while it shows, its sentence its count, with Dismiss on its heading's line.
+    expect(sections(html)).toEqual([
+      ['Setup', '0 of 5 done'],
+      ['Needs you', 'Launches with a question to answer or an order to approve, and runs that failed or stopped.'],
+      ['Network', 'The roster your launches rank, and the CPM that prices their slots.']
+    ])
+    expect(read).toMatch(/^Dashboard Setup 0 of 5 done Dismiss /)
+    // Nothing needs the member yet, and with no roster, the next useful thing is to import one.
+    expect(read).toContain('stopped. Nothing needs you. Import a roster Network')
+    expect(html).toMatch(/<span class="text-muted-foreground" data-state="empty">Nothing needs you\.<\/span>/)
+    expect(html).toMatch(new RegExp(`<a\\b[^>]*href="/app/${id}/roster"[^>]*>Import a roster</a>`))
+    expect(read).not.toContain('New launch')
     expect(read).not.toContain('Launch Status Finalists')
     expect(read).toContain('Roster No shows yet Open')
     expect(read).toContain('CPM Not set Set')
     expect(read).not.toContain('Inbox')
-    // Each panel is a section: its heading, one sentence, then its lines; Setup's sentence is its count,
-    // with Dismiss on its heading's line.
-    expect(sections(html)).toEqual([
-      ['Network', 'The roster your launches rank, and the CPM that prices their slots.'],
-      ['Setup', '0 of 5 done']
-    ])
-    expect(read).toContain('Setup 0 of 5 done Dismiss')
     const listed = steps(html)
     expect(listed).toHaveLength(STEPS.length)
     STEPS.forEach((step, i) => expect(listed[i]).toMatch(new RegExp(`^${step} [A-Z][^.]+\\.`)))
@@ -173,6 +201,9 @@ describe('the dashboard', () => {
     expect(read).toContain('CPM $20 per 1,000 downloads Change')
     expect(html).toMatch(new RegExp(`href="/app/${id}/settings#network"[^>]*>Change</a>`))
     expect(read).toContain('Setup 3 of 5 done')
+    // Nothing needs the member, and with a roster in, the next useful thing is to plan a launch.
+    expect(read).toContain('stopped. Nothing needs you. New launch Network')
+    expect(html).toMatch(/<button\b[^>]*>New launch<\/button>/)
     const listed = steps(html)
     expect(listed.slice(0, 2)).toEqual([`${STEPS[0]} Done`, `${STEPS[1]} Done`])
     expect(listed[2]).toMatch(new RegExp(`^${STEPS[2]} Name`))
@@ -199,7 +230,7 @@ describe('the dashboard', () => {
     const guest = await openGuest()
     const state = await (await connect(guest, 'guest-network')).until(() => true)
     expect(words(await dashboard(guest, 'guest-network', state, '?reset=pending'))).toMatch(
-      /^Launches The reset may take a moment to finish: part of it failed, and Crossfeed tries it again within the hour\. No launches yet\. New launch /
+      /^Dashboard The reset may take a moment to finish: part of it failed, and Crossfeed tries it again within the hour\. Setup /
     )
     expect(words(await dashboard(guest, 'guest-network', state))).not.toContain('The reset')
     // Another network has no sample data to reset.
@@ -240,7 +271,7 @@ describe('the dashboard', () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
     const html = await dashboard(ada, id, agent.state())
-    expect(sections(html)[0]).toEqual([
+    expect(sections(html).at(-1)).toEqual([
       'Network',
       'The roster and inbox your runs rank, and the CPM that prices a launch’s slots.'
     ])
@@ -251,9 +282,82 @@ describe('the dashboard', () => {
     expect(read).toContain('Inbox 2 pitches: 1 matched, 1 set aside Open')
   })
 
-  it("lists a launch the network's agent reports, with its status, plan, and last run", async () => {
+  it('lists in Needs you exactly the launches waiting on a member, latest run first, each linking to where it waits', async () => {
     const ada = await openMember()
     const { id, agent } = await network(ada)
+    const launch = (n: number, status: LaunchSummary['status'], lastRun: string | null, name: string | null) => ({
+      id: `l-${n}`,
+      name,
+      comps: name ? [] : ['Blank Check', 'Filmspotting'],
+      status,
+      finalists: 0,
+      slots: null,
+      slotValue: null,
+      startedBy: lastRun && 'Ada Programmer',
+      lastRun
+    })
+    const state: State = {
+      ...agent.state()!,
+      launches: [
+        launch(1, 'new', null, 'Night Shift Cinema'),
+        launch(2, 'running', '2026-10-20T12:00:00Z', 'Paper Moons'),
+        launch(3, 'waiting', '2026-10-18T12:00:00Z', 'Ghost Signal'),
+        launch(4, 'ranked', '2026-10-22T12:00:00Z', 'Slow Burn'),
+        launch(5, 'order drafted', '2026-10-21T12:00:00Z', 'Deep Cuts'),
+        launch(6, 'order approved', '2026-10-23T12:00:00Z', 'Signal Boost'),
+        launch(7, 'failed', '2026-10-19T12:00:00Z', 'Paper Trail'),
+        launch(8, 'stopped', '2026-10-17T12:00:00Z', null)
+      ]
+    }
+    const html = await dashboard(ada, id, state)
+    // An order to approve opens the launch's plan; a question, a failure and a stop, its page.
+    expect(needingYou(html)).toEqual([
+      ['Deep Cuts Order drafted', `/app/${id}/launches/l-5#plan`],
+      ['Paper Trail Failed', `/app/${id}/launches/l-7`],
+      ['Ghost Signal Waiting', `/app/${id}/launches/l-3`],
+      ['Blank Check · Filmspotting Stopped', `/app/${id}/launches/l-8`]
+    ])
+    expect(words(html)).not.toContain('Nothing needs you')
+    // The Launches page groups the same four first.
+    expect(words(await launchesPage(ada, id, state))).toMatch(
+      /^Launches 8 launches · 4 need you, 1 running New launch .+ Needs you 4 Deep Cuts .+ Paper Trail .+ Ghost Signal .+ Blank Check · Filmspotting .+ Running 1 Paper Moons /
+    )
+  })
+
+  it("puts Dashboard first in the rail, then Launches, Roster, Inbox, and Settings, marking the page it's on, and a launch's page as Launches'", async () => {
+    env.GUEST_PITCHES = 'on'
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    const { id: launch } = await agent.call<{ id: string }>('createLaunch', { name: 'The Night Watch' })
+    const destinations = [
+      ['Crossfeed', '/app'],
+      ['Dashboard', `/app/${id}`],
+      ['Launches', `/app/${id}/launches`],
+      ['Roster', `/app/${id}/roster`],
+      ['Inbox', `/app/${id}/inbox`],
+      ['Settings', `/app/${id}/settings`]
+    ]
+    for (const [path, current, page] of [
+      [`/app/${id}`, 'Dashboard', 'page'],
+      [`/app/${id}/launches`, 'Launches', 'page'],
+      [`/app/${id}/launches/${launch}`, 'Launches', 'true']
+    ]) {
+      const html = await (await ada.fetch(path)).text()
+      expect(rail(html), path).toEqual(
+        destinations.map(([name, href]) => [name, href, name === current ? page : undefined])
+      )
+    }
+    // /app lands on the dashboard.
+    const res = await ada.fetch('/app', { redirect: 'manual' })
+    expect(res.headers.get('location')).toBe(`/app/${id}`)
+    expect(await (await ada.fetch(`/app/${id}`)).text()).toContain('data-page="dashboard"')
+    expect(await (await ada.fetch(`/app/${id}/launches`)).text()).toContain('data-page="launches"')
+  })
+
+  it("lists a launch the network's agent reports on the Launches page, with its status, plan, and last run, and nothing of the network's lines or setup", async () => {
+    const ada = await openMember()
+    const { id, agent } = await network(ada)
+    expect(words(await launchesPage(ada, id, agent.state()))).toBe('Launches No launches yet. New launch')
     const state: State = {
       ...agent.state()!,
       launches: [
@@ -270,12 +374,13 @@ describe('the dashboard', () => {
         }
       ]
     }
-    const html = await dashboard(ada, id, state)
+    const html = await launchesPage(ada, id, state)
     // The header: the title, its one summary line, and New launch.
     expect(words(html)).toMatch(/^Launches 1 launch New launch Launch Status /)
     expect(words(html)).toContain('Approved 1 The Night Watch Order approved 5 20 $52,000 Oct 19 · Ada Programmer')
     expect(html).toContain(`href="/app/${id}/launches/l-1"`)
     expect(words(html)).not.toContain('No launches yet')
+    expect(sections(html)).toEqual([])
   })
 })
 
@@ -303,8 +408,9 @@ describe('settings', () => {
     const agent = await connect(guest, 'guest-network')
     const loaded = await agent.until((s) => s.sample !== null && s.roster.every((r) => r.resolution !== 'pending'))
     const board = await dashboard(guest, 'guest-network', loaded)
-    expect(sampleLabels(board)).toEqual(['h1: Launches'])
+    expect(sampleLabels(board)).toEqual(['h1: Dashboard'])
     expect(words(board)).toContain('CPM $20 per 1,000 downloads Change')
+    expect(sampleLabels(await launchesPage(guest, 'guest-network', loaded))).toEqual(['h1: Launches'])
     const page = await settings(guest, 'guest-network', loaded)
     expect(sampleLabels(page)).toEqual(['h1: Settings'])
     expect(words(page)).toContain(
@@ -314,6 +420,7 @@ describe('settings', () => {
     const ada = await openMember()
     const { id, agent: own } = await network(ada)
     expect(sampleLabels(await dashboard(ada, id, own.state()))).toEqual([])
+    expect(sampleLabels(await launchesPage(ada, id, own.state()))).toEqual([])
     expect(sampleLabels(await settings(ada, id, own.state()))).toEqual([])
 
     const res = await guest.fetch('/app/guest-network/settings/network', {
@@ -328,7 +435,7 @@ describe('settings', () => {
     expect(words(await settings(guest, 'guest-network', set))).toContain('Dollars per 1,000 downloads. Save')
     // The sample roster's figures are still the sample's, so the pages' badges stay (#337).
     expect(set.sample).toMatchObject({ cpm: false })
-    expect(sampleLabels(await dashboard(guest, 'guest-network', set))).toEqual(['h1: Launches'])
+    expect(sampleLabels(await dashboard(guest, 'guest-network', set))).toEqual(['h1: Dashboard'])
     expect(sampleLabels(await settings(guest, 'guest-network', set))).toEqual(['h1: Settings'])
   })
 
@@ -414,7 +521,7 @@ describe('settings', () => {
     expect((await setCpm(25)).status).toBe(200)
     const set = await agent.until((s) => s.cpm === 25)
     expect(set.sample).toMatchObject({ network: 'The Ringer', cpm: false })
-    expect(sampleLabels(await dashboard(guest, 'guest-network', set))).toEqual(['h1: Launches'])
+    expect(sampleLabels(await dashboard(guest, 'guest-network', set))).toEqual(['h1: Dashboard'])
     expect(sampleLabels(await settings(guest, 'guest-network', set))).toEqual(['h1: Settings'])
     expect(
       sampleLabels(
@@ -445,7 +552,7 @@ describe('settings', () => {
     const one = agent.state()!
     expect(one.roster).toMatchObject([{ name: 'The Watch', sample: ['status'] }])
     expect(one.sample).toMatchObject({ cpm: false })
-    expect(sampleLabels(await dashboard(guest, 'guest-network', one))).toEqual(['h1: Launches'])
+    expect(sampleLabels(await dashboard(guest, 'guest-network', one))).toEqual(['h1: Dashboard'])
 
     await agent.call('updateShow', 'The Watch', { downloads: 42_000, status: 'hiatus' })
     const none = agent.state()!
@@ -878,7 +985,8 @@ describe('settings', () => {
 })
 
 // What a network's page shows of its agent's socket, the same on every network page: the dashboard
-// here, as DashboardPage wraps it, which says so in its title row.
+// here, as DashboardPage wraps it, which says so in its title row, each block's heading shown while its
+// lines are on their way.
 describe("a network page's connection", () => {
   const gated = async (
     connection: {
@@ -909,28 +1017,27 @@ describe("a network page's connection", () => {
 
   it('says it is connecting until the first state arrives', async () => {
     const read = await gated({ state: undefined, identified: false })
-    // Nothing to act on yet: New launch comes with the launches, or with the empty state.
-    expect(read).toMatch(/^Launches Working Connecting to the network… Launch Status /)
-    expect(read).not.toContain('New launch')
-    expect(read).not.toContain('No launches yet')
+    // Nothing to act on yet: New launch comes with Needs you's empty state, and Setup with the state
+    // that says whether this member dismissed it.
+    expect(read).toBe(
+      'Dashboard Working Connecting to the network… Needs you Launches with a question to answer or an order to approve, and runs that failed or stopped. Network The roster your launches rank, and the CPM that prices their slots.'
+    )
   })
 
   it('says nothing of a connection that is up', async () => {
     const read = await gated({})
     expect(read).not.toContain('Reconnecting…')
-    expect(read).toMatch(/^Launches No launches yet\. New launch /)
+    expect(read).toMatch(/^Dashboard Setup 0 of 5 done /)
   })
 
   it('says it is reconnecting while the socket is down, keeping what the page showed', async () => {
     const read = await gated({ identified: false })
-    expect(read).toMatch(/^Launches Reconnecting… No launches yet\. New launch /)
+    expect(read).toMatch(/^Dashboard Reconnecting… Setup 0 of 5 done /)
   })
 
   it('says a connection closed for good without a reason of its own is lost, keeping the page', async () => {
     const read = await gated({ connectionError: { code: 1008, reason: '' } })
-    expect(read).toMatch(
-      /^Launches Error This page lost its connection\. Reload to try again\. No launches yet\. New launch /
-    )
+    expect(read).toMatch(/^Dashboard Error This page lost its connection\. Reload to try again\. Setup 0 of 5 done /)
   })
 
   it("drops the page for the agent's reason when it shuts the member out, 4403, or the network is gone, 4410", async () => {
@@ -946,9 +1053,7 @@ describe("a network page's connection", () => {
   it('keeps the page, saying its connection is lost, while it leaves for another, having sent the change that closed it, as a reset of the sample data does', async () => {
     const reason = 'The guest network was reset to the sample data.'
     const read = await gated({ connectionError: { code: 4410, reason } }, true)
-    expect(read).toMatch(
-      /^Launches Error This page lost its connection\. Reload to try again\. No launches yet\. New launch /
-    )
+    expect(read).toMatch(/^Dashboard Error This page lost its connection\. Reload to try again\. Setup 0 of 5 done /)
     expect(read).not.toContain(reason)
   })
 })

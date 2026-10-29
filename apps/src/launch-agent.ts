@@ -113,7 +113,7 @@ export class LaunchAgent extends CrossfeedAgent {
   }
 
   // After any change to what the network's list says of the launch, reports it there, in order, so
-  // every member's dashboard follows the launch live. Nothing is reported before the network plans
+  // every member's Launches page follows the launch live. Nothing is reported before the network plans
   // it: the SDK reports the initial state as a change as it first seeds it, and that report, landing
   // after the network had listed the planned launch, showed the launch without its name.
   onStateChanged(state: State) {

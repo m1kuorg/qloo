@@ -219,7 +219,7 @@ describe('the MCP server', () => {
         error: {
           code: 'limit',
           message:
-            'A network keeps at most 1 launch at once. Delete one it no longer needs, on the dashboard, to plan another.'
+            'A network keeps at most 1 launch at once. Delete one it no longer needs, on the Launches page, to plan another.'
         }
       })
     } finally {
