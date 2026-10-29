@@ -523,11 +523,14 @@ describe('the developer docs', () => {
     }
   })
 
-  it('describe every route of the API from its OpenAPI document, and link the document', async () => {
+  it('describe every route of the API from its OpenAPI document, with its cost, and link the document', async () => {
     const doc = await (
       await get('/api/v1/openapi.json')
     ).json<{
-      paths: Record<string, Record<string, { summary: string }>>
+      paths: Record<
+        string,
+        Record<string, { summary: string; 'x-crossfeed-cost': string; 'x-crossfeed-session-only'?: true }>
+      >
     }>()
     const html = await page('/docs/api')
     const text = words(main(html))
@@ -536,9 +539,15 @@ describe('the developer docs', () => {
     )
     expect(routes.length).toBeGreaterThan(20)
     for (const { path, method, op } of routes) {
-      expect(text).toContain(`${method} ${path}`)
-      expect(text).toContain(op.summary)
+      // Its cost, and whether only a session sends it, after its method and path in its entry, and after
+      // what it does in its row of "Every route", whose paths are under the network's.
+      const cost = `${op['x-crossfeed-cost']}${op['x-crossfeed-session-only'] ? ' Session only' : ''}`
+      expect(text).toContain(`${method} ${path} ${cost} `)
+      expect(text).toContain(
+        `${method} ${path.replace('/api/v1/networks/{networkId}', '') || '/'} ${op.summary} ${cost} `
+      )
     }
+    expect(text).toContain('DELETE /api/v1/networks/{networkId}/launches/{launchId} Deletes Session only')
     expect(hrefs(main(html))).toContain('/api/v1/openapi.json')
   })
 

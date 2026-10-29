@@ -583,6 +583,8 @@ type Operation = {
   parameters?: { name: string; in: string; required?: boolean; description?: string }[]
   requestBody?: { required?: boolean; content: Record<string, { schema?: { $ref?: string } }> }
   responses: Record<string, { description: string; content?: Record<string, { schema?: { $ref?: string } }> }>
+  'x-crossfeed-cost'?: string
+  'x-crossfeed-session-only'?: boolean
 }
 const METHODS = ['get', 'post', 'patch', 'put', 'delete'] as const
 const slug = (text: string) =>
@@ -613,8 +615,23 @@ const Method = ({ method }: { method: string }) => (
   </code>
 )
 
-// One route as the reference sets it: what it does, then a compact table of what it takes and what it
-// answers, each parameter, the body, each answer, and the refusals with their codes.
+// A route's cost as a chip, "Deletes" in the destructive one, so it doesn't look like a read.
+const CostChip = ({ cost }: { cost?: string }) => (
+  <span class={badgeVariants({ variant: cost === 'Deletes' ? 'destructive' : 'default' })}>{cost}</span>
+)
+const SessionOnly = () => <span class={badgeVariants({ variant: 'outline' })}>Session only</span>
+
+// What a route costs, and whether only a member's session sends it, as the document labels it.
+const Cost = ({ op }: { op: Operation }) => (
+  <span class="inline-flex flex-wrap gap-1.5">
+    <CostChip cost={op['x-crossfeed-cost']} />
+    {op['x-crossfeed-session-only'] && <SessionOnly />}
+  </span>
+)
+
+// One route as the reference sets it: what it does, its method, path and cost, then a compact table of
+// what it takes and what it answers, each parameter, the body, each answer, and the refusals with their
+// codes.
 function RouteEntry({ route }: { route: Route }) {
   const { op } = route
   const params = (op.parameters ?? []).filter((p) => p.name !== 'networkId')
@@ -629,9 +646,13 @@ function RouteEntry({ route }: { route: Route }) {
       </h3>
       <p class="flex items-baseline gap-2">
         <Method method={route.method} />{' '}
-        <code class="min-w-0 bg-transparent p-0">
-          <UrlPath path={route.path} />
-        </code>
+        {/* The cost follows the path's last line, so a long path keeps the line's width on a phone. */}
+        <span class="min-w-0">
+          <code class="bg-transparent p-0">
+            <UrlPath path={route.path} />
+          </code>{' '}
+          <Cost op={op} />
+        </span>
       </p>
       {op.description && (
         <p>
@@ -745,6 +766,37 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
               <a href="/docs#limits">limits</a> are the same for every route. The inbox and pitch run routes answer 404
               while guest pitches are switched off.
             </p>
+            <p>Each route’s cost says what a call does before you send it:</p>
+            <ul>
+              <li>
+                <CostChip cost="Reads" /> The call changes nothing.
+              </li>
+              <li>
+                <CostChip cost="Changes" /> It edits or adds to what the network has.
+              </li>
+              <li>
+                <CostChip cost="Deletes" /> It removes something for good.
+              </li>
+              <li>
+                <CostChip cost="Spends a model run" /> It counts as one of the network’s daily model runs, whose turns
+                call Qloo too.
+              </li>
+              <li>
+                <CostChip cost="Calls Qloo" /> It counts in the network’s daily Qloo calls: an import’s lookups, a comp
+                search, or a run resumed by an answer.
+              </li>
+              <li>
+                <SessionOnly /> Only a member’s session, from one of Crossfeed’s pages, can send it. An API key answers
+                403.
+              </li>
+            </ul>
+            <p>
+              Two routes do more with <code>replace=true</code>. Importing a roster over one that has shows also changes
+              the figures the file brings. Loading the inbox over one that has pitches also deletes them, with the last
+              pitch run’s lists and replies, and ends a pitch run waiting on a question. The OpenAPI document gives each
+              route’s cost as <code>x-crossfeed-cost</code>, and a session-only route{' '}
+              <code>x-crossfeed-session-only: true</code> with the session alone as its <code>security</code>.
+            </p>
             <TableScroll label="Every route">
               <table role="table" class="table-doc table-fold sm:min-w-[36rem]">
                 <thead role="rowgroup">
@@ -757,6 +809,9 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
                     </th>
                     <th role="columnheader" scope="col">
                       What it does
+                    </th>
+                    <th role="columnheader" scope="col">
+                      Cost
                     </th>
                   </tr>
                 </thead>
@@ -773,6 +828,9 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
                       </td>
                       <td role="cell">
                         <a href={`#${r.id}`}>{r.op.summary}</a>
+                      </td>
+                      <td role="cell">
+                        <Cost op={r.op} />
                       </td>
                     </tr>
                   ))}

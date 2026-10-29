@@ -675,7 +675,7 @@ api.openapi(
     tags: ['Inbox'],
     summary: 'Load the inbox',
     description:
-      "Send the pitches as the body: one email as `message/rfc822` (an .eml file), an mbox export as `application/mbox`, plain text with a line of three dashes between pitches as `text/plain` (a pitch's first lines may give its `From:` and `Subject:`), or JSON pitches, at most 50 pitches and 5 MB. Of each email, only its sender, subject, and text are kept, never its attachments or other headers, and only its work's title and type reach Qloo. An email with no text, or over 10,000 characters, is skipped and named. It answers 202 at once with the pitches reading; poll the inbox until it's done. Reading the pitches counts as one of the network's model runs. Over an inbox that has pitches, it needs `replace=true`: they go, with the last pitch run's lists and replies.",
+      "Send the pitches as the body: one email as `message/rfc822` (an .eml file), an mbox export as `application/mbox`, plain text with a line of three dashes between pitches as `text/plain` (a pitch's first lines may give its `From:` and `Subject:`), or JSON pitches, at most 50 pitches and 5 MB. Of each email, only its sender, subject, and text are kept, never its attachments or other headers, and only its work's title and type reach Qloo. An email with no text, or over 10,000 characters, is skipped and named. It answers 202 at once with the pitches reading; poll the inbox until it's done. Reading the pitches counts as one of the network's model runs. Over an inbox that has pitches, it needs `replace=true`: they go, with the last pitch run's lists and replies, and a pitch run waiting on a question ends.",
     request: {
       params: NetworkParams,
       query: z.object({
@@ -1020,7 +1020,7 @@ api.openapi(
     tags: ['Pitch runs'],
     summary: "Answer a pitch run's question",
     description:
-      'Answer the question the run is waiting on, by its ID: with one of its options as `choice`, or your own words as `text`. The run resumes, answering 202; poll it again. A run started later, or loading the inbox, ends a run left waiting.',
+      "Answer the question the run is waiting on, by its ID: with one of its options as `choice`, or your own words as `text`. The run resumes, answering 202; poll it again. It goes on with what's left of the run's Claude turns and Qloo calls, not as a new model run. A run started later, or loading the inbox, ends a run left waiting.",
     request: {
       params: RunParams,
       body: {
@@ -1426,6 +1426,8 @@ api.openapi(
     summary: 'Delete a launch',
     description:
       "Delete the launch for every member, with its runs, their insertion orders, and their evidence, which can't be brought back. Only a member's session from one of Crossfeed's pages may, as the Launches page does; an API key answers 403.",
+    // A member's session alone, not the document's API key.
+    security: [{ session: [] }],
     request: { params: LaunchParams },
     responses: {
       204: { description: 'Deleted.' },
@@ -1559,7 +1561,7 @@ api.openapi(
     tags: ['Runs'],
     summary: "Answer a run's question",
     description:
-      'Answer the question the run is waiting on, by its ID, with the fields its kind takes: `choice` or `text` for a `choice` question; `choice` (one of its options) or `text` (the name Qloo lists the launch under) for `launch`; `slots` or `dollars` for `budget`; `exclude`, from its options, for `exclusions`; `comps` or `text` for `comps`; and `picks` for `confirm_comps`. Relay the question to the person planning the launch and answer with their words. The run resumes, answering 202; poll it again.',
+      "Answer the question the run is waiting on, by its ID, with the fields its kind takes: `choice` or `text` for a `choice` question; `choice` (one of its options) or `text` (the name Qloo lists the launch under) for `launch`; `slots` or `dollars` for `budget`; `exclude`, from its options, for `exclusions`; `comps` or `text` for `comps`; and `picks` for `confirm_comps`. Relay the question to the person planning the launch and answer with their words. The run resumes, answering 202; poll it again. It goes on with what's left of the run's Claude turns and Qloo calls, not as a new model run.",
     request: {
       params: LaunchRunParams,
       body: { required: true, content: { 'application/json': { schema: Answer } } }
@@ -1659,6 +1661,53 @@ api.openapi(
     return csvDownload(orderId, { status: 200, csv: await exportOrder(context(c), c.req.valid('param')) })
   }
 )
+
+// What an operation costs: it reads, changes, deletes, spends one of the network's daily model runs, or
+// calls Qloo (counted in its daily Qloo calls). Answering a run's question resumes a run already
+// counted, whose turns call Qloo. The document gives each as `x-crossfeed-cost`.
+type Cost = 'Reads' | 'Changes' | 'Deletes' | 'Spends a model run' | 'Calls Qloo'
+const COSTS: Record<string, Cost> = {
+  'GET /api/v1/networks/{networkId}': 'Reads',
+  'PATCH /api/v1/networks/{networkId}': 'Changes',
+  'GET /api/v1/networks/{networkId}/usage': 'Reads',
+  'GET /api/v1/networks/{networkId}/roster': 'Reads',
+  'POST /api/v1/networks/{networkId}/roster': 'Calls Qloo',
+  'PATCH /api/v1/networks/{networkId}/roster/shows/{name}': 'Changes',
+  'POST /api/v1/networks/{networkId}/roster/shows/{name}/comp-search': 'Calls Qloo',
+  'GET /api/v1/networks/{networkId}/inbox': 'Reads',
+  'POST /api/v1/networks/{networkId}/inbox': 'Spends a model run',
+  'PATCH /api/v1/networks/{networkId}/inbox/pitches/{pitchId}': 'Changes',
+  'POST /api/v1/networks/{networkId}/pitch-runs': 'Spends a model run',
+  'GET /api/v1/networks/{networkId}/pitch-runs': 'Reads',
+  'GET /api/v1/networks/{networkId}/pitch-runs/{runId}': 'Reads',
+  'POST /api/v1/networks/{networkId}/pitch-runs/{runId}/answer': 'Calls Qloo',
+  'PATCH /api/v1/networks/{networkId}/pitch-runs/{runId}/replies/{pitchId}': 'Changes',
+  'POST /api/v1/networks/{networkId}/pitch-runs/{runId}/replies/{pitchId}/discard': 'Changes',
+  'GET /api/v1/networks/{networkId}/launches': 'Reads',
+  'POST /api/v1/networks/{networkId}/launches': 'Changes',
+  'GET /api/v1/networks/{networkId}/launches/{launchId}': 'Reads',
+  'DELETE /api/v1/networks/{networkId}/launches/{launchId}': 'Deletes',
+  'GET /api/v1/networks/{networkId}/launches/{launchId}/evidence': 'Reads',
+  'POST /api/v1/networks/{networkId}/launches/{launchId}/runs': 'Spends a model run',
+  'GET /api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}': 'Reads',
+  'POST /api/v1/networks/{networkId}/launches/{launchId}/runs/{runId}/answer': 'Calls Qloo',
+  'PATCH /api/v1/networks/{networkId}/launches/{launchId}/insertion-orders/{orderId}': 'Changes',
+  'GET /api/v1/networks/{networkId}/launches/{launchId}/insertion-orders/{orderId}/csv': 'Reads'
+}
+// Each operation registered above takes its cost into the document, so a route with no row fails at
+// startup. One whose `security` names the session alone, which an API key answers 403, also takes
+// `x-crossfeed-session-only: true`.
+for (const definition of api.openAPIRegistry.definitions) {
+  if (definition.type !== 'route') continue
+  const operation = `${definition.route.method.toUpperCase()} ${definition.route.path}`
+  if (!COSTS[operation]) throw new Error(`${operation} has no cost in COSTS.`)
+  const { security = [] } = definition.route
+  const sessionOnly = security.length > 0 && security.every((requirement) => !('apiKey' in requirement))
+  Object.assign(definition.route, {
+    'x-crossfeed-cost': COSTS[operation],
+    ...(sessionOnly && { 'x-crossfeed-session-only': true })
+  })
+}
 
 // The API's contract, generated from the routes' schemas, for the deployment at `origin`: served
 // below, and read by the developer docs.
