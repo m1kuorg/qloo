@@ -700,8 +700,8 @@ function CpmHead({ cpm }: { cpm: number | null | undefined }) {
 const PRICES = 'Prices each promo slot: downloads per episode × CPM ÷ 1,000.'
 
 // The CPM that prices every launch's slots, read-only, which an owner changes in the network's
-// settings: on the network's roster page, and as a launch's run took it. `cpm` is undefined until the
-// agent is connected.
+// settings, on its network tab: on the network's roster page, and as a launch's run took it. `cpm` is
+// undefined until the agent is connected.
 export function CpmRecord({
   cpm,
   network,
@@ -722,7 +722,7 @@ export function CpmRecord({
       <p className="type-caption text-muted-foreground">
         {PRICES} {note && `${note} `}
         {network.role === 'owner' ? (
-          <a className={linkVariants()} href={network.links.settings}>
+          <a className={linkVariants()} href={`${network.links.settings}#network`}>
             {cpm === null ? 'Set it in settings' : 'Change it in settings'}
           </a>
         ) : (

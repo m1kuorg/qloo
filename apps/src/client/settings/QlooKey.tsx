@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
@@ -41,7 +41,7 @@ export function QlooKeyModule({
       id="set-qloo-h"
       title="Qloo key"
       heading={heading}
-      help={`During the beta, a network’s Qloo calls run on Crossfeed’s shared key, within its daily caps. With a key of its own, ${network.name}’s calls and its launches’ run on that key, under its own agreement with Qloo, with a cache and Qloo caps of their own. Model runs count against Crossfeed’s caps either way.`}
+      description={`During the beta, ${network.name}’s Qloo calls run on Crossfeed’s shared key, within its daily caps, unless it has a key of its own.`}
     >
       {network.role !== 'owner' ? (
         <>
@@ -137,7 +137,12 @@ function AddKey({ network, onChange }: { network: NetworkPage; onChange: (change
             data-form-type="other"
             spellCheck={false}
             disabled={busy}
+            aria-describedby="qloo-key-what"
           />
+          <FieldDescription id="qloo-key-what">
+            {network.name}’s Qloo calls and its launches’ then run on it, under its own agreement with Qloo, with a
+            cache and Qloo caps of their own. Model runs count against Crossfeed’s caps either way.
+          </FieldDescription>
         </Field>
       </FieldGroup>
       <div>

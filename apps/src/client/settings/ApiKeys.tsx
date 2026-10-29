@@ -24,7 +24,7 @@ export function ApiKeysModule({ network, keys }: { network: NetworkPage; keys: A
       id="set-keys-h"
       title="API keys"
       heading={heading}
-      help={`Each key lets a script or an assistant act for ${network.name} through Crossfeed’s API, short of approving anything: only a member approves an insertion order or a reply, in the app.`}
+      description={`Each key lets a script or an assistant act for ${network.name} through Crossfeed’s API, short of approving anything: only a member approves an insertion order or a reply, in the app.`}
     >
       {keys ? (
         <OwnerKeys network={network} keys={keys} heading={heading} />

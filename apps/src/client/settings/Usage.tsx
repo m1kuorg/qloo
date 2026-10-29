@@ -17,14 +17,14 @@ export function UsageModule({ network, usage, hasOwnKey }: { network: NetworkPag
     {
       name: 'Model runs',
       ...usage.modelRuns,
-      reached: 'No more model runs today: launch runs, inbox loads, and pitch runs are refused',
-      on: null
+      counts: 'Launch runs, inbox loads, and pitch runs',
+      reached: 'No more model runs today: launch runs, inbox loads, and pitch runs are refused'
     },
     {
       name: 'Qloo calls',
       ...usage.qlooCalls,
-      reached: 'No more Qloo calls today: roster imports and comp searches are refused',
-      on: hasOwnKey ? 'On the network’s own Qloo key' : null
+      counts: hasOwnKey ? 'On the network’s own Qloo key, cached answers included' : 'Cached answers included',
+      reached: 'No more Qloo calls today: roster imports and comp searches are refused'
     }
   ]
   const local = localTime(usage.resets)
@@ -32,12 +32,7 @@ export function UsageModule({ network, usage, hasOwnKey }: { network: NetworkPag
     ? 'What all guests together can use each UTC day, in the guest network and the networks guests create'
     : `What ${network.name} can use each UTC day, whichever member or API key uses it`
   return (
-    <Module
-      id="set-usage-h"
-      title="Usage"
-      badge={<Badge>Beta</Badge>}
-      help={`${what}. Model runs are launch runs, inbox loads, and pitch runs; Qloo calls count cached answers too. Crossfeed’s caps across every network apply as well.`}
-    >
+    <Module id="set-usage-h" title="Usage" badge={<Badge>Beta</Badge>} description={`${what}.`}>
       <KeyValues>
         {rows.map((r) => (
           <KeyValue key={r.name} label={r.name}>
@@ -45,7 +40,7 @@ export function UsageModule({ network, usage, hasOwnKey }: { network: NetworkPag
               <span>
                 <span className="font-medium">{r.used.toLocaleString('en-US')}</span> of{' '}
                 {r.limit.toLocaleString('en-US')} today
-                {r.on && <span className="block type-caption text-muted-foreground">{r.on}</span>}
+                <span className="block type-caption text-muted-foreground">{r.counts}</span>
               </span>
               <Meter used={r.used} limit={r.limit} />
             </span>
@@ -65,6 +60,7 @@ export function UsageModule({ network, usage, hasOwnKey }: { network: NetworkPag
             </StateLine>
           </p>
         ))}
+      <p className="text-muted-foreground">Crossfeed’s caps across every network apply as well.</p>
     </Module>
   )
 }

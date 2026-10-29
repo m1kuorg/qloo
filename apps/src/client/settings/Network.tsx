@@ -30,7 +30,7 @@ export function NetworkModule({
     <Module
       id="set-network-h"
       title="Network"
-      help="The name your members see, and the CPM that prices every promo slot: downloads per episode × CPM ÷ 1,000."
+      description="The name your members see, and the CPM that prices every promo slot: downloads per episode × CPM ÷ 1,000."
     >
       {network.role === 'owner' ? (
         <NetworkForm network={network} cpm={cpm} sampleCpm={sampleCpm} onRenamed={onRenamed} />

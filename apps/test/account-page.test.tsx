@@ -52,7 +52,40 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
+// Each section's heading and the one sentence under it, in the page's order, as a reader meets them.
+const sections = (html: string) =>
+  [...html.matchAll(/<section\b[^>]*\saria-labelledby="([^"]+)"/g)].map(([, by]) => {
+    const [, heading, after] = html.match(new RegExp(`id="${by}"[^>]*>(.*?)</h\\d>(.*)`))!
+    return [words(heading), words(after.match(/<p\b[^>]*>(.*?)<\/p>/)![1])]
+  })
+
 describe('the account page', () => {
+  it('stacks its modules, each a heading, one sentence of what it holds, then its panel', async () => {
+    const ada = await openMember()
+    const html = await page(ada)
+    expect(sections(html)).toEqual([
+      [
+        'Name',
+        'How your teammates see you in every network you’re in, on its members, its runs, and the orders you approve.'
+      ],
+      ['Passkeys', 'Each passkey signs you in from the device or password manager that keeps it.'],
+      ['Recovery code', 'If you lose every passkey, your recovery code signs you in once.'],
+      ['Sessions', 'Each browser you sign in on stays signed in for 30 days from the last time you use it.'],
+      ['Networks', 'The networks you’re a member of, and your role in each.'],
+      [
+        'Delete account',
+        'What you did in your networks, and in those you left before, stays with them, such as the runs you started and the orders you approved, but under “Former member”, not your name.'
+      ]
+    ])
+    // The rest of each module's help sits by what it's about: keeping a second passkey by the button that
+    // adds one, and that Crossfeed keeps no readable copy of a code by the button that makes a new one.
+    const read = words(html)
+    expect(read).toContain(
+      'Add a passkey Keep one on a second device, so losing one doesn’t lock you out. Your browser asks where to keep it'
+    )
+    expect(read).toContain('the new one shows once. Crossfeed keeps no copy it can read.')
+  })
+
   it("shows the member's name, passkeys by browser and date, sessions, and networks", async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-19T12:00:00Z'))
