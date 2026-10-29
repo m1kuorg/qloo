@@ -1,9 +1,11 @@
 /** @jsxImportSource hono/jsx */
-// The marketing pages: the landing page at /, the privacy page, the beta terms, and the 404 page.
-// Server-rendered with no island. Nothing here is a Qloo response: the re-rank and every piece of the app
-// the landing page shows use one made-up network, launch, and shows, and the re-rank says so.
+// The marketing pages: the landing page at /, the privacy page, the beta terms, the 404 page, and the
+// error page. Server-rendered with no island. Nothing here is a Qloo response: the re-rank and every
+// piece of the app the landing page shows use one made-up network, launch, and shows, and the re-rank
+// says so.
 import { cn } from 'cn'
-import { Hono, type NotFoundHandler } from 'hono'
+import { Hono, type Context, type ErrorHandler, type NotFoundHandler } from 'hono'
+import { HTTPException } from 'hono/http-exception'
 import { html } from 'hono/html'
 import type { Child } from 'hono/jsx'
 import { appOrigins } from '../auth'
@@ -23,7 +25,7 @@ import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
-import { GuestButton, MarketingPage, marketingShell } from '../shell'
+import { GuestButton, MarketingPage, marketingShell, networkLinks, type AppVariables } from '../shell'
 import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
 import { CLIMB, topicFinding } from '../topic'
 
@@ -1539,74 +1541,141 @@ marketing.get('/privacy', marketingShell('Privacy', PRIVACY), (c) =>
 )
 marketing.get('/terms', marketingShell('Beta terms', TERMS), (c) => c.render(<Terms env={c.env} />))
 
-// The 404 page's body: ways back home, and while ACCOUNTS is on, to the sample network, as guest sign-in,
-// and to the visitor's networks.
-const NotFound = ({ accounts }: { accounts: boolean }) => (
-  // At least 60% of the window tall, so the footer's index and name start at the fold rather than in
-  // the first screen, where they would outweigh the page's heading, without a window of nothing above it.
-  <main
-    class={cn(
-      marketingFrame,
-      'grid min-h-[60svh] content-start gap-x-10 gap-y-6 pt-16 md:pt-32 lg:grid-cols-2 lg:items-baseline'
-    )}
-  >
-    <h1 class="type-display">
-      <span class="line-mask">
-        <span class="block motion-safe:animate-line-up">Not on the roster.</span>
-      </span>
-    </h1>
-    <div class="motion-safe:animate-rise-in">
-      <p class="max-w-[46ch]">
-        Crossfeed has no page at this address. The link may be mistyped, or what it led to was deleted.
-      </p>
-      <ul class="mt-8 flex flex-wrap gap-3">
+// A way back on a status page: a secondary button.
+const way = buttonVariants({ variant: 'secondary', size: 'lg' })
+
+// A status page, the 404 page or the error page, in the marketing shell as the Worker's answer with
+// `status`: its heading at display size, then beside it from 1024px one sentence, its ways back (`ways`,
+// each an <li>), and anything else it says. A page to preview or index has a `description` for its card.
+function statusPage(
+  c: Context<{ Bindings: Env }>,
+  status: 404 | 500,
+  page: { title: string; description?: string; heading: string; sentence: string; ways: Child; children?: Child }
+) {
+  return c.html(
+    html`<!DOCTYPE html>${(
+        <MarketingPage
+          title={page.title}
+          card={
+            page.description === undefined ? undefined : { description: page.description, origin: appOrigins(c.env)[0] }
+          }
+          path={c.req.path}
+          accounts={c.env.ACCOUNTS === 'on'}
+        >
+          {/* At least 60% of the window tall, so the footer's index and name start at the fold rather than
+              in the first screen, where they would outweigh the page's heading, without a window of
+              nothing above it. */}
+          <main
+            class={cn(
+              marketingFrame,
+              'grid min-h-[60svh] content-start gap-x-10 gap-y-6 pt-16 md:pt-32 lg:grid-cols-2 lg:items-baseline'
+            )}
+          >
+            <h1 class="type-display">
+              <span class="line-mask">
+                <span class="block motion-safe:animate-line-up">{page.heading}</span>
+              </span>
+            </h1>
+            <div class="motion-safe:animate-rise-in">
+              <p class="max-w-[46ch]">{page.sentence}</p>
+              <ul class="mt-8 flex flex-wrap gap-3">{page.ways}</ul>
+              {page.children}
+            </div>
+          </main>
+        </MarketingPage>
+      )}`,
+    status
+  )
+}
+
+// Whether a request is a browser asking for a page: a GET that accepts HTML, outside /api, /agents,
+// /mcp, and /auth, and not a CSV download. Only such a request is answered with a page of the marketing
+// shell when there's none or it fails; programs and WebSocket upgrades read the plain answers.
+const pageRequest = (c: Context) =>
+  c.req.method === 'GET' &&
+  (c.req.header('Accept') ?? '').includes('text/html') &&
+  !/^\/(api|agents|mcp|auth)(\/|$)/.test(c.req.path) &&
+  !c.req.path.endsWith('.csv')
+
+// What the Worker answers when nothing serves a request, or a route refuses one as not found: the 404
+// page to a browser asking for a page, with ways back home, and while ACCOUNTS is on, to the sample
+// network, as guest sign-in, and to the visitor's networks; otherwise Hono's plain 404.
+export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
+  if (!pageRequest(c)) return c.text('404 Not Found', 404)
+  return statusPage(c, 404, {
+    title: 'Not found',
+    description: 'Crossfeed has no page at this address: the link may be mistyped, or what it led to was deleted.',
+    heading: 'Not on the roster.',
+    sentence: 'Crossfeed has no page at this address. The link may be mistyped, or what it led to was deleted.',
+    ways: (
+      <>
         <li>
-          <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/">
+          <a class={way} href="/">
             Home
           </a>
         </li>
-        {accounts && (
+        {c.env.ACCOUNTS === 'on' && (
           <>
             <li>
-              <GuestButton class={buttonVariants({ variant: 'secondary', size: 'lg' })}>Sample network</GuestButton>
+              <GuestButton class={way}>Sample network</GuestButton>
             </li>
             <li>
-              <a class={buttonVariants({ variant: 'secondary', size: 'lg' })} href="/app">
+              <a class={way} href="/app">
                 Your networks
               </a>
             </li>
           </>
         )}
-      </ul>
-    </div>
-  </main>
-)
+      </>
+    )
+  })
+}
 
-// What the Worker answers when nothing serves a request, or a route refuses one as not found: the 404
-// page, in the marketing shell, to a browser asking for a page (a GET that accepts HTML); otherwise,
-// and always under /api, /agents, /mcp, and /auth and for a CSV download, Hono's plain 404, which
-// programs and WebSocket upgrades read.
-export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
+// What the Worker answers when a route throws, outside the API, which answers its own (routes/api.ts).
+// An HTTPException is its own answer, with its status and headers, such as a 413's, as Hono's own handler
+// answers it. Any other error is logged, with the request's Ray ID, by which Cloudflare names it, and
+// then a browser asking for a page gets the error page, with a 500: one way back, on a network's page to
+// the network's dashboard, on another of the app's to the networks, and elsewhere home, and the Ray ID,
+// when Cloudflare's edge named one. It has no card, as a failure is no page to preview or index.
+// Everything else gets a plain 500, as does a page whose error page fails too.
+export const serverError: ErrorHandler<{ Bindings: Env }> = async (err, c) => {
+  if (err instanceof HTTPException) {
+    const res = err.getResponse()
+    return c.newResponse(res.body, res)
+  }
   const path = c.req.path
-  const page =
-    c.req.method === 'GET' &&
-    (c.req.header('Accept') ?? '').includes('text/html') &&
-    !/^\/(api|agents|mcp|auth)(\/|$)/.test(path) &&
-    !path.endsWith('.csv')
-  if (!page) return c.text('404 Not Found', 404)
-  const accounts = c.env.ACCOUNTS === 'on'
-  return c.html(
-    html`<!DOCTYPE html>${(
-        <MarketingPage
-          title="Not found"
-          description="Crossfeed has no page at this address: the link may be mistyped, or what it led to was deleted."
-          origin={appOrigins(c.env)[0]}
-          path={path}
-          accounts={accounts}
-        >
-          <NotFound accounts={accounts} />
-        </MarketingPage>
-      )}`,
-    404
-  )
+  const ray = c.req.header('cf-ray')
+  console.error(JSON.stringify({ event: 'request_error', method: c.req.method, path, ray, error: String(err) }))
+  if (!pageRequest(c)) return c.text('500 Internal Server Error', 500)
+  const { network } = c.var as AppVariables
+  const back = network
+    ? { href: networkLinks(c.env, network.id).dashboard, label: 'Dashboard' }
+    : /^\/app(\/|$)/.test(path)
+      ? { href: '/app', label: 'Your networks' }
+      : { href: '/', label: 'Home' }
+  try {
+    return await statusPage(c, 500, {
+      title: 'Something went wrong',
+      heading: 'Dead air.',
+      sentence: 'Something went wrong in Crossfeed as it loaded this page: try again in a moment.',
+      ways: (
+        <li>
+          <a class={way} href={back.href}>
+            {back.label}
+          </a>
+        </li>
+      ),
+      children: ray && (
+        <p class="mt-8 type-ui text-muted-foreground">
+          Ray ID{' '}
+          <code class="font-mono break-all" translate="no">
+            {ray}
+          </code>
+        </p>
+      )
+    })
+  } catch (failed) {
+    console.error(JSON.stringify({ event: 'error_page_failed', path, ray, error: String(failed) }))
+    return c.text('500 Internal Server Error', 500)
+  }
 }

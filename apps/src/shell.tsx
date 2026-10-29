@@ -600,17 +600,17 @@ const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
 
 // A marketing page: server-rendered with no island, at 16px, under the marketing header and over the
 // footer, which a short page keeps at the window's foot. `title` names the page before the product, and
-// `description` says what it is in one sentence, for its card, whose address is `path` on `origin`; the
-// landing page, with no title of its own, puts the claim on its card. The 404 handler renders it too
-// (routes/marketing). menus.ts closes the phone's Menu on a click outside and on Escape; `reveal` adds
-// reveal.ts, the landing page's section entrances, and `ascii` its ASCII field: a canvas fixed behind
-// the page, which ascii.ts draws, sized by its classes and its own width and height, never a style
-// attribute. The face's Latin file is preloaded, so the landing page's poster type is set in it from
-// the first paint rather than re-wrapping when it swaps in for the size-adjusted fallback (style.css).
+// a page to preview or index has a `card`: its `description`, one sentence on what it is, and the
+// `origin` its address, `path`, is on; the landing page, with no title of its own, puts the claim on its
+// card. The 404 and error pages are one too (routes/marketing), the error page with no card. menus.ts
+// closes the phone's Menu on a click outside and on Escape; `reveal` adds reveal.ts, the landing page's
+// section entrances, and `ascii` its ASCII field: a canvas fixed behind the page, which ascii.ts draws,
+// sized by its classes and its own width and height, never a style attribute. The face's Latin file is
+// preloaded, so the landing page's poster type is set in it from the first paint rather than re-wrapping
+// when it swaps in for the size-adjusted fallback (style.css).
 export const MarketingPage = ({
   title,
-  description,
-  origin,
+  card,
   path,
   accounts,
   reveal = false,
@@ -618,8 +618,7 @@ export const MarketingPage = ({
   children
 }: {
   title: string | null
-  description: string
-  origin: string
+  card?: Pick<Card, 'description' | 'origin'>
   path: string
   accounts: boolean
   reveal?: boolean
@@ -629,7 +628,7 @@ export const MarketingPage = ({
   <html lang="en">
     <Head
       title={title ? `${title} · Crossfeed` : 'Crossfeed'}
-      card={{ title: title ?? 'Rank by who listens', description, origin, path }}
+      card={card && { title: title ?? 'Rank by who listens', ...card, path }}
     >
       {latinFont && <link rel="preload" href={latinFont} as="font" type="font/woff2" crossorigin="" />}
       {/* A literal: vite-ssr-components finds the client build's entries by reading these. */}
@@ -663,8 +662,7 @@ export const marketingShell = (title: string | null, description: string, { reve
   jsxRenderer(({ children }, c) => (
     <MarketingPage
       title={title}
-      description={description}
-      origin={appOrigins(c.env)[0]}
+      card={{ description, origin: appOrigins(c.env)[0] }}
       path={c.req.path}
       accounts={c.env.ACCOUNTS === 'on'}
       reveal={reveal}

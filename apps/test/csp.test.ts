@@ -7,11 +7,14 @@
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fakeQloo } from './fake'
+import { publicPages } from './pages'
 import { openMember } from './session'
 
 const origin = 'https://crossfeed.test'
 // An address with no page, which a browser is shown the 404 page for; and how a browser asks.
 const missing = '/no-such-page'
+// The error page, which the network's dashboard answers once it fails.
+const failing = 'the error page'
 const browser = { headers: { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' } }
 
 afterEach(() => {
@@ -77,24 +80,12 @@ const previewOf = ({ tags }: Awaited<ReturnType<typeof headOf>>) =>
     )
   )
 
-// The public pages, which a link preview may show and a search engine index: the signed-out pages,
-// the 404 page, and signing in; each with its card's title, the page's own without the product's name,
-// which the card's site name says, and on the landing page the claim.
-const publicPages: Record<string, string> = {
-  '/': 'Rank by who listens',
-  '/privacy': 'Privacy',
-  '/terms': 'Beta terms',
-  '/docs': 'Developer docs',
-  '/docs/api': 'REST API · Developer docs',
-  '/docs/sdk': 'TypeScript SDK · Developer docs',
-  '/docs/mcp': 'MCP server · Developer docs',
-  '/docs/agents': 'Skills and plugin · Developer docs',
-  [missing]: 'Not found',
-  '/sign-in': 'Sign in'
-}
+// The pages a link preview may show: the public pages, and the 404 page, which isn't indexed.
+const previewed: Record<string, string> = { ...publicPages, [missing]: 'Not found' }
 
 // Every page as a browser loads it, by path: the signed-out pages, the 404 page for an address that
-// has none (`missing`), and a member's pages of a network (`id`) with a launch (`launch`).
+// has none (`missing`), a member's pages of a network (`id`) with a launch (`launch`), and last, once
+// the directory has lost a table as it would while D1 fails, the error page, as `failing`.
 async function everyPage() {
   env.GUEST_PITCHES = 'on'
   fakeQloo({ search: {} })
@@ -110,20 +101,22 @@ async function everyPage() {
   const launch = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
   network.close()
 
-  const pages = [...Object.keys(publicPages), '/invite']
+  const pages = [...Object.keys(previewed), '/invite']
   const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/roster`, `/app/${id}/inbox`]
   app.push(`/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
   const loaded = await Promise.all([
     ...pages.map(async (p) => [p, await exports.default.fetch(`${origin}${p}`, browser)] as const),
     ...app.map(async (p) => [p, await ada.fetch(p)] as const)
   ])
+  await env.DB.prepare('DROP TABLE invites').run()
+  loaded.push([failing, await ada.fetch(`/app/${id}`, browser)])
   return { id, launch: launch.id, loaded }
 }
 
 describe('every page', () => {
   it("is served under a policy of the app's own origin, nothing framing it, which allows what it loads", async () => {
     for (const [path, res] of (await everyPage()).loaded) {
-      expect(res.status, path).toBe(path === missing ? 404 : 200)
+      expect(res.status, path).toBe(path === missing ? 404 : path === failing ? 500 : 200)
       const policy = policyOf(res)
       expect(policy['default-src'], path).toEqual(["'self'"])
       expect(policy['script-src'], path).not.toContain("'unsafe-inline'")
@@ -208,12 +201,12 @@ describe('every page', () => {
     expect(Object.fromEntries(islands)).toEqual(titles)
   })
 
-  it('gives each public page its own description, a link preview with the banner, and a canonical address on the app’s own origin, and an app page none', async () => {
+  it('gives each public page its own description, a link preview with the banner, and a canonical address on the app’s own origin, and an app page and the error page none', async () => {
     const descriptions = new Set<string>()
     for (const [path, res] of (await everyPage()).loaded) {
       const head = await headOf(res)
       const preview = previewOf(head)
-      const title = publicPages[path]
+      const title = previewed[path]
       if (!title) {
         expect(preview, path).toEqual({})
         continue
@@ -239,7 +232,7 @@ describe('every page', () => {
       })
       descriptions.add(preview.description)
     }
-    expect(descriptions.size).toBe(Object.keys(publicPages).length)
+    expect(descriptions.size).toBe(Object.keys(previewed).length)
   })
 
   it('takes its addresses from APP_ORIGINS’ first origin, never the request’s, and leaves sign-in’s next out', async () => {

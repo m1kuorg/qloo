@@ -7,9 +7,10 @@ import { checkHealth } from './health'
 import { api } from './routes/api'
 import { appPages } from './routes/app'
 import { auth } from './routes/auth'
+import { crawlers, noindex } from './routes/crawlers'
 import { demo } from './routes/demo'
 import { docs } from './routes/docs'
-import { marketing, notFound } from './routes/marketing'
+import { marketing, notFound, serverError } from './routes/marketing'
 import { mcp } from './routes/mcp'
 import { clearGuests, removeTemporaryGuests, resetGuestNetwork, retryWipes } from './wipe'
 
@@ -40,7 +41,11 @@ const secure = secureHeaders({
   }
 })
 app.use((c, next) => (c.req.path.startsWith('/agents/') ? next() : secure(c, next)))
+// Each answer search engines mustn't index says so in its X-Robots-Tag (routes/crawlers.ts), except an
+// agent's connection, whose answer can't take headers.
+app.use((c, next) => (c.req.path.startsWith('/agents/') ? next() : noindex(c, next)))
 
+app.route('/', crawlers)
 app.route('/', marketing)
 app.route('/', docs)
 app.route('/', demo)
@@ -48,8 +53,10 @@ app.route('/', auth)
 app.route('/', appPages)
 app.route('/', api)
 app.route('/', mcp)
-// A page that isn't there, for every route above and none.
+// A page that isn't there, for every route above and none; and one that failed, for every route but
+// the API's, which answers its own errors.
 app.notFound(notFound)
+app.onError(serverError)
 
 // The hourly cron in wrangler.jsonc: every hour but 12:00 UTC, when the daily cron runs in its place.
 const HOURLY = '0 0-11,13-23 * * *'

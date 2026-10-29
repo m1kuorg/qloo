@@ -26,8 +26,8 @@ import { RELAY, listedTools } from './mcp'
 export const docs = new Hono<{ Bindings: Env }>()
 
 // The docs' pages, in reading order, each with one sentence on what it holds: its description for
-// search results and link previews, and its line in /llms.txt.
-const PAGES = [
+// search results and link previews, and its line in /llms.txt. The sitemap lists them (crawlers.ts).
+export const PAGES = [
   {
     path: '/docs',
     title: 'Overview',
