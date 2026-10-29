@@ -45,14 +45,12 @@ export function RosterImport({
   dialog,
   roster,
   draft,
-  importRoster,
-  keepsSettledShows
+  importRoster
 }: {
   dialog: ReturnType<typeof useFormDialog>
   roster: Show[]
   draft: { current: string } // what's typed, kept by the page across a remount
   importRoster: (text: string, format: RosterFormat) => Promise<void>
-  keepsSettledShows: boolean // whether an import keeps the shows already on the roster, as a network's does
 }) {
   const [text, setTyped] = useState(() => draft.current)
   const setText = (value: string) => {
@@ -139,9 +137,7 @@ export function RosterImport({
                 </Button>
                 <input ref={file} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={pick} />
                 <FieldDescription id="roster-names-limit">
-                  {keepsSettledShows
-                    ? 'Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.'
-                    : 'Replaces the current roster, up to 50 shows.'}
+                  Up to 50 shows. Shows already on the roster keep their matches; only new ones are looked up.
                 </FieldDescription>
                 <FieldDescription id="roster-file-format" className="max-w-[72ch]">
                   Drop a file anywhere on the page, or upload one: a CSV needs a <Code>name</Code> column, and{' '}

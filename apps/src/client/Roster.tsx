@@ -125,7 +125,6 @@ export function NetworkRoster({
         roster={roster}
         draft={importDraft}
         importRoster={(text, format) => agent.stub.importRoster(text, format)}
-        keepsSettledShows
       />
     </>
   )
