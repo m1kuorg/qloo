@@ -255,7 +255,7 @@ describe('the evidence behind each Qloo call', () => {
       `What was sent Type Podcast Ranked against ${launch} and ${roster[0]} Candidates 16 podcasts ${candidates.join(' ')} Explainability On Results Up to 50`
     )
     // A list of more than three folds behind its count.
-    expect(view).toMatch(/<details\b(?![^>]*\sopen)[^>]*><summary\b[^>]*>16 podcasts</)
+    expect(view).toMatch(/<details\b(?![^>]*\sopen)[^>]*><summary\b[^>]*>(<[^>]+>)*16 podcasts</)
     expect(view).not.toMatch(/[0-9A-F]{8}-[0-9A-F]{4}-/i)
     expect(view).not.toContain('urn:')
     // The stored record, closed, keeps the request as it was sent.
