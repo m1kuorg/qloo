@@ -538,7 +538,7 @@ function Tools({ network, tools }: { network: NetworkPage; tools: Loaded['tools'
       description={`With a key, an assistant reads, adds to and changes what ${network.name} has through these tools, but only a signed-in member, in the app, approves an insertion order${network.links.inbox ? ' or a reply' : ''}.`}
       data-tools
     >
-      <KeyValues>
+      <KeyValues className="gap-y-3">
         {kinds.map((kind) => (
           <KeyValue key={kind} label={kind}>
             <span className="flex flex-wrap gap-x-2 gap-y-1.5" translate="no">
