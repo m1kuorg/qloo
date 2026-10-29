@@ -5,8 +5,9 @@ import { env } from 'cloudflare:workers'
 // The Worker's bindings, counting each subrequest an invocation makes through them, each kind apart, as
 // Cloudflare's Free plan limits them (TRD): each D1 query or batch, 50 of which D1's limits allow, though
 // the probe on #336 ran 1,000, and each call to a Durable Object, the agents' start that getAgentByName
-// makes included, which counts with the D1 queries toward the 1,000 subrequests to Cloudflare services, not
-// the 50 external ones. What the agents and gateways do inside counts toward their own.
+// makes included, which doesn't count toward the 50 external subrequests, and which the tests keep, with the
+// D1 queries, within the 1,000 subrequests to Cloudflare services. What the agents and gateways do inside
+// counts toward their own.
 export function counting() {
   const counted = { d1: 0, durableObjects: 0 }
   const call = <T extends object>(target: T, key: string | symbol, kind: keyof typeof counted) => {

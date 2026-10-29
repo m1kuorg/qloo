@@ -236,7 +236,7 @@ async function serveMcp(request: Request) {
 
 ## Open questions
 
-- **Is the Cloudflare account on Workers Paid?** Email Service sending to any address requires it ([pricing][cf-email-pricing]), and password hashing on Free's 10 ms CPU limit is unlikely to fit ([Workers limits][cf-limits]).
+- **Is the Cloudflare account on Workers Paid?** Answered on 2026-10-29: no, it's on Workers Free. A probe Worker on the account stopped one invocation at 50 `fetch()` subrequests, Free's limit on external subrequests ([#336](https://github.com/m1kuorg/qloo/issues/336)). So Email Service can't send to any address, which needs Paid ([pricing][cf-email-pricing]), and password hashing on Free's 10 ms CPU limit is unlikely to fit ([Workers limits][cf-limits]).
 - **Does a Workers bundle of `better-auth` 1.7.11 resolve to the pure-JS scrypt?** Confirm by bundling, or skip passwords entirely.
 - **Is the send-bindings page stale?** It contradicts the limits page on whether a binding can reach any recipient. Test with a real send after onboarding a domain.
 - **Can the Qloo key back a public API or MCP surface at all?** Ask Qloo, through Discord `#api-help` or `support@qloo.com`, whether a public API or MCP surface is allowed during judging, and what a commercial key would cost ([developer guide][qloo-guide]; [API onboarding][qloo-onboarding]).
