@@ -189,9 +189,10 @@ export class NetworkAgent extends CrossfeedAgent {
   // land whatever the lookups do; the lookups count on the guest budget, and refused, the roster stays
   // empty. Until it's noted as loaded, each start tries again what didn't land: a roster still empty, the
   // lookups that failed, the launch if it wasn't planned. It's noted once a start finds the roster settled
-  // and the launch planned, or finds the sample replaced by a guest's import, which leaves no show holding a
-  // sample figure, though the CPM may still be the sample's (#287). It runs before any page connects, so it
-  // plans the launch and reserves the calls here, and leaves the lookups to run in the background.
+  // and the launch planned, or finds the sample replaced by a guest's import and edits, which leave no show
+  // holding a sample figure, though the CPM may still be the sample's (#287). It runs before any page
+  // connects, so it plans the launch and reserves the calls here, and leaves the lookups to run in the
+  // background.
   private async loadSample() {
     const { kv } = this.ctx.storage
     if (kv.get(SAMPLE_LOADED)) return

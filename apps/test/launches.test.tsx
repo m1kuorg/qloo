@@ -1222,6 +1222,27 @@ describe('a launch on the sample roster', () => {
     expect((await fresh.until(ended)).run).toMatchObject({ status: 'completed', replayed: capped })
   })
 
+  it("copies no sample to the guest network's sample launch on its next run once the network holds none of it, so its page drops the badge (#337)", async () => {
+    const { guest, network, id, agent } = await guestSampleLaunch()
+    await network.importRoster('Night Shift Cinema')
+    const set = await guest.fetch('/app/guest-network/settings/network', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Guest network', cpm: 25 })
+    })
+    expect(set.status).toBe(200)
+    await network.until((s) => s.cpm === 25 && s.sample === null)
+    // Until it runs again, it shows the sample it was planned with.
+    expect(sampleLabels(guestPage(agent.state()!, id))).toEqual(['h1: The Watch'])
+
+    env.QLOO_DAILY_CALL_CAP = '0'
+    await agent.call('startLaunch', { name: 'The Watch' })
+    const stopped = await agent.until(ended)
+    expect(stopped.run).toMatchObject({ status: 'stopped', error: expect.stringContaining(own) })
+    expect(stopped).toMatchObject({ cpm: 25, sample: null, roster: [{ name: 'Night Shift Cinema' }] })
+    expect(sampleLabels(guestPage(stopped, id))).toEqual([])
+  })
+
   it("doesn't take the guest network's sample launch for the unchanged sample while the guest budget's refusal leaves the roster empty", async () => {
     env.SAMPLE_NETWORK = 'on'
     env.QLOO_VISITOR_DAILY_CALL_CAP = '18'

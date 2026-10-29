@@ -6,7 +6,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { State } from '../src/agent'
 import { Dashboard } from '../src/client/Dashboard'
-import { LostAccess, NetworkGate } from '../src/client/NetworkPage'
+import { LostAccess, NetworkGate, type NetworkConnection } from '../src/client/NetworkPage'
+import { NetworkRoster } from '../src/client/Roster'
 import { Settings } from '../src/client/Settings'
 import { connectionOf } from '../src/client/states'
 import { fakeClaude, fakeQloo, text, turn, type ModelRequest } from './fake'
@@ -325,9 +326,13 @@ describe('settings', () => {
     expect(words(await dashboard(guest, 'guest-network', set))).toContain('CPM $25 per 1,000 downloads Change')
     // The CPM's sample label goes; the sample data module stays.
     expect(words(await settings(guest, 'guest-network', set))).toContain('Dollars per 1,000 downloads. Save')
+    // The sample roster's figures are still the sample's, so the pages' badges stay (#337).
+    expect(set.sample).toMatchObject({ cpm: false })
+    expect(sampleLabels(await dashboard(guest, 'guest-network', set))).toEqual(['h1: Launches'])
+    expect(sampleLabels(await settings(guest, 'guest-network', set))).toEqual(['h1: Settings'])
   })
 
-  it("keep the guest network's CPM the sample's over a roster import, whether it keeps a sample show or none, until an owner sets another (#287)", async () => {
+  it("keep the guest network's CPM the sample's over a roster import, whether it keeps a sample show or none, until an owner sets another, which leaves no sample once no show holds a sample figure (#287, #337)", async () => {
     env.SAMPLE_NETWORK = 'on'
     fakeQloo({ search: {} })
     const guest = await openGuest()
@@ -357,19 +362,97 @@ describe('settings', () => {
     expect(own).toMatchObject({ cpm: 20, sample: { cpm: true } })
     expect(await cpmField(own)).toBe(labelled)
 
-    // An owner's own CPM drops the label, and an import keeps it too.
+    // An owner's own CPM drops the label, and with it the last of the sample: the dashboard and settings
+    // lose their badge (#337).
+    const setCpm = async (cpm: number) => {
+      const res = await guest.fetch('/app/guest-network/settings/network', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Guest network', cpm })
+      })
+      expect(res.status).toBe(200)
+      return agent.until((s) => s.cpm === cpm)
+    }
+    const set = await setCpm(25)
+    expect(set.sample).toBeNull()
+    expect(await cpmField(set)).toBe('$25 Dollars per 1,000 downloads.')
+    expect(sampleLabels(await dashboard(guest, 'guest-network', set))).toEqual([])
+    expect(sampleLabels(await settings(guest, 'guest-network', set))).toEqual([])
+    // An import brings no sample figure back, The Watch's included, and keeps the CPM.
+    const again = await agent.importRoster('Night Shift Cinema\nThe Watch')
+    expect(again).toMatchObject({ cpm: 25, sample: null })
+    expect(again.roster.map((s) => [s.name, s.sample])).toEqual([
+      ['Night Shift Cinema', undefined],
+      ['The Watch', undefined]
+    ])
+    expect(await cpmField(again)).toBe('$25 Dollars per 1,000 downloads.')
+    // And $20 is the owner's own from then on.
+    const twenty = await setCpm(20)
+    expect(twenty.sample).toBeNull()
+    expect(await cpmField(twenty)).toBe('$20 Dollars per 1,000 downloads.')
+    expect(sampleLabels(await dashboard(guest, 'guest-network', twenty))).toEqual([])
+    expect(sampleLabels(await settings(guest, 'guest-network', twenty))).toEqual([])
+  })
+
+  it("keep the guest network's sample badges over an owner's CPM while a show holds a sample figure, and the CPM's label over the same $20 (#337)", async () => {
+    env.SAMPLE_NETWORK = 'on'
+    fakeQloo({ search: {} })
+    const guest = await openGuest()
+    const agent = await connect(guest, 'guest-network')
+    await agent.until((s) => s.roster.length > 0 && s.roster.every((r) => r.resolution !== 'pending'))
+    const setCpm = (cpm: number) =>
+      guest.fetch('/app/guest-network/settings/network', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Guest network', cpm })
+      })
+    // The sample's own $20 set again is still the sample's.
+    expect((await setCpm(20)).status).toBe(200)
+    const kept = await agent.importRoster('The Watch\nNight Shift Cinema')
+    expect(kept).toMatchObject({ cpm: 20, sample: { cpm: true } })
+
+    expect((await setCpm(25)).status).toBe(200)
+    const set = await agent.until((s) => s.cpm === 25)
+    expect(set.sample).toMatchObject({ network: 'The Ringer', cpm: false })
+    expect(sampleLabels(await dashboard(guest, 'guest-network', set))).toEqual(['h1: Launches'])
+    expect(sampleLabels(await settings(guest, 'guest-network', set))).toEqual(['h1: Settings'])
+    expect(
+      sampleLabels(
+        renderToStaticMarkup(<NetworkRoster agent={{ state: set, stub: {} } as unknown as NetworkConnection} />)
+      )
+    ).toEqual(['h1: Roster'])
+  })
+
+  it("drop the guest network's sample badges once a show edit changes the last sample figure under an owner's CPM (#337)", async () => {
+    env.SAMPLE_NETWORK = 'on'
+    fakeQloo({ search: {} })
+    const guest = await openGuest()
+    const agent = await connect(guest, 'guest-network')
+    await agent.until((s) => s.roster.length > 0 && s.roster.every((r) => r.resolution !== 'pending'))
+    // A show edit can't change a description, so an import brings The Watch's.
+    const own = await agent.importRoster('name,description\nThe Watch,Our TV show', 'csv')
+    expect(own.roster).toMatchObject([{ name: 'The Watch', status: 'active', sample: ['downloads', 'status'] }])
     const res = await guest.fetch('/app/guest-network/settings/network', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Guest network', cpm: 25 })
     })
     expect(res.status).toBe(200)
-    const set = await agent.until((s) => s.cpm === 25)
-    expect(set.sample).toMatchObject({ cpm: false })
-    expect(await cpmField(set)).toBe('$25 Dollars per 1,000 downloads.')
-    const again = await agent.importRoster('Night Shift Cinema\nThe Watch')
-    expect(again.cpm).toBe(25)
-    expect(await cpmField(again)).toBe('$25 Dollars per 1,000 downloads.')
+    expect(await agent.until((s) => s.cpm === 25)).toMatchObject({ sample: { cpm: false } })
+
+    // Its status is still the sample's.
+    await agent.call('updateShow', 'The Watch', { downloads: 41_000, status: 'active' })
+    const one = agent.state()!
+    expect(one.roster).toMatchObject([{ name: 'The Watch', sample: ['status'] }])
+    expect(one.sample).toMatchObject({ cpm: false })
+    expect(sampleLabels(await dashboard(guest, 'guest-network', one))).toEqual(['h1: Launches'])
+
+    await agent.call('updateShow', 'The Watch', { downloads: 42_000, status: 'hiatus' })
+    const none = agent.state()!
+    expect(none.roster).toMatchObject([{ name: 'The Watch', downloads: 42_000, status: 'hiatus', sample: [] }])
+    expect(none.sample).toBeNull()
+    expect(sampleLabels(await dashboard(guest, 'guest-network', none))).toEqual([])
+    expect(sampleLabels(await settings(guest, 'guest-network', none))).toEqual([])
   })
 
   it('stand each module in a tab of its own, in the order a new owner needs them, with every panel in the page', async () => {
