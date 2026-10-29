@@ -948,7 +948,7 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
 
       held.resolve()
       expect(page(await network.until(loaded))).toMatch(
-        /^Inbox 40 pitches for The Big Picture · 36 matched, 4 set aside Details Load pitches Read Rank against /
+        /^Inbox 40 pitches for The Big Picture · 36 matched, 4 set aside Details Load pitches Read Pitches Rank /
       )
     })
 

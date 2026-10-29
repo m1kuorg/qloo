@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon, CircleDashedIcon, CopyIcon, SquareXIcon, UploadIcon } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
@@ -51,7 +51,7 @@ import {
 import { CallButton, EvidencePanel, useEvidence, type OpenCall, type Opened } from './Evidence'
 import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
-import { FormDialog, PageEmpty, PageHeader, summaryLine, useFormDialog } from './PageHeader'
+import { FormDialog, PageEmpty, PageHeader, PageTabs, Section, summaryLine, useFormDialog } from './PageHeader'
 import { OpenQuestion, REPLIES_CHANGED, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
 import {
@@ -150,14 +150,14 @@ export function InboxWorkspace({ agent, links, network }: { agent: Session; link
 // The booker's inbox page, shown only while GUEST_PITCHES is on, on the workspace's frame: load
 // pitches, see what Claude read from each and how Qloo matched its work, confirm ambiguous matches,
 // rank the pitched works against a roster show and its past guests, then clear the inbox reply by
-// reply. It's a loop, so every section stays on the canvas once it has something to show, in the
-// order the loop asks: the header and its readout, the run's question, the show to rank against, the
-// ranked lists, the replies, then the pitches; with no pitches, the empty state instead. Load pitches,
-// in the header or the empty state, opens the form in a dialog. The inspector, closed until something
+// reply. The header and its readout, then the run's question, stand over the inbox's sections, which
+// once there are pitches are in tabs: Pitches, Rank (the show to rank against, and the ranked lists),
+// and Replies once there are some; with no pitches, the empty state instead. Load pitches, in the
+// header or the empty state, opens the form in a dialog. The inspector, closed until something
 // opens it, holds the run and the earlier pitch runs, a call's evidence, and the pitch opened from a
 // list or the table; the header's Details opens it while there are pitches. An earlier pitch run,
-// viewed from Runs, shows read-only as it ended: its lists, replies and pitches, with nothing to
-// start, load, confirm or change.
+// viewed from Runs, shows read-only as it ended: its lists and pitches, under Pitches, and its
+// replies, with nothing to start, load, confirm or change.
 export function InboxPage({
   inbox,
   roster,
@@ -193,6 +193,19 @@ export function InboxPage({
   const loading = useFormDialog('Load pitches')
   // Back to the latest run, its button goes, and focus goes to the page's heading.
   const heading = useRef<HTMLHeadingElement>(null)
+  // The pitched works ranked against the show, once a run has ranked them.
+  const lists = booking?.lists && (
+    <PitchLists
+      booking={booking}
+      lists={booking.lists}
+      pitches={inbox?.pitches ?? []}
+      sample={sample}
+      selected={pitch?.id ?? null}
+      select={select}
+      openCall={showCall}
+      opened={opened}
+    />
+  )
   return (
     <div className={frame}>
       <main className={canvas} data-canvas>
@@ -236,64 +249,84 @@ export function InboxPage({
           // Once there's a pitch run, the latest or an earlier one, for the Run tab to log.
           runLog={pitchRun || history?.runs.some((r) => r.pitchesFor) ? (from) => inspector.inspect('run', from) : null}
         />
-        {/* Before the lists, so the question is what a person reaches first. */}
+        {/* Before the tabs, so the question is what a person reaches first. */}
         {question}
-        {inbox && !viewing && (
-          <PitchSetup
-            key={inbox.id}
-            inbox={inbox}
-            roster={roster}
-            booking={booking}
-            running={running}
-            startPitches={actions.startPitches}
-            rosterHref={links.roster}
-          />
-        )}
-        {booking?.lists && (
-          <PitchLists
-            booking={booking}
-            lists={booking.lists}
-            pitches={inbox?.pitches ?? []}
-            sample={sample}
-            selected={pitch?.id ?? null}
-            select={select}
-            openCall={showCall}
-            opened={opened}
-          />
-        )}
-        {booking?.replies && (
-          <Replies
-            show={booking.show.name}
-            replies={booking.replies}
-            pitches={inbox?.pitches ?? []}
-            locked={drafting}
-            viewing={viewing}
-            actions={{ ...actions, openCall: showCall }}
-            opened={opened}
-          />
-        )}
         {inbox ? (
-          <section className="flex min-w-0 flex-col gap-6" aria-labelledby="pitches-h">
-            <div className="flex flex-col gap-2">
-              <h2 className="text-base font-semibold" id="pitches-h">
-                Pitches
-              </h2>
-              {viewing && <p className="text-muted-foreground">As they were when run {viewing} ended.</p>}
-            </div>
-            {inbox.skipped && (
-              <p className="max-w-[72ch]">
-                <SkippedPitches skipped={inbox.skipped} />
-              </p>
-            )}
-            <PitchTable
-              pitches={inbox.pitches}
-              sample={sample}
-              selected={pitch?.id ?? null}
-              select={select}
-              openCall={showCall}
-              opened={opened}
-            />
-          </section>
+          // Once there are pitches, the inbox's sections in tabs: the pitches; the show to rank them
+          // against, with the lists it ranked under it; and the replies once there are some. An earlier
+          // run, viewed, has nothing to rank, so its lists stand with its pitches.
+          <PageTabs
+            label="Inbox sections"
+            tabs={[
+              {
+                id: 'pitches',
+                title: 'Pitches',
+                content: (
+                  <>
+                    {viewing && lists}
+                    {/* What reaches Qloo of a pitch, PRODUCT.md's promise, is the pitches' sentence. */}
+                    <Section id="pitches-h" title="Pitches" description={QLOO_PRIVACY}>
+                      {inbox.skipped && (
+                        <p className="max-w-[72ch]">
+                          <SkippedPitches skipped={inbox.skipped} />
+                        </p>
+                      )}
+                      <PitchTable
+                        pitches={inbox.pitches}
+                        sample={sample}
+                        viewing={viewing}
+                        selected={pitch?.id ?? null}
+                        select={select}
+                        openCall={showCall}
+                        opened={opened}
+                      />
+                    </Section>
+                  </>
+                )
+              },
+              ...(viewing
+                ? []
+                : [
+                    {
+                      id: 'rank',
+                      title: 'Rank',
+                      content: (
+                        <>
+                          <PitchSetup
+                            key={inbox.id}
+                            inbox={inbox}
+                            roster={roster}
+                            booking={booking}
+                            running={running}
+                            startPitches={actions.startPitches}
+                            rosterHref={links.roster}
+                          />
+                          {lists}
+                        </>
+                      )
+                    }
+                  ]),
+              ...(booking?.replies
+                ? [
+                    {
+                      id: 'replies',
+                      title: 'Replies',
+                      content: (
+                        <Replies
+                          show={booking.show.name}
+                          replies={booking.replies}
+                          pitches={inbox.pitches}
+                          locked={drafting}
+                          viewing={viewing}
+                          actions={{ ...actions, openCall: showCall }}
+                          opened={opened}
+                        />
+                      )
+                    }
+                  ]
+                : [])
+            ]}
+          />
         ) : (
           <PageEmpty action={loading.button()} detail={QLOO_PRIVACY}>
             No pitches yet.
@@ -361,7 +394,7 @@ export function InboxPage({
   )
 }
 
-// What reaches Qloo of a pitch, PRODUCT.md's promise, said by the pitches' table, the load form, and
+// What reaches Qloo of a pitch, PRODUCT.md's promise, said by the Pitches section, the load form, and
 // the empty state.
 const QLOO_PRIVACY = 'Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are.'
 
@@ -696,16 +729,11 @@ function PitchSetup({
     })
   }
   return (
-    <section className="flex min-w-0 flex-col gap-4" aria-labelledby="setup-h">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold" id="setup-h">
-          Rank against a show
-        </h2>
-        <p className="max-w-[72ch] text-muted-foreground">
-          Pick the roster show the pitches are for, and name its best past guests’ public works. Each type of pitched
-          work is ranked against the show and those works in its own Qloo call. Only titles and types reach Qloo.
-        </p>
-      </div>
+    <Section
+      id="setup-h"
+      title="Rank against a show"
+      description="Each type of pitched work is ranked in its own Qloo call against a roster show and its best past guests’ public works."
+    >
       {shows.length === 0 ? (
         <p className="max-w-[72ch] rounded-xl bg-muted px-4 py-3">
           No roster show is matched in Qloo yet.{' '}
@@ -741,8 +769,9 @@ function PitchSetup({
                 </SelectContent>
               </Select>
             </Field>
-            <FieldSet className="gap-4 md:gap-2">
+            <FieldSet className="gap-4 md:gap-2" aria-describedby="setup-guests-note">
               <FieldLegend className="mb-1.5">Past guests’ public works</FieldLegend>
+              <FieldDescription id="setup-guests-note">Only titles and types reach Qloo.</FieldDescription>
               <div aria-hidden="true" className={cn(guestRow, 'type-caption text-muted-foreground max-md:hidden')}>
                 <span>Guest</span>
                 <span>Work title</span>
@@ -871,14 +900,15 @@ function PitchSetup({
           </div>
         </form>
       )}
-    </section>
+    </Section>
   )
 }
 
 const typePlural: Record<WorkType, string> = { book: 'Books', film: 'Films', tv_show: 'TV shows', podcast: 'Podcasts' }
 
-// The pitched works ranked against the show, one list per work type, by position and band. Raw
-// scores stay in each ranking call's evidence, and lists from separate calls aren't compared.
+// The pitched works ranked against the show, one list per work type, each an h3 section, by position
+// and band. Raw scores stay in each ranking call's evidence, and lists from separate calls aren't
+// compared. Under them, what a band is and how many set-aside pitches were never sent to Qloo.
 function PitchLists({
   booking,
   lists,
@@ -900,20 +930,12 @@ function PitchLists({
 }) {
   const setAside = pitches.filter((p) => p.status === 'no_work' || p.status === 'unreadable' || p.status === 'failed')
   return (
-    <section className="flex min-w-0 flex-col gap-6" aria-labelledby="lists-h">
-      <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h2 className="text-base font-semibold text-balance" id="lists-h">
-            Pitches for {booking.show.name}
-          </h2>
-          <Source of="qloo" />
-        </div>
-        <p className="max-w-[72ch] text-muted-foreground">
-          One list per type of work, each from its own Qloo call, so a rank in one list can’t be compared with a rank in
-          another. Bands are thirds of their own list.
-          {setAside.length > 0 && ` ${setAside.length} set-aside pitches were never sent to Qloo.`}
-        </p>
-      </div>
+    <Section
+      id="lists-h"
+      title={`Pitches for ${booking.show.name}`}
+      badge={<Source of="qloo" />}
+      description="One list per type of work, each from its own Qloo call, so a rank in one list can’t be compared with a rank in another."
+    >
       {lists.map((list) => (
         <RankedPitches
           key={list.type}
@@ -926,11 +948,16 @@ function PitchLists({
           opened={opened}
         />
       ))}
-    </section>
+      <p className="max-w-[72ch] type-caption text-muted-foreground">
+        Bands are thirds of their own list.
+        {setAside.length > 0 && ` ${setAside.length} set-aside pitches were never sent to Qloo.`}
+      </p>
+    </Section>
   )
 }
 
-// One work type's list in the fit chart's anatomy, as a compact real table: the rank, the work as
+// One work type's list, an h3 section whose sentence says what it was ranked against, or why it
+// wasn't, with its calls; then, in the fit chart's anatomy, a compact real table: the rank, the work as
 // Qloo matched it, which opens its pitch, with the guest as Claude read them, or as the sample gives
 // them, and the tags it shares with the show, then its band. Its rules bleed 8px past the text, as the
 // chart's do.
@@ -963,87 +990,83 @@ function RankedPitches({
         : null
   const cell = 'border-b py-2.5 align-baseline group-data-selected/row:bg-muted'
   return (
-    <div className="flex min-w-0 flex-col gap-2" role="group" aria-labelledby={id}>
-      <div className="flex flex-col gap-0.5">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h3 className="font-semibold" id={id}>
-            {typePlural[list.type]} · {list.rows.length} ranked
-          </h3>
+    <Section
+      id={id}
+      level={3}
+      title={`${typePlural[list.type]} · ${list.rows.length} ranked`}
+      description={
+        <>
+          {list.error ? (
+            <StateLine kind="failed" role="alert">
+              Not ranked: {sentence(list.error)}
+            </StateLine>
+          ) : (
+            against
+          )}
           {list.calls.map((call) => (
-            <CallButton
-              key={call}
-              call={call}
-              label={`Evidence for the ${noun} ranking`}
-              opened={opened}
-              openCall={openCall}
-            />
+            <Fragment key={call}>
+              {' '}
+              <CallButton call={call} label={`Evidence for the ${noun} ranking`} opened={opened} openCall={openCall} />
+            </Fragment>
           ))}
+        </>
+      }
+    >
+      {!list.error && list.rows.length > 0 && (
+        <div className="-mx-2">
+          <table className="w-full border-separate border-spacing-0" aria-labelledby={id}>
+            <thead className="type-caption text-muted-foreground">
+              <tr>
+                <th scope="col" className="w-12 border-b pr-1 pb-2 pl-2 text-right align-bottom font-normal">
+                  Rank
+                </th>
+                <th scope="col" className="border-b pb-2 pl-3 text-left align-bottom font-normal">
+                  {/* The guest is Claude's reading of the pitch, or the sample's, not Qloo data. */}
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    Public work · guest <ReadBy sample={sample} />
+                  </span>
+                </th>
+                <th scope="col" className="w-24 border-b pr-2 pb-2 pl-3 text-left align-bottom font-normal">
+                  Fit
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.rows.map((r) => {
+                const guest = pitch(r.pitch)?.guest
+                return (
+                  <tr key={r.pitch} className="group/row" data-selected={r.pitch === selected || undefined}>
+                    <td className={cn(cell, 'pr-1 pl-2 text-right type-title tabular-nums')}>{r.rank}</td>
+                    <th scope="row" className={cn(cell, 'pl-3 text-left font-normal')}>
+                      <span className="flex flex-col items-start gap-0.5">
+                        <button
+                          type="button"
+                          aria-current={r.pitch === selected || undefined}
+                          onClick={(e) => select(r.pitch, e.currentTarget)}
+                          className="cursor-pointer text-left text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-2 max-md:py-2"
+                        >
+                          {r.entity.name}
+                        </button>
+                        {guest && <span className="type-caption text-muted-foreground">{guest}</span>}
+                        {r.sharedTags && (
+                          <TagLine
+                            tags={r.sharedTags}
+                            label={`Evidence for the tags ${r.entity.name} shares`}
+                            openCall={openCall}
+                            opened={opened}
+                          />
+                        )}
+                      </span>
+                    </th>
+                    <td className={cn(cell, 'pr-2 pl-3')}>
+                      <FitBand band={r.band} finalist={false} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
-        {against && <p className="max-w-[72ch] type-caption text-muted-foreground">{against}</p>}
-      </div>
-      {list.error ? (
-        <p>
-          <StateLine kind="failed" role="alert">
-            Not ranked: {sentence(list.error)}
-          </StateLine>
-        </p>
-      ) : (
-        list.rows.length > 0 && (
-          <div className="-mx-2">
-            <table className="w-full border-separate border-spacing-0" aria-labelledby={id}>
-              <thead className="type-caption text-muted-foreground">
-                <tr>
-                  <th scope="col" className="w-12 border-b pr-1 pb-2 pl-2 text-right align-bottom font-normal">
-                    Rank
-                  </th>
-                  <th scope="col" className="border-b pb-2 pl-3 text-left align-bottom font-normal">
-                    {/* The guest is Claude's reading of the pitch, or the sample's, not Qloo data. */}
-                    <span className="inline-flex flex-wrap items-center gap-1.5">
-                      Public work · guest <ReadBy sample={sample} />
-                    </span>
-                  </th>
-                  <th scope="col" className="w-24 border-b pr-2 pb-2 pl-3 text-left align-bottom font-normal">
-                    Fit
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.rows.map((r) => {
-                  const guest = pitch(r.pitch)?.guest
-                  return (
-                    <tr key={r.pitch} className="group/row" data-selected={r.pitch === selected || undefined}>
-                      <td className={cn(cell, 'pr-1 pl-2 text-right type-title tabular-nums')}>{r.rank}</td>
-                      <th scope="row" className={cn(cell, 'pl-3 text-left font-normal')}>
-                        <span className="flex flex-col items-start gap-0.5">
-                          <button
-                            type="button"
-                            aria-current={r.pitch === selected || undefined}
-                            onClick={(e) => select(r.pitch, e.currentTarget)}
-                            className="cursor-pointer text-left text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-2 max-md:py-2"
-                          >
-                            {r.entity.name}
-                          </button>
-                          {guest && <span className="type-caption text-muted-foreground">{guest}</span>}
-                          {r.sharedTags && (
-                            <TagLine
-                              tags={r.sharedTags}
-                              label={`Evidence for the tags ${r.entity.name} shares`}
-                              openCall={openCall}
-                              opened={opened}
-                            />
-                          )}
-                        </span>
-                      </th>
-                      <td className={cn(cell, 'pr-2 pl-3')}>
-                        <FitBand band={r.band} finalist={false} />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )
       )}
       {list.notScored.length > 0 && (
         <NotScored
@@ -1055,7 +1078,7 @@ function RankedPitches({
           }))}
         />
       )}
-    </div>
+    </Section>
   )
 }
 
@@ -1102,8 +1125,9 @@ type ReplyActions = Pick<Actions, 'editReply' | 'approveReply' | 'discardReply'>
 
 // The drafted replies, one per pitch, grouped by the agent's verdict, each a review item a booker
 // clears in turn. The booker approves, edits, or discards each one on its own, and only an approved
-// reply can be copied, to send from their own email. While the run is still drafting, or for an
-// earlier run viewed read-only (`viewing`), nothing can be changed.
+// reply can be copied, to send from their own email, as each reply's actions say. While the run is
+// still drafting, or for an earlier run viewed read-only (`viewing`), nothing can be changed, and the
+// section's sentence says so in place of what Claude drafted.
 function Replies({
   show,
   replies,
@@ -1124,24 +1148,18 @@ function Replies({
   const kept = replies.filter((r) => r.status !== 'discarded')
   const approved = kept.filter((r) => r.status === 'approved').length
   return (
-    <section className="flex min-w-0 flex-col gap-4" aria-labelledby="replies-h">
-      <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h2 className="text-base font-semibold" id="replies-h">
-            Replies · {approved} of {kept.length} approved
-          </h2>
-          <Source of="agent" />
-        </div>
-        <p className="max-w-[72ch] text-muted-foreground">
-          Claude drafted a reply to each pitch with a verdict, and an episode angle for each top pitch from the tags its
-          work shares with {show} in Qloo.{' '}
-          {viewing
-            ? `Run ${viewing}’s replies, read-only; an approved one can still be copied.`
-            : `Approve, edit, or discard each one. Only an approved reply can be copied, to send from your own email.${
-                locked ? ' Claude is still drafting: approve once the run has ended.' : ''
-              }`}
-        </p>
-      </div>
+    <Section
+      id="replies-h"
+      title={`Replies · ${approved} of ${kept.length} approved`}
+      badge={<Source of="agent" />}
+      description={
+        viewing
+          ? `Run ${viewing}’s replies, read-only; an approved one can still be copied.`
+          : locked
+            ? 'Claude is still drafting: approve once the run has ended.'
+            : `Claude drafted a reply to each pitch with a verdict, and an episode angle for each top pitch from the tags its work shares with ${show} in Qloo.`
+      }
+    >
       {verdicts.map((v) => {
         const group = replies.filter((r) => r.verdict === v)
         if (group.length === 0) return null
@@ -1169,7 +1187,7 @@ function Replies({
           </div>
         )
       })}
-    </section>
+    </Section>
   )
 }
 
@@ -1458,13 +1476,12 @@ function ReplyItem({
 // and the note under them says so.
 function Anchors({ booking, openCall, opened }: { booking: Booking; openCall: OpenCall; opened: string | null }) {
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="anchors-h">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold" id="anchors-h">
-          Ranked against
-        </h2>
-        <Source of="qloo" />
-      </div>
+    <Section
+      id="anchors-h"
+      title="Ranked against"
+      badge={<Source of="qloo" />}
+      description="The show and past guests’ works the run ranked the pitches against, each as Qloo matched it."
+    >
       <ul className="flex flex-col gap-2.5">
         <li className="flex flex-col">
           <span className="font-medium">{booking.show.entity.name}</span>
@@ -1495,7 +1512,7 @@ function Anchors({ booking, openCall, opened }: { booking: Booking; openCall: Op
           A past guest’s work that didn’t match isn’t an anchor. Edit it and rank again.
         </p>
       )}
-    </section>
+    </Section>
   )
 }
 
@@ -1523,13 +1540,15 @@ const ReadBy = ({ sample }: { sample: boolean }) => (sample ? <Badge>sample</Bad
 // Every pitch as read, in the roster table's anatomy: a real table whose rules bleed 8px past the
 // text, the pitch's name a button that opens it in the inspector's Pitch tab, with its sender under
 // it; the guest and work as Claude read them, or as the sample gives them; the work's Qloo match, or
-// why it has none and the way to settle it; and the search's call. Its caption says what reaches
-// Qloo. A set-aside pitch's guest and work cells look empty, and say "None" to screen readers rather
+// why it has none and the way to settle it; and the search's call. Its caption says where each comes
+// from, and for an earlier run viewed (`viewing`), which run's they are; the Pitches section's sentence
+// says what reaches Qloo. A set-aside pitch's guest and work cells look empty, and say "None" to screen readers rather
 // than "blank". The pitch open in the inspector, or whose evidence is, holds the tone step. Narrower
 // than the table, it scrolls sideways in its region with the pitch's column held at the left.
 function PitchTable({
   pitches,
   sample,
+  viewing,
   selected,
   select,
   openCall,
@@ -1537,6 +1556,7 @@ function PitchTable({
 }: {
   pitches: Pitch[]
   sample: boolean
+  viewing: number | null // the number of the earlier run whose pitches these are
   selected: string | null
   select: (id: string, from: HTMLElement) => void
   openCall: OpenCall
@@ -1551,12 +1571,12 @@ function PitchTable({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground" id="pitches-cap">
-        <ReadBy sample={sample} />{' '}
+        {viewing && `As they were when run ${viewing} ended.`} <ReadBy sample={sample} />{' '}
         {sample
           ? 'Guest and work as the sample gives them for each pitch.'
           : 'Guest and work as Claude read them from each pitch.'}{' '}
-        <Source of="qloo" /> Matches from Qloo search, one call per work. {QLOO_PRIVACY} Select a pitch to read it or
-        confirm its match.
+        <Source of="qloo" /> Matches from Qloo search, one call per work. Select a pitch to read it or confirm its
+        match.
       </p>
       <ScrollTable label="Pitch table" className="-mx-2 max-w-none">
         {/* Positioned, so the visually hidden "None" scrolls and clips with the table, not the page. */}
@@ -1739,63 +1759,61 @@ function PitchDetail({
   // Brought into view, with focus on its heading. Scrolled to, it stops clear of the inspector's
   // sticky tabs.
   const heading = useRef<HTMLHeadingElement>(null)
-  const ref = useIntoView<HTMLElement>(heading)
+  const ref = useIntoView<HTMLDivElement>(heading)
   return (
-    <section
-      className="flex min-w-0 scroll-mt-16 flex-col gap-6"
-      ref={ref}
-      aria-labelledby="pitch-ed"
-      data-pitch-detail
-    >
-      <div className="flex flex-col gap-2">
-        <h2 className="text-base leading-snug font-semibold text-balance" id="pitch-ed" ref={heading} tabIndex={-1}>
-          {title(p)}
-        </h2>
-        <span className="flex flex-wrap gap-1">
-          <PitchChip pitch={p} />
-        </span>
-        {p.from && <p className="text-muted-foreground">From {p.from}</p>}
-      </div>
-      <KeyValues>
-        <KeyValue label="Guest">{p.guest ?? '–'}</KeyValue>
-        <KeyValue label="Public work">
-          {p.work ? `${p.work.title} · ${typeLabel[p.work.type]}${p.work.year ? ` · ${p.work.year}` : ''}` : '–'}
-        </KeyValue>
-        <KeyValue label={sample ? 'Source' : 'Read by'}>
-          <ReadBy sample={sample} />
-        </KeyValue>
-      </KeyValues>
-      {confirmWork && match && match.candidates.length > 0 && p.work && (
-        <PickOne
-          legend={`Which Qloo ${typeLabel[p.work.type].toLowerCase()} is ${p.work.title}?`}
-          options={match.candidates}
-          current={match.resolution === 'resolved' ? match.entity?.id : undefined}
-          note={
-            <>
-              Same-title results from Qloo search{' '}
-              <CallButton
-                call={match.evidence}
-                label={`Evidence for ${p.work.title}`}
-                opened={opened}
-                openCall={openCall}
-              />
-            </>
-          }
-          submit="Use this match"
-          busy={busy}
-          pick={(id) => run(() => confirmWork(p.id, id))}
-        />
-      )}
-      <Alert error={error} />
-      <div
-        className="rounded-lg bg-muted p-3 break-words whitespace-pre-line"
-        tabIndex={0}
-        role="region"
-        aria-label="Pitch text"
+    // Scrolled to, it stops clear of the inspector's sticky tabs.
+    <div className="min-w-0 scroll-mt-16" ref={ref} data-pitch-detail>
+      <Section
+        id="pitch-ed"
+        title={title(p)}
+        heading={heading}
+        description="The pitch’s guest and public work, the work’s Qloo match, and the pitch as sent."
       >
-        {p.body}
-      </div>
-    </section>
+        <div className="flex flex-col items-start gap-2">
+          <PitchChip pitch={p} />
+          {p.from && <p className="text-muted-foreground">From {p.from}</p>}
+        </div>
+        <KeyValues>
+          <KeyValue label="Guest">{p.guest ?? '–'}</KeyValue>
+          <KeyValue label="Public work">
+            {p.work ? `${p.work.title} · ${typeLabel[p.work.type]}${p.work.year ? ` · ${p.work.year}` : ''}` : '–'}
+          </KeyValue>
+          <KeyValue label={sample ? 'Source' : 'Read by'}>
+            <ReadBy sample={sample} />
+          </KeyValue>
+        </KeyValues>
+        {confirmWork && match && match.candidates.length > 0 && p.work && (
+          <PickOne
+            legend={`Which Qloo ${typeLabel[p.work.type].toLowerCase()} is ${p.work.title}?`}
+            options={match.candidates}
+            current={match.resolution === 'resolved' ? match.entity?.id : undefined}
+            note={
+              <>
+                Same-title results from Qloo search{' '}
+                <CallButton
+                  call={match.evidence}
+                  label={`Evidence for ${p.work.title}`}
+                  opened={opened}
+                  openCall={openCall}
+                />
+              </>
+            }
+            submit="Use this match"
+            busy={busy}
+            pick={(id) => run(() => confirmWork(p.id, id))}
+          />
+        )}
+        <Alert error={error} />
+        <div
+          className="rounded-lg bg-muted p-3 break-words whitespace-pre-line"
+          tabIndex={0}
+          role="region"
+          aria-label="Pitch text"
+        >
+          {p.body}
+        </div>
+      </Section>
+    </div>
   )
 }
 
@@ -1807,22 +1825,19 @@ function InboxCheck({ pitches, sample }: { pitches: Pitch[]; sample: boolean }) 
   const rows = ['Matched', 'Ambiguous', 'Not in Qloo', 'Lookup failed', 'Set aside', 'Unreadable', 'Failed'] as const
   const pending = count('Reading') + count('Looking up')
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="inbox-check">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold" id="inbox-check">
-          Inbox check
-        </h2>
-        {pending > 0 && (
+    <Section
+      id="inbox-check"
+      title="Inbox check"
+      badge={
+        pending > 0 && (
           <Badge>
             <Spinner />
             {pending} still {sample ? 'looking up' : 'reading'}
           </Badge>
-        )}
-      </div>
-      <p className="type-caption text-muted-foreground">
-        Matched works are the ones that can be ranked against the show. Ambiguous works wait for you to confirm a match.
-        Set-aside pitches have no public work; they and unreadable pitches never reach Qloo.
-      </p>
+        )
+      }
+      description="Matched works are the ones that can be ranked against the show."
+    >
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1">
         {rows.map((label) => (
           <div key={label} className="flex items-baseline justify-between gap-3">
@@ -1831,6 +1846,9 @@ function InboxCheck({ pitches, sample }: { pitches: Pitch[]; sample: boolean }) 
           </div>
         ))}
       </dl>
-    </section>
+      <p className="type-caption text-muted-foreground">
+        Set-aside pitches have no public work; they and unreadable pitches never reach Qloo.
+      </p>
+    </Section>
   )
 }
