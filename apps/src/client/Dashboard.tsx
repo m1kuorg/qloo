@@ -256,8 +256,8 @@ function inboxWaiting({ run, booking }: State, inbox: string): Waiting[] {
 // The five launches run last, each row its link: the launch, its status in a word as the Launches page
 // marks it, the on-air dot while a run is running or waiting, and when its last run started and who
 // started it, a member or an API key by its name, as runs say; then the way to the Launches page. From
-// 768px the three are columns, the when and who 256px wide, wrapping a long key's name; under it, a row
-// is two lines, the when and who under the name.
+// 768px the three are columns, the when and who as wide as the widest, up to 352px, past which a long
+// key's name wraps; under it, a row is two lines, the when and who under the name.
 function LatestRuns({ state, network }: { state: State | undefined; network: NetworkPage }) {
   const rows = latestRuns(state?.launches ?? [])
   return (
@@ -277,7 +277,7 @@ function LatestRuns({ state, network }: { state: State | undefined; network: Net
           <StateLine kind="empty">No runs yet.</StateLine>
         </p>
       ) : (
-        <ul className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,16rem)]">
+        <ul className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 md:grid-cols-[minmax(0,1fr)_auto_fit-content(22rem)]">
           {rows.map((l) => (
             <li key={l.id} className="col-span-full grid grid-cols-subgrid">
               <a
