@@ -20,7 +20,7 @@ import {
   type QlooEntity,
   type ScriptedTurn
 } from './fake'
-import { hooked, links, openGuest, openSession, sampleLabels, type Session } from './session'
+import { facts, hooked, links, openGuest, openSession, sampleLabels, sections, type Session } from './session'
 
 type Extracted = { guest: string; work: { title: string; type: string; year: number | null } | null }
 
@@ -403,6 +403,69 @@ describe('loading pasted pitches', () => {
     await expect(s.call('loadInbox', { sample: true })).rejects.toThrow('Paste pitches or upload them.')
     expect(s.state()?.inbox).toBeNull()
     expect(requests).toEqual([])
+  })
+})
+
+describe("the inspector's Pitch tab", () => {
+  // A pitch with a sender whose book Qloo matches, and one with no public work.
+  const twoPitches = async () => {
+    fakeQloo({
+      search: {
+        'Night Ferry': [
+          { entity_id: 'b-0001', name: 'Night Ferry', popularity: 0.81, disambiguation: '2019, Ada Quill' },
+          { entity_id: 'b-0002', name: 'The Night Ferryman', popularity: 0.4, disambiguation: '2003, Jo Bell' }
+        ]
+      }
+    })
+    fakeReader(2, (text) =>
+      text.includes('Night Ferry')
+        ? extraction({ guest: 'Ada Quill', work: { title: 'Night Ferry', type: 'book', year: 2019 } })
+        : extraction({ guest: 'Dot Pruitt', work: null })
+    )
+    const s = await session()
+    await s.call('loadInbox', { text: `${pasted}\n---\n${person}` })
+    return loaded(s)
+  }
+  // The inbox page as it renders with a pitch open in the inspector, and the Pitch tab's panel.
+  const pitchTab = (state: State, pitch: string) =>
+    hooked(
+      renderToStaticMarkup(
+        createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links, defaultPitch: pitch })
+      ),
+      'data-pitch-detail'
+    )[0]
+
+  it('opens a matched pitch on its state, then its sender, guest, work, Qloo match with its call, and reader', async () => {
+    const html = pitchTab(await twoPitches(), 'pitch-01')
+
+    // Its chip follows its subject in the heading.
+    expect(html).toMatch(
+      /<h2\b[^>]*\sid="pitch-ed"[^>]*>Ada Quill on Night Ferry<(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Matched</
+    )
+    expect(sections(html)).toEqual([
+      ['Ada Quill on Night Ferry Matched', 'Its work matched in Qloo, so a run can rank it.']
+    ])
+    expect(facts(html)).toEqual([
+      ['From', 'Pat Lindqvist <pat.lindqvist@example.com>'],
+      ['Guest', 'Ada Quill'],
+      ['Public work', 'Night Ferry · Book · 2019'],
+      ['Qloo match', 'Night Ferry (2019, Ada Quill) C-01'],
+      ['Read by', 'Agent']
+    ])
+    expect(html).toMatch(/<button\b[^>]*\saria-label="Evidence for Night Ferry: call C-01"[^>]*>C-01<\/button>/)
+    expect(words(html)).toMatch(/Read by Agent Hi team, Ada Quill's novel Night Ferry/)
+  })
+
+  it('opens a set-aside pitch on why it never reaches Qloo, with no sender, work, or match', async () => {
+    const html = pitchTab(await twoPitches(), 'pitch-02')
+
+    expect(sections(html)).toEqual([[`${person} Set aside`, 'No public work, so it never reaches Qloo.']])
+    expect(facts(html)).toEqual([
+      ['Guest', 'Dot Pruitt'],
+      ['Public work', '–'],
+      ['Qloo match', '–'],
+      ['Read by', 'Agent']
+    ])
   })
 })
 

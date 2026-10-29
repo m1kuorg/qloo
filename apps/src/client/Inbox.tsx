@@ -13,6 +13,7 @@ import { linkVariants } from '@/components/ui/variants'
 import type { Run, RunSnapshot, RunSummary, Show, SlowCall } from '../agent'
 import { NO_ANGLE, tagged, type PitchList, type SharedTags } from '../fit'
 import {
+  workNoun,
   workTypes,
   type Booking,
   type Inbox,
@@ -22,6 +23,7 @@ import {
   type PitchReply,
   type Skipped,
   type Verdict,
+  type Work,
   type WorkMatch,
   type WorkType
 } from '../inbox'
@@ -103,8 +105,18 @@ type Page = {
 
 // The inbox page on a connected agent, a network's (`network`) or, in tests, an engine session's, with the
 // latest run when it's a pitch run, or an earlier pitch run being viewed, read-only, as it ended. Tests
-// render it from synced state.
-export function InboxWorkspace({ agent, links, network }: { agent: Session; links: Links; network?: NetworkPage }) {
+// render it from synced state, with a pitch open in the inspector (`defaultPitch`) to read its Pitch tab.
+export function InboxWorkspace({
+  agent,
+  links,
+  network,
+  defaultPitch
+}: {
+  agent: Session
+  links: Links
+  network?: NetworkPage
+  defaultPitch?: string
+}) {
   const { opened, openCall, names } = useEvidence(agent)
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
   if (!agent.state) return <Connecting label="Connecting to the inbox…" title="Inbox" />
@@ -145,6 +157,7 @@ export function InboxWorkspace({ agent, links, network }: { agent: Session; link
       opened={opened}
       names={names}
       links={links}
+      defaultPitch={defaultPitch}
     />
   )
 }
@@ -171,9 +184,12 @@ export function InboxPage({
   connection = { lost: null, reconnecting: false },
   history,
   links,
+  defaultPitch,
   ...actions
-}: Page & Actions) {
-  const [selected, setSelected] = useState<string | null>(null)
+}: Page & Actions & { defaultPitch?: string }) {
+  // The pitch open in the Pitch tab; as the page first renders, `defaultPitch`, the one way a page
+  // rendered on the server, as in tests, shows one.
+  const [selected, setSelected] = useState<string | null>(defaultPitch ?? null)
   const pitch = inbox?.pitches.find((p) => p.id === selected)
   const inspector = useInspector(pitch ? ['run', 'evidence', 'pitch'] : ['run', 'evidence'], actions)
   const { showCall } = inspector
@@ -1746,16 +1762,39 @@ function MatchCell({ pitch: p, settle }: { pitch: Pitch; settle: (from: HTMLElem
       </span>
     )
   if (match.resolution === 'failed') return why(match.error ?? '')
-  const work = p.work
-  // A book is matched by its author, other works by year (resolve.ts), so a miss says which.
-  const by = !work ? '' : work.type === 'book' ? ' by this guest' : work.year ? ` from ${work.year}` : ''
-  return why(`No ${work ? typeLabel[work.type].toLowerCase() : 'work'} with this title${by} in Qloo.`)
+  return why(`${notInQloo(p.work)}.`)
 }
 
-// The pitch opened from a list or the table, in the inspector's Pitch tab: its subject as the
-// heading, which takes focus as it opens; what Claude read from it, or the sample gives; its work's
-// candidates to confirm, unless it's an earlier run's (`confirmWork` null); and its text. It has no
-// Close of its own: the inspector's closes it, and selecting another pitch changes it.
+// A work Qloo has no match for, in words: "No book with this title by this guest in Qloo". A book is
+// matched by its author, other works by year (resolve.ts), so a miss says which.
+function notInQloo(work: Work | null) {
+  const by = !work ? '' : work.type === 'book' ? ' by this guest' : work.year ? ` from ${work.year}` : ''
+  return `No ${work ? workNoun[work.type] : 'work'} with this title${by} in Qloo`
+}
+
+// A pitch's state in words, one for each of its chip's, saying what's next when it needs something. A
+// pitch of an earlier run can't be confirmed (`confirming` false), so its ambiguous match says what it
+// meant for that run instead.
+function pitchState(p: Pitch, confirming: boolean) {
+  const { match, work } = p
+  if (p.status === 'reading') return 'Claude is reading it for its guest and public work.'
+  if (p.status === 'no_work') return 'No public work, so it never reaches Qloo.'
+  if (p.status === 'unreadable') return `${sentence(p.error ?? 'Claude couldn’t read it')} It never reaches Qloo.`
+  if (p.status === 'failed') return `${sentence(p.error ?? 'Reading it failed')} Not scored.`
+  if (!match || !work) return 'Looking its work up in Qloo.'
+  if (match.resolution === 'resolved') return 'Its work matched in Qloo, so a run can rank it.'
+  if (match.resolution === 'ambiguous')
+    return `Qloo found more than one ${workNoun[work.type]} with this title${confirming ? '. Pick the match.' : ', so it wasn’t ranked.'}`
+  if (match.resolution === 'missed') return `${notInQloo(work)}, so a run can’t rank it.`
+  return `${sentence(match.error ?? 'The lookup failed')} Not scored.`
+}
+
+// The pitch opened from a list or the table, in the inspector's Pitch tab, in the inspector's anatomy:
+// its subject as the heading, which takes focus as it opens, with its chip; its state in a sentence;
+// its facts, its sender, what Claude read from it, or the sample gives, and its work's Qloo match with
+// the call that found it; then its work's candidates to confirm, unless it's an earlier run's
+// (`confirmWork` null); and its text. It has no Close of its own: the inspector's closes it, and
+// selecting another pitch changes it.
 function PitchDetail({
   pitch: p,
   sample,
@@ -1782,16 +1821,35 @@ function PitchDetail({
         id="pitch-ed"
         title={title(p)}
         heading={heading}
-        description="The pitch’s guest and public work, the work’s Qloo match, and the pitch as sent."
+        badge={<PitchChip pitch={p} />}
+        description={pitchState(p, confirmWork !== null)}
       >
-        <div className="flex flex-col items-start gap-2">
-          <PitchChip pitch={p} />
-          {p.from && <p className="text-muted-foreground">From {p.from}</p>}
-        </div>
         <KeyValues>
+          {/* A sender's address has no spaces to wrap at. */}
+          {p.from && (
+            <KeyValue label="From">
+              <span className="break-words">{p.from}</span>
+            </KeyValue>
+          )}
           <KeyValue label="Guest">{p.guest ?? '–'}</KeyValue>
           <KeyValue label="Public work">
             {p.work ? `${p.work.title} · ${typeLabel[p.work.type]}${p.work.year ? ` · ${p.work.year}` : ''}` : '–'}
+          </KeyValue>
+          <KeyValue label="Qloo match">
+            {match?.resolution === 'resolved' && match.entity ? (
+              <>
+                {match.entity.name}
+                {match.entity.disambiguation && ` (${match.entity.disambiguation})`}{' '}
+                <CallButton
+                  call={match.evidence}
+                  label={`Evidence for ${p.work?.title ?? match.entity.name}`}
+                  opened={opened}
+                  openCall={openCall}
+                />
+              </>
+            ) : (
+              '–'
+            )}
           </KeyValue>
           {!sample && (
             <KeyValue label="Read by">
