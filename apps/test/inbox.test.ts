@@ -20,7 +20,7 @@ import {
   type QlooEntity,
   type ScriptedTurn
 } from './fake'
-import { hooked, links, openGuest, openSession, type Session } from './session'
+import { hooked, links, openGuest, openSession, sampleLabels, type Session } from './session'
 
 type Extracted = { guest: string; work: { title: string; type: string; year: number | null } | null }
 
@@ -183,7 +183,7 @@ describe('the sample inbox, as the guest network loads it', () => {
     env.SAMPLE_NETWORK = sampleNetwork
   })
 
-  it('lists every pitch with its guest, work, type, and match state, its guests and works labelled sample', async () => {
+  it('lists every pitch with its guest, work, type, and match state, under the page’s one sample label', async () => {
     env.SAMPLE_NETWORK = 'on'
     fakeQloo({ search: sampleSearch })
     const network = await (await openGuest()).connect('/agents/network/guest-network')
@@ -221,17 +221,19 @@ describe('the sample inbox, as the guest network loads it', () => {
           special[p.id] ?? { resolution: 'resolved', entity: { id: `w-${p.id}` }, error: null }
         )
     }
-    // The page's header counts the pitches for the show the sample was written for, with no sample label
-    // or notice; its Pitches section says what reaches Qloo, and its table that its pitches come already
-    // read, with a row per pitch saying how its work matched and, where one is needed, how to settle it.
+    // The page's header counts the pitches for the show the sample was written for, its title badged
+    // sample, the page's one sample label, under no notice, and no readout while it's at rest; its
+    // Pitches section says what reaches Qloo, and its table how each work matched, with a row per pitch
+    // saying so and, where one is needed, how to settle it.
     const page = renderToStaticMarkup(
       createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
+    expect(sampleLabels(page)).toEqual(['h1: Inbox'])
     expect(words(page)).toMatch(
-      /^Inbox 40 pitches for The Big Picture · 34 matched, 1 ambiguous, 1 not in Qloo, 4 set aside Details Load pitches Read Pitches Rank /
+      /^Inbox sample 40 pitches for The Big Picture · 34 matched, 1 ambiguous, 1 not in Qloo, 4 set aside Details Load pitches Pitches Rank /
     )
     expect(words(page)).toContain(
-      'Pitches Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are. sample Guest and work as the sample gives them for each pitch. Qloo data Matches from Qloo search, one call per work.'
+      'Pitches Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are. Qloo data Matches from Qloo search, one call per work.'
     )
     for (const gone of [
       'Sample inbox',

@@ -37,6 +37,7 @@ import {
   openMember,
   openSession,
   poll,
+  sampleLabels,
   type Member,
   type Session
 } from './session'
@@ -582,12 +583,14 @@ describe("the inbox page's words", () => {
     expect(empty).not.toContain('Details')
     await upload(agent, new File([nightFerry], 'Ada Quill.eml'))
     const read = inboxPage(await loaded(agent), network)
-    // The header: the title, the pitches counted, the inspector's toggle, and Load pitches. The readout
-    // says the inbox is read, without counting it again, right before the inbox's tabs, the first of
-    // which, Pitches, says what reaches Qloo of a pitch; with no pitch run yet, it has no Run log.
+    // The header: the title, the pitches counted, the inspector's toggle, and Load pitches. Read, with no
+    // pitch run yet, the inbox is at rest, so there's no readout before the inbox's tabs, the first of
+    // which, Pitches, says what reaches Qloo of a pitch. A member's inbox isn't the sample's, so its title
+    // has no sample badge.
     expect(read).toMatch(
-      /^Inbox 1 pitch · 1 set aside Details Load pitches Read Pitches Rank Pitches Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are\. /
+      /^Inbox 1 pitch · 1 set aside Details Load pitches Pitches Rank Pitches Only the work’s title and type are looked up in Qloo; names, addresses, and pitch text never are\. /
     )
+    expect(sampleLabels(inboxMarkup(agent.state(), network))).toEqual([])
     // The inspector is closed as the page opens, so the canvas takes the width; Details opens it.
     expect(inboxMarkup(agent.state(), network)).toMatch(inspectorClosed)
     expect(inboxMarkup(agent.state(), network)).toMatch(detailsToggle)

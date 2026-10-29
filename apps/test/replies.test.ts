@@ -427,7 +427,8 @@ const inboxPage = (state: State, viewing?: { runs: State['runs']; id: string }) 
       inbox: state.inbox,
       roster: state.roster,
       booking: state.booking,
-      pitchRun: null,
+      // An earlier run, viewed, is the pitch run its page shows, as InboxWorkspace passes it.
+      pitchRun: viewing ? state.run : null,
       question: null,
       slowCalls: [],
       history: viewing && {
@@ -557,7 +558,7 @@ describe('the booker clearing the inbox', () => {
 
     // The header says which run it is, in place of the inbox's counts, in the summary's one muted form,
     // the inspector's toggle, and the way back.
-    expect(words(html)).toMatch(/^Inbox Run 1 · earlier, read-only Details Back to the latest run Read Run log /)
+    expect(words(html)).toMatch(/^Inbox Run 1 · earlier, read-only Details Back to the latest run Completed Run log /)
     expect(words(html)).toContain('Agent Run 1’s replies, read-only; an approved one can still be copied.')
     expect(actionsOf(html, 'pitch-02')).toEqual([['Copy reply about Paper Moons', false]])
     expect(words(replyOn(html, 'pitch-02'))).toMatch(
@@ -654,6 +655,20 @@ describe('the booker clearing the inbox', () => {
       ['Discard reply about Paper Moons', true]
     ])
     await expect(s.call('approveReply', 'pitch-02')).rejects.toThrow('The agent is still drafting replies.')
+  })
+
+  it('keeps the readout on the latest pitch run, with its Run log, once a new inbox replaces the one it ranked', async () => {
+    const { s } = await pitchRun(drafted)
+    // A new load takes the run's lists and replies with the old inbox, and keeps the run in the history.
+    fakeClaude([() => turn(text(JSON.stringify({ guest: 'Dot Pruitt', work: null })))])
+    await s.call('loadInbox', { text: noWork })
+    const state = await s.until((state) => state.inbox?.status === 'done' && state.booking === null)
+    const html = renderToStaticMarkup(
+      createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
+    )
+
+    // As a launch's page says its latest run's state once another run came after it.
+    expect(words(html)).toMatch(/^Inbox 1 pitch · 1 set aside Details Load pitches Completed Run log Pitches /)
   })
 
   it('refuses every reply action with GUEST_PITCHES off', async () => {

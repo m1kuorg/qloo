@@ -665,8 +665,10 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       entity: { id: 'e-0601' }
     })
     expect(state.cpm).toBe(20)
-    // The dashboard labels the CPM as the sample's, as the roster page does each show's figures.
-    expect(dashboardWords(state)).toContain('CPM $20 per 1,000 downloads sample Change')
+    // The dashboard's title says its data is the sample's, the CPM with it, as the roster page's title
+    // says the roster is.
+    expect(dashboardWords(state)).toMatch(/^Launches sample 1 launch /)
+    expect(dashboardWords(state)).toContain('CPM $20 per 1,000 downloads Change')
     expect(state.sample).toEqual({
       network: 'The Ringer',
       notice: sampleFile.notice,
@@ -716,7 +718,8 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
         .replace(/\s+/g, ' ')
         .trim()
     ).toBe('Roster No shows yet. Import shows')
-    expect(dashboardWords(refused)).toContain('CPM $20 per 1,000 downloads sample Change')
+    expect(dashboardWords(refused)).toMatch(/^Launches sample 1 launch /)
+    expect(dashboardWords(refused)).toContain('CPM $20 per 1,000 downloads Change')
 
     // As after an idle eviction or a deploy: the agent starts again, with its storage.
     env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
@@ -941,19 +944,20 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
 
       const looking = page(await network.until((s) => s.inbox?.status === 'reading'))
       // The header counts the pitches settled so far, and the readout how many works are looked up, so
-      // neither says the other's count; the table says they came already read.
+      // neither says the other's count; the table has no legend for where its guests and works come from.
       expect(looking).toMatch(
-        /^Inbox 40 pitches for The Big Picture · 4 set aside Details Load pitches Looking up · 0 of 36 works looked up /
+        /^Inbox sample 40 pitches for The Big Picture · 4 set aside Details Load pitches Looking up · 0 of 36 works looked up /
       )
-      expect(looking).toContain('sample Guest and work as the sample gives them for each pitch.')
+      expect(looking).not.toContain('as the sample gives them')
       expect(looking).toContain('Rank them once every work is looked up.')
       expect(looking).toContain('36 still looking up')
       expect(looking).not.toContain('Reading')
       expect(looking).not.toContain('pitch is read')
 
+      // Looked up, the readout goes: the inbox is at rest.
       held.resolve()
       expect(page(await network.until(loaded))).toMatch(
-        /^Inbox 40 pitches for The Big Picture · 36 matched, 4 set aside Details Load pitches Read Pitches Rank /
+        /^Inbox sample 40 pitches for The Big Picture · 36 matched, 4 set aside Details Load pitches Pitches Rank /
       )
     })
 
