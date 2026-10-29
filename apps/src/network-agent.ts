@@ -17,9 +17,10 @@ import { globalGateway } from './gateway'
 import { readSampleInbox, type Booking, type Inbox, type Pitch, type PitchReply } from './inbox'
 import type { LaunchAgent } from './launch-agent'
 import { Refusal } from './refusal'
+import { holdsSample } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
 import { readSampleLaunches } from './sample-launches'
-import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX } from './text'
+import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX, LOOKUP_RETRIED } from './text'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
 // a network's agent, once it has checked the session and the membership, replacing any the browser
@@ -157,8 +158,7 @@ export class NetworkAgent extends CrossfeedAgent {
     // A sample inbox stopped while its works were looked up isn't a guest's to load again, as an inbox
     // stopped reading is (CrossfeedAgent.onStart): its lookups are tried again (loadSampleInbox).
     const inbox = this.state.inbox
-    if (inbox?.sample && inbox.status === 'reading')
-      this.finishInbox(inbox.id, 'The lookup was interrupted. Crossfeed tries it again later.')
+    if (inbox?.sample && inbox.status === 'reading') this.finishInbox(inbox.id, LOOKUP_RETRIED)
     await super.onStart(props)
     if (this.name !== GUEST_NETWORK) return
     if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) {
@@ -167,9 +167,20 @@ export class NetworkAgent extends CrossfeedAgent {
       await this.loadSampleInbox()
     }
     // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006),
-    // even when the sample roster couldn't load. One that left the sample by importing over it lost the
-    // CPM with it, as the sample's, so it stays unset.
-    if (this.state.cpm === null && this.state.roster.length === 0) this.setState({ ...this.state, cpm: sampleCpm })
+    // even when the sample roster couldn't load, and an import keeps it. One an import left unset before
+    // #287 gets it back here.
+    if (this.state.cpm === null) this.setState({ ...this.state, cpm: sampleCpm })
+  }
+
+  // While the guest network's sample is still loading, each start looks up every failed lookup again
+  // (loadSample). So a lookup a restart interrupted then says Crossfeed tries it again.
+  protected interruptedLookup() {
+    const loading =
+      this.name === GUEST_NETWORK &&
+      this.env.SAMPLE_NETWORK === 'on' &&
+      !this.ctx.storage.kv.get(SAMPLE_LOADED) &&
+      holdsSample(this.state.roster)
+    return loading ? LOOKUP_RETRIED : super.interruptedLookup()
   }
 
   // Loads the sample network into the guest network on its first start, each day after the daily cron
@@ -178,14 +189,14 @@ export class NetworkAgent extends CrossfeedAgent {
   // land whatever the lookups do; the lookups count on the guest budget, and refused, the roster stays
   // empty. Until it's noted as loaded, each start tries again what didn't land: a roster still empty, the
   // lookups that failed, the launch if it wasn't planned. It's noted once a start finds the roster settled
-  // and the launch planned, or finds the sample replaced by a guest's import. It runs before any page
-  // connects, so it plans the launch and reserves the calls here, and leaves the lookups to run in the
-  // background.
+  // and the launch planned, or finds the sample replaced by a guest's import, which leaves no show holding a
+  // sample figure, though the CPM may still be the sample's (#287). It runs before any page connects, so it
+  // plans the launch and reserves the calls here, and leaves the lookups to run in the background.
   private async loadSample() {
     const { kv } = this.ctx.storage
     if (kv.get(SAMPLE_LOADED)) return
     const { roster } = this.state
-    if (roster.length > 0 && !this.state.sample) return kv.put(SAMPLE_LOADED, true)
+    if (roster.length > 0 && !holdsSample(roster)) return kv.put(SAMPLE_LOADED, true)
     const failed = (e: unknown) => console.error(JSON.stringify({ event: 'sample_load', error: String(e) }))
     if (!this.state.sample) {
       // A CPM a guest set before the sample loaded is theirs, so it stays, unlabelled.

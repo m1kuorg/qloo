@@ -3,6 +3,7 @@
 // Each test drives a network through the Worker's routes, its agent's client protocol, or the Worker's
 // own RPC to the agent, as the API will call it.
 import { getAgentByName } from 'agents'
+import { evictAllDurableObjects, runInDurableObject } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -12,11 +13,13 @@ import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
 import { ShowEditor } from '../src/client/RosterModules'
 import type { Role } from '../src/directory'
+import type { NetworkAgent } from '../src/network-agent'
 import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
 import { fakeClaude, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
 import {
+  api,
   currentLinks,
   detailsToggle,
   inspectorClosed,
@@ -271,26 +274,88 @@ describe('re-importing the roster', () => {
     ])
   })
 
-  it("takes the sample labels off the figures the file brings, and the sample's notice once none is left", async () => {
+  it("takes the sample labels off the figures the file brings, and the roster's sample notice and label once none is left", async () => {
     fakeQloo({ search: {} })
     env.SAMPLE_NETWORK = 'on'
-    const agent = await connect(await openGuest(), 'guest-network')
+    const guest = await openGuest()
+    const agent = await connect(guest, 'guest-network')
     await agent.until((s) => s.roster.length > 0 && settled(s))
+    // The roster's notice as a program reads it, with an API key a guest made, and its page's labels.
+    const made = await guest.fetch('/app/guest-network/settings/api-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nightly sync' })
+    })
+    const call = api((await made.json<{ secret: string }>()).secret)
+    const labelled = async (state: State) => ({
+      notice: (await (await call('/api/v1/networks/guest-network/roster')).json<{ sample: unknown }>()).sample,
+      labels: sampleLabels(
+        renderToStaticMarkup(<NetworkRoster agent={{ state, stub: {} } as unknown as NetworkConnection} />)
+      )
+    })
 
-    await agent.importRoster('name,downloads\nThe Watch,41000\nHouse of R,', 'csv')
-    expect(agent.state()!.roster.map((s) => [s.name, s.downloads, s.status, s.sample])).toEqual([
+    const kept = await agent.importRoster('name,downloads\nThe Watch,41000\nHouse of R,', 'csv')
+    expect(kept.roster.map((s) => [s.name, s.downloads, s.status, s.sample])).toEqual([
       ['The Watch', 41000, 'active', ['status', 'description']],
       ['House of R', null, 'active', ['status', 'description']]
     ])
     // Sample figures are left, so the notice naming the sample's network stays with them.
-    expect(agent.state()!.sample).toMatchObject({ network: 'The Ringer' })
+    expect(await labelled(kept)).toEqual({
+      notice: { network: 'The Ringer', notice: sample.notice },
+      labels: ['h1: Roster']
+    })
 
-    await agent.importRoster(
+    const own = await agent.importRoster(
       'name,status,description\nThe Watch,active,Our TV show\nHouse of R,hiatus,Our fantasy show',
       'csv'
     )
-    expect(agent.state()!.roster.map((s) => s.sample)).toEqual([[], []])
-    expect(agent.state()!.sample).toBeNull()
+    expect(own.roster.map((s) => s.sample)).toEqual([[], []])
+    // The roster is the guest's own, though the CPM is still the sample's (test/dashboard.test.tsx).
+    expect(await labelled(own)).toEqual({ notice: null, labels: [] })
+    expect(own).toMatchObject({ cpm: 20, sample: { cpm: true } })
+  })
+
+  it("leaves a member's network's CPM as it was, unset or set, and holds no sample", async () => {
+    fakeQloo({ search })
+    const ada = await openMember()
+    const network = await created(ada)
+    const agent = await connect(ada, network)
+    expect(await agent.importRoster('Deep Cuts')).toMatchObject({ cpm: null, sample: null })
+    const res = await ada.fetch(`/app/${network}/settings/network`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Night Shift Audio', cpm: 25 })
+    })
+    expect(res.status).toBe(200)
+    expect(await agent.importRoster('Deep Cuts\nSignal Boost')).toMatchObject({ cpm: 25, sample: null })
+  })
+
+  it("says a lookup a restart interrupted in a member's network is to be imported again", async () => {
+    fakeQloo({ search })
+    const ada = await openMember()
+    const network = await created(ada)
+    await (await connect(ada, network)).importRoster('Deep Cuts\nSignal Boost')
+    // Stand in for an agent a deploy stopped mid-import, Signal Boost's lookup still out, as the deploy
+    // restarts it.
+    await runInDurableObject(env.NetworkAgent.get(env.NetworkAgent.idFromName(network)), (n: NetworkAgent) => {
+      const roster = n.state.roster.map((s) =>
+        s.name === 'Signal Boost' ? { ...s, resolution: 'pending' as const, entity: null } : s
+      )
+      n.setState({ ...n.state, roster })
+    })
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const interrupted = (await connect(ada, network)).state()!
+    expect(interrupted.roster.map((s) => [s.name, s.resolution, s.error])).toEqual([
+      ['Deep Cuts', 'resolved', null],
+      ['Signal Boost', 'failed', 'The lookup was interrupted. Import the roster again.']
+    ])
+    expect(
+      words(
+        renderToStaticMarkup(<NetworkRoster agent={{ state: interrupted, stub: {} } as unknown as NetworkConnection} />)
+      )
+    ).toContain(
+      '1 show couldn’t be looked up in Qloo, so it can’t be scored: Signal Boost. Import the roster again to retry it; shows already found come from the cache.'
+    )
   })
 
   it("replaces the demo's roster as before, settled shows and all", async () => {
