@@ -373,12 +373,12 @@ function Rail({ label, home, destinations }: { label: string; home: string; dest
               >
                 <Icon class="size-[18px]" />
               </span>
-              {/* Under 768px a name too long for its share of the bar, as on a screen narrower than 360px, is
-                  cut short with an ellipsis, and its words stay whole in the link's accessible name. From 768px the name is
-                  the icon's tooltip. Until the link is hovered or focused it's clipped to nothing, as a
-                  visually hidden label is, so it never lies over the page beside the rail, and it stays
-                  the link's accessible name. */}
-              <span class="type-caption font-medium max-md:max-w-full max-md:truncate md:pointer-events-none md:absolute md:top-1/2 md:left-full md:z-50 md:ml-2 md:-translate-y-1/2 md:rounded-md md:bg-foreground md:px-2.5 md:py-1 md:whitespace-nowrap md:text-background md:opacity-0 md:transition-opacity md:[clip-path:inset(50%)] md:group-hover/rail:opacity-100 md:group-hover/rail:[clip-path:none] md:group-focus-visible/rail:opacity-100 md:group-focus-visible/rail:[clip-path:none]">
+              {/* Under 768px the name sits 4px in from each side of its share of the bar, and one too long
+                  for it, as on a screen narrower than 360px, is cut short with an ellipsis, its words still
+                  whole in the link's accessible name. From 768px the name is the icon's tooltip. Until the
+                  link is hovered or focused it's clipped to nothing, as a visually hidden label is, so it
+                  never lies over the page beside the rail, and it stays the link's accessible name. */}
+              <span class="type-caption font-medium max-md:max-w-full max-md:truncate max-md:px-1 md:pointer-events-none md:absolute md:top-1/2 md:left-full md:z-50 md:ml-2 md:-translate-y-1/2 md:rounded-md md:bg-foreground md:px-2.5 md:py-1 md:whitespace-nowrap md:text-background md:opacity-0 md:transition-opacity md:[clip-path:inset(50%)] md:group-hover/rail:opacity-100 md:group-hover/rail:[clip-path:none] md:group-focus-visible/rail:opacity-100 md:group-focus-visible/rail:[clip-path:none]">
                 {label}
               </span>
             </a>

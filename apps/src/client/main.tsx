@@ -84,8 +84,8 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         mcp={d.mcpUrl!}
         api={d.apiUrl!}
         keys={d.keys ? JSON.parse(d.keys) : null}
-        owners={JSON.parse(d.owners!)}
-        tools={JSON.parse(d.tools!)}
+        owners={d.owners ? JSON.parse(d.owners) : []}
+        tools={d.tools ? JSON.parse(d.tools) : null}
       />
     )),
   settings: () =>

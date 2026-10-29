@@ -279,14 +279,14 @@ appPages.get('/app/:networkId', async (c) => {
   if (!network) return c.notFound()
   const [{ invited }, today, keys] = await Promise.all([
     setupProgress(c.env.DB, network.id),
-    blockRead(network.id, 'usage', async () => {
+    blockRead('dashboard', network.id, 'usage', async () => {
       const [usage, ownKey] = await Promise.all([
         getUsage({ env: c.env, network: network.id, caller: { member: c.var.member, role: network.role } }),
         getAgentByName(c.env.NetworkAgent, network.id).then((a) => a.hasOwnKey())
       ])
       return { usage, ownKey, at: Date.now() }
     }),
-    blockRead(network.id, 'keys', () => keyUse(c.env.DB, network.id, network.role === 'owner'))
+    blockRead('dashboard', network.id, 'keys', () => keyUse(c.env.DB, network.id, network.role === 'owner'))
   ])
   const pending = network.id === GUEST_NETWORK && c.req.query('reset') === 'pending'
   return c.render(
@@ -304,11 +304,12 @@ appPages.get('/app/:networkId', async (c) => {
   )
 })
 
-// What one of network `network`'s dashboard blocks reads as the page loads, or null when the read
-// fails, logged, so the block says it failed and the rest of the page still opens. It never rejects.
-const blockRead = <T,>(network: string, block: string, read: () => Promise<T>) =>
+// What one of the blocks of network `network`'s `page`, its dashboard or its Developers page, reads as
+// the page loads, or null when the read fails, logged as `<page>_read`, so the block says it failed and
+// the rest of the page still opens. It never rejects.
+const blockRead = <T,>(page: 'dashboard' | 'developers', network: string, block: string, read: () => Promise<T>) =>
   read().catch((e: unknown) => {
-    console.error(JSON.stringify({ event: 'dashboard_read', network, block, error: String(e) }))
+    console.error(JSON.stringify({ event: `${page}_read`, network, block, error: String(e) }))
     return null
   })
 
@@ -374,16 +375,18 @@ appPages.post('/app/:networkId/launches/:launchId/delete', async (c) => {
 
 // The network's Developers page, where a member connects an assistant: the addresses its clients ask
 // for, on the app's own origin (APP_ORIGINS' first), never the request's; for an owner, the network's
-// keys in use as the connection check reads them (`checkedKeys`), and for everyone else, who its owners
-// are; and the tools the MCP server lists, by what each does. No key's secret or prefix reaches it.
+// keys in use as the connection check reads them (`checkedKeys`), and for anyone else, who its owners
+// are; and the tools the MCP server lists, by what each does, or, when listing them failed, logged,
+// nothing, which its section says while the rest of the page opens. No key's secret or prefix reaches it.
 appPages.get('/app/:networkId/developers', async (c) => {
   const network = await networkPage(c, c.req.param('networkId'))
   if (!network) return c.notFound()
   const origin = appOrigins(c.env)[0]
-  const [members, keys, tools] = await Promise.all([
-    networkMembers(c.env.DB, network.id),
-    network.role === 'owner' ? checkedKeys(c.env.DB, network.id) : null,
-    listedTools()
+  const owner = network.role === 'owner'
+  const [keys, members, tools] = await Promise.all([
+    owner ? checkedKeys(c.env.DB, network.id) : null,
+    owner ? null : networkMembers(c.env.DB, network.id),
+    blockRead('developers', network.id, 'tools', listedTools)
   ])
   return c.render(
     <Island
@@ -391,8 +394,8 @@ appPages.get('/app/:networkId/developers', async (c) => {
       data-mcp-url={`${origin}/mcp`}
       data-api-url={`${origin}/api/v1`}
       data-keys={keys ? JSON.stringify(keys) : undefined}
-      data-owners={JSON.stringify(members.filter((m) => m.role === 'owner').map((m) => m.name))}
-      data-tools={JSON.stringify(tools.map((t) => ({ name: t.name, kind: toolKind(t) })))}
+      data-owners={members ? JSON.stringify(members.filter((m) => m.role === 'owner').map((m) => m.name)) : undefined}
+      data-tools={tools ? JSON.stringify(tools.map((t) => ({ name: t.name, kind: toolKind(t) }))) : undefined}
       {...island(c, network)}
     />
   )

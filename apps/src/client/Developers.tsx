@@ -16,14 +16,15 @@ import { connectionOf, StateLine, type Connection } from './states'
 
 // What the server gives the Developers page besides its network: the MCP server's and the REST API's
 // addresses, on the app's own origin; for an owner, the network's keys in use, with no secret or prefix
-// (null for a member, who doesn't see them); the names of its owners, whom a member asks for a key; and
-// the tools the MCP server lists, by what each does.
+// (null for a member, who doesn't see them); for a member, the names of its owners, whom they ask for a
+// key (none for an owner); and the tools the MCP server lists, by what each does, null when listing them
+// failed.
 type Loaded = {
   mcp: string
   api: string
   keys: CheckedKey[] | null
   owners: string[]
-  tools: { name: string; kind: ToolKind }[]
+  tools: { name: string; kind: ToolKind }[] | null
 }
 
 export function DevelopersPage({
@@ -39,8 +40,10 @@ export function DevelopersPage({
   )
 }
 
-// The key made on this page: its secret, which only ShownOnce shows, and what the check waits on.
+// The key made on this page, with its secret, which only ShownOnce is given; and the key as the check
+// waits on it, without.
 type Made = { id: string; name: string; secret: string }
+type NewKey = Pick<Made, 'id' | 'name'>
 
 // The Developers page, which answers "How do I connect my assistant to this network?", in one column as
 // settings' is: the header, then its sections in the order a member connects one: the addresses a client
@@ -64,18 +67,16 @@ export function Developers({
       <PageHeader title="Developers" connection={connection} />
       <div className="flex flex-col gap-12">
         <Addresses network={network} mcp={mcp} api={api} />
-        <KeySection
-          network={network}
-          owners={owners}
-          made={made}
-          onMade={(key, keys) => {
-            setMade(key)
-            if (keys) setListed(keys)
-          }}
-        />
+        <KeySection network={network} owners={owners} made={made} onMade={setMade} />
         <Assistant mcp={mcp} />
-        {/* A new key starts a new wait. */}
-        <Check key={made?.id} network={network} keys={listed} made={made} onKeys={setListed} />
+        {/* A new key starts a new wait, whose reads list it with the other keys in use. */}
+        <Check
+          key={made?.id}
+          network={network}
+          keys={listed}
+          awaited={made && { id: made.id, name: made.name }}
+          onKeys={setListed}
+        />
         <Tools network={network} tools={tools} />
       </div>
     </main>
@@ -186,7 +187,7 @@ function KeySection({
   network: NetworkPage
   owners: string[]
   made: Made | null
-  onMade: (key: Made | null, keys?: CheckedKey[]) => void
+  onMade: (key: Made | null) => void
 }) {
   const [name, setName] = useState('Claude Code')
   const { busy, error, run } = useAction()
@@ -195,9 +196,9 @@ function KeySection({
       const answer = await send<{ id: string; secret: string; keys: ApiKey[] }>(`${network.links.settings}/api-keys`, {
         name
       })
-      // The list the check shows, with no key's prefix or maker, as the keys route answers it.
-      const keys = answer.keys.map(({ id, name, created, lastUsed }) => ({ id, name, created, lastUsed }))
-      onMade({ id: answer.id, name: keys.find((k) => k.id === answer.id)?.name ?? name, secret: answer.secret }, keys)
+      // Named as the Worker saved it. The check's first read lists it with the other keys in use.
+      const saved = answer.keys.find((k) => k.id === answer.id)?.name ?? name.trim()
+      onMade({ id: answer.id, name: saved, secret: answer.secret })
       setName('')
     })
     if (!created) onMade(null)
@@ -276,8 +277,8 @@ function Assistant({ mcp }: { mcp: string }) {
         <li>
           <div className="flex flex-col gap-3">
             <p>
-              Put the key in your shell as <Code>CROSSFEED_API_KEY</Code>: run this, paste the key, and press Return.
-              Nothing shows as you paste, and the key stays out of your shell’s history.
+              Put the key in your shell as <Code>CROSSFEED_API_KEY</Code>: in bash or zsh, run this, paste the key, and
+              press Return. Nothing shows as you paste, and the key stays out of your shell’s history.
             </p>
             <Snippet caption="Shell" name="command that reads the key">
               {'read -rs CROSSFEED_API_KEY && export CROSSFEED_API_KEY'}
@@ -288,7 +289,7 @@ function Assistant({ mcp }: { mcp: string }) {
           <div className="flex flex-col gap-3">
             <p>
               Add Crossfeed’s MCP server to Claude Code, in the folder you’ll use it from. Claude Code keeps the key
-              from then on.
+              from then on, in plain text in its own config file, <Code>~/.claude.json</Code>.
             </p>
             <Snippet caption="Shell" name="claude mcp add command">
               {`claude mcp add --transport http crossfeed ${mcp} \\\n  --header "Authorization: Bearer $CROSSFEED_API_KEY"`}
@@ -336,10 +337,21 @@ type Watch =
   | { state: 'gone' }
   | { state: 'failed'; error: string }
 
-// The network's keys in use, as the keys route answers an owner. An answer that isn't its JSON, such as
-// the sign-in page a signed-out session is sent to, is refused with why.
-async function readKeys(path: string) {
-  const res = await fetch(path, { headers: { Accept: 'application/json' } })
+// How long one read of the keys may take before it counts as failed.
+const READ_MS = 10_000
+
+// The network's keys in use, as the keys route answers an owner, read until `signal` aborts or READ_MS
+// passes. An answer that isn't its JSON, such as the sign-in page a signed-out session is sent to, is
+// refused with why, and so is one that took too long.
+async function readKeys(path: string, signal: AbortSignal) {
+  const res = await fetch(path, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(READ_MS)])
+  }).catch((e: unknown) => {
+    throw e instanceof DOMException && e.name === 'TimeoutError'
+      ? new Error(`Crossfeed didn’t answer within ${READ_MS / 1000} seconds.`)
+      : e
+  })
   const answer = (await res.json().catch(() => null)) as { keys?: CheckedKey[]; error?: string } | null
   if (res.ok && answer?.keys) return answer.keys
   throw new Error(
@@ -358,21 +370,22 @@ async function readKeys(path: string) {
 function Check({
   network,
   keys,
-  made,
+  awaited,
   onKeys
 }: {
   network: NetworkPage
   keys: CheckedKey[] | null
-  made: Made | null
+  awaited: NewKey | null
   onKeys: (keys: CheckedKey[]) => void
 }) {
   const section = useRef<HTMLDivElement>(null)
   const [watch, setWatch] = useState<Watch>({ state: 'waiting' })
   useEffect(() => {
-    if (!made || watch.state !== 'waiting' || !section.current) return
+    if (!awaited || watch.state !== 'waiting' || !section.current) return
     const path = `${network.links.developers}/keys`
     // Each run of the effect is one wait: once it's over, as a new key or Check again starts another, or
-    // the page goes, an answer still on its way changes nothing.
+    // the page goes, a read still on its way is aborted, and its answer changes nothing.
+    const stop = new AbortController()
     let over = false
     let onScreen = typeof IntersectionObserver === 'undefined'
     let reading = false
@@ -386,11 +399,11 @@ function Check({
       reading = true
       reads++
       try {
-        const listed = await readKeys(path)
+        const listed = await readKeys(path, stop.signal)
         if (over) return
         failures = 0
         onKeys(listed)
-        const key = listed.find((k) => k.id === made.id)
+        const key = listed.find((k) => k.id === awaited.id)
         if (!key) return setWatch({ state: 'gone' })
         if (key.lastUsed !== null) return setWatch({ state: 'seen', at: key.lastUsed })
       } catch (e) {
@@ -406,8 +419,9 @@ function Check({
     const observer =
       typeof IntersectionObserver === 'undefined'
         ? null
-        : new IntersectionObserver(([entry]) => {
-            onScreen = entry.isIntersecting
+        : new IntersectionObserver((entries) => {
+            // The latest report, as a quick scroll in and out can queue more than one.
+            onScreen = entries.at(-1)!.isIntersecting
             void read()
           })
     observer?.observe(section.current)
@@ -417,6 +431,7 @@ function Check({
     if (!observer) void read()
     return () => {
       over = true
+      stop.abort()
       clearTimeout(timer)
       observer?.disconnect()
       document.removeEventListener('visibilitychange', shown)
@@ -438,9 +453,9 @@ function Check({
           </p>
         ) : (
           <>
-            {made && (
+            {awaited && (
               <div role="status" className="flex flex-col items-start gap-3">
-                <Watching name={made.name} watch={watch} again={() => setWatch({ state: 'waiting' })} />
+                <Watching name={awaited.name} watch={watch} again={() => setWatch({ state: 'waiting' })} />
               </div>
             )}
             {keys.length === 0 ? (
@@ -528,9 +543,9 @@ function Watching({ name, watch, again }: { name: string; watch: Watch; again: (
 }
 
 // What an assistant can do with a key: the MCP server's tools as it lists them, by what each does, with
-// the approval only a member gives, in the app (ADR 0002), a reply's too while the inbox is on.
+// the approval only a member gives, in the app (ADR 0002), a reply's too while the inbox is on. When the
+// server couldn't list them as the page loaded, it says so, and the sentence still stands.
 function Tools({ network, tools }: { network: NetworkPage; tools: Loaded['tools'] }) {
-  const kinds = (['Reads', 'Adds', 'Changes'] as const).filter((kind) => tools.some((t) => t.kind === kind))
   return (
     <Section
       id="tools-h"
@@ -538,23 +553,33 @@ function Tools({ network, tools }: { network: NetworkPage; tools: Loaded['tools'
       description={`With a key, an assistant reads, adds to and changes what ${network.name} has through these tools, but only a signed-in member, in the app, approves an insertion order${network.links.inbox ? ' or a reply' : ''}.`}
       data-tools
     >
-      <KeyValues className="gap-y-3">
-        {kinds.map((kind) => (
-          <KeyValue key={kind} label={kind}>
-            <span className="flex flex-wrap gap-x-2 gap-y-1.5" translate="no">
-              {tools
-                .filter((t) => t.kind === kind)
-                .map((t) => (
-                  <Code key={t.name}>{t.name}</Code>
-                ))}
-            </span>
-          </KeyValue>
-        ))}
-      </KeyValues>
-      <p className="text-muted-foreground">
-        Reads change nothing; Adds create something new, such as a launch or an answer; Changes replace or edit what the
-        network has.
-      </p>
+      {tools ? (
+        <>
+          <KeyValues className="gap-y-3">
+            {(['Reads', 'Adds', 'Changes'] as const)
+              .filter((kind) => tools.some((t) => t.kind === kind))
+              .map((kind) => (
+                <KeyValue key={kind} label={kind}>
+                  <span className="flex flex-wrap gap-x-2 gap-y-1.5" translate="no">
+                    {tools
+                      .filter((t) => t.kind === kind)
+                      .map((t) => (
+                        <Code key={t.name}>{t.name}</Code>
+                      ))}
+                  </span>
+                </KeyValue>
+              ))}
+          </KeyValues>
+          <p className="text-muted-foreground">
+            Reads change nothing; Adds create something new, such as a launch or an answer; Changes replace or edit what
+            the network has.
+          </p>
+        </>
+      ) : (
+        <p>
+          <StateLine kind="error">The MCP server’s tools didn’t load. Reload the page to try again.</StateLine>
+        </p>
+      )}
     </Section>
   )
 }

@@ -56,8 +56,8 @@ async function page(member: Pick<Member, 'fetch'>, network: string) {
       mcp={d.mcpUrl}
       api={d.apiUrl}
       keys={d.keys ? JSON.parse(d.keys) : null}
-      owners={JSON.parse(d.owners)}
-      tools={JSON.parse(d.tools)}
+      owners={d.owners ? JSON.parse(d.owners) : []}
+      tools={d.tools ? JSON.parse(d.tools) : null}
     />
   )
 }
@@ -84,8 +84,8 @@ const blocks = (html: string, hook: 'data-copyable' | 'data-output') =>
       .replace(/&amp;/g, '&')
   ])
 
-// An MCP client's first request with an API key, as `claude mcp add` and `claude mcp list` make it.
-const initialize = (secret: string) =>
+// A JSON-RPC request to the MCP server with an API key, as an MCP client sends it.
+const mcp = (secret: string, method: string, params?: object) =>
   exports.default.fetch(`${origin}/mcp`, {
     method: 'POST',
     headers: {
@@ -93,12 +93,15 @@ const initialize = (secret: string) =>
       Accept: 'application/json, text/event-stream',
       Authorization: `Bearer ${secret}`
     },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'claude-code', version: '2.0.0' } }
-    })
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
+  })
+
+// An MCP client's first request, as `claude mcp list` makes it.
+const initialize = (secret: string) =>
+  mcp(secret, 'initialize', {
+    protocolVersion: '2025-06-18',
+    capabilities: {},
+    clientInfo: { name: 'claude-code', version: '2.0.0' }
   })
 
 describe('the Developers page', () => {
@@ -221,20 +224,13 @@ describe('the Developers page', () => {
     // The tools an assistant lists with a key, by what each says it does: a read changes nothing, a
     // destructive tool replaces or edits, and the rest add.
     const { secret } = await key(ada, id)
-    const res = await exports.default.fetch(`${origin}/mcp`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${secret}`
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
-    })
+    const res = await mcp(secret, 'tools/list')
     const listed = JSON.parse((await res.text()).replace(/^[\s\S]*?data:/, '')).result.tools as {
       name: string
       annotations: { readOnlyHint: boolean; destructiveHint: boolean }
     }[]
-    expect(listed).toHaveLength(19)
+    // The inbox's tools are among them, as guest pitches are on.
+    expect(listed.map((t) => t.name)).toContain('load_pitches')
     const of = (kind: (t: (typeof listed)[number]) => boolean) =>
       listed
         .filter(kind)
@@ -257,11 +253,17 @@ describe('the keys route the connection check reads', () => {
     const { id: keyId, secret } = await key(ada, id)
     const read = async (member: Pick<Member, 'fetch'>) => {
       const res = await member.fetch(`/app/${id}/developers/keys`)
-      return { status: res.status, body: await res.json<Record<string, unknown>>() }
+      return {
+        status: res.status,
+        cache: res.headers.get('Cache-Control'),
+        body: await res.json<Record<string, unknown>>()
+      }
     }
 
     const before = await read(ada)
     expect(before.status).toBe(200)
+    // Kept by no cache, as every page under /app is.
+    expect(before.cache).toBe('no-store')
     expect(before.body).toEqual({
       keys: [{ id: keyId, name: 'Claude Code', created: expect.any(Number), lastUsed: null }]
     })
@@ -275,7 +277,11 @@ describe('the keys route the connection check reads', () => {
 
     // A member is told only owners see the keys; anyone outside the network gets the 404 a network that
     // doesn't exist gets.
-    expect(await read(grace)).toEqual({ status: 403, body: { error: 'Only an owner can see the network’s API keys.' } })
+    expect(await read(grace)).toEqual({
+      status: 403,
+      cache: 'no-store',
+      body: { error: 'Only an owner can see the network’s API keys.' }
+    })
     expect((await lin.fetch(`/app/${id}/developers/keys`)).status).toBe(404)
   })
 })
