@@ -47,17 +47,21 @@ function OwnerKeys({
   const [keys, setKeys] = useState(listed)
   const [name, setName] = useState('')
   const [made, setMade] = useState<{ id: string; secret: string } | null>(null)
-  const { busy, error, run } = useAction()
+  const { busy, error, run, clear } = useAction()
   const { confirm, dialog } = useConfirm(heading)
   const path = `/app/${network.id}/settings/api-keys`
 
-  const create = () =>
-    run(async () => {
+  const create = async () => {
+    const created = await run(async () => {
       const answer = await send<{ id: string; secret: string; keys: ApiKey[] }>(path, { name })
       setMade({ id: answer.id, secret: answer.secret })
       setKeys(answer.keys)
       setName('')
     })
+    // A refusal, or a request that failed, stops showing the key made before, so the refusal doesn't
+    // read as if this key was made. A success has already replaced it.
+    if (!created) setMade(null)
+  }
   const askRevoke = (k: ApiKey) =>
     confirm({
       title: `Revoke ${k.name}?`,
@@ -67,7 +71,10 @@ function OwnerKeys({
       keep: 'Keep',
       action: async () => {
         setKeys((await send<{ keys: ApiKey[] }>(`${path}/${k.id}/revoke`)).keys)
-        if (made?.id === k.id) setMade(null)
+        setMade((m) => (m?.id === k.id ? null : m))
+        // A refusal shown from creating one no longer describes the list. A failed revoke shows its
+        // own refusal in the confirm.
+        clear()
       }
     })
 
