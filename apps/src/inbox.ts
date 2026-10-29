@@ -101,7 +101,8 @@ export type PitchReply = {
   approvedBy?: string // the member who approved it, on a network's agent; absent on an engine session's
 }
 
-// A pitch as an uploaded email gives it (upload.ts): its sender and subject, apart from its text.
+// A pitch's sender and subject, apart from its text, as an uploaded email (upload.ts) or a pitch's first
+// lines (headed) give them.
 export type PitchInput = Pick<Pitch, 'from' | 'subject' | 'body'>
 
 // An uploaded pitch that couldn't be read, named by its subject, its sender, or its place in the
@@ -135,11 +136,14 @@ export function readInbox(
       'unreadable',
       `Pitch ${long + 1} is over ${MAX_PITCH_CHARS.toLocaleString('en-US')} characters. Shorten it.`
     )
+  const read = texts.map(headed)
+  const blank = read.findIndex((p) => !p.body)
+  if (blank >= 0) throw new Refusal('unreadable', `Pitch ${blank + 1} has no text after its From and Subject lines.`)
   return {
     sample: false,
     notice: null,
     show: null,
-    pitches: texts.map((body, i) => pitch(pitchId(i), body))
+    pitches: read.map((p, i) => pitch(pitchId(i), p.body, p.from, p.subject))
   }
 }
 
@@ -172,12 +176,29 @@ const sampleWork = (work: { title: string; type: string; year: number | null }):
   type: work.type as WorkType
 })
 
-// Pitches pasted or kept in a text file, separated by lines of three or more dashes.
+// Pitches pasted or kept in a text file, separated by lines of three or more dashes, with Windows and
+// old Mac line endings read as "\n".
 export const splitPitches = (text: string) =>
   text
+    .replace(/\r\n?/g, '\n')
     .split(/^[ \t]*-{3,}[ \t]*$/m)
     .map((t) => t.trim())
     .filter(Boolean)
+
+// A pitch pasted or from a text file, whose first lines may give its sender and subject as an email's
+// would.
+export function headed(text: string): PitchInput {
+  const pitch: PitchInput = { from: null, subject: null, body: text }
+  const seen = new Set<string>()
+  for (let header; (header = /^(from|subject):[ \t]*(.*)(?:\n|$)/i.exec(pitch.body));) {
+    const key = header[1].toLowerCase() as 'from' | 'subject'
+    if (seen.has(key)) break
+    seen.add(key)
+    pitch[key] = header[2].trim() || null
+    pitch.body = pitch.body.slice(header[0].length)
+  }
+  return { ...pitch, body: pitch.body.trim() }
+}
 
 // The pitches of uploaded files, as untrusted JSON. A pitch with no text, or too long to read, is
 // skipped and named, so one such email doesn't sink the rest.
