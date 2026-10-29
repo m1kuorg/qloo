@@ -59,9 +59,10 @@ export function DashboardPage(props: {
 }
 
 // The network's home, which answers "Which launches need me?": the header with the launches' counts
-// and New launch, the launches grouped by who's blocked, or until there's one, the empty state, and
-// beside them (under them below 1024px) a line each for the roster, the inbox and the CPM, and the
-// setup checklist. Tests render it from a network agent's synced state; `state` is undefined until it
+// and New launch, its title badged sample while the network holds the sample data, the page's one
+// sample label (ADR 0007); the launches grouped by who's blocked, or until there's one, the empty
+// state; and beside them (under them below 1024px) a line each for the roster, the inbox and the CPM,
+// and the setup checklist. Tests render it from a network agent's synced state; `state` is undefined until it
 // arrives. Under the header, a `notice` the server gave the page, as a reset of the guest network's sample
 // data that's still finishing opens it with. At 1440 the grid is 56 (rail) + 24 + 992 (table) + 24 + 320 +
 // 24 = 1440.
@@ -99,6 +100,7 @@ export function Dashboard({
         connection={state ? connection : null}
         empty={launches.length === 0}
         summary={countsLine(launches)}
+        badge={state?.sample && <Badge>sample</Badge>}
         actions={newLaunch}
       />
       {notice && (
@@ -461,8 +463,7 @@ function LaunchesLoading() {
 }
 
 // One line each for the roster, the inbox, and the CPM, with where to change them, the CPM in the
-// settings' network tab. The CPM is labelled sample while it's still the sample network's, as the guest
-// network's starts (ADR 0007).
+// settings' network tab.
 function NetworkLines({ state, network }: { state: State; network: NetworkPage }) {
   const rows: [string, ReactNode, string, string][] = [
     ['Roster', rosterLine(state.roster), network.links.roster, 'Open']
@@ -470,13 +471,7 @@ function NetworkLines({ state, network }: { state: State; network: NetworkPage }
   if (network.links.inbox) rows.push(['Inbox', inboxLine(state.inbox), network.links.inbox, 'Open'])
   rows.push([
     'CPM',
-    state.cpm === null ? (
-      'Not set'
-    ) : (
-      <>
-        {dollars(state.cpm)} per 1,000 downloads {state.sample?.cpm && <Badge>sample</Badge>}
-      </>
-    ),
+    state.cpm === null ? 'Not set' : `${dollars(state.cpm)} per 1,000 downloads`,
     `${network.links.settings}#network`,
     network.role === 'owner' ? (state.cpm === null ? 'Set' : 'Change') : 'View'
   ])

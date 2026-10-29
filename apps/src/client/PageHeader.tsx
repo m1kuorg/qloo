@@ -18,8 +18,8 @@ import { ConnectionState, StateLine, type Connection } from './states'
 // which the network's pages share (the Launches dashboard, the roster, and the inbox); and the section
 // every page's blocks are built as, and the tabs a long page breaks its sections into.
 
-// The page's header: its title, the page's one h1, with its actions at the right on the title's line;
-// then one short muted line, the page's summary in counts and the connection's state after it, the
+// The page's header: its title, the page's one h1, with its badge beside it and its actions at the right
+// on the title's line; then one short muted line, the page's summary in counts and the connection's state after it, the
 // only place the page says it, even beside the inbox's readout. What explains the page, or a fact
 // about something on it, goes by what it's about, never here. The title's line is as tall as a
 // control, 44px on a phone, so an action arriving with the agent's state doesn't move the line under
@@ -30,10 +30,14 @@ export function PageHeader({
   connecting = 'Connecting to the network…',
   empty = false,
   summary,
+  badge,
   actions,
   heading
 }: {
   title: string
+  // Beside the title, as a `Section`'s is: "sample" on a page whose data is the sample data's, its one
+  // label (#311). Like the summary, it goes while the page is empty.
+  badge?: ReactNode
   // The agent's connection, or null until its first state arrives, while the header says it's
   // connecting, in `connecting`'s words. It's in a live region that's always there, so a screen reader
   // hears it as it changes.
@@ -49,11 +53,12 @@ export function PageHeader({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6">
       <h1
-        className="flex min-h-8 items-center type-title max-md:min-h-11"
+        className="flex min-h-8 items-center gap-2 type-title max-md:min-h-11"
         ref={heading}
         tabIndex={heading ? -1 : undefined}
       >
         {title}
+        {!empty && badge}
       </h1>
       {/* Spaced from the title only while something in it shows: an empty live region takes no room. */}
       <p className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground has-[>:not(:empty)]:mt-1.5">

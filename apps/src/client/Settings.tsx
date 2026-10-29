@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Badge } from '@/components/ui/badge'
 import type { State } from '../agent'
 import type { ApiKey, Invite, NetworkMember } from '../directory'
 import type { OwnKey, Usage } from '../gateway'
@@ -54,7 +55,7 @@ export function SettingsPage({
 
 // Tests render it from a network agent's synced state; `state` is undefined until it arrives. The
 // page answers "How is this network set up, and who can do what?": the title row says the viewer's
-// role, then a tab for each module, in the centred column, each tab's hash its name (#network,
+// role, its title badged sample while the network holds the sample data (ADR 0007), then a tab for each module, in the centred column, each tab's hash its name (#network,
 // #members, #api-keys, #qloo-key, #usage, #sample-data, #danger-zone), which the links into settings
 // open. The guest network's alone has the sample data module (ADR 0007).
 export function Settings({
@@ -83,7 +84,11 @@ export function Settings({
   return (
     <main className={settingsColumn}>
       <div className="flex flex-col gap-1.5">
-        <h1 className="type-title">Settings</h1>
+        {/* Badged as the page header's title is, while the network holds the sample data. */}
+        <h1 className="flex items-center gap-2 type-title">
+          Settings
+          {state?.sample && <Badge>sample</Badge>}
+        </h1>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-muted-foreground">
           <span>
             {network.role === 'owner'
