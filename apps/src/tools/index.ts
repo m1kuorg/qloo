@@ -34,6 +34,9 @@ export type Tool<Input = any> = {
   // The progress note while it runs, such as "Resolving The Big Picture"; null for a call that does
   // nothing the programmer needs to see.
   note: (input: Input, state: State) => string | null
+  // For a call the turn limit skips, the state the next skipped call's note is built against, as if this
+  // call had stored what it names; only a tool whose note counts what earlier calls stored has one.
+  asIfStored?: (input: Input, state: State) => State
   run: (input: Input, context: ToolContext) => Promise<ToolResult>
 }
 
