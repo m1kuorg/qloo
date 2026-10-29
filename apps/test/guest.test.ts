@@ -794,6 +794,43 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(requests).toHaveLength(sent)
   })
 
+  it('ends the load once a guest’s import leaves no sample figure, though the CPM stays the sample’s, so no later start looks their shows up (#287)', async () => {
+    // The guest's show fails, so a start still loading the sample would look it up again. Only a start
+    // notes the load, so none has yet as the guest imports.
+    fakeQloo({ search: { ...search, 'Night Shift Cinema': 503 } })
+    const guest = await openGuest()
+    const network = await connect(guest)
+    await network.until(settled)
+    const own = await network.importRoster('Night Shift Cinema')
+    expect(own).toMatchObject({
+      roster: [{ name: 'Night Shift Cinema', resolution: 'failed' }],
+      cpm: 20,
+      sample: { cpm: true }
+    })
+
+    fakeQloo({ search: { ...search, 'Night Shift Cinema': [] } })
+    const sent = requests.length
+    await evictAllDurableObjects({ webSockets: 'close' })
+    expect((await connect(guest)).state()!.roster).toEqual(own.roster)
+    await evictAllDurableObjects({ webSockets: 'close' })
+    expect((await connect(guest)).state()).toMatchObject({ roster: own.roster, cpm: 20, sample: { cpm: true } })
+    expect(requests).toHaveLength(sent)
+  })
+
+  it('puts the sample CPM back as it next starts where an import before #287 lost it', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+    const network = await connect(guest)
+    await network.until(settled)
+    await network.importRoster('The Watch\nNight Shift Cinema')
+    // Stand in for a guest network such an import left priced at nothing, its CPM's sample label kept, as
+    // the deploy restarts it.
+    const agent = env.NetworkAgent.get(env.NetworkAgent.idFromName('guest-network'))
+    await runInDurableObject(agent, (n: NetworkAgent) => n.setState({ ...n.state, cpm: null }))
+    await evictAllDurableObjects({ webSockets: 'close' })
+    expect((await connect(guest)).state()).toMatchObject({ cpm: 20, sample: { cpm: true } })
+  })
+
   it('starts no sample load as the daily cron clears it, before it has loaded one, and loads it on the next start', async () => {
     fakeQloo({ search })
     const guest = await openGuest()

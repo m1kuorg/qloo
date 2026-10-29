@@ -167,9 +167,9 @@ export class NetworkAgent extends CrossfeedAgent {
       await this.loadSampleInbox()
     }
     // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006),
-    // even when the sample roster couldn't load. One that left the sample by importing over it lost the
-    // CPM with it, as the sample's, so it stays unset.
-    if (this.state.cpm === null && this.state.roster.length === 0) this.setState({ ...this.state, cpm: sampleCpm })
+    // even when the sample roster couldn't load, and an import keeps it. One an import left unset before
+    // #287 gets it back here.
+    if (this.state.cpm === null) this.setState({ ...this.state, cpm: sampleCpm })
   }
 
   // Loads the sample network into the guest network on its first start, each day after the daily cron
@@ -178,14 +178,14 @@ export class NetworkAgent extends CrossfeedAgent {
   // land whatever the lookups do; the lookups count on the guest budget, and refused, the roster stays
   // empty. Until it's noted as loaded, each start tries again what didn't land: a roster still empty, the
   // lookups that failed, the launch if it wasn't planned. It's noted once a start finds the roster settled
-  // and the launch planned, or finds the sample replaced by a guest's import. It runs before any page
-  // connects, so it plans the launch and reserves the calls here, and leaves the lookups to run in the
-  // background.
+  // and the launch planned, or finds the sample replaced by a guest's import, which leaves no show holding a
+  // sample figure, though the CPM may still be the sample's (#287). It runs before any page connects, so it
+  // plans the launch and reserves the calls here, and leaves the lookups to run in the background.
   private async loadSample() {
     const { kv } = this.ctx.storage
     if (kv.get(SAMPLE_LOADED)) return
     const { roster } = this.state
-    if (roster.length > 0 && !this.state.sample) return kv.put(SAMPLE_LOADED, true)
+    if (roster.length > 0 && !roster.some((s) => s.sample?.length)) return kv.put(SAMPLE_LOADED, true)
     const failed = (e: unknown) => console.error(JSON.stringify({ event: 'sample_load', error: String(e) }))
     if (!this.state.sample) {
       // A CPM a guest set before the sample loaded is theirs, so it stays, unlabelled.
