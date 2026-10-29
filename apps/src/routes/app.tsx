@@ -72,6 +72,7 @@ import {
   GUEST_LAUNCH_WIPES,
   nextRetry,
   resetGuestNetwork,
+  wipeOwnGateway,
   WipesFailed
 } from '../wipe'
 
@@ -557,16 +558,12 @@ appPages.post('/app/:networkId/settings/qloo-key/remove', async (c) => {
       409
     )
   await networkAgent.noteOwnKey(false)
-  await ownGateway(c.env, id)
-    .wipe()
-    .catch(async (e) => {
-      await networkAgent
-        .noteOwnKey(true)
-        .catch((again) =>
-          console.error(JSON.stringify({ event: 'own_key_restore', network: id, error: String(again) }))
-        )
-      throw e
-    })
+  await wipeOwnGateway(c.env, id).catch(async (e) => {
+    await networkAgent
+      .noteOwnKey(true)
+      .catch((again) => console.error(JSON.stringify({ event: 'own_key_restore', network: id, error: String(again) })))
+    throw e
+  })
   const usage = await getUsage({ env: c.env, network: id, caller: { member: c.var.member, role: 'owner' } })
   return c.json({ key: { set: false }, usage })
 })

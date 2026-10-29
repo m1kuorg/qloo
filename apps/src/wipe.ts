@@ -22,6 +22,7 @@ import {
   wipesDue,
   type Instance
 } from './directory'
+import { WIPED } from './gateway'
 import {
   CLEARING,
   GUEST_NETWORK_RESET,
@@ -45,15 +46,35 @@ const GATEWAY = 'QlooGateway'
 // to forget, and isn't woken to say so.
 const FORGET = 'NetworkAgent.forgetMember'
 const WIPERS: Record<string, (env: Env, name: string, reason?: string) => Promise<void>> = {
-  [LAUNCH]: async (env, name, reason) => (await getAgentByName(env.LaunchAgent, name)).destroy(reason),
-  [NETWORK]: async (env, name) => (await networkToWipe(env, name)).destroy(),
-  [GATEWAY]: (env, name) => env.QlooGateway.getByName(name).wipe(),
+  [LAUNCH]: async (env, name, reason) =>
+    wiped((await getAgentByName(env.LaunchAgent, name)).destroy(reason), DESTROYED),
+  [NETWORK]: async (env, name) => wiped((await networkToWipe(env, name)).destroy(), DESTROYED),
+  [GATEWAY]: (env, name) => wiped(env.QlooGateway.getByName(name).wipe(), WIPED),
   [FORGET]: async (env, name) => {
     const [networkId, memberId] = name.split(':')
     if ((await networkName(env.DB, networkId)) === null) return
     await (await getAgentByName(env.NetworkAgent, networkId)).forgetMember(memberId)
   }
 }
+
+// The reset an instance makes once its own wipe has deleted its storage: an agent's `destroy` resets it
+// saying "destroyed", and a gateway's `wipe` saying WIPED. On Cloudflare that reset reaches the wipe's
+// caller before the wipe's answer does (#297), as an error saying the reset's reason, marked
+// `durableObjectReset` by workerd, so a wipe it rejects is done. Every other error fails the wipe: a reset
+// with another reason, such as a deploy's, and an error code throws, which has no mark, even saying the
+// same, as a gateway's calls do once its wipe has begun.
+const DESTROYED = 'destroyed'
+async function wiped(wiping: Promise<void>, reset: string) {
+  try {
+    await wiping
+  } catch (e) {
+    const isReset = e instanceof Error && 'durableObjectReset' in e && e.durableObjectReset === true
+    if (!isReset || e.message !== reset) throw e
+  }
+}
+
+// Wipes network `networkId`'s own Qloo gateway instance, as removing its key does.
+export const wipeOwnGateway = (env: Env, networkId: string) => WIPERS[GATEWAY](env, ownGatewayName(networkId))
 
 // A wipe the cron retries only once it's this old, so it never races a deletion still under way.
 const RETRY_AFTER_MS = 60_000
@@ -254,7 +275,7 @@ async function wipeNetwork(env: Env, { name: networkId, reason }: Instance) {
   const agent = await networkToWipe(env, networkId)
   const launches = await agent.letGo(why)
   await noteWipe(env.DB, ...networkInstances(networkId, launches, why).filter((i) => i.binding !== NETWORK))
-  await agent.destroy()
+  await wiped(agent.destroy(), DESTROYED)
   await wipeDone(env.DB, NETWORK, networkId)
 }
 
