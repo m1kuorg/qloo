@@ -556,7 +556,10 @@ describe("the inbox's members", () => {
         state={seen}
         network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
         memberId={ada.id}
-        setup={{ invited: true, apiKey: false }}
+        setup={{ invited: true }}
+        usage={null}
+        ownKey={false}
+        keys={null}
         dismiss={async () => {}}
         createLaunch={async () => ({ id: 'l-1' })}
       />

@@ -615,16 +615,37 @@ const revokeUnowned = (db: D1Database, networkId: string, memberId: string) =>
       .bind(memberId, Date.now(), networkId)
   )
 
-// What a network's setup checklist reads from the directory: whether a teammate was invited or has
-// joined, and whether an API key was ever made, revoked or not.
+// What a network's setup checklist reads from the directory besides its keys' use (`keyUse`): whether a
+// teammate was invited or has joined.
 export async function setupProgress(db: D1Database, networkId: string) {
   const row = await db
     .prepare(
-      'SELECT (SELECT count(*) FROM memberships WHERE network_id = ?1) > 1 OR EXISTS (SELECT 1 FROM invites WHERE network_id = ?1) AS invited, EXISTS (SELECT 1 FROM api_keys WHERE network_id = ?1) AS apiKey'
+      'SELECT (SELECT count(*) FROM memberships WHERE network_id = ?1) > 1 OR EXISTS (SELECT 1 FROM invites WHERE network_id = ?1) AS invited'
     )
     .bind(networkId)
-    .first<{ invited: number; apiKey: number }>()
-  return { invited: row?.invited === 1, apiKey: row?.apiKey === 1 }
+    .first<{ invited: number }>()
+  return { invited: row?.invited === 1 }
+}
+
+// How a network's API keys are used, as its dashboard says it and its setup checklist ticks off "Connect
+// your AI" from it: how many are in use, and the latest use of any key it ever made, revoked or not, to
+// the minute (`apiKeyFor`), with that key's name and whether it's revoked since, or null while no key
+// has been used. The dashboard tells only an owner the name and whether it's revoked, as only an owner
+// sees the network's keys (`apiKeys`).
+export type KeyUse = { inUse: number; last: { at: number; name?: string; revoked?: boolean } | null }
+
+export async function keyUse(db: D1Database, networkId: string): Promise<KeyUse> {
+  const row = await db
+    .prepare(
+      'SELECT (SELECT count(*) FROM api_keys WHERE network_id = ?1 AND revoked IS NULL) AS inUse, k.last_used AS at, k.name, k.revoked IS NOT NULL AS revoked FROM (SELECT 1) LEFT JOIN api_keys k ON k.id = (SELECT id FROM api_keys WHERE network_id = ?1 AND last_used IS NOT NULL ORDER BY last_used DESC, id LIMIT 1)'
+    )
+    .bind(networkId)
+    .first<{ inUse: number; at: number | null; name: string | null; revoked: number | null }>()
+  const at = row?.at ?? null
+  return {
+    inUse: row?.inUse ?? 0,
+    last: at === null ? null : { at, name: row!.name!, revoked: row!.revoked === 1 }
+  }
 }
 
 // An invite link works once, for seven days, unless an owner revokes it first.

@@ -82,7 +82,10 @@ const OWNERS_ONLY = "Only an owner, or an API key an owner made, can change the 
 // (ADR 0004).
 export async function getUsage({ env, network }: OperationContext): Promise<Usage> {
   const key = networkLimitKey(network)
-  const [usage, ownKey] = await Promise.all([globalGateway(env).usage(key), (await agent(env, network)).hasOwnKey()])
+  const [usage, ownKey] = await Promise.all([
+    globalGateway(env).usage(key),
+    agent(env, network).then((a) => a.hasOwnKey())
+  ])
   const calls = ownKey ? await ownGateway(env, network).usage(key) : usage
   return { ...usage, qlooCalls: calls.qlooCalls }
 }

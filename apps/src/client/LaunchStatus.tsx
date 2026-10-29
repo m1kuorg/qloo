@@ -1,10 +1,12 @@
 import { CheckIcon } from 'lucide-react'
 import type { LaunchSummary } from '../agent'
 import { OnAir } from './Frame'
+import { count, summaryLine } from './PageHeader'
 import { endedBadly, isLive, StateLine } from './states'
 
-// A launch's status as the Launches page and the dashboard show it, and the groups by who's blocked
-// that the Launches page lists launches in, the first of which is the dashboard's Needs you.
+// A launch's status as the Launches page and the dashboard show it, the groups by who's blocked that
+// the Launches page lists launches in, the first of which is the dashboard's Needs you, and the counts
+// both pages' headers give.
 
 // The launches by who's blocked, in the order a member works through them: the launches that need a
 // person (a question waiting, an order to approve, a run that failed or stopped, each status word
@@ -31,6 +33,24 @@ export const grouped = (launches: LaunchSummary[]) =>
 
 // The launches that need a person, the first group, latest run first.
 export const needsYou = (launches: LaunchSummary[]) => latestFirst(launches, GROUPS[0].statuses)
+
+// The five launches run last, whatever their group, latest run first, as the dashboard's Latest runs
+// lists them.
+export const latestRuns = (launches: LaunchSummary[]) =>
+  latestFirst(
+    launches.filter((l) => l.lastRun !== null),
+    GROUPS.flatMap((g) => g.statuses)
+  ).slice(0, 5)
+
+// The launches in the Launches page's and the dashboard's summary line: "7 launches · 4 need you, 1
+// running".
+export function countsLine(launches: LaunchSummary[]) {
+  const running = launches.filter((l) => l.status === 'running').length
+  return summaryLine(count(launches.length, 'launch', 'launches'), [
+    [needsYou(launches).length, 'needs you', 'need you'],
+    [running, 'running']
+  ])
+}
 
 // What the Launches page and the dashboard call each status.
 const statusLabel: Record<LaunchSummary['status'], string> = {

@@ -507,7 +507,10 @@ const dashboardWords = (state: State) =>
         state,
         network: guestNetwork,
         memberId: 'guest-member',
-        setup: { invited: false, apiKey: false },
+        setup: { invited: false },
+        usage: null,
+        ownKey: false,
+        keys: null,
         dismiss: async () => {},
         createLaunch: async () => ({ id: 'l-1' })
       })

@@ -505,7 +505,10 @@ describe("the roster's page", () => {
         state={next}
         network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
         memberId={ada.id}
-        setup={{ invited: true, apiKey: false }}
+        setup={{ invited: true }}
+        usage={null}
+        ownKey={false}
+        keys={null}
         dismiss={async () => {}}
         createLaunch={async () => ({ id: 'l-1' })}
       />
@@ -570,7 +573,10 @@ describe("the roster page's words", () => {
               links: networkLinks(env, 'guest-network')
             }}
             memberId="guest-member"
-            setup={{ invited: false, apiKey: false }}
+            setup={{ invited: false }}
+            usage={null}
+            ownKey={false}
+            keys={null}
             dismiss={async () => {}}
             createLaunch={async () => ({ id: 'l-1' })}
           />

@@ -26,9 +26,9 @@ import type { LaunchInput, LaunchSummary, State } from '../agent'
 import { dollars } from '../order'
 import { Alert, day, ScrollTable, send, useAction } from './controls'
 import { launchTitle, NewLaunch } from './LaunchFields'
-import { grouped, LaunchStatus, needsYou } from './LaunchStatus'
+import { countsLine, grouped, LaunchStatus } from './LaunchStatus'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
-import { count, PageEmpty, PageHeader, summaryLine, useFormDialog } from './PageHeader'
+import { PageEmpty, PageHeader, useFormDialog } from './PageHeader'
 import { connectionOf, type Connection } from './states'
 
 export function LaunchesPage(props: { agentPath: string; network: NetworkPage }) {
@@ -87,16 +87,6 @@ export function Launches({
       )}
     </main>
   )
-}
-
-// The header's summary: "7 launches · 4 need you, 1 running".
-function countsLine(launches: LaunchSummary[]) {
-  const needs = needsYou(launches).length
-  const running = launches.filter((l) => l.status === 'running').length
-  return summaryLine(count(launches.length, 'launch', 'launches'), [
-    [needs, 'needs you', 'need you'],
-    [running, 'running']
-  ])
 }
 
 // A launch's finalists: a five-step meter in signal, what the agent puts forward, then the count,

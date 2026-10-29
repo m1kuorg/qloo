@@ -747,7 +747,7 @@ describe('a page that fails', () => {
   it('shows a browser the error page in the marketing shell, with its Ray ID and the way back to the network', async () => {
     // On production, where search engines index the public pages but none of a member's.
     env.SEARCH_INDEXING = 'on'
-    const { ada, id } = await failing('api_keys')
+    const { ada, id } = await failing('invites')
     const failed = vi.spyOn(console, 'error')
     const res = await ada.fetch(`/app/${id}`, { headers: { ...browser.headers, 'CF-Ray': '8f1e2d3c4b5a6978-SIN' } })
     expect(res.headers.get('X-Robots-Tag')).toBe('noindex')
@@ -769,7 +769,7 @@ describe('a page that fails', () => {
         method: 'GET',
         path: `/app/${id}`,
         ray: '8f1e2d3c4b5a6978-SIN',
-        error: expect.stringContaining('no such table: api_keys')
+        error: expect.stringContaining('no such table: invites')
       }
     ])
   })

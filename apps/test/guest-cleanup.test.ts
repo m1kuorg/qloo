@@ -165,10 +165,12 @@ describe('the daily clearing', () => {
       expect((await call(`/api/v1/networks/${network}`)).status).toBe(200)
       expect((await opened(token)).status).toBe(200)
     }
-    const setup = async () =>
-      (await (await guest.fetch('/app/guest-network')).text())
-        .match(/data-invited="(\w+)" data-api-key="(\w+)"/)!
-        .slice(1)
+    // Whether the guest network's setup has a teammate invited, and a key used ("Connect your AI").
+    const setup = async () => {
+      const html = await (await guest.fetch('/app/guest-network')).text()
+      const keys = JSON.parse(html.match(/data-keys="([^"]*)"/)![1].replace(/&quot;/g, '"'))
+      return [html.match(/data-invited="(\w+)"/)![1], String(keys.last !== null)]
+    }
     expect(await setup()).toEqual(['true', 'true'])
 
     await clearing()

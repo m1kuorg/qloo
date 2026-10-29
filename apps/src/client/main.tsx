@@ -50,7 +50,10 @@ const pages: Record<string, () => Promise<ReactNode>> = {
         agentPath={d.agentPath!}
         network={network()}
         memberId={d.memberId!}
-        setup={{ invited: d.invited === 'true', apiKey: d.apiKey === 'true' }}
+        setup={{ invited: d.invited === 'true' }}
+        usage={d.usage ? JSON.parse(d.usage) : null}
+        ownKey={d.ownKey === 'true'}
+        keys={d.keys ? JSON.parse(d.keys) : null}
         notice={d.notice}
       />
     )),
