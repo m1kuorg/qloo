@@ -294,7 +294,7 @@ export function PickOne({
           {busy && <Spinner data-icon="inline-start" />}
           {submit}
         </Button>
-        <small className="type-caption text-muted-foreground">{note}, with each one’s popularity percentile</small>
+        <small className="type-caption text-muted-foreground">{note} with each one’s popularity percentile</small>
       </div>
     </form>
   )
