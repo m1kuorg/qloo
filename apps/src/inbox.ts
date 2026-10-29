@@ -60,7 +60,7 @@ export type Pitch = {
 
 export type Inbox = {
   id: string
-  sample: boolean // the synthetic sample inbox, whose guests and works are labelled "sample"
+  sample: boolean // the synthetic sample inbox, whose page's title is badged "sample"
   uploaded?: true // read from uploaded email files rather than pasted
   skipped?: Skipped[] // uploaded pitches left out, each named and why; absent when none was
   notice: string | null // the sample's notice
