@@ -12,7 +12,6 @@ import type { Show, ShowPatch, SlowCall } from '../agent'
 import { dollars } from '../order'
 import { MAX_TITLE } from '../text'
 import type { RosterFormat } from '../roster'
-import type { SampleFigure } from '../sample'
 import { readRosterUpload } from '../upload'
 import type { Session } from './App'
 import {
@@ -238,23 +237,14 @@ function MatchChip({ show, slow }: { show: Show; slow: boolean }) {
   )
 }
 
-// Whether a show's figure, or any of them, still holds the sample network's arbitrary value, and its
-// label: beside each such figure in the Show tab, and once beside the show's name in the roster table.
-const sampled = (show: Show, figure: SampleFigure) => show.sample?.includes(figure) ?? false
-const isSampled = (show: Show) => (show.sample?.length ?? 0) > 0
-const SampleChip = () => <Badge>sample</Badge>
-
 // The roster as a ranked list's rows, in the fit chart's anatomy: a real table, its rules bleeding
 // 8px past the text as the chart's do, the show set as the chart sets it with its description under
-// it, labelled sample once while any of its figures is the sample's (the Show tab says which), figures
-// right-aligned. Screen readers read a row's header out before each of its cells, so they don't get
-// that label: they hear "sample" after the downloads and status it marks instead (a sample description
-// is in the header, so only the Show tab says so). On the roster page each show's name opens it in
-// the inspector's Show tab, and the show open there, or whose evidence is, holds the tone step.
+// it, figures right-aligned. Sample figures carry no label of their own: the page's header says the
+// roster is the sample data's (#311). On the roster page each show's name opens it in the inspector's
+// Show tab, and the show open there, or whose evidence is, holds the tone step.
 // Narrower than the table, it scrolls sideways in its region with the show's column held at the left.
 export function RosterTable({
   roster,
-  readiness,
   selected,
   select,
   slowCalls,
@@ -262,7 +252,6 @@ export function RosterTable({
   opened
 }: {
   roster: Show[]
-  readiness?: string | null // whether a run can score every show yet, the caption's first line
   selected: string | null
   // Opens a show from the control that asked; null where the roster is read-only, as on a launch's page.
   select: ((name: string, from: HTMLElement) => void) | null
@@ -279,15 +268,13 @@ export function RosterTable({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 type-caption text-muted-foreground" id="roster-cap">
-        {readiness && <span className="basis-full text-foreground">{readiness}</span>}
         <Source of="qloo" /> Matches from Qloo search, one call per show.{' '}
         {select
           ? 'Select a show to settle or edit it, or open a call for its evidence.'
           : 'Open a call for its evidence.'}
       </p>
       <ScrollTable label="Roster table" className="-mx-2 max-w-none">
-        {/* Positioned, so the visually hidden "sample" scrolls and clips with the table, not the page. */}
-        <table className="relative w-full min-w-[42rem] border-separate border-spacing-0" aria-describedby="roster-cap">
+        <table className="w-full min-w-[42rem] border-separate border-spacing-0" aria-describedby="roster-cap">
           <thead className="type-caption text-muted-foreground">
             <tr>
               <th scope="col" className={cn(head, held)}>
@@ -337,7 +324,6 @@ export function RosterTable({
                       ) : (
                         <span className="text-[15px] leading-snug font-semibold">{show.name}</span>
                       )}
-                      {isSampled(show) && <Badge aria-hidden="true">sample</Badge>}
                     </span>
                     {show.description && (
                       <span className="line-clamp-2 type-caption text-muted-foreground" title={show.description}>
@@ -364,12 +350,8 @@ export function RosterTable({
                 </td>
                 <td className={cn(cell, 'text-right')}>
                   {show.downloads == null ? '–' : show.downloads.toLocaleString('en-US')}
-                  {sampled(show, 'downloads') && <span className="vh"> sample</span>}
                 </td>
-                <td className={cell}>
-                  {show.status ?? '–'}
-                  {sampled(show, 'status') && <span className="vh"> sample</span>}
-                </td>
+                <td className={cell}>{show.status ?? '–'}</td>
                 <td className={cn(cell, 'pr-2 text-right')}>
                   {/* A pending call has no evidence record yet, so it opens once the search settles. */}
                   {show.resolution === 'pending' ? (
@@ -462,11 +444,7 @@ export function ShowEditor({
             <MatchChip show={show} slow={false} />
             {show.excluded && <Badge>Excluded</Badge>}
           </span>
-          {show.description && (
-            <p className="text-muted-foreground">
-              {sampled(show, 'description') && <span className="font-medium">Sample:</span>} {show.description}
-            </p>
-          )}
+          {show.description && <p className="text-muted-foreground">{show.description}</p>}
         </div>
         {show.candidates.length > 0 && (
           <PickOne
@@ -623,9 +601,7 @@ function ShowFields({
     <form className="flex flex-col gap-3" onSubmit={(e) => void save(e)}>
       <FieldGroup className="gap-3">
         <Field data-invalid={invalid !== null || undefined}>
-          <FieldLabel htmlFor="show-downloads" className="flex-wrap gap-1.5">
-            Downloads per episode {sampled(show, 'downloads') && <SampleChip />}
-          </FieldLabel>
+          <FieldLabel htmlFor="show-downloads">Downloads per episode</FieldLabel>
           <Input
             id="show-downloads"
             ref={downloadsField}
@@ -637,9 +613,7 @@ function ShowFields({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="show-status" className="flex-wrap gap-1.5">
-            Status {sampled(show, 'status') && <SampleChip />}
-          </FieldLabel>
+          <FieldLabel htmlFor="show-status">Status</FieldLabel>
           <Input
             id="show-status"
             value={status}
