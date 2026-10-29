@@ -387,6 +387,20 @@ async function refuseNonOwner(c: Context<AppEnv>, id: string, ownersOnly = OWNER
   return role === 'owner' ? null : role ? c.json({ error: ownersOnly }, 403) : c.notFound()
 }
 
+// The answer to an owner creating an API key or an invite link past the ones a member may create a minute,
+// the two together, across their networks (CREATE_LIMITER in wrangler.jsonc); null within it. The caps
+// count only keys in use and links open, so this alone slows a script that revokes each as it makes it.
+// Every guest is the one guest member, so guests share one count. It's asked once the owner check passes
+// and before the request is read, so an attempt refused after it counts too; revoking is never limited.
+async function refuseTooManyCreated(c: Context<AppEnv>) {
+  if ((await c.env.CREATE_LIMITER.limit({ key: c.var.member.id })).success) return null
+  c.header('Retry-After', '60')
+  return c.json(
+    { error: 'Too many API keys and invite links were created in the last minute. Wait a minute, then try again.' },
+    429
+  )
+}
+
 // The answer to a change to member `:memberId`'s membership of network `id`, as refuseNonOwner gives it,
 // but for a guest's own, which is every guest's: in a network it's in, whatever its role there, as once a
 // co-owner has made it a member, the 403 that says why (guestRefused).
@@ -403,7 +417,7 @@ const refuseLastOwner = (c: Context<AppEnv>) =>
 // log or a referrer. It's shown this once; the list shows the invite by its dates.
 appPages.post('/app/:networkId/settings/members/invites', async (c) => {
   const id = c.req.param('networkId')
-  const refused = await refuseNonOwner(c, id)
+  const refused = (await refuseNonOwner(c, id)) ?? (await refuseTooManyCreated(c))
   if (refused) return refused
   const cap = Number(c.env.INVITES_PER_NETWORK) || 0
   const invite = await createInvite(c.env.DB, id, c.var.member.id, cap)
@@ -483,7 +497,7 @@ const KEYS_OWNERS_ONLY = 'Only an owner can create and revoke API keys.'
 
 appPages.post('/app/:networkId/settings/api-keys', async (c) => {
   const id = c.req.param('networkId')
-  const refused = await refuseNonOwner(c, id, KEYS_OWNERS_ONLY)
+  const refused = (await refuseNonOwner(c, id, KEYS_OWNERS_ONLY)) ?? (await refuseTooManyCreated(c))
   if (refused) return refused
   const read = readName((await jsonBody(c)).name, 'Name the key, such as the script or assistant that will use it.')
   if ('error' in read) return c.json({ error: read.error }, 400)

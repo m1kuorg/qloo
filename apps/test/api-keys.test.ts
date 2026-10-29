@@ -29,6 +29,25 @@ async function key(member: Member, network: string, name = 'Nightly sync') {
   return res.json<{ id: string; secret: string }>()
 }
 
+// An owner's creation of an API key, or of an invite link, in network `network`, which they revoke as soon
+// as it's made, so neither cap refuses first. The answer is the creation's.
+async function createAndRevoke(member: Member, network: string, kind: 'api-keys' | 'members/invites') {
+  const made = await post(member, `/app/${network}/settings/${kind}`, { name: 'Nightly sync' })
+  if (made.status !== 200) return made
+  const { id } = await made.clone().json<{ id: string }>()
+  const revoked = await post(member, `/app/${network}/settings/${kind}/${id}/revoke`)
+  if (revoked.status !== 200) throw new Error(`Revoking ${id} returned ${revoked.status}: ${await revoked.text()}`)
+  return made
+}
+
+// A refusal of a creation past the ones a member makes a minute: its status, Retry-After, and body.
+const refusal = async (res: Response) => [res.status, res.headers.get('Retry-After'), await res.json()]
+const TOO_MANY_CREATED = [
+  429,
+  '60',
+  { error: 'Too many API keys and invite links were created in the last minute. Wait a minute, then try again.' }
+]
+
 // An HTML attribute's value as the page's script reads it.
 const he = (value: string) =>
   value
@@ -51,9 +70,10 @@ afterEach(() => vi.useRealTimers())
 const NOW = Date.parse('2026-10-19T12:00:00Z')
 
 // Requests a minute, as wrangler.jsonc's rate limits allow: per API key, and per visitor on the auth
-// routes that write before anyone signs in.
+// routes that write before anyone signs in. And the API keys and invite links a member creates a minute.
 const API_LIMIT = 120
 const AUTH_LIMIT = 20
+const CREATE_LIMIT = 30
 
 describe('API keys in settings', () => {
   it('let an owner create one, its secret shown once, then listed by prefix, creator, and dates', async () => {
@@ -353,5 +373,59 @@ describe('rate limits', () => {
     }
     // Another address isn't counted with it.
     expect((await from('192.0.2.42')('/auth/sign-in/options')).status).toBe(200)
+  })
+
+  it('refuse an owner past 30 API keys created a minute, though each is revoked as it is made, writing nothing', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { sent, res } = await untilRefused(() => createAndRevoke(ada, network, 'api-keys'), CREATE_LIMIT)
+    expect(sent).toBeGreaterThan(CREATE_LIMIT)
+    expect(await refusal(res)).toEqual(TOO_MANY_CREATED)
+    // Each key made was revoked, and the refused one wasn't made.
+    expect(await listed(ada, network)).toEqual([])
+  })
+
+  it("count a member's API keys and invite links together, apart from other members', and leave revoking alone", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(network) })
+    expect((await post(ada, `/app/${network}/settings/members/${grace.id}/role`, { role: 'owner' })).status).toBe(200)
+    const held = await key(ada, network, 'Held')
+    const open = await (await post(ada, `/app/${network}/settings/members/invites`)).json<{ id: string }>()
+
+    // Keys and links in turn, so the minute's creations are split between the two.
+    let pass = 0
+    await untilRefused(() => createAndRevoke(ada, network, pass++ % 2 ? 'members/invites' : 'api-keys'), CREATE_LIMIT)
+    for (const kind of ['api-keys', 'members/invites'])
+      expect(await refusal(await post(ada, `/app/${network}/settings/${kind}`, { name: 'Mine' })), kind).toEqual(
+        TOO_MANY_CREATED
+      )
+
+    // Another owner of the same network still creates, and the refused owner still revokes.
+    expect((await post(grace, `/app/${network}/settings/api-keys`, { name: 'Grace’s sync' })).status).toBe(200)
+    expect((await post(ada, `/app/${network}/settings/api-keys/${held.id}/revoke`)).status).toBe(200)
+    expect((await post(ada, `/app/${network}/settings/members/invites/${open.id}/revoke`)).status).toBe(200)
+  })
+
+  it("count a member's creations across the networks they own, and refuse them elsewhere as before: 403 as a member, 404 outside", async () => {
+    const ada = await openMember()
+    const adas = await created(ada)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(adas) })
+    const first = await created(grace, 'Static Hours')
+    const second = await created(grace, 'Deep Cuts')
+    const outside = await created(await openMember({ name: 'Mallory Outsider' }), 'Elsewhere')
+
+    await untilRefused(() => createAndRevoke(grace, first, 'api-keys'), CREATE_LIMIT)
+    expect(await refusal(await post(grace, `/app/${second}/settings/members/invites`))).toEqual(TOO_MANY_CREATED)
+
+    const keys = await post(grace, `/app/${adas}/settings/api-keys`, { name: 'Mine' })
+    expect([keys.status, await keys.json()]).toEqual([403, { error: 'Only an owner can create and revoke API keys.' }])
+    const invites = await post(grace, `/app/${adas}/settings/members/invites`)
+    expect([invites.status, await invites.json()]).toEqual([
+      403,
+      { error: 'Only an owner can invite and manage members.' }
+    ])
+    expect((await post(grace, `/app/${outside}/settings/api-keys`, { name: 'Mine' })).status).toBe(404)
+    expect((await post(grace, `/app/${outside}/settings/members/invites`)).status).toBe(404)
   })
 })

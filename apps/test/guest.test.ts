@@ -38,6 +38,7 @@ import {
   openMember,
   readAfterReset,
   sections,
+  untilRefused,
   type Guest,
   type Session
 } from './session'
@@ -381,6 +382,29 @@ describe('what a guest can change, as an owner', () => {
           'Guest network has 10 API keys in use, the most a network can keep at once. Revoke one to create another.'
       }
     ])
+  })
+
+  it('creates at most 30 API keys and invite links a minute, for every guest together, as one member does', async () => {
+    const ada = await openGuest()
+    // Each key is revoked as it's made, so the cap doesn't refuse first.
+    const { sent } = await untilRefused(async () => {
+      const made = await post(ada, `${settings}/api-keys`, { name: 'Nightly sync' })
+      if (made.status === 200)
+        await post(ada, `${settings}/api-keys/${(await made.clone().json<{ id: string }>()).id}/revoke`)
+      return made
+    }, 30)
+    expect(sent).toBeGreaterThan(30)
+
+    // Another guest, signed in after, is refused too.
+    const grace = await openGuest()
+    for (const kind of ['api-keys', 'members/invites']) {
+      const refused = await post(grace, `${settings}/${kind}`, { name: 'Nightly sync' })
+      expect([refused.status, refused.headers.get('Retry-After'), await refused.json()], kind).toEqual([
+        429,
+        '60',
+        { error: 'Too many API keys and invite links were created in the last minute. Wait a minute, then try again.' }
+      ])
+    }
   })
 
   it('creates networks, with IDs that start with guest-, which every guest owns', async () => {
