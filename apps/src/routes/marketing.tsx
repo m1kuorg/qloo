@@ -1428,13 +1428,13 @@ function Terms({ env }: { env: Env }) {
           {env.ACCOUNTS === 'on' && (
             <>
               A member can create at most {cap(env.NETWORKS_PER_MEMBER)} networks, and a network can keep at most{' '}
-              {cap(env.LAUNCHES_PER_NETWORK)} launches and {cap(env.INVITES_PER_NETWORK)} open invite links at once. One
-              member’s invite links can bring in at most {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC day.
-              Everyone who signs in as a guest shares one account, and so one set of these limits: the guest network and
-              the networks guests create count as one visitor together, guests can create at most{' '}
-              {cap(env.NETWORKS_PER_MEMBER)} networks a day between them, and guest sign-ins are limited for everyone
-              together, to {cap(env.GUEST_SIGNINS_PER_MINUTE)} a minute and {cap(env.GUEST_SIGNINS_PER_DAY)} a UTC
-              day.{' '}
+              {cap(env.LAUNCHES_PER_NETWORK)} launches, {cap(env.INVITES_PER_NETWORK)} open invite links, and{' '}
+              {cap(env.API_KEYS_PER_NETWORK)} API keys in use at once. One member’s invite links can bring in at most{' '}
+              {cap(env.INVITED_SIGNUP_DAILY_CAP)} new accounts a UTC day. Everyone who signs in as a guest shares one
+              account, and so one set of these limits: the guest network and the networks guests create count as one
+              visitor together, guests can create at most {cap(env.NETWORKS_PER_MEMBER)} networks a day between them,
+              and guest sign-ins are limited for everyone together, to {cap(env.GUEST_SIGNINS_PER_MINUTE)} a minute and{' '}
+              {cap(env.GUEST_SIGNINS_PER_DAY)} a UTC day.{' '}
             </>
           )}
           A run makes at most {MAX_TURNS} model turns and {MAX_QLOO_CALLS} Qloo calls, and an inbox holds at most{' '}

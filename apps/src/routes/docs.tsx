@@ -465,6 +465,12 @@ curl "$CROSSFEED/api/v1/networks/$NETWORK_ID/roster" -H "Authorization: Bearer $
                 </tr>
                 <tr role="row">
                   <th role="rowheader" scope="row">
+                    API keys
+                  </th>
+                  <td role="cell">At most {cap(env.API_KEYS_PER_NETWORK)} a network keeps in use at once</td>
+                </tr>
+                <tr role="row">
+                  <th role="rowheader" scope="row">
                     Roster
                   </th>
                   <td role="cell">At most {MAX_SHOWS} shows</td>
