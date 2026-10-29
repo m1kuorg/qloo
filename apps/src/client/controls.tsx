@@ -179,6 +179,11 @@ export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).
 export const day = (when: string | number) =>
   new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
+// And the UTC day, as the capture of the run one of the sample launches is seeded with is dated, so its
+// run log reads as the run’s own text does (scripts/capture-sample-launches.ts).
+export const utcDay = (when: string | number) =>
+  new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+
 // A radio list of Qloo entities with their popularity, and for works their year and a line on what
 // each is, and a button that commits the pick. Options that Qloo gives nothing else to tell apart
 // show their Qloo IDs, and the list says so (#128). The button disables itself while the pick is sent

@@ -17,7 +17,7 @@ import { MAX_ANSWER, MAX_TITLE } from '../text'
 import { offeredBy } from '../resolve'
 import { takesText } from '../tools/ask-human'
 import type { Session } from './App'
-import { Alert, FitBand, KeyValue, KeyValues, listOf, percentile, useAction } from './controls'
+import { Alert, FitBand, KeyValue, KeyValues, listOf, percentile, useAction, utcDay } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
 import { Section } from './PageHeader'
 import { Source } from './Source'
@@ -100,7 +100,12 @@ export function RunLog({
           <Badge mark={live ? 'signal' : 'none'}>{runLabel[run.status]}</Badge>
         </>
       }
-      description="Each step the run took, and how it ended."
+      description={
+        // One of the sample launches' runs says the day it was captured (ADR 0007).
+        run.capturedAt
+          ? `Each step the run took when it was captured from the sample data on ${utcDay(run.capturedAt)}, and how it ended.`
+          : 'Each step the run took, and how it ended.'
+      }
       data-run-log
     >
       {run.notes.length > 0 && (
