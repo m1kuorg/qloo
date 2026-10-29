@@ -256,6 +256,7 @@ Contents:
     1.  [App shell](#app-shell)
     1.  [Marketing shell](#marketing-shell)
     1.  [Menus and the skip link](#menus-and-the-skip-link)
+    1.  [Icons](#icons)
 1.  [Components and recipes](#components-and-recipes)
     1.  [Where things live](#where-things-live)
     1.  [Recipes in variants.ts](#recipes-in-variantsts)
@@ -429,6 +430,22 @@ The shells' menus are native `<details data-menu>`, styled like shadcn's dropdow
 
 "Skip to content" is first in every shell: off the screen until focused, it targets `#content`, an empty element at the head of the page that takes focus.
 
+### Icons
+
+The favicon is the mark, and nothing else stands for Crossfeed in a tab, a bookmark or on a home screen. `apps/scripts/mark.svg` is its one source for the icons: `mark.tsx`'s drawing with literal colours, as no class reaches it, ink with the crossing in signal, and a `prefers-color-scheme: dark` rule that switches both to the dark scheme's. Its box is cropped 2 units in from each side of the mark's 24, so the mark fills a 16px tab. The plain stroke holds at 16px, and a heavier one fills the gap between the bars' ends, so no size has a heavier variant. Safari takes the ICO whenever it's linked, and draws even the SVG in its light colours, so the ICO puts the mark on a rounded tile of the light ground, which holds on a dark tab bar.
+
+`apps/scripts/icons.sh` renders the set into `apps/public/`, as [apps/README.md](/apps/README.md#icons) shows:
+
+| File                           | What                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `icon.svg`                     | the tab's icon in Chrome, light or dark as the browser is                                                    |
+| `favicon.ico`                  | the tab's icon in Safari, and in a browser that takes no SVG: 16, 32 and 48px, on a tile of the light ground |
+| `apple-touch-icon.png`         | 180px for iOS's home screen: the mark two-thirds of the way across, on the light ground                      |
+| `icon-192.png`, `icon-512.png` | the manifest's icons, drawn as the apple-touch icon is                                                       |
+| `icon-maskable-512.png`        | the manifest's maskable icon: the mark half the way across, inside the circle a launcher keeps               |
+
+Every shell's head (`Head` in `shell.tsx`) links four files: the ICO, the SVG, the apple-touch icon and `manifest.webmanifest`. The ICO's link carries `sizes="32x32"`, so Chrome, which takes the SVG, doesn't fetch the ICO too. Two `theme-color`s by `media` tint a phone's browser to the page's ground, `#f8f8fa` light and `#0e0f12` dark, never the signal. The manifest names the app Crossfeed, opens it standalone at `/app`, and sets its background and theme colour to the light ground. There's no service worker. With `ACCOUNTS` off, `/app` answers 404, so an installed app opens on the 404 page; production runs with it on.
+
 ## Components and recipes
 
 ### Where things live
@@ -440,8 +457,10 @@ The shells' menus are native `<details data-menu>`, styled like shadcn's dropdow
 | `apps/src/components/ui/*.tsx`         | the shadcn components (Base UI primitives), forked onto the tokens                                           |
 | `apps/src/client/`                     | the island: one module per page, and the shared modules below                                                |
 | `apps/src/shell.tsx`                   | the server-rendered shells                                                                                   |
-| `apps/src/mark.tsx`, `client/Mark.tsx` | the mark, twice: Hono JSX can't render the island's React, so each has its own; keep them alike              |
+| `apps/src/mark.tsx`, `client/Mark.tsx` | the mark, twice, as Hono JSX can't render the island's React; keep them and `apps/scripts/mark.svg` alike    |
 | `apps/src/icons.tsx`                   | the lucide icons the server pages use, as Hono JSX                                                           |
+| `apps/scripts/mark.svg`, `icons.sh`    | the mark in literal colours, alike with `mark.tsx`, and the script that renders the [icons](#icons) from it  |
+| `apps/public/`                         | the icons and the web app manifest, which Workers Assets serves before the Worker runs                       |
 | `apps/components.json`                 | shadcn's config: `base-nova`, aliases under `@/`, utils pointing at the `cn` package                         |
 
 ### Recipes in variants.ts

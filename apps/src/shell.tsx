@@ -16,15 +16,25 @@ window.$RefreshReg$ = () => {}
 window.$RefreshSig$ = () => (type) => type
 window.__vite_plugin_react_preamble_installed__ = true`
 
-// The head every shell shares: the page's title, Vite's client in development, and the stylesheet.
-// A shell adds what else its pages load, such as the island's script.
+// The head every shell shares: the page's title, the mark's icons and the web app manifest, Vite's
+// client in development, and the stylesheet. A shell adds what else its pages load, such as the
+// island's script.
 const Head = ({ title, children }: { title: string; children?: Child }) => (
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     {/* The page follows the system's light or dark setting (style.css), form controls included. */}
     <meta name="color-scheme" content="light dark" />
+    {/* A phone's browser tints its chrome to the page's ground, light or dark. */}
+    <meta name="theme-color" content="#f8f8fa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)" />
     <title>{title}</title>
+    {/* The mark, from public/, which scripts/icons.sh renders: the ICO, which Safari takes, the SVG,
+        which Chrome takes, light or dark as the browser is, and the home screen's icons. */}
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <ViteClient />
     <Link href="/src/style.css" rel="stylesheet" />
     {children}

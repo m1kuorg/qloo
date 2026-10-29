@@ -1,6 +1,8 @@
 // The Content-Security-Policy every page is served under: everything from the app's own origin, and
 // nothing framing it, read from each page as a browser loads it, and checked against what the page
-// itself loads. The browser check, in apps/README.md, confirms no page reports a violation.
+// itself loads. The browser check, in apps/README.md, confirms no page reports a violation. The head
+// every page shares is checked for what else it loads, too: the island's code, the mark's icons and
+// the manifest.
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fakeQloo } from './fake'
@@ -119,5 +121,32 @@ describe('every page', () => {
     }
     for (const [path, res] of loaded)
       expect(await preloads(res), path).toEqual(modules[path] ? [`/src/client/${modules[path]}.tsx`] : [])
+  })
+
+  // The files are in public/, which Workers Assets serves before the Worker, so only the head that
+  // links them is seen here; apps/README.md's production check fetches the files themselves.
+  it("links the mark's icons and the web app manifest, and tints the browser to the page's ground in light and dark", async () => {
+    const attributes = (tag: string) =>
+      Object.fromEntries([...tag.matchAll(/\s([a-z-]+)="([^"]*)"/g)].map(([, n, v]) => [n, v]))
+    for (const [path, res] of (await everyPage()).loaded) {
+      const head = (await res.text()).match(/<head>[\s\S]*<\/head>/)?.[0] ?? ''
+      const tags = [...head.matchAll(/<(?:link|meta)\b[^>]*>/g)].map(([tag]) => attributes(tag))
+      expect(
+        tags.filter((t) => ['icon', 'apple-touch-icon', 'manifest'].includes(t.rel)),
+        path
+      ).toEqual([
+        { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
+        { rel: 'icon', href: '/icon.svg', type: 'image/svg+xml' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        { rel: 'manifest', href: '/manifest.webmanifest' }
+      ])
+      expect(
+        tags.filter((t) => t.name === 'theme-color'),
+        path
+      ).toEqual([
+        { name: 'theme-color', content: '#f8f8fa', media: '(prefers-color-scheme: light)' },
+        { name: 'theme-color', content: '#0e0f12', media: '(prefers-color-scheme: dark)' }
+      ])
+    }
   })
 })
