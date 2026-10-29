@@ -91,7 +91,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - **A network's data is its own.** Only its members and its own API keys can reach its roster, launches, pitches, and keys; to anyone else it doesn't exist.
 - **The beta runs on Crossfeed's hackathon Qloo key.** That key can't be resold or shared, so every network runs within daily caps of its own, and an owner can bring the network's own Qloo key; selling Crossfeed or opening it past the beta needs a commercial Qloo agreement or each network's own key ([ADR 0004](/docs/adr/0004-qloo-key-per-network.md)).
 - **No email and no passwords.** Members sign in with passkeys only and recover with a one-time code; Crossfeed asks for a name and nothing else ([ADR 0003](/docs/adr/0003-passkeys-built-in-house.md)).
-- **Free, with limits.** No payments or prices. Limits per visitor and per network, on accounts, networks, launches, invite links, and text lengths, are listed on the beta terms and say what they refused.
+- **Free, with limits.** No payments or prices. Limits per visitor and per network, on accounts, networks, launches, invite links, API keys, and text lengths, are listed on the beta terms and say what they refused.
 - **The agent's words are a record.** A run's closing line stays as Claude wrote it; once the order or a reply is edited, the product says so beside it rather than rewriting it.
 
 [kit-safe]: https://github.com/qloo/qloo-hackathon-kit/blob/0db91b8d9c5aae2160d53596e57ea6c9da251cde/docs/SAFE_USE.md
