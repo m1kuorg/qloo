@@ -189,7 +189,7 @@ The spec, [#155](https://github.com/m1kuorg/qloo/issues/155), lists 98 stories f
 76. As a programmer using an assistant, I want an MCP server and Agent Skills that plan a launch and triage pitches with me, relaying each of the agent's questions to me as it is, so that the plan is still mine.
 77. As a developer, I want `/docs` and `/llms.txt` to describe the API, the SDK, the MCP server, the skills, and the plugin from the live app, so that people and assistants learn the surface where it runs.
 78. As a programmer, I want no program, script, or assistant to approve an insertion order or a reply, so that nothing ships without a member.
-79. As the operator, I want each network counted against daily limits of its own, as a visitor is, with caps on networks per member, launches per network, open invite links, sign-ups per visitor, and invited sign-ups per inviter, so that the free beta can't be used to multiply limits.
+79. As the operator, I want each network counted against daily limits of its own, as a visitor is, with caps on networks per member, launches per network, open invite links, API keys in use per network, sign-ups per visitor, and invited sign-ups per inviter, so that the free beta can't be used to multiply limits.
 80. As the operator, I want one switch, `ACCOUNTS`, that turns sign-in and everything behind it off, so that `main` stays deployable and sign-ups can stop at once.
 
 ## Implementation Decisions
