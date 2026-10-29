@@ -24,18 +24,19 @@ const BANNER = {
   path: '/og-1.png',
   width: 1200,
   height: 630,
-  alt: 'Crossfeed. Rank by who listens: an illustration of made-up shows ranked by listener overlap, one climbing five places to first as the pick.'
+  alt: 'Crossfeed. Rank by who listens. An illustration of made-up shows ranked by listener overlap: one climbs five places to first and is the pick.'
 }
 
-// What a public page tells search results and link previews besides its title: one sentence on what
-// it is, and its address, `path` on `origin`, which is APP_ORIGINS' first, never the request's, so no
-// Host header can steer it. App pages, behind sign-in, have none.
-type Card = { description: string; origin: string; path: string }
+// What a public page tells search results and link previews: its `title` without the product's
+// name, which the preview's site name says, one sentence on what it is, and its address, `path` on
+// `origin`, which is APP_ORIGINS' first, never the request's, so no Host header can steer it. App
+// pages, behind sign-in, have none.
+type Card = { title: string; description: string; origin: string; path: string }
 
 // A public page's description, canonical address and link preview: its title, its description and
 // the banner, as Open Graph sets them out, and the X card that shows the banner large, whose other
 // fields X reads from the Open Graph ones.
-const Preview = ({ title, description, origin, path }: Card & { title: string }) => {
+const Preview = ({ title, description, origin, path }: Card) => {
   const url = `${origin}${path}`
   return (
     <>
@@ -68,7 +69,7 @@ const Head = ({ title, card, children }: { title: string; card?: Card; children?
     <meta name="theme-color" content="#f8f8fa" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)" />
     <title>{title}</title>
-    {card && <Preview title={title} {...card} />}
+    {card && <Preview {...card} />}
     {/* The mark, from public/, which scripts/icons.sh renders: the ICO, which Safari takes, the SVG,
         which Chrome takes, light or dark as the browser is, and the home screen's icons. */}
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
@@ -600,12 +601,12 @@ const Footer = ({ path, accounts }: { path: string; accounts: boolean }) => (
 // A marketing page: server-rendered with no island, at 16px, under the marketing header and over the
 // footer, which a short page keeps at the window's foot. `title` names the page before the product, and
 // `description` says what it is in one sentence, for its card, whose address is `path` on `origin`; the
-// 404 handler renders it too (routes/marketing). menus.ts closes the phone's Menu on a click outside
-// and on Escape; `reveal` adds reveal.ts, the landing page's section entrances, and `ascii` its ASCII
-// field: a canvas fixed behind the page, which ascii.ts draws, sized by its classes and its own width
-// and height, never a style attribute. The face's Latin file is preloaded, so the landing page's poster
-// type is set in it from the first paint rather than re-wrapping when it swaps in for the size-adjusted
-// fallback (style.css).
+// landing page, with no title of its own, puts the claim on its card. The 404 handler renders it too
+// (routes/marketing). menus.ts closes the phone's Menu on a click outside and on Escape; `reveal` adds
+// reveal.ts, the landing page's section entrances, and `ascii` its ASCII field: a canvas fixed behind
+// the page, which ascii.ts draws, sized by its classes and its own width and height, never a style
+// attribute. The face's Latin file is preloaded, so the landing page's poster type is set in it from
+// the first paint rather than re-wrapping when it swaps in for the size-adjusted fallback (style.css).
 export const MarketingPage = ({
   title,
   description,
@@ -626,7 +627,10 @@ export const MarketingPage = ({
   children: Child
 }) => (
   <html lang="en">
-    <Head title={title ? `${title} · Crossfeed` : 'Crossfeed'} card={{ description, origin, path }}>
+    <Head
+      title={title ? `${title} · Crossfeed` : 'Crossfeed'}
+      card={{ title: title ?? 'Rank by who listens', description, origin, path }}
+    >
       {latinFont && <link rel="preload" href={latinFont} as="font" type="font/woff2" crossorigin="" />}
       {/* A literal: vite-ssr-components finds the client build's entries by reading these. */}
       <Script src="/src/client/menus.ts" />
@@ -784,7 +788,7 @@ export const authShell = (title: string, description?: string) =>
       <html lang="en">
         <IslandHead
           title={`${title} · Crossfeed`}
-          card={description ? { description, origin: appOrigins(c.env)[0], path: c.req.path } : undefined}
+          card={description ? { title, description, origin: appOrigins(c.env)[0], path: c.req.path } : undefined}
         />
         <body>
           <SkipLink />

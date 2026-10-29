@@ -461,7 +461,7 @@ The build copies only the secrets from `.dev.vars`, so the flags set the rest, a
 
 ## Icons
 
-The favicon set and the home screen's icons in `public/` are drawn from one source, `scripts/mark.svg`, by `scripts/icons.sh` ([DESIGN.md](/docs/DESIGN.md#icons)). It renders with librsvg's `rsvg-convert` and draws the ICO's tile and packs it with ImageMagick, both from Homebrew (`brew install librsvg imagemagick`). After changing the mark, keep `src/mark.tsx`, `src/client/Mark.tsx` and `scripts/mark.svg` alike, then run it in `apps/`:
+The favicon set and the home screen's icons in `public/` are drawn from one source, `scripts/mark.svg`, by `scripts/icons.sh` ([DESIGN.md](/docs/DESIGN.md#icons)). It renders with librsvg's `rsvg-convert` and draws the ICO's tile and packs it with ImageMagick, both from Homebrew (`brew install librsvg imagemagick`). After changing the mark, keep `src/mark.tsx`, `src/client/Mark.tsx`, `scripts/mark.svg` and `scripts/banner.html` alike, then run it in `apps/`, and render the [banner](#link-embed-banner) again too:
 
 ```sh
 scripts/icons.sh
@@ -477,7 +477,7 @@ done
 
 ## Link-embed banner
 
-The picture a public page's link preview shows, `public/og-1.png`, is photographed from one source, `scripts/banner.html`, by `scripts/banner.sh` ([DESIGN.md](/docs/DESIGN.md#link-embed-banner)). It's a Playwright screenshot in Chrome through `playwright-cli` from Homebrew (`brew install playwright-cli`), at 1200×630, and the page sets its type in the face `bun install` puts in `node_modules/`. The script fails if the face doesn't load or the PNG passes 300KB. After changing the banner, give it the next number in the script and in `BANNER` in `src/shell.tsx`, since unfurlers keep an image by its address for days, then run it in `apps/`:
+The picture a public page's link preview shows, `public/og-1.png`, is photographed from one source, `scripts/banner.html`, by `scripts/banner.sh` ([DESIGN.md](/docs/DESIGN.md#link-embed-banner)). It's a Playwright screenshot in Chrome through `playwright-cli` from Homebrew (`brew install playwright-cli`), at 1200×630, and the page sets its type in the face `bun install` puts in `node_modules/`. The script fails if the face doesn't load, if the layout breaks (anything past the frame's edge, a line of text past its box, two pieces of text on each other, or the claim on more than two lines), or if the PNG isn't 1200×630 or passes 300KB. After changing the banner, give it the next number in the script and in `BANNER` in `src/shell.tsx`, since unfurlers keep an image by its address for days, then run it in `apps/`:
 
 ```sh
 scripts/banner.sh

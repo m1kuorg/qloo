@@ -78,12 +78,20 @@ const previewOf = ({ tags }: Awaited<ReturnType<typeof headOf>>) =>
   )
 
 // The public pages, which a link preview may show and a search engine index: the signed-out pages,
-// the 404 page, and signing in.
-const publicPages = [
-  ...['/', '/privacy', '/terms', '/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents'],
-  missing,
-  '/sign-in'
-]
+// the 404 page, and signing in; each with its card's title, the page's own without the product's name,
+// which the card's site name says, and on the landing page the claim.
+const publicPages: Record<string, string> = {
+  '/': 'Rank by who listens',
+  '/privacy': 'Privacy',
+  '/terms': 'Beta terms',
+  '/docs': 'Developer docs',
+  '/docs/api': 'REST API · Developer docs',
+  '/docs/sdk': 'TypeScript SDK · Developer docs',
+  '/docs/mcp': 'MCP server · Developer docs',
+  '/docs/agents': 'Skills and plugin · Developer docs',
+  [missing]: 'Not found',
+  '/sign-in': 'Sign in'
+}
 
 // Every page as a browser loads it, by path: the signed-out pages, the 404 page for an address that
 // has none (`missing`), and a member's pages of a network (`id`) with a launch (`launch`).
@@ -102,7 +110,7 @@ async function everyPage() {
   const launch = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
   network.close()
 
-  const pages = [...publicPages, '/invite']
+  const pages = [...Object.keys(publicPages), '/invite']
   const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/roster`, `/app/${id}/inbox`]
   app.push(`/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
   const loaded = await Promise.all([
@@ -205,29 +213,33 @@ describe('every page', () => {
     for (const [path, res] of (await everyPage()).loaded) {
       const head = await headOf(res)
       const preview = previewOf(head)
-      if (!publicPages.includes(path)) {
+      const title = publicPages[path]
+      if (!title) {
         expect(preview, path).toEqual({})
         continue
       }
+      // The tab's title keeps the product's name.
+      expect(head.title, path).toBe(path === '/' ? 'Crossfeed' : `${title} · Crossfeed`)
       const url = `${origin}${path}`
       expect(preview, path).toEqual({
         // One sentence.
         description: expect.stringMatching(/^[A-Z](?:(?!\. ).)+\.$/),
         'og:type': 'website',
         'og:site_name': 'Crossfeed',
-        'og:title': head.title,
+        'og:title': title,
         'og:description': preview.description,
         'og:url': url,
         'og:image': `${origin}/og-1.png`,
         'og:image:width': '1200',
         'og:image:height': '630',
-        'og:image:alt': expect.stringContaining('Rank by who listens'),
+        'og:image:alt':
+          'Crossfeed. Rank by who listens. An illustration of made-up shows ranked by listener overlap: one climbs five places to first and is the pick.',
         'twitter:card': 'summary_large_image',
         canonical: url
       })
       descriptions.add(preview.description)
     }
-    expect(descriptions.size).toBe(publicPages.length)
+    expect(descriptions.size).toBe(Object.keys(publicPages).length)
   })
 
   it('takes its addresses from APP_ORIGINS’ first origin, never the request’s, and leaves sign-in’s next out', async () => {

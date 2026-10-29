@@ -1172,8 +1172,8 @@ const Part = ({ id, title, children }: { id: string; title: string; children: Ch
   </section>
 )
 
-// What the privacy page covers, its lede and its description alike.
-const PRIVACY = 'What the Crossfeed beta sends to Qloo and to Anthropic, what it keeps, and how it’s deleted.'
+// What the privacy page covers: its lede, its description, and its line in /llms.txt (routes/docs).
+export const PRIVACY = 'What the Crossfeed beta sends to Qloo and to Anthropic, what it keeps, and how it’s deleted.'
 
 function Privacy({ accounts }: { accounts: boolean }) {
   return (
@@ -1404,6 +1404,10 @@ const Limit = ({
   </tr>
 )
 
+// What the beta terms cover: their description, and their line in /llms.txt (routes/docs).
+export const TERMS =
+  'The terms of the free Crossfeed beta: no warranty, the daily limits that keep it running, and acceptable use.'
+
 function Terms({ env }: { env: Env }) {
   return (
     <Doc id="terms" title="Beta terms." lede="The terms of the free Crossfeed beta. Using it means you accept them.">
@@ -1533,14 +1537,7 @@ function Terms({ env }: { env: Env }) {
 marketing.get('/privacy', marketingShell('Privacy', PRIVACY), (c) =>
   c.render(<Privacy accounts={c.env.ACCOUNTS === 'on'} />)
 )
-marketing.get(
-  '/terms',
-  marketingShell(
-    'Beta terms',
-    'The terms of the free Crossfeed beta: no warranty, the daily limits that keep it running, and acceptable use.'
-  ),
-  (c) => c.render(<Terms env={c.env} />)
-)
+marketing.get('/terms', marketingShell('Beta terms', TERMS), (c) => c.render(<Terms env={c.env} />))
 
 // The 404 page's body: ways back home, and while ACCOUNTS is on, to the sample network, as guest sign-in,
 // and to the visitor's networks.

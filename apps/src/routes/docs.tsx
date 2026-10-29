@@ -20,25 +20,41 @@ import { REFUSALS, type RefusalCode } from '../refusal'
 import { marketingShell } from '../shell'
 import { MAX_UPLOAD_BYTES, megabytes } from '../upload'
 import { apiDocument } from './api'
-import { cap, Code, TableScroll } from './marketing'
+import { cap, Code, PRIVACY, TableScroll, TERMS } from './marketing'
 import { RELAY, listedTools } from './mcp'
 
 export const docs = new Hono<{ Bindings: Env }>()
 
-// The docs' pages, in reading order, each with what /llms.txt says it holds.
+// The docs' pages, in reading order, each with one sentence on what it holds: its description for
+// search results and link previews, and its line in /llms.txt.
 const PAGES = [
-  { path: '/docs', title: 'Overview', holds: "what a program can and can't do, API keys, limits, and errors" },
-  { path: '/docs/api', title: 'REST API', holds: 'every route under /api/v1, generated from the OpenAPI document' },
+  {
+    path: '/docs',
+    title: 'Overview',
+    description:
+      'How programs and assistants drive a Crossfeed network: what they can and can’t do, API keys, limits, and errors.'
+  },
+  {
+    path: '/docs/api',
+    title: 'REST API',
+    description: 'Every route of Crossfeed’s REST API under /api/v1, generated from its OpenAPI document.'
+  },
   {
     path: '/docs/sdk',
     title: 'TypeScript SDK',
-    holds: '@crossfeed/sdk: installing it from the repo, the client, wait helpers, and errors'
+    description:
+      'How to install Crossfeed’s TypeScript SDK from the repo, make a client, wait for long work, and handle errors.'
   },
-  { path: '/docs/mcp', title: 'MCP server', holds: 'the tools at /mcp, and the claude mcp add command' },
+  {
+    path: '/docs/mcp',
+    title: 'MCP server',
+    description: 'The tools Crossfeed’s MCP server offers at /mcp, and the command that adds it to Claude Code.'
+  },
   {
     path: '/docs/agents',
     title: 'Skills and plugin',
-    holds: 'two Agent Skills, and the Claude Code plugin that installs them with the MCP server'
+    description:
+      'Two Agent Skills, for planning launch promos and triaging guest pitches, and the Claude Code plugin that installs them with Crossfeed’s MCP server.'
   }
 ] as const
 type Path = (typeof PAGES)[number]['path']
@@ -1262,42 +1278,22 @@ const originOf = (c: Context) => new URL(c.req.url).origin
 // A docs page on the marketing shell.
 const renderPage = (c: Context<{ Bindings: Env }>, page: Page) =>
   c.render(<Docs page={page} accounts={c.env.ACCOUNTS === 'on'} />)
-const shell = (title: string, description: string) => marketingShell(`${title} · Developer docs`, description)
+// A docs page's shell, titled and described from PAGES: the overview as the docs themselves, each
+// other page under them.
+const shell = (path: Path) => {
+  const at = PAGES.findIndex((p) => p.path === path)
+  return marketingShell(at === 0 ? 'Developer docs' : `${PAGES[at].title} · Developer docs`, PAGES[at].description)
+}
 
-docs.get(
-  '/docs',
-  marketingShell(
-    'Developer docs',
-    'How programs and assistants drive a Crossfeed network: what they can and can’t do, API keys, limits, and errors.'
-  ),
-  async (c) => renderPage(c, overview(c.env, originOf(c), (await listedTools()).length))
+docs.get('/docs', shell('/docs'), async (c) =>
+  renderPage(c, overview(c.env, originOf(c), (await listedTools()).length))
 )
-docs.get(
-  '/docs/api',
-  shell('REST API', 'Every route of Crossfeed’s REST API under /api/v1, generated from its OpenAPI document.'),
-  (c) => renderPage(c, apiPage(apiDocument(originOf(c)), originOf(c), c.env.ACCOUNTS === 'on'))
+docs.get('/docs/api', shell('/docs/api'), (c) =>
+  renderPage(c, apiPage(apiDocument(originOf(c)), originOf(c), c.env.ACCOUNTS === 'on'))
 )
-docs.get(
-  '/docs/sdk',
-  shell(
-    'TypeScript SDK',
-    'How to install Crossfeed’s TypeScript SDK from the repo, make a client, wait for long work, and handle errors.'
-  ),
-  (c) => renderPage(c, sdkPage(originOf(c)))
-)
-docs.get(
-  '/docs/mcp',
-  shell('MCP server', 'The tools Crossfeed’s MCP server offers at /mcp, and the command that adds it to Claude Code.'),
-  async (c) => renderPage(c, mcpPage(await listedTools(), originOf(c)))
-)
-docs.get(
-  '/docs/agents',
-  shell(
-    'Skills and plugin',
-    'Two Agent Skills, for planning launch promos and triaging guest pitches, and the Claude Code plugin that installs them with Crossfeed’s MCP server.'
-  ),
-  (c) => renderPage(c, agentsPage(originOf(c)))
-)
+docs.get('/docs/sdk', shell('/docs/sdk'), (c) => renderPage(c, sdkPage(originOf(c))))
+docs.get('/docs/mcp', shell('/docs/mcp'), async (c) => renderPage(c, mcpPage(await listedTools(), originOf(c))))
+docs.get('/docs/agents', shell('/docs/agents'), (c) => renderPage(c, agentsPage(originOf(c))))
 
 // Each skill's text, as its SKILL.md holds it.
 docs.get('/docs/agents/:name/SKILL.md', (c) => {
@@ -1325,7 +1321,7 @@ docs.get('/llms.txt', (c) => {
     '',
     '## Docs',
     '',
-    ...PAGES.map((p) => link(p.title, p.path, p.holds)),
+    ...PAGES.map((p) => link(p.title, p.path, p.description)),
     '',
     '## Reference',
     '',
@@ -1336,8 +1332,8 @@ docs.get('/llms.txt', (c) => {
     '',
     '## Optional',
     '',
-    link('Privacy', '/privacy', 'what reaches Qloo and Anthropic, and what Crossfeed keeps'),
-    link('Beta terms', '/terms', "the free beta's terms and daily limits")
+    link('Privacy', '/privacy', PRIVACY),
+    link('Beta terms', '/terms', TERMS)
   ]
   return c.text(`${lines.join('\n')}\n`)
 })

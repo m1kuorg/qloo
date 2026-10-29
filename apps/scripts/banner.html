@@ -39,7 +39,6 @@
         width: 1200px;
         height: 630px;
         padding: 64px;
-        overflow: hidden;
         background: var(--ground);
         color: var(--ink);
         font-family: 'Schibsted Grotesk Variable', Arial, sans-serif;
@@ -91,6 +90,9 @@
         font-variant-numeric: tabular-nums;
       }
       .move {
+        display: flex;
+        align-items: baseline;
+        gap: 0.14em;
         font-size: 28px;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
@@ -98,6 +100,13 @@
       }
       .move.up {
         color: var(--signal-ink);
+      }
+      /* The move's triangle, drawn rather than typed, as the face has no ▲ or ▼ and a fallback font
+         would differ from machine to machine: sized as the glyph the app shows, its foot on the baseline. */
+      .move svg {
+        width: 0.7em;
+        height: 0.66em;
+        fill: currentColor;
       }
       .name {
         font-size: 40px;
@@ -148,7 +157,9 @@
       <div class="rows">
         <div class="row pick">
           <span class="rank">1</span>
-          <span class="move up">▲5</span>
+          <div class="move up">
+            <svg viewBox="0 0 20 19" aria-hidden="true"><path d="M10 0 20 19H0Z" /></svg>5
+          </div>
           <div>
             <p class="name">The Harbour</p>
             <p class="tags">Coastal · Oral history</p>
@@ -157,7 +168,9 @@
         </div>
         <div class="row">
           <span class="rank">2</span>
-          <span class="move">▼1</span>
+          <div class="move">
+            <svg viewBox="0 0 20 19" aria-hidden="true"><path d="M0 0H20L10 19Z" /></svg>1
+          </div>
           <div>
             <p class="name">Case Notes</p>
             <p class="tags">Cold case · Small-town</p>
@@ -166,7 +179,9 @@
         </div>
         <div class="row">
           <span class="rank">3</span>
-          <span class="move">▼1</span>
+          <div class="move">
+            <svg viewBox="0 0 20 19" aria-hidden="true"><path d="M0 0H20L10 19Z" /></svg>1
+          </div>
           <div>
             <p class="name">Plain Sight</p>
             <p class="tags">Investigative · Courtroom</p>
@@ -175,7 +190,9 @@
         </div>
         <div class="row">
           <span class="rank">4</span>
-          <span class="move">▼1</span>
+          <div class="move">
+            <svg viewBox="0 0 20 19" aria-hidden="true"><path d="M0 0H20L10 19Z" /></svg>1
+          </div>
           <div>
             <p class="name">Small Claims</p>
             <p class="tags">Courtroom</p>
