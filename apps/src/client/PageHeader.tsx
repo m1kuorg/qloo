@@ -267,13 +267,21 @@ export function PageTabs({ label, tabs }: { label: string; tabs: PageTab[] }) {
     window.addEventListener('hashchange', follow)
     return () => window.removeEventListener('hashchange', follow)
   }, [])
-  // Sideways only, so the page itself never moves for it.
+  // The open tab, as it opens and as the list's width changes (a phone turned), scrolled sideways into
+  // view: sideways only, so the page itself never moves for it.
   useEffect(() => {
     const scroller = track.current
-    const tab = scroller?.querySelector('[data-active]')
-    if (!scroller || !tab) return
-    const [s, t] = [scroller.getBoundingClientRect(), tab.getBoundingClientRect()]
-    if (t.left < s.left || t.right > s.right) scroller.scrollLeft += t.left + t.width / 2 - (s.left + s.width / 2)
+    if (!scroller) return
+    const reveal = () => {
+      const tab = scroller.querySelector('[data-active]')
+      if (!tab) return
+      const [s, t] = [scroller.getBoundingClientRect(), tab.getBoundingClientRect()]
+      if (t.left < s.left || t.right > s.right) scroller.scrollLeft += t.left + t.width / 2 - (s.left + s.width / 2)
+    }
+    // It reports the list's size as it starts watching, too.
+    const resized = new ResizeObserver(reveal)
+    resized.observe(scroller)
+    return () => resized.disconnect()
   }, [shown])
   return (
     <Tabs
