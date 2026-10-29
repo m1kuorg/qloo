@@ -447,11 +447,11 @@ export class NetworkAgent extends CrossfeedAgent {
   // How many launches createLaunch is planning right now, not yet on the list.
   private planning = 0
 
-  // The roster and CPM a run of launch `id` starts from, with the evidence records the roster cites,
-  // whether the network has a Qloo key of its own, and the sample for the guest network's sample launch,
-  // for the launch's agent to copy (launch-agent.ts). Over RPC only. Comp searches stay here, since a
-  // launch never edits a show. Refused for a launch the list no longer has, and while a show is still
-  // being looked up, so no run ranks a roster half looked up.
+  // The roster and CPM a run of launch `id` starts from, with whether the CPM is labelled the sample's,
+  // the evidence records the roster cites, whether the network has a Qloo key of its own, and the sample
+  // for the guest network's sample launch, for the launch's agent to copy (launch-agent.ts). Over RPC
+  // only. Comp searches stay here, since a launch never edits a show. Refused for a launch the list no
+  // longer has, and while a show is still being looked up, so no run ranks a roster half looked up.
   rosterForLaunch(id: string): RosterCopy {
     // A launch off the list runs no more, as when the daily clearing has taken it off and left its agent,
     // and a page of it still open, for the hourly retry to wipe (wipe.ts).
@@ -471,6 +471,7 @@ export class NetworkAgent extends CrossfeedAgent {
     return {
       roster,
       cpm: this.state.cpm,
+      sampleCpm: this.state.sample?.cpm ?? false,
       evidence: this.getEvidence().filter((e) => cited.has(e.call)),
       ownKey: hasOwnKey(this.ctx.storage),
       sample: id === this.ctx.storage.kv.get(SAMPLE_LAUNCH) ? this.state.sample : null

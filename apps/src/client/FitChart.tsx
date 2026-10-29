@@ -179,6 +179,8 @@ export function FitChart({
   // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
   const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   const show = (name: string) => roster.find((s) => s.name === name)
+  // Whether a ranked show, shown or folded behind "Show all", is priced from sample downloads (#333).
+  const sampleFigures = ranking.rows.some((r) => show(r.show)?.sample?.includes('downloads'))
   return (
     <>
       <Section
@@ -459,7 +461,7 @@ export function FitChart({
               <p data-chart-foot>
                 {cpm === null
                   ? 'Slot values need the network’s CPM: set it under Network CPM.'
-                  : `Slot value = downloads × ${dollars(cpm)}${sampleCpm ? ' sample' : ''} CPM ÷ 1,000${sampleCpm ? ' · sample figures' : ''}`}
+                  : `Slot value = downloads × ${dollars(cpm)}${sampleCpm ? ' sample' : ''} CPM ÷ 1,000${sampleFigures ? ' · sample figures' : ''}`}
               </p>
               {demographics && (
                 <DemographicSummary check={demographics} ranking={ranking} openCall={openCall} opened={opened} />

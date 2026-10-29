@@ -43,10 +43,15 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
   // The latest run, unless it's a guest pitch run, which the inbox page shows instead.
   const run = shown?.run && shown.booking?.run !== shown.run.id ? shown.run : null
   const runs = agent.state?.runs ?? []
+  // Whether the shown run's CPM is labelled the sample's: as its copy of the roster took the label, or
+  // as the sample it carries says, as an engine session's does, and The Watch's runs from before the
+  // copy took one (#333).
+  const sampleCpm = !!(shown?.sample?.cpm || shown?.sampleCpm)
   // Whether the page shows the sample data (ADR 0007), which its title's one badge says: the guest
   // network's sample launch, which carries the sample; a run one of the sample launches was seeded with;
-  // or a roster still holding sample figures, as another launch of the guest network ranks.
-  const sample = !!shown?.sample || !!run?.capturedAt || holdsSample(roster)
+  // a roster still holding sample figures, as another launch of the guest network ranks; or a run priced
+  // at the labelled sample CPM.
+  const sample = !!shown?.sample || !!run?.capturedAt || holdsSample(roster) || sampleCpm
   // Live, never a run's snapshot: calls waiting on Qloo right now. Sessions from before it have none.
   const slowCalls = agent.state?.slowCalls ?? []
   const evidence = useEvidence(agent)
@@ -194,7 +199,7 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
                     opened={opened?.call ?? null}
                     roster={roster}
                     cpm={shown?.cpm ?? null}
-                    sampleCpm={shown?.sample?.cpm ?? false}
+                    sampleCpm={sampleCpm}
                   />
                 )
               },
@@ -212,7 +217,7 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
                             order={order}
                             roster={roster}
                             cpm={shown.cpm}
-                            sampleCpm={shown.sample?.cpm ?? false}
+                            sampleCpm={sampleCpm}
                             budget={run?.id === order.run ? run.budget : null}
                             sharedTags={Object.fromEntries(
                               (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags]] : []))

@@ -201,6 +201,11 @@ export type State = {
   // A launch's agent only (launch-agent.ts): whether its network's roster has changed since the latest
   // run copied it; absent until a run has.
   rosterChanged?: boolean
+  // A launch's agent only: whether the CPM the latest run copied was labelled the sample's, as its
+  // network's was as the run started (RosterCopy), or as the run it was seeded with was priced at the
+  // sample CPM (seedRun). Absent until a run has, and on runs from before #333: their page reads the label
+  // from the sample they carry, as The Watch's do, or reads none.
+  sampleCpm?: boolean
 }
 
 // A launch as its network's dashboard lists it, reported by the launch's agent (launch-agent.ts).
@@ -220,12 +225,14 @@ export type LaunchSummary = {
 export type RunSnapshot = Omit<State, 'runs'>
 
 // What a launch's run ranks, copied from its network's agent as the run starts (launch-agent.ts): the
-// roster and CPM, and the evidence records the roster cites. And whether the network has a Qloo key of
-// its own, so the run's calls go through the right gateway, and for the guest network's sample launch,
-// the sample as the network now holds it (ADR 0007), null for any other launch.
+// roster and CPM, whether the CPM is labelled the sample's, and the evidence records the roster cites.
+// And whether the network has a Qloo key of its own, so the run's calls go through the right gateway,
+// and for the guest network's sample launch, the sample as the network now holds it (ADR 0007), null
+// for any other launch.
 export type RosterCopy = {
   roster: Show[]
   cpm: number | null
+  sampleCpm: boolean // the network's Sample.cpm, for every launch (#333)
   evidence: Evidence[]
   ownKey: boolean
   sample: Sample | null
@@ -618,16 +625,17 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // A network's roster and CPM as a launch's run copies them, with the records the roster cites copied
-  // into this log under new numbers, each marked with the network's call it copies, and the sample it
-  // carries, if any.
+  // into this log under new numbers, each marked with the network's call it copies, the CPM's label,
+  // written every run so none outlasts the copy it came with, and the sample it carries, if any.
   private copyRoster({
     roster,
     cpm,
+    sampleCpm: labelled,
     evidence,
     sample
-  }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'sample' | 'rosterChanged'> {
+  }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'sampleCpm' | 'sample' | 'rosterChanged'> {
     const copied = this.copyEvidence(roster, evidence, (copy, from) => ({ ...copy, copiedFrom: from.call }))
-    return { roster: copied, cpm, sample, rosterChanged: this.rosterChangedSince(copied) }
+    return { roster: copied, cpm, sampleCpm: labelled, sample, rosterChanged: this.rosterChangedSince(copied) }
   }
 
   // Starts a guest pitch run and returns at once. The past guests' works are looked up in Qloo like
@@ -1584,8 +1592,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // as a new run with its row in `runs` and the state it ended with, which getRun returns; the calls it
   // cites copied into this log under new numbers and marked as the sample data's, in place of any mark from
   // where they were made; its start, and its order's approval, moved on by as long as it's been since it
-  // was captured, so its row reads as recent; and an approved order marked as approved in the sample data
-  // (ADR 0002). The records keep when Qloo answered them, and the run when it was captured.
+  // was captured, so its row reads as recent; an approved order marked as approved in the sample data
+  // (ADR 0002); and its CPM labelled the sample's when it was captured at the sample CPM, the whole run
+  // being the sample data's (ADR 0007). The records keep when Qloo answered them, and the run when it was
+  // captured.
   protected seedRun(captured: CapturedRun) {
     const run = crypto.randomUUID()
     const { summary, state, evidence } = asRun(captured, captured.summary.id, run)
@@ -1608,6 +1618,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
         ...(order.approvedAt && { approvedAt: moved(order.approvedAt) }),
         ...(order.status === 'approved' && { fromSample: true as const })
       },
+      sampleCpm: seeded.cpm === sampleCpm,
       sample: null,
       slowCalls: [],
       rosterChanged: false
