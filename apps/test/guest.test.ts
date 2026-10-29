@@ -794,21 +794,81 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(requests).toHaveLength(sent)
   })
 
+  it('says a lookup a deploy interrupted is tried again later, not to import the roster again, and tries it as it next starts', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+    await (await connect(guest)).until(settled)
+    // Stand in for an agent a deploy stopped mid-load: each show's lookup still out. Then restart it, as the
+    // deploy does, with no guest budget left to try them again.
+    const agent = env.NetworkAgent.get(env.NetworkAgent.idFromName('guest-network'))
+    await runInDurableObject(agent, (network: NetworkAgent) => {
+      const roster = network.state.roster.map((s) => ({ ...s, resolution: 'pending' as const, entity: null }))
+      network.setState({ ...network.state, roster })
+    })
+    env.QLOO_VISITOR_DAILY_CALL_CAP = String(await qlooCalls(guest))
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const interrupted = (await connect(guest)).state()!
+    expect(interrupted.roster.map((s) => [s.resolution, s.error])).toEqual(
+      names.map(() => ['failed', 'The lookup was interrupted. Crossfeed tries it again later.'])
+    )
+    const page = words(
+      renderToStaticMarkup(
+        createElement(NetworkRoster, { agent: { state: interrupted, stub: {} } as unknown as NetworkConnection })
+      )
+    ).replace(/&#x27;/g, "'")
+    expect(page).toContain(
+      `19 shows couldn’t be looked up in Qloo, so they can’t be scored: ${names.join(', ')}. Crossfeed tries them again later.`
+    )
+    expect(page).not.toContain('Import the roster again')
+
+    env.QLOO_VISITOR_DAILY_CALL_CAP = saved.QLOO_VISITOR_DAILY_CALL_CAP
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const retried = await (
+      await connect(guest)
+    ).until((s) => s.roster.every((r) => !['pending', 'failed'].includes(r.resolution)))
+    expect(retried.roster.find((r) => r.name === 'The Watch')).toMatchObject({
+      resolution: 'resolved',
+      entity: { id: 'e-0601' }
+    })
+  })
+
+  it('says to import the roster again for a lookup a restart interrupted once the sample has loaded', async () => {
+    fakeQloo({ search })
+    const guest = await openGuest()
+    await (await connect(guest)).until(settled)
+    // A start that finds the roster settled and The Watch planned notes the load.
+    await evictAllDurableObjects({ webSockets: 'close' })
+    await (await connect(guest)).importRoster('The Watch\nNight Shift Cinema')
+    // Stand in for an agent a deploy stopped mid-import, Night Shift Cinema's lookup still out.
+    const agent = env.NetworkAgent.get(env.NetworkAgent.idFromName('guest-network'))
+    await runInDurableObject(agent, (network: NetworkAgent) => {
+      const roster = network.state.roster.map((s) =>
+        s.name === 'Night Shift Cinema' ? { ...s, resolution: 'pending' as const } : s
+      )
+      network.setState({ ...network.state, roster })
+    })
+    await evictAllDurableObjects({ webSockets: 'close' })
+    expect((await connect(guest)).state()!.roster.map((s) => [s.name, s.resolution, s.error])).toEqual([
+      ['The Watch', 'resolved', null],
+      ['Night Shift Cinema', 'failed', 'The lookup was interrupted. Import the roster again.']
+    ])
+  })
+
   it('ends the load once a guest’s import leaves no sample figure, though the CPM stays the sample’s, so no later start looks their shows up (#287)', async () => {
     // The guest's show fails, so a start still loading the sample would look it up again. Only a start
     // notes the load, so none has yet as the guest imports.
-    fakeQloo({ search: { ...search, 'Night Shift Cinema': 503 } })
+    fakeQloo({ search: { ...search, 'Lantern Hour': 503 } })
     const guest = await openGuest()
     const network = await connect(guest)
     await network.until(settled)
-    const own = await network.importRoster('Night Shift Cinema')
+    const own = await network.importRoster('Lantern Hour')
     expect(own).toMatchObject({
-      roster: [{ name: 'Night Shift Cinema', resolution: 'failed' }],
+      roster: [{ name: 'Lantern Hour', resolution: 'failed' }],
       cpm: 20,
       sample: { cpm: true }
     })
 
-    fakeQloo({ search: { ...search, 'Night Shift Cinema': [] } })
+    fakeQloo({ search: { ...search, 'Lantern Hour': [] } })
     const sent = requests.length
     await evictAllDurableObjects({ webSockets: 'close' })
     expect((await connect(guest)).state()!.roster).toEqual(own.roster)

@@ -3,6 +3,7 @@
 // Each test drives a network through the Worker's routes, its agent's client protocol, or the Worker's
 // own RPC to the agent, as the API will call it.
 import { getAgentByName } from 'agents'
+import { evictAllDurableObjects, runInDurableObject } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -12,6 +13,7 @@ import type { NetworkConnection } from '../src/client/NetworkPage'
 import { NetworkRoster } from '../src/client/Roster'
 import { ShowEditor } from '../src/client/RosterModules'
 import type { Role } from '../src/directory'
+import type { NetworkAgent } from '../src/network-agent'
 import sample from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { readRosterUpload, type Upload } from '../src/upload'
@@ -311,6 +313,43 @@ describe('re-importing the roster', () => {
     // The roster is the guest's own, though the CPM is still the sample's (test/dashboard.test.tsx).
     expect(await labelled(own)).toEqual({ notice: null, labels: [] })
     expect(own).toMatchObject({ cpm: 20, sample: { cpm: true } })
+  })
+
+  it("leaves a member's network's CPM as it was, unset or set, and says a lookup a restart interrupted is to be imported again", async () => {
+    fakeQloo({ search })
+    const ada = await openMember()
+    const network = await created(ada)
+    const agent = await connect(ada, network)
+    expect(await agent.importRoster('Deep Cuts')).toMatchObject({ cpm: null, sample: null })
+    const res = await ada.fetch(`/app/${network}/settings/network`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Night Shift Audio', cpm: 25 })
+    })
+    expect(res.status).toBe(200)
+    expect(await agent.importRoster('Deep Cuts\nSignal Boost')).toMatchObject({ cpm: 25, sample: null })
+
+    // Stand in for an agent a deploy stopped mid-import, Signal Boost's lookup still out, as the deploy
+    // restarts it.
+    await runInDurableObject(env.NetworkAgent.get(env.NetworkAgent.idFromName(network)), (n: NetworkAgent) => {
+      const roster = n.state.roster.map((s) =>
+        s.name === 'Signal Boost' ? { ...s, resolution: 'pending' as const, entity: null } : s
+      )
+      n.setState({ ...n.state, roster })
+    })
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const interrupted = (await connect(ada, network)).state()!
+    expect(interrupted.roster.map((s) => [s.name, s.resolution, s.error])).toEqual([
+      ['Deep Cuts', 'resolved', null],
+      ['Signal Boost', 'failed', 'The lookup was interrupted. Import the roster again.']
+    ])
+    expect(
+      words(
+        renderToStaticMarkup(<NetworkRoster agent={{ state: interrupted, stub: {} } as unknown as NetworkConnection} />)
+      )
+    ).toContain(
+      '1 show couldn’t be looked up in Qloo, so it can’t be scored: Signal Boost. Import the roster again to retry it; shows already found come from the cache.'
+    )
   })
 
   it("replaces the demo's roster as before, settled shows and all", async () => {

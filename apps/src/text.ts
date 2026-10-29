@@ -43,6 +43,10 @@ export const GUEST_NETWORK_CLEARS = '12:00 UTC'
 // The longest name a member or a network can have.
 export const MAX_NAME = 64
 
+// What a lookup a restart interrupted says when Crossfeed tries it again by itself, as the guest network's
+// sample roster's and sample inbox's lookups are while they're still loading (network-agent.ts).
+export const LOOKUP_RETRIED = 'The lookup was interrupted. Crossfeed tries it again later.'
+
 // A member's initials, as their avatar in the app's account menu shows them: the first letters of
 // their name's first and last words, "AL" for Ada Lovelace, or one for a one-word name.
 export const initials = (name: string) => {

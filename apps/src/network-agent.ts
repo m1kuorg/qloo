@@ -19,7 +19,7 @@ import type { LaunchAgent } from './launch-agent'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
 import { readSampleLaunches } from './sample-launches'
-import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX } from './text'
+import { GUEST_NETWORK, GUEST_NETWORK_CLEARS, GUEST_PREFIX, LOOKUP_RETRIED } from './text'
 
 // The header that names a connection's member. The Worker sets it on each upgrade it lets through to
 // a network's agent, once it has checked the session and the membership, replacing any the browser
@@ -157,11 +157,26 @@ export class NetworkAgent extends CrossfeedAgent {
     // A sample inbox stopped while its works were looked up isn't a guest's to load again, as an inbox
     // stopped reading is (CrossfeedAgent.onStart): its lookups are tried again (loadSampleInbox).
     const inbox = this.state.inbox
-    if (inbox?.sample && inbox.status === 'reading')
-      this.finishInbox(inbox.id, 'The lookup was interrupted. Crossfeed tries it again later.')
+    if (inbox?.sample && inbox.status === 'reading') this.finishInbox(inbox.id, LOOKUP_RETRIED)
+    // Nor is the roster's, while the sample is still loading, whose failed lookups this start tries again
+    // (loadSample): until the load is noted as loaded, while a show holds a sample figure.
+    const loadsSample = this.name === GUEST_NETWORK && this.env.SAMPLE_NETWORK === 'on' && !props?.clearing
+    const { roster } = this.state
+    if (
+      loadsSample &&
+      !storage.kv.get(SAMPLE_LOADED) &&
+      roster.some((s) => s.sample?.length) &&
+      roster.some((s) => s.resolution === 'pending')
+    ) {
+      const retried = { resolution: 'failed', error: LOOKUP_RETRIED } as const
+      this.setState({
+        ...this.state,
+        roster: roster.map((s) => (s.resolution === 'pending' ? { ...s, ...retried } : s))
+      })
+    }
     await super.onStart(props)
     if (this.name !== GUEST_NETWORK) return
-    if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) {
+    if (loadsSample) {
       await this.loadSample()
       await this.loadSampleLaunches()
       await this.loadSampleInbox()

@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { buttonVariants } from '@/components/ui/variants'
 import type { Show, ShowPatch, SlowCall } from '../agent'
 import { dollars } from '../order'
-import { MAX_TITLE } from '../text'
+import { LOOKUP_RETRIED, MAX_TITLE } from '../text'
 import type { RosterFormat } from '../roster'
 import { readRosterUpload } from '../upload'
 import type { Session } from './App'
@@ -165,17 +165,22 @@ const resolutionLabel: Record<Show['resolution'], string> = {
   failed: 'Lookup failed'
 }
 
-// The shows Qloo failed to look up, which no ranking can score until they're looked up again.
+// The shows Qloo failed to look up, which no ranking can score until they're looked up again: by an
+// import, or by Crossfeed itself while the guest network's sample is still loading, as a lookup a restart
+// interrupted then says, since the load tries every failed lookup again (network-agent.ts).
 export function RosterFailures({ roster }: { roster: Show[] }) {
-  const failed = roster.filter((s) => s.resolution === 'failed' && !s.excluded).map((s) => s.name)
+  const failed = roster.filter((s) => s.resolution === 'failed' && !s.excluded)
   if (failed.length === 0) return null
   const one = failed.length === 1
+  const retried = failed.some((s) => s.error === LOOKUP_RETRIED)
   return (
     <p className="max-w-[72ch]">
       <StateLine kind="failed">
         {failed.length} {one ? 'show' : 'shows'} couldn’t be looked up in Qloo, so {one ? 'it' : 'they'} can’t be
-        scored: {failed.join(', ')}. Import the roster again to retry {one ? 'it' : 'them'}; shows already found come
-        from the cache.
+        scored: {failed.map((s) => s.name).join(', ')}.{' '}
+        {retried
+          ? `Crossfeed tries ${one ? 'it' : 'them'} again later.`
+          : `Import the roster again to retry ${one ? 'it' : 'them'}; shows already found come from the cache.`}
       </StateLine>
     </p>
   )
