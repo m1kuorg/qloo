@@ -1,6 +1,7 @@
 import { useAgent } from 'agents/react'
+import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Launch, State } from '../agent'
+import type { State } from '../agent'
 import type { LaunchAgent } from '../launch-agent'
 import { Workspace, type Session } from './App'
 import { launchTitle } from './LaunchFields'
@@ -32,11 +33,23 @@ export function LaunchPage({
 
 // The launch workspace for one of the network's launches: its runs, chart, questions, and order, ranked
 // against the network's roster, which this page shows read-only and links to. Tests render it from a
-// launch agent's synced state.
+// launch agent's synced state. The tab's title names the launch and its network once the agent's
+// state names the launch, as the invite page names its network; until then the server's names the
+// page, Launches.
 export function LaunchWorkspace({ agent, network, orders }: { agent: Session; network: NetworkPage; orders: string }) {
+  const launch = agent.state?.launch
+  const title = launch
+    ? launchTitle(
+        launch.name,
+        launch.comps.map((c) => c.name)
+      )
+    : null
+  useEffect(() => {
+    if (title) document.title = `${title} · ${network.name} · Crossfeed`
+  }, [title, network.name])
   return (
     <>
-      <LaunchCrumb launch={agent.state?.launch ?? null} />
+      <LaunchCrumb title={title} />
       <Workspace agent={agent} network={network} orders={orders} />
     </>
   )
@@ -45,19 +58,16 @@ export function LaunchWorkspace({ agent, network, orders }: { agent: Session; ne
 // The launch's name, last in the top bar's breadcrumb after Launches. The server knows only the
 // launch's ID, so it renders an empty slot (#shell-launch, shell.tsx) that this fills once the
 // agent's state names the launch.
-function LaunchCrumb({ launch }: { launch: Launch | null }) {
+function LaunchCrumb({ title }: { title: string | null }) {
   const slot = typeof document === 'undefined' ? null : document.getElementById('shell-launch')
-  if (!slot || !launch) return null
+  if (!slot || !title) return null
   return createPortal(
     <>
       <span aria-hidden="true" className="text-muted-foreground">
         /
       </span>
       <span className="truncate" aria-current="page">
-        {launchTitle(
-          launch.name,
-          launch.comps.map((c) => c.name)
-        )}
+        {title}
       </span>
     </>,
     slot

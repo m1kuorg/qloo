@@ -1,6 +1,6 @@
 // The Crossfeed mark, for the island: the twin of the server's ../mark.tsx, which says what it is;
 // keep the two alike, and ../../scripts/mark.svg, which the favicon and the home screen's icons are
-// drawn from.
+// drawn from, and ../../scripts/banner.html, the link-embed banner's source.
 export const Mark = ({ className = 'size-6' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
     <path d="M3.54 8.92 20.46 15.08M3.54 15.08 20.46 8.92" fill="none" stroke="currentColor" strokeWidth="3" />

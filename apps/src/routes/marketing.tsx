@@ -6,6 +6,7 @@ import { cn } from 'cn'
 import { Hono, type NotFoundHandler } from 'hono'
 import { html } from 'hono/html'
 import type { Child } from 'hono/jsx'
+import { appOrigins } from '../auth'
 import {
   badgeVariants,
   buttonVariants,
@@ -1171,13 +1172,12 @@ const Part = ({ id, title, children }: { id: string; title: string; children: Ch
   </section>
 )
 
+// What the privacy page covers: its lede, its description, and its line in /llms.txt (routes/docs).
+export const PRIVACY = 'What the Crossfeed beta sends to Qloo and to Anthropic, what it keeps, and how it’s deleted.'
+
 function Privacy({ accounts }: { accounts: boolean }) {
   return (
-    <Doc
-      id="privacy"
-      title="Privacy."
-      lede="What the Crossfeed beta sends to Qloo and to Anthropic, what it keeps, and how it’s deleted."
-    >
+    <Doc id="privacy" title="Privacy." lede={PRIVACY}>
       <Part id="qloo" title="What reaches Qloo">
         <p>Qloo scores the roster and the pitched works. Crossfeed sends it only public names and Qloo’s own IDs:</p>
         <ul>
@@ -1404,6 +1404,10 @@ const Limit = ({
   </tr>
 )
 
+// What the beta terms cover: their description, and their line in /llms.txt (routes/docs).
+export const TERMS =
+  'The terms of the free Crossfeed beta: no warranty, the daily limits that keep it running, and acceptable use.'
+
 function Terms({ env }: { env: Env }) {
   return (
     <Doc id="terms" title="Beta terms." lede="The terms of the free Crossfeed beta. Using it means you accept them.">
@@ -1530,8 +1534,10 @@ function Terms({ env }: { env: Env }) {
   )
 }
 
-marketing.get('/privacy', marketingShell('Privacy'), (c) => c.render(<Privacy accounts={c.env.ACCOUNTS === 'on'} />))
-marketing.get('/terms', marketingShell('Beta terms'), (c) => c.render(<Terms env={c.env} />))
+marketing.get('/privacy', marketingShell('Privacy', PRIVACY), (c) =>
+  c.render(<Privacy accounts={c.env.ACCOUNTS === 'on'} />)
+)
+marketing.get('/terms', marketingShell('Beta terms', TERMS), (c) => c.render(<Terms env={c.env} />))
 
 // The 404 page's body: ways back home, and while ACCOUNTS is on, to the sample network, as guest sign-in,
 // and to the visitor's networks.
@@ -1591,7 +1597,13 @@ export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
   const accounts = c.env.ACCOUNTS === 'on'
   return c.html(
     html`<!DOCTYPE html>${(
-        <MarketingPage title="Not found" path={path} accounts={accounts}>
+        <MarketingPage
+          title="Not found"
+          description="Crossfeed has no page at this address: the link may be mistyped, or what it led to was deleted."
+          origin={appOrigins(c.env)[0]}
+          path={path}
+          accounts={accounts}
+        >
           <NotFound accounts={accounts} />
         </MarketingPage>
       )}`,

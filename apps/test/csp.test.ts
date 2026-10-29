@@ -2,7 +2,8 @@
 // nothing framing it, read from each page as a browser loads it, and checked against what the page
 // itself loads. The browser check, in apps/README.md, confirms no page reports a violation. The head
 // every page shares is checked for what else it loads, too: the island's code, the mark's icons and
-// the manifest.
+// the manifest; and for what it says: each page's title, and a public page's description, link
+// preview and canonical address.
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fakeQloo } from './fake'
@@ -51,6 +52,47 @@ function refusedBy(policy: Record<string, string[]>, html: string) {
 // allows for Vite's own stylesheets, so no page may have one.
 const styleAttributes = (html: string) => [...html.matchAll(/<[a-z][^>]*\sstyle="[^"]*"/g)].map(([a]) => a.slice(0, 80))
 
+// A page's head: its title, and each of its links and metas as its attributes.
+async function headOf(res: Response) {
+  const head = (await res.text()).match(/<head>[\s\S]*<\/head>/)?.[0] ?? ''
+  const attributes = (tag: string) =>
+    Object.fromEntries([...tag.matchAll(/\s([a-z-]+)="([^"]*)"/g)].map(([, n, v]) => [n, v]))
+  return {
+    title: head.match(/<title>([^<]*)<\/title>/)?.[1],
+    tags: [...head.matchAll(/<(?:link|meta)\b[^>]*>/g)].map(([tag]) => attributes(tag))
+  }
+}
+// What a head tells search results and link previews: its description, its Open Graph and X card
+// properties, and its canonical address.
+const previewOf = ({ tags }: Awaited<ReturnType<typeof headOf>>) =>
+  Object.fromEntries(
+    tags.flatMap((t) =>
+      t.name === 'description' || t.name?.startsWith('twitter:')
+        ? [[t.name, t.content]]
+        : t.property?.startsWith('og:')
+          ? [[t.property, t.content]]
+          : t.rel === 'canonical'
+            ? [['canonical', t.href]]
+            : []
+    )
+  )
+
+// The public pages, which a link preview may show and a search engine index: the signed-out pages,
+// the 404 page, and signing in; each with its card's title, the page's own without the product's name,
+// which the card's site name says, and on the landing page the claim.
+const publicPages: Record<string, string> = {
+  '/': 'Rank by who listens',
+  '/privacy': 'Privacy',
+  '/terms': 'Beta terms',
+  '/docs': 'Developer docs',
+  '/docs/api': 'REST API · Developer docs',
+  '/docs/sdk': 'TypeScript SDK · Developer docs',
+  '/docs/mcp': 'MCP server · Developer docs',
+  '/docs/agents': 'Skills and plugin · Developer docs',
+  [missing]: 'Not found',
+  '/sign-in': 'Sign in'
+}
+
 // Every page as a browser loads it, by path: the signed-out pages, the 404 page for an address that
 // has none (`missing`), and a member's pages of a network (`id`) with a launch (`launch`).
 async function everyPage() {
@@ -68,8 +110,7 @@ async function everyPage() {
   const launch = await network.call<{ id: string }>('createLaunch', { name: 'Night Shift Cinema' })
   network.close()
 
-  const signedOut = ['/', '/privacy', '/terms', '/docs', '/docs/api', '/docs/sdk', '/docs/mcp', '/docs/agents']
-  const pages = [...signedOut, missing, '/sign-in', '/invite']
+  const pages = [...Object.keys(publicPages), '/invite']
   const app = ['/app/new', '/app/account', `/app/${id}`, `/app/${id}/roster`, `/app/${id}/inbox`]
   app.push(`/app/${id}/settings`, `/app/${id}/launches/${launch.id}`)
   const loaded = await Promise.all([
@@ -126,11 +167,8 @@ describe('every page', () => {
   // The files are in public/, which Workers Assets serves before the Worker, so only the head that
   // links them is seen here; apps/README.md's production check fetches the files themselves.
   it("links the mark's icons and the web app manifest, and tints the browser to the page's ground in light and dark", async () => {
-    const attributes = (tag: string) =>
-      Object.fromEntries([...tag.matchAll(/\s([a-z-]+)="([^"]*)"/g)].map(([, n, v]) => [n, v]))
     for (const [path, res] of (await everyPage()).loaded) {
-      const head = (await res.text()).match(/<head>[\s\S]*<\/head>/)?.[0] ?? ''
-      const tags = [...head.matchAll(/<(?:link|meta)\b[^>]*>/g)].map(([tag]) => attributes(tag))
+      const { tags } = await headOf(res)
       expect(
         tags.filter((t) => ['icon', 'apple-touch-icon', 'manifest'].includes(t.rel)),
         path
@@ -147,6 +185,78 @@ describe('every page', () => {
         { name: 'theme-color', content: '#f8f8fa', media: '(prefers-color-scheme: light)' },
         { name: 'theme-color', content: '#0e0f12', media: '(prefers-color-scheme: dark)' }
       ])
+    }
+  })
+
+  it('names each island page and its network in its title, and a page outside a network by itself', async () => {
+    const { id, launch, loaded } = await everyPage()
+    const network = 'Night Shift Audio'
+    const titles: Record<string, string> = {
+      '/sign-in': 'Sign in · Crossfeed',
+      '/invite': 'Invite · Crossfeed',
+      '/app/new': 'New network · Crossfeed',
+      '/app/account': 'Your account · Crossfeed',
+      [`/app/${id}`]: `Launches · ${network} · Crossfeed`,
+      [`/app/${id}/roster`]: `Roster · ${network} · Crossfeed`,
+      [`/app/${id}/inbox`]: `Inbox · ${network} · Crossfeed`,
+      [`/app/${id}/settings`]: `Settings · ${network} · Crossfeed`,
+      // The launch's own name is the island's to set, once its agent says it (Launch.tsx).
+      [`/app/${id}/launches/${launch}`]: `Launches · ${network} · Crossfeed`
+    }
+    const islands: [string, string | undefined][] = []
+    for (const [path, res] of loaded) if (titles[path]) islands.push([path, (await headOf(res)).title])
+    expect(Object.fromEntries(islands)).toEqual(titles)
+  })
+
+  it('gives each public page its own description, a link preview with the banner, and a canonical address on the app’s own origin, and an app page none', async () => {
+    const descriptions = new Set<string>()
+    for (const [path, res] of (await everyPage()).loaded) {
+      const head = await headOf(res)
+      const preview = previewOf(head)
+      const title = publicPages[path]
+      if (!title) {
+        expect(preview, path).toEqual({})
+        continue
+      }
+      // The tab's title keeps the product's name.
+      expect(head.title, path).toBe(path === '/' ? 'Crossfeed' : `${title} · Crossfeed`)
+      const url = `${origin}${path}`
+      expect(preview, path).toEqual({
+        // One sentence.
+        description: expect.stringMatching(/^[A-Z](?:(?!\. ).)+\.$/),
+        'og:type': 'website',
+        'og:site_name': 'Crossfeed',
+        'og:title': title,
+        'og:description': preview.description,
+        'og:url': url,
+        'og:image': `${origin}/og-1.png`,
+        'og:image:width': '1200',
+        'og:image:height': '630',
+        'og:image:alt':
+          'Crossfeed. Rank by who listens. An illustration of made-up shows ranked by listener overlap: one climbs five places to first and is the pick.',
+        'twitter:card': 'summary_large_image',
+        canonical: url
+      })
+      descriptions.add(preview.description)
+    }
+    expect(descriptions.size).toBe(Object.keys(publicPages).length)
+  })
+
+  it('takes its addresses from APP_ORIGINS’ first origin, never the request’s, and leaves sign-in’s next out', async () => {
+    const saved = env.APP_ORIGINS
+    env.APP_ORIGINS = `${origin},https://other.test`
+    try {
+      const preview = async (url: string) => previewOf(await headOf(await exports.default.fetch(url, browser)))
+      const elsewhere = await preview('https://other.test/privacy')
+      expect([elsewhere['og:url'], elsewhere.canonical, elsewhere['og:image']]).toEqual([
+        `${origin}/privacy`,
+        `${origin}/privacy`,
+        `${origin}/og-1.png`
+      ])
+      const signIn = await preview(`${origin}/sign-in?next=${encodeURIComponent('/app/someone')}`)
+      expect([signIn['og:url'], signIn.canonical]).toEqual([`${origin}/sign-in`, `${origin}/sign-in`])
+    } finally {
+      env.APP_ORIGINS = saved
     }
   })
 })
