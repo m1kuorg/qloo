@@ -4,22 +4,22 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { buttonVariants } from '@/components/ui/variants'
-import type { Launch, RunSnapshot, RunSummary } from '../agent'
+import type { RunSnapshot, RunSummary } from '../agent'
 import type { Evidence } from '../evidence'
 import { finalistsOf } from '../fit'
 import { dollars, type InsertionOrder } from '../order'
 import { planPairs, type PlanPairs } from '../overlap'
-import { sameName } from '../resolve'
-import { sampleCpmOf, showsSample, type Session } from './App'
-import { Alert, clock, day, FitBand, KeyValue, KeyValues } from './controls'
+import { launchHeading, sampleCpmOf, showsSample, type Session } from './App'
+import { Alert, clock, day, FitBand, KeyValue, KeyValues, listOf } from './controls'
 import { CallButton, CallLinks, citedCall } from './Evidence'
-import { DemographicSummary, finding, SlotValue, tagWords, whoShares } from './FitChart'
+import { ChartNotes, finding, fitCaptions, RowCaption, SlotValue, whoShares } from './FitChart'
 import { canvas } from './Frame'
 import { ClosePairs, OrderBadge, OrderLines, OrderTitle, PLAN_SENTENCE, sampleLine } from './InsertionOrder'
 import { LaunchCrumb, useLaunch } from './Launch'
 import { launchTitle } from './LaunchFields'
 import { NetworkGate, type NetworkPage } from './NetworkPage'
 import { PageEmpty, Section } from './PageHeader'
+import { LensSource } from './Rerank'
 import { runNumber } from './Run'
 import { Source } from './Source'
 import { connectionOf, ConnectionState, StateLine } from './states'
@@ -166,12 +166,12 @@ export function LaunchReport({
   )
   // The run's launch, as it was named for the run, or the launch as it now is.
   const titled = shown?.launch ?? named
-  const title = titled ? launchHeading(titled) : 'Launch report'
+  const title = launchHeading(titled ?? null) ?? 'Launch report'
 
   // Until the state arrives, and while an earlier run is read, the document's shape, still.
   if (!state || (known && !shown && !unread))
     return (
-      <main className={cn(canvas, 'items-center')} aria-busy="true" data-report>
+      <main className={cn(canvas, 'items-center print:hidden')} aria-busy="true" data-report>
         <LaunchCrumb title={crumb} launch={launch} />
         <article className={sheet}>
           {head(title, false)}
@@ -203,16 +203,18 @@ export function LaunchReport({
         </div>
       </main>
     )
-  // Like the CSV, a draft has no report, nor a run with no order.
-  if (!shown || !order)
+  // Like the CSV, a draft has no report, nor a run with no order. The page leads to the plan where the
+  // launch's page shows it, the latest run's order; else to the launch.
+  if (!shown || !order) {
+    const plan = state.insertionOrder && (id === null || state.insertionOrder.run === id)
     return (
       <main className={cn(canvas, 'print:hidden')} data-report>
         <LaunchCrumb title={crumb} launch={launch} />
         {head(title, null)}
         <PageEmpty
           action={
-            <a className={buttonVariants()} href={`${launch}#plan`}>
-              Review the plan
+            <a className={buttonVariants()} href={plan ? `${launch}#plan` : launch}>
+              {plan ? 'Review the plan' : 'Open the launch'}
             </a>
           }
         >
@@ -220,6 +222,7 @@ export function LaunchReport({
         </PageEmpty>
       </main>
     )
+  }
 
   const log = evidence?.read
   const records = Array.isArray(log) ? log : null
@@ -265,9 +268,6 @@ export function LaunchReport({
 // The report as a sheet on the canvas, on a reading measure; on paper, the page itself.
 const sheet =
   'flex w-full max-w-3xl flex-col gap-8 rounded-xl bg-card p-4 md:p-8 print:max-w-none print:rounded-none print:p-0'
-
-// What the launch goes by, as its page's title row says it.
-const launchHeading = (launch: Launch) => launch.name ?? `From comps: ${launch.comps.map((c) => c.name).join(' · ')}`
 
 // The run's facts: what the launch was looked up as, its comps or its Qloo match, each citing its search;
 // the run, when it started and who started it; the CPM, and whether it's the sample's; and who approved
@@ -328,17 +328,17 @@ function Facts({
 }
 
 // The finalists by who listens, the fit chart's default lens, fixed: its heading and its finding, citing
-// the ranking, then each finalist's rank, its shared tags with their call, its band and its slot value,
-// as a real table; then the footnotes and the demographics line, as the chart has them. Under 640px each
-// row folds to two lines, as the chart's do: the rank beside the show, then its band and slot value.
+// the ranking, and the chart's caption with the Qloo data chip; then each finalist's rank, its caption
+// (shared tags with their call, and where its fit came from), its band and its slot value, as a real
+// table; then the chart's notes and the demographics line. Under 640px the band and the slot value fold
+// under the show, in its cell, and their own cells go, as a phone has no room for them beside it.
 function Finalists({ shown }: { shown: RunSnapshot }) {
   const ranking = shown.ranking!
   const moves = shown.topic?.status === 'ranked' && !ranking.error ? shown.topic.moves : null
   const rows = finalistsOf(ranking)
-  const cpm = shown.cpm
   const show = (name: string) => shown.roster.find((s) => s.name === name)
   const head = 'border-b pb-2 align-bottom font-normal'
-  const cell = 'border-b py-2.5 align-baseline max-sm:border-b-0 max-sm:py-0'
+  const cell = 'border-b py-2.5 align-baseline'
   return (
     <Section
       id="report-fit-h"
@@ -350,71 +350,60 @@ function Finalists({ shown }: { shown: RunSnapshot }) {
         </>
       }
     >
+      <LensSource byAgent={false} captions={fitCaptions(listOf(ranking.anchors.map((a) => a.name)))} />
       <table className="w-full border-separate border-spacing-0" aria-labelledby="report-fit-h" data-report-finalists>
         <thead className="type-caption text-muted-foreground">
-          <tr className="max-sm:sr-only">
+          <tr>
             <th scope="col" className={cn(head, 'w-10 pr-1 text-right')}>
               Rank
             </th>
             <th scope="col" className={cn(head, 'pl-3 text-left')}>
               Show
             </th>
-            <th scope="col" className={cn(head, 'w-20 pl-3 text-left')}>
+            <th scope="col" className={cn(head, 'w-20 pl-3 text-left max-sm:hidden')}>
               Fit
             </th>
-            <th scope="col" className={cn(head, 'w-32 pl-3 text-right')}>
+            <th scope="col" className={cn(head, 'w-32 pl-3 text-right max-sm:hidden')}>
               Slot value
             </th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr
-              key={r.show}
-              className="max-sm:grid max-sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] max-sm:items-baseline max-sm:gap-y-1.5 max-sm:border-b max-sm:py-2.5 max-sm:[grid-template-areas:'rank_show_show'_'rank_fit_slot']"
-            >
-              <td className={cn(cell, 'pr-1 text-right type-title tabular-nums max-sm:[grid-area:rank]')}>{r.rank}</td>
-              <th scope="row" className={cn(cell, 'pl-3 text-left font-normal max-sm:[grid-area:show]')}>
+            <tr key={r.show}>
+              <td className={cn(cell, 'pr-1 text-right type-title tabular-nums')}>{r.rank}</td>
+              <th scope="row" className={cn(cell, 'pl-3 text-left font-normal')}>
                 <span className="text-[15px] leading-snug font-semibold wrap-anywhere">{r.show}</span>
-                {(r.sharedTags || !sameName(r.entity.name, r.show)) && (
-                  <span className="mt-1 block type-caption text-muted-foreground">
-                    {r.sharedTags && (
-                      <>
-                        {tagWords(r.sharedTags)}{' '}
-                        <CallButton
-                          call={r.sharedTags.call}
-                          label={`Evidence for the tags ${r.show} shares`}
-                          opened={null}
-                          openCall={noInspector}
-                        />
-                      </>
-                    )}
-                    {r.sharedTags && !sameName(r.entity.name, r.show) && ' · '}
-                    {!sameName(r.entity.name, r.show) && `Mapped to ${r.entity.name}`}
-                  </span>
-                )}
+                <span className="mt-1 block">
+                  <RowCaption row={r} ranking={ranking} handoff openCall={noInspector} opened={null} />
+                </span>
+                <span className="mt-1.5 flex flex-wrap items-center gap-x-3 sm:hidden" data-fold>
+                  <FitBand band={r.band} finalist />
+                  <SlotValue show={show(r.show)} cpm={shown.cpm} />
+                </span>
               </th>
-              <td className={cn(cell, 'pl-3 max-sm:[grid-area:fit]')}>
+              <td className={cn(cell, 'pl-3 max-sm:hidden')}>
                 <FitBand band={r.band} finalist />
               </td>
-              <td className={cn(cell, 'pl-3 max-sm:[grid-area:slot]')}>
-                <SlotValue show={show(r.show)} cpm={cpm} />
+              <td className={cn(cell, 'pl-3 max-sm:hidden')}>
+                <SlotValue show={show(r.show)} cpm={shown.cpm} />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div className="flex flex-col gap-1.5 type-caption text-muted-foreground">
-        <p>Fit bands are thirds of this ranking, and the top five, after any shows left out, are finalists.</p>
-        <p>
-          {cpm === null
-            ? 'Slot values need the network’s CPM.'
-            : `Slot value = downloads × ${dollars(cpm)}${sampleCpmOf(shown) ? ' sample' : ''} CPM ÷ 1,000${rows.some((r) => show(r.show)?.sample?.includes('downloads')) ? ' · sample figures' : ''}`}
-        </p>
-        {shown.demographics && (
-          <DemographicSummary check={shown.demographics} ranking={ranking} openCall={noInspector} opened={null} />
-        )}
-      </div>
+      <ChartNotes
+        rows={rows}
+        ranking={ranking}
+        roster={shown.roster}
+        cpm={shown.cpm}
+        sampleCpm={sampleCpmOf(shown)}
+        topic={false}
+        demographics={shown.demographics}
+        handoff
+        openCall={noInspector}
+        opened={null}
+      />
     </Section>
   )
 }
@@ -488,7 +477,7 @@ function CallsCited({ cited, log, retry }: { cited: string[]; log: Read<Evidence
               const record = records?.find((r) => r.call === call)
               const what = said.get(call)
               return (
-                <tr key={call} id={entry(call)} className="target:bg-muted">
+                <tr key={call} id={entry(call)} className="scroll-mt-16 target:bg-muted">
                   <th scope="row" className={cn(cell, 'text-left font-normal')}>
                     <code className="font-mono text-xs" translate="no">
                       {call}

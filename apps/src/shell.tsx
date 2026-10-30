@@ -179,12 +179,12 @@ const IslandHead = ({ title, card }: { title: string; card?: Card }) => {
 // "Skip to content", first in every shell: off the screen until it's focused, it jumps past the shell's
 // links to the page. Its target, #content, is an empty element at the head of the page that takes
 // focus, so the next Tab starts there in every browser; empty, so a click on the page never lands on
-// it. It never prints.
+// it. It doesn't print on a page set out to print, as the launch report is.
 const SkipTarget = () => <span id="content" tabindex={-1} class="block" />
 const SkipLink = () => (
   <a
     href="#content"
-    class="fixed top-2 left-2 z-50 -translate-y-16 rounded-lg bg-primary px-3 py-1.5 font-medium text-primary-foreground focus:translate-y-0 print:hidden"
+    class="fixed top-2 left-2 z-50 -translate-y-16 rounded-lg bg-primary px-3 py-1.5 font-medium text-primary-foreground focus:translate-y-0 report-print:hidden"
   >
     Skip to content
   </a>
@@ -341,18 +341,19 @@ type Destination = {
 // name, each item as wide as its name or its icon's square and an equal share of the width left, so six
 // names stay whole at 360px; and the mark moves to the top bar, so there's one nav and one current item
 // at every width.
-// Without destinations, as on the pages outside a network, it's the mark alone. Nothing of it prints.
+// Without destinations, as on the pages outside a network, it's the mark alone. A page set out to print,
+// as the launch report is, prints none of it.
 function Rail({ label, home, destinations }: { label: string; home: string; destinations: Destination[] }) {
   if (destinations.length === 0)
     return (
-      <div class="max-md:hidden md:sticky md:top-0 md:h-svh print:hidden">
+      <div class="max-md:hidden md:sticky md:top-0 md:h-svh report-print:hidden">
         <MarkLink href={home} class="md:h-12 md:w-full" />
       </div>
     )
   return (
     <nav
       aria-label={label}
-      class="fixed inset-x-0 bottom-0 z-40 bg-card pb-[env(safe-area-inset-bottom)] md:sticky md:top-0 md:flex md:h-svh md:flex-col md:items-center md:bg-transparent md:pb-3 print:hidden"
+      class="fixed inset-x-0 bottom-0 z-40 bg-card pb-[env(safe-area-inset-bottom)] md:sticky md:top-0 md:flex md:h-svh md:flex-col md:items-center md:bg-transparent md:pb-3 report-print:hidden"
     >
       <MarkLink href={home} class="max-md:hidden md:h-12 md:w-full" />
       <ul class="flex md:mt-1 md:w-full md:flex-1 md:flex-col md:items-center md:gap-1">
@@ -395,8 +396,8 @@ function Rail({ label, home, destinations }: { label: string; home: string; dest
 // page scrolls what Tab reaches clear of the 48px top bar, which sticks, and of the phone's bottom bar.
 // A word too long for its line, such as a name typed with no spaces, breaks (`break-words` on the body,
 // so the dialogs and menus portalled into it inherit it too); it changes no box's size, so a table that
-// scrolls sideways keeps its names whole. On paper, the page alone prints, as the launch report does: the
-// rail and the top bar don't.
+// scrolls sideways keeps its names whole. A page set out to print, as the launch report is, prints alone,
+// with no rail or top bar.
 const AppFrame = ({
   title,
   rail,
@@ -417,11 +418,11 @@ const AppFrame = ({
     <IslandHead title={title} />
     <body class="break-words">
       <SkipLink />
-      <div class="min-h-svh md:grid md:grid-cols-[3.5rem_minmax(0,1fr)] print:block">
+      <div class="min-h-svh md:grid md:grid-cols-[3.5rem_minmax(0,1fr)] report-print:block">
         {rail}
         <div class="min-w-0">
           {bar}
-          <div class={bottomBar ? 'max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))] print:pb-0' : undefined}>
+          <div class={bottomBar ? 'max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))] report-print:pb-0' : undefined}>
             <SkipTarget />
             {children}
           </div>
@@ -752,7 +753,7 @@ export const appShell = jsxRenderer(({ children }, c) => {
       rail={<Rail label="Network" home="/app" destinations={destinations} />}
       bottomBar={destinations.length > 0}
       bar={
-        <header class="sticky top-0 z-30 flex h-12 items-center gap-2 bg-background px-4 lg:px-6 print:hidden">
+        <header class="sticky top-0 z-30 flex h-12 items-center gap-2 bg-background px-4 lg:px-6 report-print:hidden">
           <MarkLink href="/app" class="-ml-2.5 shrink-0 md:hidden" />
           {/* Every page here is a member's, so the switcher is always there: on a page outside a network
               with no networks yet, as on /app/new, it reads "Your networks" and offers New network. */}

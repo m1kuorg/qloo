@@ -14,10 +14,10 @@ import { env, exports } from 'cloudflare:workers'
 import { http } from 'msw'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { LaunchSummary, RunSnapshot, State } from '../src/agent'
+import type { CrossfeedAgent, LaunchSummary, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { EvidencePanel, namesOf } from '../src/client/Evidence'
-import { LaunchWorkspace } from '../src/client/Launch'
+import { LaunchCrumbs, LaunchWorkspace } from '../src/client/Launch'
 import { Launches } from '../src/client/Launches'
 import { LaunchReport } from '../src/client/Report'
 import type { Evidence } from '../src/evidence'
@@ -52,6 +52,7 @@ import {
   currentLinks,
   detailsToggle,
   facts,
+  handoffLeaks,
   hooked,
   inspectorClosed,
   networkWithKey,
@@ -3038,6 +3039,15 @@ describe("a launch's report", () => {
     overlapping(places)
     await measured(ada, network)
     fakeDemographics(['e-0001', ...finalists].map((e, i) => profile(e, 0.3 - i * 0.02)))
+    // Ghost Signal's compare fails, as Qloo answers it with an error.
+    fakeCompare(
+      Object.fromEntries(
+        finalists.map((id) => [
+          id,
+          id === 'e-0601' ? 503 : [{ tag_id: 'urn:tag:keyword:media:film', name: 'Film', score: 0.6131 }]
+        ])
+      )
+    )
     fakeClaude([
       turn(resolve('Night Shift Cinema')),
       turn(rank('e-0001')),
@@ -3106,7 +3116,11 @@ describe("a launch's report", () => {
     ])
     // The finalists by who listens, each with its band, its shared tags and their call, and its slot value.
     const tags = (show: string) => state.ranking!.rows.find((r) => r.show === show)!.sharedTags!.call
-    const [finalistTable] = hooked(html, 'data-report-finalists')
+    // The phone's fold of each row's band and slot value under its show is left out here, as its cells are
+    // on a phone.
+    const [finalistTable] = hooked(html, 'data-report-finalists').map((table) =>
+      hooked(table, 'data-fold').reduce((rest, fold) => rest.replace(fold, ''), table)
+    )
     expect(words(finalistTable)).toBe(
       [
         'Rank Show Fit Slot value',
@@ -3114,11 +3128,29 @@ describe("a launch's report", () => {
         `2 Slow Burn Film ${tags('Slow Burn')} Strong $1,000 40,000 downloads`,
         `3 Paper Route Film ${tags('Paper Route')} Good $650 26,000 downloads`,
         `4 Field Notes Film ${tags('Field Notes')} · Mapped to Field Notes: Books Good $438 17,500 downloads`,
-        `5 Ghost Signal Film ${tags('Ghost Signal')} · Mapped to Ghost Signal Radio Fair $225 9,000 downloads`
+        `5 Ghost Signal Shared tags failed ${tags('Ghost Signal')} · Mapped to Ghost Signal Radio Fair $225 9,000 downloads`
       ].join(' ')
     )
-    // Then the demographics line, the close pair and the plan's lines, with their angles and prices.
+    // On a phone, the same band and slot value fold under each show.
+    expect(hooked(html, 'data-fold').map(words)).toEqual([
+      'Strong $1,200 48,000 downloads',
+      'Strong $1,000 40,000 downloads',
+      'Good $650 26,000 downloads',
+      'Good $438 17,500 downloads',
+      'Fair $225 9,000 downloads'
+    ])
+    // Qloo's reason for the failed compare stays in the evidence, as the launch's page gives it.
+    const failure = state.ranking!.rows.find((r) => r.show === 'Ghost Signal')!.sharedTags!.error!
+    expect(failure).toBeTruthy()
+    expect(html).not.toContain(failure)
+    expect(words(workspace(network, id, state))).toContain(`Shared tags failed: ${failure}`)
+    // Then the chart's caption and notes, the demographics line, the close pair and the plan's lines, with
+    // their angles and prices.
     const page = words(html)
+    expect(page).toContain('Qloo data Ranked by listener overlap with Night Shift Cinema Rank Show')
+    expect(page).toContain(
+      'Fit bands are thirds of this ranking, and the top five, after any shows left out, are finalists. Slot value = downloads × $25 CPM ÷ 1,000 Demographics'
+    )
     expect(page).toContain(
       `Demographics ${state.demographics!.call} · Checked against the listeners of Night Shift Cinema`
     )
@@ -3166,13 +3198,17 @@ describe("a launch's report", () => {
     expect(entries(reading)).toEqual(cited.map((call) => [call, call]))
 
     // It carries what the app shows of the run: no request parameter, entity ID, URN, raw affinity or score,
-    // and no ID of the run or the launch.
-    expect(html).not.toMatch(/\be-\d{4}\b/)
-    expect(html).not.toContain('urn:')
-    expect(html).not.toMatch(/signal\.|filter\.|explainability/)
+    // and no ID of the run or the launch, while the check finds them where they are.
+    expect(handoffLeaks(html, state, log)).toEqual([])
+    expect(handoffLeaks('<p>e-0501 0.913 urn:tag:genre</p>', state, log)).toEqual(['e-0501', '0.913', 'urn:tag:genre'])
     expect(html.replace(/\sclass="[^"]*"/g, '')).not.toMatch(/\d\.\d{2,}/)
     expect(html).not.toContain(run)
     expect(html).not.toContain(id)
+    // A demographic check that failed says so, citing its call, with Qloo's reason left in the evidence.
+    const unchecked = { ...state.demographics!, profile: null, error: 'Qloo returned 500: fake failure' }
+    const failed = report(network, id, { ...state, demographics: unchecked }, null, { evidence: log })
+    expect(words(failed)).toContain(`Demographics ${state.demographics!.call} not checked.`)
+    expect(failed).not.toContain('fake failure')
   })
 
   it("reports an earlier approved run, by default and by its ID, and a draft's or a run's with no order only says it opens once its plan is approved", async () => {
@@ -3245,19 +3281,36 @@ describe("a launch's report", () => {
     expect(facts(html)).toContainEqual(['Run', 'Run 1'])
     expect(words(html)).toContain('Total 24 ')
     expect(html.match(print)![1]).toContain('aria-disabled="false"')
-    // Run 2's draft and run 3, with no order, have none.
+    expect(handoffLeaks(html, reads.runs[runOne], reads.evidence)).toEqual([])
+    // Run 2's draft and run 3, with no order, have none; the launch's page shows no plan to review, so they
+    // lead to the launch.
     for (const run of [runTwo, runThree]) {
       const none = report(network, id, state, run, {
         runs: { [runTwo]: await agent.call<RunSnapshot>('getRun', runTwo) }
       })
       expect(words(none), run).toBe(
-        'Night Shift Cinema Launch report This run’s report opens once its plan is approved. Review the plan'
+        'Night Shift Cinema Launch report This run’s report opens once its plan is approved. Open the launch'
       )
+      expect(none, run).toContain(`href="/app/${network}/launches/${id}"`)
       expect(none, run).not.toMatch(print)
     }
     // A run the launch doesn't have says so.
     expect(words(report(network, id, state, crypto.randomUUID(), {}))).toBe(
       'Night Shift Cinema Launch report Error This launch has no such run. Open the launch'
+    )
+  })
+
+  it('names the launch in the top bar as a link back to its page, then Report, where a launch’s page names it alone', () => {
+    expect(
+      renderToStaticMarkup(<LaunchCrumbs title="Night Shift Cinema" launch="/app/n-1/launches/l-1" />).replace(
+        /\sclass="[^"]*"/g,
+        ''
+      )
+    ).toBe(
+      '<span aria-hidden="true">/</span><a href="/app/n-1/launches/l-1">Night Shift Cinema</a><span aria-hidden="true">/</span><span aria-current="page">Report</span>'
+    )
+    expect(renderToStaticMarkup(<LaunchCrumbs title="Night Shift Cinema" />).replace(/\sclass="[^"]*"/g, '')).toBe(
+      '<span aria-hidden="true">/</span><span aria-current="page">Night Shift Cinema</span>'
     )
   })
 
@@ -3303,5 +3356,20 @@ describe("a launch's report", () => {
     expect((await connect(ada, `/agents/launch/${network}/${id}`)).state()!.runs[0].orderApproved).toBeUndefined()
     await evictDurableObject(stub, { webSockets: 'close' })
     expect((await connect(ada, `/agents/launch/${network}/${id}`)).state()!.runs).toEqual(approved.runs)
+  })
+
+  it('starts a session from before run limits, which keeps no list of runs, and leaves it without one', async () => {
+    const session = await openSession()
+    open.push(session)
+    // Stand in for a session stored before run limits, whose state has no `runs`.
+    const stub = env.CrossfeedAgent.get(env.CrossfeedAgent.idFromName(session.cookie.split('=')[1]))
+    await runInDurableObject(stub, (agent: CrossfeedAgent) => {
+      const { runs: _, ...old } = agent.state
+      agent.setState(old as State)
+    })
+    await evictDurableObject(stub, { webSockets: 'close' })
+    const again = await openSession(session.cookie)
+    open.push(again)
+    expect(again.state()).not.toHaveProperty('runs')
   })
 })

@@ -32,6 +32,7 @@ import { counting } from './counting'
 import {
   api,
   facts,
+  handoffLeaks,
   hooked,
   openGuest,
   openMember,
@@ -361,6 +362,8 @@ describe("the guest network's sample launches", () => {
           'In the sample data, by Guest as it was captured, not by anyone in this network'
         ])
         expect(facts(reported)).toContainEqual(['CPM', '$20, the sample network’s'])
+        // And carries none of Qloo's IDs, URNs or scores.
+        expect(handoffLeaks(reported, state, log)).toEqual([])
         // Its calls are all the sample data's, which it says once, under them.
         expect(words(reported)).toContain(
           'Each call’s answer is from the sample data, as Qloo answered it when the run was captured.'

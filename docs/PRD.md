@@ -16,6 +16,7 @@ Contents:
     1.  [The roster's overlap](#the-rosters-overlap)
     1.  [The roster's listener profile](#the-rosters-listener-profile)
     1.  [Promo inventory](#promo-inventory)
+    1.  [The launch report](#the-launch-report)
     1.  [Settings and the account page](#settings-and-the-account-page)
     1.  [The API, the SDK, MCP, and skills](#the-api-the-sdk-mcp-and-skills)
     1.  [Success criteria](#success-criteria)

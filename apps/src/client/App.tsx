@@ -311,6 +311,12 @@ export const sampleCpmOf = (shown: RunSnapshot | undefined) => !!(shown?.sample?
 export const showsSample = (shown: RunSnapshot | undefined, run: Run | null) =>
   !!shown?.sample || !!run?.capturedAt || holdsSample(shown?.roster ?? []) || sampleCpmOf(shown)
 
+// What a launch goes by in its title row, and its report's: its name, or its comps; or nothing yet.
+export const launchHeading = (launch: Launch | null) => {
+  const comps = launch?.comps ?? [] // sessions from before comps have none
+  return launch?.name ?? (comps.length ? `From comps: ${comps.map((c) => c.name).join(' · ')}` : null)
+}
+
 // The head of the canvas: the title row, the on-air readout, and the launch form. The title row names
 // the launch, badged sample while the page shows the sample data, with its Qloo match and comps, and
 // holds the inspector's toggle and the run's actions: Start run for the form, or once a run has ended,
@@ -375,8 +381,7 @@ function LaunchHead({
           ? { name: launch.name }
           : null
       : null
-  const title =
-    launch?.name ?? (launchComps.length ? `From comps: ${launchComps.map((c) => c.name).join(' · ')}` : null)
+  const title = launchHeading(launch)
   // Back to the latest run, its button goes, and focus goes to the page's heading.
   const heading = useRef<HTMLHeadingElement>(null)
   // A run that completed with nothing more to say, not replayed and with no call still slow, leaves the

@@ -276,6 +276,10 @@ export const rosterKey = (roster: Show[]) =>
     roster.map((s) => [s.name, s.resolution, s.entity?.id ?? null, s.downloads, s.status, s.description, s.excluded])
   )
 
+// Run `run`'s row in the list of runs, marked `orderApproved` while `approved`, and unmarked otherwise.
+const markApproved = ({ orderApproved: _, ...run }: RunSummary, approved: boolean): RunSummary =>
+  approved ? { ...run, orderApproved: true } : run
+
 // `value` with run `from`'s ID replaced by `to` wherever it appears, as a replay or a seed makes a stored
 // run this session's.
 const asRun = <T>(value: T, from: string, to: string): T => JSON.parse(JSON.stringify(value).replaceAll(from, to))
@@ -384,9 +388,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
     // Calls are timed in memory, so none is still waiting after a restart.
     if (this.state.slowCalls?.length) this.setState({ ...this.state, slowCalls: [] })
-    // Runs from before #407 don't say whether their order is approved, which what they kept does.
-    const runs = this.withApprovals(this.state.runs)
-    if (JSON.stringify(runs) !== JSON.stringify(this.state.runs)) this.setState({ ...this.state, runs })
+    // Runs from before #407 don't say whether their order is approved, which what they kept does. Sessions
+    // from before run limits have no list.
+    const runs = this.state.runs && this.withApprovals(this.state.runs)
+    if (runs && JSON.stringify(runs) !== JSON.stringify(this.state.runs)) this.setState({ ...this.state, runs })
     // A new engine session opens on the sample network, looked up like an import, so its calls count among
     // the visitor's; past their limit, it opens empty. Tests turn this off.
     if (firstStart && this.opensOnSample && this.env.SAMPLE_NETWORK === 'on') {
@@ -1339,19 +1344,25 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       change.status === 'approved' && approvedBy
         ? { ...change, approvedBy, ...(approvedById && { approvedById }), approvedAt }
         : change
-    this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.insertionOrder', json(${JSON.stringify(order)}))
-      WHERE id = ${order.run} AND snapshot IS NOT NULL`
-    this.setState({ ...this.state, insertionOrder: order, runs: this.withApprovals(this.state.runs) })
+    const stored = JSON.stringify(order)
+    const saved = this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.insertionOrder', json(${stored}))
+      WHERE id = ${order.run} AND snapshot IS NOT NULL RETURNING id`
+    // Its run's row says whether the order the run keeps is approved. Sessions from before run limits have
+    // no list.
+    const approved = order.status === 'approved' && saved.length > 0
+    const runs = this.state.runs?.map((r) => (r.id === order.run ? markApproved(r, approved) : r))
+    this.setState({ ...this.state, insertionOrder: order, ...(runs && { runs }) })
   }
 
   // `runs`, each marked `orderApproved` while the order its run keeps is its own and approved, and only
-  // then, so the Runs list links that run's report.
+  // then, so the Runs list links that run's report: as an agent starts, for runs from before #407, and as
+  // a run is seeded.
   private withApprovals(runs: RunSummary[]): RunSummary[] {
     const approved = new Set(
       this.sql<{ id: string }>`SELECT id FROM runs WHERE json_extract(snapshot, '$.insertionOrder.run') = id
         AND json_extract(snapshot, '$.insertionOrder.status') = 'approved'`.map((r) => r.id)
     )
-    return runs.map(({ orderApproved: _, ...run }) => (approved.has(run.id) ? { ...run, orderApproved: true } : run))
+    return runs.map((run) => markApproved(run, approved.has(run.id)))
   }
 
   // Names `name` in place of member `memberId` on each order they approved that an ended run keeps, with

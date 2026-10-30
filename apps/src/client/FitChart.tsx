@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Launch, Show } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
-import { FINALISTS, topicFinding, type FitRow, type Ranking, type SharedTags } from '../fit'
+import { FINALISTS, topicFinding, type FitRow, type Ranking } from '../fit'
 import { dollars, slotPrice } from '../order'
 import { sameName } from '../resolve'
 import type { Move, Topic } from '../topic'
@@ -53,6 +53,12 @@ export const whoShares = (names: string[]) =>
     : names.length
       ? `Who shares the listeners of ${listOf(names)}`
       : 'Who shares the launch’s listeners'
+
+// Where the chart's order comes from, by lens, as its caption under the lens says, and the launch report's.
+export const fitCaptions = (anchors: string) => ({
+  listeners: `Ranked by listener overlap with ${anchors}`,
+  agent: 'Ranked by topic alone, from show names and descriptions'
+})
 
 // The chart's finding, from the ranking and the topic moves, which the launch report states too.
 export const finding = (ranking: Ranking, moves: Move[] | null) =>
@@ -157,8 +163,6 @@ export function FitChart({
   // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
   const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   const show = (name: string) => roster.find((s) => s.name === name)
-  // Whether a ranked show, shown or folded behind "Show all", is priced from sample downloads (#333).
-  const sampleFigures = ranking.rows.some((r) => show(r.show)?.sample?.includes('downloads'))
   return (
     <>
       <Section
@@ -184,13 +188,7 @@ export function FitChart({
           <>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {moves && <LensSwitch label="Order the chart" agent={byTopic} lens={lens} onChange={switchLens} />}
-              <LensSource
-                byAgent={topicLens}
-                captions={{
-                  listeners: `Ranked by listener overlap with ${anchors}`,
-                  agent: 'Ranked by topic alone, from show names and descriptions'
-                }}
-              />
+              <LensSource byAgent={topicLens} captions={fitCaptions(anchors)} />
               {topic?.status === 'ranking' ? (
                 <StateLine kind="loading">Ranking the roster by topic alone for the Topic column…</StateLine>
               ) : topic && topic.status !== 'ranked' ? (
@@ -228,11 +226,6 @@ export function FitChart({
                   const out = leftOut.includes(r.show)
                   const flagged = r.finalist ? demographics?.rows.find((d) => d.show === r.show)?.reasons : null
                   const shared = r.sharedTags ?? null // runs from before shared tags have none
-                  const notes = [
-                    !sameName(r.entity.name, r.show) && `Mapped to ${r.entity.name}`,
-                    ranking.anchors.length > 1 &&
-                      (r.leadingComp ? `Led by ${r.leadingComp.name}` : 'Comps contributed evenly')
-                  ].filter(Boolean)
                   const callButton = (call: string, label: string) => (
                     <CallButton call={call} label={label} opened={opened} openCall={openCall} />
                   )
@@ -281,17 +274,7 @@ export function FitChart({
                             {out && <Badge>Left out</Badge>}
                             {flagged?.length ? <Badge variant="outline">Listeners differ</Badge> : null}
                           </div>
-                          {(shared || notes.length > 0) && (
-                            <p className="type-caption text-muted-foreground">
-                              {shared && (
-                                <>
-                                  {tagWords(shared)} {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
-                                  {notes.length > 0 && ' · '}
-                                </>
-                              )}
-                              {notes.join(' · ')}
-                            </p>
-                          )}
+                          <RowCaption row={r} ranking={ranking} openCall={openCall} opened={opened} />
                           {flagged?.length ? (
                             <p className="type-caption text-muted-foreground">{flagged.join('. ')}.</p>
                           ) : null}
@@ -335,20 +318,17 @@ export function FitChart({
                 {all ? 'Show fewer' : `Show all ${order.length}`}
               </Button>
             )}
-            <div className="flex flex-col gap-1.5 type-caption text-muted-foreground">
-              <p>
-                Fit bands are thirds of this ranking, and the top five, after any shows left out, are finalists.
-                {moves && ' Topic is the rank a topic-only plan gives each show, from names and descriptions alone.'}
-              </p>
-              <p data-chart-foot>
-                {cpm === null
-                  ? 'Slot values need the network’s CPM: set it under Network CPM.'
-                  : `Slot value = downloads × ${dollars(cpm)}${sampleCpm ? ' sample' : ''} CPM ÷ 1,000${sampleFigures ? ' · sample figures' : ''}`}
-              </p>
-              {demographics && (
-                <DemographicSummary check={demographics} ranking={ranking} openCall={openCall} opened={opened} />
-              )}
-            </div>
+            <ChartNotes
+              rows={ranking.rows}
+              ranking={ranking}
+              roster={roster}
+              cpm={cpm}
+              sampleCpm={sampleCpm}
+              topic={moves !== null}
+              demographics={demographics}
+              openCall={openCall}
+              opened={opened}
+            />
             {missing.length > 0 && (
               <StateLine kind="failed">
                 Partial ranking: {listOf(missing)} {missing.length === 1 ? 'isn’t' : 'aren’t'} in it, because{' '}
@@ -380,14 +360,105 @@ export function FitChart({
 const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' })
 const lastGrapheme = (name: string) => [...graphemes.segment(name)].at(-1)?.segment ?? ''
 
-// What a finalist's shared tags say under its name: the tags, why their compare failed, or that it
-// found none. A separator never starts a line.
-export const tagWords = (shared: SharedTags) =>
-  shared.error
-    ? `Shared tags failed: ${shared.error}`
-    : shared.tags.length > 0
-      ? shared.tags.join('\u00a0· ')
-      : 'No distinctive shared tags'
+// What a ranked show's caption says under its name, in the chart and the launch report's finalists: its
+// shared tags and their call, then the comp it's mapped to, and with comps, which led its fit. A separator
+// never starts a line. A compare that failed says so, and Qloo's reason with it but on a handoff page,
+// which carries none of Qloo's words but its data's (TRD, "Handoff pages").
+export function RowCaption({
+  row,
+  ranking,
+  handoff = false,
+  openCall,
+  opened
+}: {
+  row: FitRow
+  ranking: Ranking
+  handoff?: boolean
+  openCall: OpenCall
+  opened: string | null
+}) {
+  const shared = row.sharedTags ?? null // runs from before shared tags have none
+  const notes = [
+    !sameName(row.entity.name, row.show) && `Mapped to ${row.entity.name}`,
+    ranking.anchors.length > 1 && (row.leadingComp ? `Led by ${row.leadingComp.name}` : 'Comps contributed evenly')
+  ].filter(Boolean)
+  if (!shared && notes.length === 0) return null
+  return (
+    <p className="type-caption text-muted-foreground">
+      {shared && (
+        <>
+          {shared.error
+            ? handoff
+              ? 'Shared tags failed'
+              : `Shared tags failed: ${shared.error}`
+            : shared.tags.length > 0
+              ? shared.tags.join('\u00a0· ')
+              : 'No distinctive shared tags'}{' '}
+          <CallButton
+            call={shared.call}
+            label={`Evidence for the tags ${row.show} shares`}
+            opened={opened}
+            openCall={openCall}
+          />
+          {notes.length > 0 && ' · '}
+        </>
+      )}
+      {notes.join(' · ')}
+    </p>
+  )
+}
+
+// What's under ranked rows, the chart's and the launch report's finalists': how bands and finalists are
+// set, and with a Topic column (`topic`) what it ranks; how a slot is valued, at the CPM, saying when the
+// CPM, or the downloads of a show among `rows`, the rows it values, are the sample's (#333); and the
+// demographics line. On a handoff page, a check that failed doesn't give Qloo's reason.
+export function ChartNotes({
+  rows,
+  ranking,
+  roster,
+  cpm,
+  sampleCpm,
+  topic,
+  demographics,
+  handoff = false,
+  openCall,
+  opened
+}: {
+  rows: FitRow[]
+  ranking: Ranking
+  roster: Show[]
+  cpm: number | null
+  sampleCpm: boolean
+  topic: boolean
+  demographics: DemographicCheck | null
+  handoff?: boolean
+  openCall: OpenCall
+  opened: string | null
+}) {
+  const sampleFigures = rows.some((r) => roster.find((s) => s.name === r.show)?.sample?.includes('downloads'))
+  return (
+    <div className="flex flex-col gap-1.5 type-caption text-muted-foreground">
+      <p>
+        Fit bands are thirds of this ranking, and the top five, after any shows left out, are finalists.
+        {topic && ' Topic is the rank a topic-only plan gives each show, from names and descriptions alone.'}
+      </p>
+      <p data-chart-foot>
+        {cpm === null
+          ? 'Slot values need the network’s CPM: set it under Network CPM.'
+          : `Slot value = downloads × ${dollars(cpm)}${sampleCpm ? ' sample' : ''} CPM ÷ 1,000${sampleFigures ? ' · sample figures' : ''}`}
+      </p>
+      {demographics && (
+        <DemographicSummary
+          check={demographics}
+          ranking={ranking}
+          handoff={handoff}
+          openCall={openCall}
+          opened={opened}
+        />
+      )}
+    </div>
+  )
+}
 
 // What one promo slot on a show displaces, from its downloads and the CPM; or the figure it's missing.
 // The value and the downloads under it share a right edge; on a phone's second line they run on.
@@ -417,15 +488,18 @@ export function SlotValue({ show, cpm }: { show: Show | undefined; cpm: number |
 }
 
 // The demographic check in one line, citing its call: who the launch's listeners are, in words,
-// and how many finalists' listeners differ. The values stay in the call's evidence.
-export function DemographicSummary({
+// and how many finalists' listeners differ. The values stay in the call's evidence, and so does why a
+// check failed, on a handoff page.
+function DemographicSummary({
   check,
   ranking,
+  handoff,
   openCall,
   opened
 }: {
   check: DemographicCheck
   ranking: Ranking
+  handoff: boolean
   openCall: OpenCall
   opened: string | null
 }) {
@@ -435,7 +509,7 @@ export function DemographicSummary({
   if (!check.profile)
     return (
       <StateLine kind="failed" role="alert">
-        Demographics {cite} not checked: {check.error}.
+        Demographics {cite} not checked{handoff ? '.' : `: ${check.error}.`}
       </StateLine>
     )
   const { from, ages, skew } = check.profile

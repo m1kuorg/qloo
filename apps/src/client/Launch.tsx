@@ -71,40 +71,42 @@ export function LaunchWorkspace({
 }
 
 // The launch's name, last in the top bar's breadcrumb after Launches; or on its report's page, the
-// launch's name as a link back to `launch`, its page, then Report. The server knows only the launch's
-// ID, so it renders an empty slot (#shell-launch, shell.tsx) that this fills once the agent's state
-// names the launch.
+// launch's name as a link back to `launch`, its page, then Report (LaunchCrumbs). The server knows only
+// the launch's ID, so it renders an empty slot (#shell-launch, shell.tsx) that this fills once the
+// agent's state names the launch.
 export function LaunchCrumb({ title, launch }: { title: string | null; launch?: string }) {
   const slot = typeof document === 'undefined' ? null : document.getElementById('shell-launch')
   if (!slot || !title) return null
+  return createPortal(<LaunchCrumbs title={title} launch={launch} />, slot)
+}
+
+// What LaunchCrumb puts in the top bar's slot, after Launches.
+export function LaunchCrumbs({ title, launch }: { title: string; launch?: string }) {
   const slash = (
     <span aria-hidden="true" className="text-muted-foreground">
       /
     </span>
   )
-  return createPortal(
-    launch ? (
-      <>
-        {slash}
-        <a
-          href={launch}
-          className="truncate text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          {title}
-        </a>
-        {slash}
-        <span className="shrink-0" aria-current="page">
-          Report
-        </span>
-      </>
-    ) : (
-      <>
-        {slash}
-        <span className="truncate" aria-current="page">
-          {title}
-        </span>
-      </>
-    ),
-    slot
+  return launch ? (
+    <>
+      {slash}
+      <a
+        href={launch}
+        className="truncate text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+      >
+        {title}
+      </a>
+      {slash}
+      <span className="shrink-0" aria-current="page">
+        Report
+      </span>
+    </>
+  ) : (
+    <>
+      {slash}
+      <span className="truncate" aria-current="page">
+        {title}
+      </span>
+    </>
   )
 }
