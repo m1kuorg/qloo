@@ -156,7 +156,8 @@ Taken on 2026-10-19 in the product spec, [#155](https://github.com/m1kuorg/qloo/
 
 Taken on 2026-10-30 in the analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), each the recommended answer of a grilling round answered for the owner, and stated in the pull request that carries it:
 
-1.  **Measuring the overlap and profiling the listeners are started, never automatic:** a member or an API key measures the roster's overlap or profiles its listeners; an import never does, since the overlap spends a Qloo call per show and the profile a call each time.
+1.  **A member or a key starts the overlap and the listener profile, never an import:** a member or an API key measures the roster's overlap or profiles its listeners; an import never does, since the overlap spends a Qloo call per show and the profile a call each time. The guest network's sample roster is the one exception, below.
+1.  **The guest network measures both daily:** once its sample roster's lookups settle after each daily clearing or a reset, it measures the overlap and profiles the listeners, on the guest budget, so a visitor finds both tabs filled when they arrive; after the first day the calls are cache hits.
 1.  **Close pairs scale with the roster:** a show's closest shows are its top three, or as many as the top band of its ranking holds on a roster of under ten matched shows, so a close pair means the same on a small roster as on a large one.
 1.  **No Analysis rail item:** what the analysis adds goes where its object lives, so the network's promo inventory is a tab of the Launches page, and the phone's bottom bar keeps its six names.
 1.  **Approved and drafted are never added together:** a launch's latest approved order keeps counting as approved while a newer run drafts another, which counts as drafted beside it; an approved order edited back to draft is a draft, so the latest order still approved counts.
