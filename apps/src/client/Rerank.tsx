@@ -26,6 +26,9 @@ export type AgentRanking = { by: string; column: string; rank: string }
 // or null where that ranking doesn't place it.
 type Ranked = { key: string; rank: number; agentRank: number | null }
 
+// Each row bleeds its tint and rule 8px past the text, as every ranked list's do.
+export const bleed = '-mx-2 px-2'
+
 // The re-rank: each row travels from where it was to its new place, staggered by its new place.
 const TRAVEL = { duration: 450, easing: 'cubic-bezier(0.215, 0.61, 0.355, 1)', stagger: 20 } // --ease-plate
 
@@ -45,8 +48,9 @@ export function useRerank<R>(
   // Each row's element by key, and where each row was on screen just before the lens switched.
   const rowEls = useRef(new Map<string, HTMLElement>())
   const before = useRef<Map<string, number> | null>(null)
-  const agent = on && lens === 'agent'
-  const order = agent ? agentOrder(rows, ranked) : rows
+  // Whether the rows are in the agent's order.
+  const byAgent = on && lens === 'agent'
+  const order = byAgent ? agentOrder(rows, ranked) : rows
   // Flip: the rows are in their new places now, before the browser paints; each starts where it was and
   // travels to where it is. In three passes, so the layout is worked out once, not once a row: stop
   // every travel still running, read where every row now is, then start them all.
@@ -88,7 +92,7 @@ export function useRerank<R>(
     else rowEls.current.delete(key)
   }
   const toggleWhy = (key: string) => setWhy(why === key ? null : key)
-  return { lens, agent, order, switchLens, rowRef, why, toggleWhy }
+  return { lens, byAgent, order, switchLens, rowRef, why, toggleWhy }
 }
 
 // The rows in the agent's order, with any row the agent's ranking doesn't place after the rest, in
@@ -127,17 +131,24 @@ export function LensSwitch({
   )
 }
 
-// Where the order on screen comes from, labelled by who ranked it.
-export function LensSource({ agent, listeners, byAgent }: { agent: boolean; listeners: string; byAgent: string }) {
+// Where the order on screen comes from, labelled by who ranked it: `captions` say it for each lens. It's
+// a polite live region, so a screen reader hears that the rows have been re-ordered.
+export function LensSource({
+  byAgent,
+  captions
+}: {
+  byAgent: boolean // the rows are in the agent's order
+  captions: { listeners: string; agent: string }
+}) {
   return (
-    <p className="type-caption text-muted-foreground">
-      {agent ? (
+    <p className="type-caption text-muted-foreground" aria-live="polite">
+      {byAgent ? (
         <>
-          <Source of="agent" /> {byAgent}
+          <Source of="agent" /> {captions.agent}
         </>
       ) : (
         <>
-          <Source of="qloo" /> {listeners}
+          <Source of="qloo" /> {captions.listeners}
         </>
       )}
     </p>
@@ -178,7 +189,7 @@ export const MoveHeader = ({ className }: { className?: string }) => (
 
 // A row's move, the agent's rank less its listener rank, so a climb by who listens is positive: ▲3 in
 // signal ink and 600 for a climber, ▼2 or = muted, its words for screen readers. A row whose move
-// explains itself on demand holds the button that opens its "Why it moved".
+// explains itself on demand holds the button that opens its "Why it moved", whose words say so.
 export function MoveCell({
   move,
   climber,
@@ -190,7 +201,12 @@ export function MoveCell({
   agent: AgentRanking
   why?: WhyState
 }) {
-  const words = move !== null && <span className="vh">{moveWords(move, agent.rank)}</span>
+  const words = move !== null && (
+    <span className="vh">
+      {moveWords(move, agent.rank)}
+      {why && ', why it moved'}
+    </span>
+  )
   const glyph = move !== null && <span aria-hidden="true">{moveGlyph(move)}</span>
   return (
     <span

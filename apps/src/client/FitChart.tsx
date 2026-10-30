@@ -13,6 +13,7 @@ import { FitBand, listOf, NotScored } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
 import { Section } from './PageHeader'
 import {
+  bleed,
   LensSource,
   LensSwitch,
   MoveCell,
@@ -44,7 +45,6 @@ const rowGrid = {
   plain:
     "grid gap-x-3 gap-y-1 grid-cols-[2rem_minmax(0,1fr)_auto] [grid-template-areas:'rank_name_fit'_'rank_slot_slot'] md:gap-x-4 md:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_8rem] md:[grid-template-areas:'rank_name_fit_slot']"
 }
-const bleed = '-mx-2 px-2'
 
 // Who the chart's ranking is against, as its heading asks it.
 const whoShares = (names: string[]) =>
@@ -99,7 +99,7 @@ export function FitChart({
   // The lens, its travel, and the climber whose "Why it moved" row is open.
   const {
     lens,
-    agent: topicLens,
+    byAgent: topicLens,
     order,
     switchLens,
     rowRef,
@@ -185,9 +185,11 @@ export function FitChart({
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {moves && <LensSwitch label="Order the chart" agent={byTopic} lens={lens} onChange={switchLens} />}
               <LensSource
-                agent={topicLens}
-                listeners={`Ranked by listener overlap with ${anchors}`}
-                byAgent="Ranked by topic alone, from show names and descriptions"
+                byAgent={topicLens}
+                captions={{
+                  listeners: `Ranked by listener overlap with ${anchors}`,
+                  agent: 'Ranked by topic alone, from show names and descriptions'
+                }}
               />
               {topic?.status === 'ranking' ? (
                 <StateLine kind="loading">Ranking the roster by topic alone for the Topic column…</StateLine>

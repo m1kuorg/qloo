@@ -449,8 +449,13 @@ describe('ranking the pitches by what they say', () => {
     // climb by who listens; and the Pitch column, headed with the Agent chip, gives each pitch's rank by
     // what it says.
     expect(words(lists(state))).toContain(
-      `Films · 7 ranked Glass Lantern climbs 5 places from its pitch rank by who listens, and 1 more pitch climbs 3 or more. Paper Planes, Static Bloom, and Red Static read most on-topic but fall out of the top band by who listens. Ranked against Night Shift Cinema and Glass Harbor. ${list.calls[0]} By who listens By the pitch Qloo data Ranked by listener overlap with Night Shift Cinema and Glass Harbor Rank Move Public work · guest Agent Pitch Agent Fit 1 1st by who listens, 6th by the pitch Up 5 places ▲5 Glass Lantern Ida Wren Pitch #6 Strong 2 2nd by who listens, 4th by the pitch ▲2 Up 2 places Low Tide Cy Lund Pitch #4 Strong 3 3rd by who listens, 7th by the pitch Up 5 places ▲5 Low Tide Ola Lund Pitch #7 Strong 4 4th by who listens, 5th by the pitch ▲1 Up 1 place Night Owls Rex Moor Pitch #5 Good 5 5th by who listens, 2nd by the pitch Down 3 places ▼3 Static Bloom Ben Ochoa Pitch #2 Good 6 6th by who listens, 3rd by the pitch Down 3 places ▼3 Red Static Pia Stone Pitch #3 Fair 7 7th by who listens, 1st by the pitch Down 6 places ▼6 Paper Planes Jo Hale Pitch #1 Fair`
+      `Films · 7 ranked Glass Lantern climbs 5 places from its pitch rank by who listens, and 1 more pitch climbs 3 or more. Paper Planes, Static Bloom, and Red Static read most on-topic but fall out of the top band by who listens. Ranked against Night Shift Cinema and Glass Harbor. ${list.calls[0]} By who listens By the pitch Qloo data Ranked by listener overlap with Night Shift Cinema and Glass Harbor Rank Move Public work · guest Agent Pitch Agent Fit 1 1st by who listens, 6th by the pitch Up 5 places, why it moved ▲5 Glass Lantern Ida Wren Pitch #6 Strong 2 2nd by who listens, 4th by the pitch ▲2 Up 2 places Low Tide Cy Lund Pitch #4 Strong 3 3rd by who listens, 7th by the pitch Up 5 places, why it moved ▲5 Low Tide Ola Lund Pitch #7 Strong 4 4th by who listens, 5th by the pitch ▲1 Up 1 place Night Owls Rex Moor Pitch #5 Good 5 5th by who listens, 2nd by the pitch Down 3 places, why it moved ▼3 Static Bloom Ben Ochoa Pitch #2 Good 6 6th by who listens, 3rd by the pitch Down 3 places, why it moved ▼3 Red Static Pia Stone Pitch #3 Fair 7 7th by who listens, 1st by the pitch Down 6 places, why it moved ▼6 Paper Planes Jo Hale Pitch #1 Fair`
     )
+    // A climb of 3 or more is in signal ink; a smaller climb and every fall are muted.
+    for (const pitch of ['pitch-03', 'pitch-05'])
+      expect(hooked(lists(state), `data-ranked-pitch="${pitch}"`)[0], pitch).toContain('text-signal-ink')
+    for (const pitch of ['pitch-02', 'pitch-07', 'pitch-01', 'pitch-06', 'pitch-04'])
+      expect(hooked(lists(state), `data-ranked-pitch="${pitch}"`)[0], pitch).not.toContain('text-signal-ink')
     // It spent none of the run's scripted turns.
     expect(modelRequests().filter((r) => r.tools)).toHaveLength(2)
   })
@@ -503,10 +508,10 @@ describe('ranking the pitches by what they say', () => {
       'By who listens By the pitch Agent Ranked by what each pitch says, from its subject and opening alone Rank Move Public work · guest Agent Listeners Qloo data Fit'
     )
     expect(row(byPitch, 'pitch-04')).toBe(
-      '1 1st by the pitch, 7th by who listens Down 6 places ▼6 Paper Planes Jo Hale Listeners #7 Fair'
+      '1 1st by the pitch, 7th by who listens Down 6 places, why it moved ▼6 Paper Planes Jo Hale Listeners #7 Fair'
     )
     expect(row(byPitch, 'pitch-03')).toBe(
-      '6 6th by the pitch, 1st by who listens Up 5 places ▲5 Glass Lantern Ida Wren Listeners #1 Strong'
+      '6 6th by the pitch, 1st by who listens Up 5 places, why it moved ▲5 Glass Lantern Ida Wren Listeners #1 Strong'
     )
     expect(hooked(byPitch, 'data-ranked-pitch="pitch-03"')[0]).toMatch(
       /<button\b(?=[^>]*\saria-expanded="true")(?=[^>]*\saria-controls="why-pitch-03")/

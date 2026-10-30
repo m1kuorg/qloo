@@ -55,6 +55,7 @@ import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, 
 import type { NetworkPage } from './NetworkPage'
 import { FormDialog, PageEmpty, PageHeader, PageTabs, Section, summaryLine, useFormDialog } from './PageHeader'
 import {
+  bleed,
   LensSource,
   LensSwitch,
   MoveCell,
@@ -992,11 +993,13 @@ function PitchLists({
           </StateLine>
         </p>
       ) : null}
-      {/* Each list's table ends it, so its h3 sections stand further apart than their own parts. */}
+      {/* Each list's table ends it, so its h3 sections stand further apart than their own parts. Each is
+        keyed by its run too, so another run's lists, a new run's or an earlier one's, start by who listens
+        with nothing open rather than in the lens the last run's were left in. */}
       <div className="flex flex-col gap-8">
         {lists.map((list) => (
           <RankedPitches
-            key={list.type}
+            key={`${booking.run}-${list.type}`}
             list={list}
             byPitch={ranking?.status === 'ranked'}
             pitches={pitches}
@@ -1064,7 +1067,7 @@ export function RankedPitches({
 }) {
   // A pitch's ranks as the lens reads them: its row's rank by who listens, and its pitch rank.
   const ranks = (r: PitchRow) => ({ key: r.pitch, rank: r.rank, agentRank: r.pitchRank ?? null })
-  const { lens, agent, order, switchLens, rowRef, why, toggleWhy } = useRerank(list.rows, ranks, byPitch, start)
+  const { lens, byAgent, order, switchLens, rowRef, why, toggleWhy } = useRerank(list.rows, ranks, byPitch, start)
   const id = `list-${list.type}`
   const pitch = (id: string) => pitches.find((p) => p.id === id)
   const names = listOf(list.anchors.map((a) => a.name))
@@ -1077,7 +1080,6 @@ export function RankedPitches({
         : null
   const finding = byPitch && list.rows.length > 0 ? pitchFinding(list.rows) : null
   const grid = byPitch ? pitchGrid.lens : pitchGrid.plain
-  const bleed = '-mx-2 px-2'
   return (
     <Section
       id={id}
@@ -1110,9 +1112,11 @@ export function RankedPitches({
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <LensSwitch label={`Order the ${noun}s`} agent={byThePitch} lens={lens} onChange={switchLens} />
               <LensSource
-                agent={agent}
-                listeners={`Ranked by listener overlap with ${names}`}
-                byAgent="Ranked by what each pitch says, from its subject and opening alone"
+                byAgent={byAgent}
+                captions={{
+                  listeners: `Ranked by listener overlap with ${names}`,
+                  agent: 'Ranked by what each pitch says, from its subject and opening alone'
+                }}
               />
             </div>
           )}
