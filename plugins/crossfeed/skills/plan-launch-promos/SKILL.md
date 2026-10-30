@@ -1,6 +1,6 @@
 ---
 name: plan-launch-promos
-description: Plan a podcast launch's promos across a network's own shows with Crossfeed's MCP tools, which rank the roster by listener overlap in Qloo and draft an insertion order that a member approves in the app. Use when the user wants to plan, run, or rerun a Crossfeed launch, pick which roster shows promote a new show and how many slots each gets, settle the roster for a launch, change a draft insertion order, or understand why a show ranks where it does on a launch's chart.
+description: Plan a podcast launch's promos across a network's own shows with Crossfeed's MCP tools, which rank the roster by listener overlap in Qloo and draft an insertion order that a member approves in the app. Use when the user wants to plan, run, or rerun a Crossfeed launch, pick which roster shows promote a new show and how many slots each gets, settle the roster for a launch, change a draft insertion order, understand why a show ranks where it does on a launch's chart, or see which of the network's own shows share listeners with each other.
 license: MIT
 compatibility: Needs Crossfeed's MCP server (tools such as create_launch and get_launch), connected with one of the network's API keys.
 ---
@@ -36,3 +36,11 @@ Hold every rule through every step.
 1.  **Present the plan.** From the latest run, show the chart (rank, show, band, finalists, and the climbers a topic plan would have missed), any finalist whose listeners differ from the launch's, and the draft insertion order (each show's slots, value, and host-read angle, then the total). For a run that stopped or failed, give its reason. When `get_launch` says the network's roster has changed since the run, say so and offer a rerun. Done when the human has seen the chart and the draft.
 1.  **Edit on request.** Change the draft only as the human asks, with `edit_order` and every line the order keeps, each with its `show`, `slots`, and `angle`; leaving a line out drops that show. Read the new totals back. Editing an approved order returns it to draft.
 1.  **Hand off approval.** Give the human the launch's page and say a member of the network approves the order there, then exports it. Done when the human has the draft as they want it and that link.
+
+## Which shows share listeners
+
+When the human asks which of the network's own shows share listeners, or which pair would trade promos well, read the roster's overlap with `get_overlap`.
+
+- **Not measured, or stale:** measuring it with `measure_overlap` spends one Qloo call per show matched in Qloo, so ask the human first. It needs at least four such shows and a settled roster. Read it with `get_overlap` every few seconds while it's `measuring`.
+- **Present it** as the summary does: each show's closest shows by rank and band within its own ranking, then the close pairs in the tool's words. A rank compares shows within one show's ranking only, never across shows, and it describes shared listeners, never a fact about a person.
+- **A failed show** keeps its reason; measuring again asks only for the shows missing or failed.

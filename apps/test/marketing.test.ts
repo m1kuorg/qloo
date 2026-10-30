@@ -576,7 +576,7 @@ describe('the developer docs', () => {
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
       })
       const listed = JSON.parse((await res.text()).replace(/^[\s\S]*?data:/, '')).result.tools as { name: string }[]
-      expect(listed.length).toBe(pitches === 'on' ? 19 : 12)
+      expect(listed.length).toBe(pitches === 'on' ? 21 : 14)
       const html = await page('/docs/mcp')
       // The tools table's rows, each naming its tool.
       const tools = [...main(html).matchAll(/\bdata-tool="([a-z_]+)"/g)].map((m) => m[1])
@@ -635,6 +635,7 @@ describe('the developer docs', () => {
     expect(text).toContain("baseUrl: 'https://crossfeed.test'")
     for (const helper of [
       'waitForRoster()',
+      'waitForOverlap()',
       'waitForInbox()',
       'waitForRun({ launchId, runId })',
       'waitForRun({ pitchRunId })'

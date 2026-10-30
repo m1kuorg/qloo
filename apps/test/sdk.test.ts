@@ -76,6 +76,8 @@ describe("the SDK's methods", () => {
       () => crossfeed.roster.import(''),
       () => crossfeed.roster.updateShow('Corner Booth', {}),
       () => crossfeed.roster.searchComps('Corner Booth', 'Slow Burn'),
+      () => crossfeed.roster.overlap(),
+      () => crossfeed.roster.measureOverlap(),
       () => crossfeed.launches.list(),
       () => crossfeed.launches.create({}),
       () => crossfeed.launches.get(launch),
@@ -187,6 +189,37 @@ const planned = [
   ),
   turn(text('Drafted the insertion order.'))
 ]
+
+describe("the roster's overlap, measured through the SDK", () => {
+  it("starts measuring, waits until it has measured, and reads each show's closest shows", async () => {
+    fakeQloo({ search })
+    // Made-up scores: every show's ranking puts the others in this order.
+    const order = ['e-0501', 'e-0502', 'e-0001', 'e-0601']
+    fakeInsights((body) =>
+      String(body['filter.results.entities'])
+        .split(',')
+        .map((c) => ({ entity_id: c, name: c, affinity: 0.9 - order.indexOf(c) / 100 }))
+    )
+    const { crossfeed } = await client()
+    await crossfeed.roster.import('Night Shift Cinema\nCorner Booth\nSlow Burn\nGhost Signal Radio\n', {
+      type: 'text/plain'
+    })
+    await crossfeed.waitForRoster({ interval: 10 })
+    const unmeasured = await crossfeed.roster.overlap()
+    expect(unmeasured).toMatchObject({ status: 'unmeasured', progress: null, closePairs: [] })
+    expect(unmeasured.shows.map((s) => s.status)).toEqual(['unmeasured', 'unmeasured', 'unmeasured', 'unmeasured'])
+    expect((await crossfeed.roster.measureOverlap()).progress).toEqual({ answered: expect.any(Number), asked: 4 })
+    const measured = await crossfeed.waitForOverlap({ interval: 10 })
+    expect(measured.shows.map((s) => [s.show, s.closest.map((c) => [c.rank, c.show, c.band])])).toEqual([
+      ['Night Shift Cinema', [[1, 'Corner Booth', 'top']]],
+      ['Corner Booth', [[1, 'Slow Burn', 'top']]],
+      ['Slow Burn', [[1, 'Corner Booth', 'top']]],
+      ['Ghost Signal Radio', [[1, 'Corner Booth', 'top']]]
+    ])
+    expect(measured.closePairs).toEqual([['Corner Booth', 'Slow Burn']])
+    expect(await crossfeed.roster.overlap()).toEqual(measured)
+  })
+})
 
 describe('a launch, planned through the SDK', () => {
   it('goes from a roster import to a draft order, which exports once a member approves it in the app', async () => {

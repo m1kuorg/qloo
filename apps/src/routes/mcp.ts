@@ -31,12 +31,14 @@ import {
   getLaunch,
   getLaunchEvidence,
   getNetwork,
+  getOverlap,
   getPitchRun,
   listPitchRuns,
   getRoster,
   importRoster,
   listLaunches,
   loadInbox,
+  measureOverlap,
   searchComps,
   startLaunchRun,
   startPitchRun,
@@ -47,10 +49,13 @@ import {
   type LaunchRun,
   type OperationContext,
   type OrderInfo,
+  type NamedShow,
   type PitchRun,
-  type Roster
+  type Roster,
+  type RosterOverlap
 } from '../operations'
 import { dollars } from '../order'
+import { MIN_OVERLAP_ENTITIES } from '../overlap'
 import { Refusal, refusalCode } from '../refusal'
 import type { Candidate } from '../resolve'
 import { networkLinks } from '../shell'
@@ -207,6 +212,28 @@ function serverFor(ctx: OperationContext) {
     async (input) => {
       const show = await searchComps(ctx, input)
       return { text: showLine(show), structured: show }
+    }
+  )
+
+  tool(
+    'get_overlap',
+    "Read the roster's overlap: which of its shows share listeners with each other, as Qloo measured it. Each show's closest shows by listener overlap, as ranks and bands within its own ranking of the rest of the roster, and the close pairs, two shows each among the other's closest. It's `measuring` while its calls are out; read it again until it isn't.",
+    none,
+    READ,
+    async () => {
+      const overlap = await getOverlap(ctx)
+      return { text: overlapText(overlap), structured: overlap }
+    }
+  )
+
+  tool(
+    'measure_overlap',
+    "Measure the roster's overlap: rank the rest of the roster against each show matched in Qloo, one Qloo call each, counting shows on the same Qloo show once. It needs at least 4 such shows and no show still being looked up. It returns at once with the overlap measuring; read it with get_overlap until it isn't. With the roster's matched shows unchanged, it asks only the shows whose ranking is missing or failed, and nothing once all have landed. Its calls count against the network's daily Qloo calls.",
+    none,
+    WRITE,
+    async () => {
+      const overlap = await measureOverlap(ctx)
+      return { text: overlapText(overlap), structured: overlap }
     }
   )
 
@@ -443,6 +470,46 @@ function compSearchText(search: Show['compSearch']) {
     ? `${searched} found ${entities(search.results)}: map it to one with update_show and compId.`
     : `${searched} found nothing: try another with search_comps.`
 }
+
+// The roster's overlap as the assistant reads it: where it stands, each show's closest shows, and the
+// close pairs, never a whole ranking.
+function overlapText(overlap: RosterOverlap) {
+  const k = overlap.closestCount
+  const closest = k === 1 ? 'closest show' : `${k} closest shows`
+  const lines = [
+    {
+      unmeasured: `The roster's overlap isn't measured yet: measure it with measure_overlap, once at least ${MIN_OVERLAP_ENTITIES} shows are matched in Qloo.`,
+      measuring: `Measuring the roster's overlap: ${overlap.progress?.answered} of ${overlap.progress?.asked} shows' rankings have answered. Read it with get_overlap again in a few seconds.`,
+      measured: `The roster's overlap, measured ${overlap.measuredAt}: each show's ${closest} by listener overlap in Qloo, by rank and band within its own ranking.`,
+      failed: `Measuring the roster's overlap failed: ${overlap.error}`
+    }[overlap.status]
+  ]
+  if (overlap.stale)
+    lines.push("The roster's matched shows have changed since it was measured: measure it again with measure_overlap.")
+  for (const row of overlap.shows) {
+    const what = {
+      unmeasured: 'not measured.',
+      measuring: 'being measured.',
+      failed: `its ranking failed: ${row.error}`,
+      measured: row.closest.length
+        ? `${row.closest.map((c) => `#${c.rank} ${overlapName(c)} (${c.band} band)`).join(', ')}.`
+        : 'Qloo scored no other show against it.'
+    }[row.status]
+    lines.push(`- ${overlapName(row)}: ${what}`)
+  }
+  const among = k === 1 ? "are each other's closest show" : `each rank among the other's ${closest}`
+  // Pairs once the measure has ended, over what landed.
+  if (overlap.status === 'measured' || overlap.status === 'failed')
+    lines.push(
+      ...(overlap.closePairs.length
+        ? overlap.closePairs.map(([a, b]) => `${a} and ${b} ${among} by listener overlap.`)
+        : [`No close pairs: no two shows ${among}.`])
+    )
+  return lines.join('\n')
+}
+
+const overlapName = ({ show, sameAs }: NamedShow) =>
+  sameAs.length ? `${show} (the same Qloo show as ${listOf(sameAs)})` : show
 
 const launchTitle = (launch: LaunchRow) => launch.name ?? `the launch from ${launch.comps.join(', ')}`
 

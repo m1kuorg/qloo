@@ -23,12 +23,13 @@ import type {
 import type { DemographicCheck } from './demographics'
 import type { Evidence } from './evidence'
 import { networkName, renameNetwork, renameNetworkForKey, type Member, type Role } from './directory'
-import type { FitRow, PitchList, Ranking } from './fit'
+import { matched, type Band, type FitRow, type PitchList, type Ranking } from './fit'
 import { globalGateway, type Usage } from './gateway'
 import type { Inbox, PastGuest, Pitch, PitchInput, PitchReply, Skipped } from './inbox'
 import { summaryOf } from './launch-agent'
 import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
+import { closePairs, closestCount, isStale, rosterEntities, type Entity, type Overlap } from './overlap'
 import { Refusal } from './refusal'
 import { offeredBy, type Candidate } from './resolve'
 import { holdsSample, type RosterFormat } from './roster'
@@ -133,6 +134,85 @@ export async function searchComps({ env, network }: OperationContext, input: { n
   const networkAgent = await agent(env, network)
   await networkAgent.searchComps(input.name, input.query)
   return showOf(await stateOf(networkAgent), input.name)
+}
+
+// The roster's overlap as a program reads it (overlap.ts): each show's closest shows by listener overlap
+// in Qloo, as ranks and bands within its own ranking, and the close pairs. One row per distinct Qloo
+// entity on the roster, in roster order, named by its first show there, with the other shows matched or
+// mapped to it as `sameAs`; a show no longer on the roster is named as Qloo names it. No call number is
+// given, since the network's evidence has no program route.
+export type RosterOverlap = {
+  status: 'unmeasured' | Overlap['status']
+  error: string | null
+  progress: { answered: number; asked: number } | null // the latest measure's anchors; null until one starts
+  measuredAt: string | null
+  stale: boolean // the roster's matched shows have changed since it was measured
+  closestCount: number // how many closest shows each show has: up to 3, fewer on a small roster
+  shows: OverlapShow[]
+  closePairs: [string, string][]
+}
+export type NamedShow = { show: string; sameAs: string[] }
+export type OverlapShow = NamedShow & {
+  status: 'unmeasured' | 'measuring' | 'measured' | 'failed'
+  closest: (NamedShow & { rank: number; band: Band })[]
+  error: string | null // why its ranking failed
+}
+
+export async function getOverlap({ env, network }: OperationContext): Promise<RosterOverlap> {
+  return overlapOf(await stateOf(await agent(env, network)))
+}
+
+// Starts measuring the roster's overlap, and returns at once with it measuring, or as it is when the
+// roster's entities are unchanged and every ranking has landed. Each anchor is one Qloo call, so up to
+// one per show matched in Qloo, counted against the network's daily calls.
+export async function measureOverlap({ env, network }: OperationContext): Promise<RosterOverlap> {
+  const networkAgent = await agent(env, network)
+  await networkAgent.measureOverlap()
+  return overlapOf(await stateOf(networkAgent))
+}
+
+function overlapOf({ roster, overlap }: State): RosterOverlap {
+  const shows = roster.filter(matched)
+  const named = ({ id, name }: Entity): NamedShow => {
+    const [show = name, ...sameAs] = shows.filter((s) => s.entity.id === id).map((s) => s.name)
+    return { show, sameAs }
+  }
+  const measured = new Set(overlap?.key.split(','))
+  const rows = new Map(overlap?.rows.map((r) => [r.entity.id, r]))
+  // Each entity once, where its first show is on the roster.
+  const entities = [...new Map(shows.map((s) => [s.entity.id, { id: s.entity.id, name: s.entity.name }])).values()]
+  const row = (entity: Entity): OverlapShow => {
+    const landed = rows.get(entity.id)
+    if (!landed)
+      return {
+        ...named(entity),
+        status: overlap?.status === 'measuring' && measured.has(entity.id) ? 'measuring' : 'unmeasured',
+        closest: [],
+        error: null
+      }
+    return {
+      ...named(entity),
+      status: landed.error ? 'failed' : 'measured',
+      closest: landed.closest.map((c) => ({ ...named(c), rank: c.rank, band: c.band })),
+      error: landed.error
+    }
+  }
+  // Pairs in roster order, then any among shows that have left it.
+  const ordered = [
+    ...entities.flatMap((e) => (rows.has(e.id) ? [rows.get(e.id)!] : [])),
+    ...(overlap?.rows ?? []).filter((r) => !entities.some((e) => e.id === r.entity.id))
+  ]
+  const name = (id: string) => named(rows.get(id)!.entity).show
+  return {
+    status: overlap?.status ?? 'unmeasured',
+    error: overlap?.error ?? null,
+    progress: overlap ? { answered: overlap.answered, asked: overlap.asked } : null,
+    measuredAt: overlap?.measuredAt ?? null,
+    stale: overlap ? isStale(overlap, roster) : false,
+    closestCount: closestCount(overlap ? measured.size : rosterEntities(roster).length),
+    shows: entities.map(row),
+    closePairs: closePairs(ordered).map(([a, b]) => [name(a), name(b)])
+  }
 }
 
 // A launch as the network's list has it, its status in the API's words: `order drafted` is

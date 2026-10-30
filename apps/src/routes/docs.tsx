@@ -831,7 +831,7 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
               </li>
               <li>
                 <CostChip cost="Calls Qloo" /> It counts in the network’s daily Qloo calls: an import’s lookups, a comp
-                search, or a run resumed by an answer.
+                search, measuring the roster’s overlap, or a run resumed by an answer.
               </li>
               <li>
                 <SessionOnly /> Only a member’s session, from one of Crossfeed’s pages, can send it. An API key answers
@@ -1029,6 +1029,10 @@ for (const reply of run.replies ?? []) console.log(reply.pitch, reply.verdict, r
           <ul>
             <li>
               <code>waitForRoster()</code> resolves once no show or comp search is pending.
+            </li>
+            <li>
+              <code>waitForOverlap()</code> resolves once the roster’s overlap, which{' '}
+              <code>roster.measureOverlap()</code> starts, is no longer <code>measuring</code>.
             </li>
             <li>
               <code>waitForInbox()</code> resolves once no pitch is still being read.

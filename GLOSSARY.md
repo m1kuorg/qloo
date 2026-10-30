@@ -63,6 +63,17 @@ _Avoid_: Seeded launches, other sample launches
 **Roster**:
 The network's own shows, the closed list Crossfeed scores.
 
+**Measure the overlap**:
+To rank the rest of the roster against each of its shows matched in Qloo, one closed-list ranking per show, so each show has its closest shows. Shows matched to the same Qloo show are measured once, and shows left out of launches are measured too.
+_Avoid_: Map the overlap, since mapping stands a comp in for a show
+
+**Closest shows**:
+A roster show's first shows in its own ranking of the rest of the roster by listener overlap: three, or as many as the top band of that ranking holds on a roster of under ten matched shows, so two from seven and one from four.
+_Avoid_: Nearest shows, neighbours
+
+**Close pair**:
+Two roster shows that each rank among the other's closest shows.
+
 **Launch**:
 The new show a network is promoting, released or not, with the runs and insertion orders that plan its promos.
 _Avoid_: Project, campaign

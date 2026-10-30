@@ -32,6 +32,7 @@ import {
   type OrderLine
 } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
+import type { Overlap } from './overlap'
 import { holdsSample, parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
@@ -198,6 +199,8 @@ export type State = {
   // who dismissed its setup checklist.
   launches?: LaunchSummary[]
   checklistDismissed?: string[]
+  // A signed-in network's agent only: the roster's overlap (overlap.ts), absent until it's first measured.
+  overlap?: Overlap
   // A launch's agent only (launch-agent.ts): whether its network's roster has changed since the latest
   // run copied it; absent until a run has.
   rosterChanged?: boolean
@@ -900,12 +903,17 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.saveReply({ ...this.editableReply(pitchId), status: 'discarded' })
   }
 
-  // The session's evidence log: one record per Qloo call, oldest first.
+  // The session's evidence log: one record per Qloo call, oldest first; or with `calls`, only the records
+  // of those call numbers, as a page asks for the few it shows of a network's log, which measuring the
+  // roster's overlap can take past a megabyte.
   @callable()
-  getEvidence(): Evidence[] {
-    return this.sql<{ record: string }>`SELECT record FROM evidence WHERE record IS NOT NULL ORDER BY seq`.map((r) =>
-      JSON.parse(r.record)
-    )
+  getEvidence(calls?: string[]): Evidence[] {
+    const rows =
+      calls === undefined
+        ? this.sql<{ record: string }>`SELECT record FROM evidence WHERE record IS NOT NULL ORDER BY seq`
+        : this.sql<{ record: string }>`SELECT record FROM evidence WHERE record IS NOT NULL
+            AND json_extract(record, '$.call') IN (SELECT value FROM json_each(${JSON.stringify(calls)})) ORDER BY seq`
+    return rows.map((r) => JSON.parse(r.record))
   }
 
   // Replaces the roster with these rows, each pending on its search, together with any other state
@@ -1047,12 +1055,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Counts `n` Qloo calls against the visitor's calls for the day before they're made, or refuses them
-  // with the reason, before anything is numbered or kept (TRD agent limits). It returns the gateway it
-  // counted them in, which makes them, so they count where they're made even if the network's Qloo key
-  // comes or goes meanwhile.
-  protected async reserveCalls(visitor: string, n: number) {
+  // with the reason, before anything is numbered or kept (TRD agent limits). With `leave`, it also refuses
+  // them when the gateway's requests left today couldn't take them and still leave that many. It returns
+  // the gateway it counted them in, which makes them, so they count where they're made even if the
+  // network's Qloo key comes or goes meanwhile.
+  protected async reserveCalls(visitor: string, n: number, leave = 0) {
     const gateway = await this.gateway()
-    const refused = await gateway.reserveCalls(visitor, n)
+    const refused = await gateway.reserveCalls(visitor, n, leave)
     if (refused) throw new Refusal('limit', `${refused}.`)
     return gateway
   }
@@ -1223,7 +1232,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   }
 
   // Reserves the next call number, before the call is made.
-  private numberCall() {
+  protected numberCall() {
     const [{ seq }] = this.sql<{ seq: number }>`INSERT INTO evidence (record) VALUES (NULL) RETURNING seq`
     return seq
   }
@@ -1668,7 +1677,7 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   // a deploy, fails the call like Qloo failing would, with its own record. Each call counts among the
   // visitor's Qloo calls today in the agent's gateway, unless the caller `reserved` it first in a
   // gateway (reserveCalls), which then makes it.
-  private async qloo<T>(
+  protected async qloo<T>(
     request: (gateway: DurableObjectStub<QlooGateway>) => Promise<QlooResult<T>>,
     run: string | null = null,
     seq = this.numberCall(),
