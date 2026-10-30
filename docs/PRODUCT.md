@@ -71,6 +71,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - Resolve a roster from show names to Qloo entities, asking the human about ambiguous matches and letting them map misses to comps. Qloo doesn't find podcasts by Spotify ID, so names are the input ([TRD](TRD.md#qloo-integration)).
 - Rank a roster against a launch, or its comps, with Qloo explainability.
 - Measure which of a roster's own shows share listeners with each other: one Qloo ranking per show matched in Qloo, the show against the rest of the roster, giving each show its closest shows by rank and band, and the close pairs, two shows each among the other's closest.
+- Total a network's promo inventory across its launches: for each show, how many launches made it a finalist, and the slots and value their orders commit to it, approved apart from drafted, from what each launch's runs ended with.
 - Flag demographic mismatches between the launch and its top roster shows.
 - Draft a host-read angle per finalist from the tags it shares with the launch, and none where Qloo returned no shared tags.
 - Write an insertion order that prices each slot from the network's own downloads and CPM.
@@ -156,6 +157,8 @@ Taken on 2026-10-30 in the analysis spec, [#399](https://github.com/m1kuorg/qloo
 
 1.  **Measuring the overlap is started, never automatic:** a member or an API key measures the roster's overlap; an import never does, since it spends a Qloo call per show.
 1.  **Close pairs scale with the roster:** a show's closest shows are its top three, or as many as the top band of its ranking holds on a roster of under ten matched shows, so a close pair means the same on a small roster as on a large one.
+1.  **No Analysis rail item:** what the analysis adds goes where its object lives, so the network's promo inventory is a tab of the Launches page, and the phone's bottom bar keeps its six names.
+1.  **Approved and drafted are never added together:** a launch's latest approved order keeps counting as approved while a newer run drafts another, which counts as drafted beside it; an approved order edited back to draft is a draft, so the latest order still approved counts.
 
 ## See also
 

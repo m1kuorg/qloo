@@ -14,15 +14,16 @@ import { StateLine } from './states'
 // before rows said it has none of them, so its launch hasn't reported, and the totals leave it out.
 
 // A show on the roster or in an order: whether it's still on the roster; how many launches' latest
-// completed runs made it a finalist; the slots the approved orders commit to it and their value, null
-// when a line had none; the slots the drafts commit, never added to the approved; and the launches whose
-// orders commit any, in the network's order.
+// completed runs made it a finalist; the slots the approved orders commit to it, the value of those its
+// lines priced, and whether any line was priced; the slots the drafts commit, never added to the approved;
+// and the launches whose orders commit any, in the network's order.
 type Row = {
   show: string
   onRoster: boolean
   finalistIn: number
   approved: number
-  approvedValue: number | null
+  approvedValue: number
+  priced: boolean
   drafted: number
   launches: LaunchSummary[]
 }
@@ -32,19 +33,19 @@ const IN_ORDER = 'In an order'
 const FINALIST_ONLY = 'Finalist only'
 const NEVER = 'Never a finalist'
 
-// The totals the sentence gives, over the reported launches' orders: approved and drafted orders and
-// their slots, and of the approved, their slots, their value as each was priced, whether a line had no
-// value, and those priced at a CPM labelled the sample's.
+// The totals the sentence gives, over the reported launches' orders, the approved apart from the drafted,
+// never added together: each kind's orders and their slots, and of the approved, the value of the lines
+// priced, whether a line had no value, and the orders priced at a CPM labelled the sample's.
 function totalsOf(reported: LaunchSummary[]) {
-  const slotsOf = (o: CommittedLines) => o.lines.reduce((n, l) => n + l.slots, 0)
+  const slotsOf = (orders: CommittedLines[]) => orders.reduce((n, o) => n + o.lines.reduce((m, l) => m + l.slots, 0), 0)
   const approved = reported.flatMap((l) => (l.approvedLines ? [l.approvedLines] : []))
   const drafted = reported.flatMap((l) => (l.draftLines ? [l.draftLines] : []))
   const lines = approved.flatMap((o) => o.lines)
   return {
-    orders: approved.length + drafted.length,
-    slots: [...approved, ...drafted].reduce((n, o) => n + slotsOf(o), 0),
     approvedOrders: approved.length,
-    approvedSlots: approved.reduce((n, o) => n + slotsOf(o), 0),
+    approvedSlots: slotsOf(approved),
+    draftOrders: drafted.length,
+    draftSlots: slotsOf(drafted),
     value: lines.reduce((n, l) => n + (l.value ?? 0), 0),
     unpriced: lines.some((l) => l.value === null),
     sample: approved.filter((o) => o.sampleCpm)
@@ -65,6 +66,7 @@ function inventoryOf(launches: LaunchSummary[], roster: State['roster']) {
       finalistIn: 0,
       approved: 0,
       approvedValue: 0,
+      priced: false,
       drafted: 0,
       launches: []
     }
@@ -85,7 +87,9 @@ function inventoryOf(launches: LaunchSummary[], roster: State['roster']) {
     }
     commit(l.approvedLines, (r, slots, value) => {
       r.approved += slots
-      r.approvedValue = r.approvedValue === null || value === null ? null : r.approvedValue + value
+      if (value === null) return
+      r.approvedValue += value
+      r.priced = true
     })
     commit(l.draftLines, (r, slots) => {
       r.drafted += slots
@@ -120,9 +124,9 @@ function inventoryOf(launches: LaunchSummary[], roster: State['roster']) {
   }
 }
 
-// The section's sentence: the slots across the orders, how many of them approved and what those are
-// worth as each order was priced, naming the sample CPM where an approved order was priced at it; then
-// how many shows on the roster have never been a finalist.
+// The section's sentence: the slots approved, across how many orders, and what they're worth as each order
+// was priced, naming the sample CPM where an approved order was priced at it; then, apart, the slots
+// drafted, never added to them; then how many shows on the roster have never been a finalist.
 function finding({ totals: t, groups }: ReturnType<typeof inventoryOf>, roster: State['roster']) {
   const never = groups.find((g) => g.name === NEVER)?.rows.length ?? 0
   const nevers =
@@ -131,13 +135,7 @@ function finding({ totals: t, groups }: ReturnType<typeof inventoryOf>, roster: 
       : never === 0
         ? 'every show on the roster has been a finalist'
         : `${count(never, 'show')} ${never === 1 ? 'has' : 'have'} never been a finalist`
-  if (t.orders === 0) return `No insertion orders yet; ${nevers}.`
-  const approved =
-    t.approvedSlots === 0
-      ? 'none of them approved'
-      : t.approvedSlots === t.slots
-        ? 'all of them approved'
-        : `${t.approvedSlots.toLocaleString('en-US')} of them approved`
+  if (t.approvedOrders + t.draftOrders === 0) return `No insertion orders yet; ${nevers}.`
   const cpm = t.sample[0]?.cpm
   const sample =
     cpm == null
@@ -145,11 +143,17 @@ function finding({ totals: t, groups }: ReturnType<typeof inventoryOf>, roster: 
       : t.sample.length === t.approvedOrders
         ? `, at the ${dollars(cpm)} sample CPM`
         : `, ${count(t.sample.length, 'order')} at the ${dollars(cpm)} sample CPM`
-  const worth =
-    t.approvedSlots === 0
-      ? ''
-      : `, worth ${dollars(t.value)} as each order was priced${t.unpriced ? ', before the lines without a value' : ''}${sample}`
-  return `${count(t.slots, 'slot')} across ${count(t.orders, 'insertion order')}, ${approved}${worth}; ${nevers}.`
+  const approved =
+    t.approvedOrders === 0
+      ? 'No slots approved yet'
+      : `${count(t.approvedSlots, 'slot')} approved across ${count(t.approvedOrders, 'insertion order')}, worth ${dollars(t.value)} as each order was priced${t.unpriced ? ', before the lines without a value' : ''}${sample}`
+  const drafted =
+    t.draftOrders === 0
+      ? []
+      : [
+          `${count(t.draftSlots, 'slot')} drafted across ${count(t.draftOrders, t.approvedOrders === 0 ? 'insertion order' : 'order')}`
+        ]
+  return `${[approved, ...drafted, nevers].join('; ')}.`
 }
 
 // The Inventory tab: a `Section` "Promo inventory", its sentence the totals, then, once a reported launch
@@ -212,7 +216,7 @@ export function Inventory({ state, launchesLink }: { state: State | undefined; l
                 </th>
               </tr>
               {group.rows.map((r) => (
-                <InventoryRow key={r.show} row={r} launchesLink={launchesLink} />
+                <InventoryRow key={r.show} row={r} launchesLink={launchesLink} none={group.name === NEVER} />
               ))}
             </tbody>
           ))}
@@ -237,7 +241,8 @@ const held = 'sticky left-0 bg-background pl-2 text-left wrap-anywhere max-lg:bo
 function InventoryTable({ children }: { children: ReactNode }) {
   return (
     <ScrollTable label="Promo inventory table" className="-mx-2 max-w-[65rem]">
-      <table className="w-full min-w-[36rem] border-separate border-spacing-0" aria-labelledby="inventory-h">
+      {/* Positioned, so Never a finalist's visually hidden "None"s scroll and clip with the table, not the page. */}
+      <table className="relative w-full min-w-[36rem] border-separate border-spacing-0" aria-labelledby="inventory-h">
         <thead className="type-caption text-muted-foreground">
           <tr>
             <th scope="col" className={cn(head, held)}>
@@ -264,10 +269,13 @@ function InventoryTable({ children }: { children: ReactNode }) {
 }
 
 // A show's row: its name, then the launches its orders commit it to, each a link to that launch's plan,
-// and whether it has left the roster; then its figures, a zero in muted ink and a value a line lacked as
-// `–`. Counts and slots align as tabular figures, and money stays proportional.
-function InventoryRow({ row: r, launchesLink }: { row: Row; launchesLink: string }) {
-  const zero = (n: number, text = String(n)) => (n === 0 ? <span className="text-muted-foreground">{text}</span> : text)
+// and whether it has left the roster; then its figures, a zero in muted ink, and an approved value `–`
+// when none of its lines was priced. Counts and slots align as tabular figures, and money stays
+// proportional. In Never a finalist (`none`), whose figures are all zero, the cells are left empty and
+// say "None" to screen readers, as the launches table's do, so the group reads as the list of names it is.
+function InventoryRow({ row: r, launchesLink, none }: { row: Row; launchesLink: string; none: boolean }) {
+  const zero = (n: number, text = String(n)) =>
+    none ? <span className="vh">None</span> : n === 0 ? <span className="text-muted-foreground">{text}</span> : text
   return (
     <tr data-inventory-show={r.show}>
       <th scope="row" className={cn(cell, held, 'min-w-44 font-normal lg:min-w-56')}>
@@ -289,7 +297,7 @@ function InventoryRow({ row: r, launchesLink }: { row: Row; launchesLink: string
       <td className={cn(cell, 'tabular-nums')}>{zero(r.finalistIn)}</td>
       <td className={cn(cell, 'tabular-nums')}>{zero(r.approved)}</td>
       <td className={cell}>
-        {r.approvedValue === null ? (
+        {r.approved > 0 && !r.priced ? (
           <span className="text-muted-foreground">–</span>
         ) : (
           zero(r.approvedValue, dollars(r.approvedValue))

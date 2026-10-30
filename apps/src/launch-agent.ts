@@ -149,39 +149,36 @@ export class LaunchAgent extends CrossfeedAgent {
   // What the launch commits of the roster's promo inventory, read from what its runs ended with rather
   // than from its state, since a new run clears the ranking and the order the state shows (#406): its
   // latest completed run's finalists; its latest approved order's lines; and its latest run's order while
-  // that's a draft, so newer than any approved one, which keeps counting apart from it. Read again only
-  // once the runs or the order have changed, as every change to what a run ended with comes with one.
+  // that's a draft, so newer than any approved one, which keeps counting apart from it. An approved order
+  // edited back to draft is a draft, so the latest order still approved counts, such as an earlier run's
+  // that ad operations already has. It reads only the finalists of that one run and each run's order, and
+  // only once the runs or the order have changed, as every change to what a run ended with comes with one.
   private inventory(): Inventory {
-    const key = JSON.stringify([this.state.runs.map((r) => [r.id, r.status]), this.state.insertionOrder])
+    const { runs, insertionOrder } = this.state
+    const key = JSON.stringify([runs.map((r) => [r.id, r.status]), insertionOrder])
     if (key === this.inventoryRead?.key) return this.inventoryRead.facts
-    const runs = this.sql<{
-      id: string
-      status: string | null
-      ranking: string | null
-      order: string | null
-      sampleCpm: number | null
-      sample: number | null
-    }>`SELECT id, json_extract(snapshot, '$.run.status') AS status, json_extract(snapshot, '$.ranking') AS ranking,
-        json_extract(snapshot, '$.insertionOrder') AS "order", json_extract(snapshot, '$.sampleCpm') AS "sampleCpm",
-        json_extract(snapshot, '$.sample.cpm') AS sample
-      FROM runs ORDER BY started_at, rowid`
-    const completed = runs.findLast((r) => r.status === 'completed')
+    const completed = runs.findLast((r) => r.status === 'completed')?.id ?? null
+    const finalists = this.sql<{ show: string }>`
+      SELECT json_extract(row.value, '$.show') AS show FROM runs, json_each(runs.snapshot, '$.ranking.rows') AS row
+      WHERE runs.id = ${completed} AND json_extract(row.value, '$.finalist') ORDER BY row.key`
     // Each run's own order, as the export reads it (earlierOrder), priced as its run copied the CPM.
-    const orders = runs.flatMap((r) => {
-      const order: InsertionOrder | null = r.order && JSON.parse(r.order)
-      if (order?.run !== r.id) return []
+    const orders = this.sql<{ id: string; order: string; sampleCpm: number | null; sample: number | null }>`
+      SELECT id, json_extract(snapshot, '$.insertionOrder') AS "order", json_extract(snapshot, '$.sampleCpm') AS "sampleCpm",
+        json_extract(snapshot, '$.sample.cpm') AS sample
+      FROM runs WHERE json_extract(snapshot, '$.insertionOrder.run') = id ORDER BY started_at, rowid`.map((r) => {
+      const order: InsertionOrder = JSON.parse(r.order)
       const lines: CommittedLines = {
         run: r.id,
         cpm: order.cpm,
         sampleCpm: Boolean(r.sampleCpm || r.sample),
         lines: order.lines.map(({ show, slots, value }) => ({ show, slots, value }))
       }
-      return [{ status: order.status, latest: r === runs.at(-1), lines }]
+      return { status: order.status, lines }
     })
     const facts = {
-      finalistShows: finalistsOf(completed?.ranking ? JSON.parse(completed.ranking) : null).map((r) => r.show),
+      finalistShows: finalists.map((r) => r.show),
       approvedLines: orders.findLast((o) => o.status === 'approved')?.lines ?? null,
-      draftLines: orders.find((o) => o.latest && o.status === 'draft')?.lines ?? null
+      draftLines: orders.find((o) => o.lines.run === runs.at(-1)?.id && o.status === 'draft')?.lines ?? null
     }
     this.inventoryRead = { key, facts }
     return facts

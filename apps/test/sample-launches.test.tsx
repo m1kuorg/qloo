@@ -249,7 +249,7 @@ describe("the guest network's sample launches", () => {
       /Needs you 2 .+ Ranked 1 Slow Burn .+ Not run yet 1 The Watch .+ Approved 1 Night Shift Cinema /
     )
     expect(launchesWords(fresh)).toContain(
-      'Promo inventory 20 slots across 2 insertion orders, 10 of them approved, worth $86,400 as each order was priced, at the $20 sample CPM; 16 shows have never been a finalist.'
+      'Promo inventory 10 slots approved across 1 insertion order, worth $86,400 as each order was priced, at the $20 sample CPM; 10 slots drafted across 1 order; 16 shows have never been a finalist.'
     )
     // The load called no model, and Qloo for nothing but the cron's health check and the sample roster.
     expect(modelRequests()).toHaveLength(models)

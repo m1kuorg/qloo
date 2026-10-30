@@ -200,27 +200,36 @@ export class NetworkAgent extends CrossfeedAgent {
 
   // Asks each launch whose row was reported before rows said what it commits of the roster's promo
   // inventory (#406) for its row as it now stands, in the background, a few at once, once per network: the
-  // version asked is noted in storage as it starts, and forgotten when any launch fails to answer, so the
-  // next start asks those again. A row a launch reports itself meanwhile stays. Until it's asked, a row
-  // without them is one the Launches page counts as not reported.
+  // version asked is noted in storage once every launch has answered, so a launch that fails to answer,
+  // or a restart before they all have, leaves it unnoted, and the next start asks those still without
+  // it. A launch is asked only while the list still holds it without them, so one deleted meanwhile isn't
+  // woken, and a row it reports itself meanwhile stays. Until it's asked, a row without them is one the
+  // Launches page counts as not reported.
   private askInventory() {
     const { kv } = this.ctx.storage
     if (kv.get(INVENTORY_ASKED) === INVENTORY_VERSION) return
-    kv.put(INVENTORY_ASKED, INVENTORY_VERSION)
-    const unreported = (id: string) => this.state.launches?.find((l) => l.id === id)?.finalistShows === undefined
+    const unreported = (id: string) => {
+      const row = this.state.launches?.find((l) => l.id === id)
+      return row !== undefined && row.finalistShows === undefined
+    }
     const queue = (this.state.launches ?? []).map((l) => l.id).filter(unreported)
+    let failed = false
     const next = async () => {
       for (let id = queue.shift(); id; id = queue.shift()) {
+        if (!unreported(id)) continue
         try {
           const summary = await (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).summary()
           if (unreported(id)) this.reportLaunch(id, summary)
         } catch (e) {
-          kv.delete(INVENTORY_ASKED)
+          failed = true
           console.error(JSON.stringify({ event: 'inventory_ask', launch: id, error: String(e) }))
         }
       }
     }
-    void this.keepAliveWhile(() => Promise.all(Array.from({ length: INVENTORY_CONCURRENCY }, next)))
+    void this.keepAliveWhile(async () => {
+      await Promise.all(Array.from({ length: INVENTORY_CONCURRENCY }, next))
+      if (!failed) kv.put(INVENTORY_ASKED, INVENTORY_VERSION)
+    })
   }
 
   // While the guest network's sample is still loading, each start looks up every failed lookup again
