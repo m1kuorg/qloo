@@ -322,8 +322,8 @@ From the [brief](BRIEF.md#submission-checklist), plus our own choices:
 
 - The live demo URL, with free, unrestricted access through 2026-11-16. The landing page at `/` opens the sample network, as a guest, in one click, and `/demo` leads to the sign-in page's guest option.
 - A public repository. It is private today and is made public before submitting, with the owner's approval in [#63](https://github.com/m1kuorg/qloo/issues/63).
-- An open-source license file, detected in the repository's About section: MIT, in [LICENSE](/LICENSE).
-- A description with one heading per judging criterion that leads with what breaks without Qloo, names the endpoints, walks one request through to its result, states known limitations, and pitches Crossfeed as a company for the Calacanis bonus ([SUBMISSION](SUBMISSION.md), [CONTEXT](CONTEXT.md#strategy-for-our-entry)).
+- An open-source license file, detected in the repository's About section: Apache 2.0, in [LICENSE](/LICENSE).
+- A description that opens with how to try it, then has one heading per judging criterion, leads with what breaks without Qloo, names the endpoints, walks one request through to its result, states known limitations, and pitches Crossfeed as a company for the Calacanis bonus ([SUBMISSION](SUBMISSION.md), [CONTEXT](CONTEXT.md#strategy-for-our-entry)).
 - Screenshots and a demo video, optional but read first by judges.
 
 ### Bets after the 2026-10-17 checks

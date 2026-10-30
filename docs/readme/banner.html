@@ -1,0 +1,214 @@
+<!doctype html>
+<!-- Crossfeed's README banner, which docs/readme/banner.sh photographs into banner-light.png and
+     banner-dark.png at 1280x640 and two device pixels to a CSS pixel (docs/DESIGN.md, "README
+     banner"). It's the link-embed banner's system at the README's width: type-led, in Schibsted
+     Grotesk, the mark and wordmark top left, the landing page's claim bottom left, and one artefact
+     beside it, the re-rank as a slope chart. The landing page's made-up roster (routes/marketing.tsx)
+     runs from its rank by topic on the left to its rank by who listens on the right, the climbers'
+     lines in signal crossing the rest, labelled an illustration as the landing page's re-rank is.
+     The colours are the light and dark schemes', literal, as nothing here has style.css's classes. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Crossfeed README banner</title>
+    <style>
+      @font-face {
+        font-family: 'Schibsted Grotesk Variable';
+        font-weight: 400 900;
+        src: url('../../apps/node_modules/@fontsource-variable/schibsted-grotesk/files/schibsted-grotesk-latin-wght-normal.woff2')
+          format('woff2-variations');
+      }
+      :root {
+        --ground: #f8f8fa;
+        --ink: #121318;
+        --muted: #5f626d;
+        --signal: #e4630c;
+        --signal-ink: #a24a00;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #0e0f12;
+          --ink: #ececf1;
+          --muted: #9a9daa;
+          --signal: #ff8a3d;
+          --signal-ink: #ffa266;
+        }
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        display: grid;
+        grid-template-columns: 560px 560px;
+        justify-content: space-between;
+        width: 1280px;
+        height: 640px;
+        padding: 60px 64px;
+        background: var(--ground);
+        color: var(--ink);
+        font-family: 'Schibsted Grotesk Variable', Arial, sans-serif;
+        font-kerning: normal;
+        -webkit-font-smoothing: antialiased;
+      }
+      .words {
+        display: flex;
+        flex-direction: column;
+      }
+      .wordmark {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 34px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .wordmark svg {
+        width: 48px;
+        height: 48px;
+      }
+      .lede {
+        max-width: 470px;
+        margin-top: 36px;
+        font-size: 24px;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+      h1 {
+        margin-top: auto;
+        font-size: 108px;
+        font-weight: 600;
+        line-height: 0.88;
+        letter-spacing: -0.05em;
+      }
+      svg.rerank {
+        width: 560px;
+        height: 520px;
+        overflow: visible;
+        font-family: inherit;
+      }
+      .head,
+      .caption {
+        fill: var(--muted);
+      }
+      .head {
+        font-size: 20px;
+        font-weight: 500;
+      }
+      .rank {
+        font-size: 22px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        fill: var(--ink);
+      }
+      .name {
+        font-size: 22px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        fill: var(--ink);
+      }
+      .line {
+        fill: none;
+        stroke: var(--muted);
+        stroke-width: 1.5;
+        stroke-linecap: round;
+      }
+      .climb .line {
+        stroke: var(--signal);
+        stroke-width: 4;
+      }
+      .move {
+        font-size: 22px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        fill: var(--signal-ink);
+      }
+      .caption {
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="words">
+      <p class="wordmark">
+        <svg viewBox="2 2 20 20" aria-hidden="true">
+          <path d="M3.54 8.92 20.46 15.08M3.54 15.08 20.46 8.92" fill="none" stroke="currentColor" stroke-width="3" />
+          <path d="M7.61 12 12 10.4 16.39 12 12 13.6Z" fill="var(--signal)" />
+        </svg>
+        Crossfeed
+      </p>
+      <p class="lede">
+        An agent that ranks a podcast network’s own shows, and the guests pitched to them, by listener overlap in Qloo.
+      </p>
+      <h1>Rank by<br />who listens</h1>
+    </div>
+    <svg
+      class="rerank"
+      viewBox="0 0 560 520"
+      data-ui
+      role="img"
+      aria-label="Illustration: made-up shows, not Qloo data."
+    >
+      <text class="head" x="180" y="24" text-anchor="end">By topic</text>
+      <text class="head" x="380" y="24">By who listens</text>
+      <g class="rows"></g>
+      <text class="caption" x="0" y="506">Illustration: made-up shows, not Qloo data.</text>
+    </svg>
+    <script>
+      // The landing page's roster in listener order, with each show's rank by topic, as
+      // routes/marketing.tsx sets it. A show that climbs three or more places is a climber, as the
+      // fit chart marks one.
+      const CLIMB = 3 // fit.ts's CLIMB
+      const roster = [
+        ['Case Notes', 1],
+        ['The Harbour', 6],
+        ['Plain Sight', 2],
+        ['Tide Tables', 8],
+        ['Static', 7],
+        ['Small Claims', 3],
+        ['Night Desk', 4],
+        ['Dry Ink', 5]
+      ]
+      const y = (rank) => 84 + (rank - 1) * 52
+      const ns = 'http://www.w3.org/2000/svg'
+      const el = (tag, attrs, text) => {
+        const node = document.createElementNS(ns, tag)
+        for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v)
+        if (text != null) node.textContent = text
+        return node
+      }
+      const rows = document.querySelector('.rows')
+      // Built once the face has loaded, so a climber's move is placed after its name as set.
+      document.fonts.ready.then(() => {
+        // Climbers last, so their lines cross over the rest.
+        const order = roster.map(([name, topic], i) => ({ name, topic, rank: i + 1, move: topic - (i + 1) }))
+        order.sort((a, b) => (a.move >= CLIMB) - (b.move >= CLIMB))
+        for (const { name, topic, rank, move } of order) {
+          const g = el('g', move >= CLIMB ? { class: 'climb' } : {})
+          g.append(
+            el('path', {
+              class: 'line',
+              d: `M192 ${y(topic) - 7} C280 ${y(topic) - 7} 280 ${y(rank) - 7} 368 ${y(rank) - 7}`
+            }),
+            el('text', { class: 'name', x: 150, y: y(topic), 'text-anchor': 'end' }, name),
+            el('text', { class: 'rank', x: 180, y: y(topic), 'text-anchor': 'end' }, topic),
+            el('text', { class: 'rank', x: 380, y: y(rank) }, rank)
+          )
+          const right = el('text', { class: 'name', x: 410, y: y(rank) }, name)
+          g.append(right)
+          // In the page first, so the name has a width to measure.
+          rows.append(g)
+          if (move >= CLIMB) {
+            // The move's triangle, drawn rather than typed, as the face has no ▲.
+            const end = 410 + right.getComputedTextLength() + 14
+            g.append(
+              el('path', { d: `M${end + 7.5} ${y(rank) - 15} l7.5 15 h-15Z`, fill: 'var(--signal-ink)' }),
+              el('text', { class: 'move', x: end + 18, y: y(rank) }, move)
+            )
+          }
+        }
+      })
+    </script>
+  </body>
+</html>

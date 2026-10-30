@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Renders the link-embed banner into public/ from scripts/banner.html, its one source (docs/DESIGN.md,
 # "Link-embed banner"): a Playwright screenshot in Chrome, through playwright-cli from Homebrew
-# (`brew install playwright-cli`), at 1200x630 and one device pixel to a CSS pixel. The page sets its
+# (`brew install playwright-cli`), by default at 1200x630 and one device pixel to a CSS pixel. The page sets its
 # type in the face `bun install` puts in node_modules/, so run that first. Run it from apps/ after
 # changing the banner, then look at the PNG at full size and about 600px wide (apps/README.md,
 # "Link-embed banner").
+#
+# The README's banner is drawn by the same photograph: docs/readme/banner.sh sets the BANNER_* variables
+# below for its source, its two schemes, and its size at two device pixels to a CSS pixel.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -17,13 +20,17 @@ command -v playwright-cli >/dev/null || {
   exit 1
 }
 
+source=${BANNER_SOURCE:-scripts/banner.html}
 # Unfurlers keep an image by its URL for days, so a changed banner takes the next number, here and in
 # BANNER in src/shell.tsx, which also gives its size.
-banner=public/og-1.png
-width=1200
-height=630
-# Social cards take a far larger file, but a small one unfurls quickly on a slow connection.
-limit=300000
+banner=${BANNER_OUT:-public/og-1.png}
+width=${BANNER_WIDTH:-1200}
+height=${BANNER_HEIGHT:-630}
+scale=${BANNER_SCALE:-1}
+scheme=${BANNER_SCHEME:-light}
+# Social cards take a far larger file, but a small one unfurls quickly on a slow connection; the README's
+# banner, at twice the pixels, sets its own.
+limit=${BANNER_LIMIT:-300000}
 session=crossfeed-banner
 work=$(mktemp -d)
 trap 'playwright-cli -s=$session close >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
@@ -41,9 +48,9 @@ cli() {
 }
 cli open --browser chrome
 cli run-code "async page => {
-  const context = await page.context().browser().newContext({ viewport: { width: $width, height: $height }, deviceScaleFactor: 1 })
+  const context = await page.context().browser().newContext({ viewport: { width: $width, height: $height }, deviceScaleFactor: $scale, colorScheme: '$scheme' })
   const banner = await context.newPage()
-  await banner.goto('file://$PWD/scripts/banner.html')
+  await banner.goto('file://$PWD/$source')
   const faces = await banner.evaluate(async () => (await document.fonts.ready, [...document.fonts].map((f) => f.status)))
   if (!faces.length || faces.some((status) => status !== 'loaded')) throw new Error('The face did not load: ' + faces)
   const broken = await banner.evaluate(() => {
@@ -76,8 +83,8 @@ cli run-code "async page => {
 # The PNG's own size, from its header: its width and height, big-endian, in bytes 16 to 23.
 read -r w0 w1 w2 w3 h0 h1 h2 h3 < <(od -An -tu1 -j16 -N8 "$work/banner.png")
 drawn="$(((w0 << 24) | (w1 << 16) | (w2 << 8) | w3))x$(((h0 << 24) | (h1 << 16) | (h2 << 8) | h3))"
-if [ "$drawn" != "${width}x$height" ]; then
-  echo "scripts/banner.sh drew $drawn, not ${width}x$height" >&2
+if [ "$drawn" != "$((width * scale))x$((height * scale))" ]; then
+  echo "scripts/banner.sh drew $drawn, not $((width * scale))x$((height * scale))" >&2
   exit 1
 fi
 size=$(wc -c <"$work/banner.png")

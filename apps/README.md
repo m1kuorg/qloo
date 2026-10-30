@@ -499,7 +499,7 @@ The picture a public page's link preview shows, `public/og-1.png`, is photograph
 scripts/banner.sh
 ```
 
-Look at the PNG at full size and at about 600px wide, as Slack and iMessage show it, before committing it. Like the icons, it's served from `public/` before the Worker runs, so the tests see only the head that names it (`test/csp.test.ts`). On the production build, check that it answers 200 as a PNG under 300KB:
+Look at the PNG at full size and at about 600px wide, as Slack and iMessage show it, before committing it. The README's banner is photographed by the same script: `docs/readme/banner.sh` sets its `BANNER_*` variables for that banner's source, size, scale, and colour scheme ([DESIGN.md](/docs/DESIGN.md#readme-banner)). Like the icons, it's served from `public/` before the Worker runs, so the tests see only the head that names it (`test/csp.test.ts`). On the production build, check that it answers 200 as a PNG under 300KB:
 
 ```sh
 curl -s -o /dev/null -w "%{http_code} %{content_type} %{size_download}\n" http://localhost:8787/og-1.png

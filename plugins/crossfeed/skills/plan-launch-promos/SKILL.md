@@ -1,7 +1,7 @@
 ---
 name: plan-launch-promos
 description: Plan a podcast launch's promos across a network's own shows with Crossfeed's MCP tools, which rank the roster by listener overlap in Qloo and draft an insertion order that a member approves in the app. Use when the user wants to plan, run, or rerun a Crossfeed launch, pick which roster shows promote a new show and how many slots each gets, settle the roster for a launch, change a draft insertion order, understand why a show ranks where it does on a launch's chart, see which of the network's own shows share listeners with each other, or who the network's shows reach by age and gender.
-license: MIT
+license: Apache-2.0
 compatibility: Needs Crossfeed's MCP server (tools such as create_launch and get_launch), connected with one of the network's API keys.
 ---
 

@@ -1,15 +1,16 @@
 # Submission
 
-This is Crossfeed's entry text for the Qloo Agentic Hackathon on Devpost. The owner submits it in [#63](https://github.com/m1kuorg/qloo/issues/63):
+This is Crossfeed's entry text for the Qloo Agentic Hackathon on Devpost, [submitted](https://devpost.com/software/crossfeed) on 2026-10-30 at 15:39 ET as entry 1273739 ([#63](https://github.com/m1kuorg/qloo/issues/63)). To change it:
 
 - Copy the [Devpost fields](#devpost-fields) into the form's short fields.
-- Paste everything from [What breaks without Qloo](#what-breaks-without-qloo) to the end of this file into the project description.
+- Paste everything from [Try it](#try-it) to the end of this file into the project description.
 
 Every figure links the live check, code, or doc it comes from. The links are full URLs, so they keep working on Devpost once the repository is public.
 
 Contents:
 
 1.  [Devpost fields](#devpost-fields)
+1.  [Try it](#try-it)
 1.  [What breaks without Qloo](#what-breaks-without-qloo)
 1.  [Technological implementation](#technological-implementation)
     1.  [Qloo endpoints](#qloo-endpoints)
@@ -27,13 +28,26 @@ Contents:
 - **Elevator pitch:** An agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners want, by ranking the network's own lists in Qloo.
 - **Try it out:** <https://crossfeed.m1kuorg.workers.dev>, whose first button opens the sample network as a guest, in one click (<https://crossfeed.m1kuorg.workers.dev/demo> leads to the sign-in page's guest option), and <https://github.com/m1kuorg/qloo>
 - **Built with:** qloo, claude, anthropic, cloudflare-workers, durable-objects, cloudflare-agents, cloudflare-d1, hono, react, typescript, vite, vitest, webauthn, openapi, mcp
-- **Video and images:** the video is `crossfeed-demo.mp4`, 2 minutes 50 seconds with captions and no voice, on the draft release `submission`, which waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63). The screenshots are from one run on the sample network, on sample data:
-  - [The chart, with a climber and its "why it moved" line](https://github.com/m1kuorg/qloo/blob/main/docs/images/chart.png)
-  - [The agent's open question](https://github.com/m1kuorg/qloo/blob/main/docs/images/question.png)
-  - [The evidence for the ranking call](https://github.com/m1kuorg/qloo/blob/main/docs/images/evidence.png)
-  - [The approved insertion order](https://github.com/m1kuorg/qloo/blob/main/docs/images/insertion-order.png)
-  - [The inbox's TV shows ranked against The Big Picture](https://github.com/m1kuorg/qloo/blob/main/docs/images/inbox-ranked.png)
-  - [The inbox's drafted replies, one approved](https://github.com/m1kuorg/qloo/blob/main/docs/images/inbox-replies.png)
+- **Video and images:** the video is <https://youtu.be/TVWt9AaBFU8>, 2 minutes 41 seconds, with a voiceover and burned-in captions, unlisted on YouTube and also on the draft release `submission` as `crossfeed-demo-voice.mp4`. The screenshots are from the live app, signed in as a guest, on the guest network's sample data, in this order:
+  - [The agent asks for the slot budget, above the roster ranked by listener overlap with The Watch](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/launch-question.png)
+  - [A climber's "why it moved" line, and the evidence for the Qloo ranking call it cites](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/launch-evidence.png)
+  - [The approved insertion order, priced by code, with the close pairs among its shows](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/launch-plan.png)
+  - [The launch report, to print or save as PDF](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/report.png)
+  - [The roster's overlap: each show's closest shows by listener overlap, close pairs marked](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/roster-overlap.png)
+  - [The roster's listeners: each show's lean by age band and gender against the average in Qloo](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/roster-listeners.png)
+  - [Pitched books ranked against The Big Picture by who listens, beside the pitch's own rank](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/inbox-rank.png)
+  - [A drafted reply to every pitch, one approved](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/inbox-replies.png)
+  - [The promo inventory the network's insertion orders commit, show by show](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/inventory.png)
+
+## Try it
+
+Open <https://crossfeed.m1kuorg.workers.dev> and select **Open the sample network**. It signs you in as a guest, in one click, with no account, password, or payment, and opens the guest network: a sample network built from The Ringer's public show names, with labelled sample figures. Crossfeed isn't affiliated with The Ringer.
+
+1.  **Launches**, then **The Watch**, then **Start run**, or **Run again** if a guest ran it already. The fit chart ranks the roster by listener overlap in Qloo beside a topic-only plan. Answer the agent's two questions, a slot budget and which shows to leave out, then approve the insertion order and open its report.
+2.  **Roster**, then **Overlap** and **Listeners**: which of the network's own shows share listeners, and who each show reaches.
+3.  **Inbox**, then **Rank**, then **Rank pitches**: the pitched guests' public works ranked against The Big Picture by who listens, and a drafted reply to every pitch.
+
+Every guest shares the guest network, which is cleared every day at 12:00 UTC ([ADR 0008]), and one set of daily limits: 10 model runs a day across all guests, reset at 00:00 UTC ([TRD agent limits]). Once they're spent, The Watch replays its stored run while no guest has changed the roster or The Watch, and other runs stop and say why. The [README](https://github.com/m1kuorg/qloo#readme) shows how to run Crossfeed locally with your own Qloo and Anthropic keys.
 
 ## What breaks without Qloo
 
@@ -138,12 +152,13 @@ Beside the pitch run, one Claude call ranks the pitches by what each one says, f
   - A run takes at most 12 model turns and 60 Qloo calls ([limits.ts]). A visitor starts at most 10 model runs a day across browsers, and all visitors together 200, which bounds model spend in code ([TRD agent limits]).
   - Approving and exporting are UI actions with no tool, so the model proposes and the human commits.
 - **Still answering when Qloo isn't:** the sample launch's last completed run is stored. When the daily cap is reached, or Qloo keeps failing, the sample launch replays it, labelled "Replayed" ([TRD replay]). The sample launches beside it are seeded from runs captured once, so they show what Qloo and Claude answered when the data was captured, labelled with that day, and ask neither anything as they load. A daily cron checks the key, and that the sample ranking is still cached.
-- **Tests at the network boundary:** Vitest runs the Worker in the Workers runtime, D1 included. Qloo and Anthropic are replaced by hand-written responses and scripted model turns, and passkeys by a software authenticator that signs as a browser does. Tests drive the Worker's routes, the agents' client protocol, the REST API, the SDK, and the MCP server, as the UI, a program, and an assistant do. CI runs formatting, types, the SDK's types, tests, commit titles, and a secrets scan on every pull request, with act on the author's machine ([apps/README.md](/apps/README.md#ci)).
+- **Tests at the network boundary:** Vitest runs the Worker in the Workers runtime, D1 included. Qloo and Anthropic are replaced by hand-written responses and scripted model turns, and passkeys by a software authenticator that signs as a browser does. Tests drive the Worker's routes, the agents' client protocol, the REST API, the SDK, and the MCP server, as the UI, a program, and an assistant do. CI runs formatting, types, the SDK's types, tests, commit titles, and a secrets scan on every pull request, with act on the author's machine ([apps/README.md](https://github.com/m1kuorg/qloo/blob/main/apps/README.md#ci)).
 
 [TRD calls]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#calls
 [TRD gateway rules]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#gateway-rules
 [TRD replay]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#caching-caps-and-replay
 [TRD agent limits]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#agent-limits
+[ADR 0008]: https://github.com/m1kuorg/qloo/blob/main/docs/adr/0008-guests-share-one-guest-member-again.md
 [limits.ts]: https://github.com/m1kuorg/qloo/blob/main/apps/src/limits.ts
 [TRD listener profile]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#listener-profile
 [TRD pitch ranking]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#other-model-calls
