@@ -1,6 +1,6 @@
 # Submission
 
-This is Crossfeed's entry text for the Qloo Agentic Hackathon on Devpost. The owner submits it in [#63](https://github.com/m1kuorg/qloo/issues/63):
+This is Crossfeed's entry text for the Qloo Agentic Hackathon on Devpost, [submitted](https://devpost.com/software/crossfeed) on 2026-10-30 at 15:39 ET as entry 1273739 ([#63](https://github.com/m1kuorg/qloo/issues/63)). To change it:
 
 - Copy the [Devpost fields](#devpost-fields) into the form's short fields.
 - Paste everything from [Try it](#try-it) to the end of this file into the project description.
@@ -28,7 +28,7 @@ Contents:
 - **Elevator pitch:** An agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners want, by ranking the network's own lists in Qloo.
 - **Try it out:** <https://crossfeed.m1kuorg.workers.dev>, whose first button opens the sample network as a guest, in one click (<https://crossfeed.m1kuorg.workers.dev/demo> leads to the sign-in page's guest option), and <https://github.com/m1kuorg/qloo>
 - **Built with:** qloo, claude, anthropic, cloudflare-workers, durable-objects, cloudflare-agents, cloudflare-d1, hono, react, typescript, vite, vitest, webauthn, openapi, mcp
-- **Video and images:** the video is `crossfeed-demo.mp4`, 2 minutes 50 seconds with captions and no voice, on the draft release `submission`, which waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63). The screenshots are from the live app, signed in as a guest, on the guest network's sample data, in this order:
+- **Video and images:** the video is <https://youtu.be/TVWt9AaBFU8>, 2 minutes 41 seconds, with a voiceover and burned-in captions, unlisted on YouTube and also on the draft release `submission` as `crossfeed-demo-voice.mp4`. The screenshots are from the live app, signed in as a guest, on the guest network's sample data, in this order:
   - [The agent asks for the slot budget, above the roster ranked by listener overlap with The Watch](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/launch-question.png)
   - [A climber's "why it moved" line, and the evidence for the Qloo ranking call it cites](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/launch-evidence.png)
   - [The approved insertion order, priced by code, with the close pairs among its shows](https://github.com/m1kuorg/qloo/blob/main/docs/readme/screenshots/launch-plan.png)

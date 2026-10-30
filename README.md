@@ -19,7 +19,7 @@
     <br />
     <a href="https://crossfeed.m1kuorg.workers.dev"><strong>Live Demo &rarr;</strong></a>
     &middot;
-    <a href="https://devpost.com/software/crossfeed">Devpost</a>
+    <a href="https://youtu.be/TVWt9AaBFU8">Demo Video</a>
     &middot;
     <a href="https://github.com/m1kuorg/qloo/issues/new?labels=bug">Report a Bug</a>
     <br />
