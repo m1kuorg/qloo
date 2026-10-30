@@ -2643,13 +2643,35 @@ describe('close pairs in the plan', () => {
   const copiedRankings = async (agent: Omit<Session, 'cookie'>) =>
     (await agent.call<Evidence[]>('getEvidence')).filter((e) => e.endpoint === '/v2/insights' && e.copiedFrom)
   const anchorOf = (e: Evidence) => e.params['signal.interests.entities']
+  // The text an assistant reads from MCP tool `name`, with the network's API key `secret`.
+  const mcpText = async (secret: string, name: string, args: object) => {
+    const res = await exports.default.fetch('https://crossfeed.test/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${secret}`
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } })
+    })
+    const body = await res.text()
+    const json = res.headers.get('Content-Type')?.includes('text/event-stream')
+      ? body
+          .split('\n')
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5))
+          .join('')
+      : body
+    const { result } = JSON.parse(json) as { result: { content: { text: string }[] } }
+    return result.content.map((c) => c.text).join('\n')
+  }
   const runOf = async (call: (path: string) => Promise<Response>, network: string, id: string, state: State) =>
     (await call(`/api/v1/networks/${network}/launches/${id}/runs/${state.run!.id}`)).json<{
       insertionOrder: Record<string, unknown> & { closePairs?: unknown }
     }>()
 
   it('names each close pair among its order’s shows, citing both shows’ rankings it copied as it drafted, and an edit that drops a line drops its pair', async () => {
-    const { ada, network, call } = await networkWithKey()
+    const { ada, network, call, secret } = await networkWithKey()
     overlapping(places)
     const roster = await measured(ada, network)
     const overlap = roster.state()!.overlap!
@@ -2677,7 +2699,8 @@ describe('close pairs in the plan', () => {
     expect(state.rosterOverlap!.rows.filter((r) => r.copy).map((r) => [r.call, r.copy])).toEqual(
       copies.map((e) => [e.copiedFrom, e.call])
     )
-    const [cb, sb] = ['e-0501', 'e-0502'].map((entity) => copies.find((e) => anchorOf(e) === entity)!.call)
+    const copyOf = (entity: string) => copies.find((e) => anchorOf(e) === entity)!.call
+    const [cb, sb, pr, fn] = ['e-0501', 'e-0502', 'e-0503', 'e-0102'].map(copyOf)
 
     // The plan names the pair under its checks, in ink, with the Qloo data chip and both calls.
     const html = page(network, state, id)
@@ -2691,9 +2714,19 @@ describe('close pairs in the plan', () => {
       closestCount: 3,
       stale: false,
       pairs: [{ shows: ['Corner Booth', 'Slow Burn'], calls: [cb, sb] }],
+      checked: [
+        { show: 'Corner Booth', call: cb },
+        { show: 'Slow Burn', call: sb },
+        { show: 'Paper Route', call: pr },
+        { show: 'Field Notes', call: fn }
+      ],
       unchecked: []
     }
     expect((await runOf(call, network, id, state)).insertionOrder.closePairs).toEqual(pairs)
+    // An assistant reads the pair in the order's text, as the plan words it.
+    expect(await mcpText(secret, 'get_launch', { launchId: id })).toContain(
+      '\nCorner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap.\n'
+    )
 
     // A copied ranking's evidence says it's from the roster's overlap, and which of the network's calls.
     const record = copies.find((e) => e.call === cb)!
@@ -2721,11 +2754,124 @@ describe('close pairs in the plan', () => {
       })
     })
     expect(edited.status).toBe(200)
-    expect((await edited.json<{ closePairs: unknown }>()).closePairs).toEqual({ ...pairs, pairs: [] })
+    expect((await edited.json<{ closePairs: unknown }>()).closePairs).toEqual({
+      ...pairs,
+      pairs: [],
+      checked: pairs.checked.filter((c) => c.show !== 'Slow Burn')
+    })
+    // The plan says so, citing each ranking it checked.
     const after = await agent.until((s) => s.insertionOrder?.lines.length === 3)
     expect(pairLines(page(network, after, id))).toEqual([
-      'muted: Qloo data No two of the plan’s shows each rank among the other’s 3 closest shows by listener overlap.'
+      `muted: Qloo data No two of the plan’s shows each rank among the other’s 3 closest shows by listener overlap. ${cb} ${pr} ${fn}`
     ])
+  })
+
+  it('copies each finalist’s ranking once, however many times the run drafts its order', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    overlapping(places)
+    await measured(ada, network)
+    // The agent drafts twice in one turn, then once more.
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft, draft),
+      turn(draft),
+      turn(text('Drafted the insertion order.'))
+    ])
+    const { agent } = await launch(ada, network)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    const state = await agent.until(ended)
+
+    expect(state.run?.status).toBe('completed')
+    const copies = await copiedRankings(agent)
+    expect(copies.map(anchorOf)).toEqual(['e-0102', 'e-0501', 'e-0502', 'e-0503', 'e-0601'])
+    expect(state.rosterOverlap!.rows.filter((r) => r.copy).map((r) => r.copy)).toEqual(copies.map((e) => e.call))
+  })
+
+  it('copies no overlap into a run started while a measure runs, or after one failed, and the plan says nothing of pairs', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const roster = await measured(ada, network, { measure: false })
+    // The overlap's rankings wait until the run has started.
+    const held = Promise.withResolvers<void>()
+    rankAsked()
+    fakeInsights(async (body) => {
+      const candidates = String(body['filter.results.entities']).split(',')
+      if (body['signal.interests.entities'] === 'e-0001') return fit.filter((r) => candidates.includes(r.entity_id))
+      await held.promise
+      return candidates.map((c) => ({ entity_id: c, name: names[c], affinity: 0.9 }))
+    })
+    await roster.call('measureOverlap')
+    await roster.until((s) => s.overlap?.status === 'measuring')
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft),
+      turn(text('Drafted the insertion order.'))
+    ])
+    const { id, agent } = await launch(ada, network)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect(agent.state()!.rosterOverlap).toBeUndefined()
+    held.resolve()
+    await roster.until((s) => s.overlap?.status === 'measured')
+    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    const during = await agent.until(ended)
+    // The overlap measured since doesn't reach the run, which drafted with none.
+    expect(during.insertionOrder).not.toBeNull()
+    expect(during.rosterOverlap).toBeUndefined()
+    expect(await copiedRankings(agent)).toEqual([])
+    expect(hooked(page(network, during, id), 'data-close-pairs')).toEqual([])
+
+    // A show joins the roster, and the measure of it fails at every ranking.
+    fakeQloo({ search: { ...search, ...more, 'Night Owl': show('e-0705', 'Night Owl') } })
+    const rows = [...Object.keys(more), 'Night Owl'].map((name) => `${name},1000`)
+    await roster.call('importRoster', [csv, ...rows].join('\n'), 'csv')
+    await roster.until((s) => s.roster.length === 11 && s.roster.every((r) => r.resolution !== 'pending'))
+    rankAsked()
+    fakeInsights((body) =>
+      body['signal.interests.entities'] === 'e-0001'
+        ? fit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id))
+        : 503
+    )
+    await roster.call('measureOverlap')
+    expect((await roster.until((s) => s.overlap?.status !== 'measuring')).overlap?.status).toBe('failed')
+    // Qloo answers the next call, a comp search the gateway hasn't cached, so it's no longer failing as the
+    // run starts.
+    await roster.searchComps('Ghost Signal', 'Ghost Signal Weekly')
+    await roster.until((s) => s.roster.find((r) => r.name === 'Ghost Signal')?.compSearch?.status === 'done')
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft),
+      turn(text('Drafted it again.'))
+    ])
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const again = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', again.run!.question!.id, { slots: 20 })
+    const left = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', left.run!.question!.id, { exclude: [] })
+    const after = await agent.until((s) => ended(s) && s.run?.closing === 'Drafted it again.')
+    expect(after.insertionOrder).not.toBeNull()
+    expect(after.rosterOverlap).toBeUndefined()
+    expect(await copiedRankings(agent)).toEqual([])
+    expect(hooked(page(network, after, id), 'data-close-pairs')).toEqual([])
   })
 
   it('says nothing of pairs on a roster whose overlap was never measured, and copies none', async () => {
@@ -2761,6 +2907,7 @@ describe('close pairs in the plan', () => {
       closestCount: 3,
       stale: true,
       pairs: [],
+      checked: [],
       unchecked: []
     })
     // It names no pair, so it copies no ranking.

@@ -1539,6 +1539,10 @@ const ClosePairs = z
       .openapi({
         description: "Pairs of the order's shows that each rank among the other's closest shows, in the order's order."
       }),
+    checked: z.array(z.object({ show: z.string(), call: z.string() })).openapi({
+      description:
+        "Each of the order's shows the overlap ranked, with its ranking's call number in the launch's evidence: what `pairs` was checked against."
+    }),
     unchecked: z.array(z.string()).openapi({
       description: "The order's shows the overlap has no ranking of, so no pair with them is named."
     })
@@ -1550,6 +1554,11 @@ const ClosePairs = z
       closestCount: 3,
       stale: false,
       pairs: [{ shows: ['Deep Cuts', 'Field Notes'], calls: ['C-21', 'C-22'] }],
+      checked: [
+        { show: 'Deep Cuts', call: 'C-21' },
+        { show: 'Field Notes', call: 'C-22' },
+        { show: 'Signal Boost', call: 'C-23' }
+      ],
       unchecked: []
     }
   })

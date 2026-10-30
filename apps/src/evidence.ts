@@ -25,8 +25,9 @@ export type Evidence = {
   // Copied from the run one of the guest network's sample launches was seeded with (sample-launches.ts):
   // Qloo answered it at `at`, as the run was captured, and no request was made for it since.
   fromSample?: true
-  // The network's call this record copies, as a launch's run started: the network's agent made the
-  // request when its roster was looked up, and the launch's run made none.
+  // The network's call this record copies: the network's agent made the request, and the launch's run
+  // made none. A roster lookup's, copied as the run started, or a ranking of the roster's overlap,
+  // copied as the run drafted its order (CrossfeedAgent.citeOverlap).
   copiedFrom?: string
 }
 

@@ -231,9 +231,9 @@ The analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), lists the
 97. As a developer, or a programmer using an assistant, I want to read and start the listener profile through the REST API, the SDK, and MCP, so that a script or my assistant can answer "who does this network reach?".
 98. As a programmer, I want the plan to say when two of its shows are a close pair, citing both shows' overlap calls, so that I think twice before buying both and can check it.
 99. As a programmer, I want a run to use the overlap as it was when the run started, as it uses the roster, so that a later measure doesn't silently change an earlier plan.
-100. As a member, I want the plan to say nothing about pairs when the overlap was never measured, and to say when it was stale or partial for this run, so that silence is never read as evidence.
-101. As a member, I want the pairs to follow my edits to the order's lines, so that a show I removed isn't flagged.
-102. As a developer, I want the close pairs of a run's order through the API, so that a script or assistant can warn about them too.
+100.  As a member, I want the plan to say nothing about pairs when the overlap was never measured, and to say when it was stale or partial for this run, so that silence is never read as evidence.
+101.  As a member, I want the pairs to follow my edits to the order's lines, so that a show I removed isn't flagged.
+102.  As a developer, I want the close pairs of a run's order through the API, so that a script or assistant can warn about them too.
 
 ## Implementation Decisions
 

@@ -2990,6 +2990,25 @@
             },
             "description": "Pairs of the order's shows that each rank among the other's closest shows, in the order's order."
           },
+          "checked": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "show": {
+                  "type": "string"
+                },
+                "call": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "show",
+                "call"
+              ]
+            },
+            "description": "Each of the order's shows the overlap ranked, with its ranking's call number in the launch's evidence: what `pairs` was checked against."
+          },
           "unchecked": {
             "type": "array",
             "items": {
@@ -3002,6 +3021,7 @@
           "closestCount",
           "stale",
           "pairs",
+          "checked",
           "unchecked"
         ],
         "description": "The close pairs among an order's shows, by listener overlap, from the roster's overlap as the run copied it when it started, with the order's lines as they stand now. Absent when the network's roster had no completed overlap measure as the run started, so nothing is said of pairs.",
@@ -3018,6 +3038,20 @@
                 "C-21",
                 "C-22"
               ]
+            }
+          ],
+          "checked": [
+            {
+              "show": "Deep Cuts",
+              "call": "C-21"
+            },
+            {
+              "show": "Field Notes",
+              "call": "C-22"
+            },
+            {
+              "show": "Signal Boost",
+              "call": "C-23"
             }
           ],
           "unchecked": []

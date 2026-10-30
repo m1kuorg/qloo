@@ -7,6 +7,7 @@ import type { Show } from './agent'
 import type { Evidence } from './evidence'
 import { band, matched, scoredOf, type Band } from './fit'
 import type { Ranked } from './gateway'
+import { listOf } from './text'
 
 // A Qloo entity a roster show is matched or mapped to: its ID and Qloo's name for it.
 export type Entity = { id: string; name: string }
@@ -129,13 +130,15 @@ export function closePairs(rows: OverlapRow[]): [string, string][] {
 
 // What a launch's plan says of the close pairs among its order's lines' shows, from the overlap its run
 // copied: each pair by its lines' shows, citing both shows' rankings by the calls the launch holds them
-// under; the lines' shows it has no copied ranking of, so no pair with them can be named; and whether the
-// overlap is stale against the run's roster, when it names none. `closestCount` is how many closest shows
-// each show had in that measure.
+// under; each line's show it checked, with its ranking's call, which a plan with no pair cites; the lines'
+// shows it has no copied ranking of, so no pair with them can be named; and whether the overlap is stale
+// against the run's roster, when it names none. `closestCount` is how many closest shows each show had in
+// that measure.
 export type PlanPairs = {
   closestCount: number
   stale: boolean
   pairs: { shows: [string, string]; calls: [string, string] }[]
+  checked: { show: string; call: string }[]
   unchecked: string[]
 }
 
@@ -145,7 +148,7 @@ export type PlanPairs = {
 export function planPairs(copy: OverlapCopy | undefined, lines: { show: string }[], roster: Show[]): PlanPairs | null {
   if (!copy) return null
   const closest = closestCount(copy.key.split(',').length)
-  if (isStale(copy, roster)) return { closestCount: closest, stale: true, pairs: [], unchecked: [] }
+  if (isStale(copy, roster)) return { closestCount: closest, stale: true, pairs: [], checked: [], unchecked: [] }
   // Each line's entity, named by its first line, as two shows on one Qloo show are measured once.
   const shows = new Map<string, string>()
   const unmatched: string[] = []
@@ -164,9 +167,26 @@ export function planPairs(copy: OverlapCopy | undefined, lines: { show: string }
       shows: [shows.get(a)!, shows.get(b)!],
       calls: [calls.get(a)!, calls.get(b)!]
     })),
+    checked: rows.map((r) => ({ show: shows.get(r.entity.id)!, call: r.copy! })),
     unchecked: [...unmatched, ...[...shows].filter(([id]) => !calls.has(id)).map(([, show]) => show)]
   }
 }
+
+// What the plan says of its close pairs (PlanPairs), in the words the plan and the MCP server's text both
+// use: a close pair, "3 closest shows", or on a roster of four to six shows, "closest show"; that no two of
+// its shows are one; the shows it has no ranking of; and that the overlap is stale for the run.
+export const closePairWords = (a: string, b: string, k: number) =>
+  k === 1
+    ? `${a} and ${b} are each other’s closest show by listener overlap.`
+    : `${a} and ${b} each rank among the other’s ${k} closest shows by listener overlap.`
+export const noClosePairWords = (k: number) =>
+  k === 1
+    ? 'No two of the plan’s shows are each other’s closest show by listener overlap.'
+    : `No two of the plan’s shows each rank among the other’s ${k} closest shows by listener overlap.`
+export const uncheckedWords = (shows: string[]) =>
+  `The roster’s overlap has no ranking of ${listOf(shows)} for this run, so the plan can’t say whether ${shows.length === 1 ? 'it’s' : 'they’re'} in a close pair.`
+export const STALE_PAIRS =
+  'The roster’s matched shows had changed since its overlap was measured, so the plan can’t say which of its shows are close pairs. Measure the overlap again, then run again.'
 
 // The shows that rank among no other show's closest, by entity ID, counted over the rows that landed, as
 // the Overlap tab's finding counts them.

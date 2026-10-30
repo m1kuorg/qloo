@@ -777,12 +777,14 @@ export class NetworkAgent extends CrossfeedAgent {
         `The network's roster is still looking up ${pending === 1 ? '1 show' : `${pending} shows`} in Qloo. Start the run once the lookups have settled, so it ranks every show.`
       )
     const roster = this.state.roster.map((s) => ({ ...s, compSearch: null }))
+    // Only the records the roster cites are read, since measuring the overlap takes the whole log past a
+    // megabyte.
     const cited = new Set(JSON.stringify(roster).match(CALL))
     return {
       roster,
       cpm: this.state.cpm,
       sampleCpm: this.state.sample?.cpm ?? false,
-      evidence: this.getEvidence().filter((e) => cited.has(e.call)),
+      evidence: this.getEvidence([...cited]),
       overlap: overlapCopy(this.state.overlap),
       ownKey: hasOwnKey(this.ctx.storage),
       sample: id === this.ctx.storage.kv.get(SAMPLE_LAUNCH) ? this.state.sample : null

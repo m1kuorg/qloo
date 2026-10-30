@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldSet } from '@/components/ui/field'
@@ -10,7 +10,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { buttonVariants } from '@/components/ui/variants'
 import type { Budget, Show } from '../agent'
 import { NO_ANGLE, type SharedTags } from '../fit'
-import { planPairs, type OverlapCopy, type PlanPairs } from '../overlap'
+import {
+  closePairWords,
+  noClosePairWords,
+  planPairs,
+  STALE_PAIRS,
+  uncheckedWords,
+  type OverlapCopy,
+  type PlanPairs
+} from '../overlap'
 import { MAX_ANGLE } from '../text'
 import {
   angleOptional,
@@ -21,7 +29,7 @@ import {
   type OrderLine,
   type Priced
 } from '../order'
-import { Alert, day, listOf, useAction, useLeaveGuard } from './controls'
+import { Alert, day, useAction, useLeaveGuard } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
 import { Section } from './PageHeader'
 import { Source } from './Source'
@@ -360,8 +368,8 @@ function Checks({ priced, budget }: { priced: Priced; budget: Budget | null }) {
 
 // What the plan says of the close pairs among its lines' shows (planPairs), under the checks: each pair in
 // ink, the Qloo data chip before it and both shows' rankings' calls after, or that no two of its shows are
-// one; then, muted, the shows it has no ranking of; or, in place of all of it, muted, that the overlap is
-// stale for this run. With no overlap copied, it says nothing.
+// one, citing every ranking it checked; then, muted, the shows it has no ranking of; or, in place of all of
+// it, muted, that the overlap is stale for this run. With no overlap copied, it says nothing.
 function ClosePairs({
   pairs,
   openCall,
@@ -372,43 +380,33 @@ function ClosePairs({
   opened: string | null
 }) {
   if (!pairs) return null
-  const { closestCount: k, unchecked } = pairs
-  // "3 closest shows", or on a roster of four to six shows, "closest show".
-  const close = (a: string, b: string) =>
-    k === 1
-      ? `${a} and ${b} are each other’s closest show by listener overlap.`
-      : `${a} and ${b} each rank among the other’s ${k} closest shows by listener overlap.`
+  const { closestCount: k, checked, unchecked } = pairs
   const cite = (show: string, call: string) => (
     <CallButton call={call} label={`Evidence for ${show}’s closest shows`} opened={opened} openCall={openCall} />
   )
   return (
     <div className="flex flex-col gap-1" data-close-pairs>
       {pairs.stale ? (
-        <p className="max-w-[72ch] text-muted-foreground">
-          The roster’s matched shows had changed since its overlap was measured, so the plan can’t say which of its
-          shows are close pairs. Measure the overlap again, then run again.
-        </p>
+        <p className="max-w-[72ch] text-muted-foreground">{STALE_PAIRS}</p>
       ) : (
         <>
           {pairs.pairs.map(({ shows: [a, b], calls: [x, y] }) => (
             <p key={`${a} ${b}`} className="max-w-[72ch]">
-              <Source of="qloo" /> {close(a, b)} {cite(a, x)} {cite(b, y)}
+              <Source of="qloo" /> {closePairWords(a, b, k)} {cite(a, x)} {cite(b, y)}
             </p>
           ))}
           {pairs.pairs.length === 0 && unchecked.length === 0 && (
             <p className="max-w-[72ch] text-muted-foreground">
-              <Source of="qloo" />{' '}
-              {k === 1
-                ? 'No two of the plan’s shows are each other’s closest show by listener overlap.'
-                : `No two of the plan’s shows each rank among the other’s ${k} closest shows by listener overlap.`}
+              <Source of="qloo" /> {noClosePairWords(k)}{' '}
+              {checked.map(({ show, call }, i) => (
+                <Fragment key={call}>
+                  {i > 0 && ' '}
+                  {cite(show, call)}
+                </Fragment>
+              ))}
             </p>
           )}
-          {unchecked.length > 0 && (
-            <p className="max-w-[72ch] text-muted-foreground">
-              The roster’s overlap has no ranking of {listOf(unchecked)} for this run, so the plan can’t say whether{' '}
-              {unchecked.length === 1 ? 'it’s' : 'they’re'} in a close pair.
-            </p>
-          )}
+          {unchecked.length > 0 && <p className="max-w-[72ch] text-muted-foreground">{uncheckedWords(unchecked)}</p>}
         </>
       )}
     </div>
