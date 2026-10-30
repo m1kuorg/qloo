@@ -619,10 +619,11 @@ describe("the roster page's words", () => {
     // The inspector's close button closes it, so the show has no Close of its own.
     expect(words(watch)).not.toContain('Close')
     // The header: the title, its counts, the inspector's toggle, and the import, in a dialog; then the
-    // table, whose caption says where its matches come from. No notice, explanation, or CPM is above
-    // it, and no line of what's left to settle: the rows' match chips and the header's counts say it.
+    // page's tabs, and on Shows the table, whose caption says where its matches come from. No notice,
+    // explanation, or CPM is above it, and no line of what's left to settle: the rows' match chips and
+    // the header's counts say it.
     expect(read).toMatch(
-      /^Roster sample 19 shows · 19 missed Details Import shows Qloo data Matches from Qloo search, one call per show\. /
+      /^Roster sample 19 shows · 19 missed Details Import shows Shows Overlap Qloo data Matches from Qloo search, one call per show\. /
     )
     expect(read).not.toContain('scored until')
     // The inspector is closed as the page opens, so the table takes the width; Details opens it.

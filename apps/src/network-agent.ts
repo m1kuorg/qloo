@@ -27,6 +27,7 @@ import {
   OVERLAP_MEASURING,
   rosterEntities,
   toMeasure,
+  tooFew,
   type Entity,
   type OverlapRow
 } from './overlap'
@@ -333,11 +334,7 @@ export class NetworkAgent extends CrossfeedAgent {
     // A start still reserving its calls is measuring too, so two starts at once reserve once.
     if (this.startingOverlap) throw new Refusal('conflict', OVERLAP_MEASURING)
     const { entities, key, anchors } = toMeasure(this.state.roster, this.state.overlap)
-    if (entities.length < MIN_OVERLAP_ENTITIES)
-      throw new Refusal(
-        'conflict',
-        `Measuring the overlap needs at least ${MIN_OVERLAP_ENTITIES} shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has ${entities.length}. Match or map more of its shows first.`
-      )
+    if (entities.length < MIN_OVERLAP_ENTITIES) throw new Refusal('conflict', tooFew(entities.length))
     if (anchors.length === 0) return
     this.startingOverlap = true
     let gateway: DurableObjectStub<QlooGateway>

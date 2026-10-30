@@ -4,7 +4,8 @@
 // aren't comparable, so each anchor keeps only ranks and bands within its own ranking, as the fit chart
 // does, and its whole ranking stays in its call's evidence.
 import type { Show } from './agent'
-import { band, matched, type Band } from './fit'
+import type { Evidence } from './evidence'
+import { band, matched, scoredOf, type Band } from './fit'
 import type { Ranked } from './gateway'
 
 // A Qloo entity a roster show is matched or mapped to: its ID and Qloo's name for it.
@@ -39,6 +40,11 @@ export type Overlap = {
 // The fewest distinct entities a measure takes: under four, no show has a closest show (closestCount).
 export const MIN_OVERLAP_ENTITIES = 4
 
+// Why a roster of `n` distinct entities can't be measured, and what it needs: the measure's refusal, and
+// the Overlap tab's line in its place.
+export const tooFew = (n: number) =>
+  `Measuring the overlap needs at least ${MIN_OVERLAP_ENTITIES} shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has ${n}. Match or map more of its shows first.`
+
 // Why a measure is refused while one runs, and what a measure a restart interrupted says.
 export const OVERLAP_MEASURING = 'The overlap is already being measured. Wait for it to finish.'
 export const OVERLAP_INTERRUPTED = 'The measure was interrupted. Measure the overlap again.'
@@ -52,6 +58,20 @@ export function rosterEntities(roster: Show[]): Entity[] {
   for (const { entity } of roster.filter(matched))
     if (!entities.has(entity.id)) entities.set(entity.id, { id: entity.id, name: entity.name })
   return [...entities.values()].sort(byId)
+}
+
+// The roster's matched shows by the distinct entity they're matched or mapped to, in roster order: each
+// entity once, with its shows, its first on the roster first. That show names the entity wherever the
+// overlap is read, and the others are listed with it, as shows matched to the same Qloo show.
+export function entityShows(roster: Show[]) {
+  const entities = new Map<string, { entity: Entity; shows: Show[] }>()
+  for (const show of roster.filter(matched)) {
+    const { id, name } = show.entity
+    const on = entities.get(id)
+    if (on) on.shows.push(show)
+    else entities.set(id, { entity: { id, name }, shows: [show] })
+  }
+  return entities
 }
 
 const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
@@ -91,3 +111,16 @@ export function closePairs(rows: OverlapRow[]): [string, string][] {
     rows.slice(i + 1).flatMap(({ entity: b }) => (close(a.id, b.id) ? [[a.id, b.id] as [string, string]] : []))
   )
 }
+
+// The shows that rank among no other show's closest, by entity ID, counted over the rows that landed, as
+// the Overlap tab's finding counts them.
+export function apart(rows: OverlapRow[]): string[] {
+  const landed = rows.filter((r) => !r.error)
+  const closest = new Set(landed.flatMap((r) => r.closest.map((c) => c.id)))
+  return landed.filter((r) => !closest.has(r.entity.id)).map((r) => r.entity.id)
+}
+
+// An anchor's whole ranking, read back from its call's evidence record, which keeps every candidate as
+// Qloo returned it: those Qloo scored, best first as the gateway ranks them, each with its rank and band,
+// so its first are its closest shows (closestOf).
+export const rankingOf = (record: Evidence): Closest[] => closestOf(scoredOf(record.affinities), Infinity)
