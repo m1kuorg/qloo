@@ -26,6 +26,12 @@ export const moveWords = (move: number, baseline = 'topic rank') =>
 // an icon.
 export const CONNECTED = '✔ Connected' // taste-skill-ignore
 
+// A name, such as a show's, a work's or a network's, as its owner, as a page says it: "The Watch’s", or
+// after a final s only the apostrophe, "The Rewatchables’". Text written with straight apostrophes, as the
+// demographic check's is, passes its own.
+export const possessive = (name: string, apostrophe = '’') =>
+  name.endsWith('s') ? `${name}${apostrophe}` : `${name}${apostrophe}s`
+
 // A rank as words: "2nd".
 export const nth = (n: number) =>
   `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`

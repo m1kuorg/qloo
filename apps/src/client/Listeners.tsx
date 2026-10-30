@@ -135,7 +135,7 @@ function ListenersTable({ profile, rows }: { profile: ListenerProfile; rows: Ret
             side, and gender's two ends. */}
         <table
           className="w-full min-w-[52rem] table-fixed border-separate border-spacing-0 [--show:11rem] md:min-w-[55rem] md:[--show:14rem]"
-          aria-labelledby="listeners-h"
+          aria-labelledby="listeners-h-title"
           aria-describedby="listeners-cap"
           data-listeners-table
         >
@@ -229,8 +229,9 @@ const LeanCells = ({ lean, scale }: { lean: Lean; scale: number }) => (
 // centred over the line, so a column's figures align. A lean toward an age band, above average, is in ink,
 // as the finding is about those; one away from it is in secondary ink, a tone, never a hue. With `zone`, the
 // gender column's, every lean is toward a group, male or female, so both sides are ink; the tone-step zone
-// of ±zone around the line is drawn under the bar, and screen readers hear which way it leans, and whether
-// that counts.
+// of ±zone around the line is drawn under the bar, and its two edges over it, 1px ticks in the control
+// outline's ink (`--input`), so the zone the caption names shows in both schemes; screen readers hear which
+// way it leans, and whether that counts.
 function LeanCell({ value, scale, zone }: { value: number; scale: number; zone?: number }) {
   const lean = round(value)
   const half = (x: number) => `${Math.min(Math.abs(x) * 500, scale * 50) / scale}%`
@@ -268,6 +269,14 @@ function LeanCell({ value, scale, zone }: { value: number; scale: number; zone?:
               )}
               style={{ width: half(lean) }}
               data-tone={toward ? 'ink' : 'secondary'}
+            />
+          )}
+          {/* The zone's two edges, over the bar, so both show however far it reaches. */}
+          {zone !== undefined && (
+            <span
+              className="absolute inset-y-0 border-x border-input"
+              style={{ left: `calc(50% - ${half(zone)})`, width: `calc(2 * ${half(zone)})` }}
+              data-zone-edges
             />
           )}
           <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-muted-foreground" />

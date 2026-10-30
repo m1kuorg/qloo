@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import type { OwnKey, Usage } from '../../gateway'
 import { QLOO_HOSTS } from '../../qloo-hosts'
+import { possessive } from '../../text'
 import { useConfirm } from '../Confirm'
 import { Alert, KeyValue, KeyValues, send, useAction } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
@@ -41,7 +42,7 @@ export function QlooKeyModule({
       id="set-qloo-h"
       title="Qloo key"
       heading={heading}
-      description={`During the beta, ${network.name}’s Qloo calls run on Crossfeed’s shared key, within its daily caps, unless it has a key of its own.`}
+      description={`During the beta, ${possessive(network.name)} Qloo calls run on Crossfeed’s shared key, within its daily caps, unless it has a key of its own.`}
     >
       {network.role !== 'owner' ? (
         <>
@@ -140,8 +141,8 @@ function AddKey({ network, onChange }: { network: NetworkPage; onChange: (change
             aria-describedby="qloo-key-what"
           />
           <FieldDescription id="qloo-key-what">
-            {network.name}’s Qloo calls and its launches’ then run on it, under its own agreement with Qloo, with a
-            cache and Qloo caps of their own. Model runs count against Crossfeed’s caps either way.
+            {possessive(network.name)} Qloo calls and its launches’ then run on it, under its own agreement with Qloo,
+            with a cache and Qloo caps of their own. Model runs count against Crossfeed’s caps either way.
           </FieldDescription>
         </Field>
       </FieldGroup>
@@ -176,7 +177,7 @@ function OwnKeyRecord({
   const { confirm, dialog } = useConfirm(heading)
   const askRemove = () =>
     confirm({
-      title: `Remove ${network.name}’s own Qloo key?`,
+      title: `Remove ${possessive(network.name)} own Qloo key?`,
       consequence:
         'Its cache and today’s Qloo counts go with it, and its Qloo calls go back to Crossfeed’s shared key.',
       verb: 'Remove key',

@@ -2,7 +2,7 @@ import { cn } from 'cn'
 import { ChevronDownIcon } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { RadioGroup, RadioGroupSegment } from '@/components/ui/radio-group'
-import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
+import { segmentedItemVariants, segmentedTrackVariants, sourceMarks } from '@/components/ui/variants'
 import { moveGlyph, moveWords, nth } from '../text'
 import { Source } from './Source'
 
@@ -253,12 +253,19 @@ export function OtherRankHeader({ lens, agent, className }: { lens: Lens; agent:
 }
 
 // A row's rank by the other lens, "#6", or – where the agent's ranking doesn't place it. On a phone,
-// where the header is hidden, the column's name comes before it.
+// where the header is hidden, the column's name comes before it, with the mark of the chip that heads the
+// column, so the rank still says where it came from: the Agent chip's circle, or Qloo data's square,
+// which screen readers hear as the chip's words.
 export function OtherRankCell({ row, lens, agent }: { row: Ranked; lens: Lens; agent: AgentRanking }) {
   return (
     <span role="cell" className="text-right text-muted-foreground [grid-area:other]">
-      <span className="md:hidden" aria-hidden="true">
-        {lens === 'agent' ? 'Listeners' : agent.column}{' '}
+      <span className="md:hidden">
+        <span
+          aria-hidden="true"
+          className={cn('mr-1 inline-flex align-[0.125rem]', sourceMarks[lens === 'agent' ? 'square' : 'circle'])}
+        />
+        <span className="vh">{lens === 'agent' ? 'Qloo data ' : 'Agent '}</span>
+        <span aria-hidden="true">{lens === 'agent' ? 'Listeners' : agent.column} </span>
       </span>
       {lens === 'agent' ? (
         <span className="tabular-nums">#{row.rank}</span>

@@ -39,7 +39,8 @@ type Changes = {
   joined: string[] // the finalists that joined
   left: string[] // and left
   moves: Move[] // every show either run ranked, the biggest moves first
-  alike: boolean // the two runs ranked the roster alike
+  kept: boolean // both runs ranked every show, each at the same rank
+  alike: boolean // the two runs ranked the roster alike: every show kept its rank and its finalist mark
   lines: Line[] | null // null when neither run has an order
   orders: { before: RunSnapshot['insertionOrder']; after: RunSnapshot['insertionOrder'] }
   samePlan: boolean // both orders hold the same lines, slots and values
@@ -155,6 +156,7 @@ function compare(before: RunSnapshot, after: RunSnapshot): Changes {
           }))
           .sort(byMove)
       : []
+  const kept = !!was && !!now && moves.every((m) => group(m) === SAME_RANK)
   const joined = moves.filter((m) => m.after?.finalist && !m.before?.finalist).map((m) => m.show)
   const left = moves.filter((m) => m.before?.finalist && !m.after?.finalist).map((m) => m.show)
 
@@ -180,7 +182,8 @@ function compare(before: RunSnapshot, after: RunSnapshot): Changes {
     joined,
     left,
     moves,
-    alike: !!was && !!now && moves.every((m) => group(m) === SAME_RANK && m.before!.finalist === m.after!.finalist),
+    kept,
+    alike: kept && moves.every((m) => m.before!.finalist === m.after!.finalist),
     lines,
     orders,
     samePlan:
@@ -194,14 +197,19 @@ function compare(before: RunSnapshot, after: RunSnapshot): Changes {
 const counted = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const capitalized = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-// The comparison's finding, in one sentence: how the ranking changed, then the plan.
+// The comparison's finding, in one sentence: how the ranking changed, then the plan. With no show moved,
+// it says so, or, once the roster changed between the runs, that the shows both ranked kept their ranks.
 function finding(c: Changes, n: number, m: number) {
   // A finalist that joined took the place of one that left, so a swap counts once.
   const finalists = Math.max(c.joined.length, c.left.length)
   const moved = c.moves.filter((mv) => group(mv) === MOVED).length
   const changed = [
     ...(finalists ? [counted(finalists, 'finalist changed', 'finalists changed')] : []),
-    ...(moved ? [counted(moved, 'show moved', 'shows moved')] : [])
+    moved
+      ? counted(moved, 'show moved', 'shows moved')
+      : c.kept
+        ? 'no show moved'
+        : 'the shows both runs ranked kept their ranks'
   ]
   const ranking =
     c.ranked === 'neither'
@@ -210,7 +218,7 @@ function finding(c: Changes, n: number, m: number) {
         ? `only run ${c.ranked === 'after' ? n : m} ranked the roster`
         : c.alike
           ? `run ${n} ranked the roster as run ${m} did`
-          : changed.join(', ') || 'the shows both runs ranked kept their ranks'
+          : changed.join(', ')
   const { before, after } = c.orders
   const priced = before && after && (!before.complete || !after.complete) ? ', before the lines without a value' : ''
   const delta = before && after ? after.total - before.total : 0
@@ -340,7 +348,8 @@ export function RunChanges({
       {changes && m && (
         <>
           {/* The h3s say no more than their titles, as the finding over them says what changed; the
-              inputs' sentence is there only when none changed. */}
+              inputs' sentence is there only when none changed, and the ranks' only when no show moved,
+              in place of a row a show. */}
           <Section
             id="changes-inputs-h"
             level={3}
@@ -362,14 +371,19 @@ export function RunChanges({
             )}
           </Section>
           {changes.ranked === 'both' && !changes.alike && (
-            <Section id="changes-ranks-h" level={3} title="Ranks">
+            <Section
+              id="changes-ranks-h"
+              level={3}
+              title="Ranks"
+              description={changes.kept && 'Every show kept its rank.'}
+            >
               {(changes.joined.length > 0 || changes.left.length > 0) && (
                 <KeyValues>
                   <KeyValue label="Joined the finalists">{changes.joined.join(', ') || NONE}</KeyValue>
                   <KeyValue label="Left the finalists">{changes.left.join(', ') || NONE}</KeyValue>
                 </KeyValues>
               )}
-              <Moves moves={changes.moves} n={n} m={m} />
+              {!changes.kept && <Moves moves={changes.moves} n={n} m={m} />}
             </Section>
           )}
           {changes.lines && !changes.samePlan && (
@@ -386,8 +400,12 @@ export function RunChanges({
 // The ranked shows in the fit chart's row anatomy, as a real table: each one's rank in run `n`, its move
 // since run `m` beside it, the mark (▲ and its places in signal ink for a climb, ▼ muted for a fall, = for
 // none) then the move in words, and its name, with a chip when it joined or left the finalists. A show
-// only one run ranked has `–` where the other run's rank would be.
+// only one run ranked has `–` where the other run's rank would be. It lists the shows that changed, those
+// that moved, joined or left the finalists, or only one run ranked, with "Show all N" for the rest, as the
+// fit chart lists its own.
 function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
+  const [all, setAll] = useState(false)
+  const changed = moves.filter((mv) => group(mv) !== SAME_RANK || mv.before!.finalist !== mv.after!.finalist)
   const head = 'border-b pb-2 pl-3 text-left align-bottom font-normal'
   const cell = 'border-b py-3 pl-3 align-baseline'
   return (
@@ -407,7 +425,7 @@ function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
             </tr>
           </thead>
           <tbody>
-            {moves.map(({ key, show, before, after }) => {
+            {(all ? moves : changed).map(({ key, show, before, after }) => {
               const move = before && after ? before.rank - after.rank : null
               return (
                 <tr key={key} data-move={show}>
@@ -447,6 +465,17 @@ function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
           </tbody>
         </table>
       </ScrollTable>
+      {changed.length < moves.length && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2.5 self-start"
+          aria-expanded={all}
+          onClick={() => setAll(!all)}
+        >
+          {all ? 'Show fewer' : `Show all ${moves.length}`}
+        </Button>
+      )}
       {moves.some((mv) => !mv.before || !mv.after) && (
         <p className="type-caption text-muted-foreground">
           – marks a show ranked in only one of the two runs: the roster changed between them.

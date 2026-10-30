@@ -31,7 +31,7 @@ export const draftReplies: Tool<Input> = {
               angle: {
                 type: ['string', 'null'],
                 description:
-                  'For a top pitch, one or two sentences on the episode its work could make for the show, built only from the tags shared_tags returned for it. Null for a top pitch it returned no tags for, and for any other pitch.'
+                  'For a top pitch, one or two sentences on the episode its work could make for the show, built only from the tags shared_tags returned for it. Call the people who hear the show its listeners, never its audience. Null for a top pitch it returned no tags for, and for any other pitch.'
               },
               draft: {
                 type: 'string',

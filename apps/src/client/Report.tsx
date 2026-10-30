@@ -409,17 +409,19 @@ function Finalists({ shown }: { shown: RunSnapshot }) {
 }
 
 // The close pairs among the plan's shows, as the plan names them, from the roster's overlap as the run
-// copied it when it started; with none copied, as on a roster never measured, the report says nothing of
-// pairs, as the plan doesn't.
+// copied it when it started, under a heading that names them with the Qloo data chip, so the plan's lead
+// line would only say it again; with none copied, as on a roster never measured, the report says nothing
+// of pairs, as the plan doesn't.
 function Pairs({ pairs, measuredAt }: { pairs: PlanPairs | null; measuredAt: string | null }) {
   if (!pairs) return null
   return (
     <Section
       id="report-pairs-h"
       title="Close pairs"
+      badge={<Source of="qloo" />}
       description={`From the roster’s overlap${measuredAt ? `, measured ${day(measuredAt)},` : ''} as the run copied it when it started.`}
     >
-      <ClosePairs pairs={pairs} openCall={noInspector} opened={null} />
+      <ClosePairs pairs={pairs} openCall={noInspector} opened={null} headed />
     </Section>
   )
 }
@@ -455,7 +457,7 @@ function CallsCited({ cited, log, retry }: { cited: string[]; log: Read<Evidence
       ) : (
         <table
           className="w-full border-separate border-spacing-0"
-          aria-labelledby="report-calls-h"
+          aria-labelledby="report-calls-h-title"
           aria-describedby={shared ? 'report-calls-from' : undefined}
           aria-busy={!records || undefined}
         >

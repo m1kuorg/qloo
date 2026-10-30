@@ -1413,7 +1413,7 @@ describe('a launch on the sample roster', () => {
     )
     expect(Object.keys(calls).toSorted()).toEqual(['e-0201', 'e-0301'])
     expect(hooked(guestPage(live, id), 'data-close-pairs').map(words)).toEqual([
-      `Qloo data The Big Picture and The Rewatchables are each other’s closest show by listener overlap. ${calls['e-0301']} ${calls['e-0201']} The roster’s overlap has no ranking of House of R for this run, so the plan can’t say whether it’s in a close pair.`
+      `Qloo data Close pairs by listener overlap The Big Picture and The Rewatchables are each other’s closest show by listener overlap. ${calls['e-0301']} ${calls['e-0201']} The roster’s overlap has no ranking of House of R for this run, so the plan can’t say whether it’s in a close pair.`
     ])
     // The run is stored as the sample run all the same, without the overlap or its copied rankings.
     await vi.waitFor(() =>
@@ -2086,6 +2086,117 @@ describe('the pages, as a member reads them', () => {
     expect(options(waiting)).toEqual([])
   })
 
+  it('says in one line that every show kept its rank when only the finalists changed', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    // Run 2 ranks the roster as run 1 did, but leaves Corner Booth out, so it leaves the finalists.
+    await runAgain(agent, {
+      slots: 20,
+      exclude: ['Corner Booth'],
+      finalists: ['e-0502', 'e-0503', 'e-0102', 'e-0601'],
+      lines: [
+        { show: 'Slow Burn', slots: 6, angle: 'Its long interviews share the slow pace.' },
+        { show: 'Paper Route', slots: 4, angle: 'Morning commuters who follow the same hosts.' },
+        { show: 'Field Notes', slots: 2, angle: 'Shares the field-recording style.' }
+      ]
+    })
+
+    const changes = changesOf(
+      workspace(network, agent, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
+    )
+    // The finding says no show moved, and Ranks says it once, with no row a show; the finalists that joined
+    // and left stay. Corner Booth's 8 slots at $1,200 went with it.
+    expect(sections(changes)).toEqual([
+      ['Changes since run 1', '1 finalist changed, no show moved; the plan’s value fell $9,600.'],
+      ['Inputs'],
+      ['Ranks', 'Every show kept its rank.'],
+      ['Plan']
+    ])
+    expect(facts(changes)).toEqual([
+      ['Left out', 'None → Corner Booth'],
+      ['Joined the finalists', 'None'],
+      ['Left the finalists', 'Corner Booth']
+    ])
+    expect(hooked(changes, 'data-move')).toEqual([])
+    expect(words(changes)).not.toContain('Same rank')
+    expect(words(changes)).not.toContain('Show all')
+  })
+
+  it('says the shows both runs ranked kept their ranks when the roster changed between them', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent, roster } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    // Back Lot is included again and ranks last; run 2 leaves Corner Booth out, so Back Lot takes its place
+    // among the finalists, and no show both runs ranked moves.
+    await roster.call('updateShow', 'Back Lot', { excluded: false })
+    const tagged = ['e-0502', 'e-0503', 'e-0102', 'e-0601', 'e-0505']
+    fakeCompare(
+      Object.fromEntries(
+        tagged.map((e) => [e, [{ tag_id: 'urn:tag:keyword:media:film', name: 'Film', score: 0.6131 }]])
+      )
+    )
+    await runAgain(agent, {
+      slots: 20,
+      exclude: ['Corner Booth'],
+      finalists: tagged,
+      lines: [
+        { show: 'Slow Burn', slots: 6, angle: 'Its long interviews share the slow pace.' },
+        { show: 'Paper Route', slots: 4, angle: 'Morning commuters who follow the same hosts.' },
+        { show: 'Field Notes', slots: 2, angle: 'Shares the field-recording style.' }
+      ]
+    })
+
+    const changes = changesOf(
+      workspace(network, agent, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
+    )
+    expect(sections(changes)).toEqual([
+      [
+        'Changes since run 1',
+        '1 finalist changed, the shows both runs ranked kept their ranks; the plan’s value fell $9,600.'
+      ],
+      ['Inputs'],
+      ['Ranks'],
+      ['Plan']
+    ])
+    // Back Lot is new to the ranking, so the rows stand, listing it and the finalist that left.
+    expect(rowsOf(changes, 'data-move')).toEqual([
+      '6 – Not ranked in run 1 Back Lot New finalist',
+      '1 = Same rank Corner Booth Left the finalists'
+    ])
+    expect(changes).toMatch(/<button\b[^>]*>Show all 6<\/button>/)
+  })
+
+  it('lists only the shows that moved, joined or left the finalists, with Show all for the rest', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent, roster } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    // Back Lot is included again, last, and Qloo now ranks Paper Route over Slow Burn; the other three keep
+    // their ranks.
+    await roster.call('updateShow', 'Back Lot', { excluded: false })
+    const swapped = [fit[0], { ...fit[2], affinity: 0.905 }, fit[1], ...fit.slice(3)]
+    fakeInsights((body) =>
+      swapped.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id))
+    )
+    await runAgain(agent, { slots: 20, exclude: [] })
+
+    const changes = changesOf(
+      workspace(network, agent, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
+    )
+    expect(sections(changes)).toEqual([['Changes since run 1', '2 shows moved.'], ['Inputs'], ['Ranks']])
+    // The two that moved and the one only run 2 ranked, as the fit chart lists what it features, then Show
+    // all for the six ranked.
+    expect(rowsOf(changes, 'data-move')).toEqual([
+      '2 ▲1 Up 1 place Was #3 Paper Route',
+      '3 ▼1 Down 1 place Was #2 Slow Burn',
+      '6 – Not ranked in run 1 Back Lot'
+    ])
+    expect(changes).toMatch(/<button\b(?=[^>]*\saria-expanded="false")[^>]*>Show all 6<\/button>/)
+  })
+
   it('compares with the latest completed run before it, listing a failed run as one that can’t be chosen, with its status', async () => {
     const ada = await openMember()
     const network = await created(ada)
@@ -2146,9 +2257,10 @@ describe('the pages, as a member reads them', () => {
       '4 ▼1 Down 1 place Was #3 Paper Route',
       '5 ▼1 Down 1 place Was #4 Field Notes',
       '2 – Not ranked in run 1 Ghost Signal New finalist',
-      '– Not ranked in run 2 – Was #5 Ghost Signal Left the finalists',
-      '1 = Same rank Corner Booth'
+      '– Not ranked in run 2 – Was #5 Ghost Signal Left the finalists'
     ])
+    // It kept its rank, so it's folded behind Show all, with the rest.
+    expect(changes).toMatch(/<button\b[^>]*>Show all 6<\/button>/)
     // Its line is the same in both plans.
     expect(sections(changes).map(([heading]) => heading)).toEqual(['Changes since run 1', 'Inputs', 'Ranks'])
   })
@@ -2393,8 +2505,14 @@ describe('the pages, as a member reads them', () => {
     )
     expect(shows(sample).slice(0, 3)).toEqual([
       'Corner Booth Night Shift Cinema 2 8 $7,680 0',
-      'Slow Burn Night Shift Cinema , Blank Check · Filmspotting 2 8 $2,000 0',
+      'Slow Burn Night Shift Cinema Blank Check · Filmspotting 2 8 $2,000 0',
       'Paper Route Night Shift Cinema 2 2 – 0'
+    ])
+    // A show's launches stand one to a line, so a launch named by its comps never reads as several.
+    const [slow] = hooked(inventoryOf(sample), 'data-inventory-show="Slow Burn"')
+    expect([...slow.matchAll(/<li\b[^>]*>(.*?)<\/li>/g)].map(([, item]) => words(item))).toEqual([
+      'Night Shift Cinema',
+      'Blank Check · Filmspotting'
     ])
   })
 
@@ -2640,11 +2758,16 @@ describe('close pairs in the plan', () => {
         orders={`/app/${network}/launches/${id}/insertion-orders`}
       />
     )
-  // What the plan says of close pairs, line by line, and whether each line is muted.
+  // What the plan says of close pairs, line by line, as a screen reader hears it, whether each line is
+  // muted, and each item of its list of pairs.
   const pairLines = (html: string) =>
     hooked(html, 'data-close-pairs').flatMap((said) =>
-      [...said.matchAll(/<p\b([^>]*)>(.*?)<\/p>/g)].map(([, attributes, line]) =>
-        attributes.includes('text-muted-foreground') ? `muted: ${words(line)}` : words(line)
+      [...said.matchAll(/<(p|li)\b([^>]*)>(.*?)<\/\1>/g)].map(([, tag, attributes, line]) =>
+        tag === 'li'
+          ? `item: ${words(line)}`
+          : attributes.includes('text-muted-foreground')
+            ? `muted: ${words(line)}`
+            : words(line)
       )
     )
   // The overlap rankings a launch's log holds, which it copied from its network's.
@@ -2710,11 +2833,16 @@ describe('close pairs in the plan', () => {
     const copyOf = (entity: string) => copies.find((e) => anchorOf(e) === entity)!.call
     const [cb, sb, pr, fn] = ['e-0501', 'e-0502', 'e-0503', 'e-0102'].map(copyOf)
 
-    // The plan names the pair under its checks, in ink, with the Qloo data chip and both calls.
+    // The plan names the pair under its checks, in ink: one lead line with the Qloo data chip, over a list
+    // of the pairs, each with both calls; screen readers hear the whole sentence, the rest of it hidden.
     const html = page(network, state, id)
     expect(pairLines(html)).toEqual([
-      `Qloo data Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
+      'Qloo data Close pairs by listener overlap',
+      `item: Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
     ])
+    expect(html).toContain(
+      'Corner Booth and Slow Burn<span class="vh"> each rank among the other’s 3 closest shows by listener overlap.</span>'
+    )
     expect(html).toContain(`aria-label="Evidence for Corner Booth’s closest shows: call ${cb}"`)
     expect(html).toContain(`aria-label="Evidence for Slow Burn’s closest shows: call ${sb}"`)
     // A program reads it on the run's order, citing the calls the launch's evidence holds.
@@ -2953,7 +3081,8 @@ describe('close pairs in the plan', () => {
     )
     const [cb, sb] = ['e-0501', 'e-0502'].map((entity) => copies.find((e) => anchorOf(e) === entity)!.call)
     expect(pairLines(page(network, state, id))).toEqual([
-      `Qloo data Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
+      'Qloo data Close pairs by listener overlap',
+      `item: Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
     ])
   })
 })
@@ -3101,7 +3230,7 @@ describe("a launch's report", () => {
     expect(sections(html)).toEqual([
       chart,
       [
-        'Close pairs',
+        'Close pairs Qloo data',
         `From the roster’s overlap, measured ${made(state.rosterOverlap!.measuredAt!).split(',')[0]}, as the run copied it when it started.`
       ],
       [
@@ -3158,7 +3287,7 @@ describe("a launch's report", () => {
       (show) => state.rosterOverlap!.rows.find((r) => r.entity.name === show)!.copy!
     )
     expect(page).toContain(
-      `Close pairs From the roster’s overlap, measured ${made(state.rosterOverlap!.measuredAt!).split(',')[0]}, as the run copied it when it started. Qloo data Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
+      `Close pairs Qloo data From the roster’s overlap, measured ${made(state.rosterOverlap!.measuredAt!).split(',')[0]}, as the run copied it when it started. Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
     )
     expect(page).toContain(
       `Corner Booth 8 $9,600 Late-night regulars stay up for the call-ins. ${tags('Corner Booth')} $1,200 a slot`

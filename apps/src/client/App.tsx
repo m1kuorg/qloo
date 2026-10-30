@@ -8,6 +8,7 @@ import type { useAgent } from 'agents/react'
 import type { Comp, CrossfeedAgent, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall, State } from '../agent'
 import { inProgress } from '../limits'
 import { holdsSample } from '../roster'
+import { possessive } from '../text'
 import { RunChanges } from './Changes'
 import { Alert, percentile, useAction } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type OpenCall } from './Evidence'
@@ -88,13 +89,14 @@ export function Workspace({
         viewing ? (
           `As it was when run ${runNumber(runs, viewing.id)} ended, with that run’s exclusions.`
         ) : runs.length === 0 ? (
-          `Each run ranks ${network.name}’s roster as it stands when the run starts.`
+          `Each run ranks ${possessive(network.name)} roster as it stands when the run starts.`
         ) : agent.state?.rosterChanged ? (
           <b className="font-semibold text-foreground">
-            {network.name}’s roster has changed since the latest run started, so run again to rank it as it is now.
+            {possessive(network.name)} roster has changed since the latest run started, so run again to rank it as it is
+            now.
           </b>
         ) : (
-          `The latest run ranks ${network.name}’s roster as it stood when that run started.`
+          `The latest run ranks ${possessive(network.name)} roster as it stood when that run started.`
         )
       }
       actions={

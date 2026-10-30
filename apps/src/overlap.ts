@@ -174,11 +174,14 @@ export function planPairs(copy: OverlapCopy | undefined, lines: { show: string }
 
 // What the plan says of its close pairs (PlanPairs), in the words the plan and the MCP server's text both
 // use: a close pair, "3 closest shows", or on a roster of four to six shows, "closest show"; that no two of
-// its shows are one; the shows it has no ranking of; and that the overlap is stale for the run.
-export const closePairWords = (a: string, b: string, k: number) =>
+// its shows are one; the shows it has no ranking of; and that the overlap is stale for the run. A close
+// pair's words after its two names (`closePairTail`) are what the plan's list of pairs gives screen readers
+// alone, under its lead line.
+export const closePairTail = (k: number) =>
   k === 1
-    ? `${a} and ${b} are each other’s closest show by listener overlap.`
-    : `${a} and ${b} each rank among the other’s ${k} closest shows by listener overlap.`
+    ? ' are each other’s closest show by listener overlap.'
+    : ` each rank among the other’s ${k} closest shows by listener overlap.`
+export const closePairWords = (a: string, b: string, k: number) => `${a} and ${b}${closePairTail(k)}`
 export const noClosePairWords = (k: number) =>
   k === 1
     ? 'No two of the plan’s shows are each other’s closest show by listener overlap.'

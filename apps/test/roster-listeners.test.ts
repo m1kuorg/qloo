@@ -539,6 +539,9 @@ describe("the roster page's Listeners tab", () => {
     expect(words(tab(state))).toContain(
       'Leans are relative to the average in Qloo and describe listeners, not people. A gender lean inside the shaded zone isn’t counted. Profiled '
     )
+    // The table is named by its heading's words alone, not its chip's.
+    const by = tab(state).match(/<table\b[^>]*\saria-labelledby="([^"]+)"/)![1]
+    expect(words(tab(state).match(new RegExp(`id="${by}"[^>]*>(.*?)</span>`))![1])).toBe('Who your shows reach')
   })
 
   it("shows a teammate's profile as it's made, then what it found", async () => {
