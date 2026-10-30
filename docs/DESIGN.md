@@ -259,6 +259,7 @@ Contents:
     1.  [Icons](#icons)
     1.  [Titles and link previews](#titles-and-link-previews)
     1.  [Link-embed banner](#link-embed-banner)
+    1.  [README banner](#readme-banner)
 1.  [Components and recipes](#components-and-recipes)
     1.  [Where things live](#where-things-live)
     1.  [Recipes in variants.ts](#recipes-in-variantsts)
@@ -486,6 +487,16 @@ One picture stands for every public page in a link preview: `apps/public/og-1.pn
 - **Its name is versioned:** unfurlers keep an image by its address for days, so a changed banner takes the next number, `og-2.png`, in `banner.sh` and in `BANNER` in `shell.tsx`.
 
 Look at the PNG at full size and at about 600px wide before committing it.
+
+### README banner
+
+The repository's README opens on a wider banner in the same system, `docs/readme/banner-light.png` and `banner-dark.png`, 1280×640 at two device pixels to a CSS pixel, one for each colour scheme, which the README's `<picture>` picks by the reader's GitHub theme. `docs/readme/banner.html` is their one source, and `docs/readme/banner.sh` photographs it in each scheme through `apps/scripts/banner.sh`, with the same checks.
+
+- **Type-led:** the mark and wordmark top left, a line on what Crossfeed is in muted text under them, and the claim, "Rank by who listens", bottom left at 108px.
+- **One artefact:** beside the claim, the re-rank as a slope chart: the landing page's made-up roster by topic on the left and by who listens on the right, each show's line joining its two ranks. The climbers' lines, and their ▲ moves, are in signal; every other line is muted. Under it, "Illustration: made-up shows, not Qloo data."
+- **Nothing else:** no gradient, glow, texture or ASCII field.
+
+Look at both PNGs at full size and at about 830px wide, as GitHub shows a README, before committing them.
 
 ## Components and recipes
 

@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Crossfeed",
+    "output": "architecture.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "Crossfeed client"
+        },
+        "backend": {
+          "label": "Crossfeed server"
+        },
+        "database": {
+          "label": "Cloudflare D1"
+        },
+        "cloud": {
+          "label": "Cloudflare service"
+        }
+      }
+    },
+    "repository": {
+      "url": "https://github.com/m1kuorg/qloo",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "2a9eb4826925f470d5586fda42a5c514fb697528"
+    }
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Browser",
+      "sublabel": "React island, useAgent",
+      "pos": [40, 150],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "apps/src/client/main.tsx",
+          "line": 1,
+          "end_line": 141,
+          "label": "the island's pages"
+        },
+        {
+          "path": "apps/src/routes/app.tsx",
+          "line": 790,
+          "end_line": 790,
+          "label": "its agent's path"
+        }
+      ]
+    },
+    {
+      "id": "scripts",
+      "type": "external",
+      "label": "Scripts",
+      "sublabel": "REST API or the SDK",
+      "pos": [40, 270],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "packages/sdk/src/index.ts",
+          "line": 118,
+          "end_line": 130,
+          "label": "the Crossfeed client"
+        },
+        {
+          "path": "apps/src/routes/api.ts",
+          "line": 65,
+          "end_line": 80,
+          "label": "/api/v1, API key"
+        }
+      ]
+    },
+    {
+      "id": "assistants",
+      "type": "external",
+      "label": "AI assistants",
+      "sublabel": "MCP, Claude Code plugin",
+      "pos": [40, 390],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "plugins/crossfeed/.mcp.json",
+          "line": 1,
+          "end_line": 9,
+          "label": "the plugin's MCP server"
+        },
+        {
+          "path": "apps/src/routes/mcp.ts",
+          "line": 825,
+          "end_line": 840,
+          "label": "/mcp"
+        }
+      ]
+    },
+    {
+      "id": "cron",
+      "type": "cloud",
+      "label": "Cron triggers",
+      "sublabel": "hourly; guests cleared 12:00",
+      "pos": [300, 30],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "apps/wrangler.jsonc",
+          "line": 11,
+          "end_line": 11,
+          "label": "the two crons"
+        },
+        {
+          "path": "apps/src/index.tsx",
+          "line": 64,
+          "end_line": 84,
+          "label": "scheduled"
+        }
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Worker",
+      "sublabel": "Hono: pages, auth, API, MCP",
+      "pos": [300, 150],
+      "size": [170, 304],
+      "sources": [
+        {
+          "path": "apps/src/index.tsx",
+          "line": 1,
+          "end_line": 59,
+          "label": "one app, a module per surface"
+        },
+        {
+          "path": "apps/src/routes/app.tsx",
+          "line": 808,
+          "end_line": 830,
+          "label": "agent connections"
+        }
+      ]
+    },
+    {
+      "id": "d1",
+      "type": "database",
+      "label": "D1 directory",
+      "sublabel": "members, networks, keys",
+      "pos": [290, 510],
+      "size": [190, 64],
+      "sources": [
+        {
+          "path": "apps/src/directory.ts",
+          "line": 1,
+          "end_line": 4,
+          "label": "the only code that reads it"
+        },
+        {
+          "path": "apps/wrangler.jsonc",
+          "line": 70,
+          "end_line": 77,
+          "label": "DB"
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "type": "backend",
+      "label": "NetworkAgent",
+      "sublabel": "one per network: roster, inbox",
+      "pos": [570, 150],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "apps/src/network-agent.ts",
+          "line": 202,
+          "end_line": 210,
+          "label": "NetworkAgent"
+        }
+      ]
+    },
+    {
+      "id": "launch",
+      "type": "backend",
+      "label": "LaunchAgent",
+      "sublabel": "one per launch: runs, orders",
+      "pos": [570, 390],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "apps/src/launch-agent.ts",
+          "line": 45,
+          "end_line": 55,
+          "label": "LaunchAgent"
+        }
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "QlooGateway",
+      "sublabel": "the one door: cache, caps",
+      "pos": [830, 270],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "apps/src/gateway.ts",
+          "line": 122,
+          "end_line": 130,
+          "label": "QlooGateway"
+        },
+        {
+          "path": "apps/src/gateway.ts",
+          "line": 685,
+          "end_line": 690,
+          "label": "the call to Qloo"
+        }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "type": "external",
+      "label": "Anthropic API",
+      "sublabel": "claude-haiku-5-5",
+      "pos": [1350, 270],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "apps/src/claude.ts",
+          "line": 1,
+          "end_line": 30,
+          "label": "the model and one turn"
+        },
+        {
+          "path": "apps/src/agent.ts",
+          "line": 1532,
+          "end_line": 1532,
+          "label": "the agent's loop"
+        }
+      ]
+    },
+    {
+      "id": "qloo",
+      "type": "external",
+      "label": "Qloo API",
+      "sublabel": "search, insights, compare",
+      "pos": [1090, 270],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "apps/wrangler.jsonc",
+          "line": 13,
+          "end_line": 13,
+          "label": "QLOO_BASE_URL"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Clients",
+      "wraps": ["browser", "scripts", "assistants"]
+    },
+    {
+      "kind": "region",
+      "label": "Cloudflare",
+      "wraps": ["cron", "worker", "d1", "network", "launch", "gateway"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-to-worker",
+      "from": "browser",
+      "to": "worker",
+      "label": "pages, WebSocket"
+    },
+    {
+      "id": "scripts-to-worker",
+      "from": "scripts",
+      "to": "worker",
+      "label": "API key"
+    },
+    {
+      "id": "assistants-to-worker",
+      "from": "assistants",
+      "to": "worker",
+      "label": "/mcp, API key"
+    },
+    {
+      "id": "cron-to-worker",
+      "from": "cron",
+      "to": "worker",
+      "label": "clear, check"
+    },
+    {
+      "id": "worker-to-d1",
+      "from": "worker",
+      "to": "d1",
+      "label": "SQL"
+    },
+    {
+      "id": "worker-to-network",
+      "from": "worker",
+      "to": "network",
+      "label": "/agents/network"
+    },
+    {
+      "id": "worker-to-launch",
+      "from": "worker",
+      "to": "launch",
+      "label": "/agents/launch"
+    },
+    {
+      "id": "network-to-launch",
+      "from": "network",
+      "to": "launch",
+      "label": "RPC",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "network-to-anthropic",
+      "from": "network",
+      "to": "anthropic",
+      "label": "pitch runs",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [
+        [660, 110],
+        [1440, 110]
+      ]
+    },
+    {
+      "id": "launch-to-anthropic",
+      "from": "launch",
+      "to": "anthropic",
+      "label": "tool loop",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [660, 500],
+        [1440, 500]
+      ]
+    },
+    {
+      "id": "network-to-gateway",
+      "from": "network",
+      "to": "gateway",
+      "label": "overlap, profile",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [[920, 182]]
+    },
+    {
+      "id": "launch-to-gateway",
+      "from": "launch",
+      "to": "gateway",
+      "label": "rank, compare",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "via": [[920, 422]]
+    },
+    {
+      "id": "gateway-to-qloo",
+      "from": "gateway",
+      "to": "qloo",
+      "label": "every Qloo call",
+      "variant": "emphasis"
+    }
+  ]
+}
