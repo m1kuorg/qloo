@@ -792,6 +792,13 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
         </code>
         . This reference is generated from the API’s OpenAPI 3.1 document, the contract its requests are validated
         against, served at <OpenApi accounts={accounts} />.
+        {/* The app's playground sends any route as the member signed in, so it's there only while accounts are. */}
+        {accounts && (
+          <>
+            {' '}
+            Signed in, you can send any route to your own network from the <a href="/app/playground">playground</a>.
+          </>
+        )}
       </>
     ),
     sections: [

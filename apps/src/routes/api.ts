@@ -1664,8 +1664,9 @@ api.openapi(
 
 // What an operation costs: it reads, changes, deletes, spends one of the network's daily model runs, or
 // calls Qloo (counted in its daily Qloo calls). Answering a run's question resumes a run already
-// counted, whose turns call Qloo. The document gives each as `x-crossfeed-cost`.
-type Cost = 'Reads' | 'Changes' | 'Deletes' | 'Spends a model run' | 'Calls Qloo'
+// counted, whose turns call Qloo. The document gives each as `x-crossfeed-cost`, and the Developers
+// page's playground words each.
+export type Cost = 'Reads' | 'Changes' | 'Deletes' | 'Spends a model run' | 'Calls Qloo'
 const COSTS: Record<string, Cost> = {
   'GET /api/v1/networks/{networkId}': 'Reads',
   'PATCH /api/v1/networks/{networkId}': 'Changes',

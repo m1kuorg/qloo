@@ -123,13 +123,18 @@ appPages.get('/app', async (c) => {
   return c.redirect(id ? `/app/${id}` : '/app/new', 302)
 })
 
-// The Developers page of the network /app opens, for the docs to link to with no network's ID; with no
-// network, /app/new, as /app leads there. It comes before the network pages, whose IDs it would
-// otherwise look like.
-appPages.get('/app/developers', async (c) => {
-  const id = await openedNetwork(c)
-  return c.redirect(id ? networkLinks(c.env, id).developers : '/app/new', 302)
-})
+// The Developers page of the network /app opens, for the docs to link to with no network's ID, at its
+// tab `hash` when there is one: /app/developers on Connect your AI, /app/playground on the playground.
+// With no network, /app/new, as /app leads there. They come before the network pages, whose IDs they
+// would otherwise look like.
+const toDevelopers =
+  (hash = '') =>
+  async (c: Context<AppEnv>) => {
+    const id = await openedNetwork(c)
+    return c.redirect(id ? `${networkLinks(c.env, id).developers}${hash}` : '/app/new', 302)
+  }
+appPages.get('/app/developers', toDevelopers())
+appPages.get('/app/playground', toDevelopers('#playground'))
 
 // Naming a new network. The landing page's "Create your network" leads here.
 appPages.get('/app/new', async (c) => {

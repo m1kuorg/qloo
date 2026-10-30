@@ -87,7 +87,8 @@ const unescaped = (html: string) =>
 // as its code blocks, each its caption, what its Copy names (null for none) and its code, and its
 // links, each its words and where it goes.
 const picker = (html: string) => {
-  const list = hooked(html, 'role="tablist"')[0]
+  // The picker's own list, as the page's tabs, Connect your AI and the playground, have one too.
+  const list = hooked(html, 'aria-label="Assistants"')[0]
   const tabs = [...list.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)]
   return {
     tabs: tabs.map(([, , name]) => words(name)),
