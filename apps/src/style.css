@@ -198,7 +198,8 @@
   letter-spacing: -0.025em;
   font-weight: 600;
 }
-/* The landing h1 only, a two-line statement across the page: 12.5vw, and 17vw flush left on phones. */
+/* The landing h1, a two-line statement across the page, and the 404 and error pages' headings
+   (routes/marketing.tsx): 12.5vw, and 17vw flush left on phones. */
 @utility type-poster {
   font-size: clamp(96px, 12.5vw, 200px);
   line-height: 0.86;
@@ -524,6 +525,22 @@
     opacity: 0;
     translate: 0 32px;
     transition: none;
+  }
+}
+
+/* A status page's lists (routes/marketing.tsx), its ways back and the 404 page's ranking: after the
+   sentence has risen in, each item rises in 70ms after the one before. Only with motion allowed, so
+   with reduced motion every item is in place from the start. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-stagger] > * {
+    animation: var(--animate-rise-in);
+    animation-delay: 550ms;
+  }
+  [data-stagger] > :nth-child(2) {
+    animation-delay: 620ms;
+  }
+  [data-stagger] > :nth-child(3) {
+    animation-delay: 690ms;
   }
 }
 

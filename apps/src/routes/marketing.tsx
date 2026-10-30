@@ -25,7 +25,7 @@ import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
-import { GuestButton, MarketingPage, marketingShell, networkLinks, type AppVariables } from '../shell'
+import { DOCS, GuestButton, MarketingPage, marketingShell, networkLinks, type AppVariables } from '../shell'
 import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
 import { CLIMB, topicFinding } from '../topic'
 
@@ -1578,12 +1578,21 @@ marketing.get('/terms', marketingShell('Beta terms', TERMS), (c) => c.render(<Te
 const way = buttonVariants({ variant: 'secondary', size: 'lg' })
 
 // A status page, the 404 page or the error page, in the marketing shell as the Worker's answer with
-// `status`: its heading at display size, then beside it from 1024px one sentence, its ways back (`ways`,
-// each an <li>), and anything else it says. A page to preview or index has a `description` for its card.
+// `status`: its heading at poster size, then under it one sentence, its ways back (`ways`, each an <li>),
+// and anything else it says; and what stands beside them from 1024px (`beside`), the 404 page's ranking,
+// under them below. A page to preview or index has a `description` for its card.
 function statusPage(
   c: Context<{ Bindings: Env }>,
   status: 404 | 500,
-  page: { title: string; description?: string; heading: string; sentence: string; ways: Child; children?: Child }
+  page: {
+    title: string
+    description?: string
+    heading: string
+    sentence: Child
+    ways: Child
+    children?: Child
+    beside?: Child
+  }
 ) {
   return c.html(
     html`<!DOCTYPE html>${(
@@ -1601,19 +1610,26 @@ function statusPage(
           <main
             class={cn(
               marketingFrame,
-              'grid min-h-[60svh] content-start gap-x-10 gap-y-6 pt-16 md:pt-32 lg:grid-cols-2 lg:items-baseline'
+              'grid min-h-[60svh] content-start gap-x-6 gap-y-16 pt-16 md:pt-32 lg:grid-cols-12'
             )}
           >
-            <h1 class="type-display">
-              <span class="line-mask">
-                <span class="block motion-safe:animate-line-up">{page.heading}</span>
-              </span>
-            </h1>
-            <div class="motion-safe:animate-rise-in">
-              <p class="max-w-[46ch]">{page.sentence}</p>
-              <ul class="mt-8 flex flex-wrap gap-3">{page.ways}</ul>
+            <div class="lg:col-span-8">
+              {/* No wider than 6em, so "Not on the roster." breaks after "the" at every width; from 1024px
+                  its eight columns are what hold "Not on the" at poster size. */}
+              <h1 class="max-w-[6em] type-poster">
+                <span class="line-mask">
+                  <span class="block motion-safe:animate-line-up">{page.heading}</span>
+                </span>
+              </h1>
+              <p class="mt-10 max-w-[34em] type-title font-normal text-pretty motion-safe:animate-rise-in max-md:text-lg/[1.45] md:mt-12">
+                {page.sentence}
+              </p>
+              <ul data-stagger class="mt-8 flex flex-wrap gap-3">
+                {page.ways}
+              </ul>
               {page.children}
             </div>
+            {page.beside && <div class="lg:col-span-4 lg:col-start-9">{page.beside}</div>}
           </main>
         </MarketingPage>
       )}`,
@@ -1630,16 +1646,111 @@ const pageRequest = (c: Context) =>
   !/^\/(api|agents|mcp|auth)(\/|$)/.test(c.req.path) &&
   !c.req.path.endsWith('.csv')
 
+// Crossfeed's own pages closest to the address a visitor asked for, closest first, three at most, as a
+// launch ranks a roster: home, the developer docs, privacy and the beta terms, and while accounts are on
+// the ways in. A page's overlap is the Dice coefficient of the character pairs, repeats counted, of the
+// address and the page's address or its name, whichever is higher, each lowercased with its slashes,
+// dashes, underscores and dots read as spaces. Only the address's first 200 characters count, a page
+// under 0.4 isn't close, and pages that tie keep this order.
+function closest(path: string, accounts: boolean) {
+  const pages = [
+    { href: '/', label: 'Home' },
+    { href: '/docs', label: 'Developers' },
+    ...DOCS,
+    { href: '/privacy', label: 'Privacy' },
+    { href: '/terms', label: 'Beta terms' },
+    ...(accounts
+      ? [
+          { href: '/sign-in', label: 'Sign in' },
+          { href: '/app/new', label: 'Create your network' },
+          { href: '/app', label: 'Your networks' }
+        ]
+      : [])
+  ]
+  const pairs = (text: string) => {
+    const read = text
+      .toLowerCase()
+      .replace(/[\s/._-]+/g, ' ')
+      .trim()
+    return Array.from({ length: Math.max(read.length - 1, 0) }, (_, i) => read.slice(i, i + 2))
+  }
+  const asked = pairs(path.slice(0, 200))
+  const overlap = (text: string) => {
+    const left = pairs(text)
+    const total = asked.length + left.length
+    const shared = asked.filter((pair) => {
+      const i = left.indexOf(pair)
+      if (i >= 0) left.splice(i, 1)
+      return i >= 0
+    }).length
+    return total ? (2 * shared) / total : 0
+  }
+  return pages
+    .map(({ href, label }) => ({ href, label, overlap: Math.max(overlap(href), overlap(label)) }))
+    .filter((page) => page.overlap >= 0.4)
+    .sort((a, b) => b.overlap - a.overlap)
+    .slice(0, 3)
+}
+
 // What the Worker answers when nothing serves a request, or a route refuses one as not found: the 404
 // page to a browser asking for a page, with ways back home, and while ACCOUNTS is on, to the sample
-// network, as guest sign-in, and to the visitor's networks; otherwise Hono's plain 404.
+// network, as guest sign-in, and to the visitor's networks; and beside them the site's pages closest to
+// the address asked for, set as a launch's re-rank sets its finalists, with the address itself under
+// them as not on the roster. The address is shown as Hono read it, decoded where it could be, cut to 80
+// characters. Otherwise Hono's plain 404.
 export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
   if (!pageRequest(c)) return c.text('404 Not Found', 404)
+  const chars = [...c.req.path]
+  const address = (
+    <bdi translate="no" class="wrap-anywhere">
+      {chars.length > 80 ? `${chars.slice(0, 79).join('')}…` : c.req.path}
+    </bdi>
+  )
+  const ranked = closest(c.req.path, c.env.ACCOUNTS === 'on')
   return statusPage(c, 404, {
     title: 'Not found',
     description: 'Crossfeed has no page at this address: the link may be mistyped, or what it led to was deleted.',
     heading: 'Not on the roster.',
-    sentence: 'Crossfeed has no page at this address. The link may be mistyped, or what it led to was deleted.',
+    sentence: <>Crossfeed has no page at {address}. The link may be mistyped, or what it led to was deleted.</>,
+    beside: (
+      <section aria-labelledby="closest-h">
+        <h2 id="closest-h" class="type-ui font-medium text-muted-foreground motion-safe:animate-rise-in">
+          Closest on the roster
+        </h2>
+        {ranked.length ? (
+          <ol role="list" data-stagger class="mt-3 flex flex-col gap-1">
+            {ranked.map(({ href, label }, i) => (
+              <li>
+                {/* The row's wash reaches past its words, which line up with the heading; from 1024px it
+                    stops at the frame's right edge. */}
+                <a
+                  class={cn(
+                    'group -mx-4 block rounded-lg px-4 py-3 active:translate-y-px lg:mr-0',
+                    i === 0 && 'bg-signal-tint'
+                  )}
+                  href={href}
+                >
+                  <span class="block type-title decoration-2 underline-offset-[0.12em] group-hover:underline">
+                    {label}
+                  </span>
+                  <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 type-ui text-muted-foreground">
+                    {i === 0 && <span class={badgeVariants({ mark: 'signal' })}>Closest</span>}
+                    <span translate="no">{href}</span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p class="mt-3 type-title font-normal text-pretty motion-safe:animate-rise-in motion-safe:[animation-delay:550ms]">
+            Nothing on the roster is close to that address.
+          </p>
+        )}
+        <p class="mt-4 type-ui text-muted-foreground motion-safe:animate-rise-in motion-safe:[animation-delay:760ms]">
+          {address}: not on the roster
+        </p>
+      </section>
+    ),
     ways: (
       <>
         <li>
