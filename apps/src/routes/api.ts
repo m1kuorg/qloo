@@ -1516,6 +1516,44 @@ const OrderLine = z.object({
   value: z.number().nullable().openapi({ description: 'Slots × slot value.' }),
   gap: z.string().nullable().openapi({ description: 'Why the line has no value, such as no downloads per episode.' })
 })
+// The close pairs among an order's lines' shows, from the roster's overlap its run copied.
+const ClosePairs = z
+  .object({
+    closestCount: z.number().int().openapi({
+      description:
+        'How many closest shows each show had in the overlap the run copied: 3, or fewer on a roster of under 10 matched shows.'
+    }),
+    stale: z.boolean().openapi({
+      description:
+        "The roster's matched shows had changed since the overlap was measured, so it names no pairs: measure it again, then run again."
+    }),
+    pairs: z
+      .array(
+        z.object({
+          shows: z.tuple([z.string(), z.string()]),
+          calls: z.tuple([z.string(), z.string()]).openapi({
+            description: "Each show's ranking of the rest of the roster, by its call number in the launch's evidence."
+          })
+        })
+      )
+      .openapi({
+        description: "Pairs of the order's shows that each rank among the other's closest shows, in the order's order."
+      }),
+    unchecked: z.array(z.string()).openapi({
+      description: "The order's shows the overlap has no ranking of, so no pair with them is named."
+    })
+  })
+  .openapi('ClosePairs', {
+    description:
+      "The close pairs among an order's shows, by listener overlap, from the roster's overlap as the run copied it when it started, with the order's lines as they stand now. Absent when the network's roster had no completed overlap measure as the run started, so nothing is said of pairs.",
+    example: {
+      closestCount: 3,
+      stale: false,
+      pairs: [{ shows: ['Deep Cuts', 'Field Notes'], calls: ['C-21', 'C-22'] }],
+      unchecked: []
+    }
+  })
+
 const InsertionOrder = z
   .object({
     id: z.string().openapi({ example: 'IO-0001' }),
@@ -1537,7 +1575,8 @@ const InsertionOrder = z
     fromSample: z.boolean().optional().openapi({
       description:
         "`true` on an approved order of one of the guest network's sample launches: approved in the sample data as its run was captured, by `approvedBy`, not by a member of this network. Editing it returns it to `draft` without it."
-    })
+    }),
+    closePairs: ClosePairs.optional()
   })
   .openapi('InsertionOrder', {
     description:
@@ -1776,10 +1815,10 @@ const Evidence = z
         explainability: z.array(z.object({ id: z.string(), score: z.number() }))
       })
     ),
-    copiedFrom: z
-      .string()
-      .optional()
-      .openapi({ description: "The network's call this copies, from the roster's lookup, as the run started." })
+    copiedFrom: z.string().optional().openapi({
+      description:
+        "The network's call this copies: a roster lookup, as the run started, or a ranking of the roster's overlap, as the run drafted its order."
+    })
   })
   .openapi('Evidence', {
     description: 'One Qloo call: what was sent and what came back, scores included.',
@@ -1808,7 +1847,7 @@ api.openapi(
     tags: ['Evidence'],
     summary: "Read a launch's evidence",
     description:
-      "The launch's evidence log, oldest first: one record per Qloo call its runs made, and the roster's lookups each run copied as it started. Every call number a run cites opens one of these.",
+      "The launch's evidence log, oldest first: one record per Qloo call its runs made, the roster's lookups each run copied as it started, and the rankings of the roster's overlap each run copied for its finalists as it drafted its order. Every call number a run cites opens one of these.",
     request: { params: LaunchParams },
     responses: {
       200: {

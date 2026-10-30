@@ -113,7 +113,11 @@ export function EvidencePanel({ opened, names, runs }: { opened: Opened | null; 
                 {record.replayed ? (
                   <Badge variant="outline">Replayed</Badge>
                 ) : (
-                  record.copiedFrom && <Badge variant="outline">From the roster</Badge>
+                  record.copiedFrom && (
+                    <Badge variant="outline">
+                      {fromOverlap(record) ? 'From the roster’s overlap' : 'From the roster'}
+                    </Badge>
+                  )
                 )}
               </>
             )
@@ -214,6 +218,11 @@ const kindOf = ({ endpoint, params }: Evidence) =>
           ? 'demographics'
           : 'ranking'
 
+// Whether a copied record is a ranking of the roster's overlap, which a launch's run copies as it drafts
+// its order, rather than a roster lookup, which it copies as it starts: the network makes no other
+// ranking a launch copies.
+const fromOverlap = (record: Evidence) => !!record.copiedFrom && kindOf(record) === 'ranking'
+
 const failed = {
   search: 'The search failed.',
   ranking: 'The ranking failed.',
@@ -285,7 +294,9 @@ function EvidenceRecord({ record, names, run }: { record: Evidence; names: Names
             record.copiedFrom && (
               // The network's call, not this log's, which may have a call by the same number.
               <KeyValue label="Answer">
-                From the network’s roster, its call{' '}
+                {fromOverlap(record)
+                  ? 'From the roster’s overlap, the network’s call'
+                  : 'From the network’s roster, its call'}{' '}
                 <code className="font-mono text-xs" translate="no">
                   {record.copiedFrom}
                 </code>

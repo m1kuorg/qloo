@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { buttonVariants } from '@/components/ui/variants'
 import type { Budget, Show } from '../agent'
 import { NO_ANGLE, type SharedTags } from '../fit'
+import { planPairs, type OverlapCopy, type PlanPairs } from '../overlap'
 import { MAX_ANGLE } from '../text'
 import {
   angleOptional,
@@ -20,7 +21,7 @@ import {
   type OrderLine,
   type Priced
 } from '../order'
-import { Alert, day, useAction, useLeaveGuard } from './controls'
+import { Alert, day, listOf, useAction, useLeaveGuard } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
 import { Section } from './PageHeader'
 import { Source } from './Source'
@@ -29,8 +30,9 @@ import { StateLine } from './states'
 // The plan: the run's insertion order as a document on the card, priced as the inventory it spends.
 // The agent drafts the slots and angles and code prices them, as the plan's sentence says, over the
 // card; only the programmer edits, approves, and exports. Its lines carry the signal mark, since
-// they're what the agent puts forward. Editing turns the lines' cells into fields in place, with the
-// totals and checks following what's typed.
+// they're what the agent puts forward. Under the checks, the close pairs among its lines' shows, from
+// the overlap the run copied. Editing turns the lines' cells into fields in place, with the totals,
+// checks and close pairs following what's typed.
 export function InsertionOrderPanel({
   order,
   roster,
@@ -41,11 +43,12 @@ export function InsertionOrderPanel({
   readOnly,
   exportHref,
   sharedTags,
+  overlap,
   openCall,
   opened
 }: {
   order: InsertionOrder
-  roster: Show[] // for the live totals while editing, and whether sample figures price the total
+  roster: Show[] // for the live totals while editing, whether sample figures price the total, and the lines' close pairs
   cpm: number | null
   sampleCpm: boolean // the CPM is still the sample network's
   budget: Budget | null
@@ -53,6 +56,7 @@ export function InsertionOrderPanel({
   readOnly: string | null // why there are no actions, such as an earlier run being viewed
   exportHref: string | null // where an approved order's CSV downloads, if it has an export here
   sharedTags: Record<string, SharedTags> // by show, the compare its angle draws on, or that returned no tags
+  overlap: OverlapCopy | undefined // the roster's overlap as the order's run copied it, if it had one
   openCall: OpenCall
   opened: string | null
 }) {
@@ -135,6 +139,9 @@ export function InsertionOrderPanel({
               budget={budget}
               sample={sample}
               sharedTags={sharedTags}
+              overlap={overlap}
+              openCall={openCall}
+              opened={opened}
               save={async (lines) => {
                 if (await run(() => actions.edit(lines))) stopEditing()
               }}
@@ -167,6 +174,7 @@ export function InsertionOrderPanel({
                 })}
               </Lines>
               <Checks priced={order} budget={budget} />
+              <ClosePairs pairs={planPairs(overlap, order.lines, roster)} openCall={openCall} opened={opened} />
               {approved && order.approvedBy && order.approvedAt && (
                 <p className="flex items-start gap-1.5" ref={approvedLine} tabIndex={-1}>
                   <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
@@ -350,8 +358,65 @@ function Checks({ priced, budget }: { priced: Priced; budget: Budget | null }) {
   )
 }
 
+// What the plan says of the close pairs among its lines' shows (planPairs), under the checks: each pair in
+// ink, the Qloo data chip before it and both shows' rankings' calls after, or that no two of its shows are
+// one; then, muted, the shows it has no ranking of; or, in place of all of it, muted, that the overlap is
+// stale for this run. With no overlap copied, it says nothing.
+function ClosePairs({
+  pairs,
+  openCall,
+  opened
+}: {
+  pairs: PlanPairs | null
+  openCall: OpenCall
+  opened: string | null
+}) {
+  if (!pairs) return null
+  const { closestCount: k, unchecked } = pairs
+  // "3 closest shows", or on a roster of four to six shows, "closest show".
+  const close = (a: string, b: string) =>
+    k === 1
+      ? `${a} and ${b} are each other’s closest show by listener overlap.`
+      : `${a} and ${b} each rank among the other’s ${k} closest shows by listener overlap.`
+  const cite = (show: string, call: string) => (
+    <CallButton call={call} label={`Evidence for ${show}’s closest shows`} opened={opened} openCall={openCall} />
+  )
+  return (
+    <div className="flex flex-col gap-1" data-close-pairs>
+      {pairs.stale ? (
+        <p className="max-w-[72ch] text-muted-foreground">
+          The roster’s matched shows had changed since its overlap was measured, so the plan can’t say which of its
+          shows are close pairs. Measure the overlap again, then run again.
+        </p>
+      ) : (
+        <>
+          {pairs.pairs.map(({ shows: [a, b], calls: [x, y] }) => (
+            <p key={`${a} ${b}`} className="max-w-[72ch]">
+              <Source of="qloo" /> {close(a, b)} {cite(a, x)} {cite(b, y)}
+            </p>
+          ))}
+          {pairs.pairs.length === 0 && unchecked.length === 0 && (
+            <p className="max-w-[72ch] text-muted-foreground">
+              <Source of="qloo" />{' '}
+              {k === 1
+                ? 'No two of the plan’s shows are each other’s closest show by listener overlap.'
+                : `No two of the plan’s shows each rank among the other’s ${k} closest shows by listener overlap.`}
+            </p>
+          )}
+          {unchecked.length > 0 && (
+            <p className="max-w-[72ch] text-muted-foreground">
+              The roster’s overlap has no ranking of {listOf(unchecked)} for this run, so the plan can’t say whether{' '}
+              {unchecked.length === 1 ? 'it’s' : 'they’re'} in a close pair.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // The lines as the programmer edits them, in place: the angle, the slots and a way to drop each line,
-// with the totals and checks recomputed as they type.
+// with the totals, checks and close pairs recomputed as they type.
 function EditLines({
   order,
   roster,
@@ -359,6 +424,9 @@ function EditLines({
   budget,
   sample,
   sharedTags,
+  overlap,
+  openCall,
+  opened,
   save,
   cancel,
   busy
@@ -369,6 +437,9 @@ function EditLines({
   budget: Budget | null
   sample: (line: OrderLine) => boolean
   sharedTags: Record<string, SharedTags>
+  overlap: OverlapCopy | undefined
+  openCall: OpenCall
+  opened: string | null
   save: (lines: LineInput[]) => Promise<void>
   cancel: () => void
   busy: boolean
@@ -463,6 +534,7 @@ function EditLines({
           })}
         </Lines>
         <Checks priced={priced} budget={budget} />
+        <ClosePairs pairs={planPairs(overlap, lines, roster)} openCall={openCall} opened={opened} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Button type="submit" disabled={invalid}>
             {busy && <Spinner data-icon="inline-start" />}

@@ -226,6 +226,11 @@ export class LaunchAgent extends CrossfeedAgent {
     return copy
   }
 
+  // A run copies its finalists' rankings from the roster's overlap, which its network's log holds.
+  protected async networkEvidence(calls: string[]) {
+    return (await getAgentByName(this.env.NetworkAgent, this.networkId)).getEvidence(calls)
+  }
+
   // Wipes the launch once its network has let go of it (wipe.ts), as when it's deleted, or its network
   // is. Its open pages close first, for good, saying why; the client takes a 4000s close code as final.
   async destroy(reason = LAUNCH_DELETED) {

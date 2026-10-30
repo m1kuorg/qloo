@@ -2925,6 +2925,9 @@
           "fromSample": {
             "type": "boolean",
             "description": "`true` on an approved order of one of the guest network's sample launches: approved in the sample data as its run was captured, by `approvedBy`, not by a member of this network. Editing it returns it to `draft` without it."
+          },
+          "closePairs": {
+            "$ref": "#/components/schemas/ClosePairs"
           }
         },
         "required": [
@@ -2939,6 +2942,86 @@
           "edited"
         ],
         "description": "The launch plan priced as the inventory it spends: a slot is worth downloads per episode × CPM ÷ 1,000."
+      },
+      "ClosePairs": {
+        "type": "object",
+        "properties": {
+          "closestCount": {
+            "type": "integer",
+            "description": "How many closest shows each show had in the overlap the run copied: 3, or fewer on a roster of under 10 matched shows."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "The roster's matched shows had changed since the overlap was measured, so it names no pairs: measure it again, then run again."
+          },
+          "pairs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "shows": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "calls": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "description": "Each show's ranking of the rest of the roster, by its call number in the launch's evidence."
+                }
+              },
+              "required": [
+                "shows",
+                "calls"
+              ]
+            },
+            "description": "Pairs of the order's shows that each rank among the other's closest shows, in the order's order."
+          },
+          "unchecked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The order's shows the overlap has no ranking of, so no pair with them is named."
+          }
+        },
+        "required": [
+          "closestCount",
+          "stale",
+          "pairs",
+          "unchecked"
+        ],
+        "description": "The close pairs among an order's shows, by listener overlap, from the roster's overlap as the run copied it when it started, with the order's lines as they stand now. Absent when the network's roster had no completed overlap measure as the run started, so nothing is said of pairs.",
+        "example": {
+          "closestCount": 3,
+          "stale": false,
+          "pairs": [
+            {
+              "shows": [
+                "Deep Cuts",
+                "Field Notes"
+              ],
+              "calls": [
+                "C-21",
+                "C-22"
+              ]
+            }
+          ],
+          "unchecked": []
+        }
       },
       "LaunchPlan": {
         "type": "object",
@@ -3129,7 +3212,7 @@
           },
           "copiedFrom": {
             "type": "string",
-            "description": "The network's call this copies, from the roster's lookup, as the run started."
+            "description": "The network's call this copies: a roster lookup, as the run started, or a ranking of the roster's overlap, as the run drafted its order."
           }
         },
         "required": [
@@ -5435,7 +5518,7 @@
           "Evidence"
         ],
         "summary": "Read a launch's evidence",
-        "description": "The launch's evidence log, oldest first: one record per Qloo call its runs made, and the roster's lookups each run copied as it started. Every call number a run cites opens one of these.",
+        "description": "The launch's evidence log, oldest first: one record per Qloo call its runs made, the roster's lookups each run copied as it started, and the rankings of the roster's overlap each run copied for its finalists as it drafted its order. Every call number a run cites opens one of these.",
         "x-crossfeed-cost": "Reads",
         "parameters": [
           {

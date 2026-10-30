@@ -22,6 +22,9 @@ export type ToolContext = {
   state: () => State
   // Changes synced state; return the same object for no change.
   update: (change: (state: State) => State) => void
+  // Copies into the session's log the records of the roster overlap's calls that the finalists' rows
+  // cite, once the order is drafted, so the plan's close pairs cite records the session holds.
+  citeOverlap: () => Promise<void>
 }
 
 // What the model gets back. An error says what went wrong and what to do next.
