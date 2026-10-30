@@ -8,6 +8,7 @@ import type { useAgent } from 'agents/react'
 import type { Comp, CrossfeedAgent, Launch, LaunchInput, Run, RunSnapshot, RunSummary, SlowCall, State } from '../agent'
 import { inProgress } from '../limits'
 import { holdsSample } from '../roster'
+import { RunChanges } from './Changes'
 import { Alert, percentile, useAction } from './controls'
 import { CallButton, EvidencePanel, useEvidence, type OpenCall } from './Evidence'
 import { FitChart } from './FitChart'
@@ -32,12 +33,26 @@ export type Links = { roster: string }
 // synced state. It ranks the network's roster, read-only here, and its approved insertion orders
 // export under `orders`, as `<orders>/<id>.csv`. The canvas reads in the order a run asks for
 // attention: the launch and its readout, the launch form, the agent's question, then, from the first
-// run on, the run's sections in tabs: Ranking (the fit chart), Plan once there's an order, and Roster.
-// Before it there's only the roster. The inspector beside it, closed until something opens it, holds
-// what a person checks: the run's trace and a call's evidence.
-export function Workspace({ agent, network, orders }: { agent: Session; network: NetworkPage; orders: string }) {
+// run on, the run's sections in tabs: Ranking (the fit chart), Plan once there's an order, Changes once
+// the launch has two completed runs, and Roster. Before it there's only the roster. The inspector beside
+// it, closed until something opens it, holds what a person checks: the run's trace and a call's
+// evidence. `earlier` holds earlier runs as getRun returns them, which Changes reads itself unless it's
+// given them, as the tests give them.
+export function Workspace({
+  agent,
+  network,
+  orders,
+  earlier
+}: {
+  agent: Session
+  network: NetworkPage
+  orders: string
+  earlier?: Record<string, RunSnapshot>
+}) {
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
   const [viewing, setViewing] = useState<{ id: string; state: RunSnapshot } | null>(null)
+  // Whether Changes has shown, so the earlier run it compares with is read only once it's wanted.
+  const [changesSeen, setChangesSeen] = useState(false)
   const shown = viewing?.state ?? agent.state
   const roster = shown?.roster ?? []
   // The latest run, unless it's a guest pitch run, which the inbox page shows instead.
@@ -178,10 +193,12 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
         {runs.length === 0 ? (
           rosterSection
         ) : (
-          // From the first run on, the run's sections in tabs: the ranking, the plan once there's one,
-          // and the roster it ranked, with the CPM that prices its slots.
+          // From the first run on, the run's sections in tabs: the ranking, the plan once there's one, what
+          // changed since an earlier run once two have completed, and the roster it ranked, with the CPM
+          // that prices its slots.
           <PageTabs
             label="Launch sections"
+            onShown={(id) => id === 'changes' && setChangesSeen(true)}
             tabs={[
               {
                 id: 'ranking',
@@ -242,6 +259,23 @@ export function Workspace({ agent, network, orders }: { agent: Session; network:
                             }
                           />
                         </div>
+                      )
+                    }
+                  ]
+                : []),
+              ...(shown && run && runs.filter((r) => r.status === 'completed').length >= 2
+                ? [
+                    {
+                      id: 'changes',
+                      title: 'Changes',
+                      content: (
+                        <RunChanges
+                          runs={runs}
+                          shown={{ id: run.id, state: shown }}
+                          read={(id) => agent.stub.getRun(id)}
+                          seen={changesSeen}
+                          earlier={earlier}
+                        />
                       )
                     }
                   ]

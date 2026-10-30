@@ -1,7 +1,7 @@
 import { useAgent } from 'agents/react'
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { State } from '../agent'
+import type { RunSnapshot, State } from '../agent'
 import type { LaunchAgent } from '../launch-agent'
 import { Workspace, type Session } from './App'
 import { launchTitle } from './LaunchFields'
@@ -33,10 +33,20 @@ export function LaunchPage({
 
 // The launch workspace for one of the network's launches: its runs, chart, questions, and order, ranked
 // against the network's roster, which this page shows read-only and links to. Tests render it from a
-// launch agent's synced state. The tab's title names the launch and its network once the agent's
-// state names the launch, as the invite page names its network; until then the server's names the
-// page, Launches.
-export function LaunchWorkspace({ agent, network, orders }: { agent: Session; network: NetworkPage; orders: string }) {
+// launch agent's synced state, and with `earlier`, the earlier runs its Changes tab compares, as getRun
+// returns them. The tab's title names the launch and its network once the agent's state names the
+// launch, as the invite page names its network; until then the server's names the page, Launches.
+export function LaunchWorkspace({
+  agent,
+  network,
+  orders,
+  earlier
+}: {
+  agent: Session
+  network: NetworkPage
+  orders: string
+  earlier?: Record<string, RunSnapshot>
+}) {
   const launch = agent.state?.launch
   const title = launch
     ? launchTitle(
@@ -50,7 +60,7 @@ export function LaunchWorkspace({ agent, network, orders }: { agent: Session; ne
   return (
     <>
       <LaunchCrumb title={title} />
-      <Workspace agent={agent} network={network} orders={orders} />
+      <Workspace agent={agent} network={network} orders={orders} earlier={earlier} />
     </>
   )
 }

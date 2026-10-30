@@ -263,7 +263,9 @@ export function RunList({
 // The confirm form's "None of these", until the reply sends it as null.
 const NONE = 'none'
 
-const budgetText = (b: Budget) => ('slots' in b ? `${b.slots} promo slots` : `$${b.dollars.toLocaleString('en-US')}`)
+// A slot budget as the run log and the Changes tab say it: "20 promo slots" or "$150,000".
+export const budgetText = (b: Budget) =>
+  'slots' in b ? `${b.slots} promo slots` : `$${b.dollars.toLocaleString('en-US')}`
 
 // The agent's open question, the page's one action while the run waits on it: a card in the canvas,
 // before the fit chart, whose legend is the question. Each kind is answered with its own form, its

@@ -41,6 +41,7 @@ import {
   connect as connectVia,
   currentLinks,
   detailsToggle,
+  facts,
   hooked,
   inspectorClosed,
   openGuest,
@@ -1442,12 +1443,19 @@ describe('the pages, as a member reads them', () => {
   })
   const launchesPage = (network: string, state: State | undefined) =>
     renderToStaticMarkup(<Launches state={state} network={page(network)} createLaunch={async () => ({ id: 'l-1' })} />)
-  const workspace = (network: string, agent: Omit<Session, 'cookie'>, id = 'l-1') =>
+  // A launch's page, given `earlier`, the earlier runs it reads to compare, as getRun returns them.
+  const workspace = (
+    network: string,
+    agent: Omit<Session, 'cookie'>,
+    id = 'l-1',
+    earlier?: Record<string, RunSnapshot>
+  ) =>
     renderToStaticMarkup(
       <LaunchWorkspace
         agent={{ state: agent.state(), stub: {} } as unknown as Agent}
         network={page(network)}
         orders={`/app/${network}/launches/${id}/insertion-orders`}
+        earlier={earlier}
       />
     )
 
@@ -1823,5 +1831,174 @@ describe('the pages, as a member reads them', () => {
     ])
     // A member's own network's launch isn't the sample data's, so nothing on it is labelled so.
     expect(sampleLabels(html)).toEqual([])
+  })
+
+  // A launch's Changes tab, as a reader meets it: its choice of run to compare with, each option's words
+  // and whether it's the one chosen or can't be chosen; and the rows hooked by `hook`, each in words.
+  const changesOf = (html: string) => hooked(html, 'data-changes')[0]
+  const options = (html: string) =>
+    [...html.matchAll(/<option\b([^>]*)>(.*?)<\/option>/g)].map(([, attributes, label]) => [
+      words(label),
+      /\sdisabled=""/.test(attributes) ? 'disabled' : /\sselected=""/.test(attributes) ? 'selected' : 'enabled'
+    ])
+  const rowsOf = (html: string, hook: string) => hooked(html, hook).map(words)
+  const canvasOf = (html: string) => hooked(html, 'data-canvas')[0]
+  // A second run of the drafted launch, answered with `slots` and `exclude`, as the agent plans it: the
+  // `finalists` it finds tags for and the `lines` it drafts.
+  const runAgain = async (
+    agent: Omit<Session, 'cookie'>,
+    {
+      slots,
+      exclude,
+      finalists: tagged = finalists,
+      lines
+    }: { slots: number; exclude: string[]; finalists?: string[]; lines?: object[] }
+  ) => {
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: tagged })),
+      lines ? turn(toolUse('draft_insertion_order', { lines })) : turn(draft),
+      turn(text('Drafted it again.'))
+    ])
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const budget = await agent.until((s) => s.run?.status === 'waiting' && s.run.question?.kind === 'budget')
+    await agent.call('answer', budget.run!.question!.id, { slots })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude })
+    return agent.until((s) => ended(s) && s.run?.closing === 'Drafted it again.')
+  }
+
+  it('compares a launch’s second completed run with the first: the inputs that changed, the finalists that joined and left, every move in words, and the plan', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent, roster } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    // One completed run has nothing to compare with.
+    expect(tabsOf(canvasOf(workspace(network, agent, id))).tabs).toEqual(['Ranking', 'Plan', 'Roster'])
+
+    // Before the second run, Back Lot is included again and Paper Route's downloads change; Qloo then
+    // ranks Back Lot first and Paper Route over Corner Booth, which the run leaves out at a smaller budget.
+    await roster.call('updateShow', 'Back Lot', { excluded: false })
+    await roster.call('updateShow', 'Paper Route', { downloads: 30000 })
+    const scores = [
+      { entity_id: 'e-0505', name: 'Back Lot', affinity: 0.95 },
+      { entity_id: 'e-0503', name: 'Paper Route', affinity: 0.93 },
+      { entity_id: 'e-0501', name: 'Corner Booth', affinity: 0.913 },
+      { entity_id: 'e-0502', name: 'Slow Burn', affinity: 0.902 },
+      { entity_id: 'e-0102', name: 'Field Notes: Books', affinity: 0.871 },
+      { entity_id: 'e-0601', name: 'Ghost Signal Radio', affinity: 0.866 }
+    ]
+    fakeInsights((body) =>
+      scores.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id))
+    )
+    const again = ['e-0505', 'e-0503', 'e-0502', 'e-0102', 'e-0601']
+    fakeCompare(
+      Object.fromEntries(again.map((e) => [e, [{ tag_id: 'urn:tag:keyword:media:film', name: 'Film', score: 0.6131 }]]))
+    )
+    await runAgain(agent, {
+      slots: 12,
+      exclude: ['Corner Booth'],
+      finalists: again,
+      lines: [
+        { show: 'Back Lot', slots: 4, angle: 'Its studio tours share the late hours.' },
+        { show: 'Paper Route', slots: 4, angle: 'Morning commuters who follow the same hosts.' },
+        { show: 'Slow Burn', slots: 2, angle: 'Its long interviews share the slow pace.' },
+        { show: 'Field Notes', slots: 2, angle: 'Shares the field-recording style.' }
+      ]
+    })
+
+    const html = workspace(network, agent, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
+    // From the second completed run on, Changes sits between Plan and Roster.
+    expect(tabsOf(canvasOf(html)).tabs).toEqual(['Ranking', 'Plan', 'Changes', 'Roster'])
+    const changes = changesOf(html)
+    // 6 × $1,000 + 8 × $1,200 + 4 × $650 + 2 × $438 = $19,076 then; 4 × $300 + 4 × $750 + 2 × $1,000 +
+    // 2 × $438 = $7,076 now.
+    expect(sections(changes)).toEqual([
+      ['Changes since run 1', '1 finalist changed, 5 shows moved; the plan’s value fell $12,000.']
+    ])
+    expect(options(changes)).toEqual([['Run 1 · Completed', 'selected']])
+    // The inputs that changed, before → after, then the finalists that joined and left.
+    expect(facts(changes)).toEqual([
+      ['Roster', 'Paper Route: downloads per episode 26,000 → 30,000 Back Lot: excluded → included'],
+      ['Slot budget', '20 promo slots → 12 promo slots'],
+      ['Left out', 'None → Corner Booth'],
+      ['Joined the finalists', 'Back Lot'],
+      ['Left the finalists', 'Corner Booth']
+    ])
+    // Each show's rank now, its move since run 1 beside it in words, the biggest moves first, then its name,
+    // with a chip if it joined or left the finalists; Back Lot, ranked only in this run, has no move.
+    expect(words(changes)).toContain(' Rank Since run 1 Show ')
+    expect(rowsOf(changes, 'data-move')).toEqual([
+      '3 ▼2 Down 2 places Was #1 Corner Booth Left the finalists',
+      '4 ▼2 Down 2 places Was #2 Slow Burn',
+      '2 ▲1 Up 1 place Was #3 Paper Route',
+      '5 ▼1 Down 1 place Was #4 Field Notes',
+      '6 ▼1 Down 1 place Was #5 Ghost Signal',
+      '1 – Not ranked in run 1 Back Lot New finalist'
+    ])
+    expect(words(changes)).toContain(
+      '– marks a show ranked in only one of the two runs: the roster changed between them.'
+    )
+    // A climb in signal ink, a fall muted.
+    expect(hooked(changes, 'data-move="Paper Route"')[0]).toMatch(/class="[^"]*text-signal-ink/)
+    expect(hooked(changes, 'data-move="Corner Booth"')[0]).not.toMatch(/text-signal-ink/)
+    // The plan's lines, each run's slots and value, then the totals.
+    expect(rowsOf(changes, 'data-change-line')).toEqual([
+      'Back Lot – → 4 – → $1,200',
+      'Paper Route 4 → 4 $2,600 → $3,000',
+      'Slow Burn 6 → 2 $6,000 → $2,000',
+      'Field Notes 2 → 2 $876 → $876',
+      'Corner Booth 8 → – $9,600 → –'
+    ])
+    expect(words(changes)).toContain(' Total 20 → 12 $19,076 → $7,076')
+  })
+
+  it('says when two runs ranked the roster alike, and that the next run’s changes show once it completes', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    await runAgain(agent, { slots: 20, exclude: [] })
+    const earlier = { [first]: await agent.call<RunSnapshot>('getRun', first) }
+
+    const changes = changesOf(workspace(network, agent, id, earlier))
+    expect(sections(changes)).toEqual([['Changes since run 1', 'Run 2 ranked the roster as run 1 did.']])
+    expect(words(changes)).toContain('Run 2 ran on the same inputs as run 1.')
+    expect(facts(changes)).toEqual([])
+    expect(hooked(changes, 'data-move')).toEqual([])
+    expect(hooked(changes, 'data-change-line')).toEqual([])
+
+    // While the next run is under way, the tab waits for it.
+    fakeClaude([turn(resolve('Night Shift Cinema')), turn(rank('e-0001')), turn(askBudget)])
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    await agent.until((s) => s.run?.status === 'waiting')
+    const waiting = changesOf(workspace(network, agent, id, earlier))
+    expect(sections(waiting)).toEqual([['Changes since run 2', 'Working Run 3’s changes show once it completes.']])
+    expect(options(waiting)).toEqual([])
+  })
+
+  it('compares with the latest completed run before it, listing a failed run as one that can’t be chosen, with its status', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    // The second run fails, as Claude has no turn to give it, so the launch still has one completed run.
+    fakeClaude([])
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    await agent.until((s) => s.run?.status === 'failed')
+    expect(tabsOf(canvasOf(workspace(network, agent, id))).tabs).not.toContain('Changes')
+
+    await runAgain(agent, { slots: 20, exclude: [] })
+    const changes = changesOf(
+      workspace(network, agent, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
+    )
+    expect(sections(changes)).toEqual([['Changes since run 1', 'Run 3 ranked the roster as run 1 did.']])
+    expect(options(changes)).toEqual([
+      ['Run 2 · Failed', 'disabled'],
+      ['Run 1 · Completed', 'selected']
+    ])
   })
 })
