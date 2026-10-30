@@ -744,7 +744,10 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
         slots: null,
         slotValue: null,
         startedBy: null,
-        lastRun: null
+        lastRun: null,
+        finalistShows: [],
+        approvedLines: null,
+        draftLines: null
       }
     ])
     // One search a show, counted on the guest budget; planning The Watch calls nothing.

@@ -13,7 +13,7 @@ import {
 import { env, exports } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LaunchSummary, RunSnapshot, State } from '../src/agent'
+import type { CommittedLines, LaunchSummary, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { Launches } from '../src/client/Launches'
 import { utcDay } from '../src/client/controls'
@@ -200,10 +200,16 @@ describe("the guest network's sample launches", () => {
 
     const fresh = await nextDay(guest, 5)
     const listed = (key: keyof typeof captured) => fresh.launches!.find((l) => l.name === captured[key].name)!
+    // Its orders' lines are the captured run's, under the run it's seeded as.
+    const seeded = (lines: CommittedLines | null | undefined) => lines && { ...lines, run: expect.any(String) }
     for (const key of ['approved', 'drafted', 'ranked', 'stopped'] as const) {
       const { id, lastRun, ...row } = listed(key)
       const { id: was, lastRun: then, ...before } = captured[key]
-      expect(row, key).toEqual(before)
+      expect(row, key).toEqual({
+        ...before,
+        approvedLines: seeded(before.approvedLines),
+        draftLines: seeded(before.draftLines)
+      })
       expect(id, key).not.toBe(was)
       // Moved on by the hours since its capture, give or take the moments the clearing took.
       expect(Date.parse(lastRun!) - Date.parse(then!), key).toBeGreaterThanOrEqual(later)
@@ -218,8 +224,32 @@ describe("the guest network's sample launches", () => {
         ['The Watch', 'new', 0, null, null, null]
       ])
     )
+    // Each reports what it commits of the roster's promo inventory as it's seeded: its run's finalists, and
+    // its order's lines, priced at the sample CPM; so the Inventory tab totals them.
+    const order = {
+      run: expect.any(String),
+      cpm: 20,
+      sampleCpm: true,
+      lines: [
+        { show: 'The Big Picture', slots: 6, value: expect.any(Number) },
+        { show: 'The Rewatchables', slots: 4, value: expect.any(Number) }
+      ]
+    }
+    const finalists = ['The Big Picture', 'The Rewatchables', 'The Watch']
+    expect(fresh.launches!.map((l) => [l.name, l.finalistShows, l.approvedLines, l.draftLines])).toEqual(
+      expect.arrayContaining([
+        ['Night Shift Cinema', finalists, order, null],
+        ['Paper Moons', finalists, null, order],
+        ['Slow Burn', finalists, null, null],
+        ['Ghost Signal', [], null, null],
+        ['The Watch', [], null, null]
+      ])
+    )
     expect(launchesWords(fresh)).toMatch(
       /Needs you 2 .+ Ranked 1 Slow Burn .+ Not run yet 1 The Watch .+ Approved 1 Night Shift Cinema /
+    )
+    expect(launchesWords(fresh)).toContain(
+      'Promo inventory 10 slots approved across 1 insertion order, worth $86,400 as each order was priced, at the $20 sample CPM; 10 slots drafted across 1 order; 16 shows have never been a finalist.'
     )
     // The load called no model, and Qloo for nothing but the cron's health check and the sample roster.
     expect(modelRequests()).toHaveLength(models)

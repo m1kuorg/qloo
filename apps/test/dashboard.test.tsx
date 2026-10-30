@@ -617,11 +617,12 @@ describe('the dashboard', () => {
     }
     const html = await launchesPage(ada, id, state)
     // The header: the title, its one summary line, and New launch.
-    expect(words(html)).toMatch(/^Launches 1 launch New launch Launch Status /)
+    expect(words(html)).toMatch(/^Launches 1 launch New launch Launches Inventory Launch Status /)
     expect(words(html)).toContain('Approved 1 The Night Watch Order approved 5 20 $52,000 Oct 19 · Ada Programmer')
     expect(html).toContain(`href="/app/${id}/launches/l-1"`)
     expect(words(html)).not.toContain('No launches yet')
-    expect(sections(html)).toEqual([])
+    // Its one section is the Inventory tab's, which this row, with none of it, hasn't reported.
+    expect(sections(html)).toEqual([['Promo inventory', '1 launch hasn’t reported yet; the totals leave it out.']])
   })
 })
 

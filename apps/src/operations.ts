@@ -26,7 +26,6 @@ import { networkName, renameNetwork, renameNetworkForKey, type Member, type Role
 import type { Band, FitRow, PitchList, Ranking } from './fit'
 import { globalGateway, type Usage } from './gateway'
 import type { Inbox, PastGuest, Pitch, PitchInput, PitchReply, Skipped } from './inbox'
-import { summaryOf } from './launch-agent'
 import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
 import { closePairs, closestCount, entityShows, isStale, rosterEntities, type Entity, type Overlap } from './overlap'
@@ -230,9 +229,9 @@ export async function listLaunches({ env, network }: OperationContext): Promise<
   return ((await stateOf(await agent(env, network))).launches ?? []).map(rowOf)
 }
 
-// A launch as a program reads it: its row in the network's list, as its own agent has it now; whether
-// the network's roster has changed since its latest run copied it; its runs, oldest first; and its
-// latest run in full.
+// A launch as a program reads it: its row in the network's list, as its own agent has it now, with what it
+// commits of the roster's promo inventory; whether the network's roster has changed since its latest run
+// copied it; its runs, oldest first; and its latest run in full.
 export type LaunchInfo = LaunchRow & {
   rosterChanged: boolean
   runs: LaunchRunSummary[]
@@ -253,7 +252,7 @@ export async function getLaunch({ env, network }: OperationContext, input: { lau
   const launch = await launchAgent(env, network, input.launchId)
   const state = await stateOf(launch)
   return {
-    ...rowOf({ id: input.launchId, ...summaryOf(state) }),
+    ...rowOf({ id: input.launchId, ...(await launch.summary()) }),
     rosterChanged: state.rosterChanged ?? false,
     runs: state.runs.map(runSummaryOf),
     latestRun: state.run && (await launchRunOf(launch, state, state.run.id))

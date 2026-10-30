@@ -3,6 +3,7 @@ import {
   CrossfeedAgent,
   newComp,
   rosterKey,
+  type CommittedLines,
   type LaunchInput,
   type LaunchSummary,
   type RosterCopy,
@@ -34,6 +35,9 @@ const FORMER_MEMBER = 'Former member'
 
 // How many times a launch tries to report a change to its network.
 const REPORT_ATTEMPTS = 3
+
+// What a launch's row says it commits of the roster's promo inventory (LaunchAgent.inventory).
+type Inventory = Required<Pick<LaunchSummary, 'finalistShows' | 'approvedLines' | 'draftLines'>>
 
 // One instance per launch of a signed-in network, named `<networkId>:<launchId>` (ADR 0001). Its own
 // class keeps its namespace apart from engine sessions and the networks'. It holds the launch, its
@@ -92,7 +96,7 @@ export class LaunchAgent extends CrossfeedAgent {
         insertionOrder: order?.approvedById === memberId ? formerApprover(order) : order
       })
     this.renameApprover(memberId, FORMER_MEMBER)
-    return summaryOf(this.state)
+    return this.summary()
   }
 
   // An insertion order is a member's to approve, in the app (ADR 0002): a connection the Worker let
@@ -118,13 +122,70 @@ export class LaunchAgent extends CrossfeedAgent {
   // after the network had listed the planned launch, showed the launch without its name.
   onStateChanged(state: State) {
     if (!state.launch) return
-    const summary = summaryOf(state)
+    // Once the change's own writes are done: a run's end, and an order's save, keep what the run ended
+    // with just after setting the state, and the row's promo inventory is read from that.
+    void Promise.resolve()
+      .then(() => this.reportSummary())
+      .catch((e) => console.error(JSON.stringify({ event: 'launch_report', launch: this.launchId, error: String(e) })))
+  }
+
+  // Reports the launch's row as it now stands, unless it's the one last reported.
+  private reportSummary() {
+    const summary = this.summary()
     const said = JSON.stringify(summary)
     if (said === this.reported) return
     this.reported = said
     this.reports = this.reports.then(() => this.report(summary, said))
     void this.keepAliveWhile(() => this.reports)
   }
+
+  // The row the network lists for the launch (summaryOf), with what it commits of the roster's promo
+  // inventory. Over RPC too, for the network to ask a launch whose row predates that (#406), and for a
+  // program's read of the launch.
+  summary(): Omit<LaunchSummary, 'id'> {
+    return { ...summaryOf(this.state), ...this.inventory() }
+  }
+
+  // What the launch commits of the roster's promo inventory, read from what its runs ended with rather
+  // than from its state, since a new run clears the ranking and the order the state shows (#406): its
+  // latest completed run's finalists; its latest approved order's lines; and its latest run's order while
+  // that's a draft, so newer than any approved one, which keeps counting apart from it. An approved order
+  // edited back to draft is a draft, so the latest order still approved counts, such as an earlier run's
+  // that ad operations already has. It reads only the finalists of that one run and each run's order, and
+  // only once the runs or the order have changed, as every change to what a run ended with comes with one.
+  private inventory(): Inventory {
+    const { runs, insertionOrder } = this.state
+    const key = JSON.stringify([runs.map((r) => [r.id, r.status]), insertionOrder])
+    if (key === this.inventoryRead?.key) return this.inventoryRead.facts
+    const completed = runs.findLast((r) => r.status === 'completed')?.id ?? null
+    const finalists = this.sql<{ show: string }>`
+      SELECT json_extract(row.value, '$.show') AS show FROM runs, json_each(runs.snapshot, '$.ranking.rows') AS row
+      WHERE runs.id = ${completed} AND json_extract(row.value, '$.finalist') ORDER BY row.key`
+    // Each run's own order, as the export reads it (earlierOrder), priced as its run copied the CPM.
+    const orders = this.sql<{ id: string; order: string; sampleCpm: number | null; sample: number | null }>`
+      SELECT id, json_extract(snapshot, '$.insertionOrder') AS "order", json_extract(snapshot, '$.sampleCpm') AS "sampleCpm",
+        json_extract(snapshot, '$.sample.cpm') AS sample
+      FROM runs WHERE json_extract(snapshot, '$.insertionOrder.run') = id ORDER BY started_at, rowid`.map((r) => {
+      const order: InsertionOrder = JSON.parse(r.order)
+      const lines: CommittedLines = {
+        run: r.id,
+        cpm: order.cpm,
+        sampleCpm: Boolean(r.sampleCpm || r.sample),
+        lines: order.lines.map(({ show, slots, value }) => ({ show, slots, value }))
+      }
+      return { status: order.status, lines }
+    })
+    const facts = {
+      finalistShows: finalists.map((r) => r.show),
+      approvedLines: orders.findLast((o) => o.status === 'approved')?.lines ?? null,
+      draftLines: orders.find((o) => o.lines.run === runs.at(-1)?.id && o.status === 'draft')?.lines ?? null
+    }
+    this.inventoryRead = { key, facts }
+    return facts
+  }
+
+  // The promo inventory as last read, and the runs and order it was read for.
+  private inventoryRead: { key: string; facts: Inventory } | null = null
 
   // The summary last reported, and the reports still being sent.
   private reported: string | null = null
@@ -197,16 +258,17 @@ export class LaunchAgent extends CrossfeedAgent {
   // instead, which may name it anew.
   plan({ name, comps, sample = null }: { name: string | null; comps: string[]; sample?: Sample | null }) {
     this.setState({ ...this.state, launch: { name, match: null, comps: comps.map(newComp) }, sample })
-    return summaryOf(this.state)
+    return this.summary()
   }
 
   // Seeds the launch with `run`, as the network lists it as one of its sample launches (sample-launches.ts),
-  // calling neither Qloo nor Claude (CrossfeedAgent.seedRun), and returns the row the network lists for it.
+  // calling neither Qloo nor Claude (CrossfeedAgent.seedRun), and returns the row the network lists for it,
+  // its promo inventory read from the run it was seeded with.
   // Its `sample` stays null: only the sample launch, The Watch, replays. A launch already planned or seeded
   // stays as it is, so a load the network tries again seeds nothing twice. Over RPC only.
   seed(run: CapturedRun) {
     if (!this.state.launch) this.seedRun(run)
-    return summaryOf(this.state)
+    return this.summary()
   }
 
   // The roster and the inbox are the network's (ADR 0001), so a launch's agent refuses their actions,
@@ -266,7 +328,7 @@ export class LaunchAgent extends CrossfeedAgent {
 // What the network's list says of a launch, from its state: its latest run's status, or once that
 // run has completed, its order's; its finalists, its order's slots and their total value; and who
 // started its latest run, and when.
-export function summaryOf({ launch, run, runs, ranking, insertionOrder: order }: State): Omit<LaunchSummary, 'id'> {
+function summaryOf({ launch, run, runs, ranking, insertionOrder: order }: State): Omit<LaunchSummary, 'id'> {
   const last = runs.at(-1)
   return {
     name: launch?.name ?? null,

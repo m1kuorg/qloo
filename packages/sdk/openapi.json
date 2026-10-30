@@ -1691,6 +1691,35 @@
               "null"
             ],
             "description": "When its latest run started."
+          },
+          "finalistShows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The shows its latest completed run made finalists, by name; empty until a run completes. Absent while the launch hasn't reported it yet, which isn't the same as none."
+          },
+          "approvedLines": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommittedLines"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its latest approved insertion order's lines, which keep counting while a later run drafts another; null with none approved. Absent while the launch hasn't reported it yet."
+          },
+          "draftLines": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommittedLines"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its latest run's insertion order while that's a draft, so newer than `approvedLines`, and never to be added to it; null otherwise. Absent while the launch hasn't reported it yet."
           }
         },
         "required": [
@@ -1713,8 +1742,95 @@
           "slots": 20,
           "slotValue": 19076,
           "startedBy": "Ada Programmer",
-          "lastRun": "2026-10-19T14:02:11.000Z"
+          "lastRun": "2026-10-19T14:02:11.000Z",
+          "finalistShows": [
+            "Corner Booth",
+            "Slow Burn",
+            "Paper Route",
+            "Field Notes",
+            "Ghost Signal"
+          ],
+          "approvedLines": null,
+          "draftLines": {
+            "run": "9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d",
+            "cpm": 25,
+            "sampleCpm": false,
+            "lines": [
+              {
+                "show": "Corner Booth",
+                "slots": 8,
+                "value": 9600
+              },
+              {
+                "show": "Slow Burn",
+                "slots": 6,
+                "value": 6000
+              },
+              {
+                "show": "Paper Route",
+                "slots": 4,
+                "value": 2600
+              },
+              {
+                "show": "Field Notes",
+                "slots": 2,
+                "value": 876
+              }
+            ]
+          }
         }
+      },
+      "CommittedLines": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "type": "string",
+            "description": "The run that drafted the order."
+          },
+          "cpm": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The CPM in dollars it was priced at, as its run copied it."
+          },
+          "sampleCpm": {
+            "type": "boolean",
+            "description": "`true` when that CPM was the sample network's, as on the guest network's sample launches."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "show": {
+                  "type": "string"
+                },
+                "slots": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Its slots × slot value; null when a figure was missing."
+                }
+              },
+              "required": [
+                "show",
+                "slots",
+                "value"
+              ]
+            }
+          }
+        },
+        "required": [
+          "run",
+          "cpm",
+          "sampleCpm",
+          "lines"
+        ]
       },
       "Launch": {
         "type": "object",
@@ -1781,6 +1897,35 @@
             ],
             "description": "When its latest run started."
           },
+          "finalistShows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The shows its latest completed run made finalists, by name; empty until a run completes. Absent while the launch hasn't reported it yet, which isn't the same as none."
+          },
+          "approvedLines": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommittedLines"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its latest approved insertion order's lines, which keep counting while a later run drafts another; null with none approved. Absent while the launch hasn't reported it yet."
+          },
+          "draftLines": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommittedLines"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its latest run's insertion order while that's a draft, so newer than `approvedLines`, and never to be added to it; null otherwise. Absent while the launch hasn't reported it yet."
+          },
           "rosterChanged": {
             "type": "boolean",
             "description": "The network's roster has changed since the latest run copied it: run again to rank it as it is."
@@ -1827,6 +1972,9 @@
           "slotValue": null,
           "startedBy": "Ada Programmer",
           "lastRun": "2026-10-19T14:02:11.000Z",
+          "finalistShows": [],
+          "approvedLines": null,
+          "draftLines": null,
           "rosterChanged": false,
           "runs": [
             {

@@ -103,6 +103,9 @@ The ad revenue a promo slot displaces: downloads per episode times CPM, divided 
 **Insertion order**:
 The approved launch plan: which shows, how many slots, each slot's angle, and the total slot value.
 
+**Promo inventory**:
+The promo slots the network's insertion orders commit to each of its shows, approved apart from drafted, beside how many launches made each show a finalist.
+
 **Host-read angle**:
 A drafted line for a host, built from the tags the show and the launch share.
 

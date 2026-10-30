@@ -14,6 +14,7 @@ Contents:
     1.  [Launches, each planned on its own](#launches-each-planned-on-its-own)
     1.  [The roster and the inbox, with uploads](#the-roster-and-the-inbox-with-uploads)
     1.  [The roster's overlap](#the-rosters-overlap)
+    1.  [Promo inventory](#promo-inventory)
     1.  [Settings and the account page](#settings-and-the-account-page)
     1.  [The API, the SDK, MCP, and skills](#the-api-the-sdk-mcp-and-skills)
     1.  [Success criteria](#success-criteria)
@@ -75,6 +76,10 @@ The roster and the booking inbox belong to the network, each on its own page. Me
 ### The roster's overlap
 
 A member, an API key, or an assistant measures the roster's overlap: one closed-list ranking in Qloo per show matched in Qloo, that show as the only anchor and the rest of the roster as the candidates, with shows on the same Qloo show measured once and shows left out of launches included. Each show then has its closest shows by listener overlap, as ranks and bands within its own ranking, and two shows that each rank among the other's closest are a close pair. Measuring needs four such shows, reserves its calls on the network's daily limit first, and is refused when Crossfeed's shared daily requests couldn't take it and still leave a run's. A show whose ranking failed keeps its reason, measuring again asks only for what's missing or failed, and the overlap says when the roster's matched shows have changed since. Members read it on the roster page's Overlap tab, each show's whole ranking opening under its row, and programs through the API, the SDK, and MCP.
+
+### Promo inventory
+
+The Launches page has two tabs: Launches, the table, and Inventory, the network's promo inventory across its launches. For each show on the roster or in an order, it says how many launches made the show a finalist, and the slots and value the network's orders commit to it, approved apart from drafted, grouped as in an order, a finalist only, or never a finalist, with each launch an order commits it to linking to that launch's plan. A sentence gives the slots approved and what they're worth as each order was priced, naming the sample CPM where it applies, then the slots drafted apart, never added to them, and how many shows have never been a finalist. Each launch reports these facts from what its runs ended with, so an approved order keeps counting while the launch runs again, and the tab says how many launches haven't reported yet rather than reading a partial total as whole. Programs read the same facts in the launches list through the API, the SDK, and MCP.
 
 ### Settings and the account page
 
@@ -208,6 +213,12 @@ The analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), lists the
 84. As a member, I want a show whose ranking failed to keep its reason while the rest land, and measuring again to ask only for the shows missing or failed, so that a retry doesn't spend calls twice.
 85. As a member, I want a teammate's second start refused while a measure runs, a measure a restart interrupted to say so and keep what landed, and the overlap to say when the roster's matched shows have changed since it was measured, so that we don't spend calls twice or read a stale overlap as current.
 86. As a developer, or a programmer using an assistant, I want to read and start the overlap through the REST API, the SDK, and MCP, so that a script or my assistant can answer "which of my shows share listeners?".
+87. As a programmer, I want to see, show by show, how many launches made it a finalist, and the shows never made one, so that I know which shows the agent keeps putting forward, and can ask why about the rest.
+88. As a programmer, I want each show's committed slots and their value, approved apart from drafted, each show naming the launches it's committed to with a link to each plan, so that I know how much inventory I've promised and can open the plan behind a figure.
+89. As a programmer, I want an approved order to keep counting while its launch runs again, so that re-planning doesn't hide a commitment ad operations already has.
+90. As a programmer, I want a sentence that totals the network's committed slots and value, priced as each order was, so that I can tell my boss in one line.
+91. As a member, I want the inventory to say when some launches haven't reported yet, so that a partial total never reads as whole.
+92. As a developer, I want each launch's finalists and order lines in the launches list through the API, so that a script can total the inventory itself.
 
 ## Implementation Decisions
 
