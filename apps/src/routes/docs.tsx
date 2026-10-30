@@ -12,7 +12,7 @@ import mcpConfig from '../../../plugins/crossfeed/.mcp.json?raw'
 import planLaunchPromos from '../../../plugins/crossfeed/skills/plan-launch-promos/SKILL.md?raw'
 import triageGuestPitches from '../../../plugins/crossfeed/skills/triage-guest-pitches/SKILL.md?raw'
 import { MAX_SHOWS } from '../agent'
-import { assistants, CHATGPT, type Assistant, type Step } from '../assistants'
+import { assistants, CHATGPT, type AssistantSetup, type Step } from '../assistants'
 import { badgeVariants, buttonVariants, linkVariants, marketingFrame } from '../components/ui/variants'
 import { ChevronDown } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
@@ -130,9 +130,16 @@ const OpenApi = ({ accounts }: { accounts: boolean }) =>
 
 // One assistant's setup as the Developers page gives it, from the module both render (assistants.ts):
 // its steps, each a numbered sentence over its links and its blocks, a command or a configuration with
-// Copy; then the way for when they can't work, and, unless `bare`, a line leading on. A link to a web
-// page opens in a tab of its own, as the Developers page's does.
-const Setup = ({ assistant: { steps, otherwise, more }, bare = false }: { assistant: Assistant; bare?: boolean }) => (
+// Copy; then the way for when they can't work, and, unless `bare`, a line leading on. Each link is
+// described by its caveat under it, and one to a web page opens in a tab of its own, as the Developers
+// page's do.
+const Setup = ({
+  assistant: { steps, otherwise, more },
+  bare = false
+}: {
+  assistant: AssistantSetup
+  bare?: boolean
+}) => (
   <>
     <ol class="flex list-outside list-decimal flex-col gap-6 pl-6 marker:text-muted-foreground">
       {steps.map((step) => (
@@ -159,11 +166,12 @@ const StepBody = ({ step }: { step: Step }) => (
         <a
           href={link.href}
           class={buttonVariants({ variant: 'secondary', className: 'no-underline' })}
+          aria-describedby={`${link.id}-note`}
           {...(link.away && { target: '_blank', rel: 'noreferrer' })}
         >
           {link.label}
         </a>
-        <p class="text-muted-foreground">
+        <p id={`${link.id}-note`}>
           <Prose text={link.caveat} />
         </p>
       </div>

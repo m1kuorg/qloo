@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buttonVariants, linkVariants } from '@/components/ui/variants'
-import { assistants, CHATGPT, type Assistant as AssistantSetup, type Snippet, type Step } from '../assistants'
+import { assistants, CHATGPT, type AssistantSetup, type Snippet, type Step } from '../assistants'
 import type { ApiKey, CheckedKey } from '../directory'
 import type { ToolKind } from '../routes/mcp'
 import { GUEST_NETWORK_CLEARS, listOf, MAX_NAME } from '../text'
@@ -242,9 +242,8 @@ function KeySection({
           </form>
           {made && (
             <ShownOnce key={made.id} id="dev-key-secret" label="New API key" noun="key" value={made.secret} mono>
-              Copy it now: Crossfeed shows each key only once. Then put it where your assistant reads it, as Your
-              assistant shows, so no command you paste holds it: for most, that’s your shell’s{' '}
-              <Code>CROSSFEED_API_KEY</Code>.
+              Copy it now: Crossfeed shows each key only once. Then keep it where your assistant reads it, which for
+              most is an environment variable, <Code>CROSSFEED_API_KEY</Code>, set as Your assistant’s first step shows.
             </ShownOnce>
           )}
           <Alert error={error} />
@@ -332,8 +331,8 @@ function Setup({ assistant: { steps, otherwise, more } }: { assistant: Assistant
   )
 }
 
-// A step's sentence, then each link as a secondary button over what it does, then its blocks. A link to
-// a web page opens in a tab of its own, so this page keeps the key it showed.
+// A step's sentence, then each link as a secondary button over what it does, which describes it, then its
+// blocks. A link to a web page opens in a tab of its own, so this page keeps the key it showed.
 function StepBody({ step }: { step: Step }) {
   return (
     <div className="flex flex-col gap-3">
@@ -341,15 +340,16 @@ function StepBody({ step }: { step: Step }) {
         <Marked text={step.text} />
       </p>
       {step.links?.map((link) => (
-        <div key={link.href} className="flex flex-col items-start gap-1.5">
+        <div key={link.id} className="flex flex-col items-start gap-1.5">
           <a
             className={buttonVariants({ variant: 'secondary' })}
             href={link.href}
+            aria-describedby={`${link.id}-note`}
             {...(link.away && { target: '_blank', rel: 'noreferrer' })}
           >
             {link.label}
           </a>
-          <p className="text-muted-foreground">
+          <p id={`${link.id}-note`}>
             <Marked text={link.caveat} />
           </p>
         </div>
@@ -564,16 +564,13 @@ function Watching({ name, watch, again }: { name: string; watch: Watch; again: (
       {watch.state === 'stopped' && (
         <ul className="flex list-outside list-disc flex-col gap-1.5 pl-5 marker:text-muted-foreground">
           <li>
-            The key: <Code>CROSSFEED_API_KEY</Code> holds all of it, from <Code>cf_live_</Code> on, and it’s still in
-            use.
+            The key: the assistant has all of it, from <Code>cf_live_</Code> on, and it isn’t revoked.
           </li>
           <li>
-            The variable: it was set in the shell you ran <Code>claude mcp add</Code> in. If it wasn’t, run{' '}
-            <Code>claude mcp remove crossfeed</Code>, set it, and add the server again.
+            The variable: <Code>CROSSFEED_API_KEY</Code> is set where the assistant runs, if it reads the key from
+            there.
           </li>
-          <li>
-            Claude Code: it connects as a session starts, so start a new one, or run <Code>claude mcp list</Code>.
-          </li>
+          <li>The assistant: it started again after you added the server, as most connect only as they start.</li>
         </ul>
       )}
       <Button variant="secondary" onClick={again}>

@@ -7,12 +7,17 @@ import { expect } from 'vitest'
 
 type Block = [caption: string, copy: string | null, code: string | object]
 
-// The key into the shell, in bash or zsh, and on Windows in PowerShell too.
-const shell: Block = ['Shell', 'command that reads the key', 'read -rs CROSSFEED_API_KEY && export CROSSFEED_API_KEY']
-const powershell: Block = [
+// The key into the shell, in bash or zsh, and on Windows in PowerShell too, asked for without showing it,
+// each block's Copy named for its assistant.
+const shell = (name: string): Block => [
+  'Shell',
+  `${name} command that reads the key`,
+  'read -rs CROSSFEED_API_KEY && export CROSSFEED_API_KEY'
+]
+const powershell = (name: string): Block => [
   'PowerShell',
-  'PowerShell commands that set the key',
-  "$env:CROSSFEED_API_KEY = Read-Host 'Crossfeed API key'\nsetx CROSSFEED_API_KEY $env:CROSSFEED_API_KEY"
+  `${name} PowerShell commands that set the key`,
+  "$k = Read-Host 'Crossfeed API key' -AsSecureString\n$env:CROSSFEED_API_KEY = [System.Net.NetworkCredential]::new('', $k).Password\n[Environment]::SetEnvironmentVariable('CROSSFEED_API_KEY', $env:CROSSFEED_API_KEY, 'User')"
 ]
 const header = { Authorization: 'Bearer ${env:CROSSFEED_API_KEY}' }
 
@@ -20,7 +25,7 @@ export const setups = (mcp: string): [name: string, blocks: Block[]][] => [
   [
     'Claude Code',
     [
-      shell,
+      shell('Claude Code'),
       [
         'Shell',
         'claude mcp add command',
@@ -51,16 +56,16 @@ export const setups = (mcp: string): [name: string, blocks: Block[]][] => [
   [
     'Cursor',
     [
-      shell,
-      powershell,
+      shell('Cursor'),
+      powershell('Cursor'),
       ['~/.cursor/mcp.json', 'Cursor configuration', { mcpServers: { crossfeed: { url: mcp, headers: header } } }]
     ]
   ],
   [
     'VS Code',
     [
-      shell,
-      powershell,
+      shell('VS Code'),
+      powershell('VS Code'),
       ['mcp.json', 'VS Code configuration', { servers: { crossfeed: { type: 'http', url: mcp, headers: header } } }],
       [
         'mcp.json',
@@ -77,7 +82,7 @@ export const setups = (mcp: string): [name: string, blocks: Block[]][] => [
   [
     'Codex',
     [
-      shell,
+      shell('Codex'),
       [
         'Shell',
         'codex mcp add command',
@@ -136,4 +141,24 @@ export function expectLinks(links: [label: string, href: string][], mcp: string)
     url: mcp,
     headers: header
   })
+}
+
+// Checks that each of the setups' links is described by the note under it, which says what it opens,
+// and that a link to a web page opens a tab of its own, so the page keeps a key it showed, as its note
+// says.
+export function expectNotes(html: string) {
+  const links = [...html.matchAll(/<a\b([^>]*)>/g)]
+    .map(([, attrs]) => attrs)
+    .filter((a) => /\saria-describedby=/.test(a))
+  expect(links).toHaveLength(4)
+  for (const attrs of links) {
+    const id = attrs.match(/\saria-describedby="([^"]*)"/)![1]
+    const note = html.match(new RegExp(`<p\\b[^>]*\\sid="${id}"[^>]*>([\\s\\S]*?)</p>`))?.[1].replace(/<[^>]+>/g, '')
+    expect(note, id).toMatch(/^Opens /)
+    if (/\shref="https:/.test(attrs)) {
+      expect(attrs, id).toContain('target="_blank"')
+      expect(attrs, id).toContain('rel="noreferrer"')
+      expect(note, id).toContain(' in a new tab')
+    }
+  }
 }

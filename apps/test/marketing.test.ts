@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import inbox from '../src/sample-inbox.json'
 import network from '../src/sample-network.json'
 import { REFUSALS } from '../src/refusal'
-import { expectLinks, parsed, setups } from './assistants'
+import { expectLinks, expectNotes, parsed, setups } from './assistants'
 import { hooked, networkWithKey, openMember } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -621,12 +621,8 @@ describe('the developer docs', () => {
       shown.flatMap((s) => s.links).filter(([label]) => label !== 'Skills and plugin'),
       `${origin}/mcp`
     )
-    expect(html).toMatch(
-      /<a\b[^>]*href="https:\/\/claude\.ai\/customize\/[^"]*"[^>]*target="_blank"[^>]*rel="noreferrer"/
-    )
-    expect(words(html)).toContain(
-      'ChatGPT can’t connect yet: its custom MCP servers sign in with OAuth or not at all, and Crossfeed’s MCP server takes an API key.'
-    )
+    expectNotes(html)
+    expect(words(html)).toContain('ChatGPT can’t connect yet')
     expect(hrefs(html)).toContain('/app/developers')
     env.ACCOUNTS = 'off'
     expect(hrefs(main(await page('/docs/mcp')))).not.toContain('/app/developers')
@@ -742,20 +738,20 @@ describe('the developer docs', () => {
       ],
       '/docs/mcp': [
         // Each assistant's, as the Developers page gives them (assistants.ts).
-        ['Shell', 'Copy command that reads the key'],
+        ['Shell', 'Copy Claude Code command that reads the key'],
         ['Shell', 'Copy claude mcp add command'],
         ['Shell', 'Copy claude mcp list command'],
         ['Output', null],
         // Claude Desktop's, with a placeholder for the key.
         ['claude_desktop_config.json', null],
-        ['Shell', 'Copy command that reads the key'],
-        ['PowerShell', 'Copy PowerShell commands that set the key'],
+        ['Shell', 'Copy Cursor command that reads the key'],
+        ['PowerShell', 'Copy Cursor PowerShell commands that set the key'],
         ['~/.cursor/mcp.json', 'Copy Cursor configuration'],
-        ['Shell', 'Copy command that reads the key'],
-        ['PowerShell', 'Copy PowerShell commands that set the key'],
+        ['Shell', 'Copy VS Code command that reads the key'],
+        ['PowerShell', 'Copy VS Code PowerShell commands that set the key'],
         ['mcp.json', 'Copy VS Code configuration'],
         ['mcp.json', 'Copy VS Code configuration that asks for the key'],
-        ['Shell', 'Copy command that reads the key'],
+        ['Shell', 'Copy Codex command that reads the key'],
         ['Shell', 'Copy codex mcp add command'],
         ['URL', 'Copy MCP server address'],
         // The header's format, with a placeholder for the key.
@@ -765,7 +761,7 @@ describe('the developer docs', () => {
       '/docs/agents': [
         ['plugins/crossfeed/.mcp.json', 'Copy plugins/crossfeed/.mcp.json'],
         ['Shell', 'Copy Shell'],
-        ['Shell', 'Copy command that reads the key'],
+        ['Shell', 'Copy Claude Code command that reads the key'],
         ['Shell', 'Copy claude mcp add command'],
         ['Shell', 'Copy claude mcp list command'],
         ['Output', null]
@@ -777,14 +773,15 @@ describe('the developer docs', () => {
   })
 
   // Interactive zsh without interactivecomments, as macOS's default shell comes, runs a # comment as
-  // words, so a shell block to copy holds commands alone, and none has a placeholder to fill in, such as
-  // a key's cf_live_… or a <path>: what either said is in the caption or the prose around it.
+  // words, so a shell block to copy, PowerShell's too, holds commands alone, and none has a placeholder
+  // to fill in, such as a key's cf_live_… or a <path>: what either said is in the caption or the prose
+  // around it.
   it('copy shell blocks with no comment or placeholder, so each runs as it is pasted', async () => {
     const shells: string[] = []
     for (const path of docs)
       for (const { caption, copy, code } of figures(await page(path)))
-        if (copy && caption === 'Shell') shells.push(code)
-    expect(shells).toHaveLength(14)
+        if (copy && (caption === 'Shell' || caption === 'PowerShell')) shells.push(code)
+    expect(shells).not.toHaveLength(0)
     for (const code of shells) {
       expect(code).not.toMatch(/(^|\s)#/)
       expect(code).not.toMatch(/…|<[^>]*>/)

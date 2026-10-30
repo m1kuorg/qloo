@@ -5,7 +5,7 @@ import { env, exports } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Developers } from '../src/client/Developers'
-import { expectLinks, parsed, setups } from './assistants'
+import { expectLinks, expectNotes, parsed, setups } from './assistants'
 import { facts, hooked, openGuest, openMember, rootData, sections, type Guest, type Member } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -167,28 +167,13 @@ describe('the Developers page', () => {
     expect(panels.map((p) => p.blocks)).toEqual(expected.map(([, blocks]) => blocks))
     for (const { blocks } of panels)
       for (const [caption, copy, code] of blocks)
-        if (copy && caption === 'Shell') expect(code).not.toMatch(/(^|\s)#|…|<[^>]*>/)
+        if (copy && (caption === 'Shell' || caption === 'PowerShell')) expect(code).not.toMatch(/(^|\s)#|…|<[^>]*>/)
     expectLinks(
       panels.flatMap((p) => p.links).filter(([label]) => label !== 'Skills and plugin'),
       `${origin}/mcp`
     )
-    // Claude's links open in a tab of their own, so the page keeps a key it showed; the apps' links say
-    // they open the app if it's there, and how to start it with the variable.
-    expect(html).toMatch(
-      /<a\b[^>]*href="https:\/\/claude\.ai\/customize\/[^"]*"[^>]*target="_blank"[^>]*rel="noreferrer"/
-    )
-    const text = words(html)
-    for (const app of ['Cursor', 'VS Code'])
-      expect(text).toContain(
-        `Add to ${app} Opens ${app} if it’s installed. Start ${app} from the terminal where you set the variable first, or it has no key to send.`
-      )
-    expect(text).toContain(
-      'On Windows, in PowerShell, the first line asks for the key and sets it for that window, and the second keeps it for apps you start afterwards.'
-    )
-    expect(text).toContain('Request headers are a beta that only some organizations have')
-    expect(text).toContain(
-      'ChatGPT can’t connect yet: its custom MCP servers sign in with OAuth or not at all, and Crossfeed’s MCP server takes an API key.'
-    )
+    expectNotes(html)
+    expect(words(html)).toContain('ChatGPT can’t connect yet')
     expect(html).toMatch(/<a\b[^>]*href="\/docs\/agents"[^>]*>Skills and plugin<\/a>/)
     // Only the one-time reveal shows a key, and the page holds none, nor any key's prefix.
     for (const shown of [served, html]) {
