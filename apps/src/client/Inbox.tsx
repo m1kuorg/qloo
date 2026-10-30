@@ -11,7 +11,7 @@ import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { linkVariants } from '@/components/ui/variants'
 import type { Run, RunSnapshot, RunSummary, Show, SlowCall } from '../agent'
-import { NO_ANGLE, pitchFinding, tagged, type PitchList, type SharedTags } from '../fit'
+import { CLIMB, NO_ANGLE, pitchFinding, tagged, type PitchList, type PitchRow, type SharedTags } from '../fit'
 import {
   workNoun,
   workTypes,
@@ -54,6 +54,20 @@ import { CallButton, EvidencePanel, useEvidence, type Names, type OpenCall, type
 import { canvas, Connecting, frame, Inspector, InspectorToggle, OnAir, Readout, RunState, useInspector } from './Frame'
 import type { NetworkPage } from './NetworkPage'
 import { FormDialog, PageEmpty, PageHeader, PageTabs, Section, summaryLine, useFormDialog } from './PageHeader'
+import {
+  bleed,
+  LensSource,
+  LensSwitch,
+  MoveCell,
+  MoveHeader,
+  OtherRankCell,
+  OtherRankHeader,
+  RankCell,
+  useRerank,
+  WhyRow,
+  type AgentRanking,
+  type Lens
+} from './Rerank'
 import { OpenQuestion, REPLIES_CHANGED, runLabel, RunList, RunLog, runNumber } from './Run'
 import { Source } from './Source'
 import {
@@ -979,11 +993,13 @@ function PitchLists({
           </StateLine>
         </p>
       ) : null}
-      {/* Each list's table ends it, so its h3 sections stand further apart than their own parts. */}
+      {/* Each list's table ends it, so its h3 sections stand further apart than their own parts. Each is
+        keyed by its run too, so another run's lists, a new run's or an earlier one's, start by who listens
+        with nothing open rather than in the lens the last run's were left in. */}
       <div className="flex flex-col gap-8">
         {lists.map((list) => (
           <RankedPitches
-            key={list.type}
+            key={`${booking.run}-${list.type}`}
             list={list}
             byPitch={ranking?.status === 'ranked'}
             pitches={pitches}
@@ -1003,13 +1019,32 @@ function PitchLists({
   )
 }
 
+// The pitch lists' lens switches between who listens and the pitch ranking, Claude's ranking of the
+// pitches by what each one says.
+const byThePitch: AgentRanking = { by: 'by the pitch', column: 'Pitch', rank: 'pitch rank' }
+
+// A list's rows are the re-rank's grid (Rerank.tsx), in the fit chart's anatomy, each row its own grid on
+// one template so the columns line up, the work taking the rest. Once the pitch ranking is in, from
+// 768px one line: rank, move, the work, the other lens's rank and the band (at 720px: 40 + 48 + 400 + 96
+// + 72 + 4 × 16 gaps = 720); under it each row folds to two: rank, the work and its band, then the move
+// and the other rank. Before it, rank, the work and its band, on one line at every width. Rows bleed
+// their rule 8px past the text, and each is opaque, so rows passing each other mid-travel don't show
+// through.
+const pitchGrid = {
+  lens: "grid gap-x-3 gap-y-1 grid-cols-[2rem_auto_auto_minmax(0,1fr)_auto] [grid-template-areas:'rank_name_name_name_fit'_'rank_move_other_._.'] md:gap-x-4 md:grid-cols-[2.5rem_3rem_minmax(0,1fr)_6rem_4.5rem] md:[grid-template-areas:'rank_move_name_other_fit']",
+  plain:
+    "grid gap-x-3 gap-y-1 grid-cols-[2rem_minmax(0,1fr)_auto] [grid-template-areas:'rank_name_fit'] md:gap-x-4 md:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem]"
+}
+
 // One work type's list, an h3 section whose sentence says what it was ranked against, or why it
 // wasn't, with its calls, led once the pitch ranking is in by its finding; then, in the fit chart's
-// anatomy, a compact real table: the rank, the work as Qloo matched it, which opens its pitch, with the
-// guest as Claude read them, or as the sample gives them, and the tags it shares with the show, then
-// its pitch rank once the pitch ranking is in, then its band. Its rules bleed 8px past the text, as the
-// chart's do.
-function RankedPitches({
+// anatomy, its rows: the rank, the work as Qloo matched it, which opens its pitch, with the guest as
+// Claude read them, or as the sample gives them, and the tags it shares with the show, then its band.
+// Once the pitch ranking is in, the fit chart's lens re-orders the rows by the pitch, each row has its
+// move and its pitch rank, and a pitch that climbs or falls 3 or more places opens "Why it moved" from
+// its move. `start` is the lens and the open "Why it moved" the list starts with, as Rerank.tsx's
+// `useRerank` takes them.
+export function RankedPitches({
   list,
   byPitch,
   pitches,
@@ -1017,17 +1052,22 @@ function RankedPitches({
   selected,
   select,
   openCall,
-  opened
+  opened,
+  start
 }: {
   list: PitchList
-  byPitch: boolean // the pitch ranking is in, so the list has a Pitch column and a finding
+  byPitch: boolean // the pitch ranking is in, so the list has its lens, its moves and a finding
   pitches: Pitch[]
   sample: boolean
   selected: string | null
   select: (id: string, from: HTMLElement) => void
   openCall: OpenCall
   opened: string | null
+  start?: { lens?: Lens; why?: string | null }
 }) {
+  // A pitch's ranks as the lens reads them: its row's rank by who listens, and its pitch rank.
+  const ranks = (r: PitchRow) => ({ key: r.pitch, rank: r.rank, agentRank: r.pitchRank ?? null })
+  const { lens, byAgent, order, switchLens, rowRef, why, toggleWhy } = useRerank(list.rows, ranks, byPitch, start)
   const id = `list-${list.type}`
   const pitch = (id: string) => pitches.find((p) => p.id === id)
   const names = listOf(list.anchors.map((a) => a.name))
@@ -1038,8 +1078,8 @@ function RankedPitches({
       : list.path === 'show'
         ? `Ranked against ${names}.`
         : null
-  const cell = 'border-b py-2.5 align-baseline group-data-selected/row:bg-muted'
   const finding = byPitch && list.rows.length > 0 ? pitchFinding(list.rows) : null
+  const grid = byPitch ? pitchGrid.lens : pitchGrid.plain
   return (
     <Section
       id={id}
@@ -1067,45 +1107,84 @@ function RankedPitches({
       }
     >
       {!list.error && list.rows.length > 0 && (
-        <div className="-mx-2">
-          <table className="w-full border-separate border-spacing-0" aria-labelledby={id}>
-            <thead className="type-caption text-muted-foreground">
-              <tr>
-                <th scope="col" className="w-12 border-b pr-1 pb-2 pl-2 text-right align-bottom font-normal">
+        <>
+          {byPitch && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <LensSwitch label={`Order the ${noun}s`} agent={byThePitch} lens={lens} onChange={switchLens} />
+              <LensSource
+                byAgent={byAgent}
+                captions={{
+                  listeners: `Ranked by listener overlap with ${names}`,
+                  agent: 'Ranked by what each pitch says, from its subject and opening alone'
+                }}
+              />
+            </div>
+          )}
+          <div role="table" aria-labelledby={id}>
+            <div role="rowgroup">
+              {/* On a phone the header keeps its first line; the move and the other rank say what they are. */}
+              <div
+                role="row"
+                className={cn(grid, bleed, 'border-b pb-2 type-caption text-muted-foreground max-md:gap-y-0')}
+              >
+                <span role="columnheader" className="text-right [grid-area:rank]">
                   Rank
-                </th>
-                <th scope="col" className="border-b pb-2 pl-3 text-left align-bottom font-normal">
+                </span>
+                {byPitch && <MoveHeader className="max-md:sr-only" />}
+                <span role="columnheader" className="[grid-area:name]">
                   {/* The guest is Claude's reading of the pitch, or the sample's, not Qloo data. */}
                   <span className="inline-flex flex-wrap items-center gap-1.5">
                     Public work · guest {!sample && <Source of="agent" />}
                   </span>
-                </th>
-                {/* The rank Claude gave the pitch from what it says, Agent's even for the sample inbox. */}
-                {byPitch && (
-                  <th scope="col" className="border-b pb-2 pl-3 text-right align-bottom font-normal">
-                    <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                      Pitch <Source of="agent" />
-                    </span>
-                  </th>
-                )}
-                <th scope="col" className="w-24 border-b pr-2 pb-2 pl-3 text-left align-bottom font-normal">
+                </span>
+                {/* The pitch rank Claude gave the pitch from what it says, Agent's even for the sample inbox,
+                  or under "By the pitch" its listener rank. */}
+                {byPitch && <OtherRankHeader lens={lens} agent={byThePitch} className="max-md:sr-only" />}
+                <span role="columnheader" className="[grid-area:fit]">
                   Fit
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.rows.map((r) => {
+                </span>
+              </div>
+            </div>
+            <div role="rowgroup">
+              {order.map((r) => {
                 const guest = pitch(r.pitch)?.guest
+                const ranked = ranks(r)
+                const move = r.move ?? null
+                const moved = move !== null && Math.abs(move) >= CLIMB // a climber or a faller
+                const open = moved && why === r.pitch
+                const tint = r.pitch === selected ? 'bg-muted' : 'bg-background'
                 return (
-                  <tr key={r.pitch} className="group/row" data-selected={r.pitch === selected || undefined}>
-                    <td className={cn(cell, 'pr-1 pl-2 text-right type-title tabular-nums')}>{r.rank}</td>
-                    <th scope="row" className={cn(cell, 'pl-3 text-left font-normal')}>
-                      <span className="flex flex-col items-start gap-0.5">
+                  <Fragment key={r.pitch}>
+                    <div
+                      role="row"
+                      ref={rowRef(r.pitch)}
+                      className={cn(
+                        grid,
+                        bleed,
+                        'items-baseline border-b py-2.5',
+                        tint,
+                        open && 'border-b-transparent'
+                      )}
+                      data-ranked-pitch={r.pitch}
+                      data-selected={r.pitch === selected || undefined}
+                    >
+                      <RankCell row={ranked} lens={byPitch ? lens : null} agent={byThePitch} />
+                      {byPitch && (
+                        <MoveCell
+                          move={move}
+                          climber={move !== null && move >= CLIMB}
+                          agent={byThePitch}
+                          why={
+                            moved ? { open, controls: `why-${r.pitch}`, onToggle: () => toggleWhy(r.pitch) } : undefined
+                          }
+                        />
+                      )}
+                      <div role="rowheader" className="flex min-w-0 flex-col items-start gap-0.5 [grid-area:name]">
                         <button
                           type="button"
                           aria-current={r.pitch === selected || undefined}
                           onClick={(e) => select(r.pitch, e.currentTarget)}
-                          className="cursor-pointer text-left text-[15px] leading-snug font-semibold decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-2 max-md:py-2"
+                          className="cursor-pointer text-left text-[15px] leading-snug font-semibold wrap-anywhere decoration-1 underline-offset-4 hover:underline aria-[current]:underline max-md:-my-2 max-md:py-2"
                         >
                           {r.entity.name}
                         </button>
@@ -1118,22 +1197,39 @@ function RankedPitches({
                             opened={opened}
                           />
                         )}
+                      </div>
+                      {byPitch && <OtherRankCell row={ranked} lens={lens} agent={byThePitch} />}
+                      <span role="cell" className="[grid-area:fit]">
+                        <FitBand band={r.band} finalist={false} />
                       </span>
-                    </th>
-                    {byPitch && (
-                      <td className={cn(cell, 'pl-3 text-right text-muted-foreground')}>
-                        {r.pitchRank === undefined ? '–' : <span className="tabular-nums">#{r.pitchRank}</span>}
-                      </td>
+                    </div>
+                    {open && (
+                      <WhyRow id={`why-${r.pitch}`} className={cn(grid, bleed, 'border-b pb-2.5', tint)} columns={5}>
+                        {/* The pitch rank is Claude's, the listener rank Qloo's: each labelled, neither wrapped
+                          off its words. The listener rank is its work's, which its move counts from, so
+                          pitches of one work share it. */}
+                        <p>
+                          <Source of="agent" /> What the pitch says ranks it{'\u00a0'}
+                          {r.pitchRank}.
+                        </p>
+                        <p>
+                          <Source of="qloo" /> Listener overlap with {names} ranks its work{'\u00a0'}
+                          {r.pitchRank! - move}.{' '}
+                          <CallButton
+                            call={list.calls.at(-1)!}
+                            label={`Evidence for ${r.entity.name}’s listener rank`}
+                            opened={opened}
+                            openCall={openCall}
+                          />
+                        </p>
+                      </WhyRow>
                     )}
-                    <td className={cn(cell, 'pr-2 pl-3')}>
-                      <FitBand band={r.band} finalist={false} />
-                    </td>
-                  </tr>
+                  </Fragment>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </div>
+        </>
       )}
       {list.notScored.length > 0 && (
         <NotScored

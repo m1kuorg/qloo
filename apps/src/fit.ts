@@ -6,6 +6,7 @@ import type { Affinity, QlooResult, Ranked } from './gateway'
 import type { Booking, Pitch, Work, WorkCandidate, WorkMatch, WorkType } from './inbox'
 import type { Candidate } from './resolve'
 import { listOf } from './text'
+import type { Move } from './topic'
 
 export type Anchor = { id: string; name: string }
 
@@ -214,6 +215,22 @@ export function leadingComp(anchors: Anchor[], shares: { id: string; score: numb
     .map((anchor) => ({ anchor, share: shares.find((s) => s.id === anchor.id)?.score ?? 0 }))
     .sort((a, b) => b.share - a.share)
   return top.share - next.share >= LEAD ? top.anchor : null
+}
+
+// The fit chart's finding, as the app's chart and the landing page's both word it: how many finalists,
+// then what a topic-only plan would have missed, led by the highest-placed climber (the one the
+// guide names). `climbers` are in fit order, or null before the topic ranking is in. It's here, not
+// with the topic baseline (topic.ts), so the launch page's chart imports it without the baseline's
+// model call.
+export function topicFinding(finalists: number, climbers: Pick<Move, 'show' | 'move'>[] | null) {
+  const lead = `${finalists} finalist${finalists === 1 ? '' : 's'}.`
+  if (!climbers) return lead
+  const [top, ...more] = climbers
+  if (!top) return `${lead} No show climbs ${CLIMB} or more places over a topic-only plan.`
+  const others = more.length
+    ? `, and ${more.length} more ${more.length === 1 ? 'show climbs' : 'shows climb'} ${CLIMB} or more`
+    : ''
+  return `${lead} ${top.show} climbs ${top.move} places over a topic-only plan${others}.`
 }
 
 // The booking with each list row's pitch rank and move, worked out from the lists and the pitch ranking

@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { CrossfeedAgent, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
-import { InboxWorkspace } from '../src/client/Inbox'
+import { InboxWorkspace, RankedPitches } from '../src/client/Inbox'
+import type { Lens } from '../src/client/Rerank'
 import sample from '../src/sample-inbox.json'
 import {
   fakeClaude,
@@ -267,10 +268,11 @@ describe('ranking pitched works against the show', () => {
     ])
     // Ranks and bands reach the browser; the raw affinities stay in the evidence.
     for (const a of affinities) expect(s.frames().filter((f) => f.includes(a))).toEqual([])
-    // The page lists each type on its own with its finding, its anchors and call: by rank, each work with
-    // the guest as Claude read them, its pitch rank, and its band.
+    // The page lists each type on its own with its finding, its anchors and call, and its lens: by rank,
+    // with both ranks in words, each work's move, the work with the guest as Claude read them, its pitch
+    // rank, and its band.
     expect(words(list(state, 'book'))).toBe(
-      'Books · 2 ranked Night Ferry reads most on-topic but falls out of the top band by who listens. Ranked against Night Shift Cinema and Glass Harbor. C-08 Rank Public work · guest Agent Pitch Agent Fit 1 Paper Moons Rue Vance #2 Strong 2 Night Ferry Ada Quill #1 Good'
+      'Books · 2 ranked Night Ferry reads most on-topic but falls out of the top band by who listens. Ranked against Night Shift Cinema and Glass Harbor. C-08 By who listens By the pitch Qloo data Ranked by listener overlap with Night Shift Cinema and Glass Harbor Rank Move Public work · guest Agent Pitch Agent Fit 1 1st by who listens, 2nd by the pitch ▲1 Up 1 place Paper Moons Rue Vance Pitch #2 Strong 2 2nd by who listens, 1st by the pitch ▼1 Down 1 place Night Ferry Ada Quill Pitch #1 Good'
     )
     expect(words(list(state, 'tv_show'))).toMatch(/^TV shows · 1 ranked Ranked against .+\. C-10 /)
     // Each work opens its pitch.
@@ -443,13 +445,89 @@ describe('ranking the pitches by what they say', () => {
       ['pitch-06', 6, 3, -3],
       ['pitch-04', 7, 1, -6]
     ])
-    // The finding leads the list's sentence, and the Pitch column, headed with the Agent chip, gives
-    // each pitch's rank by what it says.
+    // The finding leads the list's sentence; the lens orders it by who listens; Move gives each pitch's
+    // climb by who listens; and the Pitch column, headed with the Agent chip, gives each pitch's rank by
+    // what it says.
     expect(words(lists(state))).toContain(
-      `Films · 7 ranked Glass Lantern climbs 5 places from its pitch rank by who listens, and 1 more pitch climbs 3 or more. Paper Planes, Static Bloom, and Red Static read most on-topic but fall out of the top band by who listens. Ranked against Night Shift Cinema and Glass Harbor. ${list.calls[0]} Rank Public work · guest Agent Pitch Agent Fit 1 Glass Lantern Ida Wren #6 Strong 2 Low Tide Cy Lund #4 Strong 3 Low Tide Ola Lund #7 Strong 4 Night Owls Rex Moor #5 Good 5 Static Bloom Ben Ochoa #2 Good 6 Red Static Pia Stone #3 Fair 7 Paper Planes Jo Hale #1 Fair`
+      `Films · 7 ranked Glass Lantern climbs 5 places from its pitch rank by who listens, and 1 more pitch climbs 3 or more. Paper Planes, Static Bloom, and Red Static read most on-topic but fall out of the top band by who listens. Ranked against Night Shift Cinema and Glass Harbor. ${list.calls[0]} By who listens By the pitch Qloo data Ranked by listener overlap with Night Shift Cinema and Glass Harbor Rank Move Public work · guest Agent Pitch Agent Fit 1 1st by who listens, 6th by the pitch Up 5 places, why it moved ▲5 Glass Lantern Ida Wren Pitch #6 Strong 2 2nd by who listens, 4th by the pitch ▲2 Up 2 places Low Tide Cy Lund Pitch #4 Strong 3 3rd by who listens, 7th by the pitch Up 5 places, why it moved ▲5 Low Tide Ola Lund Pitch #7 Strong 4 4th by who listens, 5th by the pitch ▲1 Up 1 place Night Owls Rex Moor Pitch #5 Good 5 5th by who listens, 2nd by the pitch Down 3 places, why it moved ▼3 Static Bloom Ben Ochoa Pitch #2 Good 6 6th by who listens, 3rd by the pitch Down 3 places, why it moved ▼3 Red Static Pia Stone Pitch #3 Fair 7 7th by who listens, 1st by the pitch Down 6 places, why it moved ▼6 Paper Planes Jo Hale Pitch #1 Fair`
     )
+    // A climb of 3 or more is in signal ink; a smaller climb and every fall are muted.
+    for (const pitch of ['pitch-03', 'pitch-05'])
+      expect(hooked(lists(state), `data-ranked-pitch="${pitch}"`)[0], pitch).toContain('text-signal-ink')
+    for (const pitch of ['pitch-02', 'pitch-07', 'pitch-01', 'pitch-06', 'pitch-04'])
+      expect(hooked(lists(state), `data-ranked-pitch="${pitch}"`)[0], pitch).not.toContain('text-signal-ink')
     // It spent none of the run's scripted turns.
     expect(modelRequests().filter((r) => r.tools)).toHaveLength(2)
+  })
+
+  it('re-ranks each list by the pitch, and says why a pitch that climbs or falls 3 or more moved', async () => {
+    fakePitchRanking(['pitch-04', 'pitch-01', 'pitch-06', 'pitch-02', 'pitch-07', 'pitch-03', 'pitch-05'])
+    const s = await filmsLoaded()
+    await start(s)
+    const state = await finished(s)
+    const [ranked] = state.booking!.lists!
+    // The film list as the inbox page renders it, or as a booker's switch of its lens and press of a move
+    // leave it.
+    const film = (start?: { lens?: Lens; why?: string | null }) =>
+      renderToStaticMarkup(
+        createElement(RankedPitches, {
+          list: ranked,
+          byPitch: true,
+          pitches: state.inbox!.pitches,
+          sample: false,
+          selected: null,
+          select: () => {},
+          openCall: () => {},
+          opened: null,
+          start
+        })
+      )
+    const order = (html: string) => [...html.matchAll(/\sdata-ranked-pitch="([^"]+)"/g)].map((m) => m[1])
+    const row = (html: string, pitch: string) => words(hooked(html, `data-ranked-pitch="${pitch}"`)[0])
+    const why = (html: string, pitch: string) => hooked(html, `id="why-${pitch}"`).map(words)
+
+    // By who listens, as the page opens: the rows in listener order, and a move of 3 or more each way,
+    // Glass Lantern's and Low Tide's second climbs and the three fallers, is a button that opens why it
+    // moved, closed. Night Owls, up 1, and Low Tide's first pitch, up 2, explain nothing.
+    const page = list(state, 'film')
+    expect(order(page)).toEqual(['pitch-03', 'pitch-02', 'pitch-05', 'pitch-07', 'pitch-01', 'pitch-06', 'pitch-04'])
+    for (const pitch of ['pitch-03', 'pitch-05', 'pitch-01', 'pitch-06', 'pitch-04'])
+      expect(hooked(page, `data-ranked-pitch="${pitch}"`)[0], pitch).toMatch(
+        new RegExp(`<button\\b(?=[^>]*\\saria-expanded="false")(?=[^>]*\\saria-controls="why-${pitch}")`)
+      )
+    for (const pitch of ['pitch-02', 'pitch-07'])
+      expect(hooked(page, `data-ranked-pitch="${pitch}"`)[0], pitch).not.toContain('aria-expanded')
+    expect(why(page, 'pitch-03')).toEqual([])
+
+    // By the pitch, with Glass Lantern's why open: the rows in pitch rank order, each ranked by the pitch
+    // first, its other rank its listener rank, headed with the Qloo data chip, and the order labelled the
+    // agent's.
+    const byPitch = film({ lens: 'agent', why: 'pitch-03' })
+    expect(order(byPitch)).toEqual(['pitch-04', 'pitch-01', 'pitch-06', 'pitch-02', 'pitch-07', 'pitch-03', 'pitch-05'])
+    expect(words(byPitch)).toContain(
+      'By who listens By the pitch Agent Ranked by what each pitch says, from its subject and opening alone Rank Move Public work · guest Agent Listeners Qloo data Fit'
+    )
+    expect(row(byPitch, 'pitch-04')).toBe(
+      '1 1st by the pitch, 7th by who listens Down 6 places, why it moved ▼6 Paper Planes Jo Hale Listeners #7 Fair'
+    )
+    expect(row(byPitch, 'pitch-03')).toBe(
+      '6 6th by the pitch, 1st by who listens Up 5 places, why it moved ▲5 Glass Lantern Ida Wren Listeners #1 Strong'
+    )
+    expect(hooked(byPitch, 'data-ranked-pitch="pitch-03"')[0]).toMatch(
+      /<button\b(?=[^>]*\saria-expanded="true")(?=[^>]*\saria-controls="why-pitch-03")/
+    )
+    // Why it moved gives its pitch rank, the agent's, and its listener rank, Qloo's, with the list's call.
+    expect(why(byPitch, 'pitch-03')).toEqual([
+      `Why it moved Agent What the pitch says ranks it 6. Qloo data Listener overlap with Night Shift Cinema and Glass Harbor ranks its work 1. ${ranked.calls[0]}`
+    ])
+    // A faller's says the same, and Low Tide's second pitch's gives its work's listener rank, which its
+    // move counts from.
+    expect(why(film({ why: 'pitch-04' }), 'pitch-04')).toEqual([
+      `Why it moved Agent What the pitch says ranks it 1. Qloo data Listener overlap with Night Shift Cinema and Glass Harbor ranks its work 7. ${ranked.calls[0]}`
+    ])
+    expect(why(film({ why: 'pitch-05' }), 'pitch-05')).toEqual([
+      `Why it moved Agent What the pitch says ranks it 7. Qloo data Listener overlap with Night Shift Cinema and Glass Harbor ranks its work 2. ${ranked.calls[0]}`
+    ])
   })
 
   it("sends Claude each pitch's subject and opening with the show and the past guests' works, never a sender or anything from Qloo", async () => {
@@ -517,6 +595,7 @@ describe('ranking the pitches by what they say', () => {
     expect(ended.booking!.pitchRanking!.status).toBe('ranking')
     expect(words(lists(ended))).toContain('Working Ranking the pitches by what they say for the Pitch column…')
     expect(words(lists(ended))).not.toContain('Pitch Agent')
+    expect(words(lists(ended))).not.toContain('By the pitch')
     release.resolve()
     const state = await s.until((state) => state.booking?.pitchRanking?.status === 'ranked')
 
@@ -831,7 +910,7 @@ describe('the sample inbox', () => {
     // Each list's guests are the sample's, already read, not the agent's reading, and carry no label of
     // their own: the page's title says the inbox is the sample's. The pitch ranks are still Claude's.
     for (const type of ['book', 'film', 'tv_show', 'podcast'])
-      expect(words(list(state, type)), type).toContain('Rank Public work · guest Pitch Agent Fit')
+      expect(words(list(state, type)), type).toContain('Rank Move Public work · guest Pitch Agent Fit')
     // Each request as Qloo reads it: the path, every decoded parameter, and the body.
     const sent = qlooRequests().map((r) =>
       [r.url.pathname, ...[...r.url.searchParams].map(([k, v]) => `${k}=${v}`), r.body].join('\n').toLowerCase()

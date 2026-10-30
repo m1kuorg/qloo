@@ -11,12 +11,13 @@ export const listParts = <T>(items: T[]): (T | string)[] =>
   )
 
 // A show's move, as the charts set it (positive is a climb): from its topic rank to its fit rank on the
-// fit chart, or since an earlier run on a launch's Changes tab, which says a move of 0 its own way. The
-// glyph, and the words a screen reader hears instead.
+// fit chart, or since an earlier run on a launch's Changes tab, which says a move of 0 its own way; or a
+// pitch's, from its pitch rank to its listener rank (`baseline`). The glyph, and the words a screen
+// reader hears instead.
 export const moveGlyph = (move: number) => (move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '=')
-export const moveWords = (move: number) =>
+export const moveWords = (move: number, baseline = 'topic rank') =>
   move === 0
-    ? 'Same as topic rank'
+    ? `Same as ${baseline}`
     : `${move > 0 ? 'Up' : 'Down'} ${Math.abs(move)} place${Math.abs(move) === 1 ? '' : 's'}`
 
 // What `claude mcp list` prints for a server it reached, its own check mark included, as the developer
