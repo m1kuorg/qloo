@@ -303,21 +303,24 @@ const readout = 'flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg
 // The on-air readout (role="status"): the connection's state on a launch's page, whose title row
 // doesn't say it as the page header does on the inbox, then what the page's run or work is doing
 // (`children`); while a run is running, the time since `since`, outside the live region; and once
-// there's a run, "Run log" (`runLog`), which opens the inspector on the Run tab.
+// there's a run, "Run log" (`runLog`), which opens the inspector on the Run tab. `className` places it,
+// such as visually hidden.
 export function Readout({
   connection,
   since,
   runLog,
+  className,
   children
 }: {
   connection?: Connection
   since: string | null
   runLog: ((from: HTMLElement) => void) | null
+  className?: string
   children: ReactNode
 }) {
   const elapsed = useElapsed(since)
   return (
-    <div className={readout}>
+    <div className={cn(readout, className)}>
       {/* Each part is as wide as its words, so a step or an error quoting a name with no spaces breaks anywhere. */}
       <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 wrap-anywhere">
         {connection && <ConnectionState connection={connection} />}

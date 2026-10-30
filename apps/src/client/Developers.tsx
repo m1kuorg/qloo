@@ -172,7 +172,9 @@ function SnippetBlock({ snippet: { label, file, code, copy } }: { snippet: Snipp
 // the REST API's, and the network's ID. From 768px each is a row, its label, value and Copy in columns as
 // wide as what they hold, so Copy follows the longest value rather than the column's far edge; under it,
 // the label is over the value. In the 384px column, from 1280px, Copy shares the label's line, over the
-// value, which has the column's width.
+// value, which has the column's width. Stacked, a label stands over its value, 8px in that column and
+// 4px on a phone, where Copy's taller row sets the value lower, and 24px under the address before it, so
+// each reads with its own.
 function Addresses({ network, mcp, api }: { network: NetworkPage; mcp: string; api: string }) {
   const rows = [
     { label: 'MCP server', value: mcp, what: 'MCP server address' },
@@ -186,9 +188,9 @@ function Addresses({ network, mcp, api }: { network: NetworkPage; mcp: string; a
       description={`Where an assistant or a script reaches ${network.name}, and the ID it names it by.`}
       data-addresses
     >
-      <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 md:grid-cols-[auto_minmax(0,max-content)_auto] md:justify-start md:gap-y-2 xl:grid-cols-[minmax(0,1fr)_auto]">
+      <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-6 md:grid-cols-[auto_minmax(0,max-content)_auto] md:justify-start md:gap-y-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-y-6">
         {rows.map((r) => (
-          <div key={r.label} className="col-span-full grid grid-cols-subgrid items-center max-md:not-first:mt-2">
+          <div key={r.label} className="col-span-full grid grid-cols-subgrid items-center gap-y-1 xl:gap-y-2">
             <dt className="col-span-full text-muted-foreground md:col-span-1">{r.label}</dt>
             <dd className="min-w-0 xl:col-span-full xl:row-start-2">
               <code className="font-mono text-[13px] wrap-anywhere" translate="no">

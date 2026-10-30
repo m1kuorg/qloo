@@ -456,7 +456,9 @@ function inboxSummary(inbox: Inbox, show: string | null) {
 // lookups, and its slow calls; or once a new inbox has replaced the one the latest pitch run ranked,
 // that run's state from its summary, as a launch's page says its latest run's. With no pitch run and
 // nothing being read, the inbox is at rest and there's none: the header's counts say what it holds,
-// and with no inbox, the empty state says what's missing.
+// and with no inbox, the empty state says what's missing. Once the run it says completed, it's
+// visually hidden, with no Run log, as the header's Details opens the log: still a status region, so
+// a run ending is told to screen readers.
 function InboxReadout({
   inbox,
   pitchRun,
@@ -474,12 +476,17 @@ function InboxReadout({
 }) {
   const reading = inbox?.status === 'reading'
   if (!pitchRun && !reading && !latest) return null
+  const completed = (pitchRun ?? (reading ? null : latest))?.status === 'completed'
   const done = inbox?.pitches.filter((p) => p.status !== 'reading' && p.status !== 'looking_up').length ?? 0
   // The sample's pitches come already read, so while it loads, its works' lookups are counted instead.
   const works = inbox?.pitches.filter((p) => p.work).length ?? 0
   const looked = inbox?.pitches.filter((p) => p.work && p.status !== 'looking_up').length ?? 0
   return (
-    <Readout since={pitchRun?.status === 'running' ? startedAt : null} runLog={runLog}>
+    <Readout
+      since={pitchRun?.status === 'running' ? startedAt : null}
+      runLog={completed ? null : runLog}
+      className={cn(completed && 'vh')}
+    >
       {pitchRun ? (
         <RunState run={pitchRun} slowCalls={slowCalls} />
       ) : !reading ? (

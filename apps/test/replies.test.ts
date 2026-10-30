@@ -567,6 +567,8 @@ const buttons = (html: string) =>
   [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].map(
     ([, attrs, name]) => [attrs, name.replace(/<[^>]+>/g, '').trim()] as const
   )
+// The on-air readout, visually hidden: its strip, then its status region.
+const hiddenReadout = /<div class="[^"]*\bvh\b[^"]*"><div role="status"/
 // Markup's words as a reader hears them.
 const words = (html: string) =>
   html
@@ -667,8 +669,10 @@ describe('the booker clearing the inbox', () => {
     const html = inboxPage(ended, { runs: s.state()!.runs, id: state.run!.id })
 
     // The header says which run it is, in place of the inbox's counts, in the summary's one muted form,
-    // the inspector's toggle, and the way back.
-    expect(words(html)).toMatch(/^Inbox Run 1 · earlier, read-only Details Back to the latest run Completed Run log /)
+    // the inspector's toggle, and the way back. The readout says the run completed to screen readers
+    // alone, with no Run log, as Details opens the log.
+    expect(words(html)).toMatch(/^Inbox Run 1 · earlier, read-only Details Back to the latest run Completed Pitches /)
+    expect(html).toMatch(hiddenReadout)
     expect(words(html)).toContain('Agent Run 1’s replies, read-only; an approved one can still be copied.')
     expect(actionsOf(html, 'pitch-02')).toEqual([['Copy reply about Paper Moons', false]])
     expect(words(replyOn(html, 'pitch-02'))).toMatch(
@@ -750,8 +754,9 @@ describe('the booker clearing the inbox', () => {
       createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
 
-    // The readout says the run waits, and its Run log opens the inspector on the run's log.
+    // The readout says the run waits, in view, and its Run log opens the inspector on the run's log.
     expect(words(html)).toContain('Waiting on you Answer the agent’s question to go on. Run log')
+    expect(html).not.toMatch(hiddenReadout)
     // Before the tabs and the lists, so a single column reaches it first.
     expect(html.indexOf('Hold the film pitches for next season?')).toBeGreaterThan(-1)
     expect(html.indexOf('Hold the film pitches for next season?')).toBeLessThan(html.indexOf('role="tablist"'))
@@ -767,7 +772,7 @@ describe('the booker clearing the inbox', () => {
     await expect(s.call('approveReply', 'pitch-02')).rejects.toThrow('The agent is still drafting replies.')
   })
 
-  it('keeps the readout on the latest pitch run, with its Run log, once a new inbox replaces the one it ranked', async () => {
+  it('keeps the readout on the latest pitch run, visually hidden once it completed, after a new inbox replaces the one it ranked', async () => {
     const { s } = await pitchRun(drafted)
     // A new load takes the run's lists and replies with the old inbox, and keeps the run in the history.
     fakeClaude([() => turn(text(JSON.stringify({ guest: 'Dot Pruitt', work: null })))])
@@ -777,8 +782,10 @@ describe('the booker clearing the inbox', () => {
       createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })
     )
 
-    // As a launch's page says its latest run's state once another run came after it.
-    expect(words(html)).toMatch(/^Inbox 1 pitch · 1 set aside Details Load pitches Completed Run log Pitches /)
+    // As a launch's page says its latest run's state once another run came after it, to screen readers
+    // alone, as the run completed.
+    expect(words(html)).toMatch(/^Inbox 1 pitch · 1 set aside Details Load pitches Completed Pitches /)
+    expect(html).toMatch(hiddenReadout)
   })
 
   it('refuses every reply action with GUEST_PITCHES off', async () => {
