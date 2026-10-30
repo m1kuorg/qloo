@@ -59,7 +59,7 @@ A booker without Qloo has only the publicist's words to go on. Crossfeed ranks t
 
 Crossfeed is built with an agent framework, the Cloudflare Agents SDK, and calls Qloo's REST API directly from a Cloudflare Worker. Each part has one job:
 
-- **Qloo:** every fit ranking, demographic flag, and shared tag.
+- **Qloo:** every fit ranking, closest show, listener lean, demographic flag, and shared tag.
 - **Claude Haiku 5.5:** runs the steps, asks the human, and drafts text from what Qloo returned.
 - **Code:** prices the plan and enforces the budget.
 
@@ -74,14 +74,21 @@ Crossfeed is built with an agent framework, the Cloudflare Agents SDK, and calls
   - The roster is the candidates, with `feature.explainability=true` and `take=50`.
   - With comps, explainability says which comp led a show's fit.
 - **The same call, once per work type:** ranks pitched books, films, TV shows, and podcasts against the show and its best past guests' works. Each type gets its own list, because scores from separate calls aren't comparable.
+- **The same call, once per roster show:** measures the roster's overlap, which of the network's own shows share listeners.
+  - Each show matched in Qloo is the only signal, and the rest of the roster the candidates.
+  - As with pitched works' lists, each show keeps only its own ranking's order. Its closest shows are the first three, fewer on a roster of under ten, and two shows that each rank among the other's closest are a close pair.
+  - On the sample roster's 16 shows that resolve, the 16 rankings found 12 close pairs, where chance would give about 5 ([TRD roster overlap]).
 - **`POST /v2/insights` with `filter.type=urn:demographics`:** checks the launch and its five finalists in one call. It flags age bands and gender skew that run against the launch's.
+- **The same call, once for the roster:** profiles its listeners, each show's lean by age band and gender against the average in Qloo. One call takes every show matched in Qloo, up to the roster's 50. On the sample roster, it profiled 15 of the 16 shows; Qloo has no profile for House of R ([TRD listener profile]).
 - **`GET /v2/analysis/compare`:** one call per finalist and per top pitch returns the tags the two sides' listeners share. Those tags become the "why it moved" line, the host-read angle, and the episode angle.
+
+Close pairs in a plan, a launch's Changes tab, the promo inventory, and the launch report call nothing: they read the overlap and the runs Crossfeed already stored. The inbox's "By the pitch" lens is Claude's ranking of the pitches, with no Qloo data.
 
 ### One run, from the click to an approved insertion order
 
 This run is from the [live check], with Qloo entity IDs left out:
 
-1.  **Roster:** the guest network opens each day on the sample network's 19 shows. Each is looked up with `GET /search?query=<show>&types=urn:entity:podcast&take=3`, as calls C-01 to C-19. Of these, 16 resolve, Binge Mode is ambiguous, and The Zach Lowe Show and The Press Box miss.
+1.  **Roster:** the guest network opens each day on the sample network's 19 shows. Each is looked up with `GET /search?query=<show>&types=urn:entity:podcast&take=3`, as calls C-01 to C-19. Of these, 16 resolve, Binge Mode is ambiguous, and The Zach Lowe Show and The Press Box miss. Once they settle, the guest network measures the 16 shows' overlap and profiles their listeners, 16 rankings and one demographics call on the guest budget, so the roster page's Overlap and Listeners tabs are filled before anyone asks ([TRD demo data]).
 2.  **Ranking:** select Start run on The Watch. The agent looks it up (C-20) and calls its `rank_candidates` tool, which sends one ranking (C-21):
 
     ```json
@@ -104,11 +111,19 @@ This run is from the [live check], with Qloo entity IDs left out:
 
 The run made 27 Qloo calls. Every ranking, tag, and flag on screen cites its call number. Selecting a call number opens its evidence: its parameters, status, latency, and cache hit, plus the raw scores the chart leaves out.
 
+Three more parts of a launch read what its runs stored:
+
+- **Close pairs:** as it starts, a run copies the roster's last measured overlap. Once it drafts the insertion order, the plan names each close pair among its lines' shows, two shows that "each rank among the other's 3 closest shows by listener overlap", citing both rankings, and follows edits to the lines. On a roster never measured, it says nothing of pairs ([TRD roster overlap]).
+- **Changes:** from a launch's second completed run, its Changes tab compares the run with an earlier one, the previous completed run by default. The inputs that changed come first, then the finalists that joined or left, each show's move in words, and the plan's slots and value, line by line.
+- **The launch report:** once the order is approved, the run has a report to print or save as PDF: the finding, the finalists by who listens, the demographics, the close pairs, the priced plan, and who approved it, with an index of the calls it cites. It carries ranks, bands, tags, and figures, never request parameters, entity IDs, or raw scores, and like the CSV, a draft has none.
+
 The guest flow runs the same way ([live check]):
 
 - **Reading:** the guest network opens with the 40-pitch sample inbox already read, so only its 36 works are looked up as it loads. Read by Claude, before it came pre-loaded, it took 11.5 seconds.
 - **Ranking:** the pitch run made 18 Qloo calls: 3 searches for past guests' works, 4 rankings, and 11 compares ([pitch run check]).
 - **Replies:** it drafted 40 replies, and the run completed in 30.8 seconds.
+
+Beside the pitch run, one Claude call ranks the pitches by what each one says, from its subject and opening, never its sender, with no Qloo data, and doesn't count as a model run. Each list's finding then names the pitches that read most on-topic but fall out of the top band by who listens ([TRD pitch ranking]).
 
 ### Engineering around Qloo
 
@@ -130,6 +145,9 @@ The guest flow runs the same way ([live check]):
 [TRD replay]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#caching-caps-and-replay
 [TRD agent limits]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#agent-limits
 [limits.ts]: https://github.com/m1kuorg/qloo/blob/main/apps/src/limits.ts
+[TRD roster overlap]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#roster-overlap
+[TRD listener profile]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#listener-profile
+[TRD pitch ranking]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#other-model-calls
 
 ## Design
 
@@ -145,7 +163,13 @@ A judge opens the URL on a type-led landing page whose one live thing is the re-
 - **Slot value beside fit:** each charted show's slot value, its downloads per episode × CPM ÷ 1,000, has its own column, its footnote saying "sample figures" while they are. It comes from the same formula that prices the insertion order, so the two never disagree. On a phone, each row folds to two lines and the slot value moves to the second.
 - **A canvas and an inspector:** the page reads in one column: the on-air readout, which says what the run is doing, the agent's open question as a card, the chart, the plan with its totals, and the roster. Beside it from 1360px, or in a sheet on smaller screens, the inspector's tabs hold the progress notes with the agent's closing line and the evidence for any call; on the roster page, the selected show.
 - **Honest states:** loading, slow, failed, missed, not scored, replayed, and sample data each have their own wording. A Qloo call still waiting after 8 seconds is named as slow ([wrangler.jsonc]).
-- **The booker's inbox:** each pitch shows its guest, the public work, and the work's Qloo match. Pitched works are ranked in one list per type. Every pitch gets a drafted reply under Book, Later, or Decline. The booker approves, edits, or discards each reply, then copies it to send.
+- **The booker's inbox:** each pitch shows its guest, the public work, and the work's Qloo match. Pitched works are ranked in one list per type. Each list switches between "By who listens" and "By the pitch" on the fit chart's re-rank, the pitch rank labelled "Agent", and a pitch that climbs three or more places by who listens is marked ▲ in signal orange, as a climber on the fit chart is. Every pitch gets a drafted reply under Book, Later, or Decline. The booker approves, edits, or discards each reply, then copies it to send.
+- **Analysis where its object lives:** there's no new rail item. The roster page gains Overlap and Listeners tabs, a launch's page a Changes tab, the Launches page an Inventory tab, and an approved run a report page. In the guest network:
+  - the Overlap and Listeners tabs open filled, since the guest network measures the sample roster each day;
+  - the Inventory tab totals the sample launches' insertion orders, and the one approved opens its launch report from its plan;
+  - close pairs and the Changes tab show only on runs a guest starts: the sample launches hold one captured run each, and neither those nor The Watch's stored run carries the roster's overlap.
+- **Qloo's measure in ink:** the overlap and the listener profile are Qloo's measure, not what the agent puts forward, so neither uses signal orange. The Overlap tab is a real table of each show's closest shows by rank, a close pair marked ⇄, with "Show all" for a show's whole ranking. The Listeners tab draws each lean as an ink bar either side of the average, labelled with its signed figure, under a finding in words, and says that leans describe listeners, not people.
+- **A report for paper:** the launch report prints ink on white, with no rail or controls, and since paper has no inspector, each call number links to its line in "Calls cited".
 - **One world:** every page in the app shares one icon rail and top bar, with the network switcher. The Launches page groups launches by who's blocked, the dashboard leads with what needs the member, the roster and the inbox reuse the chart's rows, settings are labelled sections beside their help, and every destructive action confirms in one dialog. There are no KPI tiles, decorative icons, or shadows at rest, one ink button for each page's decision, and signal orange only for what the agent puts forward ([DESIGN.md]).
 
 [DESIGN.md]: https://github.com/m1kuorg/qloo/blob/main/docs/DESIGN.md
@@ -154,7 +178,8 @@ A judge opens the URL on a type-led landing page whose one live thing is the re-
 
 - **A named user with a costly, recurring job:** the head of programming plans promos with every launch, and every slot a promo takes is an ad not sold. The bookers triage pitches every day.
 - **The plan priced as inventory:** the insertion order prices each slot from the network's own downloads and CPM. Crossfeed ships no default CPM for real networks. The sample network's $20 CPM and its downloads are labelled arbitrary sample figures ([sample network]).
-- **A decision the user can defend:** the approved order shows which call and which shared tags put each show there. It also shows where a finalist's listeners differ from the launch's.
+- **A decision the user can defend:** the approved order shows which call and which shared tags put each show there. It also shows where a finalist's listeners differ from the launch's, and which two of its shows are a close pair, so the programmer thinks twice before buying both. The launch report hands that case to a boss or ad operations, each figure citing its call.
+- **The network, not only the launch:** the overlap says which of the network's own shows share listeners, and so which would trade promos well, and the listener profile who the roster reaches, show by show. The promo inventory says how many slots of each show the network's orders commit, approved apart from drafted, and which shows have never been a finalist.
 - **Safe with other people's inboxes:** only public works reach Qloo.
   - On the live demo, before it retired, two sessions' full logs held 81 and 73 Qloo calls. None held a guest name, sender name, or email address from the sample inbox ([live check]).
   - Pitch text does go to Anthropic: each pitch whole, to extract its work, and each pitch's subject and opening, never its sender, to rank the pitches by what they say. The agent that drafts the replies gets neither. The sample inbox is synthetic: its publicists are fictional, at `example.com` addresses.
