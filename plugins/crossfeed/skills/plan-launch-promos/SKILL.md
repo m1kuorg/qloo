@@ -1,6 +1,6 @@
 ---
 name: plan-launch-promos
-description: Plan a podcast launch's promos across a network's own shows with Crossfeed's MCP tools, which rank the roster by listener overlap in Qloo and draft an insertion order that a member approves in the app. Use when the user wants to plan, run, or rerun a Crossfeed launch, pick which roster shows promote a new show and how many slots each gets, settle the roster for a launch, change a draft insertion order, understand why a show ranks where it does on a launch's chart, or see which of the network's own shows share listeners with each other.
+description: Plan a podcast launch's promos across a network's own shows with Crossfeed's MCP tools, which rank the roster by listener overlap in Qloo and draft an insertion order that a member approves in the app. Use when the user wants to plan, run, or rerun a Crossfeed launch, pick which roster shows promote a new show and how many slots each gets, settle the roster for a launch, change a draft insertion order, understand why a show ranks where it does on a launch's chart, see which of the network's own shows share listeners with each other, or who the network's shows reach by age and gender.
 license: MIT
 compatibility: Needs Crossfeed's MCP server (tools such as create_launch and get_launch), connected with one of the network's API keys.
 ---
@@ -44,3 +44,11 @@ When the human asks which of the network's own shows share listeners, or which p
 - **Not measured, or stale:** measuring it with `measure_overlap` spends one Qloo call per show matched in Qloo, so ask the human first. It needs at least four such shows and a settled roster. Read it with `get_overlap` every few seconds while it's `measuring`.
 - **Present it** as the summary does: each show's closest shows by rank and band within its own ranking, then the close pairs in the tool's words. A rank compares shows within one show's ranking only, never across shows, and it describes shared listeners, never a fact about a person.
 - **A failed show** keeps its reason; measuring again asks only for the shows missing or failed.
+
+## Who the shows reach
+
+When the human asks who the network's shows reach, or which shows' listeners skew younger, older, male or female, read the roster's listener profile with `get_listeners`.
+
+- **Not profiled, or stale:** profiling it with `profile_listeners` spends one Qloo call, so ask the human first. It needs at least four shows matched in Qloo and a settled roster. Read it with `get_listeners` every few seconds while it's `profiling`.
+- **Present it** as the summary does: the finding, then each show's leans in the tool's words. A lean is relative to the average in Qloo and describes a show's listeners, never a fact about a person, and a gender lean under 0.2 either way doesn't count.
+- **A show with no profile** in Qloo says so; profiling again doesn't change that.

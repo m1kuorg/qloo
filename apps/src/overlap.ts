@@ -38,12 +38,13 @@ export type Overlap = {
 }
 
 // The fewest distinct entities a measure takes: under four, no show has a closest show (closestCount).
+// Profiling the roster's listeners takes as many (listeners.ts), so the roster's two analyses open together.
 export const MIN_OVERLAP_ENTITIES = 4
 
 // Why a roster of `n` distinct entities can't be measured, and what it needs: the measure's refusal, and
-// the Overlap tab's line in its place.
-export const tooFew = (n: number) =>
-  `Measuring the overlap needs at least ${MIN_OVERLAP_ENTITIES} shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has ${n}. Match or map more of its shows first.`
+// the Overlap tab's line in its place; or with `doing`, the listener profile's.
+export const tooFew = (n: number, doing = 'Measuring the overlap') =>
+  `${doing} needs at least ${MIN_OVERLAP_ENTITIES} shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has ${n}. Match or map more of its shows first.`
 
 // Why a measure is refused while one runs, and what a measure a restart interrupted says.
 export const OVERLAP_MEASURING = 'The overlap is already being measured. Wait for it to finish.'
@@ -84,9 +85,9 @@ export const entityKey = (entities: Entity[]) => entities.map((e) => e.id).join(
 // the top band of its ranking holds. So 3 from 10 shows, 2 from 7, 1 from 4, and none under 4.
 export const closestCount = (n: number) => Math.max(0, Math.min(3, Math.floor((n - 1) / 3)))
 
-// Whether the roster's matched entities differ from those the overlap was measured from. A show's
-// figures, status or exclusion never make it stale.
-export const isStale = (overlap: Overlap, roster: Show[]) => overlap.key !== entityKey(rosterEntities(roster))
+// Whether the roster's matched entities differ from those the overlap was measured from, or the listener
+// profile made from (listeners.ts). A show's figures, status or exclusion never make either stale.
+export const isStale = (analysis: { key: string }, roster: Show[]) => analysis.key !== entityKey(rosterEntities(roster))
 
 // What measuring the roster asks Qloo: one ranking per anchor. With the roster's entities unchanged since
 // the last measure, only the anchors whose ranking hasn't landed, missing or failed; otherwise all of them.

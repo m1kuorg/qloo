@@ -32,6 +32,7 @@ import {
   type OrderLine
 } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
+import type { ListenerProfile } from './listeners'
 import type { Overlap } from './overlap'
 import { holdsSample, parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
 import { Refusal } from './refusal'
@@ -199,8 +200,10 @@ export type State = {
   // who dismissed its setup checklist.
   launches?: LaunchSummary[]
   checklistDismissed?: string[]
-  // A signed-in network's agent only: the roster's overlap (overlap.ts), absent until it's first measured.
+  // A signed-in network's agent only: the roster's overlap (overlap.ts), absent until it's first measured;
+  // and its listener profile (listeners.ts), absent until its listeners are first profiled.
   overlap?: Overlap
+  listenerProfile?: ListenerProfile
   // A launch's agent only (launch-agent.ts): whether its network's roster has changed since the latest
   // run copied it; absent until a run has.
   rosterChanged?: boolean

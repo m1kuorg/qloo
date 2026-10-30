@@ -31,6 +31,7 @@ import {
   getLaunch,
   getLaunchEvidence,
   getNetwork,
+  getListeners,
   getOverlap,
   getPitchRun,
   listPitchRuns,
@@ -39,6 +40,7 @@ import {
   listLaunches,
   loadInbox,
   measureOverlap,
+  profileListeners,
   searchComps,
   startLaunchRun,
   startPitchRun,
@@ -52,8 +54,10 @@ import {
   type NamedShow,
   type PitchRun,
   type Roster,
+  type RosterListeners,
   type RosterOverlap
 } from '../operations'
+import { leanWords, listenerFinding } from '../listeners'
 import { dollars } from '../order'
 import { MIN_OVERLAP_ENTITIES } from '../overlap'
 import { Refusal, refusalCode } from '../refusal'
@@ -234,6 +238,28 @@ function serverFor(ctx: OperationContext) {
     async () => {
       const overlap = await measureOverlap(ctx)
       return { text: overlapText(overlap), structured: overlap }
+    }
+  )
+
+  tool(
+    'get_listeners',
+    "Read the roster's listener profile: who its shows reach, as Qloo profiled them. Each show's leans by age band and gender, relative to the average in Qloo, which describe listeners, not people, and which age bands and gender most of the shows lean toward. It's `profiling` while its call is out; read it again until it isn't.",
+    none,
+    READ,
+    async () => {
+      const listeners = await getListeners(ctx)
+      return { text: listenersText(listeners), structured: listeners }
+    }
+  )
+
+  tool(
+    'profile_listeners',
+    "Profile the roster's listeners: one Qloo call for every show matched in Qloo, counting shows on the same Qloo show once. It needs at least 4 such shows and no show still being looked up. It returns at once with the profile profiling; read it with get_listeners until it isn't. With the roster's matched shows unchanged since a profile that landed, it asks nothing. Its call counts against the network's daily Qloo calls.",
+    none,
+    WRITE,
+    async () => {
+      const listeners = await profileListeners(ctx)
+      return { text: listenersText(listeners), structured: listeners }
     }
   )
 
@@ -510,6 +536,36 @@ function overlapText(overlap: RosterOverlap) {
 
 const overlapName = ({ show, sameAs }: NamedShow) =>
   sameAs.length ? `${show} (the same Qloo show as ${listOf(sameAs)})` : show
+
+// The roster's listener profile as the assistant reads it: where it stands, the finding, and each show's
+// leans in words, with their figures.
+function listenersText(listeners: RosterListeners) {
+  const lines = [
+    {
+      unprofiled: `The roster's listeners haven't been profiled yet: profile them with profile_listeners, once at least ${MIN_OVERLAP_ENTITIES} shows are matched in Qloo.`,
+      profiling: "Profiling the roster's listeners in Qloo. Read it with get_listeners again in a few seconds.",
+      profiled: `The roster's listener profile, made ${listeners.profiledAt}: each show's leans by age band and gender, relative to the average in Qloo, which describe listeners, not people.`,
+      failed: `Profiling the listeners failed: ${listeners.error}`
+    }[listeners.status]
+  ]
+  if (listeners.stale)
+    lines.push(
+      "The roster's matched shows have changed since its listeners were profiled: profile them again with profile_listeners."
+    )
+  // The finding over the shows the latest profile answered for, named as the rows are.
+  const answered = listeners.shows.filter((s) => s.status === 'profiled' || s.status === 'missing')
+  if (answered.length) lines.push(listenerFinding(answered, (s) => s.show))
+  for (const show of listeners.shows) {
+    const what = {
+      unprofiled: 'not profiled.',
+      profiling: 'being profiled.',
+      missing: 'no listener profile in Qloo.',
+      profiled: show.lean && `${leanWords(show.lean)}.`
+    }[show.status]
+    lines.push(`- ${overlapName(show)}: ${what}`)
+  }
+  return lines.join('\n')
+}
 
 const launchTitle = (launch: LaunchRow) => launch.name ?? `the launch from ${launch.comps.join(', ')}`
 

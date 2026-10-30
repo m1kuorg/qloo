@@ -453,6 +453,7 @@ describe('the OpenAPI document', () => {
       'POST /roster': 'Calls Qloo',
       'POST /roster/shows/{name}/comp-search': 'Calls Qloo',
       'POST /roster/overlap': 'Calls Qloo',
+      'POST /roster/listeners': 'Calls Qloo',
       'POST /inbox': 'Spends a model run',
       'POST /pitch-runs': 'Spends a model run',
       'POST /pitch-runs/{runId}/answer': 'Calls Qloo',

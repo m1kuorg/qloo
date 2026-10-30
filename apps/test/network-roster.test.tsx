@@ -623,7 +623,7 @@ describe("the roster page's words", () => {
     // explanation, or CPM is above it, and no line of what's left to settle: the rows' match chips and
     // the header's counts say it.
     expect(read).toMatch(
-      /^Roster sample 19 shows · 19 missed Details Import shows Shows Overlap Qloo data Matches from Qloo search, one call per show\. /
+      /^Roster sample 19 shows · 19 missed Details Import shows Shows Overlap Listeners Qloo data Matches from Qloo search, one call per show\. /
     )
     expect(read).not.toContain('scored until')
     // The inspector is closed as the page opens, so the table takes the width; Details opens it.

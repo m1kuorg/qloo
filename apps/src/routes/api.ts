@@ -26,6 +26,7 @@ import {
   getLaunchEvidence,
   getLaunchRun,
   getNetwork,
+  getListeners,
   getOverlap,
   getPitchRun,
   listPitchRuns,
@@ -35,6 +36,7 @@ import {
   listLaunches,
   loadInbox,
   measureOverlap,
+  profileListeners,
   searchComps,
   startLaunchRun,
   startPitchRun,
@@ -651,6 +653,124 @@ api.openapi(
     }
   }),
   async (c) => c.json(await measureOverlap(context(c)), 202)
+)
+
+// One show's leans, relative to the average in Qloo, as Qloo's demographics give them to three places.
+const lean = z.number().openapi({
+  description:
+    'Above 0, its listeners lean toward this group, relative to the average in Qloo; below 0, away from it. Qloo sends three decimals.'
+})
+const Lean = z
+  .object({
+    age: z.record(z.string(), lean).openapi({
+      description:
+        'Its lean by age band, youngest first, each as Qloo names it: `24_and_younger`, `25_to_29`, `30_to_34`, `35_to_44`, `45_to_54` and `55_and_older`.'
+    }),
+    male: z.number().openapi({
+      description:
+        "Its lean toward male listeners; below 0, toward female ones. Qloo's lean toward female listeners is always its negative. Crossfeed counts a gender lean only from 0.2 either way."
+    })
+  })
+  .openapi('Lean', { description: "A show's leans, which describe its listeners, not people." })
+const ListenerShow = z
+  .object({
+    show: z.string(),
+    sameAs,
+    status: z.enum(['unprofiled', 'profiling', 'profiled', 'missing']).openapi({
+      description:
+        '`profiled` once the call landed with its leans, `missing` when Qloo has no listener profile for it, `profiling` while the call is out, or `unprofiled`: not in the latest profile, or in one that failed.'
+    }),
+    lean: orNull(Lean).openapi({ description: 'Its leans, once `profiled`.' })
+  })
+  .openapi('ListenerShow')
+const exampleLean = (age: number[], male: number) => ({
+  age: Object.fromEntries(
+    ['24_and_younger', '25_to_29', '30_to_34', '35_to_44', '45_to_54', '55_and_older'].map((b, i) => [b, age[i]])
+  ),
+  male
+})
+const RosterListeners = z
+  .object({
+    status: z.enum(['unprofiled', 'profiling', 'profiled', 'failed']).openapi({
+      description:
+        "`unprofiled` until the first profile; `profiling` while its call is out, so poll until it isn't; `profiled` once it answered; or `failed`, when the call failed or a restart interrupted it, with the error."
+    }),
+    error: z.string().nullable(),
+    profiledAt: z.string().nullable().openapi({ description: 'When it was last made.' }),
+    stale: z.boolean().openapi({
+      description:
+        "Whether the roster's matched shows have changed since it was made, so it should be made again. A show's figures, status or exclusion don't count."
+    }),
+    shows: z.array(ListenerShow).openapi({ description: 'Each show matched in Qloo, in roster order.' })
+  })
+  .openapi('RosterListeners', {
+    example: {
+      status: 'profiled',
+      error: null,
+      profiledAt: '2026-10-20T09:30:00.000Z',
+      stale: false,
+      shows: [
+        {
+          show: 'Deep Cuts',
+          sameAs: [],
+          status: 'profiled',
+          lean: exampleLean([-0.21, 0.134, 0.188, 0.102, -0.043, -0.165], 0.312)
+        },
+        {
+          show: 'Signal Boost',
+          sameAs: ['Signal Boost Shorts'],
+          status: 'profiled',
+          lean: exampleLean([0.096, 0.151, 0.07, -0.012, -0.08, -0.141], -0.064)
+        },
+        { show: 'Field Notes', sameAs: [], status: 'missing', lean: null },
+        {
+          show: 'Corner Booth',
+          sameAs: [],
+          status: 'profiled',
+          lean: exampleLean([-0.302, -0.115, 0.02, 0.143, 0.162, 0.091], -0.226)
+        }
+      ]
+    }
+  })
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/roster/listeners',
+    tags: ['Roster'],
+    summary: "Read the roster's listener profile",
+    description:
+      "Who the roster's shows reach, as Qloo profiled them: each show's leans by age band and gender, relative to the average in Qloo, which describe listeners, not people.",
+    request: { params: NetworkParams },
+    responses: {
+      200: {
+        description: "The roster's listener profile.",
+        content: { 'application/json': { schema: RosterListeners } }
+      },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json(await getListeners(context(c)), 200)
+)
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/roster/listeners',
+    tags: ['Roster'],
+    summary: "Profile the roster's listeners",
+    description:
+      "Asks Qloo for the listeners of every show matched in Qloo in one call, counting shows on the same Qloo show once and including shows left out of launches. It takes at least 4 such shows and a roster with no lookup pending, and is refused while a profile is being made. It answers 202 at once with the profile profiling; poll it until it isn't. With the roster's matched shows unchanged since a profile that landed, it asks nothing. It counts against the network's daily Qloo calls, and is refused when the Qloo requests left today, Crossfeed's shared ones or the network's own key's, couldn't take it and still leave a run's 60.",
+    request: { params: NetworkParams },
+    responses: {
+      202: {
+        description: 'The listener profile, profiling, or as it was when there was nothing to ask.',
+        content: { 'application/json': { schema: RosterListeners } }
+      },
+      ...errors(401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => c.json(await profileListeners(context(c)), 202)
 )
 
 const Work = z
@@ -1846,6 +1966,8 @@ const COSTS: Record<string, Cost> = {
   'POST /api/v1/networks/{networkId}/roster/shows/{name}/comp-search': 'Calls Qloo',
   'GET /api/v1/networks/{networkId}/roster/overlap': 'Reads',
   'POST /api/v1/networks/{networkId}/roster/overlap': 'Calls Qloo',
+  'GET /api/v1/networks/{networkId}/roster/listeners': 'Reads',
+  'POST /api/v1/networks/{networkId}/roster/listeners': 'Calls Qloo',
   'GET /api/v1/networks/{networkId}/inbox': 'Reads',
   'POST /api/v1/networks/{networkId}/inbox': 'Spends a model run',
   'PATCH /api/v1/networks/{networkId}/inbox/pitches/{pitchId}': 'Changes',

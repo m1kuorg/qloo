@@ -12,6 +12,7 @@ export type Usage = Schemas['Usage']
 export type Roster = Schemas['Roster']
 export type Show = Schemas['Show']
 export type RosterOverlap = Schemas['RosterOverlap']
+export type RosterListeners = Schemas['RosterListeners']
 export type LaunchPlan = Schemas['LaunchPlan']
 export type LaunchSummary = Schemas['LaunchSummary']
 export type Launch = Schemas['Launch']
@@ -167,7 +168,16 @@ export class Crossfeed {
      * unchanged, per show whose ranking is missing or failed. It answers at once with the overlap
      * measuring; wait with `waitForOverlap`.
      */
-    measureOverlap: () => this.#json('post', '/api/v1/networks/{networkId}/roster/overlap', {})
+    measureOverlap: () => this.#json('post', '/api/v1/networks/{networkId}/roster/overlap', {}),
+    /** Who its shows reach: each show's leans by age band and gender, relative to the average in Qloo. */
+    listeners: ({ signal }: ReadOptions = {}) =>
+      this.#json('get', '/api/v1/networks/{networkId}/roster/listeners', { signal }),
+    /**
+     * Profiles the listeners, one Qloo call for every show matched in Qloo, or none with the roster's
+     * matched shows unchanged since a profile that landed. It answers at once with the profile
+     * profiling; wait with `waitForListeners`.
+     */
+    profileListeners: () => this.#json('post', '/api/v1/networks/{networkId}/roster/listeners', {})
   }
 
   /** The network's launches, each with its own runs and insertion orders. */
@@ -323,6 +333,16 @@ export class Crossfeed {
       (signal) => this.roster.overlap({ signal }),
       (overlap) => overlap.status !== 'measuring',
       'The overlap was still measuring',
+      options
+    )
+  }
+
+  /** Resolves with the roster's listener profile once it's no longer profiling: profiled, or failed with why. */
+  waitForListeners(options: WaitOptions = {}): Promise<RosterListeners> {
+    return poll(
+      (signal) => this.roster.listeners({ signal }),
+      (listeners) => listeners.status !== 'profiling',
+      'The listener profile was still profiling',
       options
     )
   }

@@ -744,6 +744,180 @@
           "error"
         ]
       },
+      "RosterListeners": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "unprofiled",
+              "profiling",
+              "profiled",
+              "failed"
+            ],
+            "description": "`unprofiled` until the first profile; `profiling` while its call is out, so poll until it isn't; `profiled` once it answered; or `failed`, when the call failed or a restart interrupted it, with the error."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profiledAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was last made."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "Whether the roster's matched shows have changed since it was made, so it should be made again. A show's figures, status or exclusion don't count."
+          },
+          "shows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListenerShow"
+            },
+            "description": "Each show matched in Qloo, in roster order."
+          }
+        },
+        "required": [
+          "status",
+          "error",
+          "profiledAt",
+          "stale",
+          "shows"
+        ],
+        "example": {
+          "status": "profiled",
+          "error": null,
+          "profiledAt": "2026-10-20T09:30:00.000Z",
+          "stale": false,
+          "shows": [
+            {
+              "show": "Deep Cuts",
+              "sameAs": [],
+              "status": "profiled",
+              "lean": {
+                "age": {
+                  "24_and_younger": -0.21,
+                  "25_to_29": 0.134,
+                  "30_to_34": 0.188,
+                  "35_to_44": 0.102,
+                  "45_to_54": -0.043,
+                  "55_and_older": -0.165
+                },
+                "male": 0.312
+              }
+            },
+            {
+              "show": "Signal Boost",
+              "sameAs": [
+                "Signal Boost Shorts"
+              ],
+              "status": "profiled",
+              "lean": {
+                "age": {
+                  "24_and_younger": 0.096,
+                  "25_to_29": 0.151,
+                  "30_to_34": 0.07,
+                  "35_to_44": -0.012,
+                  "45_to_54": -0.08,
+                  "55_and_older": -0.141
+                },
+                "male": -0.064
+              }
+            },
+            {
+              "show": "Field Notes",
+              "sameAs": [],
+              "status": "missing",
+              "lean": null
+            },
+            {
+              "show": "Corner Booth",
+              "sameAs": [],
+              "status": "profiled",
+              "lean": {
+                "age": {
+                  "24_and_younger": -0.302,
+                  "25_to_29": -0.115,
+                  "30_to_34": 0.02,
+                  "35_to_44": 0.143,
+                  "45_to_54": 0.162,
+                  "55_and_older": 0.091
+                },
+                "male": -0.226
+              }
+            }
+          ]
+        }
+      },
+      "ListenerShow": {
+        "type": "object",
+        "properties": {
+          "show": {
+            "type": "string"
+          },
+          "sameAs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The other roster shows matched or mapped to the same Qloo show, measured with it."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unprofiled",
+              "profiling",
+              "profiled",
+              "missing"
+            ],
+            "description": "`profiled` once the call landed with its leans, `missing` when Qloo has no listener profile for it, `profiling` while the call is out, or `unprofiled`: not in the latest profile, or in one that failed."
+          },
+          "lean": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Lean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its leans, once `profiled`."
+          }
+        },
+        "required": [
+          "show",
+          "sameAs",
+          "status",
+          "lean"
+        ]
+      },
+      "Lean": {
+        "type": "object",
+        "properties": {
+          "age": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "description": "Above 0, its listeners lean toward this group, relative to the average in Qloo; below 0, away from it. Qloo sends three decimals."
+            },
+            "description": "Its lean by age band, youngest first, each as Qloo names it: `24_and_younger`, `25_to_29`, `30_to_34`, `35_to_44`, `45_to_54` and `55_and_older`."
+          },
+          "male": {
+            "type": "number",
+            "description": "Its lean toward male listeners; below 0, toward female ones. Qloo's lean toward female listeners is always its negative. Crossfeed counts a gender lean only from 0.2 either way."
+          }
+        },
+        "required": [
+          "age",
+          "male"
+        ],
+        "description": "A show's leans, which describe its listeners, not people."
+      },
       "Inbox": {
         "type": "object",
         "properties": {
@@ -3754,6 +3928,154 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RosterOverlap"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/roster/listeners": {
+      "get": {
+        "tags": [
+          "Roster"
+        ],
+        "summary": "Read the roster's listener profile",
+        "description": "Who the roster's shows reach, as Qloo profiled them: each show's leans by age band and gender, relative to the average in Qloo, which describe listeners, not people.",
+        "x-crossfeed-cost": "Reads",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The roster's listener profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterListeners"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Roster"
+        ],
+        "summary": "Profile the roster's listeners",
+        "description": "Asks Qloo for the listeners of every show matched in Qloo in one call, counting shows on the same Qloo show once and including shows left out of launches. It takes at least 4 such shows and a roster with no lookup pending, and is refused while a profile is being made. It answers 202 at once with the profile profiling; poll it until it isn't. With the roster's matched shows unchanged since a profile that landed, it asks nothing. It counts against the network's daily Qloo calls, and is refused when the Qloo requests left today, Crossfeed's shared ones or the network's own key's, couldn't take it and still leave a run's 60.",
+        "x-crossfeed-cost": "Calls Qloo",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The listener profile, profiling, or as it was when there was nothing to ask.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterListeners"
                 }
               }
             }

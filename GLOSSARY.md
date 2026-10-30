@@ -74,6 +74,10 @@ _Avoid_: Nearest shows, neighbours
 **Close pair**:
 Two roster shows that each rank among the other's closest shows.
 
+**Listener profile**:
+Who the roster's shows reach: each show's lean toward or away from each age band and gender, relative to the average in Qloo, from one Qloo demographics call for every show matched in Qloo, and "Profile the listeners" makes it. A lean describes a show's listeners, never a person, and a gender lean counts only from the demographic check's threshold.
+_Avoid_: Audience profile, since audiences are a kind of Qloo entity; demographics, which names a launch's demographic check
+
 **Launch**:
 The new show a network is promoting, released or not, with the runs and insertion orders that plan its promos.
 _Avoid_: Project, campaign

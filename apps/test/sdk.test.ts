@@ -6,7 +6,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Crossfeed, CrossfeedError, type CrossfeedOptions } from '../../packages/sdk/src/index'
 import generated from '../../packages/sdk/src/openapi.ts?raw'
 import { sha256 } from '../src/text'
-import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, fakeReader, text, toolUse, turn } from './fake'
+import {
+  fakeClaude,
+  fakeCompare,
+  fakeDemographics,
+  fakeInsights,
+  fakeQloo,
+  fakeReader,
+  text,
+  toolUse,
+  turn
+} from './fake'
 import { networkWithKey } from './session'
 
 // A program's client, made the way the SDK's README makes one, its requests sent to the Worker in
@@ -78,6 +88,8 @@ describe("the SDK's methods", () => {
       () => crossfeed.roster.searchComps('Corner Booth', 'Slow Burn'),
       () => crossfeed.roster.overlap(),
       () => crossfeed.roster.measureOverlap(),
+      () => crossfeed.roster.listeners(),
+      () => crossfeed.roster.profileListeners(),
       () => crossfeed.launches.list(),
       () => crossfeed.launches.create({}),
       () => crossfeed.launches.get(launch),
@@ -218,6 +230,40 @@ describe("the roster's overlap, measured through the SDK", () => {
     ])
     expect(measured.closePairs).toEqual([['Corner Booth', 'Slow Burn']])
     expect(await crossfeed.roster.overlap()).toEqual(measured)
+  })
+})
+
+describe("the roster's listener profile, made through the SDK", () => {
+  it("starts profiling, waits until it has profiled, and reads each show's leans", async () => {
+    fakeQloo({ search })
+    // Made-up figures, unlike any Qloo returns; Qloo has none for Ghost Signal Radio.
+    const age = (...leans: number[]) =>
+      Object.fromEntries(
+        ['24_and_younger', '25_to_29', '30_to_34', '35_to_44', '45_to_54', '55_and_older'].map((b, i) => [b, leans[i]])
+      )
+    fakeDemographics([
+      { entity_id: 'e-0501', age: age(-0.2, 0.1, 0.12, -0.05, -0.1, -0.1), gender: { male: 0.3, female: -0.3 } },
+      { entity_id: 'e-0001', age: age(-0.1, 0.2, 0.15, 0.05, -0.1, -0.2), gender: { male: 0.25, female: -0.25 } },
+      { entity_id: 'e-0502', age: age(0.1, 0.05, -0.02, -0.1, 0, 0.2), gender: { male: -0.15, female: 0.15 } }
+    ])
+    const { crossfeed } = await client()
+    await crossfeed.roster.import('Night Shift Cinema\nCorner Booth\nSlow Burn\nGhost Signal Radio\n', {
+      type: 'text/plain'
+    })
+    await crossfeed.waitForRoster({ interval: 10 })
+    expect(await crossfeed.roster.listeners()).toMatchObject({ status: 'unprofiled', profiledAt: null, stale: false })
+    // It answers once its call is out, which may have landed by the time it reads the profile back.
+    expect(['profiling', 'profiled']).toContain((await crossfeed.roster.profileListeners()).status)
+    const profiled = await crossfeed.waitForListeners({ interval: 10 })
+    expect(
+      profiled.shows.map((s) => [s.show, s.status, s.lean?.male ?? null, s.lean?.age['25_to_29'] ?? null])
+    ).toEqual([
+      ['Night Shift Cinema', 'profiled', 0.25, 0.2],
+      ['Corner Booth', 'profiled', 0.3, 0.1],
+      ['Slow Burn', 'profiled', -0.15, 0.05],
+      ['Ghost Signal Radio', 'missing', null, null]
+    ])
+    expect(await crossfeed.roster.listeners()).toEqual(profiled)
   })
 })
 

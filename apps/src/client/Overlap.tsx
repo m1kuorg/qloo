@@ -88,48 +88,109 @@ export function OverlapSection({
       data-overlap
     >
       {!few && !measuring && (
-        <div className="flex flex-col items-start gap-3 empty:hidden">
-          {stale && (
-            <p className="max-w-[72ch] font-semibold">
-              The roster’s matched shows have changed since the overlap was measured, so measure it again to read it as
-              the roster is now.
-            </p>
-          )}
-          {overlap?.status === 'failed' && landed.length > 0 && (
-            <p className="max-w-[72ch]">
-              <StateLine kind="failed">{sentence(overlap.error ?? 'The measure failed.')}</StateLine>
-            </p>
-          )}
-          {anchors.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {/* Still focusable while it starts the measure, so a refusal leaves focus on it. */}
-              <Button
-                variant="secondary"
-                disabled={busy}
-                focusableWhenDisabled
-                aria-describedby="overlap-cost"
-                onClick={() => void measure()}
-              >
-                {busy && <Spinner data-icon="inline-start" />}
-                {overlap ? 'Measure again' : 'Measure the overlap'}
-              </Button>
-              {/* A ranking the gateway's cache answers costs no real request, so it's at most this. */}
-              <span id="overlap-cost" className="type-caption text-muted-foreground">
-                {`Up to ${count(anchors.length, 'Qloo call')}`}
-              </span>
-            </div>
-          )}
-          {error && (
-            <p className="max-w-[72ch]">
-              <Alert error={error} />
-            </p>
-          )}
-        </div>
+        <AnalysisAction
+          stale={
+            stale &&
+            'The roster’s matched shows have changed since the overlap was measured, so measure it again to read it as the roster is now.'
+          }
+          failed={overlap?.status === 'failed' && landed.length > 0 ? (overlap.error ?? 'The measure failed.') : null}
+          action={overlap ? 'Measure again' : 'Measure the overlap'}
+          calls={anchors.length}
+          costId="overlap-cost"
+          busy={busy}
+          error={error}
+          start={() => void measure()}
+        />
       )}
       {overlap && (!few || measuring) && (
         <OverlapTable agent={agent} overlap={overlap} onRoster={onRoster} k={k} openCall={openCall} opened={opened} />
       )}
     </Section>
+  )
+}
+
+// What stands under the sentence of one of the roster's analyses, the overlap's or the listener profile's,
+// once it can start: a line in bold once the roster's matched shows have changed since it was made
+// (`stale`); the `failed` line of one that failed with rows landed; then its `action`, a secondary, with
+// up to how many Qloo calls it may spend beside it, which describes it, unless it has none to ask; and a
+// refusal under it, in the limits' words. A call the gateway's cache answers costs no real request, so
+// it's "up to".
+export function AnalysisAction({
+  stale,
+  failed,
+  action,
+  calls,
+  costId,
+  busy,
+  error,
+  start
+}: {
+  stale: string | false
+  failed: string | null
+  action: string
+  calls: number
+  costId: string
+  busy: boolean
+  error: string | null
+  start: () => void
+}) {
+  return (
+    <div className="flex flex-col items-start gap-3 empty:hidden">
+      {stale && <p className="max-w-[72ch] font-semibold">{stale}</p>}
+      {failed && (
+        <p className="max-w-[72ch]">
+          <StateLine kind="failed">{sentence(failed)}</StateLine>
+        </p>
+      )}
+      {calls > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {/* Still focusable while it starts, so a refusal leaves focus on it. */}
+          <Button variant="secondary" disabled={busy} focusableWhenDisabled aria-describedby={costId} onClick={start}>
+            {busy && <Spinner data-icon="inline-start" />}
+            {action}
+          </Button>
+          <span id={costId} className="type-caption text-muted-foreground">
+            {`Up to ${count(calls, 'Qloo call')}`}
+          </span>
+        </div>
+      )}
+      {error && (
+        <p className="max-w-[72ch]">
+          <Alert error={error} />
+        </p>
+      )}
+    </div>
+  )
+}
+
+// The show's column of the roster's analyses' tables, held at the left while the rest scrolls under it,
+// ruled where they meet, as the roster table's is, and over the call numbers passing under it. A word too
+// long for it breaks anywhere rather than widening it.
+export const heldShow = 'sticky left-0 z-10 bg-background pl-2 wrap-anywhere max-md:border-r max-md:pr-3'
+
+// A Qloo show's row header in those tables: its first show on the roster, with what the roster says of it
+// under its name, and the shows matched to the same Qloo show, which are measured once and listed with it.
+export function AnalysisShow({
+  entity,
+  shows: [first, ...others],
+  className
+}: {
+  entity: Entity
+  shows: Show[]
+  className?: string
+}) {
+  const notes = [
+    first.resolution === 'mapped' && `Mapped to ${entity.name}`,
+    first.excluded && 'Left out',
+    others.length > 0 && `Same Qloo show as ${listOf(others.map((s) => s.name))}`
+  ].filter(Boolean)
+  return (
+    <th scope="row" className={cn('border-b py-3 pl-3 align-top', heldShow, 'text-left font-normal', className)}>
+      <span className="flex min-w-40 flex-col items-start gap-1 md:min-w-48">
+        <span className="text-[15px] leading-snug font-semibold">{first.name}</span>
+        {notes.length > 0 && <span className="type-caption text-muted-foreground">{notes.join(' · ')}</span>}
+      </span>
+    </th>
   )
 }
 
@@ -205,10 +266,6 @@ function OverlapTable({
   }
   const cell = 'border-b py-3 pl-3 align-top'
   const head = 'border-b pb-2 pl-3 text-left align-bottom font-normal'
-  // The show's column, held at the left while the rest scrolls under it, ruled where they meet, as the
-  // roster table's is, and over the call numbers passing under it. A word too long for it breaks anywhere
-  // rather than widening it.
-  const held = 'sticky left-0 z-10 bg-background pl-2 wrap-anywhere max-md:border-r max-md:pr-3'
   // The close pair's mark, in ink, beside the other show's name; screen readers hear it in words, from a
   // visually hidden span, which its row holds (`relative`) so it never widens the page as the table scrolls.
   const pairMark = (
@@ -234,7 +291,7 @@ function OverlapTable({
         >
           <thead className="type-caption text-muted-foreground">
             <tr>
-              <th scope="col" className={cn(head, held, 'w-(--show)')}>
+              <th scope="col" className={cn(head, heldShow, 'w-(--show)')}>
                 Show
               </th>
               <th scope="col" className={head}>
@@ -246,7 +303,8 @@ function OverlapTable({
             </tr>
           </thead>
           <tbody>
-            {[...onRoster.values()].map(({ entity, shows: [first, ...others] }) => {
+            {[...onRoster.values()].map(({ entity, shows }) => {
+              const [first] = shows
               const row = rows.get(entity.id)
               const state = row
                 ? row.error
@@ -256,13 +314,6 @@ function OverlapTable({
                   ? 'measuring'
                   : 'unmeasured'
               const isOpen = state === 'measured' && open.includes(row!.call)
-              // What the roster says of the show, under its name, and the shows matched to the same Qloo
-              // show, which are measured once and listed with it.
-              const notes = [
-                first.resolution === 'mapped' && `Mapped to ${entity.name}`,
-                first.excluded && 'Left out',
-                others.length > 0 && `Same Qloo show as ${listOf(others.map((s) => s.name))}`
-              ].filter(Boolean)
               const call = row && (
                 <CallButton
                   call={row.call}
@@ -274,17 +325,7 @@ function OverlapTable({
               return (
                 <Fragment key={entity.id}>
                   <tr data-overlap-row={first.name} data-state={state} aria-busy={state === 'measuring' || undefined}>
-                    <th
-                      scope="row"
-                      className={cn(cell, held, 'text-left font-normal', isOpen && 'border-b-transparent')}
-                    >
-                      <span className="flex min-w-40 flex-col items-start gap-1 md:min-w-48">
-                        <span className="text-[15px] leading-snug font-semibold">{first.name}</span>
-                        {notes.length > 0 && (
-                          <span className="type-caption text-muted-foreground">{notes.join(' · ')}</span>
-                        )}
-                      </span>
-                    </th>
+                    <AnalysisShow entity={entity} shows={shows} className={cn(isOpen && 'border-b-transparent')} />
                     <td className={cn(cell, isOpen && 'border-b-transparent')}>
                       {state === 'measured' ? (
                         <div className="flex flex-col items-start gap-1.5">

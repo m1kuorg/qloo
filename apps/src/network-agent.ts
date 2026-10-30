@@ -18,6 +18,14 @@ import { readSampleInbox, type Booking, type Inbox, type Pitch, type PitchReply 
 import type { LaunchAgent } from './launch-agent'
 import { MAX_QLOO_CALLS } from './limits'
 import {
+  LISTENERS_PROFILING,
+  PROFILE_INTERRUPTED,
+  rowsOf,
+  toProfile,
+  tooFewToProfile,
+  type ListenerProfile
+} from './listeners'
+import {
   byEntity,
   closestCount,
   closestOf,
@@ -146,6 +154,34 @@ const withoutApprover = (booking: Booking | null, memberId: string): Booking | n
     : booking
 const unnamed = ({ approvedBy: _, ...reply }: PitchReply): PitchReply => reply
 
+// One of the roster's analyses, for the steps their starts share (NetworkAgent.reserveAnalysis): where the
+// network's state keeps it, its status while its calls are out, and its words in the refusals: what it's
+// called while it runs, what a member does to start it, and the start itself.
+type Analysis = {
+  kept: 'overlap' | 'listenerProfile'
+  running: string
+  busy: string
+  tooFew: (n: number) => string
+  todo: string
+  start: string
+}
+const OVERLAP: Analysis = {
+  kept: 'overlap',
+  running: 'measuring',
+  busy: OVERLAP_MEASURING,
+  tooFew,
+  todo: 'Measure the overlap',
+  start: 'the measure'
+}
+const LISTENER_PROFILE: Analysis = {
+  kept: 'listenerProfile',
+  running: 'profiling',
+  busy: LISTENERS_PROFILING,
+  tooFew: tooFewToProfile,
+  todo: 'Profile the listeners',
+  start: 'the profile'
+}
+
 // One instance per signed-in network, named by the network's ID (ADR 0001). Its own class keeps its
 // namespace apart from engine sessions, so no session cookie can name it. It opens empty, but for
 // the guest network, which loads the sample network (loadSample), and every connection to it carries
@@ -184,6 +220,13 @@ export class NetworkAgent extends CrossfeedAgent {
     const overlap = this.state.overlap
     if (overlap?.status === 'measuring')
       this.setState({ ...this.state, overlap: { ...overlap, status: 'failed', error: OVERLAP_INTERRUPTED } })
+    // A listener profile is kept alive while its call is out, too, so one still profiling lost it.
+    const profile = this.state.listenerProfile
+    if (profile?.status === 'profiling')
+      this.setState({
+        ...this.state,
+        listenerProfile: { ...profile, status: 'failed', error: PROFILE_INTERRUPTED }
+      })
     await super.onStart(props)
     if (!props?.clearing) this.askInventory()
     if (this.name !== GUEST_NETWORK) return
@@ -361,34 +404,12 @@ export class NetworkAgent extends CrossfeedAgent {
   // call timeout, and each anchor's row lands as its call answers.
   @callable()
   async measureOverlap() {
-    const ready = () => {
-      const pending = this.state.roster.filter((s) => s.resolution === 'pending').length
-      if (pending > 0)
-        throw new Refusal(
-          'conflict',
-          `The roster is still looking up ${pending === 1 ? '1 show' : `${pending} shows`} in Qloo. Measure the overlap once the lookups have settled.`
-        )
-      if (this.state.overlap?.status === 'measuring') throw new Refusal('conflict', OVERLAP_MEASURING)
-    }
-    ready()
-    // A start still reserving its calls is measuring too, so two starts at once reserve once.
-    if (this.startingOverlap) throw new Refusal('conflict', OVERLAP_MEASURING)
-    const { entities, key, anchors } = toMeasure(this.state.roster, this.state.overlap)
-    if (entities.length < MIN_OVERLAP_ENTITIES) throw new Refusal('conflict', tooFew(entities.length))
-    if (anchors.length === 0) return
-    this.startingOverlap = true
-    let gateway: DurableObjectStub<QlooGateway>
-    try {
-      gateway = await this.reserveCalls(this.limitKey(), anchors.length, MAX_QLOO_CALLS)
-    } finally {
-      this.startingOverlap = false
-    }
-    ready() // again, since an import may have started meanwhile
-    if (entityKey(rosterEntities(this.state.roster)) !== key)
-      throw new Refusal(
-        'conflict',
-        "The roster's matched shows changed as the measure started, so it didn't. Measure the overlap again."
-      )
+    const started = await this.reserveAnalysis(OVERLAP, () => {
+      const measure = toMeasure(this.state.roster, this.state.overlap)
+      return { ...measure, calls: measure.anchors.length }
+    })
+    if (!started) return
+    const { entities, key, anchors, gateway } = started
     // A ranking that failed is asked again, so only the rows that landed stay, and only for these entities.
     const prior = this.state.overlap?.key === key ? this.state.overlap : null
     // Numbered now, in entity order, so the calls' numbers follow the anchors'.
@@ -419,8 +440,51 @@ export class NetworkAgent extends CrossfeedAgent {
     })
   }
 
-  // Whether a measure is reserving its calls (measureOverlap).
-  private startingOverlap = false
+  // The steps that start each of the roster's analyses, the overlap's measure and the listener profile.
+  // It needs no lookup still pending, and none of `analysis` running or still reserving its calls, so two
+  // starts at once reserve once; then at least MIN_OVERLAP_ENTITIES distinct entities. `ask` says what it
+  // would ask Qloo now, from the roster's entities: with no call, nothing, and it returns null. Otherwise
+  // it reserves the calls on the network's daily calls, refused, too, when the gateway's requests left
+  // today couldn't take them and still leave a run's, then checks the roster again, as an import may have
+  // started meanwhile, and returns what it asks with the gateway that reserved the calls, which makes them.
+  private async reserveAnalysis<T extends { entities: Entity[]; key: string; calls: number }>(
+    analysis: Analysis,
+    ask: () => T
+  ): Promise<(T & { gateway: DurableObjectStub<QlooGateway> }) | null> {
+    const ready = () => {
+      const pending = this.state.roster.filter((s) => s.resolution === 'pending').length
+      if (pending > 0)
+        throw new Refusal(
+          'conflict',
+          `The roster is still looking up ${pending === 1 ? '1 show' : `${pending} shows`} in Qloo. ${analysis.todo} once the lookups have settled.`
+        )
+      if (this.state[analysis.kept]?.status === analysis.running) throw new Refusal('conflict', analysis.busy)
+    }
+    ready()
+    // A start still reserving its calls is running too, so two starts at once reserve once.
+    if (this.reserving.has(analysis.kept)) throw new Refusal('conflict', analysis.busy)
+    const asked = ask()
+    if (asked.entities.length < MIN_OVERLAP_ENTITIES)
+      throw new Refusal('conflict', analysis.tooFew(asked.entities.length))
+    if (asked.calls === 0) return null
+    this.reserving.add(analysis.kept)
+    let gateway: DurableObjectStub<QlooGateway>
+    try {
+      gateway = await this.reserveCalls(this.limitKey(), asked.calls, MAX_QLOO_CALLS)
+    } finally {
+      this.reserving.delete(analysis.kept)
+    }
+    ready() // again, since an import may have started meanwhile
+    if (entityKey(rosterEntities(this.state.roster)) !== asked.key)
+      throw new Refusal(
+        'conflict',
+        `The roster's matched shows changed as ${analysis.start} started, so it didn't. ${analysis.todo} again.`
+      )
+    return { ...asked, gateway }
+  }
+
+  // The analyses whose start is reserving its calls (reserveAnalysis).
+  private reserving = new Set<Analysis['kept']>()
 
   // Ranks the other entities against one anchor through `reserved`, where its call was reserved, and lands
   // its row: its top `k`, or why the ranking failed.
@@ -471,6 +535,68 @@ export class NetworkAgent extends CrossfeedAgent {
               error: "No show's ranking landed, as each show's row says. Measure the overlap again."
             }
     this.setState({ ...this.state, overlap: { ...overlap, rows, answered, ...ended } })
+  }
+
+  // Profiles the roster's listeners (listeners.ts), from a member's page or a program: one demographics
+  // call in Qloo with every distinct entity the roster's shows are matched or mapped to. It's started,
+  // reserved, refused and checked again as a measure of the overlap is (reserveAnalysis), and with the
+  // roster's entities unchanged since a profile that landed, it asks nothing. It returns once the call is
+  // out, and the profile lands as it answers.
+  @callable()
+  async profileListeners() {
+    const started = await this.reserveAnalysis(LISTENER_PROFILE, () =>
+      toProfile(this.state.roster, this.state.listenerProfile)
+    )
+    if (!started) return
+    const { entities, key, gateway } = started
+    const seq = this.numberCall()
+    this.setState({
+      ...this.state,
+      listenerProfile: { status: 'profiling', error: null, key, call: null, profiledAt: null, rows: [] }
+    })
+    // Anything that breaks outside the call itself, such as landing it, fails the profile, so it can't stay
+    // profiling.
+    void this.keepAliveWhile(() => this.profileEntities(entities, seq, gateway)).catch((e) => {
+      const error = `Profiling the listeners failed: ${e instanceof Error ? e.message : String(e)}`
+      console.error(JSON.stringify({ event: 'listener_profile', error }))
+      const profile = this.state.listenerProfile
+      if (profile?.status === 'profiling')
+        this.setState({ ...this.state, listenerProfile: { ...profile, status: 'failed', error } })
+    })
+  }
+
+  // Asks Qloo for the listeners of `entities` through `reserved`, where its call was reserved, and lands
+  // the profile: each entity's row still on the roster, those Qloo has no profile for among them, or why
+  // the call failed.
+  private async profileEntities(entities: Entity[], seq: number, reserved: DurableObjectStub<QlooGateway>) {
+    let landed: Pick<ListenerProfile, 'call' | 'error' | 'rows'>
+    try {
+      const { call, result } = await this.qloo((gateway) => gateway.demographics(entities), null, seq, reserved)
+      landed = result.ok
+        ? { call, error: null, rows: rowsOf(entities, result.data) }
+        : { call, error: result.error, rows: [] }
+    } catch (e) {
+      // Anything else that breaks still lands the profile, failed, so it can't stay profiling.
+      landed = {
+        call: callNumber(seq),
+        error: `The demographics call failed: ${e instanceof Error ? e.message : String(e)}`,
+        rows: []
+      }
+    }
+    const profile = this.state.listenerProfile
+    if (profile?.status !== 'profiling') return
+    const onRoster = new Set(rosterEntities(this.state.roster).map((e) => e.id))
+    this.setState({
+      ...this.state,
+      listenerProfile: {
+        ...profile,
+        ...landed,
+        rows: landed.rows.filter((r) => onRoster.has(r.entity.id)),
+        ...(landed.error
+          ? { status: 'failed' as const }
+          : { status: 'profiled' as const, profiledAt: new Date().toISOString() })
+      }
+    })
   }
 
   // Its Qloo calls go through its own gateway instance while it has a Qloo key of its own (ADR 0004).

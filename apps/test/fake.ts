@@ -233,19 +233,21 @@ export type Demographic = {
 
 // Serves `POST /v2/insights` with `filter.type=urn:demographics`: the entries of `answer` whose
 // entity the request's signal names, in `answer`'s order rather than the request's, as Qloo does;
-// or an HTTP status that answers with an error body in Qloo's shape. Other insights requests are
-// left to `fakeInsights`.
-export function fakeDemographics(answer: Demographic[] | number) {
+// or an HTTP status that answers with an error body in Qloo's shape; or a function that returns a
+// promise of either, to hold the answer while a test looks. Other insights requests are left to
+// `fakeInsights`.
+export function fakeDemographics(answer: Demographic[] | number | (() => Promise<Demographic[] | number>)) {
   network.use(
     ...qlooHosts().map((host) =>
       http.post(`${host}/v2/insights`, async ({ request }) => {
         const body = JSON.parse(await request.clone().text())
         if (body['filter.type'] !== 'urn:demographics') return
         await record(request)
-        if (typeof answer === 'number')
-          return HttpResponse.json({ error: { message: 'fake failure', code: answer } }, { status: answer })
+        const results = typeof answer === 'function' ? await answer() : answer
+        if (typeof results === 'number')
+          return HttpResponse.json({ error: { message: 'fake failure', code: results } }, { status: results })
         const ids = String(body['signal.interests.entities'] ?? '').split(',')
-        const demographics = answer
+        const demographics = results
           .filter((d) => ids.includes(d.entity_id))
           .map(({ entity_id, age, gender }) => ({ entity_id, query: { age, gender } }))
         return HttpResponse.json({ success: true, results: { demographics }, duration: 12 })
