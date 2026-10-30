@@ -30,7 +30,21 @@ import sampleInbox from '../src/sample-inbox.json'
 import sampleFile from '../src/sample-network.json'
 import { networkLinks } from '../src/shell'
 import { WIPES_PER_RUN } from '../src/wipe'
-import { fakeClaude, fakeQloo, fakeQlooDown, fakeReader, modelRequests, requests, text, toolUse, turn } from './fake'
+import {
+  fakeClaude,
+  fakeDemographics,
+  fakeInsights,
+  fakeQloo,
+  fakeQlooDown,
+  fakeReader,
+  modelRequests,
+  requests,
+  text,
+  toolUse,
+  turn,
+  type Demographic,
+  type Insight
+} from './fake'
 import {
   api,
   guestFormSignIn,
@@ -1059,6 +1073,148 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
     expect(fresh.launches![0].id).not.toBe(watch.id)
     const page = await (await guest.fetch('/app/guest-network/settings')).text()
     expect(page.match(/data-network-name="([^"]*)"/)?.[1]).toBe('Guest network')
+  })
+
+  describe("and the sample roster's analyses (#403)", () => {
+    // Made-up IDs for two more of the sample's public show names, so five match, enough to measure the
+    // overlap and profile the listeners.
+    const five = {
+      ...search,
+      'The Zach Lowe Show': [{ entity_id: 'e-0401', name: 'The Zach Lowe Show', popularity: 0.5 }],
+      'The Town with Matthew Belloni': [{ entity_id: 'e-1401', name: 'The Town with Matthew Belloni', popularity: 0.4 }]
+    }
+    const entities = Object.values(five).map(([e]) => e)
+    // Each anchor's ranking of the rest: made-up scores, falling in ID order, so each show's closest is the
+    // first of the others by ID.
+    const ranked = (body: Record<string, unknown>): Insight[] =>
+      String(body['filter.results.entities'])
+        .split(',')
+        .map((id, i) => ({
+          entity_id: id,
+          name: entities.find((e) => e.entity_id === id)!.name,
+          affinity: 0.9 - i / 100
+        }))
+    // Each show's listeners, made up and alike.
+    const buckets = ['24_and_younger', '25_to_29', '30_to_34', '35_to_44', '45_to_54', '55_and_older']
+    const listeners: Demographic[] = entities.map(({ entity_id }) => ({
+      entity_id,
+      age: Object.fromEntries(buckets.map((b, i) => [b, i === 3 ? 0.12 : -0.02])),
+      gender: { male: 0.25, female: -0.25 }
+    }))
+    // The anchor of each ranking Qloo got, and how many demographics calls, since request `from`.
+    const anchors = (from = 0) =>
+      requests
+        .slice(from)
+        .filter((r) => r.url.pathname === '/v2/insights')
+        .map((r) => JSON.parse(r.body) as Record<string, unknown>)
+        .filter((b) => b['filter.type'] === 'urn:entity:podcast')
+        .map((b) => String(b['signal.interests.entities']))
+    const profiles = (from = 0) =>
+      requests
+        .slice(from)
+        .filter((r) => r.url.pathname === '/v2/insights' && JSON.parse(r.body)['filter.type'] === 'urn:demographics')
+        .length
+    // The guest budget's Qloo calls today. An earlier test's can outlast the storage reset after it, so each
+    // test counts from what it finds.
+    const used = async () => (await globalGateway(env).usage('network:guest-network')).qlooCalls.used
+    const analysed = (s: State) =>
+      s.overlap?.status === 'measured' &&
+      s.overlap.rows.every((r) => !r.error) &&
+      s.listenerProfile?.status === 'profiled'
+    // The Overlap and Listeners tabs' headings and sentences, as the roster page renders them.
+    const tabs = (state: State) =>
+      sections(
+        renderToStaticMarkup(
+          createElement(NetworkRoster, { agent: { state, stub: {} } as unknown as NetworkConnection })
+        )
+      ).filter(([heading]) =>
+        ['Who shares whose listeners Qloo data', 'Who your shows reach Qloo data'].includes(heading)
+      )
+
+    it("measures the overlap and profiles the listeners once the sample roster's lookups settle, on the guest budget, once a clearing", async () => {
+      fakeQloo({ search: five })
+      fakeInsights(ranked)
+      fakeDemographics(listeners)
+      const before = await used()
+      const guest = await openGuest()
+      const network = await connect(guest)
+      const state = await network.until(analysed)
+
+      // One ranking for each of the five matched shows, each its only anchor, and one demographics call.
+      expect(anchors().toSorted()).toEqual(entities.map((e) => e.entity_id).toSorted())
+      expect(profiles()).toBe(1)
+      expect(state.overlap!.rows).toHaveLength(5)
+      expect(state.listenerProfile!.rows).toHaveLength(5)
+      // The Rewatchables and The Big Picture are each other's closest, and three shows are no show's; all
+      // five lean alike, then the profile's call.
+      const filled = [
+        ['Who shares whose listeners Qloo data', '1 close pair, and 3 of 5 shows are no other show’s closest show.'],
+        [
+          'Who your shows reach Qloo data',
+          expect.stringMatching(
+            /^Most of the 5 shows lean toward listeners aged 35 to 44, and most lean male; none leans differently\. C-\d+$/
+          )
+        ]
+      ]
+      expect(tabs(state)).toEqual(filled)
+      // The 19 lookups, then a ranking a matched show and the profile's one call, on the guest budget.
+      expect(await used()).toBe(before + 25)
+
+      // Neither a guest's change nor a later start measures or profiles anything again.
+      await network.call('updateShow', 'The Watch', { downloads: 12_345 })
+      await network.until((s) => s.roster.find((r) => r.name === 'The Watch')!.downloads === 12_345)
+      const sent = requests.length
+      await evictAllDurableObjects({ webSockets: 'close' })
+      expect((await connect(guest)).state()).toMatchObject({
+        overlap: state.overlap,
+        listenerProfile: state.listenerProfile
+      })
+      expect(requests).toHaveLength(sent)
+
+      // The daily clearing, then a start, which loads the sample again and analyses it once more: from the
+      // shared cache now, still counted on the guest budget.
+      await runCron()
+      await readAfterReset(async () => (await getAgentByName(env.NetworkAgent, 'guest-network')).state)
+      const fresh = await connect(guest)
+      const again = await fresh.until(analysed)
+      const insights = (await fresh.call<Evidence[]>('getEvidence')).filter((e) => e.endpoint === '/v2/insights')
+      expect(insights).toHaveLength(6)
+      expect(tabs(again)).toEqual(filled)
+      expect(await used()).toBe(before + 50)
+    })
+
+    it('tries again as it next starts the rankings and the profile that failed, and only those', async () => {
+      fakeQloo({ search: five })
+      fakeInsights((body) => (body['signal.interests.entities'] === 'e-0601' ? 503 : ranked(body)))
+      fakeDemographics(503)
+      const before = await used()
+      const guest = await openGuest()
+      const network = await connect(guest)
+      const failed = await network.until(
+        (s) => s.overlap?.status === 'measured' && s.listenerProfile?.status === 'failed'
+      )
+      expect(failed.overlap!.rows.filter((r) => r.error).map((r) => r.entity.name)).toEqual(['The Watch'])
+
+      // A guest's change doesn't try them again.
+      fakeInsights(ranked)
+      fakeDemographics(listeners)
+      const sent = requests.length
+      await network.call('updateShow', 'The Watch', { downloads: 12_345 })
+      await network.until((s) => s.roster.find((r) => r.name === 'The Watch')!.downloads === 12_345)
+      expect(requests).toHaveLength(sent)
+
+      // As after an idle eviction or a deploy: the next start asks for The Watch's ranking and the profile.
+      await evictAllDurableObjects({ webSockets: 'close' })
+      await (await connect(guest)).until(analysed)
+      expect(anchors(sent)).toEqual(['e-0601'])
+      expect(profiles(sent)).toBe(1)
+      const retried = requests.length
+      await evictAllDurableObjects({ webSockets: 'close' })
+      expect((await connect(guest)).state()).toSatisfy(analysed)
+      expect(requests).toHaveLength(retried)
+      // The first load's 25 calls, then the two tried again, on the guest budget.
+      expect(await used()).toBe(before + 27)
+    })
   })
 
   describe('and guest pitches on', () => {
@@ -2214,20 +2370,21 @@ describe('resetting the sample data, from the guest network’s settings (#283)'
     await page.call('createLaunch', { name: 'The Night Watch' })
     Object.assign(env, { SAMPLE_NETWORK: 'on', GUEST_PITCHES: 'on' })
     try {
-      // The sample roster's 19 shows and the sample inbox's 36 works.
+      // The sample roster's 19 lookups, a ranking for each of its 19 shows at most and its listener profile's
+      // one call, and the sample inbox's 36 works.
       const { used } = (await globalGateway(env).usage('network:guest-network')).qlooCalls
-      env.QLOO_VISITOR_DAILY_CALL_CAP = String(used + 54)
+      env.QLOO_VISITOR_DAILY_CALL_CAP = String(used + 74)
       const refused = await reset(guest)
       expect(refused.status).toBe(429)
       expect(refused.headers.get('retry-after')).toBe('7200')
       expect(await refused.json()).toEqual({
         error:
-          'Loading the sample data again takes 55 Qloo calls, and the guest network has 54 left today. Try again after 00:00 UTC, when they reset.'
+          'Loading the sample data again takes 75 Qloo calls, and the guest network has 74 left today. Try again after 00:00 UTC, when they reset.'
       })
       expect(page.state()!.launches).toMatchObject([{ name: 'The Night Watch' }])
 
       // The refusal took nothing, so the minute's reset is still there.
-      env.QLOO_VISITOR_DAILY_CALL_CAP = String(used + 55)
+      env.QLOO_VISITOR_DAILY_CALL_CAP = String(used + 75)
       expect((await reset(guest)).status).toBe(200)
       expect(await page.closed()).toEqual(RESET)
     } finally {

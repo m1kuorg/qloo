@@ -30,6 +30,7 @@ import { networkLinks } from '../src/shell'
 import {
   fakeClaude,
   fakeCompare,
+  fakeDemographics,
   fakeInsights,
   fakeQloo,
   fakeQlooDown,
@@ -1061,11 +1062,14 @@ describe('a launch on the sample roster', () => {
     await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
     return agent.until(ended)
   }
+  // With four shows matched, the guest network measures their overlap and profiles their listeners as the
+  // sample loads (#403): Qloo has no listener profile for any of them here.
   const fakes = () => {
     fakeQloo({ search: sampleSearch })
     fakeInsights((body) =>
       sampleFit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id))
     )
+    fakeDemographics([])
   }
   // The guest network as it loads the sample (ADR 0007), and its sample launch's page agent.
   async function guestSampleLaunch() {

@@ -116,12 +116,15 @@ export const GUEST_NETWORK_RESET = `The guest network was cleared, as it is ever
 export const SAMPLE_DATA_RESET = 'The guest network was reset to the sample data.'
 
 // The Qloo calls the guest network's start reserves on the guest budget to load the sample again, as after
-// its clearing or a reset, while the sample network is on: the sample roster's lookups (loadSample), and
-// with guest pitches on, the sample inbox's works' (loadSampleInbox).
+// its clearing or a reset, while the sample network is on: the sample roster's lookups (loadSample); then
+// its analyses' (analyseSample), counted at their most, a ranking per sample show and the listener
+// profile's one call, so it counts one more than they reserve for each show that doesn't resolve; and with
+// guest pitches on, the sample inbox's works' (loadSampleInbox).
 export const sampleLookups = (env: Env) =>
   env.SAMPLE_NETWORK !== 'on'
     ? 0
     : sampleRoster.length +
+      (sampleRoster.length + 1) +
       (env.GUEST_PITCHES === 'on' ? readSampleInbox().pitches.filter((p) => p.status === 'looking_up').length : 0)
 
 const LAUNCHES =
@@ -139,6 +142,8 @@ const SAMPLE_LOADED = 'crossfeed_sample_loaded'
 const SAMPLE_LAUNCH = 'crossfeed_sample_launch'
 // And that it has loaded the sample inbox (loadSampleInbox).
 const SAMPLE_INBOX_LOADED = 'crossfeed_sample_inbox_loaded'
+// And that it has started the sample roster's analyses (analyseSample).
+const SAMPLE_ANALYSED = 'crossfeed_sample_analysed'
 // And that it has listed every one of the sample launches in D1 (loadSampleLaunches), and until then each
 // one's launch ID, by its key, and whether it's listed yet.
 const SAMPLE_LAUNCHES_LOADED = 'crossfeed_sample_launches_loaded'
@@ -147,6 +152,11 @@ type SampleLaunchesProgress = Record<string, { id: string; listed: boolean }>
 
 // A sample pitch whose work's lookup failed, or was interrupted, so it's looked up again.
 const unsettled = (p: Pitch) => p.work !== null && (p.status === 'failed' || p.match?.resolution === 'failed')
+
+// Whether the roster's overlap has landed whole, every anchor's ranking in, and its listener profile has
+// landed, so the sample's analyses ask neither again (NetworkAgent.analyseSample).
+const overlapLanded = ({ overlap }: State) => overlap?.status === 'measured' && overlap.rows.every((r) => !r.error)
+const profileLanded = ({ listenerProfile }: State) => listenerProfile?.status === 'profiled'
 
 // A pitch run's booking with no reply naming member `memberId` as its approver; each stays approved.
 const withoutApprover = (booking: Booking | null, memberId: string): Booking | null =>
@@ -235,6 +245,9 @@ export class NetworkAgent extends CrossfeedAgent {
       await this.loadSample()
       await this.loadSampleLaunches()
       await this.loadSampleInbox()
+      // What the sample roster's analyses didn't land is tried again, now or once its lookups settle.
+      if (!overlapLanded(this.state) || !profileLanded(this.state)) this.ctx.storage.kv.delete(SAMPLE_ANALYSED)
+      this.analyseSample(this.state)
     }
     // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006),
     // even when the sample roster couldn't load, and an import keeps it. One an import left unset before
@@ -393,6 +406,25 @@ export class NetworkAgent extends CrossfeedAgent {
     } catch (e) {
       console.error(JSON.stringify({ event: 'sample_inbox_load', error: String(e) }))
     }
+  }
+
+  // Measures the sample roster's overlap and profiles its listeners in the guest network, so a guest finds
+  // the roster page's Overlap and Listeners tabs filled (#403): once a clearing, as the sample roster, in
+  // `state`, first has no lookup pending, noted in storage so no later change starts them again. Each is
+  // started as a member's page starts it, its calls reserved on the guest budget, which sampleLookups
+  // counts. A start clears the note while either hasn't landed (onStart), so each start tries again what
+  // didn't, once no lookup is pending: the rankings that failed or a restart interrupted, the profile's
+  // call, or either start that was refused. Neither starts once a guest's import leaves no sample figure,
+  // and a guest's roster edit leaves both stale for every guest, as any edit of the shared network does.
+  private analyseSample(state: State) {
+    const { kv } = this.ctx.storage
+    if (this.name !== GUEST_NETWORK || this.env.SAMPLE_NETWORK !== 'on' || kv.get(SAMPLE_ANALYSED)) return
+    if (!holdsSample(state.roster) || state.roster.some((s) => s.resolution === 'pending')) return
+    kv.put(SAMPLE_ANALYSED, true)
+    const start = (event: string, analyse: () => Promise<void>) =>
+      void this.keepAliveWhile(analyse).catch((e) => console.error(JSON.stringify({ event, error: String(e) })))
+    if (!overlapLanded(state)) start('sample_overlap', () => this.measureOverlap())
+    if (!profileLanded(state)) start('sample_listener_profile', () => this.profileListeners())
   }
 
   // Measures the roster's overlap (overlap.ts), from a member's page or a program: one ranking in Qloo
@@ -634,9 +666,11 @@ export class NetworkAgent extends CrossfeedAgent {
   // After a change to the roster, once no show is still being looked up, tells each launch how it now
   // stands, so a launch's page says when it has changed since that launch's latest run. Other changes
   // to the network's state send nothing. What was sent is kept in storage, so waking up sends nothing
-  // new; a notice that fails forgets it, so the next change of any kind sends it again.
+  // new; a notice that fails forgets it, so the next change of any kind sends it again. In the guest
+  // network, the first such state after the sample roster loads starts its analyses too (analyseSample).
   onStateChanged(state: State) {
     if (state.roster.some((s) => s.resolution === 'pending')) return
+    this.analyseSample(state)
     const key = rosterKey(state.roster)
     const { kv } = this.ctx.storage
     if (key === kv.get(ANNOUNCED)) return
