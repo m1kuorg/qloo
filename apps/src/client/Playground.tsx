@@ -1,5 +1,4 @@
-import { CheckIcon, CopyIcon } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
@@ -10,146 +9,38 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { linkVariants, segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
-import { GUEST_NETWORK_CLEARS } from '../text'
 import { useConfirm } from './Confirm'
-import { Alert, clock, Code, KeyValue, KeyValues, ScrollTable, useCopy } from './controls'
+import { Alert, clock, Code, CopyButton, KeyValue, KeyValues, ScrollTable } from './controls'
 import type { NetworkPage } from './NetworkPage'
 import { Section } from './PageHeader'
+import {
+  built,
+  consequence,
+  curl,
+  fresh,
+  isJson,
+  KEPT,
+  NETWORK_PATH,
+  operationsOf,
+  problemsOf,
+  recalled,
+  remembered,
+  replaces,
+  retryAfter,
+  sendsAtOnce,
+  sent as kept,
+  type Draft,
+  type OpenApi,
+  type Operation,
+  type Problems,
+  type Sent
+} from './requests'
 import { StateLine } from './states'
 
 // The Developers page's playground: every REST API operation the OpenAPI document lists, a request built
 // from the one picked, sent as the member's own session or with an API key they paste, and the answer in
 // full. It calls /api/v1 alone, and no route there approves anything (ADR 0002), so nothing sent here can.
-
-// The pieces of the OpenAPI document (/api/v1/openapi.json) the playground reads.
-type Schema = {
-  $ref?: string
-  type?: string | string[]
-  example?: unknown
-  properties?: Record<string, Schema>
-  required?: string[]
-  enum?: string[]
-}
-type DocOperation = {
-  tags?: string[]
-  summary?: string
-  description?: string
-  parameters?: { name: string; in: string; required?: boolean; description?: string; schema?: Schema }[]
-  requestBody?: { required?: boolean; content: Record<string, { schema?: Schema }> }
-  responses?: Record<string, { description?: string }>
-  'x-crossfeed-cost'?: string
-  'x-crossfeed-session-only'?: boolean
-}
-export type OpenApi = {
-  paths: Record<string, Record<string, DocOperation>>
-  components?: { schemas?: Record<string, Schema> }
-}
-
-// One operation as the playground lists and builds it: `key` is its method and path, as the API's cost
-// table names it; `cost` its label, null when the document gives none; each parameter in the path or the
-// query, with the values a query's takes; and its body's media types, each with what the field opens on
-// (`initial`) and, for an optional body, which opens empty, its example as a hint.
-type Param = { name: string; in: 'path' | 'query'; description: string | null; choices: string[] | null }
-type Operation = {
-  key: string
-  method: string
-  path: string
-  tag: string
-  summary: string
-  description: string | null
-  cost: string | null
-  sessionOnly: boolean
-  params: Param[]
-  body: { required: boolean; types: { type: string; initial: string; hint: string }[] } | null
-  answers: Record<string, string>
-}
-
-const METHODS = ['get', 'post', 'patch', 'put', 'delete']
-// Every network's routes are under it, so the list shows each path after it, as the docs' Every route does.
-const NETWORK_PATH = '/api/v1/networks/{networkId}'
-// The inbox and pitch runs answer 404 while guest pitches are off, though the document lists them.
-const INBOX_PATH = /^\/api\/v1\/networks\/\{networkId\}\/(inbox|pitch-runs)(\/|$)/
-
-const isJson = (type: string) => type === 'application/json' || type.endsWith('+json')
-
-// A schema, or the named one it refers to.
-const resolved = (doc: OpenApi, schema: Schema = {}): Schema =>
-  schema.$ref ? (doc.components?.schemas?.[schema.$ref.split('/').at(-1)!] ?? {}) : schema
-
-// What a field of `schema`'s type holds before anyone types in it: "" for text, 0, false, [] or {}.
-function placeholder(schema: Schema) {
-  const type = [schema.type].flat().find((t) => t !== 'null')
-  if (type === 'number' || type === 'integer') return 0
-  if (type === 'boolean') return false
-  if (type === 'array') return []
-  if (type === 'object') return {}
-  return ''
-}
-
-// A body of media type `type` as its schema describes it: the schema's example, or for JSON with none,
-// its required fields with typed placeholders, as `{ "questionId": "" }`; a file type with no example,
-// such as an email, is empty.
-function exampleBody(doc: OpenApi, type: string, schema?: Schema) {
-  const s = resolved(doc, schema)
-  if (!isJson(type)) return typeof s.example === 'string' ? s.example : ''
-  if (s.example !== undefined) return JSON.stringify(s.example, null, 2)
-  const fields = (s.required ?? []).map((name) => [name, placeholder(resolved(doc, s.properties?.[name]))])
-  return JSON.stringify(Object.fromEntries(fields), null, 2)
-}
-
-// The document's operations in its order, grouped later by their first tag, as /docs/api groups them,
-// leaving out the inbox's and pitch runs' while the inbox is off.
-function operationsOf(doc: OpenApi, inbox: boolean): Operation[] {
-  return Object.entries(doc.paths).flatMap(([path, item]) =>
-    METHODS.flatMap((m) => {
-      const op = item[m]
-      if (!op || (!inbox && INBOX_PATH.test(path))) return []
-      const method = m.toUpperCase()
-      const content = Object.entries(op.requestBody?.content ?? {})
-      const required = op.requestBody?.required ?? false
-      return [
-        {
-          key: `${method} ${path}`,
-          method,
-          path,
-          tag: op.tags?.[0] ?? 'Other',
-          summary: op.summary ?? `${method} ${path}`,
-          description: op.description ?? null,
-          cost: op['x-crossfeed-cost'] ?? null,
-          sessionOnly: op['x-crossfeed-session-only'] === true,
-          params: (op.parameters ?? [])
-            .filter((p) => p.in === 'path' || p.in === 'query')
-            .map((p) => ({
-              name: p.name,
-              in: p.in as Param['in'],
-              description: p.description ?? null,
-              choices: p.schema?.enum ?? null
-            })),
-          body:
-            content.length === 0
-              ? null
-              : {
-                  required,
-                  // JSON first where it's offered, as most routes take it, then the document's order.
-                  types: content
-                    .sort(([a], [b]) => Number(isJson(b)) - Number(isJson(a)))
-                    .map(([type, { schema }]) => {
-                      const example = exampleBody(doc, type, schema)
-                      return { type, initial: required ? example : '', hint: required ? '' : example }
-                    })
-                },
-          answers: Object.fromEntries(
-            Object.entries(op.responses ?? {}).map(([status, r]) => [status, r.description ?? ''])
-          )
-        }
-      ]
-    })
-  )
-}
-
-// What only a read leaves alone; a label the document doesn't give, or one the playground doesn't know,
-// counts as something else, so its send asks first.
-const READS = 'Reads'
+// What it reads and builds is in requests.ts; this draws it.
 
 // Text with Markdown's code spans, as the document writes them, set as code.
 const prose = (text: string) => text.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part))
@@ -184,127 +75,10 @@ const Cost = ({ op }: { op: Operation }) => (
   </>
 )
 
-// The two routes that do more with replace=true than without it, as the API reference says, and what
-// more: each sentence goes in its confirm.
-const REPLACES: Record<string, string> = {
-  [`POST ${NETWORK_PATH}/roster`]: 'With replace=true, the shows already on the roster also take the file’s figures.',
-  [`POST ${NETWORK_PATH}/inbox`]:
-    'With replace=true, it also deletes the inbox’s pitches, with the last pitch run’s lists and replies, and ends a pitch run waiting on a question.'
-}
-
-// What a send that isn't a read does, for its confirm, in the network's words: what it changes, deletes
-// or spends, what replace=true adds, in a network on the guest budget that every guest shares it, and
-// where it goes and as whom, so the member confirms the request they mean.
-function consequence(op: Operation, network: NetworkPage, sent: { path: string; replace: boolean; session: boolean }) {
-  const { name, guestBudget: guest } = network
-  const budget = 'the guest budget, the one set of daily limits every guest shares'
-  const said = [
-    op.cost === 'Changes'
-      ? guest
-        ? `It changes what ${name} has for every guest, as every guest shares it until it’s cleared at ${GUEST_NETWORK_CLEARS}.`
-        : `It changes what ${name} has, for every member.`
-      : op.cost === 'Deletes'
-        ? `What it deletes goes for every ${guest ? `guest, as every guest shares ${name},` : `member of ${name},`} and can’t be brought back.`
-        : op.cost === 'Spends a model run'
-          ? guest
-            ? `It spends one of today’s model runs from ${budget}.`
-            : `It spends one of ${name}’s model runs for today.`
-          : op.cost === 'Calls Qloo'
-            ? guest
-              ? `It counts in today’s Qloo calls from ${budget}.`
-              : `It counts in ${name}’s Qloo calls for today.`
-            : `The API doesn’t say what it costs, so it may change what ${name} has or spend ${guest ? budget : 'its daily limits'}.`,
-    sent.replace ? REPLACES[op.key] : null
-  ]
-  return (
-    <>
-      {said.filter(Boolean).join(' ')} It goes to{' '}
-      <code className="font-mono text-[13px] wrap-anywhere">
-        {op.method} {sent.path}
-      </code>{' '}
-      {sent.session ? 'as your session.' : 'with the API key.'}
-    </>
-  )
-}
-
-// A value for the shell, single-quoted, each ' in it closing the quote, escaped, and opening it again.
-const quoted = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`
-
-// The request as a curl command a terminal runs as it's pasted, bash or zsh: the key from the shell's
-// CROSSFEED_API_KEY, which the double quotes let the shell fill in, never the key itself; the body
-// sent byte for byte with its Content-Type, by --data-binary, or by --data-raw for a body that starts
-// with @, which --data-binary would read as a file's name; every other value single-quoted. Lines end
-// in a backslash, with no comment, which interactive zsh would run as words.
-export function curl({
-  method,
-  url,
-  type,
-  body
-}: {
-  method: string
-  url: string
-  type: string | null
-  body: string | null
-}) {
-  const lines = [
-    `curl${method === 'GET' ? '' : ` -X ${method}`} ${quoted(url)}`,
-    '-H "Authorization: Bearer $CROSSFEED_API_KEY"',
-    ...(body !== null && type
-      ? [
-          `-H ${quoted(`Content-Type: ${type}`)}`,
-          `${body.startsWith('@') ? '--data-raw' : '--data-binary'} ${quoted(body)}`
-        ]
-      : [])
-  ]
-  return lines.join(' \\\n  ')
-}
-
-// What a member has typed for an operation: each parameter's value, the body's media type, and the
-// body for each media type, so switching between them, or to another operation and back, keeps it.
-type Draft = { params: Record<string, string>; type: string | null; bodies: Record<string, string> }
-const fresh = (op: Operation, network: NetworkPage): Draft => ({
-  params: Object.fromEntries(op.params.map((p) => [p.name, p.name === 'networkId' ? network.id : ''])),
-  type: op.body?.types[0]?.type ?? null,
-  bodies: Object.fromEntries((op.body?.types ?? []).map((t) => [t.type, t.initial]))
-})
-
-// The request a draft makes: its path with each value in place, its query, and its body, null when it
-// sends none (an optional body left empty).
-function built(op: Operation, draft: Draft) {
-  const path = op.path.replace(/\{(\w+)\}/g, (_, name: string) => encodeURIComponent(draft.params[name] ?? ''))
-  const query = new URLSearchParams(
-    op.params.filter((p) => p.in === 'query' && draft.params[p.name]).map((p) => [p.name, draft.params[p.name]])
-  ).toString()
-  const text = draft.type ? (draft.bodies[draft.type] ?? '') : ''
-  const body = op.body && (op.body.required || text.trim()) ? text : null
-  return { path, query: query ? `?${query}` : '', type: draft.type, body }
-}
-
-// What's wrong with a draft before it's sent, by the field it's about: a path value left empty, a JSON
-// body that doesn't parse, or key mode with no key.
-type Problems = Record<string, string>
-function problemsOf(op: Operation, draft: Draft, key: string | null) {
-  const problems: Problems = {}
-  for (const p of op.params)
-    if (p.in === 'path' && !draft.params[p.name]?.trim()) problems[`param-${p.name}`] = `Fill in ${p.name}.`
-  const { type, body } = built(op, draft)
-  if (body !== null && type && isJson(type)) {
-    if (!body.trim()) problems.body = 'Write the body as JSON.'
-    else
-      try {
-        JSON.parse(body)
-      } catch (e) {
-        problems.body = `The body isn’t valid JSON: ${e instanceof Error ? e.message : String(e)}`
-      }
-  }
-  if (key !== null && !key.trim()) problems.key = 'Paste one of the network’s API keys.'
-  return problems
-}
-
-// An answer as the playground shows it, with the request it answers, as it was sent: its operation,
-// method and path, whether the member's session sent it, and when. It's on its way; it never reached
-// Crossfeed, offline, refused by the browser or past SEND_MS; or it's what Crossfeed answered, with how
-// long it took.
+// An answer as the playground shows it, with the request it answers as it was sent (`Sending`): the
+// operation, the path with its query, whether the member's session sent it, and when. The request is on
+// its way (`sending`); it didn't reach Crossfeed (`unsent`), as the browser was offline, it waited past
+// SEND_MS, or the browser refused to send it; or Crossfeed answered it (`answered`), in `ms`.
 type Sending = { op: Operation; path: string; session: boolean; at: number }
 type Answer =
   | ({ state: 'sending' } & Sending)
@@ -322,69 +96,12 @@ type Answer =
 // long work answers 202.
 const SEND_MS = 30_000
 
-// One of the last requests, as this tab keeps it: the operation, its values and media type, its body
-// when it's small (`kept` false when it was too big to keep), what it answered (null when it didn't
-// reach Crossfeed) and when, and whether a key sent it, never which. Kept per network, newest first.
-type Sent = {
-  op: string
-  params: Record<string, string>
-  type: string | null
-  body: string | null
-  kept: boolean
-  status: number | null
-  at: number
-  key: boolean
-}
-const KEPT = 20
-const SMALL = 4 * 1024
-const store = (network: string) => `crossfeed-playground:${network}`
-
-// Why this tab can't keep its last requests past the page, in words, or null when it can: its storage
-// is full (QuotaExceededError), or the browser keeps none for the page.
-const storageProblem = (e: unknown) =>
-  e instanceof DOMException && e.name === 'QuotaExceededError'
-    ? 'This tab’s storage is full, so these requests go once the page closes.'
-    : `This browser keeps no storage for this page (${e instanceof Error ? e.message : String(e)}), so these requests go once the page closes.`
-
-// The last requests this tab kept for network `id`, and why it can't keep them, if it can't. Rendered
-// on the server, as the tests render the page, there's no storage, and nothing kept. A blocked store
-// throws as it's touched; what isn't a list of requests, as an earlier page's might not be, is none.
-function recalled(id: string): { sent: Sent[]; problem: string | null } {
-  try {
-    if (typeof sessionStorage === 'undefined') return { sent: [], problem: null }
-    const sent = JSON.parse(sessionStorage.getItem(store(id)) ?? '[]') as unknown
-    const valid = (s: Partial<Sent>) =>
-      typeof s?.op === 'string' && typeof s.at === 'number' && typeof s.params === 'object'
-    return { sent: Array.isArray(sent) ? sent.filter(valid) : [], problem: null }
-  } catch (e) {
-    return { sent: [], problem: e instanceof SyntaxError ? null : storageProblem(e) }
-  }
-}
-
 // Brings `el` into view when its top is out of the window, or under the sticky top bar: the request
 // once an operation is picked, as on a phone, where it's under the list, and the answer once it's sent.
 function reveal(el: HTMLElement | null) {
   if (!el) return
   const { top } = el.getBoundingClientRect()
   if (top < 48 || top > window.innerHeight - 64) el.scrollIntoView({ block: 'start' })
-}
-
-// A Copy button: its words, then "Copied", or "Copy failed" when the browser refused, which a status
-// region says too, as the page's other copy buttons do. `what` names what it copies, visually hidden.
-function CopyButton({ value, children, what }: { value: string; children: string; what?: string }) {
-  const { copied, copy } = useCopy(value)
-  return (
-    <>
-      <Button type="button" variant="secondary" size="sm" onClick={() => void copy()}>
-        {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
-        {copied ? 'Copied' : copied === false ? 'Copy failed' : children}
-        {what && <span className="vh"> {what}</span>}
-      </Button>
-      <span role="status" className="vh">
-        {copied ? 'Copied' : copied === false ? 'Copy failed. Select it and copy it yourself.' : ''}
-      </span>
-    </>
-  )
 }
 
 // The playground panel. It loads the OpenAPI document the first time its tab opens (`opened`), not while
@@ -459,7 +176,8 @@ const OPERATIONS = 'Every route of the REST API, by group, with what each one co
 // request. On a phone they stack: the operations, the request, the answer, then the last requests. At
 // 1440 that's the 1336 between the gutters: 288 + 24 + 500 + 24 + 500.
 function Workbench({ network, api, doc }: { network: NetworkPage; api: string; doc: OpenApi }) {
-  const operations = operationsOf(doc, network.links.inbox !== null)
+  const inbox = network.links.inbox !== null
+  const operations = useMemo(() => operationsOf(doc, inbox), [doc, inbox])
   const [chosen, setChosen] = useState(operations[0]?.key)
   const op = operations.find((o) => o.key === chosen) ?? operations[0]
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
@@ -469,7 +187,10 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
   const [key, setKey] = useState('')
   const sendsAs = op.sessionOnly ? 'session' : as
   const [problems, setProblems] = useState<Problems>({})
+  // Whether a request is out: the state draws Send busy; the ref stops a second send in the same moment,
+  // as from Enter pressed twice in a field, before the state has drawn.
   const [out, setOut] = useState(false)
+  const sending = useRef(false)
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [{ sent, problem: storage }, setHistory] = useState(() => recalled(network.id))
   const request = useRef<HTMLHeadingElement>(null)
@@ -487,44 +208,24 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
     request.current?.focus({ preventScroll: true })
   }
 
-  // Keeps a request among the last, newest first, in this tab's storage, its body only when it's
-  // small; when the storage refuses it, the list stays on the page, saying so.
-  const remember = (entry: Sent) =>
-    setHistory(({ sent }) => {
-      const next = [entry, ...sent].slice(0, KEPT)
-      try {
-        sessionStorage.setItem(store(network.id), JSON.stringify(next))
-        return { sent: next, problem: null }
-      } catch (e) {
-        return { sent: next, problem: storageProblem(e) }
-      }
-    })
-
   // Sends the request as it's built now, with the key alone in key mode, without the member's session,
   // as a script sends it; or with the session, which carries the page's Origin, as a write from one of
-  // Crossfeed's pages must.
+  // Crossfeed's pages must. Whatever happens, even a header the browser won't send, the answer says it,
+  // and the request joins the last requests.
   const go = async (op: Operation, draft: Draft, key: string | null) => {
+    if (sending.current) return
+    sending.current = true
     const { path, query, type, body } = built(op, draft)
-    const headers = new Headers()
-    if (body !== null && type) headers.set('Content-Type', type)
-    if (key !== null) headers.set('Authorization', `Bearer ${key.trim()}`)
-    const at = Date.now()
-    const sending: Sending = { op, path: path + query, session: key === null, at }
+    const asked: Sending = { op, path: path + query, session: key === null, at: Date.now() }
+    let status: number | null = null
     setOut(true)
-    setAnswer({ state: 'sending', ...sending })
+    setAnswer({ state: 'sending', ...asked })
     requestAnimationFrame(() => reveal(answerAt.current))
-    const started = performance.now()
-    const small = body === null || new Blob([body]).size <= SMALL
-    const entry = {
-      op: op.key,
-      params: draft.params,
-      type,
-      body: small ? body : null,
-      kept: small,
-      at,
-      key: key !== null
-    }
     try {
+      const headers = new Headers()
+      if (body !== null && type) headers.set('Content-Type', type)
+      if (key !== null) headers.set('Authorization', `Bearer ${key.trim()}`)
+      const started = performance.now()
       const res = await fetch(path + query, {
         method: op.method,
         headers,
@@ -534,6 +235,7 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
       })
       const text = await res.text()
       const ms = Math.round(performance.now() - started)
+      status = res.status
       let json: unknown
       if (/json/.test(res.headers.get('Content-Type') ?? ''))
         try {
@@ -542,36 +244,47 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
           // Not JSON after all, so it shows as the text it is.
           json = undefined
         }
-      setAnswer({ state: 'answered', ...sending, status: res.status, ms, headers: [...res.headers], text, json })
-      remember({ ...entry, status: res.status })
+      setAnswer({ state: 'answered', ...asked, status, ms, headers: [...res.headers], text, json })
     } catch (e) {
       setAnswer({
         state: 'unsent',
-        ...sending,
+        ...asked,
         error: e instanceof Error ? e.message : String(e),
         offline: !navigator.onLine,
         timeout: e instanceof DOMException && e.name === 'TimeoutError'
       })
-      remember({ ...entry, status: null })
     } finally {
+      const entry = kept(op, draft, key !== null, asked.at, status)
+      setHistory(({ sent: last }) => remembered(network.id, last, entry))
+      sending.current = false
       setOut(false)
     }
   }
 
-  // Checks the request, naming each problem under its field and focusing the first; then a read goes
-  // at once, and anything else asks first, naming what it does.
+  // Checks the request, naming each problem under its field and focusing the first; then a GET that
+  // reads goes at once, and anything else asks first, naming what it does, where and as whom. While a
+  // request is out, it does nothing.
   const submit = () => {
+    if (sending.current) return
     const keyed = sendsAs === 'key' ? key : null
     const found = problemsOf(op, draft, keyed)
     setProblems(found)
     const first = Object.keys(found)[0]
     if (first) return document.getElementById(`pg-${first}`)?.focus()
-    if (op.cost === READS) return void go(op, draft, keyed)
-    const replace = op.key in REPLACES && draft.params.replace === 'true'
+    if (sendsAtOnce(op)) return void go(op, draft, keyed)
+    const replace = replaces(op, draft)
     const { path, query } = built(op, draft)
     confirm({
       title: `${op.summary}?`,
-      consequence: consequence(op, network, { path: path + query, replace, session: keyed === null }),
+      consequence: (
+        <>
+          {consequence(op, network, replace)} It goes to{' '}
+          <code className="font-mono text-[13px] wrap-anywhere">
+            {op.method} {path + query}
+          </code>{' '}
+          {keyed === null ? 'as your session.' : 'with the API key.'}
+        </>
+      ),
       verb: 'Send',
       busy: 'Sending…',
       keep: 'Don’t send',
@@ -581,9 +294,17 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
     })
   }
 
-  // The request as a curl command, once it's complete: with a problem, it says where instead of copying.
+  // The request as a curl command, copied once the request is complete; with a problem, the form says
+  // where instead.
   const { path, query, type, body } = built(op, draft)
   const command = curl({ method: op.method, url: `${origin}${path}${query}`, type, body })
+  const complete = () => {
+    const found = problemsOf(op, draft, null)
+    setProblems(found)
+    const first = Object.keys(found)[0]
+    if (first) document.getElementById(`pg-${first}`)?.focus()
+    return !first
+  }
 
   // A last request back in the form, as it was sent, but for a body too big to keep, which goes back to
   // the operation's own; it isn't sent until the member sends it.
@@ -679,77 +400,13 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
               submit()
             }}
           >
-            {pathParams.length > 0 && (
-              <FieldSet>
-                <FieldLegend>Path</FieldLegend>
-                <FieldGroup className="gap-4">
-                  {pathParams.map((p) => (
-                    <Field key={p.name} data-invalid={problems[`param-${p.name}`] ? true : undefined}>
-                      <FieldLabel htmlFor={field(`param-${p.name}`)}>
-                        <code className="font-mono text-[13px]">{p.name}</code>
-                      </FieldLabel>
-                      <Input
-                        id={field(`param-${p.name}`)}
-                        name={p.name}
-                        className="font-mono"
-                        spellCheck={false}
-                        value={draft.params[p.name] ?? ''}
-                        onChange={(e) => edit({ params: { ...draft.params, [p.name]: e.target.value } })}
-                        aria-invalid={problems[`param-${p.name}`] ? true : undefined}
-                        aria-describedby={describedBy(
-                          `param-${p.name}`,
-                          p.description ? `${field(`param-${p.name}`)}-note` : undefined
-                        )}
-                      />
-                      {p.description && (
-                        <FieldDescription id={`${field(`param-${p.name}`)}-note`}>
-                          {prose(p.description)}
-                        </FieldDescription>
-                      )}
-                      {fieldError(`param-${p.name}`)}
-                    </Field>
-                  ))}
-                </FieldGroup>
-              </FieldSet>
-            )}
-            {queryParams.length > 0 && (
-              <FieldSet>
-                <FieldLegend>Query</FieldLegend>
-                <FieldGroup className="gap-4">
-                  {queryParams.map((p) =>
-                    p.choices ? (
-                      <FieldSet key={p.name}>
-                        <FieldLegend id={`${field(`param-${p.name}`)}-label`} className="mb-0">
-                          <code className="font-mono text-[13px]">{p.name}</code>
-                        </FieldLegend>
-                        <RadioGroup
-                          aria-labelledby={`${field(`param-${p.name}`)}-label`}
-                          aria-describedby={p.description ? `${field(`param-${p.name}`)}-note` : undefined}
-                          value={draft.params[p.name] ?? ''}
-                          onValueChange={(v) => edit({ params: { ...draft.params, [p.name]: v as string } })}
-                          className={segmentedTrackVariants({ className: 'flex' })}
-                        >
-                          <RadioGroupSegment value="" className={segmentedItemVariants()}>
-                            Not sent
-                          </RadioGroupSegment>
-                          {p.choices.map((c) => (
-                            <RadioGroupSegment
-                              key={c}
-                              value={c}
-                              className={segmentedItemVariants({ className: 'font-mono' })}
-                            >
-                              {c}
-                            </RadioGroupSegment>
-                          ))}
-                        </RadioGroup>
-                        {p.description && (
-                          <FieldDescription id={`${field(`param-${p.name}`)}-note`}>
-                            {prose(p.description)}
-                          </FieldDescription>
-                        )}
-                      </FieldSet>
-                    ) : (
-                      <Field key={p.name}>
+            <FieldGroup className="gap-6">
+              {pathParams.length > 0 && (
+                <FieldSet>
+                  <FieldLegend>Path</FieldLegend>
+                  <FieldGroup className="gap-4">
+                    {pathParams.map((p) => (
+                      <Field key={p.name} data-invalid={problems[`param-${p.name}`] ? true : undefined}>
                         <FieldLabel htmlFor={field(`param-${p.name}`)}>
                           <code className="font-mono text-[13px]">{p.name}</code>
                         </FieldLabel>
@@ -760,124 +417,190 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
                           spellCheck={false}
                           value={draft.params[p.name] ?? ''}
                           onChange={(e) => edit({ params: { ...draft.params, [p.name]: e.target.value } })}
-                          aria-describedby={p.description ? `${field(`param-${p.name}`)}-note` : undefined}
+                          aria-invalid={problems[`param-${p.name}`] ? true : undefined}
+                          aria-describedby={describedBy(
+                            `param-${p.name}`,
+                            p.description ? `${field(`param-${p.name}`)}-note` : undefined
+                          )}
                         />
                         {p.description && (
                           <FieldDescription id={`${field(`param-${p.name}`)}-note`}>
                             {prose(p.description)}
                           </FieldDescription>
                         )}
+                        {fieldError(`param-${p.name}`)}
                       </Field>
-                    )
-                  )}
-                </FieldGroup>
+                    ))}
+                  </FieldGroup>
+                </FieldSet>
+              )}
+              {queryParams.length > 0 && (
+                <FieldSet>
+                  <FieldLegend>Query</FieldLegend>
+                  <FieldGroup className="gap-4">
+                    {queryParams.map((p) =>
+                      p.choices ? (
+                        <FieldSet key={p.name}>
+                          <FieldLegend id={`${field(`param-${p.name}`)}-label`} className="mb-0">
+                            <code className="font-mono text-[13px]">{p.name}</code>
+                          </FieldLegend>
+                          <RadioGroup
+                            aria-labelledby={`${field(`param-${p.name}`)}-label`}
+                            aria-describedby={p.description ? `${field(`param-${p.name}`)}-note` : undefined}
+                            value={draft.params[p.name] ?? ''}
+                            onValueChange={(v) => edit({ params: { ...draft.params, [p.name]: v as string } })}
+                            className={segmentedTrackVariants({ className: 'flex' })}
+                          >
+                            <RadioGroupSegment value="" className={segmentedItemVariants()}>
+                              Not sent
+                            </RadioGroupSegment>
+                            {p.choices.map((c) => (
+                              <RadioGroupSegment
+                                key={c}
+                                value={c}
+                                className={segmentedItemVariants({ className: 'font-mono' })}
+                              >
+                                {c}
+                              </RadioGroupSegment>
+                            ))}
+                          </RadioGroup>
+                          {p.description && (
+                            <FieldDescription id={`${field(`param-${p.name}`)}-note`}>
+                              {prose(p.description)}
+                            </FieldDescription>
+                          )}
+                        </FieldSet>
+                      ) : (
+                        <Field key={p.name}>
+                          <FieldLabel htmlFor={field(`param-${p.name}`)}>
+                            <code className="font-mono text-[13px]">{p.name}</code>
+                          </FieldLabel>
+                          <Input
+                            id={field(`param-${p.name}`)}
+                            name={p.name}
+                            className="font-mono"
+                            spellCheck={false}
+                            value={draft.params[p.name] ?? ''}
+                            onChange={(e) => edit({ params: { ...draft.params, [p.name]: e.target.value } })}
+                            aria-describedby={p.description ? `${field(`param-${p.name}`)}-note` : undefined}
+                          />
+                          {p.description && (
+                            <FieldDescription id={`${field(`param-${p.name}`)}-note`}>
+                              {prose(p.description)}
+                            </FieldDescription>
+                          )}
+                        </Field>
+                      )
+                    )}
+                  </FieldGroup>
+                </FieldSet>
+              )}
+              {op.body && draft.type && (
+                <Field data-invalid={problems.body ? true : undefined}>
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <FieldLabel htmlFor={field('body')}>{op.body.required ? 'Body' : 'Body, optional'}</FieldLabel>
+                    {op.body.types.length > 1 && (
+                      <Select
+                        items={op.body.types.map((t) => ({ value: t.type, label: t.type }))}
+                        value={draft.type}
+                        onValueChange={(t) => edit({ type: t as string })}
+                      >
+                        <SelectTrigger aria-label="Content type" className="font-mono text-[13px] sm:w-56">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {op.body.types.map((t) => (
+                              <SelectItem key={t.type} value={t.type} className="font-mono text-[13px]">
+                                {t.type}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  <Textarea
+                    id={field('body')}
+                    name="body"
+                    className="max-h-[28rem] min-h-32 font-mono text-[13px] md:text-[13px]"
+                    spellCheck={false}
+                    value={draft.bodies[draft.type] ?? ''}
+                    placeholder={op.body.types.find((t) => t.type === draft.type)?.hint || undefined}
+                    onChange={(e) => edit({ bodies: { ...draft.bodies, [draft.type!]: e.target.value } })}
+                    aria-invalid={problems.body ? true : undefined}
+                    aria-describedby={describedBy('body', `${field('body')}-note`)}
+                  />
+                  <FieldDescription id={`${field('body')}-note`}>
+                    Sent as <Code>{draft.type}</Code>
+                    {isJson(draft.type) ? ', once it parses as JSON.' : ', as text.'}
+                    {!op.body.required && ' Left empty, the request has no body.'}
+                  </FieldDescription>
+                  {fieldError('body')}
+                </Field>
+              )}
+              <FieldSet aria-describedby="pg-as-note">
+                <FieldLegend id="pg-as-label">Send as</FieldLegend>
+                <RadioGroup
+                  aria-labelledby="pg-as-label"
+                  value={sendsAs}
+                  onValueChange={(v) => setAs(v as 'session' | 'key')}
+                  className={segmentedTrackVariants({ className: 'flex' })}
+                >
+                  <RadioGroupSegment value="session" className={segmentedItemVariants()}>
+                    Your session
+                  </RadioGroupSegment>
+                  <RadioGroupSegment value="key" disabled={op.sessionOnly} className={segmentedItemVariants()}>
+                    An API key
+                  </RadioGroupSegment>
+                </RadioGroup>
+                <FieldDescription id="pg-as-note">
+                  {op.sessionOnly
+                    ? 'Only a member’s session, from one of Crossfeed’s pages, can send this: an API key answers 403.'
+                    : sendsAs === 'session'
+                      ? 'As you, signed in, from this page.'
+                      : 'With the key alone and not your session, as a script sends it.'}
+                </FieldDescription>
               </FieldSet>
-            )}
-            {op.body && draft.type && (
-              <Field data-invalid={problems.body ? true : undefined}>
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                  <FieldLabel htmlFor={field('body')}>{op.body.required ? 'Body' : 'Body, optional'}</FieldLabel>
-                  {op.body.types.length > 1 && (
-                    <Select
-                      items={op.body.types.map((t) => ({ value: t.type, label: t.type }))}
-                      value={draft.type}
-                      onValueChange={(t) => edit({ type: t as string })}
-                    >
-                      <SelectTrigger aria-label="Content type" className="font-mono text-[13px] sm:w-56">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {op.body.types.map((t) => (
-                            <SelectItem key={t.type} value={t.type} className="font-mono text-[13px]">
-                              {t.type}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <Textarea
-                  id={field('body')}
-                  name="body"
-                  className="max-h-[28rem] min-h-32 font-mono text-[13px] md:text-[13px]"
-                  spellCheck={false}
-                  value={draft.bodies[draft.type] ?? ''}
-                  placeholder={op.body.types.find((t) => t.type === draft.type)?.hint || undefined}
-                  onChange={(e) => edit({ bodies: { ...draft.bodies, [draft.type!]: e.target.value } })}
-                  aria-invalid={problems.body ? true : undefined}
-                  aria-describedby={describedBy('body', `${field('body')}-note`)}
-                />
-                <FieldDescription id={`${field('body')}-note`}>
-                  Sent as <Code>{draft.type}</Code>
-                  {isJson(draft.type) ? ', once it parses as JSON.' : ', as text.'}
-                  {!op.body.required && ' Left empty, the request has no body.'}
-                </FieldDescription>
-                {fieldError('body')}
-              </Field>
-            )}
-            <FieldSet aria-describedby="pg-as-note">
-              <FieldLegend id="pg-as-label">Send as</FieldLegend>
-              <RadioGroup
-                aria-labelledby="pg-as-label"
-                value={sendsAs}
-                onValueChange={(v) => setAs(v as 'session' | 'key')}
-                className={segmentedTrackVariants({ className: 'flex' })}
-              >
-                <RadioGroupSegment value="session" className={segmentedItemVariants()}>
-                  Your session
-                </RadioGroupSegment>
-                <RadioGroupSegment value="key" disabled={op.sessionOnly} className={segmentedItemVariants()}>
-                  An API key
-                </RadioGroupSegment>
-              </RadioGroup>
-              <FieldDescription id="pg-as-note">
-                {op.sessionOnly
-                  ? 'Only a member’s session, from one of Crossfeed’s pages, can send this: an API key answers 403.'
-                  : sendsAs === 'session'
-                    ? 'As you, signed in, from this page.'
-                    : 'With the key alone and not your session, as a script sends it.'}
-              </FieldDescription>
-            </FieldSet>
-            {sendsAs === 'key' && (
-              <Field data-invalid={problems.key ? true : undefined}>
-                <FieldLabel htmlFor={field('key')}>API key</FieldLabel>
-                <Input
-                  id={field('key')}
-                  name="api-key"
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="font-mono"
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                  aria-invalid={problems.key ? true : undefined}
-                  aria-describedby={describedBy('key', `${field('key')}-note`)}
-                />
-                <FieldDescription id={`${field('key')}-note`}>
-                  Kept in this page’s memory only: never stored, and never in a copied command or a link.
-                </FieldDescription>
-                {fieldError('key')}
-              </Field>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Still focusable while a request is out, so focus stays on it after a confirm. */}
-              <Button type="submit" disabled={out} focusableWhenDisabled>
-                {out && <Spinner data-icon="inline-start" />}
-                {out ? 'Sending…' : 'Send'}
-              </Button>
+              {sendsAs === 'key' && (
+                <Field data-invalid={problems.key ? true : undefined}>
+                  <FieldLabel htmlFor={field('key')}>API key</FieldLabel>
+                  <Input
+                    id={field('key')}
+                    name="api-key"
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="font-mono"
+                    value={key}
+                    onChange={(e) => setKey(e.target.value)}
+                    aria-invalid={problems.key ? true : undefined}
+                    aria-describedby={describedBy('key', `${field('key')}-note`)}
+                  />
+                  <FieldDescription id={`${field('key')}-note`}>
+                    Kept in this page’s memory only: never stored, and never in a copied command or a link.
+                  </FieldDescription>
+                  {fieldError('key')}
+                </Field>
+              )}
+            </FieldGroup>
+            <div className="flex flex-col items-start gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Still focusable while a request is out, so focus stays on it after a confirm. */}
+                <Button type="submit" disabled={out} focusableWhenDisabled>
+                  {out && <Spinner data-icon="inline-start" />}
+                  {out ? 'Sending…' : 'Send'}
+                </Button>
+                {/* Keyed by the command, so another request starts uncopied. */}
+                {!op.sessionOnly && (
+                  <CopyButton key={command} value={command} label="Copy as curl" size="default" ready={complete} />
+                )}
+              </div>
               {!op.sessionOnly && (
-                <CopyAsCurl
-                  command={command}
-                  check={() => {
-                    const found = problemsOf(op, draft, null)
-                    setProblems(found)
-                    const first = Object.keys(found)[0]
-                    if (first) document.getElementById(`pg-${first}`)?.focus()
-                    return !first
-                  }}
-                />
+                <p className="type-caption text-muted-foreground">
+                  The command reads the key from <Code>$CROSSFEED_API_KEY</Code> in your shell, whichever way this page
+                  sends it.
+                </p>
               )}
             </div>
           </form>
@@ -896,7 +619,6 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
           id="pg-history-h"
           title="Your last requests"
           description={`The last ${KEPT} requests sent from this tab, with no key, each body kept only up to 4 KB.`}
-          data-history
         >
           {storage && <p className="text-muted-foreground">{storage}</p>}
           {sent.length === 0 ? (
@@ -956,23 +678,6 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
   )
 }
 
-// "Copy as curl", which copies the request as a command once the request is complete, and otherwise
-// leaves the form saying what's missing.
-function CopyAsCurl({ command, check }: { command: string; check: () => boolean }) {
-  const { copied, copy } = useCopy(command)
-  return (
-    <>
-      <Button type="button" variant="secondary" onClick={() => void (check() && copy())}>
-        {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
-        {copied ? 'Copied' : copied === false ? 'Copy failed' : 'Copy as curl'}
-      </Button>
-      <span role="status" className="vh">
-        {copied ? 'Copied the request as a curl command.' : copied === false ? 'Copy failed.' : ''}
-      </span>
-    </>
-  )
-}
-
 // The most of a JSON answer's text the playground colours.
 const COLOURED = 200_000
 
@@ -1008,11 +713,12 @@ function Highlighted({ text }: { text: string }) {
 }
 
 // What Crossfeed answered: before anything is sent, a line saying so; while it's on its way, that it
-// is; a request that never reached it, as offline; a session that had ended, with a way to sign in
-// again; otherwise its status and time, a refusal's code and message, and a 429's wait, then its headers
-// in a table and its body: JSON in its colours, text as text, or "No content". A status region says the
-// answer as it arrives.
-function AnswerSection({ answer }: { answer: Answer | null }) {
+// is; a request that never reached it, offline, past SEND_MS or refused by the browser; a session that
+// had ended, with a way to sign in again; otherwise its status, time and request, a 429's wait, and a
+// refusal's code and message, then its headers in a table and its body: JSON in its colours, text as
+// text, or "No content". A status region says the answer as it arrives. It draws again only when the
+// answer changes, not as the form is typed in, as a long answer's colours take a while.
+const AnswerSection = memo(function AnswerSection({ answer }: { answer: Answer | null }) {
   const said =
     answer?.state === 'answered'
       ? `Answered ${answer.status} in ${answer.ms} ms.`
@@ -1041,7 +747,7 @@ function AnswerSection({ answer }: { answer: Answer | null }) {
           <StateLine kind="error">
             {answer.timeout
               ? `Crossfeed didn’t answer within ${SEND_MS / 1000} seconds, so the playground stopped waiting. Send it again, or read the resource to see whether it arrived.`
-              : `${answer.offline ? 'This browser is offline' : 'The connection failed'}, so the request didn’t reach Crossfeed (${answer.error}). Check your connection, then send it again.`}
+              : `${answer.offline ? 'This browser is offline, so the' : 'The'} request didn’t reach Crossfeed (${answer.error}). Check your connection and the request, then send it again.`}
           </StateLine>
         </p>
       ) : (
@@ -1049,7 +755,7 @@ function AnswerSection({ answer }: { answer: Answer | null }) {
       )}
     </Section>
   )
-}
+})
 
 // The answer's one sentence: which operation it's about, as another may be picked since, or nothing
 // before the first.
@@ -1068,10 +774,14 @@ function Answered({ answer }: { answer: Extract<Answer, { state: 'answered' }> }
     answer.status >= 400 && typeof refusal?.code === 'string' && typeof refusal.message === 'string'
       ? { code: refusal.code, message: refusal.message }
       : null
-  const retry = answer.status === 429 ? answer.headers.find(([name]) => name === 'retry-after')?.[1] : undefined
+  // A 429's wait, whatever its body, from Retry-After in seconds or as a date.
+  const wait =
+    answer.status === 429
+      ? retryAfter(answer.headers.find(([name]) => name === 'retry-after')?.[1] ?? null, answer.at)
+      : null
   const shown = answer.json !== undefined ? JSON.stringify(answer.json, null, 2) : answer.text
-  // Past this, a JSON body shows uncoloured, so a long one, such as a launch's evidence, isn't tens of
-  // thousands of elements.
+  // Past COLOURED, a JSON body shows uncoloured, so a long one, such as a launch's evidence, isn't tens
+  // of thousands of elements.
   const coloured = answer.json !== undefined && shown.length <= COLOURED
   return (
     <>
@@ -1082,6 +792,11 @@ function Answered({ answer }: { answer: Extract<Answer, { state: 'answered' }> }
             <span className="text-muted-foreground"> · {prose(answer.op.answers[answer.status])}</span>
           )}
         </KeyValue>
+        {wait !== null && (
+          <KeyValue label="Retry">
+            In {wait} {wait === 1 ? 'second' : 'seconds'}, as its <Code>Retry-After</Code> says
+          </KeyValue>
+        )}
         <KeyValue label="Time">{answer.ms.toLocaleString('en-US')} ms</KeyValue>
         <KeyValue label="Request">
           <code className="font-mono text-[13px] wrap-anywhere">
@@ -1104,19 +819,13 @@ function Answered({ answer }: { answer: Extract<Answer, { state: 'answered' }> }
         </p>
       ) : (
         refused && (
-          <Section
-            id="pg-refusal-h"
-            level={3}
-            title={<code className="font-mono">{refused.code}</code>}
-            description={refused.message}
-            data-refusal
-          >
-            {retry && (
-              <p>
-                Try again in {retry} {retry === '1' ? 'second' : 'seconds'}, as its <Code>Retry-After</Code> says.
-              </p>
-            )}
-          </Section>
+          // The refusal's code as its title, and its message, what went wrong and what to do, as its sentence.
+          <div className="flex flex-col gap-1">
+            <h3 className="font-semibold">
+              <code className="font-mono">{refused.code}</code>
+            </h3>
+            <p className="max-w-[72ch] text-pretty break-words">{refused.message}</p>
+          </div>
         )
       )}
       <Section id="pg-headers-h" level={3} title="Headers">
@@ -1147,13 +856,7 @@ function Answered({ answer }: { answer: Extract<Answer, { state: 'answered' }> }
         id="pg-body-h"
         level={3}
         title="Body"
-        actions={
-          shown && (
-            <CopyButton value={shown} what="the answer’s body">
-              Copy
-            </CopyButton>
-          )
-        }
+        actions={shown && <CopyButton key={answer.at} value={shown} what="answer’s body" />}
       >
         {shown ? (
           <pre

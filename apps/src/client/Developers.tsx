@@ -1,4 +1,4 @@
-import { CheckIcon, CopyIcon } from 'lucide-react'
+import { CheckIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
@@ -10,10 +10,11 @@ import { assistants, CHATGPT, type AssistantSetup, type Snippet, type Step } fro
 import type { ApiKey, CheckedKey } from '../directory'
 import type { ToolKind } from '../routes/mcp'
 import { GUEST_NETWORK_CLEARS, listOf, MAX_NAME } from '../text'
-import { Alert, clock, Code, day, KeyValue, KeyValues, send, ShownOnce, useAction, useCopy } from './controls'
+import { Alert, clock, Code, CopyButton, day, KeyValue, KeyValues, send, ShownOnce, useAction } from './controls'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { PageHeader, PageTabs, Section } from './PageHeader'
-import { Playground, type OpenApi } from './Playground'
+import { Playground } from './Playground'
+import type { OpenApi } from './requests'
 import { connectionOf, StateLine, type Connection } from './states'
 
 // What the server gives the Developers page besides its network: the MCP server's and the REST API's
@@ -101,24 +102,6 @@ export function Developers({
         ]}
       />
     </main>
-  )
-}
-
-// A button that copies `value`, its name the word and then what it copies (`what`), visually hidden:
-// "Copy", then "Copied", or "Copy failed" when the browser refused, which a status region says too.
-function CopyButton({ value, what }: { value: string; what: string }) {
-  const { copied, copy } = useCopy(value)
-  return (
-    <>
-      <Button variant="secondary" size="sm" onClick={() => void copy()}>
-        {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
-        {copied ? 'Copied' : copied === false ? 'Copy failed' : 'Copy'}
-        <span className="vh"> {what}</span>
-      </Button>
-      <span role="status" className="vh">
-        {copied ? 'Copied' : copied === false ? `Copy failed. Select the ${what} and copy it yourself.` : ''}
-      </span>
-    </>
   )
 }
 

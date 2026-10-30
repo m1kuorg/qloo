@@ -5,8 +5,8 @@ import { env, exports } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Developers } from '../src/client/Developers'
-import { curl, type OpenApi } from '../src/client/Playground'
-import { hooked, openGuest, openMember, rootData, tabsOf, type Member } from './session'
+import { curl, type OpenApi } from '../src/client/requests'
+import { hooked, openGuest, openMember, rootData, type Member } from './session'
 
 const origin = 'https://crossfeed.test'
 afterEach(() => {
@@ -108,11 +108,17 @@ describe('the playground', () => {
     const ada = await openMember()
     const id = await created(ada)
     const html = await page(ada, id)
-    expect(tabsOf(html)).toEqual({
-      label: 'Developers sections',
-      tabs: ['Connect your AI', 'Playground'],
-      panels: ['shown', 'hidden']
-    })
+    // The page's own tabs, the assistant picker inside Connect your AI having its own; the playground's
+    // panel is in the page, hidden, while Connect your AI shows.
+    const pageTabs = hooked(html, 'aria-label="Developers sections"')[0]
+    expect([...pageTabs.matchAll(/<button\b[^>]*>(.*?)<\/button>/g)].map(([, tab]) => words(tab))).toEqual([
+      'Connect your AI',
+      'Playground'
+    ])
+    const panels = hooked(html, 'role="tabpanel"')
+    const panel = (hook: string) => panels.find((p) => p.includes(hook))!.match(/^<div\b[^>]*>/)![0]
+    expect(panel('data-addresses')).not.toContain('hidden=""')
+    expect(panel('data-operations')).toContain('hidden=""')
     const doc = await openapi(ada)
     const shown = listed(html)
     expect(shown).toEqual(described(doc, false))

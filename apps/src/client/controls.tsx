@@ -362,18 +362,71 @@ export const ScrollTable = ({
   </div>
 )
 
-// Copies `value` to the clipboard: `copied` says whether the browser let it, and is null until it's tried.
+// Copies `value` to the clipboard: `copied` says whether the browser let it, and is null until it's tried;
+// `copy` answers it too.
 export function useCopy(value: string) {
   const [copied, setCopied] = useState<boolean | null>(null)
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
+      return true
     } catch {
       setCopied(false)
+      return false
     }
   }
   return { copied, copy }
+}
+
+// A button that copies `value`, its words `label` and then, visually hidden, what it copies (`what`):
+// "Copied" once it has, or "Copy failed" when the browser refused, which a status region says too, with
+// how to copy it by hand. `ready` runs first, as a form's check does, and it copies only once that says
+// so; `onCopied` hears whether it did, for a page that says a failure in its own place too.
+export function CopyButton({
+  value,
+  label = 'Copy',
+  what,
+  size = 'sm',
+  ready,
+  onCopied
+}: {
+  value: string
+  label?: string
+  what?: string
+  size?: 'sm' | 'default'
+  ready?: () => boolean
+  onCopied?: (copied: boolean) => void
+}) {
+  const { copied, copy } = useCopy(value)
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        size={size}
+        onClick={async () => {
+          if (ready && !ready()) return
+          // Copied first and heard after: an optional call skips its arguments when there's no one to hear.
+          const done = await copy()
+          onCopied?.(done)
+        }}
+      >
+        {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
+        {copied ? 'Copied' : copied === false ? 'Copy failed' : label}
+        {what && <span className="vh"> {what}</span>}
+      </Button>
+      <span role="status" className="vh">
+        {copied
+          ? 'Copied'
+          : copied === false
+            ? what
+              ? `Copy failed. Select the ${what} and copy it yourself.`
+              : 'Copy failed: this browser didn’t let Crossfeed copy it.'
+            : ''}
+      </span>
+    </>
+  )
 }
 
 // Something shown once, such as a new invite link or API key, in a read-only field that selects
@@ -394,7 +447,7 @@ export function ShownOnce({
   mono?: boolean
   children: ReactNode
 }) {
-  const { copied, copy } = useCopy(value)
+  const [failed, setFailed] = useState(false)
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="font-medium">
@@ -409,17 +462,11 @@ export function ShownOnce({
           onFocus={(e) => e.target.select()}
           spellCheck={false}
         />
-        <Button variant="secondary" onClick={() => void copy()}>
-          {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
-          {copied ? 'Copied' : `Copy ${noun}`}
-        </Button>
+        <CopyButton value={value} what={noun} size="default" onCopied={(copied) => setFailed(!copied)} />
       </div>
-      {/* The button's "Copied", told to screen readers too. */}
-      <span role="status" className="vh">
-        {copied ? 'Copied' : ''}
-      </span>
-      {copied === false && (
-        <StateLine kind="error" role="alert">
+      {/* Said under the field too, as the button's status region says it to screen readers. */}
+      {failed && (
+        <StateLine kind="error">
           This browser didn’t let Crossfeed copy it. Select the {noun} and copy it yourself.
         </StateLine>
       )}
