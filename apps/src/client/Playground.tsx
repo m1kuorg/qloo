@@ -187,6 +187,8 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
   const [key, setKey] = useState('')
   const sendsAs = op.sessionOnly ? 'session' : as
   const [problems, setProblems] = useState<Problems>({})
+  // The command the browser wouldn't copy, shown for copying by hand until the request changes.
+  const [uncopied, setUncopied] = useState<string | null>(null)
   // Whether a request is out: the state draws Send busy; the ref stops a second send in the same moment,
   // as from Enter pressed twice in a field, before the state has drawn.
   const [out, setOut] = useState(false)
@@ -215,13 +217,17 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
   const go = async (op: Operation, draft: Draft, key: string | null) => {
     if (sending.current) return
     sending.current = true
-    const { path, query, type, body } = built(op, draft)
-    const asked: Sending = { op, path: path + query, session: key === null, at: Date.now() }
-    let status: number | null = null
     setOut(true)
-    setAnswer({ state: 'sending', ...asked })
-    requestAnimationFrame(() => reveal(answerAt.current))
+    // The request as it goes, its path the operation's until the draft's is built.
+    let asked: Sending = { op, path: op.path, session: key === null, at: Date.now() }
+    let status: number | null = null
+    let made = false
     try {
+      const { path, query, type, body } = built(op, draft)
+      asked = { ...asked, path: path + query }
+      made = true
+      setAnswer({ state: 'sending', ...asked })
+      requestAnimationFrame(() => reveal(answerAt.current))
       const headers = new Headers()
       if (body !== null && type) headers.set('Content-Type', type)
       if (key !== null) headers.set('Authorization', `Bearer ${key.trim()}`)
@@ -254,10 +260,13 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
         timeout: e instanceof DOMException && e.name === 'TimeoutError'
       })
     } finally {
-      const entry = kept(op, draft, key !== null, asked.at, status)
-      setHistory(({ sent: last }) => remembered(network.id, last, entry))
+      // Send comes back first, so nothing after it can leave it stuck.
       sending.current = false
       setOut(false)
+      if (made) {
+        const entry = kept(op, draft, key !== null, asked.at, status)
+        setHistory(({ sent: last }) => remembered(network.id, last, entry))
+      }
     }
   }
 
@@ -300,7 +309,8 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
   const command = curl({ method: op.method, url: `${origin}${path}${query}`, type, body })
   const complete = () => {
     const found = problemsOf(op, draft, null)
-    setProblems(found)
+    // The key's problem, which a send left and this check doesn't make, stays.
+    setProblems((last) => ({ ...(last.key ? { key: last.key } : {}), ...found }))
     const first = Object.keys(found)[0]
     if (first) document.getElementById(`pg-${first}`)?.focus()
     return !first
@@ -593,7 +603,14 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
                 </Button>
                 {/* Keyed by the command, so another request starts uncopied. */}
                 {!op.sessionOnly && (
-                  <CopyButton key={command} value={command} label="Copy as curl" size="default" ready={complete} />
+                  <CopyButton
+                    key={command}
+                    value={command}
+                    label="Copy as curl"
+                    size="default"
+                    ready={complete}
+                    onCopied={(copied) => setUncopied(copied ? null : command)}
+                  />
                 )}
               </div>
               {!op.sessionOnly && (
@@ -601,6 +618,22 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
                   The command reads the key from <Code>$CROSSFEED_API_KEY</Code> in your shell, whichever way this page
                   sends it.
                 </p>
+              )}
+              {/* When the browser wouldn't copy it, the command to copy by hand: one click selects all of it. */}
+              {!op.sessionOnly && uncopied === command && (
+                <figure className="flex w-full min-w-0 flex-col rounded-xl bg-muted">
+                  <figcaption className="px-4 pt-3 type-caption text-muted-foreground">
+                    This browser didn’t let Crossfeed copy it: select the command and copy it yourself.
+                  </figcaption>
+                  <pre
+                    tabIndex={0}
+                    translate="no"
+                    aria-label="curl command"
+                    className="overflow-x-auto overscroll-x-contain px-4 pt-1 pb-3.5 font-mono text-[13px] leading-relaxed select-all focus-visible:-outline-offset-2"
+                  >
+                    <code>{command}</code>
+                  </pre>
+                </figure>
               )}
             </div>
           </form>
@@ -774,10 +807,11 @@ function Answered({ answer }: { answer: Extract<Answer, { state: 'answered' }> }
     answer.status >= 400 && typeof refusal?.code === 'string' && typeof refusal.message === 'string'
       ? { code: refusal.code, message: refusal.message }
       : null
-  // A 429's wait, whatever its body, from Retry-After in seconds or as a date.
+  // A 429's wait, whatever its body, from Retry-After in seconds or as a date, counted from when the
+  // answer arrived.
   const wait =
     answer.status === 429
-      ? retryAfter(answer.headers.find(([name]) => name === 'retry-after')?.[1] ?? null, answer.at)
+      ? retryAfter(answer.headers.find(([name]) => name === 'retry-after')?.[1] ?? null, answer.at + answer.ms)
       : null
   const shown = answer.json !== undefined ? JSON.stringify(answer.json, null, 2) : answer.text
   // Past COLOURED, a JSON body shows uncoloured, so a long one, such as a launch's evidence, isn't tens
@@ -794,7 +828,7 @@ function Answered({ answer }: { answer: Extract<Answer, { state: 'answered' }> }
         </KeyValue>
         {wait !== null && (
           <KeyValue label="Retry">
-            In {wait} {wait === 1 ? 'second' : 'seconds'}, as its <Code>Retry-After</Code> says
+            In {wait.toLocaleString('en-US')} {wait === 1 ? 'second' : 'seconds'}, as its <Code>Retry-After</Code> says
           </KeyValue>
         )}
         <KeyValue label="Time">{answer.ms.toLocaleString('en-US')} ms</KeyValue>

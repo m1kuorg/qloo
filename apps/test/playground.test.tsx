@@ -5,7 +5,17 @@ import { env, exports } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Developers } from '../src/client/Developers'
-import { curl, type OpenApi } from '../src/client/requests'
+import {
+  built,
+  curl,
+  fresh,
+  MAX_WAIT,
+  operationsOf,
+  problemsOf,
+  retryAfter,
+  sendsAtOnce,
+  type OpenApi
+} from '../src/client/requests'
 import { hooked, openGuest, openMember, rootData, type Member } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -302,5 +312,56 @@ describe('Copy as curl', () => {
     expect(
       shellWords(curl({ method: 'POST', url, type: 'application/json', body: null }), { CROSSFEED_API_KEY: key })
     ).toEqual(['curl', '-X', 'POST', url, '-H', `Authorization: Bearer ${key}`])
+  })
+})
+
+// How the checks before a send could fail, listed before they were written, each caught below: the docs'
+// cf_live_… with its ellipsis, or a key with a space in it, let through, so the browser refuses the header
+// or the API the key; a whole key refused; a path value of . or .. let through, so the request goes
+// elsewhere than the confirm names; a value with dots in it, such as v1.2 or ..., refused; half of a
+// two-part character let through, or building the request throwing on it; a Retry-After of 1.5 or -1
+// read as a date; a date counted from the send rather than the answer; a past date a negative wait; a
+// huge number of seconds shown as Infinity; and a POST labelled Reads, or an operation with no label,
+// sent without its confirm.
+describe('the checks before a send', () => {
+  it('names a key no key could be, and a path value of . or .. or with half a character, and lets the rest through', async () => {
+    const ops = operationsOf(await openapi(await openMember()), false)
+    const read = ops.find((o) => o.key === 'GET /api/v1/networks/{networkId}/launches/{launchId}')!
+    const draft = (launchId: string) => ({ ...fresh(read, { id: 'net-1' }), params: { networkId: 'net-1', launchId } })
+    const named = (launchId: string, key: string | null = null) => Object.keys(problemsOf(read, draft(launchId), key))
+    for (const fine of ['l-1', 'v1.2', '...', 'Ada’s 🎙']) expect(named(fine), fine).toEqual([])
+    for (const step of ['.', '..', ' .. ', 'a\uD800b', '\uDC00']) expect(named(step), step).toEqual(['param-launchId'])
+    expect(() => built(read, draft('a\uD800b'))).not.toThrow()
+    expect(named('l-1', 'cf_live_aB3-x_Z9')).toEqual([])
+    expect(named('l-1', ' cf_live_aB3-x_Z9\n')).toEqual([])
+    for (const key of ['cf_live_…', 'cf_live_ab cd', '  ', 'cf_live_é']) expect(named('l-1', key), key).toEqual(['key'])
+  })
+
+  it("reads a 429's Retry-After as whole seconds or an HTTP date, from when the answer arrived, at most a day", () => {
+    const arrived = Date.parse('2026-10-30T09:00:00Z')
+    const table: [string | null, number | null][] = [
+      ['60', 60],
+      [' 60 ', 60],
+      ['0', 0],
+      ['Fri, 30 Oct 2026 09:01:30 GMT', 90],
+      ['Fri, 30 Oct 2026 08:59:00 GMT', 0],
+      ['Sat, 30 Oct 2027 09:00:00 GMT', MAX_WAIT],
+      ['9'.repeat(400), MAX_WAIT],
+      ['1.5', null],
+      ['-1', null],
+      ['soon', null],
+      ['', null],
+      [null, null]
+    ]
+    for (const [value, wait] of table) expect(retryAfter(value, arrived), String(value)).toBe(wait)
+  })
+
+  it('sends at once only a GET the document says reads', async () => {
+    const ops = operationsOf(await openapi(await openMember()), true)
+    const read = ops.find((o) => o.key === 'GET /api/v1/networks/{networkId}')!
+    expect(sendsAtOnce(read)).toBe(true)
+    expect(sendsAtOnce({ ...read, method: 'POST' })).toBe(false)
+    expect(sendsAtOnce({ ...read, cost: null })).toBe(false)
+    expect(ops.filter((o) => o.method !== 'GET').some(sendsAtOnce)).toBe(false)
   })
 })

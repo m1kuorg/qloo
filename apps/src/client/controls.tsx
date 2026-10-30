@@ -380,9 +380,11 @@ export function useCopy(value: string) {
 }
 
 // A button that copies `value`, its words `label` and then, visually hidden, what it copies (`what`):
-// "Copied" once it has, or "Copy failed" when the browser refused, which a status region says too, with
-// how to copy it by hand. `ready` runs first, as a form's check does, and it copies only once that says
-// so; `onCopied` hears whether it did, for a page that says a failure in its own place too.
+// "Copied" once it has, which a status region says politely, or "Copy failed" when the browser refused,
+// which an alert, there only then, says at once with how to copy it by hand, as what's copied may be a
+// secret shown once. `ready` runs first, as a form's check does, and it copies only once that says so;
+// `onCopied` hears whether it did, for a page that shows a refusal in its own place, as a way to copy by
+// hand.
 export function CopyButton({
   value,
   label = 'Copy',
@@ -417,14 +419,15 @@ export function CopyButton({
         {what && <span className="vh"> {what}</span>}
       </Button>
       <span role="status" className="vh">
-        {copied
-          ? 'Copied'
-          : copied === false
-            ? what
-              ? `Copy failed. Select the ${what} and copy it yourself.`
-              : 'Copy failed: this browser didn’t let Crossfeed copy it.'
-            : ''}
+        {copied ? 'Copied' : ''}
       </span>
+      {copied === false && (
+        <span role="alert" className="vh">
+          {what
+            ? `Copy failed. Select the ${what} and copy it yourself.`
+            : 'Copy failed: this browser didn’t let Crossfeed copy it.'}
+        </span>
+      )}
     </>
   )
 }
@@ -464,7 +467,7 @@ export function ShownOnce({
         />
         <CopyButton value={value} what={noun} size="default" onCopied={(copied) => setFailed(!copied)} />
       </div>
-      {/* Said under the field too, as the button's status region says it to screen readers. */}
+      {/* Shown under the field too, for the eye: the button's alert, which says it to screen readers, is hidden. */}
       {failed && (
         <StateLine kind="error">
           This browser didn’t let Crossfeed copy it. Select the {noun} and copy it yourself.

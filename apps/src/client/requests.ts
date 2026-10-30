@@ -1,7 +1,8 @@
 // The playground's requests, with no React in them: the operations it reads from the API's OpenAPI
 // document, the request a member's draft of one makes and what's wrong with it, what a send that isn't a
 // read does, the request as a curl command, a 429's wait, and the last requests a browser tab keeps.
-// Playground.tsx draws them; the tests read them as they are.
+// Playground.tsx draws them; the tests read the curl command, the checks before a send, a 429's wait and
+// which sends skip the confirm.
 import type { Cost } from '../routes/api'
 import { GUEST_NETWORK_CLEARS } from '../text'
 import type { NetworkPage } from './NetworkPage'
@@ -222,7 +223,7 @@ export const fresh = (op: Operation, network: Pick<NetworkPage, 'id'>): Draft =>
 // The request a draft makes: its path with each value in place, its query, and its body, null when it
 // sends none (an optional body left empty).
 export function built(op: Operation, draft: Draft) {
-  const path = op.path.replace(/\{(\w+)\}/g, (_, name: string) => encodeURIComponent(draft.params[name] ?? ''))
+  const path = op.path.replace(/\{(\w+)\}/g, (_, name: string) => encoded(draft.params[name] ?? ''))
   const query = new URLSearchParams(
     op.params.filter((p) => p.in === 'query' && draft.params[p.name]).map((p) => [p.name, draft.params[p.name]])
   ).toString()
@@ -231,11 +232,19 @@ export function built(op: Operation, draft: Draft) {
   return { path, query: query ? `?${query}` : '', type: draft.type, body }
 }
 
-// What's wrong with a draft before it's sent, by the field it's about: a path value left empty, or one
+// A path value as an address carries it. Half of a character that takes two, alone, as pasted text can
+// hold, is no character an address can carry, and `encodeURIComponent` throws on it: it goes as the
+// replacement character instead, so building the request never throws, and `problemsOf` names it, so a
+// request with it is never sent.
+const encoded = (value: string) => encodeURIComponent(wellFormed(value))
+const wellFormed = (value: string) =>
+  value.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g, (c) => (c.length === 2 ? c : '\uFFFD'))
+
+// What's wrong with a draft before it's sent, by the field it's about: a path value left empty, one
 // that's . or .., which the address would read as a step through the path, not a value, so the request
-// would go elsewhere than the confirm says; a JSON body that doesn't parse; and in key mode, no key, or
-// one with a character no key has, such as the docs' cf_live_… with its ellipsis, which a header can't
-// carry either.
+// would go elsewhere than the confirm says, or one with half a character; a JSON body that doesn't parse;
+// and in key mode, no key, or one with a character no key has, such as the docs' cf_live_… with its
+// ellipsis, which a header can't carry either.
 export type Problems = Record<string, string>
 export function problemsOf(op: Operation, draft: Draft, key: string | null) {
   const problems: Problems = {}
@@ -245,6 +254,8 @@ export function problemsOf(op: Operation, draft: Draft, key: string | null) {
     if (!value) problems[`param-${p.name}`] = `Fill in ${p.name}.`
     else if (value === '.' || value === '..')
       problems[`param-${p.name}`] = `${p.name} can’t be ${value}: the address would read it as a step through the path.`
+    else if (wellFormed(value) !== value)
+      problems[`param-${p.name}`] = `${p.name} has a broken character, as pasted text can: type it again.`
   }
   const { type, body } = built(op, draft)
   if (body !== null && type && isJson(type)) {
@@ -265,13 +276,18 @@ export function problemsOf(op: Operation, draft: Draft, key: string | null) {
   return problems
 }
 
-// How many seconds a 429's Retry-After asks to wait, given as seconds or as a date, from `now`; null
-// with none, or one that's neither.
-export function retryAfter(value: string | null, now = Date.now()) {
-  if (!value) return null
-  if (/^\s*\d+\s*$/.test(value)) return Number(value)
-  const at = Date.parse(value)
-  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - now) / 1000))
+// How many seconds a 429's Retry-After asks to wait from `from`, when the answer arrived: given as whole
+// seconds, or as an HTTP date, which has a weekday and a month in words; at most a day, and none for a
+// date already past. Null with none, or one that's neither, such as "1.5" or "-1", which Date.parse
+// would otherwise read as a date.
+export const MAX_WAIT = 24 * 60 * 60
+export function retryAfter(value: string | null, from: number) {
+  const text = value?.trim()
+  if (!text) return null
+  if (/^\d+$/.test(text)) return Math.min(Number(text), MAX_WAIT)
+  if (!/[a-z]/i.test(text)) return null
+  const at = Date.parse(text)
+  return Number.isNaN(at) ? null : Math.min(Math.max(0, Math.ceil((at - from) / 1000)), MAX_WAIT)
 }
 
 // One of the last requests, as this tab keeps it: the operation, its values and media type, its body
