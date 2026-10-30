@@ -222,6 +222,23 @@ export type LaunchSummary = {
   slotValue: number | null // dollars
   startedBy: string | null // who started its last run, as RunSummary says
   lastRun: string | null // ISO time
+  // What it commits of the roster's promo inventory, from what its runs ended with (launch-agent.ts): its
+  // latest completed run's finalists, by name; its latest approved order's lines, null with none; and the
+  // latest run's order while that's a draft, so newer than any approved one, null otherwise. A row reported
+  // before #406 has none of them, which means not reported, never none.
+  finalistShows?: string[]
+  approvedLines?: CommittedLines | null
+  draftLines?: CommittedLines | null
+}
+
+// An insertion order's lines as the promo inventory counts them: each show's slots and their value as the
+// order priced them, at the CPM its run copied, with whether that CPM was labelled the sample's; and the
+// run that drafted it.
+export type CommittedLines = {
+  run: string
+  cpm: number | null
+  sampleCpm: boolean
+  lines: { show: string; slots: number; value: number | null }[]
 }
 
 // What a run ended with: the synced state as it was then, so a re-run's plan can be compared to it.

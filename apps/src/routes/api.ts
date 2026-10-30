@@ -1236,6 +1236,24 @@ const LAUNCH_STATUSES = [
   'failed',
   'stopped'
 ] as const
+// An insertion order's lines as a launch's row counts them in the network's promo inventory.
+const CommittedLines = z
+  .object({
+    run: z.string().openapi({ description: 'The run that drafted the order.' }),
+    cpm: z.number().nullable().openapi({ description: 'The CPM in dollars it was priced at, as its run copied it.' }),
+    sampleCpm: z.boolean().openapi({
+      description: "`true` when that CPM was the sample network's, as on the guest network's sample launches."
+    }),
+    lines: z.array(
+      z.object({
+        show: z.string(),
+        slots: z.number().int(),
+        value: z.number().nullable().openapi({ description: 'Its slots × slot value; null when a figure was missing.' })
+      })
+    )
+  })
+  .openapi('CommittedLines')
+
 const LaunchFields = z.object({
   id: z.string(),
   name: z.string().nullable().openapi({ description: "The launch's name; null for one planned from comps alone." }),
@@ -1254,7 +1272,19 @@ const LaunchFields = z.object({
     description:
       'Who started its latest run: a member, by name, or an API key, as `API key “<its name>”`; null before its first run, or when no one was recorded.'
   }),
-  lastRun: z.string().nullable().openapi({ description: 'When its latest run started.' })
+  lastRun: z.string().nullable().openapi({ description: 'When its latest run started.' }),
+  finalistShows: z.array(z.string()).optional().openapi({
+    description:
+      "The shows its latest completed run made finalists, by name; empty until a run completes. Absent while the launch hasn't reported it yet, which isn't the same as none."
+  }),
+  approvedLines: orNull(CommittedLines).optional().openapi({
+    description:
+      "Its latest approved insertion order's lines, which keep counting while a later run drafts another; null with none approved. Absent while the launch hasn't reported it yet."
+  }),
+  draftLines: orNull(CommittedLines).optional().openapi({
+    description:
+      "Its latest run's insertion order while that's a draft, so newer than `approvedLines`, and never to be added to it; null otherwise. Absent while the launch hasn't reported it yet."
+  })
 })
 const EXAMPLE_LAUNCH = {
   id: '3d1f6b2e-8a4c-4f7d-b5e9-6c0a2d8f1e73',
@@ -1265,7 +1295,20 @@ const EXAMPLE_LAUNCH = {
   slots: 20,
   slotValue: 19076,
   startedBy: 'Ada Programmer',
-  lastRun: '2026-10-19T14:02:11.000Z'
+  lastRun: '2026-10-19T14:02:11.000Z',
+  finalistShows: ['Corner Booth', 'Slow Burn', 'Paper Route', 'Field Notes', 'Ghost Signal'],
+  approvedLines: null,
+  draftLines: {
+    run: '9a2c4e6b-0d1f-4a3b-8c5d-7e9f1a2b3c4d',
+    cpm: 25,
+    sampleCpm: false,
+    lines: [
+      { show: 'Corner Booth', slots: 8, value: 9600 },
+      { show: 'Slow Burn', slots: 6, value: 6000 },
+      { show: 'Paper Route', slots: 4, value: 2600 },
+      { show: 'Field Notes', slots: 2, value: 876 }
+    ]
+  }
 } as const
 const LaunchSummary = LaunchFields.openapi('LaunchSummary', { example: EXAMPLE_LAUNCH })
 
@@ -1465,6 +1508,8 @@ const Launch = LaunchFields.extend({
     status: 'waiting',
     slots: null,
     slotValue: null,
+    finalistShows: [],
+    draftLines: null,
     rosterChanged: false,
     runs: [{ id: EXAMPLE_RUN.id, status: 'waiting', startedAt: EXAMPLE_RUN.startedAt, startedBy: 'Ada Programmer' }],
     latestRun: EXAMPLE_RUN

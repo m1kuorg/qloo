@@ -178,6 +178,9 @@ describe('creating a launch', () => {
       slotValue: null,
       startedBy: null,
       lastRun: null,
+      finalistShows: [],
+      approvedLines: null,
+      draftLines: null,
       rosterChanged: false,
       runs: [],
       latestRun: null
@@ -196,7 +199,10 @@ describe('creating a launch', () => {
         slots: null,
         slotValue: null,
         startedBy: null,
-        lastRun: null
+        lastRun: null,
+        finalistShows: [],
+        approvedLines: null,
+        draftLines: null
       },
       {
         id: first.id,
@@ -207,7 +213,10 @@ describe('creating a launch', () => {
         slots: null,
         slotValue: null,
         startedBy: null,
-        lastRun: null
+        lastRun: null,
+        finalistShows: [],
+        approvedLines: null,
+        draftLines: null
       }
     ])
     expect(await (await call(`${launches}/${first.id}`)).json()).toEqual(first)
@@ -379,13 +388,30 @@ describe("a launch's run", () => {
       ]
     })
 
-    // The launch reads its latest run as the run does, and its row follows the order.
+    // The launch reads its latest run as the run does, and its row follows the order, saying what it
+    // commits of the roster's promo inventory: its finalists, and its draft's lines, with none approved.
+    const committed = {
+      finalistShows: ['Corner Booth', 'Slow Burn', 'Paper Route', 'Field Notes', 'Ghost Signal'],
+      approvedLines: null,
+      draftLines: {
+        run: started.id,
+        cpm: 25,
+        sampleCpm: false,
+        lines: [
+          { show: 'Corner Booth', slots: 8, value: 9600 },
+          { show: 'Slow Burn', slots: 6, value: 6000 },
+          { show: 'Paper Route', slots: 4, value: 2600 },
+          { show: 'Field Notes', slots: 2, value: 876 }
+        ]
+      }
+    }
     const launch = await (await call(`${launches}/${id}`)).json<Launch>()
     expect(launch).toMatchObject({
       status: 'order_drafted',
       finalists: 5,
       slots: 20,
       slotValue: 19_076,
+      ...committed,
       startedBy: 'API key “Nightly sync”',
       lastRun: started.startedAt,
       rosterChanged: false,
@@ -398,7 +424,8 @@ describe("a launch's run", () => {
       status: 'order_drafted',
       slots: 20,
       slotValue: 19_076,
-      startedBy: 'API key “Nightly sync”'
+      startedBy: 'API key “Nightly sync”',
+      ...committed
     })
 
     // Once the network's roster changes, the launch says it has since its latest run.

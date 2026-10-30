@@ -25,10 +25,11 @@ import { Spinner } from '@/components/ui/spinner'
 import type { LaunchInput, LaunchSummary, State } from '../agent'
 import { dollars } from '../order'
 import { Alert, day, ScrollTable, send, useAction } from './controls'
+import { Inventory } from './Inventory'
 import { launchTitle, NewLaunch } from './LaunchFields'
 import { countsLine, grouped, LaunchStatus } from './LaunchStatus'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
-import { PageEmpty, PageHeader, useFormDialog } from './PageHeader'
+import { PageEmpty, PageHeader, PageTabs, useFormDialog } from './PageHeader'
 import { connectionOf, type Connection } from './states'
 
 export function LaunchesPage(props: { agentPath: string; network: NetworkPage }) {
@@ -47,8 +48,9 @@ export function LaunchesPage(props: { agentPath: string; network: NetworkPage })
 
 // The Launches page, which answers "Which launches need me?": the header with the launches' counts
 // and New launch, its title badged sample while the network holds the sample data, the page's one
-// sample label (ADR 0007); then the launches grouped by who's blocked, or until there's one, the empty
-// state. Tests render it from a network agent's synced state; `state` is undefined until it arrives.
+// sample label (ADR 0007); then, in tabs, the launches grouped by who's blocked and the promo inventory
+// they commit (#406), or until there's a launch, the empty state. Tests render it from a network agent's
+// synced state; `state` is undefined until it arrives, while both tabs hold their skeletons.
 // At 1440 the table is the canvas's width: 56 (rail) + 24 + 1336 + 24 = 1440.
 export function Launches({
   state,
@@ -81,13 +83,33 @@ export function Launches({
       />
       <NewLaunch network={network} create={createLaunch} dialog={planning} />
       {state ? (
-        <LaunchList launches={launches} network={network} newLaunch={newLaunch} heading={heading} />
+        <LaunchList
+          launches={launches}
+          network={network}
+          newLaunch={newLaunch}
+          heading={heading}
+          inventory={<Inventory state={state} launchesLink={network.links.launches} />}
+        />
       ) : (
-        <LaunchesLoading />
+        <LaunchesTabs
+          launches={<LaunchesLoading />}
+          inventory={<Inventory state={undefined} launchesLink={network.links.launches} />}
+        />
       )}
     </main>
   )
 }
+
+// The page's tabs: Launches, the table, and Inventory, the promo inventory, each kept mounted.
+const LaunchesTabs = ({ launches, inventory }: { launches: ReactNode; inventory: ReactNode }) => (
+  <PageTabs
+    label="Launches sections"
+    tabs={[
+      { id: 'launches', title: 'Launches', content: launches },
+      { id: 'inventory', title: 'Inventory', content: inventory }
+    ]}
+  />
+)
 
 // A launch's finalists: a five-step meter in signal, what the agent puts forward, then the count,
 // which says it, so the meter is hidden from screen readers. A launch not yet ranked has none: its
@@ -106,20 +128,23 @@ function Finalists({ n }: { n: number }) {
   )
 }
 
-// Every launch with its status and plan, grouped by who's blocked, each opening its page; until
-// there's one, the empty state, with New launch. An unreleased launch goes by its comps.
-// Any member can delete one from its row's menu, after a yes in the confirm dialog; it then leaves
-// every member's list as the network's agent drops it.
+// Every launch with its status and plan, grouped by who's blocked, each opening its page, in the
+// Launches tab beside `inventory`; until there's one, the empty state, with New launch, and no tabs. An
+// unreleased launch goes by its comps. Any member can delete one from its row's menu, after a yes in the
+// confirm dialog; it then leaves every member's list as the network's agent drops it. The dialog stays
+// mounted as the last launch goes and the tabs with it, so it closes with focus on the page's heading.
 function LaunchList({
   launches,
   network,
   newLaunch,
-  heading
+  heading,
+  inventory
 }: {
   launches: LaunchSummary[]
   network: NetworkPage
   newLaunch: ReactNode // the page's New launch, for the empty state
   heading: RefObject<HTMLHeadingElement | null>
+  inventory: ReactNode // the Inventory tab
 }) {
   // The launch the confirm dialog asks about, kept while it closes so its words don't empty.
   const [asking, setAsking] = useState<LaunchSummary | null>(null)
@@ -143,23 +168,28 @@ function LaunchList({
       {launches.length === 0 ? (
         <PageEmpty action={newLaunch}>No launches yet.</PageEmpty>
       ) : (
-        <LaunchesTable>
-          {grouped(launches).map((group) => (
-            <tbody key={group.name}>
-              <tr>
-                <th colSpan={7} scope="rowgroup" className="rounded-lg bg-muted py-1.5 pl-2 text-left font-normal">
-                  <span className="sticky left-2">
-                    <span className="font-semibold">{group.name}</span>{' '}
-                    <span className="text-muted-foreground tabular-nums">{group.rows.length}</span>
-                  </span>
-                </th>
-              </tr>
-              {group.rows.map((l) => (
-                <LaunchRow key={l.id} launch={l} href={`${network.links.launches}/${l.id}`} ask={() => ask(l)} />
+        <LaunchesTabs
+          launches={
+            <LaunchesTable>
+              {grouped(launches).map((group) => (
+                <tbody key={group.name}>
+                  <tr>
+                    <th colSpan={7} scope="rowgroup" className="rounded-lg bg-muted py-1.5 pl-2 text-left font-normal">
+                      <span className="sticky left-2">
+                        <span className="font-semibold">{group.name}</span>{' '}
+                        <span className="text-muted-foreground tabular-nums">{group.rows.length}</span>
+                      </span>
+                    </th>
+                  </tr>
+                  {group.rows.map((l) => (
+                    <LaunchRow key={l.id} launch={l} href={`${network.links.launches}/${l.id}`} ask={() => ask(l)} />
+                  ))}
+                </tbody>
               ))}
-            </tbody>
-          ))}
-        </LaunchesTable>
+            </LaunchesTable>
+          }
+          inventory={inventory}
+        />
       )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         {/* Deleted, its row and menu are gone, so focus goes to the page's heading. */}

@@ -119,6 +119,11 @@ const LAUNCHES =
   "A network's agent keeps the roster and the inbox; each launch runs in its own workspace, with its runs and insertion order."
 // Where a network's agent keeps the roster it last told its launches (rosterKey).
 const ANNOUNCED = 'crossfeed_roster_announced'
+// And the version of its launches' rows it has asked them for (askInventory): from #406, what each commits
+// of the roster's promo inventory. And how many it asks at once.
+const INVENTORY_ASKED = 'crossfeed_inventory_asked'
+const INVENTORY_VERSION = 1
+const INVENTORY_CONCURRENCY = 5
 // Where the guest network's agent keeps that it has loaded the sample network, and its sample launch's ID
 // once it has planned it (loadSample).
 const SAMPLE_LOADED = 'crossfeed_sample_loaded'
@@ -180,6 +185,7 @@ export class NetworkAgent extends CrossfeedAgent {
     if (overlap?.status === 'measuring')
       this.setState({ ...this.state, overlap: { ...overlap, status: 'failed', error: OVERLAP_INTERRUPTED } })
     await super.onStart(props)
+    if (!props?.clearing) this.askInventory()
     if (this.name !== GUEST_NETWORK) return
     if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) {
       await this.loadSample()
@@ -190,6 +196,31 @@ export class NetworkAgent extends CrossfeedAgent {
     // even when the sample roster couldn't load, and an import keeps it. One an import left unset before
     // #287 gets it back here.
     if (this.state.cpm === null) this.setState({ ...this.state, cpm: sampleCpm })
+  }
+
+  // Asks each launch whose row was reported before rows said what it commits of the roster's promo
+  // inventory (#406) for its row as it now stands, in the background, a few at once, once per network: the
+  // version asked is noted in storage as it starts, and forgotten when any launch fails to answer, so the
+  // next start asks those again. A row a launch reports itself meanwhile stays. Until it's asked, a row
+  // without them is one the Launches page counts as not reported.
+  private askInventory() {
+    const { kv } = this.ctx.storage
+    if (kv.get(INVENTORY_ASKED) === INVENTORY_VERSION) return
+    kv.put(INVENTORY_ASKED, INVENTORY_VERSION)
+    const unreported = (id: string) => this.state.launches?.find((l) => l.id === id)?.finalistShows === undefined
+    const queue = (this.state.launches ?? []).map((l) => l.id).filter(unreported)
+    const next = async () => {
+      for (let id = queue.shift(); id; id = queue.shift()) {
+        try {
+          const summary = await (await getAgentByName(this.env.LaunchAgent, launchAgentName(this.name, id))).summary()
+          if (unreported(id)) this.reportLaunch(id, summary)
+        } catch (e) {
+          kv.delete(INVENTORY_ASKED)
+          console.error(JSON.stringify({ event: 'inventory_ask', launch: id, error: String(e) }))
+        }
+      }
+    }
+    void this.keepAliveWhile(() => Promise.all(Array.from({ length: INVENTORY_CONCURRENCY }, next)))
   }
 
   // While the guest network's sample is still loading, each start looks up every failed lookup again

@@ -3,12 +3,18 @@
 // network's list as it changes. Each test drives a network through the Worker's routes and its
 // agents' client protocol, or the Worker's own RPC to an agent, as the API will call it.
 import { getAgentByName } from 'agents'
-import { createExecutionContext, createScheduledController, waitOnExecutionContext } from 'cloudflare:test'
+import {
+  createExecutionContext,
+  createScheduledController,
+  evictDurableObject,
+  runInDurableObject,
+  waitOnExecutionContext
+} from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { http } from 'msw'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { RunSnapshot, State } from '../src/agent'
+import type { LaunchSummary, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { EvidencePanel, namesOf } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
@@ -201,7 +207,17 @@ describe('creating a launch', () => {
     const graces = await connect(grace, `/agents/network/${network}`)
 
     const { id } = await adas.call<{ id: string }>('createLaunch', { name: ' The Night Watch ' })
-    const fresh = { status: 'new', finalists: 0, slots: null, slotValue: null, startedBy: null, lastRun: null }
+    const fresh = {
+      status: 'new',
+      finalists: 0,
+      slots: null,
+      slotValue: null,
+      startedBy: null,
+      lastRun: null,
+      finalistShows: [],
+      approvedLines: null,
+      draftLines: null
+    }
     expect((await graces.until((s) => s.launches?.length === 1)).launches).toEqual([
       { id, name: 'The Night Watch', comps: [], ...fresh }
     ])
@@ -589,7 +605,9 @@ describe("the network's list of launches", () => {
       status: 'order drafted',
       finalists: 5,
       slots: 20,
-      slotValue: 19_076
+      slotValue: 19_076,
+      finalistShows: ['Corner Booth', 'Slow Burn', 'Paper Route', 'Field Notes', 'Ghost Signal'],
+      draftLines: expect.objectContaining({ cpm: 25, run: agent.state()!.run!.id })
     })
 
     const order = agent.state()!.insertionOrder!
@@ -2057,5 +2075,290 @@ describe('the pages, as a member reads them', () => {
     ])
     // Its line is the same in both plans.
     expect(sections(changes).map(([heading]) => heading)).toEqual(['Changes since run 1', 'Inputs', 'Ranks'])
+  })
+
+  // The Launches page's Inventory tab, and the inventory each launch's row reports (#406).
+  const inventoryOf = (html: string) => hooked(html, 'data-inventory')[0]
+  const shows = (html: string) => rowsOf(inventoryOf(html), 'data-inventory-show')
+  // The rows Night Shift Cinema's first drafted order commits, at the $25 CPM: 8 × $1,200, 6 × $1,000,
+  // 4 × $650 and 2 × $438.
+  const firstOrder = (run: string) => ({
+    run,
+    cpm: 25,
+    sampleCpm: false,
+    lines: [
+      { show: 'Corner Booth', slots: 8, value: 9600 },
+      { show: 'Slow Burn', slots: 6, value: 6000 },
+      { show: 'Paper Route', slots: 4, value: 2600 },
+      { show: 'Field Notes', slots: 2, value: 876 }
+    ]
+  })
+
+  it("reports each launch's finalists and orders from what its runs ended with, and keeps an approved order counting, apart from a newer draft, as it runs again", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent, roster } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    const row = async (ready: (l: LaunchSummary) => boolean) =>
+      (await roster.until((s) => s.launches?.some((l) => l.id === id && ready(l)) ?? false)).launches!.find(
+        (l) => l.id === id
+      )!
+    const finalistShows = ['Corner Booth', 'Slow Burn', 'Paper Route', 'Field Notes', 'Ghost Signal']
+    expect(await row((l) => l.status === 'order drafted')).toMatchObject({
+      finalists: 5,
+      finalistShows,
+      approvedLines: null,
+      draftLines: firstOrder(first)
+    })
+    await agent.call('approveInsertionOrder', agent.state()!.insertionOrder!.id)
+    expect(await row((l) => l.status === 'order approved')).toMatchObject({
+      finalistShows,
+      approvedLines: firstOrder(first),
+      draftLines: null
+    })
+
+    // Run again: as it starts, the launch's ranking and order are cleared, but the approved order and the
+    // last completed run's finalists still count.
+    const held = Promise.withResolvers<void>()
+    fakeClaude([
+      async () => {
+        await held.promise
+        return turn(resolve('Night Shift Cinema'))
+      },
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(
+        toolUse('draft_insertion_order', {
+          lines: [
+            { show: 'Slow Burn', slots: 10, angle: 'Its long interviews share the slow pace.' },
+            { show: 'Field Notes', slots: 2, angle: 'Shares the field-recording style.' }
+          ]
+        })
+      ),
+      turn(text('Drafted it again.'))
+    ])
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const second = agent.state()!.run!.id
+    expect(await row((l) => l.status === 'running')).toMatchObject({
+      slots: null,
+      finalistShows,
+      approvedLines: firstOrder(first),
+      draftLines: null
+    })
+    held.resolve()
+    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', budget.run!.question!.id, { slots: 12 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    // The new draft counts as drafted, beside the approved order, never added to it.
+    const redrafted = {
+      run: second,
+      cpm: 25,
+      sampleCpm: false,
+      lines: [
+        { show: 'Slow Burn', slots: 10, value: 10_000 },
+        { show: 'Field Notes', slots: 2, value: 876 }
+      ]
+    }
+    const both = await row((l) => l.status === 'order drafted')
+    expect(both).toMatchObject({ slots: 12, approvedLines: firstOrder(first), draftLines: redrafted })
+    const html = launchesPage(network, roster.state())
+    expect(tabsOf(html)).toEqual({
+      label: 'Launches sections',
+      tabs: ['Launches', 'Inventory'],
+      panels: ['shown', 'hidden']
+    })
+    expect(sections(inventoryOf(html))).toEqual([
+      [
+        'Promo inventory',
+        '32 slots across 2 insertion orders, 20 of them approved, worth $19,076 as each order was priced; 1 show has never been a finalist.'
+      ]
+    ])
+    expect(shows(html)).toEqual([
+      'Corner Booth Night Shift Cinema 1 8 $9,600 0',
+      'Slow Burn Night Shift Cinema 1 6 $6,000 10',
+      'Paper Route Night Shift Cinema 1 4 $2,600 0',
+      'Field Notes Night Shift Cinema 1 2 $876 2',
+      'Ghost Signal 1 0 $0 0',
+      'Back Lot 0 0 $0 0'
+    ])
+
+    // A run that stops at once, as Qloo can't be called, clears the draft, and the approved order stays.
+    env.QLOO_DAILY_CALL_CAP = '0'
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect(await row((l) => l.status === 'stopped')).toMatchObject({
+      slots: null,
+      finalistShows,
+      approvedLines: firstOrder(first),
+      draftLines: null
+    })
+  })
+
+  it('totals the inventory of every launch that has reported it: the slots, how many approved and their value, and each show in its group, linked to the plans it’s in', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const roster = await rosterOf(ada, network)
+    const base = { comps: [], finalists: 5, slots: null, slotValue: null, startedBy: 'Ada Programmer', lastRun: null }
+    const lines = (run: string, cpm: number, sampleCpm: boolean, ...shown: [string, number, number | null][]) => ({
+      run,
+      cpm,
+      sampleCpm,
+      lines: shown.map(([show, slots, value]) => ({ show, slots, value }))
+    })
+    const launches: LaunchSummary[] = [
+      {
+        ...base,
+        id: 'l-1',
+        name: 'Night Shift Cinema',
+        status: 'order drafted',
+        finalistShows: ['Slow Burn', 'Corner Booth', 'Paper Route', 'Field Notes', 'Ghost Signal'],
+        approvedLines: lines('r-1', 25, false, ['Corner Booth', 8, 9600], ['Slow Burn', 6, 6000]),
+        // A show the network has since taken off its roster stays in the order.
+        draftLines: lines('r-2', 25, false, ['Slow Burn', 10, 10_000], ['Dead Air', 2, 500])
+      },
+      {
+        ...base,
+        id: 'l-2',
+        name: null,
+        comps: ['Blank Check', 'Filmspotting'],
+        status: 'order drafted',
+        finalistShows: ['Paper Route', 'Corner Booth', 'Slow Burn'],
+        approvedLines: null,
+        draftLines: lines('r-3', 25, false, ['Paper Route', 4, 2600])
+      },
+      {
+        ...base,
+        id: 'l-3',
+        name: 'The Long Take',
+        status: 'new',
+        finalists: 0,
+        finalistShows: [],
+        approvedLines: null,
+        draftLines: null
+      },
+      // A row from before rows reported it.
+      { ...base, id: 'l-4', name: 'Paper Moons', status: 'order approved' }
+    ]
+    const html = launchesPage(network, { ...roster.state()!, launches })
+    const inventory = inventoryOf(html)
+    expect(sections(inventory)).toEqual([
+      [
+        'Promo inventory',
+        '30 slots across 3 insertion orders, 14 of them approved, worth $15,600 as each order was priced; 1 show has never been a finalist.'
+      ]
+    ])
+    expect(words(inventory)).toMatch(
+      /^Promo inventory .+ 1 launch hasn’t reported yet; the totals leave it out\. Show Finalist in Slots approved Approved value Slots drafted In an order 4 /
+    )
+    // Grouped, most slots approved first, then drafted; then by finalists, and in the roster's order.
+    expect(words(inventory).match(/(In an order|Finalist only|Never a finalist) \d+/g)).toEqual([
+      'In an order 4',
+      'Finalist only 2',
+      'Never a finalist 1'
+    ])
+    expect(shows(html)).toEqual([
+      'Corner Booth Night Shift Cinema 2 8 $9,600 0',
+      'Slow Burn Night Shift Cinema 2 6 $6,000 10',
+      'Paper Route Blank Check · Filmspotting 2 0 $0 4',
+      'Dead Air Night Shift Cinema No longer on the roster 0 0 $0 2',
+      'Field Notes 1 0 $0 0',
+      'Ghost Signal 1 0 $0 0',
+      'Back Lot 0 0 $0 0'
+    ])
+    // Each launch an order commits a show to links to its plan.
+    const [corner] = hooked(inventory, 'data-inventory-show="Corner Booth"')
+    expect([...corner.matchAll(/href="([^"]+)"/g)].map(([, href]) => href)).toEqual([
+      `/app/${network}/launches/l-1#plan`
+    ])
+    const [paper] = hooked(inventory, 'data-inventory-show="Paper Route"')
+    expect([...paper.matchAll(/href="([^"]+)"/g)].map(([, href]) => href)).toEqual([
+      `/app/${network}/launches/l-2#plan`
+    ])
+
+    // Priced at the sample CPM, the sentence says so; a line priced without a value leaves its slots out.
+    const sample = launchesPage(network, {
+      ...roster.state()!,
+      launches: [
+        {
+          ...launches[0],
+          approvedLines: lines('r-1', 20, true, ['Corner Booth', 8, 7680], ['Slow Burn', 6, null]),
+          draftLines: null
+        }
+      ]
+    })
+    expect(sections(inventoryOf(sample))[0][1]).toBe(
+      '14 slots across 1 insertion order, all of them approved, worth $7,680 as each order was priced, before the lines without a value, at the $20 sample CPM; 1 show has never been a finalist.'
+    )
+    expect(shows(sample)[1]).toBe('Slow Burn Night Shift Cinema 1 6 – 0')
+  })
+
+  it('says when no launch has ranked the roster yet, or launches haven’t reported, and holds skeleton rows until the state arrives', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const roster = await rosterOf(ada, network)
+    const base = { comps: [], finalists: 0, slots: null, slotValue: null, startedBy: null, lastRun: null }
+    const fresh: LaunchSummary = {
+      ...base,
+      id: 'l-1',
+      name: 'The Long Take',
+      status: 'new',
+      finalistShows: [],
+      approvedLines: null,
+      draftLines: null
+    }
+    const old: LaunchSummary = { ...base, id: 'l-2', name: 'Paper Moons', status: 'ranked', finalists: 5 }
+    const said = (launches: LaunchSummary[]) =>
+      sections(inventoryOf(launchesPage(network, { ...roster.state()!, launches })))
+    expect(said([fresh])).toEqual([['Promo inventory', 'No launch has ranked the roster yet.']])
+    expect(said([fresh, old, { ...old, id: 'l-3' }])).toEqual([
+      ['Promo inventory', '2 launches haven’t reported yet; the totals leave them out.']
+    ])
+    expect(shows(launchesPage(network, { ...roster.state()!, launches: [fresh] }))).toEqual([])
+
+    // Until the network's state arrives, both tabs hold their skeletons.
+    const loading = launchesPage(network, undefined)
+    expect(tabsOf(loading).tabs).toEqual(['Launches', 'Inventory'])
+    expect(sections(inventoryOf(loading))).toEqual([['Promo inventory']])
+    expect(inventoryOf(loading).match(/data-slot="skeleton"/g)).toHaveLength(3)
+  })
+
+  it('asks a launch whose row predates its inventory for it as the network starts, and again at the next start when it fails to answer', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, roster } = await drafted(ada, network)
+    const reported = (await roster.until((s) => s.launches?.[0].draftLines != null)).launches!
+    // Stand in for a network from before #406: its launch's row has none of it, and it has asked for none.
+    const stub = env.NetworkAgent.get(env.NetworkAgent.idFromName(network))
+    const old = ({ finalistShows: _, approvedLines: __, draftLines: ___, ...row }: LaunchSummary) => row
+    await runInDurableObject(stub, (n: NetworkAgent, { storage }) => {
+      n.setState({ ...n.state, launches: n.state.launches!.map(old) })
+      storage.kv.delete('crossfeed_inventory_asked')
+    })
+    const unreported = launchesPage(network, (await connect(ada, `/agents/network/${network}`)).state())
+    expect(words(inventoryOf(unreported))).toContain('1 launch hasn’t reported yet; the totals leave it out.')
+
+    // As the network next starts, the launch fails to answer: its row stays unreported, and the next
+    // start asks it again.
+    const asked = vi.spyOn(LaunchAgent.prototype, 'summary').mockImplementationOnce(() => {
+      throw new Error('The launch is overloaded.')
+    })
+    await evictDurableObject(stub, { webSockets: 'close' })
+    const failed = await connect(ada, `/agents/network/${network}`)
+    await vi.waitFor(() => expect(asked).toHaveBeenCalledOnce())
+    await vi.waitFor(async () =>
+      expect(
+        await runInDurableObject(stub, (_, { storage }) => storage.kv.get('crossfeed_inventory_asked'))
+      ).toBeUndefined()
+    )
+    expect(failed.state()!.launches![0].finalistShows).toBeUndefined()
+
+    await evictDurableObject(stub, { webSockets: 'close' })
+    const filled = await connect(ada, `/agents/network/${network}`)
+    expect((await filled.until((s) => s.launches?.[0].finalistShows !== undefined)).launches).toEqual(reported)
+    expect(await runInDurableObject(stub, (_, { storage }) => storage.kv.get('crossfeed_inventory_asked'))).toBe(1)
+    expect(asked).toHaveBeenCalledTimes(2)
+    expect(reported[0].id).toBe(id)
   })
 })
