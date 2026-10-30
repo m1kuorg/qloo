@@ -234,7 +234,7 @@ The analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), lists the
 100.  As a member, I want the plan to say nothing about pairs when the overlap was never measured, and to say when it was stale or partial for this run, so that silence is never read as evidence.
 101.  As a member, I want the pairs to follow my edits to the order's lines, so that a show I removed isn't flagged.
 102.  As a developer, I want the close pairs of a run's order through the API, so that a script or assistant can warn about them too.
-103.  As a visitor in the guest network, I want the sample roster's overlap already measured and its listeners already profiled, so that I see both without spending the guest budget.
+103.  As a visitor in the guest network, I want the sample roster's overlap and listener profile already made when I arrive, so that I see both at once.
 
 ## Implementation Decisions
 

@@ -30,6 +30,7 @@ import {
   closestCount,
   closestOf,
   entityKey,
+  isStale,
   MIN_OVERLAP_ENTITIES,
   OVERLAP_INTERRUPTED,
   OVERLAP_MEASURING,
@@ -142,8 +143,9 @@ const SAMPLE_LOADED = 'crossfeed_sample_loaded'
 const SAMPLE_LAUNCH = 'crossfeed_sample_launch'
 // And that it has loaded the sample inbox (loadSampleInbox).
 const SAMPLE_INBOX_LOADED = 'crossfeed_sample_inbox_loaded'
-// And that it has started the sample roster's analyses (analyseSample).
-const SAMPLE_ANALYSED = 'crossfeed_sample_analysed'
+// And that it has started the sample roster's analyses since it last started, whether or not they landed
+// (analyseSample).
+const SAMPLE_ANALYSES_STARTED = 'crossfeed_sample_analyses_started'
 // And that it has listed every one of the sample launches in D1 (loadSampleLaunches), and until then each
 // one's launch ID, by its key, and whether it's listed yet.
 const SAMPLE_LAUNCHES_LOADED = 'crossfeed_sample_launches_loaded'
@@ -153,8 +155,8 @@ type SampleLaunchesProgress = Record<string, { id: string; listed: boolean }>
 // A sample pitch whose work's lookup failed, or was interrupted, so it's looked up again.
 const unsettled = (p: Pitch) => p.work !== null && (p.status === 'failed' || p.match?.resolution === 'failed')
 
-// Whether the roster's overlap has landed whole, every anchor's ranking in, and its listener profile has
-// landed, so the sample's analyses ask neither again (NetworkAgent.analyseSample).
+// Whether the roster's overlap has landed whole, every anchor's ranking in, and whether its listener profile
+// has landed, so the sample's analyses needn't ask for them again (NetworkAgent.sampleDue).
 const overlapLanded = ({ overlap }: State) => overlap?.status === 'measured' && overlap.rows.every((r) => !r.error)
 const profileLanded = ({ listenerProfile }: State) => listenerProfile?.status === 'profiled'
 
@@ -245,8 +247,12 @@ export class NetworkAgent extends CrossfeedAgent {
       await this.loadSample()
       await this.loadSampleLaunches()
       await this.loadSampleInbox()
-      // What the sample roster's analyses didn't land is tried again, now or once its lookups settle.
-      if (!overlapLanded(this.state) || !profileLanded(this.state)) this.ctx.storage.kv.delete(SAMPLE_ANALYSED)
+      // The sample roster's analyses that are due again (sampleDue) start now, or once its lookups settle, as
+      // do those the lookups this start tries again may change.
+      const { kv } = this.ctx.storage
+      const due = this.sampleDue(this.state)
+      if (!kv.get(SAMPLE_LOADED) || due.overlap || due.profile) kv.delete(SAMPLE_ANALYSES_STARTED)
+      this.sampleLoadsRan = true
       this.analyseSample(this.state)
     }
     // The guest network starts with the sample network's CPM, until a guest, an owner, sets one (ADR 0006),
@@ -412,19 +418,39 @@ export class NetworkAgent extends CrossfeedAgent {
   // the roster page's Overlap and Listeners tabs filled (#403): once a clearing, as the sample roster, in
   // `state`, first has no lookup pending, noted in storage so no later change starts them again. Each is
   // started as a member's page starts it, its calls reserved on the guest budget, which sampleLookups
-  // counts. A start clears the note while either hasn't landed (onStart), so each start tries again what
-  // didn't, once no lookup is pending: the rankings that failed or a restart interrupted, the profile's
-  // call, or either start that was refused. Neither starts once a guest's import leaves no sample figure,
-  // and a guest's roster edit leaves both stale for every guest, as any edit of the shared network does.
+  // counts. A start clears the note while either is due again (onStart), so each start tries again what
+  // didn't land, once no lookup is pending: the rankings that failed or a restart interrupted, the
+  // profile's call, or either start that was refused; and while the sample is still loading, either the
+  // lookups it tries again have changed. Neither starts before this start's sample loads have run, nor
+  // once a guest's import leaves no sample figure, and a guest's roster edit leaves both stale for every
+  // guest, as any edit of the shared network does.
   private analyseSample(state: State) {
     const { kv } = this.ctx.storage
-    if (this.name !== GUEST_NETWORK || this.env.SAMPLE_NETWORK !== 'on' || kv.get(SAMPLE_ANALYSED)) return
+    if (!this.sampleLoadsRan || kv.get(SAMPLE_ANALYSES_STARTED)) return
     if (!holdsSample(state.roster) || state.roster.some((s) => s.resolution === 'pending')) return
-    kv.put(SAMPLE_ANALYSED, true)
+    kv.put(SAMPLE_ANALYSES_STARTED, true)
+    const due = this.sampleDue(state)
     const start = (event: string, analyse: () => Promise<void>) =>
       void this.keepAliveWhile(analyse).catch((e) => console.error(JSON.stringify({ event, error: String(e) })))
-    if (!overlapLanded(state)) start('sample_overlap', () => this.measureOverlap())
-    if (!profileLanded(state)) start('sample_listener_profile', () => this.profileListeners())
+    if (due.overlap) start('sample_overlap', () => this.measureOverlap())
+    if (due.profile) start('sample_listener_profile', () => this.profileListeners())
+  }
+
+  // Whether this start has run the guest network's sample loads (onStart), which a start to wipe it never
+  // does. Until then no state change starts the sample roster's analyses, such as a restart failing the
+  // lookups it interrupted before the load tries them again, since onStart starts them itself.
+  private sampleLoadsRan = false
+
+  // Which of the sample roster's analyses are due again (analyseSample): each that hasn't landed whole, and
+  // while the sample is still loading, its failed lookups tried again on each start, each the roster's
+  // matched shows have changed since it was made. Once it has loaded, a guest's edit makes neither due.
+  private sampleDue(state: State) {
+    const loading = !this.ctx.storage.kv.get(SAMPLE_LOADED)
+    const stale = (analysis?: { key: string }) => loading && analysis !== undefined && isStale(analysis, state.roster)
+    return {
+      overlap: !overlapLanded(state) || stale(state.overlap),
+      profile: !profileLanded(state) || stale(state.listenerProfile)
+    }
   }
 
   // Measures the roster's overlap (overlap.ts), from a member's page or a program: one ranking in Qloo

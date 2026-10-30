@@ -1215,6 +1215,57 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
       // The first load's 25 calls, then the two tried again, on the guest budget.
       expect(await used()).toBe(before + 27)
     })
+
+    it('measures and profiles again as it next starts once the lookups it tries again change the matched shows, then asks nothing more', async () => {
+      // The Town's lookup fails at first, so four shows are measured and profiled; the next start looks it up
+      // again, and it resolves.
+      fakeQloo({ search: five, first: { 'The Town with Matthew Belloni': [503, 503, 503] } })
+      fakeInsights(ranked)
+      fakeDemographics(listeners)
+      const before = await used()
+      const guest = await openGuest()
+      const first = await (await connect(guest)).until(analysed)
+      expect(first.overlap!.rows).toHaveLength(4)
+
+      const sent = requests.length
+      await evictAllDurableObjects({ webSockets: 'close' })
+      const key = entities.map((e) => e.entity_id).toSorted()
+      const again = await (
+        await connect(guest)
+      ).until((s) => analysed(s) && s.overlap!.key === key.join(',') && s.listenerProfile!.key === key.join(','))
+      // Every anchor again, since the matched shows changed, and the profile's one call.
+      expect(anchors(sent).toSorted()).toEqual(key)
+      expect(profiles(sent)).toBe(1)
+
+      const settled = requests.length
+      await evictAllDurableObjects({ webSockets: 'close' })
+      expect((await connect(guest)).state()).toMatchObject({
+        overlap: again.overlap,
+        listenerProfile: again.listenerProfile
+      })
+      expect(requests).toHaveLength(settled)
+      // The first load's 19 lookups, 4 rankings and a profile, then the lookup tried again, 5 rankings and a
+      // profile, on the guest budget.
+      expect(await used()).toBe(before + 24 + 7)
+    })
+
+    it("tries nothing again once a guest's own roster replaces the sample, though its rankings all failed", async () => {
+      fakeQloo({ search: five })
+      fakeInsights(503)
+      fakeDemographics(listeners)
+      const before = await used()
+      const guest = await openGuest()
+      const network = await connect(guest)
+      await network.until((s) => s.overlap?.status === 'failed' && s.listenerProfile?.status === 'profiled')
+      await network.importRoster('Night Shift Cinema')
+
+      const sent = requests.length
+      await evictAllDurableObjects({ webSockets: 'close' })
+      expect((await connect(guest)).state()!.roster.map((r) => r.name)).toEqual(['Night Shift Cinema'])
+      expect(requests).toHaveLength(sent)
+      // The load's 25 calls and the import's one lookup, on the guest budget.
+      expect(await used()).toBe(before + 26)
+    })
   })
 
   describe('and guest pitches on', () => {
