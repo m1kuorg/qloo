@@ -137,7 +137,7 @@ Confirmed on 2026-10-17 in [#20](https://github.com/m1kuorg/qloo/issues/20). Eac
 1.  **Stack:** Workers, the Agents SDK, and Claude Haiku 5.5, as in [Stack](#stack).
 1.  **Demo inbox:** synthetic pitches about real public works, from fictional publicists at `example.com` addresses, their guests and works labelled "sample".
 1.  **Demo network:** The Ringer, from public show names, with sample downloads and CPM and a not-affiliated notice, per the [TRD](TRD.md#demo-data). Calacanis has two shows, This Week in Startups and All-In, not a roster, so his network can't be the demo.
-1.  **License:** MIT.
+1.  **License:** MIT, changed to Apache 2.0 on 2026-10-31.
 
 ### Product decisions
 

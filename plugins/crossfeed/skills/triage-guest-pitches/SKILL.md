@@ -1,7 +1,7 @@
 ---
 name: triage-guest-pitches
 description: Triage a podcast's guest pitches with Crossfeed's MCP tools, which read each pitch for the public work it promotes, rank those works against one of the network's shows by listener overlap in Qloo, and draft Book, Later, or Decline replies that a member approves in the app. Use when the user wants to sort, rank, or answer guest or booking pitches, load a day's pitches or an inbox export into Crossfeed, or decide which pitched guests a show should book.
-license: MIT
+license: Apache-2.0
 compatibility: Needs Crossfeed's MCP server with guest pitches switched on (tools such as load_pitches and get_pitch_run), connected with one of the network's API keys.
 ---
 

@@ -5,6 +5,6 @@
   "author": { "name": "m1kuorg", "url": "https://github.com/m1kuorg" },
   "homepage": "https://crossfeed.m1kuorg.workers.dev/docs/agents",
   "repository": "https://github.com/m1kuorg/qloo",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": ["podcast", "qloo", "mcp", "promos", "booking"]
 }
