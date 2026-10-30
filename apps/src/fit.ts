@@ -3,8 +3,9 @@
 // the evidence; the charts get ranks.
 import type { Show } from './agent'
 import type { Affinity, QlooResult, Ranked } from './gateway'
-import type { Pitch, Work, WorkCandidate, WorkMatch, WorkType } from './inbox'
+import type { Booking, Pitch, Work, WorkCandidate, WorkMatch, WorkType } from './inbox'
 import type { Candidate } from './resolve'
+import { listOf } from './text'
 
 export type Anchor = { id: string; name: string }
 
@@ -57,6 +58,10 @@ export type PitchRow = {
   rank: number // from 1, within this list only
   band: Band
   sharedTags?: SharedTags // a top pitch's tags in common with the show, once shared_tags has run
+  // Once the pitch ranking is in (pitch-ranking.ts): its rank by what it says among this list's rows,
+  // and that minus its work's listener rank, so a pitch who listens lifts climbs.
+  pitchRank?: number
+  move?: number
 }
 
 export type PitchNotScored = { pitch: string; reason: string }
@@ -76,6 +81,8 @@ export type PitchList = {
 }
 
 export const FINALISTS = 5
+// Places a show must climb over its topic rank, or a pitch over its pitch rank, to be highlighted.
+export const CLIMB = 3
 const LEAD = 0.05 // how far the top anchor's share must beat the next one's to name it
 
 // A show matched in Qloo, directly or through a comp, whether or not it's left out of launches.
@@ -207,4 +214,62 @@ export function leadingComp(anchors: Anchor[], shares: { id: string; score: numb
     .map((anchor) => ({ anchor, share: shares.find((s) => s.id === anchor.id)?.score ?? 0 }))
     .sort((a, b) => b.share - a.share)
   return top.share - next.share >= LEAD ? top.anchor : null
+}
+
+// The booking with each list row's pitch rank and move, worked out from the lists and the pitch ranking
+// (pitch-ranking.ts), whichever arrived last. A pitch rank counts only its list's rows, so both ranks are
+// over the same pitches. A row's listener rank is its work's, the rank of the work's first row, so
+// pitches of one work share it and never move apart on a tie. The move is pitch rank minus listener
+// rank, so a climb is positive.
+export function withPitchMoves<B extends Pick<Booking, 'lists' | 'pitchRanking'>>(booking: B): B {
+  const { lists, pitchRanking } = booking
+  if (!lists || pitchRanking?.status !== 'ranked') return booking
+  return {
+    ...booking,
+    lists: lists.map((list) => {
+      const listed = new Set(list.rows.map((r) => r.pitch))
+      const order = pitchRanking.order.filter((id) => listed.has(id))
+      const workRank = (r: PitchRow) => list.rows.find((w) => w.entity.id === r.entity.id)!.rank
+      return {
+        ...list,
+        rows: list.rows.map((r) => {
+          const pitchRank = order.indexOf(r.pitch) + 1
+          return pitchRank === 0 ? r : { ...r, pitchRank, move: pitchRank - workRank(r) }
+        })
+      }
+    })
+  }
+}
+
+// A list's finding once its pitch ranks are in: how many pitches climb by who listens, led by the
+// highest-placed, then the pitches that read most on-topic, the top band by pitch rank, but whose work
+// falls out of the top band by who listens, judged by its first row as its move is. Each pitch is named by
+// its work, as the list names it. A list too short for a climb says nothing of climbs, and one with
+// nothing to say has no finding.
+export function pitchFinding(rows: PitchRow[]): string | null {
+  const ranked = rows.filter((r) => r.pitchRank !== undefined)
+  const workBand = (r: PitchRow) => rows.find((w) => w.entity.id === r.entity.id)!.band
+  const [top, ...more] = ranked.filter((r) => r.move! >= CLIMB)
+  const others = more.length
+    ? `, and ${more.length} more ${more.length === 1 ? 'pitch climbs' : 'pitches climb'} ${CLIMB} or more`
+    : ''
+  const climbs =
+    ranked.length <= CLIMB
+      ? null
+      : top
+        ? `${top.entity.name} climbs ${top.move} places from its pitch rank by who listens${others}.`
+        : `No pitch climbs ${CLIMB} or more places from its pitch rank by who listens.`
+  const onTopic = [
+    ...new Set(
+      ranked
+        .filter((r) => band(r.pitchRank! - 1, ranked.length) === 'top' && workBand(r) !== 'top')
+        .toSorted((a, b) => a.pitchRank! - b.pitchRank!)
+        .map((r) => r.entity.name)
+    )
+  ]
+  const one = onTopic.length === 1
+  const falls =
+    onTopic.length > 0 &&
+    `${listOf(onTopic)} ${one ? 'reads' : 'read'} most on-topic but ${one ? 'falls' : 'fall'} out of the top band by who listens.`
+  return [climbs, falls].filter(Boolean).join(' ') || null
 }

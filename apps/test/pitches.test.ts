@@ -1,19 +1,24 @@
+import { evictAllDurableObjects, runInDurableObject } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { State } from '../src/agent'
+import type { CrossfeedAgent, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { InboxWorkspace } from '../src/client/Inbox'
 import sample from '../src/sample-inbox.json'
 import {
   fakeClaude,
   fakeInsights,
+  fakePitchRanking,
   fakeQloo,
   modelRequests,
+  pitchRankingRequests,
+  refusal,
   requests,
   text,
   toolUse,
+  topicNames,
   turn,
   type Insight,
   type ModelRequest,
@@ -79,8 +84,12 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
+// The run has stopped running, and its pitch ranking, beside it, has landed.
 const finished = (s: Omit<Session, 'cookie'>) =>
-  s.until((state: State) => state.run !== null && state.run.status !== 'running')
+  s.until(
+    (state: State) =>
+      state.run !== null && state.run.status !== 'running' && state.booking?.pitchRanking?.status !== 'ranking'
+  )
 
 // A synthetic show, its past guests' works, and pitches of three types: made-up names, IDs, and scores.
 const work = (entity_id: string, name: string, disambiguation: string): QlooEntity[] => [
@@ -208,6 +217,16 @@ describe('ranking pitched works against the show', () => {
       { id: 'e-0001', name: 'Night Shift Cinema' },
       { id: 'f-0101', name: 'Glass Harbor' }
     ]
+    // The pitch ranking beside the run ranks the pitches in inbox order, as the fake does by default, so
+    // each row's pitch rank counts its list's pitches in that order, and its move is that less its rank.
+    const row = (pitch: string, id: string, rank: number, band: string, pitchRank: number, move: number) => ({
+      pitch,
+      entity: expect.objectContaining({ id }),
+      rank,
+      band,
+      pitchRank,
+      move
+    })
     expect(state.booking!.lists).toEqual([
       {
         type: 'book',
@@ -215,10 +234,7 @@ describe('ranking pitched works against the show', () => {
         anchors,
         calls: ['C-08'],
         error: null,
-        rows: [
-          { pitch: 'pitch-02', entity: expect.objectContaining({ id: 'b-0002' }), rank: 1, band: 'top' },
-          { pitch: 'pitch-01', entity: expect.objectContaining({ id: 'b-0001' }), rank: 2, band: 'middle' }
-        ],
+        rows: [row('pitch-02', 'b-0002', 1, 'top', 2, 1), row('pitch-01', 'b-0001', 2, 'middle', 1, -1)],
         notScored: []
       },
       {
@@ -227,10 +243,7 @@ describe('ranking pitched works against the show', () => {
         anchors,
         calls: ['C-09'],
         error: null,
-        rows: [
-          { pitch: 'pitch-03', entity: expect.objectContaining({ id: 'f-0001' }), rank: 1, band: 'top' },
-          { pitch: 'pitch-04', entity: expect.objectContaining({ id: 'f-0002' }), rank: 2, band: 'middle' }
-        ],
+        rows: [row('pitch-03', 'f-0001', 1, 'top', 1, 0), row('pitch-04', 'f-0002', 2, 'middle', 2, 0)],
         notScored: []
       },
       {
@@ -239,7 +252,7 @@ describe('ranking pitched works against the show', () => {
         anchors,
         calls: ['C-10'],
         error: null,
-        rows: [{ pitch: 'pitch-05', entity: expect.objectContaining({ id: 't-0001' }), rank: 1, band: 'top' }],
+        rows: [row('pitch-05', 't-0001', 1, 'top', 1, 0)],
         notScored: []
       }
     ])
@@ -254,10 +267,10 @@ describe('ranking pitched works against the show', () => {
     ])
     // Ranks and bands reach the browser; the raw affinities stay in the evidence.
     for (const a of affinities) expect(s.frames().filter((f) => f.includes(a))).toEqual([])
-    // The page lists each type on its own with its anchors and call: by rank, each work with the guest
-    // as Claude read them, and its band.
+    // The page lists each type on its own with its finding, its anchors and call: by rank, each work with
+    // the guest as Claude read them, its pitch rank, and its band.
     expect(words(list(state, 'book'))).toBe(
-      'Books · 2 ranked Ranked against Night Shift Cinema and Glass Harbor. C-08 Rank Public work · guest Agent Fit 1 Paper Moons Rue Vance Strong 2 Night Ferry Ada Quill Good'
+      'Books · 2 ranked Night Ferry reads most on-topic but falls out of the top band by who listens. Ranked against Night Shift Cinema and Glass Harbor. C-08 Rank Public work · guest Agent Pitch Agent Fit 1 Paper Moons Rue Vance #2 Strong 2 Night Ferry Ada Quill #1 Good'
     )
     expect(words(list(state, 'tv_show'))).toMatch(/^TV shows · 1 ranked Ranked against .+\. C-10 /)
     // Each work opens its pitch.
@@ -312,7 +325,7 @@ describe('ranking pitched works against the show', () => {
     ])
     // The page says which anchors each list used, and why a type isn't ranked, with its pitches.
     expect(words(list(state, 'book'))).toContain(
-      'Books · 2 ranked Ranked against the past guests’ books alone: Salt Roads. Qloo scored no book against the show and every past guest (C-09). C-09 C-12'
+      'Books · 2 ranked Night Ferry reads most on-topic but falls out of the top band by who listens. Ranked against the past guests’ books alone: Salt Roads. Qloo scored no book against the show and every past guest (C-09). C-09 C-12'
     )
     const unranked = words(list(state, 'tv_show'))
     expect(unranked).toMatch(/^TV shows · 0 ranked Failed Not ranked: .*no past guest's work is a TV show.* C-11 /)
@@ -334,6 +347,301 @@ describe('ranking pitched works against the show', () => {
     )
     expect(tv).toContain('aria-label="Evidence for the TV show ranking: call C-11"')
     expect(tv).toContain('aria-label="Evidence for the TV show ranking: call C-12"')
+  })
+})
+
+// The pitch ranking: one call beside each pitch run ranks its pitches by what they say, with no Qloo
+// data. Seven film pitches, each with a sender and a subject, two of them for one work, Low Tide; made-up
+// names, IDs, and scores.
+describe('ranking the pitches by what they say', () => {
+  const films = [
+    { guest: 'Ben Ochoa', title: 'Static Bloom', year: 2021 },
+    { guest: 'Cy Lund', title: 'Low Tide', year: 2018 },
+    { guest: 'Ida Wren', title: 'Glass Lantern', year: 2022 },
+    { guest: 'Jo Hale', title: 'Paper Planes', year: 2019 },
+    { guest: 'Ola Lund', title: 'Low Tide', year: 2018 },
+    { guest: 'Pia Stone', title: 'Red Static', year: 2023 },
+    { guest: 'Rex Moor', title: 'Night Owls', year: 2016 }
+  ]
+  const ids = films.map((_, i) => `pitch-0${i + 1}`)
+  const address = (guest: string) => `${guest.split(' ')[0].toLowerCase()}@example.com`
+  // Each pitch names its guest and work; Ola Lund's runs past the opening the ranking reads.
+  const body = (f: (typeof films)[number]) =>
+    f.guest === 'Ola Lund'
+      ? `${f.guest} made ${f.title}, and here is the whole story. ${'It was a long shoot. '.repeat(40)}The very end.`
+      : `${f.guest} made ${f.title}.`
+  const inbox = films
+    .map(
+      (f, i) => `From: ${f.guest} Publicity <${address(f.guest)}>\nSubject: ${f.title}: pitch ${i + 1}\n\n${body(f)}`
+    )
+    .join('\n---\n')
+  // Made-up affinities: Glass Lantern scores best, then Low Tide, which both its pitches share.
+  const filmScores: Insight[] = [
+    { entity_id: 'f-0003', name: 'Glass Lantern', affinity: 0.7103 },
+    { entity_id: 'f-0002', name: 'Low Tide', affinity: 0.6911 },
+    { entity_id: 'f-0006', name: 'Night Owls', affinity: 0.6647 },
+    { entity_id: 'f-0001', name: 'Static Bloom', affinity: 0.6409 },
+    { entity_id: 'f-0005', name: 'Red Static', affinity: 0.6122 },
+    { entity_id: 'f-0004', name: 'Paper Planes', affinity: 0.5871 }
+  ]
+  const filmSearch = {
+    ...search,
+    'Glass Lantern': work('f-0003', 'Glass Lantern', '2022'),
+    'Paper Planes': work('f-0004', 'Paper Planes', '2019'),
+    'Red Static': work('f-0005', 'Red Static', '2023'),
+    'Night Owls': work('f-0006', 'Night Owls', '2016')
+  }
+
+  // A session with the show imported and the film pitches loaded and read, each work searched in
+  // `searched`.
+  async function filmsLoaded(searched = filmSearch) {
+    fakeQloo({ search: searched })
+    fakeInsights(filmScores)
+    fakeReader(films.length, (t) => {
+      const f = films.find((f) => t.includes(`${f.guest} made`))!
+      return { guest: f.guest, work: { title: f.title, type: 'film', year: f.year } }
+    })
+    const s = await session()
+    await s.importRoster('Night Shift Cinema')
+    await s.call('loadInbox', { text: inbox })
+    await s.until((state) => state.inbox?.status === 'done')
+    return s
+  }
+  // Starts a pitch run against the show and Mae Ford's Glass Harbor, ranking every pitch, its first turn
+  // held until `held` resolves.
+  const start = async (s: Omit<Session, 'cookie'>, held?: Promise<void>) => {
+    const rank = turn(toolUse('rank_pitches', { show_id: 'e-0001', past_guest_work_ids: ['f-0101'], pitch_ids: ids }))
+    fakeClaude([held ? () => held.then(() => rank) : rank, turn(text('Ranked.'))])
+    return (await s.call<{ runId: string }>('startPitches', { show: 'Night Shift Cinema', pastGuests: [film] })).runId
+  }
+  // The section over the lists, as the browser renders it from synced state.
+  const lists = (state: State) =>
+    hooked(
+      renderToStaticMarkup(createElement(InboxWorkspace, { agent: { state, stub: {} } as unknown as Agent, links })),
+      'aria-labelledby="lists-h"'
+    )[0] ?? ''
+
+  it('gives each row its pitch rank and its move by who listens, and says which pitches climb and which on-topic ones fall', async () => {
+    fakePitchRanking(['pitch-04', 'pitch-01', 'pitch-06', 'pitch-02', 'pitch-07', 'pitch-03', 'pitch-05'])
+    const s = await filmsLoaded()
+    await start(s)
+    const state = await finished(s)
+
+    expect(state.booking!.pitchRanking).toEqual({
+      status: 'ranked',
+      order: ['pitch-04', 'pitch-01', 'pitch-06', 'pitch-02', 'pitch-07', 'pitch-03', 'pitch-05'],
+      error: null
+    })
+    const [list] = state.booking!.lists!
+    expect(list.rows.map((r) => [r.pitch, r.rank, r.pitchRank, r.move])).toEqual([
+      ['pitch-03', 1, 6, 5],
+      ['pitch-02', 2, 4, 2],
+      // Low Tide's second pitch shares its work's listener rank, 2, rather than moving from its own row's 3.
+      ['pitch-05', 3, 7, 5],
+      ['pitch-07', 4, 5, 1],
+      ['pitch-01', 5, 2, -3],
+      ['pitch-06', 6, 3, -3],
+      ['pitch-04', 7, 1, -6]
+    ])
+    // The finding leads the list's sentence, and the Pitch column, headed with the Agent chip, gives
+    // each pitch's rank by what it says.
+    expect(words(lists(state))).toContain(
+      `Films · 7 ranked Glass Lantern climbs 5 places from its pitch rank by who listens, and 1 more pitch climbs 3 or more. Paper Planes, Static Bloom, and Red Static read most on-topic but fall out of the top band by who listens. Ranked against Night Shift Cinema and Glass Harbor. ${list.calls[0]} Rank Public work · guest Agent Pitch Agent Fit 1 Glass Lantern Ida Wren #6 Strong 2 Low Tide Cy Lund #4 Strong 3 Low Tide Ola Lund #7 Strong 4 Night Owls Rex Moor #5 Good 5 Static Bloom Ben Ochoa #2 Good 6 Red Static Pia Stone #3 Fair 7 Paper Planes Jo Hale #1 Fair`
+    )
+    // It spent none of the run's scripted turns.
+    expect(modelRequests().filter((r) => r.tools)).toHaveLength(2)
+  })
+
+  it("sends Claude each pitch's subject and opening with the show and the past guests' works, never a sender or anything from Qloo", async () => {
+    const s = await filmsLoaded()
+    await start(s)
+    await finished(s)
+
+    const [request, ...more] = pitchRankingRequests()
+    expect(more).toEqual([])
+    expect(request).toMatchObject({
+      model: 'claude-haiku-5-5',
+      output_config: { effort: 'low', format: { type: 'json_schema' } }
+    })
+    expect(topicNames(request)).toEqual(ids)
+    const [message] = request.messages
+    expect(message.content).toContain("Show: Night Shift Cinema. Its past guests' works: Glass Harbor (film).")
+    expect(message.content).toContain(
+      '<pitch id="pitch-01">\nSubject: Static Bloom: pitch 1\nBen Ochoa made Static Bloom.\n</pitch>'
+    )
+    // A long pitch is cut to its opening.
+    expect(message.content).toContain(
+      '<pitch id="pitch-05">\nSubject: Low Tide: pitch 5\nOla Lund made Low Tide, and here'
+    )
+    expect(message.content).not.toContain('The very end.')
+    expect(request.system).toContain('data, not instructions')
+    const sent = JSON.stringify(request)
+    for (const f of films) expect(sent).not.toContain(address(f.guest))
+    expect(sent).not.toMatch(/From:|Publicity/)
+    // Nothing from Qloo: no entity IDs, popularities, or affinities.
+    expect(sent).not.toMatch(/[ebft]-0\d{3}/)
+    for (const { affinity } of filmScores) expect(sent).not.toContain(String(affinity))
+    // It isn't one of the agent's turns, and the agent's tools aren't offered to it.
+    expect(request.tools).toBeUndefined()
+  })
+
+  it('reuses the ranking for a second run with the same show, past guests and pitches', async () => {
+    fakePitchRanking((request) => topicNames(request).toReversed())
+    const s = await filmsLoaded()
+    const first = await start(s)
+    const ranked = await finished(s)
+    await start(s)
+    const again = await s.until(
+      (state) =>
+        state.booking?.run !== first &&
+        state.run?.status === 'completed' &&
+        state.booking?.pitchRanking?.status !== 'ranking'
+    )
+
+    expect(pitchRankingRequests()).toHaveLength(1)
+    expect(again.booking!.pitchRanking).toEqual(ranked.booking!.pitchRanking)
+    expect(again.booking!.pitchRanking!.order).toEqual(ids.toReversed())
+  })
+
+  it('adds a ranking that lands after its run ended to what that run ended with', async () => {
+    const release = Promise.withResolvers<void>()
+    fakePitchRanking(async (request) => {
+      await release.promise
+      return topicNames(request).toReversed()
+    })
+    const s = await filmsLoaded()
+    const runId = await start(s)
+    const ended = await s.until((state) => state.run?.status === 'completed')
+
+    // While it works, the lists stand by who listens, and a line says the Pitch column is coming.
+    expect(ended.booking!.pitchRanking!.status).toBe('ranking')
+    expect(words(lists(ended))).toContain('Working Ranking the pitches by what they say for the Pitch column…')
+    expect(words(lists(ended))).not.toContain('Pitch Agent')
+    release.resolve()
+    const state = await s.until((state) => state.booking?.pitchRanking?.status === 'ranked')
+
+    // Reversed, Glass Lantern, pitched third of seven, ranks fifth by what it says: four below who listens.
+    expect(state.booking!.lists![0].rows.find((r) => r.pitch === 'pitch-03')).toMatchObject({ pitchRank: 5, move: 4 })
+    const snapshot = await s.call<RunSnapshot>('getRun', runId)
+    expect(snapshot.booking).toEqual(state.booking)
+  })
+
+  it('ranks every read pitch with a public work, so one whose match is confirmed during the run still gets a pitch rank', async () => {
+    // Night Owls has two same-year candidates in Qloo, so it's ambiguous until the booker confirms one,
+    // after the run has started.
+    const s = await filmsLoaded({
+      ...filmSearch,
+      'Night Owls': [...work('f-0006', 'Night Owls', '2016'), ...work('f-0007', 'Night Owls', '2016')]
+    })
+    const release = Promise.withResolvers<void>()
+    await start(s, release.promise)
+    await s.until((state) => state.booking?.pitchRanking?.status === 'ranked')
+    await s.call('confirmWork', 'pitch-07', 'f-0006')
+    release.resolve()
+    const state = await finished(s)
+
+    expect(topicNames(pitchRankingRequests()[0])).toEqual(ids)
+    const [list] = state.booking!.lists!
+    expect(list.rows.map((r) => r.pitch).toSorted()).toEqual(ids)
+    expect(list.rows.filter((r) => r.pitchRank === undefined)).toEqual([])
+    expect(list.rows.find((r) => r.pitch === 'pitch-07')).toMatchObject({ rank: 4, pitchRank: 7, move: 3 })
+  })
+
+  it('caps what it sends: past 30,000 characters of subjects and openings, the openings share what the subjects leave', async () => {
+    // 50 pitches, each with a 200-character subject and a body well past 600 characters. Only the first's
+    // work is in Qloo, but every one is read with a work, so every one is ranked.
+    const n = (i: number) => String(i + 1).padStart(2, '0')
+    const subject = (i: number) => `Pitch ${n(i)} `.padEnd(200, 'x')
+    const body = (i: number) => `Guest ${n(i)} made Book ${n(i)}.${'abcdefghij'.repeat(90)}`
+    const fifty = Array.from({ length: 50 }, (_, i) => `Subject: ${subject(i)}\n\n${body(i)}`).join('\n---\n')
+    fakeQloo({ search: { ...search, 'Book 01': work('b-0301', 'Book 01', '2020') } })
+    fakeReader(50, (t) => {
+      const i = Number(/Guest (\d+) made/.exec(t)![1])
+      return { guest: `Guest ${i}`, work: { title: `Book ${String(i).padStart(2, '0')}`, type: 'book', year: 2020 } }
+    })
+    const s = await session()
+    await s.importRoster('Night Shift Cinema')
+    await s.call('loadInbox', { text: fifty })
+    await s.until((state) => state.inbox?.status === 'done')
+    fakeClaude([turn(text('Nothing to rank yet.'))])
+    await s.call('startPitches', { show: 'Night Shift Cinema', pastGuests: [] })
+    await finished(s)
+
+    const [request] = pitchRankingRequests()
+    const blocks = [
+      ...request.messages[0].content.matchAll(/<pitch id="(pitch-\d+)">\nSubject: (.*)\n(.*)\n<\/pitch>/g)
+    ]
+    expect(blocks.map((b) => b[1])).toHaveLength(50)
+    // The subjects take 10,000 characters, so each of the 50 openings gets 400 of the 20,000 left, and an
+    // ellipsis says it was cut.
+    for (const [, , subjectSent, opening] of blocks) {
+      expect(subjectSent).toHaveLength(200)
+      expect(opening).toHaveLength(401)
+      expect(opening.endsWith('…')).toBe(true)
+    }
+    expect(body(0).length).toBeGreaterThan(600)
+    const sent = blocks.reduce((sum, [, , subjectSent, opening]) => sum + subjectSent.length + opening.length, 0)
+    expect(sent).toBeLessThanOrEqual(30_000 + 50)
+    // With each pitch's tags and labels, the whole request stays under 34,000 characters, about 8,500 tokens.
+    expect(request.messages[0].content.length).toBeLessThan(34_000)
+  })
+
+  it('fails a ranking a restart interrupted, in the inbox and in what its run ended with', async () => {
+    const s = await filmsLoaded()
+    const runId = await start(s)
+    await finished(s)
+    // Stand in for an agent a deploy stopped once its run had ended but with its pitch ranking still out:
+    // the lists without pitch ranks, in the inbox and in what the run ended with. Then restart it, as the
+    // deploy does.
+    const agent = env.CrossfeedAgent.get(env.CrossfeedAgent.idFromName(s.cookie.split('=')[1]))
+    await runInDurableObject(agent, (session: CrossfeedAgent, { storage }) => {
+      const { booking } = session.state
+      const unranked = booking!.lists!.map((l) => ({ ...l, rows: l.rows.map(({ pitchRank: _, move: __, ...r }) => r) }))
+      const out = { ...booking!, lists: unranked, pitchRanking: { status: 'ranking' as const, order: [], error: null } }
+      session.setState({ ...session.state, booking: out })
+      storage.sql.exec(
+        `UPDATE runs SET snapshot = json_set(snapshot, '$.booking', json(?)) WHERE id = ?`,
+        JSON.stringify(out),
+        runId
+      )
+    })
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const again = await openSession(s.cookie)
+    open.push(again)
+
+    const interrupted = {
+      status: 'failed',
+      order: [],
+      error: 'The pitch ranking was interrupted. Rank the pitches again'
+    }
+    expect(again.state()!.booking!.pitchRanking).toEqual(interrupted)
+    expect((await again.call<RunSnapshot>('getRun', runId)).booking!.pitchRanking).toEqual(interrupted)
+    // The lists stand by who listens, and a line says why there's no Pitch column.
+    expect(words(lists(again.state()!))).toContain(
+      'No Pitch column: The pitch ranking was interrupted. Rank the pitches again. The lists stand by who listens without it.'
+    )
+  })
+
+  it('leaves the lists as they were, saying why, when Claude declines to rank the pitches', async () => {
+    fakePitchRanking(refusal('general_harms'))
+    const s = await filmsLoaded()
+    await start(s)
+    const state = await finished(s)
+
+    expect(state.run?.status).toBe('completed')
+    expect(state.booking!.pitchRanking).toEqual({
+      status: 'failed',
+      order: [],
+      error: 'Claude declined to rank the pitches by what they say (safety category: general_harms)'
+    })
+    const [list] = state.booking!.lists!
+    expect(list.rows.filter((r) => 'pitchRank' in r || 'move' in r)).toEqual([])
+    expect(words(lists(state))).toContain(
+      'No Pitch column: Claude declined to rank the pitches by what they say (safety category: general_harms). The lists stand by who listens without it.'
+    )
+    expect(words(lists(state))).toContain(
+      `Films · 7 ranked Ranked against Night Shift Cinema and Glass Harbor. ${list.calls[0]} Rank Public work · guest Agent Fit 1 Glass Lantern Ida Wren Strong 2 Low Tide Cy Lund Strong`
+    )
   })
 })
 
@@ -521,9 +829,9 @@ describe('the sample inbox', () => {
     ])
     expect(rankings()).toHaveLength(4)
     // Each list's guests are the sample's, already read, not the agent's reading, and carry no label of
-    // their own: the page's title says the inbox is the sample's.
+    // their own: the page's title says the inbox is the sample's. The pitch ranks are still Claude's.
     for (const type of ['book', 'film', 'tv_show', 'podcast'])
-      expect(words(list(state, type)), type).toContain('Rank Public work · guest Fit')
+      expect(words(list(state, type)), type).toContain('Rank Public work · guest Pitch Agent Fit')
     // Each request as Qloo reads it: the path, every decoded parameter, and the body.
     const sent = qlooRequests().map((r) =>
       [r.url.pathname, ...[...r.url.searchParams].map(([k, v]) => `${k}=${v}`), r.body].join('\n').toLowerCase()

@@ -29,6 +29,7 @@ import type { Inbox, PastGuest, Pitch, PitchInput, PitchReply, Skipped } from '.
 import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
 import { rosterRows, type Lean, type ListenerProfile, type ListenerStatus } from './listeners'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
+import type { PitchRanking } from './pitch-ranking'
 import { closePairs, closestCount, entityShows, isStale, rosterEntities, type Entity, type Overlap } from './overlap'
 import { Refusal } from './refusal'
 import { offeredBy, type Candidate } from './resolve'
@@ -559,10 +560,10 @@ export async function confirmWork(
 }
 
 // A guest pitch run as a program reads it: its status, the question it's waiting on, its progress
-// notes, and, as they arrive, its past guests' works, its ranked lists, one per work type, and the
-// reply it drafted to each pitch, and whether an edit or a discard has changed one since, so its
-// closing line may give counts they no longer have. A member approves a reply in the app; nothing
-// here can.
+// notes, and, as they arrive, its past guests' works, its ranked lists, one per work type, with each
+// row's pitch rank and move once its pitch ranking is in, that ranking, and the reply it drafted to
+// each pitch, and whether an edit or a discard has changed one since, so its closing line may give
+// counts they no longer have. A member approves a reply in the app; nothing here can.
 export type PitchRun = {
   id: string
   status: Run['status']
@@ -574,6 +575,7 @@ export type PitchRun = {
   closing: string | null
   pastGuests: PastGuest[]
   lists: PitchList[] | null
+  pitchRanking?: PitchRanking // absent on runs from before it
   replies: PitchReply[] | null
   repliesEdited: boolean
 }
@@ -687,6 +689,7 @@ async function pitchRunOf(networkAgent: NetworkStub, state: State, id: string): 
     closing: run!.closing,
     pastGuests: booking!.pastGuests,
     lists: booking!.lists,
+    ...(booking!.pitchRanking && { pitchRanking: booking!.pitchRanking }),
     replies: booking!.replies,
     repliesEdited: booking!.repliesEdited ?? false
   }

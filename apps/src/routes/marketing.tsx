@@ -20,14 +20,14 @@ import {
   segmentedTrackVariants
 } from '../components/ui/variants'
 import { GUEST_SESSION_MS, SESSION_MS } from '../directory'
-import { bandMeter, FINALISTS, type Band } from '../fit'
+import { bandMeter, CLIMB, FINALISTS, type Band } from '../fit'
 import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
 import { DOCS, GuestButton, MarketingPage, marketingShell, networkLinks, type AppVariables } from '../shell'
 import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
-import { CLIMB, topicFinding } from '../topic'
+import { topicFinding } from '../topic'
 
 export const marketing = new Hono<{ Bindings: Env }>()
 
@@ -1239,7 +1239,8 @@ function Privacy({ accounts }: { accounts: boolean }) {
 
       <Part id="anthropic" title="What reaches Anthropic">
         <p>
-          Claude Haiku 5.5, through Anthropic’s API, runs the agent, the topic ranking, and the pitch reader. It gets:
+          Claude Haiku 5.5, through Anthropic’s API, runs the agent, the topic ranking, the pitch reader, and the pitch
+          ranking. It gets:
         </p>
         <ul>
           <li>
@@ -1247,7 +1248,11 @@ function Privacy({ accounts }: { accounts: boolean }) {
           </li>
           <li>the answers you give the agent, and the slot values Crossfeed works out from your downloads and CPM;</li>
           <li>
-            for the inbox, each pitch as you load it, its sender and subject included, and the past guests you name.
+            for the inbox, each pitch as you load it, its sender and subject included, and the past guests you name;
+          </li>
+          <li>
+            for each pitch run’s pitch ranking, each pitch’s subject and up to the first 600 characters of its text,
+            never its sender, with the show’s name and the past guests’ works, and nothing from Qloo.
           </li>
         </ul>
         <p>

@@ -56,3 +56,44 @@ export function structured(env: Env, instructions: string, schema: Record<string
       })
       .finalMessage()
 }
+
+// What a ranking call answered: every name once, best first, or why there's no ranking.
+export type NameRanking = { status: 'ranked' | 'refused' | 'failed'; order: string[]; error: string | null }
+
+// One structured call that ranks `names`, the topic baseline's and the pitch ranking's (topic.ts,
+// pitch-ranking.ts), and checks that its answer ranks every name exactly once. `task` is what Claude
+// was asked, as a refusal words it ("rank the roster by topic"), and `noun` what it ranks ("roster shows").
+export async function rankNames(
+  env: Env,
+  instructions: string,
+  { names, input }: { names: string[]; input: string },
+  { task, noun }: { task: string; noun: string }
+): Promise<NameRanking> {
+  if (names.length === 0) return { status: 'ranked', order: [], error: null } // nothing to rank
+  const schema = {
+    type: 'object',
+    properties: { ranking: { type: 'array', items: { type: 'string', enum: names } } },
+    required: ['ranking'],
+    additionalProperties: false
+  }
+  const failed = (error: string) => ({ status: 'failed' as const, order: [], error })
+  let reply
+  try {
+    reply = await structured(env, instructions, schema)(input)
+  } catch (e) {
+    return failed(`The request to Claude failed: ${e instanceof Error ? e.message : String(e)}`)
+  }
+  // A refused reply may not follow the schema, so the stop reason is checked before the text.
+  if (reply.stop_reason === 'refusal') return { status: 'refused', order: [], error: declined(reply, task) }
+  if (reply.stop_reason !== 'end_turn') return failed(`Claude stopped early (${reply.stop_reason})`)
+  let order: string[]
+  try {
+    order = JSON.parse(reply.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('')).ranking
+  } catch {
+    return failed("Claude's reply wasn't the JSON it was asked for")
+  }
+  // The schema can't require every name once, so a short or repeating list is caught here.
+  if (order.length !== names.length || new Set(order).size !== names.length)
+    return failed(`Claude ranked ${new Set(order).size} of the ${names.length} ${noun}, not all of them`)
+  return { status: 'ranked', order, error: null }
+}

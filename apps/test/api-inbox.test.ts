@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Question, Run } from '../src/agent'
 import type { PitchList } from '../src/fit'
 import type { Pitch, PitchReply } from '../src/inbox'
+import type { PitchRanking } from '../src/pitch-ranking'
 import { mbox, nightFerry, paperMoons } from './emails'
 import {
   fakeClaude,
@@ -315,6 +316,7 @@ type PitchRun = {
   error: string | null
   closing: string | null
   lists: PitchList[] | null
+  pitchRanking?: PitchRanking
   replies: PitchReply[] | null
   repliesEdited: boolean
 }
@@ -436,8 +438,23 @@ describe('a pitch run', () => {
     // It may finish before the answer's own response is written.
     expect(await answered.json()).toMatchObject({ id: started.id, question: null })
 
-    const done = await runRead(call, network, started.id)
+    // Read until the run has ended and its pitch ranking, beside it, has landed.
+    const done = await poll<PitchRun>(
+      call,
+      `/api/v1/networks/${network}/pitch-runs/${started.id}`,
+      (read) => read.status !== 'running' && read.pitchRanking?.status !== 'ranking'
+    )
     expect(done).toMatchObject({ status: 'completed', error: null, closing: 'Drafted 1 book and 2 later.' })
+    // The pitch ranking beside the run, in inbox order as the fake gives it, and each row's pitch rank
+    // and move by who listens.
+    expect(done.pitchRanking).toEqual({ status: 'ranked', order: ['pitch-01', 'pitch-02', 'pitch-03'], error: null })
+    expect(done.lists!.map((l) => l.rows.map((r) => [r.pitch, r.pitchRank, r.move]))).toEqual([
+      [
+        ['pitch-02', 2, 1],
+        ['pitch-01', 1, -1]
+      ],
+      [['pitch-03', 1, 0]]
+    ])
     expect(done.replies!.map((r) => [r.pitch, r.verdict, r.status, r.draft])).toEqual([
       ['pitch-01', 'later', 'draft', "Let's revisit Night Ferry in spring."],
       ['pitch-02', 'book', 'draft', 'Paper Moons would suit the show. More soon.'],

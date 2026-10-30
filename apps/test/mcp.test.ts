@@ -8,12 +8,14 @@ import {
   fakeCompare,
   fakeDemographics,
   fakeInsights,
+  fakePitchRanking,
   fakeQloo,
   fakeReader,
   modelRequests,
   qlooRequests,
   text,
   toolUse,
+  topicNames,
   turn,
   type Extracted
 } from './fake'
@@ -672,6 +674,12 @@ describe('triaging pitches through the MCP server', () => {
       ),
       turn(text('Drafted 1 book and 2 later.'))
     ])
+    // The pitch ranking beside the run waits until the run has asked its question.
+    const ranking = Promise.withResolvers<void>()
+    fakePitchRanking(async (request) => {
+      await ranking.promise
+      return topicNames(request)
+    })
     const started = await client.call('start_pitch_run', {
       show: 'Night Shift Cinema',
       pastGuests: [{ guest: 'Mo Reyes', work: { title: 'Talking with Ghosts', type: 'book', year: 2022 } }]
@@ -689,13 +697,27 @@ describe('triaging pitches through the MCP server', () => {
         `Ask the human this question as it is, and answer with their words: call answer_pitch_question with runId "${runId}", questionId "${questionId}", and their answer as \`choice\`, one of: "Yes", "No"; or their own words as \`text\`. Never answer it yourself.`
       ].join('\n')
     )
+    // The lists are in, but their pitch ranks aren't yet.
+    expect(waiting.text).toContain(
+      'The pitch ranks are still coming: read the run again with get_pitch_run in a few seconds.'
+    )
+    ranking.resolve()
     expect((await client.call('answer_pitch_question', { runId, questionId, choice: 'Yes' })).isError).toBe(false)
 
-    const done = await read((r) => r.status === 'completed')
+    // Read until the run has completed and its pitch ranking, beside it, has landed.
+    const done = await read((r) => r.status === 'completed' && r.pitchRanking?.status !== 'ranking')
     expect(done.text).toContain(
       `Pitch run ${runId} for Night Shift Cinema: completed. It ended saying: Drafted 1 book and 2 later.`
     )
-    expect(done.text).toContain('1. pitch-02 Paper Moons')
+    expect(done.text).toContain('1. pitch-02 Paper Moons: top, pitch rank 2')
+    expect(done.text).toContain(
+      "Pitch ranks are Claude's, from each pitch's subject and opening alone, not Qloo data. A climber ranks 3 or more places higher by who listens than by its pitch."
+    )
+    expect(done.structured.pitchRanking).toEqual({
+      status: 'ranked',
+      order: ['pitch-01', 'pitch-02', 'pitch-03'],
+      error: null
+    })
     expect(done.text).toContain(
       [
         "- pitch-01, later, draft: Let's revisit Night Ferry in spring.",

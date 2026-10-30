@@ -19,7 +19,7 @@ import { Hono } from 'hono'
 import type { Question, Show } from '../agent'
 import { accountsOn, appOrigins, keyFor } from '../auth'
 import type { Evidence } from '../evidence'
-import { NO_ANGLE, type PitchList } from '../fit'
+import { CLIMB, NO_ANGLE, type PitchList } from '../fit'
 import type { Pitch, WorkCandidate } from '../inbox'
 import {
   answerLaunchRun,
@@ -436,7 +436,7 @@ function serverFor(ctx: OperationContext) {
 
   tool(
     'get_pitch_run',
-    `Read a pitch run: its status, the question it waits on and how to answer it, its ranked lists, one per work type, and the reply it drafted to each pitch. ${approvesReply}`,
+    `Read a pitch run: its status, the question it waits on and how to answer it, its ranked lists, one per work type, with each pitch's rank by what it says (Claude's reading, not Qloo data), and the reply it drafted to each pitch. ${approvesReply}`,
     z.object({ runId }),
     READ,
     async (input) => {
@@ -705,6 +705,16 @@ function pitchRunText(run: PitchRun, inbox: string) {
     ? questionLines(`Pitch run ${run.id}`, run.question, `answer_pitch_question with runId "${run.id}"`)
     : [pitchRunLine(run)]
   for (const list of run.lists ?? []) lines.push(...listText(list))
+  // A pitch rank is the agent's reading of the pitch, so it's never taken for Qloo's evidence.
+  if (run.lists?.length && run.pitchRanking?.status === 'ranked')
+    lines.push(
+      `Pitch ranks are Claude's, from each pitch's subject and opening alone, not Qloo data. A climber ranks ${CLIMB} or more places higher by who listens than by its pitch.`
+    )
+  else if (run.lists?.length && run.pitchRanking?.status === 'failed')
+    lines.push(`No pitch ranks: ${run.pitchRanking.error}.`)
+  // The pitch ranking runs beside the run, so it can land after the run has ended.
+  else if (run.lists?.length && run.pitchRanking?.status === 'ranking')
+    lines.push('The pitch ranks are still coming: read the run again with get_pitch_run in a few seconds.')
   if (run.replies) {
     lines.push('Replies:', ...run.replies.map((r) => `- ${r.pitch}, ${r.verdict}, ${r.status}: ${r.draft}`))
     lines.push(`Only a member of the network approves a reply, in the app: ${inbox}`)
@@ -718,7 +728,7 @@ const listText = (list: PitchList) => [
     : `${list.type} pitches, ranked against ${list.path === 'show' ? listOf(list.anchors.map((a) => a.name)) : `the past guests' ${list.type} works alone, as Qloo scored none against the show`}:`,
   ...list.rows.map(
     (r) =>
-      `${r.rank}. ${r.pitch} ${r.entity.name}: ${r.band}${r.sharedTags?.tags.length ? `, sharing ${r.sharedTags.tags.join(', ')}` : ''}`
+      `${r.rank}. ${r.pitch} ${r.entity.name}: ${r.band}${r.pitchRank === undefined ? '' : `, pitch rank ${r.pitchRank}`}${(r.move ?? 0) >= CLIMB ? ', a climber' : ''}${r.sharedTags?.tags.length ? `, sharing ${r.sharedTags.tags.join(', ')}` : ''}`
   ),
   ...(list.notScored.length ? [`Not scored: ${list.notScored.map((n) => `${n.pitch} (${n.reason})`).join('; ')}.`] : [])
 ]

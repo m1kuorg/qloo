@@ -2,7 +2,8 @@
 // descriptions, with no Qloo data. It's the without-Qloo counterfactual, so the chart can show
 // what topic planning would have missed: the moves Qloo caused.
 import type { Show, State } from './agent'
-import { declined, structured } from './claude'
+import { rankNames } from './claude'
+import { CLIMB } from './fit'
 import { sha256 } from './text'
 import { sameName } from './resolve'
 
@@ -16,8 +17,6 @@ export type Topic = {
 // A charted show's topic rank, counted among the charted shows only, and its move: topic rank
 // minus fit rank, so a climb is positive.
 export type Move = { show: string; topicRank: number; move: number; climber: boolean }
-
-export const CLIMB = 3 // places a show must climb over its topic rank to be highlighted
 
 // The fit chart's finding, as the app's chart and the landing page's both word it: how many finalists,
 // then what a topic-only plan would have missed, led by the highest-placed climber (the one the
@@ -48,41 +47,9 @@ export async function topicRequest(launch: string, roster: Show[]) {
   return { key: await sha256(`${instructions}\n\n${input}`), names: shows.map((s) => s.name), input }
 }
 
-// Makes the one model call and checks that its answer ranks every show exactly once.
-export async function rankByTopic(
-  env: Env,
-  { names, input }: { names: string[]; input: string }
-): Promise<Pick<Topic, 'status' | 'order' | 'error'>> {
-  if (names.length === 0) return { status: 'ranked', order: [], error: null } // nothing to rank
-  const schema = {
-    type: 'object',
-    properties: { ranking: { type: 'array', items: { type: 'string', enum: names } } },
-    required: ['ranking'],
-    additionalProperties: false
-  }
-  let reply
-  try {
-    reply = await structured(env, instructions, schema)(input)
-  } catch (e) {
-    return failed(`The request to Claude failed: ${e instanceof Error ? e.message : String(e)}`)
-  }
-  // A refused reply may not follow the schema, so the stop reason is checked before the text.
-  if (reply.stop_reason === 'refusal')
-    return { status: 'refused', order: [], error: declined(reply, 'rank the roster by topic') }
-  if (reply.stop_reason !== 'end_turn') return failed(`Claude stopped early (${reply.stop_reason})`)
-  let order: string[]
-  try {
-    order = JSON.parse(reply.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('')).ranking
-  } catch {
-    return failed("Claude's reply wasn't the JSON it was asked for")
-  }
-  // The schema can't require every name once, so a short or repeating list is caught here.
-  if (order.length !== names.length || new Set(order).size !== names.length)
-    return failed(`Claude ranked ${new Set(order).size} of the ${names.length} roster shows, not all of them`)
-  return { status: 'ranked', order, error: null }
-}
-
-const failed = (error: string) => ({ status: 'failed' as const, order: [], error })
+// Makes the one model call, which ranks every show exactly once or says why it didn't.
+export const rankByTopic = (env: Env, request: { names: string[]; input: string }) =>
+  rankNames(env, instructions, request, { task: 'rank the roster by topic', noun: 'roster shows' })
 
 // The state with its topic moves worked out from the fit chart and the topic order, whichever
 // arrived last. A show's topic rank counts only the shows on the fit chart, so both ranks are over

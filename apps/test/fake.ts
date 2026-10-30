@@ -296,8 +296,9 @@ export function fakeClaude(
     http.post(`${env.ANTHROPIC_BASE_URL}/v1/messages`, async ({ request }) => {
       await record(request)
       const body = JSON.parse(await request.clone().text())
-      // A topic baseline request is answered by fakeTopic, so it never spends a scripted turn.
-      if (isTopic(body)) return topicResponse(body)
+      // A topic baseline or pitch ranking request is answered by fakeTopic or fakePitchRanking, so it
+      // never spends a scripted turn.
+      if (isRanking(body)) return rankingResponse(body)
       const next = script[turns++]
       if (!next)
         return HttpResponse.json(
@@ -316,8 +317,9 @@ export function fakeClaude(
 const anthropicRequests = (): ModelRequest[] =>
   requests.filter((r) => r.url.origin === new URL(env.ANTHROPIC_BASE_URL).origin).map((r) => JSON.parse(r.body))
 
-// The body of every request the scripted model got, in order. Topic baseline requests aren't among them.
-export const modelRequests = (): ModelRequest[] => anthropicRequests().filter((r) => !isTopic(r))
+// The body of every request the scripted model got, in order. Topic baseline and pitch ranking requests
+// aren't among them.
+export const modelRequests = (): ModelRequest[] => anthropicRequests().filter((r) => !isRanking(r))
 
 // The pitch text an extraction request carries, so concurrent extractions can be answered in any order.
 const pitchText = (request: ModelRequest): string =>
@@ -337,29 +339,47 @@ export const fakeReader = (count: number, answer: (pitch: string) => Extracted) 
     )
   )
 
-// The topic baseline: the run's one structured call that ranks the roster by topic alone.
-const isTopic = (body: ModelRequest) => body.output_config?.format?.schema?.properties?.ranking !== undefined
+// A ranking request: a launch run's topic baseline, which ranks the roster by topic alone, or a pitch
+// run's pitch ranking, which ranks the pitches by what they say. A pitch ranking ranks pitch IDs.
+const isRanking = (body: ModelRequest) => body.output_config?.format?.schema?.properties?.ranking !== undefined
+const isPitchRanking = (body: ModelRequest) => isRanking(body) && topicNames(body).every((n) => /^pitch-\d+$/.test(n))
+const isTopic = (body: ModelRequest) => isRanking(body) && !isPitchRanking(body)
 
-// The names a topic baseline request may rank, in the order it lists them.
+// The names a ranking request may rank, in the order it lists them: a topic baseline's show names, or a
+// pitch ranking's pitch IDs.
 export const topicNames = (request: ModelRequest): string[] =>
   request.output_config.format.schema.properties.ranking.items.enum
 
-// How the fake answers a topic baseline request: show names in topic order, a scripted turn such
-// as a refusal, or an HTTP status. A function of the request can choose or hold its answer.
+// How the fake answers a ranking request: names in ranked order, a scripted turn such as a refusal,
+// or an HTTP status. A function of the request can choose or hold its answer.
 type TopicAnswer = string[] | ScriptedTurn | number
-let topicAnswer: TopicAnswer | ((request: ModelRequest) => TopicAnswer | Promise<TopicAnswer>) = topicNames
+type RankingAnswer = TopicAnswer | ((request: ModelRequest) => TopicAnswer | Promise<TopicAnswer>)
+let topicAnswer: RankingAnswer = topicNames
 
 // Sets how fakeClaude answers topic baseline requests. Left out, it ranks the shows in the order the
 // request lists them, as it does by default; setup.ts puts the default back after each test.
-export const fakeTopic = (answer: typeof topicAnswer = topicNames) => {
+export const fakeTopic = (answer: RankingAnswer = topicNames) => {
   topicAnswer = answer
 }
 
 // The body of every topic baseline request, in order.
 export const topicRequests = (): ModelRequest[] => anthropicRequests().filter(isTopic)
 
-async function topicResponse(body: ModelRequest) {
-  const answer = typeof topicAnswer === 'function' ? await topicAnswer(body) : topicAnswer
+let pitchAnswer: RankingAnswer = topicNames
+
+// Sets how fakeClaude answers pitch ranking requests, as fakeTopic does topic baseline requests: pitch
+// IDs in pitch order, a scripted turn, an HTTP status, or a function of the request. Left out, it ranks
+// the pitches in the order the request lists them; setup.ts puts the default back after each test.
+export const fakePitchRanking = (answer: RankingAnswer = topicNames) => {
+  pitchAnswer = answer
+}
+
+// The body of every pitch ranking request, in order.
+export const pitchRankingRequests = (): ModelRequest[] => anthropicRequests().filter(isPitchRanking)
+
+async function rankingResponse(body: ModelRequest) {
+  const given = isPitchRanking(body) ? pitchAnswer : topicAnswer
+  const answer = typeof given === 'function' ? await given(body) : given
   if (typeof answer === 'number')
     return HttpResponse.json(
       { type: 'error', error: { type: 'api_error', message: 'fake failure' } },

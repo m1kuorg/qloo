@@ -1,6 +1,6 @@
 import type { Tool, ToolContext } from '.'
 import type { State } from '../agent'
-import { listPitches, rankable, type Anchor, type PitchList } from '../fit'
+import { listPitches, rankable, withPitchMoves, type Anchor, type PitchList } from '../fit'
 import { qlooType, workNoun, workTypes, type Pitch, type WorkType } from '../inbox'
 
 type Input = { show_id: string; past_guest_work_ids: string[]; pitch_ids: string[] }
@@ -93,7 +93,8 @@ export const rankPitches: Tool<Input> = {
         )
       )
     )
-    update((s) => (s.booking?.run === run ? { ...s, booking: { ...s.booking, lists } } : s))
+    // A pitch ranking already in gives the new rows their pitch ranks and moves.
+    update((s) => (s.booking?.run === run ? { ...s, booking: withPitchMoves({ ...s.booking, lists }) } : s))
     const title = (id: string) => now.inbox!.pitches.find((p) => p.id === id)?.work?.title
     return {
       content: JSON.stringify(

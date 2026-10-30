@@ -1264,7 +1264,10 @@ describe('the guest network, with the sample network on (ADR 0007)', () => {
         show: 'The Big Picture',
         pastGuests: []
       })
-      const ran = await network.until((s) => s.run?.id === runId && s.run.status !== 'running')
+      // The run has ended, and its pitch ranking, beside it, has landed.
+      const ran = await network.until(
+        (s) => s.run?.id === runId && s.run.status !== 'running' && s.booking?.pitchRanking?.status !== 'ranking'
+      )
       expect(ran.booking).toMatchObject({ run: runId, show: { name: 'The Big Picture' } })
 
       fakeQloo({ search: { ...search, ...workSearch } })
