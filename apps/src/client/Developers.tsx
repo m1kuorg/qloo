@@ -66,7 +66,8 @@ type NewKey = Pick<Made, 'id' | 'name'>
 // acts with, an owner creating one here and seeing it once, the steps for each assistant, the check that
 // sees the new key's first request, and what an assistant can do with it. From 1280px the first two are
 // a 384px column, sticky under the top bar, beside the rest, 384 + 24 + 928 = 1336 at 1440 and 384 + 24
-// + 768 = 1176 at 1280, so the steps have at least the 720px they had alone; under 1280px they stack.
+// + 768 = 1176 at 1280, so up to 1600px the steps have at least the 720px they had alone; under 1280px
+// they stack.
 // From 1600px the check and the tools, sticky too, stand beside the steps, which take three fifths of
 // what's left, 384 + 24 + 638 + 24 + 426 = 1496 at 1600 and 384 + 24 + 830 + 24 + 554 = 1816 at 1920, so
 // "Connected" shows while a member follows them, and a step's block, 618px at 1600, still holds the
