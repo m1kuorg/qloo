@@ -1071,10 +1071,12 @@ describe('a launch on the sample roster', () => {
     )
     fakeDemographics([])
   }
-  // The guest network as it loads the sample (ADR 0007), and its sample launch's page agent.
-  async function guestSampleLaunch() {
+  // The guest network as it loads the sample (ADR 0007), and its sample launch's page agent. With `rank`,
+  // Qloo answers the rankings with it instead, the load's overlap's among them.
+  async function guestSampleLaunch(rank?: Parameters<typeof fakeInsights>[0]) {
     env.SAMPLE_NETWORK = 'on'
     fakes()
+    if (rank) fakeInsights(rank)
     const guest = await openGuest()
     const network = await connect(guest, '/agents/network/guest-network')
     const loaded = await network.until(
@@ -1364,14 +1366,12 @@ describe('a launch on the sample roster', () => {
   })
 
   it('stores The Watch’s run as the sample run without the overlap it copied, though one of the sample roster’s rankings failed (#404)', async () => {
-    const { network, id, agent } = await guestSampleLaunch()
-    // The overlap's ranking against House of R fails; the rest land.
-    fakeInsights((body) =>
+    // The sample load measures the overlap, and its ranking against House of R fails; the rest land.
+    const { network, id, agent } = await guestSampleLaunch((body) =>
       body['signal.interests.entities'] === 'e-1101'
         ? 503
         : sampleFit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id))
     )
-    await network.call('measureOverlap')
     const overlap = (await network.until((s) => s.overlap?.status === 'measured')).overlap!
     expect(overlap.rows.find((r) => r.entity.id === 'e-1101')?.error).toEqual(expect.any(String))
     // Qloo answers the next call, a comp search, so it's no longer failing as The Watch starts.
