@@ -4,7 +4,7 @@
 // Playground.tsx draws them; the tests read the curl command, the checks before a send, a 429's wait and
 // which sends skip the confirm.
 import type { Cost } from '../routes/api'
-import { GUEST_NETWORK_CLEARS } from '../text'
+import { GUEST_NETWORK_CLEARS, possessive } from '../text'
 import type { NetworkPage } from './NetworkPage'
 
 // The pieces of the OpenAPI document (/api/v1/openapi.json) the playground reads.
@@ -99,9 +99,11 @@ const DOES: Record<Cost, (network: Pick<NetworkPage, 'name' | 'guestBudget'>) =>
   'Spends a model run': ({ name, guestBudget }) =>
     guestBudget
       ? `It spends one of today’s model runs from ${BUDGET}.`
-      : `It spends one of ${name}’s model runs for today.`,
+      : `It spends one of ${possessive(name)} model runs for today.`,
   'Calls Qloo': ({ name, guestBudget }) =>
-    guestBudget ? `It counts in today’s Qloo calls from ${BUDGET}.` : `It counts in ${name}’s Qloo calls for today.`
+    guestBudget
+      ? `It counts in today’s Qloo calls from ${BUDGET}.`
+      : `It counts in ${possessive(name)} Qloo calls for today.`
 }
 const known = (label?: string): Cost | null => (label && Object.hasOwn(DOES, label) ? (label as Cost) : null)
 

@@ -2124,6 +2124,51 @@ describe('the pages, as a member reads them', () => {
     expect(words(changes)).not.toContain('Show all')
   })
 
+  it('says the shows both runs ranked kept their ranks when the roster changed between them', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent, roster } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    // Back Lot is included again and ranks last; run 2 leaves Corner Booth out, so Back Lot takes its place
+    // among the finalists, and no show both runs ranked moves.
+    await roster.call('updateShow', 'Back Lot', { excluded: false })
+    const tagged = ['e-0502', 'e-0503', 'e-0102', 'e-0601', 'e-0505']
+    fakeCompare(
+      Object.fromEntries(
+        tagged.map((e) => [e, [{ tag_id: 'urn:tag:keyword:media:film', name: 'Film', score: 0.6131 }]])
+      )
+    )
+    await runAgain(agent, {
+      slots: 20,
+      exclude: ['Corner Booth'],
+      finalists: tagged,
+      lines: [
+        { show: 'Slow Burn', slots: 6, angle: 'Its long interviews share the slow pace.' },
+        { show: 'Paper Route', slots: 4, angle: 'Morning commuters who follow the same hosts.' },
+        { show: 'Field Notes', slots: 2, angle: 'Shares the field-recording style.' }
+      ]
+    })
+
+    const changes = changesOf(
+      workspace(network, agent, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
+    )
+    expect(sections(changes)).toEqual([
+      [
+        'Changes since run 1',
+        '1 finalist changed, the shows both runs ranked kept their ranks; the plan’s value fell $9,600.'
+      ],
+      ['Inputs'],
+      ['Ranks'],
+      ['Plan']
+    ])
+    // Back Lot is new to the ranking, so the rows stand, listing it and the finalist that left.
+    expect(rowsOf(changes, 'data-move')).toEqual([
+      '6 – Not ranked in run 1 Back Lot New finalist',
+      '1 = Same rank Corner Booth Left the finalists'
+    ])
+    expect(changes).toMatch(/<button\b[^>]*>Show all 6<\/button>/)
+  })
+
   it('lists only the shows that moved, joined or left the finalists, with Show all for the rest', async () => {
     const ada = await openMember()
     const network = await created(ada)
@@ -2149,7 +2194,7 @@ describe('the pages, as a member reads them', () => {
       '3 ▼1 Down 1 place Was #2 Slow Burn',
       '6 – Not ranked in run 1 Back Lot'
     ])
-    expect(changes).toMatch(/<button\b[^>]*>Show all 6<\/button>/)
+    expect(changes).toMatch(/<button\b(?=[^>]*\saria-expanded="false")[^>]*>Show all 6<\/button>/)
   })
 
   it('compares with the latest completed run before it, listing a failed run as one that can’t be chosen, with its status', async () => {

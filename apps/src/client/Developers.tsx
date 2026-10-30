@@ -9,7 +9,7 @@ import { buttonVariants, linkVariants } from '@/components/ui/variants'
 import { assistants, CHATGPT, type AssistantSetup, type Snippet, type Step } from '../assistants'
 import type { ApiKey, CheckedKey } from '../directory'
 import type { ToolKind } from '../routes/mcp'
-import { listOf, MAX_NAME } from '../text'
+import { listOf, MAX_NAME, possessive } from '../text'
 import {
   Alert,
   clock,
@@ -288,7 +288,7 @@ function KeySection({
         <p className="text-muted-foreground">
           Only an owner can create API keys.
           {owners.length > 0 &&
-            ` ${network.name}’s ${owners.length === 1 ? 'owner is' : 'owners are'} ${listOf(owners)}.`}
+            ` ${possessive(network.name)} ${owners.length === 1 ? 'owner is' : 'owners are'} ${listOf(owners)}.`}
         </p>
       )}
       {network.guestBudget && <GuestKeys />}
@@ -515,7 +515,7 @@ function Check({
       id="check-h"
       heading={heading}
       title="Check the connection"
-      description={`When each of ${network.name}’s API keys last reached it, to the minute.`}
+      description={`When each of ${possessive(network.name)} API keys last reached it, to the minute.`}
       data-check
     >
       <div ref={section} className="flex flex-col gap-4">

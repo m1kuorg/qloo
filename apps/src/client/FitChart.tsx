@@ -315,7 +315,13 @@ export function FitChart({
               </div>
             </div>
             {(folded > 0 || all) && (
-              <Button variant="ghost" size="sm" className="-ml-2.5 self-start" onClick={() => setAll(!all)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="-ml-2.5 self-start"
+                aria-expanded={all}
+                onClick={() => setAll(!all)}
+              >
                 {all ? 'Show fewer' : `Show all ${order.length}`}
               </Button>
             )}

@@ -122,6 +122,7 @@ describe('the fit chart', () => {
       'Corner Booth'
     ])
     expect(words(chart(state))).toContain('Show all 8')
+    expect(chart(state)).toMatch(/<button\b(?=[^>]*\saria-expanded="false")[^>]*>Show all 8<\/button>/)
   })
 
   it('marks each show’s move against its topic rank, which it labels the agent’s', async () => {

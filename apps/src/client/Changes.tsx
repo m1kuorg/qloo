@@ -466,7 +466,13 @@ function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
         </table>
       </ScrollTable>
       {changed.length < moves.length && (
-        <Button variant="ghost" size="sm" className="-ml-2.5 self-start" onClick={() => setAll(!all)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2.5 self-start"
+          aria-expanded={all}
+          onClick={() => setAll(!all)}
+        >
           {all ? 'Show fewer' : `Show all ${moves.length}`}
         </Button>
       )}

@@ -3,7 +3,7 @@
 // call's evidence; the chart gets each finalist's mismatches in words about its listeners.
 import { finalistsOf, type Ranking } from './fit'
 import type { Demographics, Profile, QlooResult } from './gateway'
-import { listOf } from './text'
+import { listOf, possessive } from './text'
 
 // The mismatch rule's thresholds: starting values, to tune on the demo network.
 export const MISMATCH = {
@@ -98,7 +98,7 @@ export function checkFinalists(
   const skewing = (way: Skew) => names.filter((_, i) => skewOf(round(profiles[i].male)) === way)
   const meanSkew = skewOf(launch.male)
   const skew = meanSkew && most(skewing(meanSkew).length) ? meanSkew : null
-  const their = (shows: string[]) => listOf(shows.map((n) => (n.endsWith('s') ? `${n}'` : `${n}'s`)))
+  const their = (shows: string[]) => listOf(shows.map((n) => possessive(n, "'")))
   const gender =
     skewing('male').length && skewing('female').length
       ? `${their(skewing('female'))} listeners skew female and ${their(skewing('male'))} male`

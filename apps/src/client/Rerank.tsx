@@ -2,7 +2,7 @@ import { cn } from 'cn'
 import { ChevronDownIcon } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { RadioGroup, RadioGroupSegment } from '@/components/ui/radio-group'
-import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
+import { segmentedItemVariants, segmentedTrackVariants, sourceMarks } from '@/components/ui/variants'
 import { moveGlyph, moveWords, nth } from '../text'
 import { Source } from './Source'
 
@@ -262,10 +262,7 @@ export function OtherRankCell({ row, lens, agent }: { row: Ranked; lens: Lens; a
       <span className="md:hidden">
         <span
           aria-hidden="true"
-          className={cn(
-            'mr-1 inline-block size-1.5 bg-foreground align-[0.125rem]',
-            lens === 'agent' ? 'rounded-[1px]' : 'rounded-full'
-          )}
+          className={cn('mr-1 inline-flex align-[0.125rem]', sourceMarks[lens === 'agent' ? 'square' : 'circle'])}
         />
         <span className="vh">{lens === 'agent' ? 'Qloo data ' : 'Agent '}</span>
         <span aria-hidden="true">{lens === 'agent' ? 'Listeners' : agent.column} </span>

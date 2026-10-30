@@ -922,7 +922,7 @@ function PitchSetup({
               {running
                 ? 'Ranking the pitches…'
                 : awaited
-                  ? `Waiting for ${awaited}’s Qloo lookup…`
+                  ? `Waiting for ${possessive(awaited)} Qloo lookup…`
                   : reading
                     ? inbox.sample
                       ? 'Rank them once every work is looked up.'

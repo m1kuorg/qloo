@@ -83,6 +83,12 @@ export const inputVariants = merged(input)
 // so they stay on the chip's middle. A mark is a ::before only where there is one: an empty one would
 // take the gap.
 const markOffset = 'before:mt-(--badge-lift)'
+// The source chips' glyphs, each drawn as a ::before: Qloo data's ink square and Agent's circle. A rank
+// folded under its row on a phone, where its column's chip is hidden, takes its chip's (Rerank.tsx).
+export const sourceMarks = {
+  square: 'before:size-1.5 before:shrink-0 before:rounded-[1px] before:bg-foreground',
+  circle: 'before:size-1.5 before:shrink-0 before:rounded-full before:bg-foreground'
+}
 const badge = cva(
   'group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-lg border border-transparent px-1.5 pb-(--badge-lift) type-caption font-medium whitespace-nowrap [--badge-lift:0.6px] [&>svg]:pointer-events-none [&>svg]:mt-(--badge-lift) [&>svg]:size-3!',
   {
@@ -94,8 +100,8 @@ const badge = cva(
       },
       mark: {
         none: '',
-        square: `${markOffset} before:size-1.5 before:shrink-0 before:rounded-[1px] before:bg-foreground`,
-        circle: `${markOffset} before:size-1.5 before:shrink-0 before:rounded-full before:bg-foreground`,
+        square: `${markOffset} ${sourceMarks.square}`,
+        circle: `${markOffset} ${sourceMarks.circle}`,
         signal: `${markOffset} before:size-2 before:shrink-0 before:rounded-full before:bg-signal`
       }
     },
