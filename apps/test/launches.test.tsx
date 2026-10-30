@@ -1844,7 +1844,7 @@ describe('the pages, as a member reads them', () => {
   const rowsOf = (html: string, hook: string) => hooked(html, hook).map(words)
   const canvasOf = (html: string) => hooked(html, 'data-canvas')[0]
   // A second run of the drafted launch, answered with `slots` and `exclude`, as the agent plans it: the
-  // `finalists` it finds tags for and the `lines` it drafts.
+  // `finalists` it ranks and finds tags for, and the `lines` it drafts.
   const runAgain = async (
     agent: Omit<Session, 'cookie'>,
     {
@@ -1856,7 +1856,7 @@ describe('the pages, as a member reads them', () => {
   ) => {
     fakeClaude([
       turn(resolve('Night Shift Cinema')),
-      turn(rank('e-0001')),
+      turn(toolUse('rank_candidates', { anchor_ids: ['e-0001'], candidate_ids: tagged, type: 'urn:entity:podcast' })),
       turn(askBudget),
       turn(askExclusions),
       turn(toolUse('shared_tags', { anchor_ids: ['e-0001'], candidate_ids: tagged })),
@@ -1917,7 +1917,10 @@ describe('the pages, as a member reads them', () => {
     // 6 × $1,000 + 8 × $1,200 + 4 × $650 + 2 × $438 = $19,076 then; 4 × $300 + 4 × $750 + 2 × $1,000 +
     // 2 × $438 = $7,076 now.
     expect(sections(changes)).toEqual([
-      ['Changes since run 1', '1 finalist changed, 5 shows moved; the plan’s value fell $12,000.']
+      ['Changes since run 1', '1 finalist changed, 5 shows moved; the plan’s value fell $12,000.'],
+      ['Inputs'],
+      ['Ranks'],
+      ['Plan']
     ])
     expect(options(changes)).toEqual([['Run 1 · Completed', 'selected']])
     // The inputs that changed, before → after, then the finalists that joined and left.
@@ -1964,12 +1967,21 @@ describe('the pages, as a member reads them', () => {
     await runAgain(agent, { slots: 20, exclude: [] })
     const earlier = { [first]: await agent.call<RunSnapshot>('getRun', first) }
 
+    const alike = [
+      ['Changes since run 1', 'Run 2 ranked the roster as run 1 did.'],
+      ['Inputs', 'Run 2 ran on the same inputs as run 1.']
+    ]
     const changes = changesOf(workspace(network, agent, id, earlier))
-    expect(sections(changes)).toEqual([['Changes since run 1', 'Run 2 ranked the roster as run 1 did.']])
-    expect(words(changes)).toContain('Run 2 ran on the same inputs as run 1.')
+    expect(sections(changes)).toEqual(alike)
     expect(facts(changes)).toEqual([])
     expect(hooked(changes, 'data-move')).toEqual([])
     expect(hooked(changes, 'data-change-line')).toEqual([])
+    // A snapshot from before comps or the exclusions answer lacks them, which is no change from none.
+    const { run, launch, ...older } = earlier[first]
+    const before = { ...older, run: { ...run!, exclusions: undefined }, launch: { ...launch!, comps: undefined } }
+    const lacking = changesOf(workspace(network, agent, id, { [first]: before as unknown as RunSnapshot }))
+    expect(sections(lacking)).toEqual(alike)
+    expect(facts(lacking)).toEqual([])
 
     // While the next run is under way, the tab waits for it.
     fakeClaude([turn(resolve('Night Shift Cinema')), turn(rank('e-0001')), turn(askBudget)])
@@ -1995,10 +2007,55 @@ describe('the pages, as a member reads them', () => {
     const changes = changesOf(
       workspace(network, agent, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
     )
-    expect(sections(changes)).toEqual([['Changes since run 1', 'Run 3 ranked the roster as run 1 did.']])
+    expect(sections(changes)[0]).toEqual(['Changes since run 1', 'Run 3 ranked the roster as run 1 did.'])
     expect(options(changes)).toEqual([
       ['Run 2 · Failed', 'disabled'],
       ['Run 1 · Completed', 'selected']
     ])
+
+    // A run that replayed the sample didn't rank the roster, so it's skipped and can't be chosen either.
+    const state = agent.state()!
+    const replayed = {
+      state: () => ({
+        ...state,
+        runs: state.runs.map((r, i) => (i === 1 ? { ...r, status: 'completed' as const, replayed: true as const } : r))
+      })
+    } as Omit<Session, 'cookie'>
+    const skipped = changesOf(
+      workspace(network, replayed, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
+    )
+    expect(sections(skipped)[0]).toEqual(['Changes since run 1', 'Run 3 ranked the roster as run 1 did.'])
+    expect(options(skipped)).toEqual([
+      ['Run 2 · Completed · Replayed', 'disabled'],
+      ['Run 1 · Completed', 'selected']
+    ])
+  })
+
+  it('matches a show on its Qloo entity when another show is mapped onto that entity between runs', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent, roster } = await drafted(ada, network)
+    const first = agent.state()!.run!.id
+    // Ghost Signal is mapped onto Corner Booth's entity, so the second run scores the two as one show.
+    await roster.searchComps('Ghost Signal', 'Corner Booth')
+    await roster.call('updateShow', 'Ghost Signal', { compId: 'e-0501' })
+    await runAgain(agent, { slots: 20, exclude: [], finalists: ['e-0501', 'e-0502', 'e-0503', 'e-0102'] })
+
+    const changes = changesOf(
+      workspace(network, agent, id, { [first]: await agent.call<RunSnapshot>('getRun', first) })
+    )
+    expect(facts(changes)[0]).toEqual(['Roster', 'Ghost Signal: Qloo match Ghost Signal Radio → Corner Booth'])
+    // Corner Booth keeps its entity, so it's the same show at the same rank, neither new nor gone. Ghost
+    // Signal, on another entity now, is ranked in each run as a different show.
+    expect(rowsOf(changes, 'data-move')).toEqual([
+      '3 ▼1 Down 1 place Was #2 Slow Burn',
+      '4 ▼1 Down 1 place Was #3 Paper Route',
+      '5 ▼1 Down 1 place Was #4 Field Notes',
+      '2 – Not ranked in run 1 Ghost Signal New finalist',
+      '– Not ranked in run 2 – Was #5 Ghost Signal Left the finalists',
+      '1 = Same rank Corner Booth'
+    ])
+    // Its line is the same in both plans.
+    expect(sections(changes).map(([heading]) => heading)).toEqual(['Changes since run 1', 'Inputs', 'Ranks'])
   })
 })

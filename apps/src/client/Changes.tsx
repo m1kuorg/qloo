@@ -9,7 +9,7 @@ import type { Launch, Run, RunSnapshot, RunSummary, Show } from '../agent'
 import type { FitRow } from '../fit'
 import { dollars, type OrderLine } from '../order'
 import { moveGlyph, moveWords } from '../text'
-import { Alert, downloads, KeyValue, KeyValues } from './controls'
+import { Alert, downloads, KeyValue, KeyValues, ScrollTable } from './controls'
 import { Section } from './PageHeader'
 import { budgetText, runLabel, runNumber } from './Run'
 import { StateLine } from './states'
@@ -20,16 +20,17 @@ import { StateLine } from './states'
 // lines and totals.
 
 const MISSING = '–'
+const NONE = 'None'
 
 // A ranked show in one run: its name there, its rank, and whether it's a finalist.
 type Place = { show: string; rank: number; finalist: boolean }
 
 // A ranked show across the two runs, matched on its Qloo entity: where it was and where it is, null in a
 // run that didn't rank it.
-type Move = { show: string; before: Place | null; after: Place | null }
+type Move = { key: string; show: string; before: Place | null; after: Place | null }
 
 // An order line across the two runs, matched as its show is, null in a run whose order has no such line.
-type Line = { show: string; before: OrderLine | null; after: OrderLine | null }
+type Line = { key: string; show: string; before: OrderLine | null; after: OrderLine | null }
 
 // What changed between two runs of one launch, `before` the earlier.
 type Changes = {
@@ -52,11 +53,11 @@ const matchOf = (launch: Launch | null) => launch?.match?.entity?.name ?? MISSIN
 const compsOf = (launch: Launch | null) =>
   launch?.comps === undefined
     ? MISSING
-    : launch.comps.flatMap((c) => (c.status === 'confirmed' && c.entity ? [c.entity.name] : [])).join(' · ') || 'None'
+    : launch.comps.flatMap((c) => (c.status === 'confirmed' && c.entity ? [c.entity.name] : [])).join(' · ') || NONE
 // What the programmer answered: a run that never asked has no budget or exclusions.
 const budgetOf = (run: Run | null) => (run?.budget ? budgetText(run.budget) : MISSING)
 const leftOutOf = (run: Run | null) =>
-  !run?.exclusions ? MISSING : run.exclusions.length ? run.exclusions.join(', ') : 'None'
+  !run?.exclusions ? MISSING : run.exclusions.length ? run.exclusions.join(', ') : NONE
 // A roster show's match as a ranking scores it.
 const scoredAs = (show: Show) =>
   (show.resolution === 'resolved' || show.resolution === 'mapped') && show.entity ? show.entity.name : MISSING
@@ -87,18 +88,39 @@ function rosterChanges(before: Show[], after: Show[]) {
   return lines
 }
 
-// A run's ranked shows by their Qloo entity, or by entity and name where two shows on its roster share
-// one entity; null when the run didn't rank the roster.
-function ranked(state: RunSnapshot) {
-  const rows = state.ranking && !state.ranking.error ? state.ranking.rows : null
-  if (!rows) return null
-  const shared = (r: FitRow) => rows.filter((o) => o.entity.id === r.entity.id).length > 1
-  return new Map(rows.map((r) => [shared(r) ? `${r.entity.id} ${r.show}` : r.entity.id, r]))
+// A run's ranked shows, or null when the run didn't rank the roster.
+const rowsOf = (state: RunSnapshot) => (state.ranking && !state.ranking.error ? state.ranking.rows : null)
+
+// The Qloo entities two ranked shows share in either run, as a show mapped onto another's entity does.
+// Shows on them are matched on entity and name in both runs alike, so a show keeps its key when another
+// is mapped onto its entity.
+function sharedEntities(...states: RunSnapshot[]) {
+  const shared = new Set<string>()
+  for (const state of states) {
+    const seen = new Set<string>()
+    for (const r of rowsOf(state) ?? []) {
+      if (seen.has(r.entity.id)) shared.add(r.entity.id)
+      seen.add(r.entity.id)
+    }
+  }
+  return shared
 }
 
-// The order of moves: shows that moved, biggest first, then those only the later run ranked, then those
-// only the earlier one did, then those at the same rank; each group in rank order.
-const group = ({ before, after }: Move) => (before && after ? (before.rank === after.rank ? 3 : 0) : after ? 1 : 2)
+// A run's ranked shows by their Qloo entity, or by entity and name on a `shared` one; null when the run
+// didn't rank the roster.
+function ranked(state: RunSnapshot, shared: Set<string>) {
+  const rows = rowsOf(state)
+  return rows && new Map(rows.map((r) => [shared.has(r.entity.id) ? `${r.entity.id} ${r.show}` : r.entity.id, r]))
+}
+
+// The order of moves, by group: shows that moved, biggest first, then those only the later run ranked,
+// then those only the earlier one did, then those at the same rank; each group in rank order.
+const MOVED = 0
+const ONLY_LATER = 1
+const ONLY_EARLIER = 2
+const SAME_RANK = 3
+const group = ({ before, after }: Move) =>
+  before && after ? (before.rank === after.rank ? SAME_RANK : MOVED) : after ? ONLY_LATER : ONLY_EARLIER
 const size = ({ before, after }: Move) => (before && after ? Math.abs(before.rank - after.rank) : 0)
 const byMove = (a: Move, b: Move) =>
   group(a) - group(b) || size(b) - size(a) || (a.after ?? a.before)!.rank - (b.after ?? b.before)!.rank
@@ -106,8 +128,10 @@ const byMove = (a: Move, b: Move) =>
 // What changed from run `before` to run `after`, a pure function of the two snapshots.
 function compare(before: RunSnapshot, after: RunSnapshot): Changes {
   const inputs: Changes['inputs'] = []
+  // A value one run's snapshot lacks against none in the other, such as no exclusions where an older
+  // snapshot predates the answer, is never a change.
   const changed = (label: string, a: string, b: string) => {
-    if (a !== b) inputs.push({ label, lines: [arrow(a, b)] })
+    if (a !== b && [a, b].some((v) => v !== MISSING && v !== NONE)) inputs.push({ label, lines: [arrow(a, b)] })
   }
   changed('Qloo match', matchOf(before.launch), matchOf(after.launch))
   changed('Comps', compsOf(before.launch), compsOf(after.launch))
@@ -117,12 +141,14 @@ function compare(before: RunSnapshot, after: RunSnapshot): Changes {
   changed('Slot budget', budgetOf(before.run), budgetOf(after.run))
   changed('Left out', leftOutOf(before.run), leftOutOf(after.run))
 
-  const [was, now] = [ranked(before), ranked(after)]
+  const shared = sharedEntities(before, after)
+  const [was, now] = [ranked(before, shared), ranked(after, shared)]
   const place = (r: FitRow | undefined) => (r ? { show: r.show, rank: r.rank, finalist: r.finalist } : null)
   const moves =
     was && now
       ? [...new Set([...now.keys(), ...was.keys()])]
           .map((key) => ({
+            key,
             show: (now.get(key) ?? was.get(key))!.show,
             before: place(was.get(key)),
             after: place(now.get(key))
@@ -138,13 +164,14 @@ function compare(before: RunSnapshot, after: RunSnapshot): Changes {
     return new Map((state.insertionOrder?.lines ?? []).map((l) => [keys.get(l.show) ?? l.show, l]))
   }
   const orders = { before: before.insertionOrder, after: after.insertionOrder }
-  const [then, nowLines] = [linesOf(before, was), linesOf(after, now)]
+  const [linesBefore, linesAfter] = [linesOf(before, was), linesOf(after, now)]
   const lines =
     orders.before || orders.after
-      ? [...new Set([...nowLines.keys(), ...then.keys()])].map((key) => ({
-          show: (nowLines.get(key) ?? then.get(key))!.show,
-          before: then.get(key) ?? null,
-          after: nowLines.get(key) ?? null
+      ? [...new Set([...linesAfter.keys(), ...linesBefore.keys()])].map((key) => ({
+          key,
+          show: (linesAfter.get(key) ?? linesBefore.get(key))!.show,
+          before: linesBefore.get(key) ?? null,
+          after: linesAfter.get(key) ?? null
         }))
       : null
   return {
@@ -153,7 +180,7 @@ function compare(before: RunSnapshot, after: RunSnapshot): Changes {
     joined,
     left,
     moves,
-    alike: !!was && !!now && moves.every((m) => group(m) === 3 && m.before!.finalist === m.after!.finalist),
+    alike: !!was && !!now && moves.every((m) => group(m) === SAME_RANK && m.before!.finalist === m.after!.finalist),
     lines,
     orders,
     samePlan:
@@ -171,7 +198,7 @@ const capitalized = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 function finding(c: Changes, n: number, m: number) {
   // A finalist that joined took the place of one that left, so a swap counts once.
   const finalists = Math.max(c.joined.length, c.left.length)
-  const moved = c.moves.filter((mv) => group(mv) === 0).length
+  const moved = c.moves.filter((mv) => group(mv) === MOVED).length
   const changed = [
     ...(finalists ? [counted(finalists, 'finalist changed', 'finalists changed')] : []),
     ...(moved ? [counted(moved, 'show moved', 'shows moved')] : [])
@@ -247,10 +274,10 @@ export function RunChanges({
     if (seen && status === 'completed' && baseline && !reads[baseline]) load(baseline)
   }, [seen, status, baseline])
 
-  const then = baseline ? reads[baseline] : undefined
-  const changes = typeof then === 'object' && 'roster' in then ? compare(then, shown.state) : null
-  const failed = typeof then === 'object' && 'failed' in then ? then.failed : null
-  const description =
+  const earlierRun = baseline ? reads[baseline] : undefined
+  const changes = typeof earlierRun === 'object' && 'roster' in earlierRun ? compare(earlierRun, shown.state) : null
+  const failed = typeof earlierRun === 'object' && 'failed' in earlierRun ? earlierRun.failed : null
+  const state =
     status === 'running' || status === 'waiting' ? (
       <StateLine kind="loading">{`Run ${n}’s changes show once it completes.`}</StateLine>
     ) : status !== 'completed' ? (
@@ -268,8 +295,11 @@ export function RunChanges({
     ) : failed ? (
       <Alert error={`Run ${m} didn’t load: ${failed}`} />
     ) : (
-      <StateLine kind="loading">{`Reading run ${m}…`}</StateLine>
+      <StateLine kind="loading" word="Reading">{`run ${m}…`}</StateLine>
     )
+  // The sentence is told politely as it changes, so choosing another run says its finding; a failure is
+  // an alert of its own.
+  const description = failed && !changes ? state : <span role="status">{state}</span>
   return (
     <Section id="changes-h" title={m ? `Changes since run ${m}` : 'Changes'} description={description} data-changes>
       {status === 'completed' && m && (
@@ -309,9 +339,15 @@ export function RunChanges({
         ))}
       {changes && m && (
         <>
-          <div className="flex flex-col gap-2">
-            <h3 className="font-semibold">Inputs</h3>
-            {changes.inputs.length ? (
+          {/* The h3s say no more than their titles, as the finding over them says what changed; the
+              inputs' sentence is there only when none changed. */}
+          <Section
+            id="changes-inputs-h"
+            level={3}
+            title="Inputs"
+            description={changes.inputs.length === 0 && `Run ${n} ran on the same inputs as run ${m}.`}
+          >
+            {changes.inputs.length > 0 && (
               <KeyValues>
                 {changes.inputs.map((input) => (
                   <KeyValue key={input.label} label={input.label}>
@@ -323,31 +359,23 @@ export function RunChanges({
                   </KeyValue>
                 ))}
               </KeyValues>
-            ) : (
-              <p className="text-muted-foreground">{`Run ${n} ran on the same inputs as run ${m}.`}</p>
             )}
-          </div>
+          </Section>
           {changes.ranked === 'both' && !changes.alike && (
-            <div className="flex flex-col gap-2">
-              <h3 className="font-semibold" id="changes-ranks-h">
-                Ranks
-              </h3>
+            <Section id="changes-ranks-h" level={3} title="Ranks">
               {(changes.joined.length > 0 || changes.left.length > 0) && (
                 <KeyValues>
-                  <KeyValue label="Joined the finalists">{changes.joined.join(', ') || 'None'}</KeyValue>
-                  <KeyValue label="Left the finalists">{changes.left.join(', ') || 'None'}</KeyValue>
+                  <KeyValue label="Joined the finalists">{changes.joined.join(', ') || NONE}</KeyValue>
+                  <KeyValue label="Left the finalists">{changes.left.join(', ') || NONE}</KeyValue>
                 </KeyValues>
               )}
               <Moves moves={changes.moves} n={n} m={m} />
-            </div>
+            </Section>
           )}
           {changes.lines && !changes.samePlan && (
-            <div className="flex flex-col gap-2">
-              <h3 className="font-semibold" id="changes-plan-h">
-                Plan
-              </h3>
-              <PlanLines lines={changes.lines} orders={changes.orders} />
-            </div>
+            <Section id="changes-plan-h" level={3} title="Plan">
+              <PlanLines lines={changes.lines} orders={changes.orders} m={m} />
+            </Section>
           )}
         </>
       )}
@@ -364,7 +392,8 @@ function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
   const cell = 'border-b py-3 pl-3 align-baseline'
   return (
     <>
-      <div className="-mx-2">
+      {/* It scrolls with no held column, as the name follows the rank and move, so names stay whole. */}
+      <ScrollTable label={`Ranks since run ${m}`} className="-mx-2 max-w-none">
         <table className="w-full border-separate border-spacing-0" aria-labelledby="changes-ranks-h">
           <thead className="type-caption text-muted-foreground">
             <tr>
@@ -378,10 +407,10 @@ function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
             </tr>
           </thead>
           <tbody>
-            {moves.map(({ show, before, after }) => {
+            {moves.map(({ key, show, before, after }) => {
               const move = before && after ? before.rank - after.rank : null
               return (
-                <tr key={`${show} ${after ? after.rank : 'left'}`} data-move={show}>
+                <tr key={key} data-move={show}>
                   <td className={cn(cell, 'pl-2 text-right type-title tabular-nums')}>
                     {after ? (
                       after.rank
@@ -407,7 +436,7 @@ function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
                   </td>
                   <th scope="row" className={cn(cell, 'pr-2 text-left font-normal')}>
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-[15px] leading-snug font-semibold wrap-anywhere">{show}</span>
+                      <span className="text-[15px] leading-snug font-semibold">{show}</span>
                       {after?.finalist && !before?.finalist && <Badge mark="signal">New finalist</Badge>}
                       {before?.finalist && !after?.finalist && <Badge>Left the finalists</Badge>}
                     </span>
@@ -417,7 +446,7 @@ function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollTable>
       {moves.some((mv) => !mv.before || !mv.after) && (
         <p className="type-caption text-muted-foreground">
           – marks a show ranked in only one of the two runs: the roster changed between them.
@@ -427,19 +456,22 @@ function Moves({ moves, n, m }: { moves: Move[]; n: number; m: number }) {
   )
 }
 
-// The plan's lines, the earlier run's slots and value → the shown run's, then the totals. A line only
-// one run's order has shows `–` for the other, as does a line with no value.
-function PlanLines({ lines, orders }: { lines: Line[]; orders: Changes['orders'] }) {
+// The plan's lines, run `m`'s slots and value → the shown run's, then the totals, in a named region that
+// scrolls sideways with the show column held at the left, as the roster's table does. A line only one
+// run's order has shows `–` for the other, as does a line with no value.
+function PlanLines({ lines, orders, m }: { lines: Line[]; orders: Changes['orders']; m: number }) {
   const slots = (x: { slots: number } | null) => (x ? String(x.slots) : MISSING)
   const value = (l: OrderLine | null) => (l?.value == null ? MISSING : dollars(l.value))
   const head = 'border-b pb-2 pl-3 text-right align-bottom font-normal'
   const cell = 'border-b py-3 pl-3 text-right align-baseline whitespace-nowrap'
+  // Held where the rest scrolls under it, ruled where they meet; a name too long for it breaks anywhere.
+  const held = 'sticky left-0 bg-background pl-2 text-left wrap-anywhere max-md:border-r max-md:pr-3'
   return (
-    <div className="-mx-2">
+    <ScrollTable label={`The plan’s lines since run ${m}`} className="-mx-2 max-w-none">
       <table className="w-full border-separate border-spacing-0" aria-labelledby="changes-plan-h">
         <thead className="type-caption text-muted-foreground">
           <tr>
-            <th scope="col" className={cn(head, 'pl-2 text-left')}>
+            <th scope="col" className={cn(head, held)}>
               Show
             </th>
             <th scope="col" className={head}>
@@ -452,9 +484,9 @@ function PlanLines({ lines, orders }: { lines: Line[]; orders: Changes['orders']
         </thead>
         <tbody>
           {lines.map((l) => (
-            <tr key={l.show} data-change-line={l.show}>
-              <th scope="row" className={cn(cell, 'pl-2 text-left font-normal whitespace-normal')}>
-                <span className="text-[15px] leading-snug font-semibold wrap-anywhere">{l.show}</span>
+            <tr key={l.key} data-change-line={l.show}>
+              <th scope="row" className={cn(cell, held, 'font-normal whitespace-normal')}>
+                <span className="text-[15px] leading-snug font-semibold">{l.show}</span>
               </th>
               <td className={cn(cell, 'tabular-nums')}>{arrow(slots(l.before), slots(l.after))}</td>
               <td className={cn(cell, 'pr-2')}>{arrow(value(l.before), value(l.after))}</td>
@@ -463,7 +495,7 @@ function PlanLines({ lines, orders }: { lines: Line[]; orders: Changes['orders']
         </tbody>
         <tfoot>
           <tr>
-            <th scope="row" className="pt-3 pl-2 text-left font-semibold">
+            <th scope="row" className={cn(held, 'pt-3 font-semibold')}>
               Total
             </th>
             <td className="pt-3 pl-3 text-right font-semibold whitespace-nowrap tabular-nums">
@@ -478,6 +510,6 @@ function PlanLines({ lines, orders }: { lines: Line[]; orders: Changes['orders']
           </tr>
         </tfoot>
       </table>
-    </div>
+    </ScrollTable>
   )
 }
