@@ -61,13 +61,16 @@ type Made = { id: string; name: string; secret: string }
 type NewKey = Pick<Made, 'id' | 'name'>
 
 // The Developers page, which answers "How do I connect my assistant to this network?", on the canvas as
-// the launch page is: the header, then two tabs. Connect your AI (#connect) has its sections in one
-// column as settings' are, in the order a member connects one: the addresses a client asks for, the API
-// key it acts with, an owner creating one here and seeing it once, the steps for each assistant, the
-// check that sees the new key's first request, and what an assistant can do with it. Only ShownOnce ever
-// shows a key: no command, configuration or link holds one. The playground (#playground) sends the REST
-// API's operations, and loads them the first time its tab shows. Tests render it from the props the
-// server gave the page, and the playground from the OpenAPI document they give it (`openapi`);
+// the launch page is: the header, then two tabs. Connect your AI (#connect) has its sections at the
+// canvas's width, in the order a member connects one: the addresses a client asks for, the API key it
+// acts with, an owner creating one here and seeing it once, the steps for each assistant, the check that
+// sees the new key's first request, and what an assistant can do with it. From 1280px the first two are
+// a 384px column, sticky under the top bar, beside the rest, 384 + 24 + 928 = 1336 at 1440 and 384 + 24
+// + 768 = 1176 at 1280, so the steps never have less than 720px; under 1280px they stack. Every paragraph
+// keeps the 72ch measure, while the blocks, the picker and the lists take their column's width. Only
+// ShownOnce ever shows a key: no command, configuration or link holds one. The playground (#playground)
+// sends the REST API's operations, and loads them the first time its tab shows. Tests render it from the
+// props the server gave the page, and the playground from the OpenAPI document they give it (`openapi`);
 // `connection` is null until the agent's state arrives.
 export function Developers({
   network,
@@ -83,19 +86,26 @@ export function Developers({
   const [listed, setListed] = useState(keys)
   const [playground, setPlayground] = useState(false)
   const connect = (
-    <div className="flex max-w-180 flex-col gap-12">
-      <Addresses network={network} mcp={mcp} api={api} />
-      <KeySection network={network} owners={owners} made={made} onMade={setMade} />
-      <Assistant mcp={mcp} />
-      {/* A new key starts a new wait, whose reads list it with the other keys in use. */}
-      <Check
-        key={made?.id}
-        network={network}
-        keys={listed}
-        awaited={made && { id: made.id, name: made.name }}
-        onKeys={setListed}
-      />
-      <Tools network={network} tools={tools} />
+    <div className="grid items-start gap-x-6 gap-y-12 xl:grid-cols-[24rem_minmax(0,1fr)] [&_p]:max-w-[72ch]">
+      {/* The addresses and the key stay in view beside the steps that use them, clear of the sticky top
+          bar, with room inside their own scroll for the focus ring. Unlike the playground's operations,
+          they mostly fit the window, so a wheel or an arrow key over them goes on to scroll the page. */}
+      <div className="flex min-w-0 flex-col gap-12 xl:sticky xl:top-12 xl:-mx-1 xl:-mt-1 xl:max-h-[calc(100svh-3rem)] xl:overflow-y-auto xl:px-1 xl:pt-1 xl:pb-6">
+        <Addresses network={network} mcp={mcp} api={api} />
+        <KeySection network={network} owners={owners} made={made} onMade={setMade} />
+      </div>
+      <div className="flex min-w-0 flex-col gap-12">
+        <Assistant mcp={mcp} />
+        {/* A new key starts a new wait, whose reads list it with the other keys in use. */}
+        <Check
+          key={made?.id}
+          network={network}
+          keys={listed}
+          awaited={made && { id: made.id, name: made.name }}
+          onKeys={setListed}
+        />
+        <Tools network={network} tools={tools} />
+      </div>
     </div>
   )
   return (
@@ -150,8 +160,10 @@ function SnippetBlock({ snippet: { label, file, code, copy } }: { snippet: Snipp
 }
 
 // What a client asks for to reach the network, each value in mono with its Copy: the MCP server's address,
-// the REST API's, and the network's ID. From 768px each is a row, its label, value and Copy in columns;
-// under it, the label is over the value.
+// the REST API's, and the network's ID. From 768px each is a row, its label, value and Copy in columns as
+// wide as what they hold, so Copy follows the longest value rather than the column's far edge; under it,
+// the label is over the value. In the 384px column, from 1280px, Copy shares the label's line, over the
+// value, which has the column's width.
 function Addresses({ network, mcp, api }: { network: NetworkPage; mcp: string; api: string }) {
   const rows = [
     { label: 'MCP server', value: mcp, what: 'MCP server address' },
@@ -165,16 +177,16 @@ function Addresses({ network, mcp, api }: { network: NetworkPage; mcp: string; a
       description={`Where an assistant or a script reaches ${network.name}, and the ID it names it by.`}
       data-addresses
     >
-      <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 md:grid-cols-[auto_minmax(0,1fr)_auto] md:gap-y-2">
+      <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 md:grid-cols-[auto_minmax(0,max-content)_auto] md:justify-start md:gap-y-2 xl:grid-cols-[minmax(0,1fr)_auto]">
         {rows.map((r) => (
           <div key={r.label} className="col-span-full grid grid-cols-subgrid items-center max-md:not-first:mt-2">
             <dt className="col-span-full text-muted-foreground md:col-span-1">{r.label}</dt>
-            <dd className="min-w-0">
+            <dd className="min-w-0 xl:col-span-full xl:row-start-2">
               <code className="font-mono text-[13px] wrap-anywhere" translate="no">
                 {r.value}
               </code>
             </dd>
-            <dd>
+            <dd className="xl:col-start-2 xl:row-start-1">
               <CopyButton value={r.value} what={r.what} />
             </dd>
           </div>
@@ -522,9 +534,17 @@ function Check({
                 <StateLine kind="empty">No API keys in use.</StateLine>
               </p>
             ) : (
-              <ul aria-label="API keys in use" className="flex flex-col">
+              // From 768px, a grid whose columns are as wide as the longest name and last use, so each
+              // key's last use sits beside its name; under it, a long name pushes it onto a line of its own.
+              <ul
+                aria-label="API keys in use"
+                className="flex flex-col md:grid md:grid-cols-[minmax(0,max-content)_auto] md:justify-start md:gap-x-4"
+              >
                 {keys.map((k) => (
-                  <li key={k.id} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5">
+                  <li
+                    key={k.id}
+                    className="flex flex-wrap items-baseline gap-x-4 py-1.5 max-md:justify-between md:col-span-full md:grid md:grid-cols-subgrid"
+                  >
                     <span className="min-w-0 font-medium wrap-anywhere">{k.name}</span>
                     <span className="text-muted-foreground">
                       {k.lastUsed === null ? 'Never used' : `Last used ${day(k.lastUsed)}, ${clock(k.lastUsed)}`}
