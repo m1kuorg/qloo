@@ -179,8 +179,8 @@ export function MembersModule({
   )
 }
 
-// An owner's invite links, a module of their own beside the members: making one shows it once, to copy;
-// the list shows each one still open by its dates, to revoke.
+// An owner's invite links, a module of their own beside the members: making one shows it once, to copy,
+// its field taking focus from the button; the list shows each one still open by its dates, to revoke.
 function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[] }) {
   const [invites, setInvites] = useState(listed)
   const [made, setMade] = useState<{ id: string; link: string } | null>(null)
@@ -220,7 +220,7 @@ function InviteLinks({ path, invites: listed }: { path: string; invites: Invite[
       description="Each link lets one person join as a member, with a new account or the one they have, and works once, for seven days."
     >
       <div>
-        <Button variant="secondary" disabled={busy} onClick={() => void create()}>
+        <Button variant="secondary" disabled={busy} focusableWhenDisabled onClick={() => void create()}>
           {busy && <Spinner data-icon="inline-start" />}
           {busy ? 'Working…' : 'Create invite link'}
         </Button>

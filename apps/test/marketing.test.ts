@@ -584,7 +584,7 @@ describe('the developer docs', () => {
       const text = words(main(html))
       expect(text).toContain(`The ${listed.length} tools the server lists today.`)
       expect(text).toContain(
-        'claude mcp add --transport http crossfeed https://crossfeed.test/mcp \\ --header "Authorization: Bearer $CROSSFEED_API_KEY"'
+        'claude mcp add --transport http crossfeed \\ https://crossfeed.test/mcp \\ --header "Authorization: Bearer $CROSSFEED_API_KEY"'
       )
       expect(text).not.toMatch(/approve_/)
     }

@@ -97,10 +97,14 @@ const appKey = (name: string): Step => {
       ...shell.snippets!,
       {
         label: 'PowerShell',
+        // The two long lines break where PowerShell reads on, after `=` and inside the call's parentheses,
+        // so each line fits its block as the docs and the Developers page set it.
         code: [
           "$k = Read-Host 'Crossfeed API key' -AsSecureString",
-          "$env:CROSSFEED_API_KEY = [System.Net.NetworkCredential]::new('', $k).Password",
-          "[Environment]::SetEnvironmentVariable('CROSSFEED_API_KEY', $env:CROSSFEED_API_KEY, 'User')"
+          '$env:CROSSFEED_API_KEY =',
+          "  [System.Net.NetworkCredential]::new('', $k).Password",
+          '[Environment]::SetEnvironmentVariable(',
+          "  'CROSSFEED_API_KEY', $env:CROSSFEED_API_KEY, 'User')"
         ].join('\n'),
         copy: `${name} PowerShell commands that set the key`
       }
@@ -131,7 +135,8 @@ export function assistants(mcp: string): AssistantSetup[] {
           snippets: [
             {
               label: 'Shell',
-              code: `claude mcp add --transport http ${NAME} ${mcp} \\\n  --header "Authorization: Bearer $CROSSFEED_API_KEY"`,
+              // The address on a line of its own, so each line fits its block.
+              code: `claude mcp add --transport http ${NAME} \\\n  ${mcp} \\\n  --header "Authorization: Bearer $CROSSFEED_API_KEY"`,
               copy: 'claude mcp add command'
             }
           ]
@@ -261,7 +266,8 @@ export function assistants(mcp: string): AssistantSetup[] {
           snippets: [
             {
               label: 'Shell',
-              code: `codex mcp add ${NAME} --url ${mcp} \\\n  --bearer-token-env-var CROSSFEED_API_KEY`,
+              // Broken as Claude Code's is, so each line fits its block.
+              code: `codex mcp add ${NAME} \\\n  --url ${mcp} \\\n  --bearer-token-env-var CROSSFEED_API_KEY`,
               copy: 'codex mcp add command'
             }
           ]

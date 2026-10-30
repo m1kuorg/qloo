@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
@@ -10,7 +10,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { linkVariants, segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
 import { useConfirm } from './Confirm'
-import { Alert, clock, Code, CopyButton, KeyValue, KeyValues, ScrollTable } from './controls'
+import { Alert, clock, Code, CopyButton, Fold, KeyValue, KeyValues, ScrollTable } from './controls'
 import type { NetworkPage } from './NetworkPage'
 import { Section } from './PageHeader'
 import {
@@ -106,7 +106,9 @@ function reveal(el: HTMLElement | null) {
 
 // The playground panel. It loads the OpenAPI document the first time its tab opens (`opened`), not while
 // it's hidden, unless the page was given it (`loaded`), as the tests give it; until then it shows
-// nothing, as no one sees it. `api` is the REST API's address on the app's own origin, for the curl
+// nothing, as no one sees it. When it fails, Try again loads it again, and Operations' heading takes
+// focus from the button, which goes as the load starts, and once more as the operations show, as the
+// heading over them is another. `api` is the REST API's address on the app's own origin, for the curl
 // command; the page itself sends to its own origin.
 export function Playground({
   network,
@@ -136,11 +138,19 @@ export function Playground({
   useEffect(() => {
     if (opened && doc.state === 'idle') void load()
   }, [opened])
+  const heading = useRef<HTMLHeadingElement>(null)
+  // Whether Try again was pressed, so the operations' heading takes focus once they show.
+  const retried = useRef(false)
+  useEffect(() => {
+    if (doc.state !== 'ready' || !retried.current) return
+    retried.current = false
+    heading.current?.focus()
+  }, [doc.state])
 
   if (doc.state === 'idle') return null
-  if (doc.state === 'ready') return <Workbench network={network} api={api} doc={doc.doc} />
+  if (doc.state === 'ready') return <Workbench network={network} api={api} doc={doc.doc} heading={heading} />
   return (
-    <Section id="pg-operations-h" title="Operations" description={OPERATIONS} data-operations>
+    <Section id="pg-operations-h" heading={heading} title="Operations" description={OPERATIONS} data-operations>
       {doc.state === 'loading' ? (
         <>
           <p>
@@ -159,7 +169,15 @@ export function Playground({
               The REST API’s operations didn’t load ({doc.error}). Check your connection, then try again.
             </StateLine>
           </p>
-          <Button type="button" variant="secondary" onClick={() => void load()}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              retried.current = true
+              heading.current?.focus()
+              void load()
+            }}
+          >
             Try again
           </Button>
         </div>
@@ -174,8 +192,18 @@ const OPERATIONS = 'Every route of the REST API, by group, with what each one co
 // with its own scroll, beside the request, the answer and the last requests; from 1440px the answer has a
 // column of its own beside the request, so it's read as it arrives, and the last requests sit under the
 // request. On a phone they stack: the operations, the request, the answer, then the last requests. At
-// 1440 that's the 1336 between the gutters: 288 + 24 + 500 + 24 + 500.
-function Workbench({ network, api, doc }: { network: NetworkPage; api: string; doc: OpenApi }) {
+// 1440 that's the 1336 between the gutters: 288 + 24 + 500 + 24 + 500. `heading` is Operations' heading.
+function Workbench({
+  network,
+  api,
+  doc,
+  heading
+}: {
+  network: NetworkPage
+  api: string
+  doc: OpenApi
+  heading: RefObject<HTMLHeadingElement | null>
+}) {
   const inbox = network.links.inbox !== null
   const operations = useMemo(() => operationsOf(doc, inbox), [doc, inbox])
   const [chosen, setChosen] = useState(operations[0]?.key)
@@ -346,7 +374,7 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
     <div className="grid items-start gap-x-6 gap-y-12 lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-[auto_auto_1fr] min-[90rem]:grid-cols-[18rem_minmax(0,1fr)_minmax(0,1fr)] min-[90rem]:grid-rows-[auto_1fr]">
       {/* The list keeps clear of the sticky top bar, with room inside its own scroll for the focus ring. */}
       <div className="lg:sticky lg:top-12 lg:row-span-3 lg:-mx-1 lg:-mt-1 lg:max-h-[calc(100svh-3rem)] lg:overflow-y-auto lg:overscroll-contain lg:px-1 lg:pt-1 lg:pb-6 min-[90rem]:row-span-2">
-        <Section id="pg-operations-h" title="Operations" description={OPERATIONS} data-operations>
+        <Section id="pg-operations-h" heading={heading} title="Operations" description={OPERATIONS} data-operations>
           {groups.map((tag) => (
             <Section
               key={tag}
@@ -533,7 +561,7 @@ function Workbench({ network, api, doc }: { network: NetworkPage; api: string; d
                   <Textarea
                     id={field('body')}
                     name="body"
-                    className="max-h-[28rem] min-h-32 font-mono text-[13px] md:text-[13px]"
+                    className="max-h-[28rem] min-h-32 font-mono md:text-[13px]"
                     spellCheck={false}
                     value={draft.bodies[draft.type] ?? ''}
                     placeholder={op.body.types.find((t) => t.type === draft.type)?.hint || undefined}
@@ -748,9 +776,10 @@ function Highlighted({ text }: { text: string }) {
 // What Crossfeed answered: before anything is sent, a line saying so; while it's on its way, that it
 // is; a request that never reached it, offline, past SEND_MS or refused by the browser; a session that
 // had ended, with a way to sign in again; otherwise its status, time and request, a 429's wait, and a
-// refusal's code and message, then its headers in a table and its body: JSON in its colours, text as
-// text, or "No content". A status region says the answer as it arrives. It draws again only when the
-// answer changes, not as the form is typed in, as a long answer's colours take a while.
+// refusal's code and message, then its body: JSON in its colours, text as text, or "No content"; then
+// its headers, closed under their count, in a table. A status region says the answer as it arrives. It
+// draws again only when the answer changes, not as the form is typed in, as a long answer's colours
+// take a while.
 const AnswerSection = memo(function AnswerSection({ answer }: { answer: Answer | null }) {
   const said =
     answer?.state === 'answered'
@@ -862,30 +891,6 @@ function Answered({ answer }: { answer: Extract<Answer, { state: 'answered' }> }
           </div>
         )
       )}
-      <Section id="pg-headers-h" level={3} title="Headers">
-        <ScrollTable label="Answer headers">
-          <table className="w-full type-caption">
-            <thead className="text-muted-foreground">
-              <tr className="border-b">
-                <th scope="col" className="py-1.5 pr-4 text-left font-normal">
-                  Name
-                </th>
-                <th scope="col" className="py-1.5 text-left font-normal">
-                  Value
-                </th>
-              </tr>
-            </thead>
-            <tbody className="font-mono" translate="no">
-              {answer.headers.map(([name, value], i) => (
-                <tr key={i} className="border-b">
-                  <td className="py-1.5 pr-4 align-top whitespace-nowrap">{name}</td>
-                  <td className="py-1.5 align-top wrap-anywhere">{value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ScrollTable>
-      </Section>
       <Section
         id="pg-body-h"
         level={3}
@@ -910,6 +915,31 @@ function Answered({ answer }: { answer: Extract<Answer, { state: 'answered' }> }
           <p className="type-caption text-muted-foreground">Shown without its colours, as it’s over 200 KB.</p>
         )}
       </Section>
+      {/* Closed, so the body, what the request was sent for, isn't under the many lines a CDN's headers wrap to. */}
+      <Fold summary={`Headers · ${answer.headers.length}`} data-headers>
+        <ScrollTable label="Answer headers" className="mt-2">
+          <table className="w-full type-caption">
+            <thead className="text-muted-foreground">
+              <tr className="border-b">
+                <th scope="col" className="py-1.5 pr-4 text-left font-normal">
+                  Name
+                </th>
+                <th scope="col" className="py-1.5 text-left font-normal">
+                  Value
+                </th>
+              </tr>
+            </thead>
+            <tbody className="font-mono" translate="no">
+              {answer.headers.map(([name, value], i) => (
+                <tr key={i} className="border-b">
+                  <td className="py-1.5 pr-4 align-top whitespace-nowrap">{name}</td>
+                  <td className="py-1.5 align-top wrap-anywhere">{value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollTable>
+      </Fold>
     </>
   )
 }
