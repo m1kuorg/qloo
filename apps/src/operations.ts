@@ -27,7 +27,7 @@ import type { Band, FitRow, PitchList, Ranking } from './fit'
 import { globalGateway, type Usage } from './gateway'
 import type { Inbox, PastGuest, Pitch, PitchInput, PitchReply, Skipped } from './inbox'
 import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
-import type { Lean, ListenerProfile } from './listeners'
+import { rosterRows, type Lean, type ListenerProfile, type ListenerStatus } from './listeners'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
 import { closePairs, closestCount, entityShows, isStale, rosterEntities, type Entity, type Overlap } from './overlap'
 import { Refusal } from './refusal'
@@ -234,7 +234,7 @@ export type RosterListeners = {
   shows: ListenerShow[]
 }
 export type ListenerShow = NamedShow & {
-  status: 'unprofiled' | 'profiling' | 'profiled' | 'missing' // missing: Qloo has no listener profile for it
+  status: ListenerStatus // missing: Qloo has no listener profile for it
   lean: Lean | null
 }
 
@@ -253,25 +253,12 @@ export async function profileListeners({ env, network }: OperationContext): Prom
 
 function listenersOf({ roster, listenerProfile: profile }: State): RosterListeners {
   const named = namer(roster)
-  const asked = new Set(profile?.key.split(','))
-  const rows = new Map(profile?.rows.map((r) => [r.entity.id, r]))
-  const show = (entity: Entity): ListenerShow => {
-    const row = rows.get(entity.id)
-    const status = row
-      ? row.lean
-        ? 'profiled'
-        : 'missing'
-      : profile?.status === 'profiling' && asked.has(entity.id)
-        ? 'profiling'
-        : 'unprofiled'
-    return { ...named(entity), status, lean: row?.lean ?? null }
-  }
   return {
     status: profile?.status ?? 'unprofiled',
     error: profile?.error ?? null,
     profiledAt: profile?.profiledAt ?? null,
     stale: profile ? isStale(profile, roster) : false,
-    shows: [...entityShows(roster).values()].map((e) => show(e.entity))
+    shows: rosterRows(roster, profile).map(({ entity, status, lean }) => ({ ...named(entity), status, lean }))
   }
 }
 

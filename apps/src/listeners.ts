@@ -7,7 +7,7 @@
 import type { Show } from './agent'
 import { AGE_BUCKETS, ageWords, demographic, MISMATCH, round, skewOf } from './demographics'
 import type { Demographics } from './gateway'
-import { entityKey, rosterEntities, tooFew, type Entity } from './overlap'
+import { entityKey, entityShows, rosterEntities, tooFew, type Entity } from './overlap'
 import { listOf } from './text'
 
 // One show's leans, each rounded to Qloo's three places: by age bucket, as AGE_BUCKETS names them, and
@@ -62,30 +62,81 @@ export function rowsOf(entities: Entity[], { profiles }: Demographics): Listener
 // above 0, youngest first; and the gender it leans toward, once that lean reaches the check's skew threshold.
 export const counted = ({ age, male }: Lean) => ({ ages: AGE_BUCKETS.filter((b) => age[b] > 0), skew: skewOf(male) })
 
-// The profile's finding, counted over the rows Qloo has a profile for, each show named by `name`: the age
-// bands and the gender that most of them lean toward, as the demographic check takes most (MISMATCH.most),
-// and the shows that lean differently, toward none of those bands or toward the other gender.
-export function listenerFinding<R extends { lean: Lean | null }>(rows: R[], name: (row: R) => string) {
-  const profiled = rows.flatMap((r) => (r.lean ? [{ row: r, ...counted(r.lean) }] : []))
-  if (profiled.length === 0) return 'Qloo has no listener profile for any of these shows.'
+// What the profile has for a show: its leans (profiled), none from Qloo (missing), its call still out
+// (profiling), or nothing, as for a show the latest profile didn't ask or one that failed (unprofiled).
+export type ListenerStatus = 'unprofiled' | 'profiling' | 'profiled' | 'missing'
+
+// The roster's matched shows as the profile reads them, in roster order: each Qloo show once, with its
+// shows on the roster, its first naming it (entityShows), and what the profile has for it. A row the
+// profile kept for a show that has left the roster isn't among them. The Listeners tab and programs read
+// the profile through this, so the two always agree.
+export function rosterRows(roster: Show[], profile: ListenerProfile | undefined) {
+  const rows = new Map(profile?.rows.map((r) => [r.entity.id, r]))
+  const asked = new Set(profile?.key.split(','))
+  return [...entityShows(roster).values()].map(({ entity, shows }) => {
+    const row = rows.get(entity.id)
+    const status: ListenerStatus = row
+      ? row.lean
+        ? 'profiled'
+        : 'missing'
+      : profile?.status === 'profiling' && asked.has(entity.id)
+        ? 'profiling'
+        : 'unprofiled'
+    return { entity, shows, status, lean: row?.lean ?? null }
+  })
+}
+
+// A row the finding reads: what the profile has for a show, in roster order.
+type Answered = { status: ListenerStatus; lean: Lean | null }
+
+// What the profile finds over the rows its call answered, profiled or missing: the age bands and the
+// gender that most of the shows Qloo has a profile for lean toward, as the demographic check takes most
+// (MISMATCH.most), and, in roster order, the rows of the shows that lean differently, toward none of those
+// bands or toward the other gender.
+export function listenerShape<R extends Answered>(rows: R[]) {
+  const answered = rows.filter((r) => r.status === 'profiled' || r.status === 'missing')
+  const profiled = answered.flatMap((r) => (r.lean ? [{ row: r, ...counted(r.lean) }] : []))
   const most = (n: number) => n > profiled.length * MISMATCH.most
   const ages = AGE_BUCKETS.filter((b) => most(profiled.filter((p) => p.ages.includes(b)).length))
   const skew = (['male', 'female'] as const).find((s) => most(profiled.filter((p) => p.skew === s).length)) ?? null
-  const toward = [
-    ...(ages.length ? [`listeners aged ${listOf(ages.map(ageWords))}`] : []),
-    ...(skew ? [`${skew} listeners`] : [])
-  ].join(', and toward ')
-  if (profiled.length === 1)
-    return `Qloo has a listener profile for ${name(profiled[0].row)} alone, which leans toward ${toward || 'no age band or gender'}.`
-  const shows = `the ${profiled.length} shows${profiled.length < rows.length ? ' Qloo has a profile for' : ''}`
-  if (!toward) return `No age band or gender is one most of ${shows} lean toward.`
-  const apart = profiled.filter(
-    (p) => (ages.length > 0 && !ages.some((b) => p.ages.includes(b))) || (skew && p.skew && p.skew !== skew)
-  )
+  const apart = profiled
+    .filter((p) => (ages.length > 0 && !ages.some((b) => p.ages.includes(b))) || (skew && p.skew && p.skew !== skew))
+    .map((p) => p.row)
+  return { answered: answered.length, profiled: profiled.map((p) => p.row), ages, skew, apart }
+}
+
+// The most shows the finding names as leaning differently; the rest it counts, and their rows say it.
+export const NAMED_APART = 3
+
+// The profile's finding in one sentence, over the rows its call answered (listenerShape), each show named by
+// `name`: the age bands and the gender most of the shows Qloo has a profile for lean toward, and up to
+// NAMED_APART of the shows that lean differently, in roster order, with how many more. Two shows lean
+// "both", and one alone is named.
+export function listenerFinding<R extends Answered>(rows: R[], name: (row: R) => string) {
+  const { answered, profiled, ages, skew, apart } = listenerShape(rows)
+  const aged = ages.length > 0 && `listeners aged ${listOf(ages.map(ageWords))}`
+  if (profiled.length === 0) return 'Qloo has no listener profile for any of these shows.'
+  if (profiled.length === 1) {
+    const leans = [aged && `leans toward ${aged}`, skew && `leans ${skew}`].filter(Boolean)
+    return `Qloo has a listener profile for ${name(profiled[0])} alone, which ${leans.length ? leans.join(' and ') : 'leans toward no age band or gender'}.`
+  }
+  const both = profiled.length === 2
+  const partial = profiled.length < answered ? ' Qloo has a profile for' : ''
+  const shows = both ? `both shows${partial}` : `most of the ${profiled.length} shows${partial}`
+  if (!aged && !skew) return `No age band or gender is a lean ${shows} share.`
+  const subject = shows[0].toUpperCase() + shows.slice(1)
+  const which = both ? 'both' : 'most'
+  const leans = [aged && `lean toward ${aged}`, skew && `${aged ? `${which} ` : ''}lean ${skew}`]
+    .filter(Boolean)
+    .join(', and ')
+  // Two shows can't lean differently: whatever both lean toward, each does.
+  if (both) return `${subject} ${leans}.`
+  const named = apart.slice(0, NAMED_APART).map(name)
+  const more = apart.length - named.length
   const differ = apart.length
-    ? `${listOf(apart.map((p) => name(p.row)))} ${apart.length === 1 ? 'leans' : 'lean'} differently`
+    ? `${listOf([...named, ...(more > 0 ? [`${more} more`] : [])])} ${apart.length === 1 ? 'leans' : 'lean'} differently`
     : 'none leans differently'
-  return `Most of ${shows} lean toward ${toward}; ${differ}.`
+  return `${subject} ${leans}; ${differ}.`
 }
 
 // One show's leans in words, with their figures, as the MCP server gives them: the age bands it leans
@@ -96,7 +147,7 @@ export function leanWords(lean: Lean) {
     ? `leans toward listeners aged ${listOf(ages.map((b) => `${ageWords(b)} (${demographic(lean.age[b])})`))}`
     : 'leans toward no age band'
   const gender = skew
-    ? `it leans ${skew} (${demographic(lean.male)})`
+    ? `its listeners lean ${skew} (${demographic(lean.male)})`
     : `its gender lean, ${demographic(lean.male)}, is too slight to count`
   return `${aged}; ${gender}`
 }

@@ -370,7 +370,7 @@ describe("the roster's listener profile through the MCP server", () => {
     fakeDemographics([
       listeners('e-0001', [-0.1, 0.2, 0.15, 0.05, -0.1, -0.2], 0.25),
       listeners('e-0501', [-0.2, 0.1, 0.12, -0.05, -0.1, -0.1], 0.3),
-      listeners('e-0502', [0.1, 0.05, -0.02, -0.1, 0, 0.2], -0.15)
+      listeners('e-0502', [0.1, -0.05, -0.02, -0.1, 0, 0.2], -0.15)
     ])
     const { network, call, secret } = await networkWithKey()
     const client = assistant(secret)
@@ -396,10 +396,10 @@ describe("the roster's listener profile through the MCP server", () => {
     expect(read.text).toBe(
       [
         `The roster's listener profile, made ${read.structured.profiledAt}: each show's leans by age band and gender, relative to the average in Qloo, which describe listeners, not people.`,
-        'Most of the 3 shows Qloo has a profile for lean toward listeners aged 25 to 29 and 30 to 34, and toward male listeners; none leans differently.',
-        '- Night Shift Cinema: leans toward listeners aged 25 to 29 (+0.200), 30 to 34 (+0.150), and 35 to 44 (+0.050); it leans male (+0.250).',
-        '- Corner Booth: leans toward listeners aged 25 to 29 (+0.100) and 30 to 34 (+0.120); it leans male (+0.300).',
-        '- Slow Burn: leans toward listeners aged 24 and younger (+0.100), 25 to 29 (+0.050), and 55 and older (+0.200); its gender lean, \u22120.150, is too slight to count.',
+        'Most of the 3 shows Qloo has a profile for lean toward listeners aged 25 to 29 and 30 to 34, and most lean male; Slow Burn leans differently.',
+        '- Night Shift Cinema: leans toward listeners aged 25 to 29 (+0.200), 30 to 34 (+0.150), and 35 to 44 (+0.050); its listeners lean male (+0.250).',
+        '- Corner Booth: leans toward listeners aged 25 to 29 (+0.100) and 30 to 34 (+0.120); its listeners lean male (+0.300).',
+        '- Slow Burn: leans toward listeners aged 24 and younger (+0.100) and 55 and older (+0.200); its gender lean, \u22120.150, is too slight to count. It leans differently from most.',
         '- Ghost Signal Radio: no listener profile in Qloo.'
       ].join('\n')
     )

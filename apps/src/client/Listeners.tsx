@@ -5,18 +5,19 @@ import type { Show } from '../agent'
 import { AGE_BUCKETS, ageWords, MISMATCH, round } from '../demographics'
 import {
   listenerFinding,
+  listenerShape,
+  rosterRows,
   toProfile,
   tooFewToProfile,
   type Lean,
-  type ListenerProfile,
-  type ListenerRow
+  type ListenerProfile
 } from '../listeners'
-import { entityShows, isStale, MIN_OVERLAP_ENTITIES, type Entity } from '../overlap'
+import { isStale, MIN_OVERLAP_ENTITIES } from '../overlap'
 import { clock, day, demographic, ScrollTable, useAction } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
 import type { NetworkConnection } from './NetworkPage'
-import { AnalysisAction, AnalysisShow, heldShow } from './Overlap'
 import { count, Section } from './PageHeader'
+import { AnalysisAction, AnalysisShow, heldShow } from './RosterAnalysis'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
 
@@ -24,9 +25,9 @@ import { sentence, StateLine } from './states'
 // demographics call (listeners.ts). Its sentence is the finding in words, or the state it's in: too few
 // shows matched, not profiled yet, profiling, or failed, in a status region, with the call beside it once
 // it has answered. Then what's stale, the action with what it may spend, and the table, in the roster's
-// order: each show's leans by age band and gender as ink bars either side of zero, labelled with their
-// signed figures. Polarity shows by position and sign, never by hue, and nothing on it is signal orange,
-// since it's Qloo's measure, not a proposal. A teammate's profile arrives through synced state.
+// order: each show's leans by age band and gender as bars either side of zero, labelled with their signed
+// figures. Polarity shows by position and sign, never by hue, and nothing on it is signal orange, since
+// it's Qloo's measure, not a proposal. A teammate's profile arrives through synced state.
 export function ListenersSection({
   agent,
   roster,
@@ -43,27 +44,26 @@ export function ListenersSection({
   // The section's heading, which takes focus from the action, as the action goes with the profile it starts.
   const heading = useRef<HTMLHeadingElement>(null)
   const { busy, error, run } = useAction()
-  const onRoster = entityShows(roster)
-  const few = onRoster.size < MIN_OVERLAP_ENTITIES
+  // The roster's matched shows in its order, with what the profile has for each, as programs read them.
+  const rows = rosterRows(roster, profile)
+  const few = rows.length < MIN_OVERLAP_ENTITIES
   // What a profile would ask now: one call, or none with the roster's matched shows unchanged since one landed.
   const { calls } = toProfile(roster, profile)
   const profiling = profile?.status === 'profiling'
   const stale = profile !== undefined && isStale(profile, roster)
-  // A Qloo show by its first show on the roster, or as Qloo names it once none is.
-  const name = (e: Entity) => onRoster.get(e.id)?.shows[0].name ?? e.name
   const start = async () => {
     if (await run(() => agent.stub.profileListeners())) heading.current?.focus()
   }
   const state = profiling ? (
     <StateLine kind="loading">{`Profiling the listeners of ${count(profile.key.split(',').length, 'show')}.`}</StateLine>
   ) : few ? (
-    <StateLine kind="empty">{tooFewToProfile(onRoster.size)}</StateLine>
+    <StateLine kind="empty">{tooFewToProfile(rows.length)}</StateLine>
   ) : !profile ? (
     <StateLine kind="empty">The roster’s listeners haven’t been profiled yet.</StateLine>
   ) : profile.status === 'failed' ? (
     <StateLine kind="failed">{sentence(profile.error ?? 'The profile failed.')}</StateLine>
   ) : (
-    listenerFinding(profile.rows, (r: ListenerRow) => name(r.entity))
+    listenerFinding(rows, (r) => r.shows[0].name)
   )
   return (
     <Section
@@ -107,7 +107,7 @@ export function ListenersSection({
         />
       )}
       {(profile?.status === 'profiled' || profiling) && (!few || profiling) && (
-        <ListenersTable profile={profile} onRoster={onRoster} />
+        <ListenersTable profile={profile} rows={rows} />
       )}
     </Section>
   )
@@ -116,10 +116,11 @@ export function ListenersSection({
 // The profile as a real table, in the roster's order: one row per Qloo show, named by its first show on
 // the roster, as the overlap's table names it; then a column per age band, youngest first, and one for
 // gender, the lean toward male listeners, since Qloo's lean toward female ones is always its negative.
-// Narrower than the table, it scrolls sideways in its region with the show's column held at the left.
-function ListenersTable({ profile, onRoster }: { profile: ListenerProfile; onRoster: ReturnType<typeof entityShows> }) {
-  const rows = new Map(profile.rows.map((r) => [r.entity.id, r]))
-  const asked = new Set(profile.key.split(','))
+// Narrower than the table, it scrolls sideways in its region with the show's column held at the left, so
+// what a row says in words, a show that leans differently from most, or one with no leans to show, stands
+// under its name there.
+function ListenersTable({ profile, rows }: { profile: ListenerProfile; rows: ReturnType<typeof rosterRows> }) {
+  const { apart } = listenerShape(rows)
   // One scale for every bar, so a bar's length compares across shows and bands: the largest lean, up to
   // the next tenth, and never under 0.3, so the gender zone's ±0.2 stands inside it. It's in tenths, so a
   // bar's width is a figure of three places times a whole number, free of float noise.
@@ -159,15 +160,14 @@ function ListenersTable({ profile, onRoster }: { profile: ListenerProfile; onRos
             </tr>
           </thead>
           <tbody>
-            {[...onRoster.values()].map(({ entity, shows }) => {
-              const row = rows.get(entity.id)
-              const state = row
-                ? row.lean
-                  ? 'profiled'
-                  : 'missing'
-                : profile.status === 'profiling' && asked.has(entity.id)
-                  ? 'profiling'
-                  : 'unprofiled'
+            {rows.map((row) => {
+              const { entity, shows, status: state, lean } = row
+              const note = {
+                profiled: apart.includes(row) ? 'Leans differently' : undefined,
+                missing: 'No listener profile in Qloo.',
+                unprofiled: 'Not profiled yet',
+                profiling: undefined
+              }[state]
               return (
                 <tr
                   key={entity.id}
@@ -175,9 +175,9 @@ function ListenersTable({ profile, onRoster }: { profile: ListenerProfile; onRos
                   data-state={state}
                   aria-busy={state === 'profiling' || undefined}
                 >
-                  <AnalysisShow entity={entity} shows={shows} />
+                  <AnalysisShow entity={entity} shows={shows} note={note} />
                   {state === 'profiled' ? (
-                    <LeanCells lean={row!.lean!} scale={scale} />
+                    <LeanCells lean={lean!} scale={scale} />
                   ) : state === 'profiling' ? (
                     AGE_BUCKETS.concat('male').map((b, i) => (
                       <td key={b} className="border-b px-3 py-3 align-top">
@@ -189,10 +189,9 @@ function ListenersTable({ profile, onRoster }: { profile: ListenerProfile; onRos
                       </td>
                     ))
                   ) : (
-                    <td colSpan={AGE_BUCKETS.length + 1} className="border-b py-3 pl-3 align-top">
-                      <span className="text-muted-foreground">
-                        {state === 'missing' ? 'No listener profile in Qloo.' : 'Not profiled yet'}
-                      </span>
+                    // Its words stand under its name; screen readers hear the cells hold nothing, not "blank".
+                    <td colSpan={AGE_BUCKETS.length + 1} className="border-b">
+                      <span className="vh">None</span>
                     </td>
                   )}
                 </tr>
@@ -223,11 +222,12 @@ const LeanCells = ({ lean, scale }: { lean: Lean; scale: number }) => (
   </>
 )
 
-// One lean as an ink bar left or right of a zero line, its length the lean's size on the table's `scale`
-// (in tenths, so half the cell is that many tenths),
-// under its signed figure in the demographic format, centred over the line, so a column's figures align.
-// With `zone`, the gender column's, the tone-step zone of ±zone around the line is
-// drawn under the bar, and screen readers hear which way it leans, and whether that counts.
+// One lean as a bar left or right of a zero line, its length the lean's size on the table's `scale` (in
+// tenths, so half the cell is that many tenths), under its signed figure in the demographic format,
+// centred over the line, so a column's figures align. A lean toward a group, above average, is in ink, as
+// the finding is about those; one away from it is in secondary ink, a tone, never a hue. With `zone`, the
+// gender column's, the tone-step zone of ±zone around the line is drawn under the bar, and screen readers
+// hear which way it leans, and whether that counts.
 function LeanCell({ value, scale, zone }: { value: number; scale: number; zone?: number }) {
   const lean = round(value)
   const half = (x: number) => `${Math.min(Math.abs(x) * 500, scale * 50) / scale}%`
@@ -258,8 +258,8 @@ function LeanCell({ value, scale, zone }: { value: number; scale: number; zone?:
           {lean !== 0 && (
             <span
               className={cn(
-                'absolute inset-y-0.5 bg-foreground',
-                lean > 0 ? 'left-1/2 rounded-r-[2px]' : 'right-1/2 rounded-l-[2px]'
+                'absolute inset-y-0.5',
+                lean > 0 ? 'left-1/2 rounded-r-[2px] bg-foreground' : 'right-1/2 rounded-l-[2px] bg-muted-foreground'
               )}
               style={{ width: half(lean) }}
             />

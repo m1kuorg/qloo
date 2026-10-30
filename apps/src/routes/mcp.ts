@@ -57,7 +57,7 @@ import {
   type RosterListeners,
   type RosterOverlap
 } from '../operations'
-import { leanWords, listenerFinding } from '../listeners'
+import { leanWords, listenerFinding, listenerShape } from '../listeners'
 import { dollars } from '../order'
 import { MIN_OVERLAP_ENTITIES } from '../overlap'
 import { Refusal, refusalCode } from '../refusal'
@@ -552,15 +552,18 @@ function listenersText(listeners: RosterListeners) {
     lines.push(
       "The roster's matched shows have changed since its listeners were profiled: profile them again with profile_listeners."
     )
-  // The finding over the shows the latest profile answered for, named as the rows are.
-  const answered = listeners.shows.filter((s) => s.status === 'profiled' || s.status === 'missing')
-  if (answered.length) lines.push(listenerFinding(answered, (s) => s.show))
+  // The finding, worded as the Listeners tab words it, over the shows the latest profile answered for, in
+  // roster order; each show that leans differently says so in its own line, as its row does, since the
+  // finding names only a few.
+  if (listeners.shows.some((s) => s.status === 'profiled' || s.status === 'missing'))
+    lines.push(listenerFinding(listeners.shows, (s) => s.show))
+  const { apart } = listenerShape(listeners.shows)
   for (const show of listeners.shows) {
     const what = {
       unprofiled: 'not profiled.',
       profiling: 'being profiled.',
       missing: 'no listener profile in Qloo.',
-      profiled: show.lean && `${leanWords(show.lean)}.`
+      profiled: show.lean && `${leanWords(show.lean)}.${apart.includes(show) ? ' It leans differently from most.' : ''}`
     }[show.status]
     lines.push(`- ${overlapName(show)}: ${what}`)
   }

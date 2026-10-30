@@ -17,11 +17,14 @@ import type { RosterListeners } from '../src/operations'
 import { fakeDemographics, fakeQloo, requests, type Demographic } from './fake'
 import { hooked, networkWithKey, openMember, poll, sections, tabsOf, type Session } from './session'
 
-// Made-up shows, each its own Qloo entity, and Paper Trail, which Qloo has no match for until it's mapped.
+// Made-up shows, each its own Qloo entity, and Paper Trail, which Qloo has no match for until it's mapped;
+// and three more, for rosters where several shows lean differently.
 const names = ['Deep Cuts', 'Signal Boost', 'Field Notes', 'Corner Booth', 'Slow Burn', 'Night Ferry']
-const id = (name: string) => `e-000${names.indexOf(name) + 1}`
+const more = ['Tide Tables', 'Low Orbit', 'Back Room']
+const id = (name: string) =>
+  more.includes(name) ? `e-001${more.indexOf(name) + 1}` : `e-000${names.indexOf(name) + 1}`
 const search = {
-  ...Object.fromEntries(names.map((n) => [n, [{ entity_id: id(n), name: n, popularity: 0.5 }]])),
+  ...Object.fromEntries([...names, ...more].map((n) => [n, [{ entity_id: id(n), name: n, popularity: 0.5 }]])),
   'Paper Trail': [],
   'Paper Trail Weekly': [{ entity_id: 'e-0008', name: 'Paper Trail Weekly', popularity: 0.4 }]
 }
@@ -471,7 +474,7 @@ describe("the roster page's Listeners tab", () => {
     expect(sections(tab(state))).toEqual([
       [
         heading,
-        'Most of the 5 shows Qloo has a profile for lean toward listeners aged 25 to 29 and 30 to 34, and toward male listeners; Corner Booth leans differently. C-09'
+        'Most of the 5 shows Qloo has a profile for lean toward listeners aged 25 to 29 and 30 to 34, and most lean male; Corner Booth leans differently. C-09'
       ]
     ])
     expect(tab(state)).toMatch(
@@ -501,22 +504,30 @@ describe("the roster page's Listeners tab", () => {
     )
     expect(row(state, 'Night Ferry')).toContain('Left out')
     expect(row(state, 'Night Ferry')).toMatch(/\+0\.205 , leans male$/)
-    expect(row(state, 'Slow Burn')).toBe('Slow Burn No listener profile in Qloo.')
-    // A bar each, its side the lean's sign, its length the lean's size on one scale for the table, its
-    // largest lean, 0.312, up to 0.4; and the gender column's zone, ±0.2 on that scale.
+    // Its words stand under its name, in the column that stays in view as the table scrolls, and so does
+    // the row of the show the finding names as leaning differently.
+    expect(row(state, 'Slow Burn')).toBe('Slow Burn No listener profile in Qloo. None')
+    expect(row(state, 'Corner Booth')).toMatch(/^Corner Booth Leans differently −0\.302 /)
+    expect(hooked(tab(state), 'data-listener-row="Slow Burn"')[0]).toMatch(
+      /<th[^>]*>[\s\S]*No listener profile in Qloo\.[\s\S]*<\/th>/
+    )
+    // A bar each, its side the lean's sign and its tone too, ink for a lean toward, secondary ink for one
+    // away, its length the lean's size on one scale for the table, its largest lean, 0.312, up to 0.4; and
+    // the gender column's zone, ±0.2 on that scale.
     const bars = [
       ...hooked(tab(state), 'data-listener-row="Corner Booth"')[0].matchAll(
-        /<span class="([^"]*bg-foreground[^"]*)" style="width:([^"]+)"/g
+        /<span class="(absolute inset-y-0\.5 [^"]*)" style="width:([^"]+)"/g
       )
     ]
-    expect(bars.map(([, cls, width]) => [cls.includes('left-1/2') ? 'right' : 'left', width])).toEqual([
-      ['left', '37.75%'],
-      ['left', '14.375%'],
-      ['left', '2.5%'],
-      ['right', '17.875%'],
-      ['right', '20.25%'],
-      ['right', '11.375%'],
-      ['left', '28.25%']
+    const tone = (cls: string) => (cls.includes('bg-muted-foreground') ? 'secondary ink' : 'ink')
+    expect(bars.map(([, cls, width]) => [cls.includes('left-1/2') ? 'right' : 'left', tone(cls), width])).toEqual([
+      ['left', 'secondary ink', '37.75%'],
+      ['left', 'secondary ink', '14.375%'],
+      ['left', 'secondary ink', '2.5%'],
+      ['right', 'ink', '17.875%'],
+      ['right', 'ink', '20.25%'],
+      ['right', 'ink', '11.375%'],
+      ['left', 'secondary ink', '28.25%']
     ])
     expect(hooked(tab(state), 'data-zone')).toHaveLength(5)
     expect(hooked(tab(state), 'data-zone')[0]).toContain('left:calc(50% - 25%);width:calc(2 * 25%)')
@@ -556,6 +567,7 @@ describe("the roster page's Listeners tab", () => {
     held.resolve()
     const done = await theirs.until(profiled)
     expect(sections(tab(done))[0][1]).toMatch(/^Most of the 5 shows Qloo has a profile for lean toward /)
+    expect(row(done, 'Slow Burn')).toBe('Slow Burn No listener profile in Qloo. None')
   })
 
   it('says why a profile failed, offers to make it again, and what changed since', async () => {
@@ -568,14 +580,106 @@ describe("the roster page's Listeners tab", () => {
     expect(words(tab(failed))).toContain('Profile again Up to 1 Qloo call')
     expect(tab(failed)).not.toContain('data-listeners-table')
 
-    // Profiled, then the roster's matched shows change: it says so, and offers to profile them again.
+    // Profiled, then the roster's matched shows change: it says so, and offers to profile them again. Of the
+    // four, two lean male, which isn't most.
     fakeDemographics(demographics)
     await agent.call('profileListeners')
-    await agent.until((s) => s.listenerProfile?.status === 'profiled')
-    const grown = await agent.importRoster([...four, 'Night Ferry'].join('\n'))
-    expect(words(tab(grown))).toContain(
+    const four_ = await agent.until((s) => s.listenerProfile?.status === 'profiled')
+    expect(sections(tab(four_))[0][1]).toBe(
+      'Most of the 4 shows lean toward listeners aged 25 to 29 and 30 to 34; Corner Booth leans differently. C-06'
+    )
+    // Corner Booth leaves and Night Ferry joins: the finding counts the three still on the roster that the
+    // profile answered for, so Corner Booth no longer leans differently, and Night Ferry waits.
+    const changed = await agent.importRoster(['Deep Cuts', 'Signal Boost', 'Field Notes', 'Night Ferry'].join('\n'))
+    expect(sections(tab(changed))[0][1]).toBe(
+      'Most of the 3 shows lean toward listeners aged 25 to 29 and 30 to 34, and most lean male; none leans differently. C-06'
+    )
+    expect(words(tab(changed))).toContain(
       'The roster’s matched shows have changed since the listeners were profiled, so profile them again to read them as the roster is now. Profile again Up to 1 Qloo call'
     )
-    expect(row(grown, 'Night Ferry')).toBe('Night Ferry Not profiled yet')
+    expect(row(changed, 'Night Ferry')).toBe('Night Ferry Not profiled yet None')
+    expect(rowsOf(changed).map(([show]) => show)).toEqual(['Deep Cuts', 'Signal Boost', 'Field Notes', 'Night Ferry'])
+  })
+
+  // A roster of `shows`, profiled with `demographics`, as the page reads it.
+  async function profiledWith(shows: string[], answer: Demographic[]) {
+    fakeQloo({ search })
+    fakeDemographics(answer)
+    const { agent } = await network(shows)
+    await agent.call('profileListeners')
+    return agent.until(profiled)
+  }
+  // A show's made-up listeners: leaning `age` on 25 to 29 and `old` on 55 and older, -0.1 elsewhere, and
+  // `male` toward male listeners.
+  const leaning = (name: string, { age = -0.1, old = -0.1, male = 0 }) =>
+    listeners(name, [-0.1, age, -0.1, -0.1, -0.1, old], male)
+  const finding = (state: State) => sections(tab(state))[0][1].replace(/ C-\d+$/, '')
+
+  it('names up to three shows that lean differently, in the roster order, counts the rest, and marks each row', async () => {
+    // Five of nine lean toward 25 to 29; the other four, toward 55 and older; all lean male.
+    const toward = ['Deep Cuts', 'Signal Boost', 'Field Notes', 'Corner Booth', 'Slow Burn']
+    const away = ['Back Room', 'Low Orbit', 'Tide Tables', 'Night Ferry']
+    const roster = [
+      'Back Room',
+      'Low Orbit',
+      'Deep Cuts',
+      'Tide Tables',
+      'Signal Boost',
+      'Night Ferry',
+      ...toward.slice(2)
+    ]
+    const state = await profiledWith(roster, [
+      ...toward.map((n) => leaning(n, { age: 0.2, male: 0.3 })),
+      ...away.map((n) => leaning(n, { old: 0.2, male: 0.3 }))
+    ])
+    // In entity order the first three would be Night Ferry, Tide Tables and Low Orbit.
+    expect(finding(state)).toBe(
+      'Most of the 9 shows lean toward listeners aged 25 to 29, and most lean male; Back Room, Low Orbit, Tide Tables, and 1 more lean differently.'
+    )
+    expect(roster.filter((show) => row(state, show).startsWith(`${show} Leans differently `))).toEqual(away)
+  })
+
+  it('says when no age band or gender is a lean most shows share, and words two shows, one, and none', async () => {
+    // Each of four leans toward its own band, and none leans male or female past 0.2.
+    const own = (name: string, band: number, male: number) =>
+      listeners(name, [0, 1, 2, 3].map((i) => (i === band ? 0.2 : -0.1)).concat(-0.1, -0.1), male)
+    const apart = await profiledWith(four, [
+      own('Deep Cuts', 0, 0.1),
+      own('Signal Boost', 1, -0.1),
+      own('Field Notes', 2, 0.19),
+      own('Corner Booth', 3, -0.19)
+    ])
+    expect(finding(apart)).toBe('No age band or gender is a lean most of the 4 shows share.')
+    expect(apart.listenerProfile!.rows.every((r) => r.lean)).toBe(true)
+    expect(tab(apart)).not.toContain('Leans differently')
+
+    // Each roster below is a set of shows of its own, since the gateway's cache would answer the same
+    // demographics request with the first answer. Qloo has a profile for two of these four: both lean
+    // toward 25 to 29 and female.
+    const two = await profiledWith(
+      ['Deep Cuts', 'Signal Boost', 'Field Notes', 'Night Ferry'],
+      [leaning('Signal Boost', { age: 0.2, male: -0.4 }), leaning('Field Notes', { age: 0.3, male: -0.25 })]
+    )
+    expect(finding(two)).toBe(
+      'Both shows Qloo has a profile for lean toward listeners aged 25 to 29, and both lean female.'
+    )
+    expect(row(two, 'Deep Cuts')).toBe('Deep Cuts No listener profile in Qloo. None')
+
+    // For one alone, it names it.
+    const one = await profiledWith(
+      ['Deep Cuts', 'Signal Boost', 'Corner Booth', 'Night Ferry'],
+      [leaning('Corner Booth', { old: 0.2, male: 0.3 })]
+    )
+    expect(finding(one)).toBe(
+      'Qloo has a listener profile for Corner Booth alone, which leans toward listeners aged 55 and older and leans male.'
+    )
+
+    // For none, it says so, and each row says it under its name.
+    const others = ['Tide Tables', 'Low Orbit', 'Back Room', 'Slow Burn']
+    const none = await profiledWith(others, [])
+    expect(finding(none)).toBe('Qloo has no listener profile for any of these shows.')
+    expect(others.map((show) => row(none, show))).toEqual(
+      others.map((show) => `${show} No listener profile in Qloo. None`)
+    )
   })
 })
