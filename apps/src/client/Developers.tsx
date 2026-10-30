@@ -66,12 +66,16 @@ type NewKey = Pick<Made, 'id' | 'name'>
 // acts with, an owner creating one here and seeing it once, the steps for each assistant, the check that
 // sees the new key's first request, and what an assistant can do with it. From 1280px the first two are
 // a 384px column, sticky under the top bar, beside the rest, 384 + 24 + 928 = 1336 at 1440 and 384 + 24
-// + 768 = 1176 at 1280, so the steps never have less than 720px; under 1280px they stack. Every paragraph
-// keeps the 72ch measure, while the blocks, the picker and the lists take their column's width. Only
-// ShownOnce ever shows a key: no command, configuration or link holds one. The playground (#playground)
-// sends the REST API's operations, and loads them the first time its tab shows. Tests render it from the
-// props the server gave the page, and the playground from the OpenAPI document they give it (`openapi`);
-// `connection` is null until the agent's state arrives.
+// + 768 = 1176 at 1280, so the steps have at least the 720px they had alone; under 1280px they stack.
+// From 1600px the check and the tools, sticky too, stand beside the steps, which take three fifths of
+// what's left, 384 + 24 + 638 + 24 + 426 = 1496 at 1600 and 384 + 24 + 830 + 24 + 554 = 1816 at 1920, so
+// "Connected" shows while a member follows them, and a step's block, 618px at 1600, still holds the
+// 73-character line `claude mcp list` prints. Every paragraph keeps the 72ch measure, while the blocks,
+// the picker and the lists take their column's width. Only ShownOnce ever shows a key: no command,
+// configuration or link holds one. The playground (#playground) sends the REST API's operations, and
+// loads them the first time its tab shows. Tests render it from the props the server gave the page, and
+// the playground from the OpenAPI document they give it (`openapi`); `connection` is null until the
+// agent's state arrives.
 export function Developers({
   network,
   connection = { lost: null, reconnecting: false },
@@ -94,17 +98,21 @@ export function Developers({
         <Addresses network={network} mcp={mcp} api={api} />
         <KeySection network={network} owners={owners} made={made} onMade={setMade} />
       </div>
-      <div className="flex min-w-0 flex-col gap-12">
+      <div className="flex min-w-0 flex-col gap-12 min-[100rem]:grid min-[100rem]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] min-[100rem]:items-start min-[100rem]:gap-x-6">
         <Assistant mcp={mcp} />
-        {/* A new key starts a new wait, whose reads list it with the other keys in use. */}
-        <Check
-          key={made?.id}
-          network={network}
-          keys={listed}
-          awaited={made && { id: made.id, name: made.name }}
-          onKeys={setListed}
-        />
-        <Tools network={network} tools={tools} />
+        {/* From 1600px the check and the tools stay in view beside the steps, so "Connected" shows while a
+            member follows them, sticky, scrolling and inset as the setup column is, for the same reasons. */}
+        <div className="flex min-w-0 flex-col gap-12 min-[100rem]:sticky min-[100rem]:top-12 min-[100rem]:-mx-1 min-[100rem]:-mt-1 min-[100rem]:max-h-[calc(100svh-3rem)] min-[100rem]:overflow-y-auto min-[100rem]:px-1 min-[100rem]:pt-1 min-[100rem]:pb-6">
+          {/* A new key starts a new wait, whose reads list it with the other keys in use. */}
+          <Check
+            key={made?.id}
+            network={network}
+            keys={listed}
+            awaited={made && { id: made.id, name: made.name }}
+            onKeys={setListed}
+          />
+          <Tools network={network} tools={tools} />
+        </div>
       </div>
     </div>
   )
