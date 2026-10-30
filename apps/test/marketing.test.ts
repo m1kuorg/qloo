@@ -837,6 +837,63 @@ describe('a page that is not there', () => {
     const res = await exports.default.fetch(`${origin}${path}`, init)
     return { status: res.status, type: res.headers.get('content-type'), body: await res.text() }
   }
+  // The page's text as it reads, with the isolation around an address it echoes (<bdi>) taken out, so
+  // the punctuation after the address follows it as it does on the screen.
+  const read = (html: string) => words(html.replace(/<\/?bdi\b[^>]*>/g, ''))
+  // The 404 page's ranking of Crossfeed's own pages against the address asked for, as markup: the
+  // section its heading names.
+  const ranking = (html: string) => {
+    const section = html.split(/(?=<section\b)/).find((s) => words(s).includes('Closest on the roster')) ?? ''
+    return section.slice(0, section.indexOf('</section>'))
+  }
+  // The ranking's rows, closest first: where each goes, and whether it's marked the closest.
+  const rows = (html: string) =>
+    [...ranking(html).matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(([, href, text]) => ({
+      href,
+      closest: words(text).includes('Closest')
+    }))
+
+  it('ranks the pages closest to the address asked for, at most three, the closest first and marked', async () => {
+    const res = await answer('/docs/ap', browser)
+    expect([res.status, res.type]).toEqual([404, expect.stringMatching(/^text\/html/)])
+    expect(read(main(res.body))).toContain(
+      'Not on the roster. Crossfeed has no page at /docs/ap. The link may be mistyped, or what it led to was deleted.'
+    )
+    const ranked = rows(res.body)
+    expect(ranked[0]).toEqual({ href: '/docs/api', closest: true })
+    expect(ranked.length).toBeLessThanOrEqual(3)
+    expect(ranked.slice(1).filter((row) => row.closest)).toEqual([])
+    // The address itself, under the rows, as what it is.
+    expect(read(ranking(res.body))).toContain('/docs/ap: not on the roster')
+  })
+
+  it('ranks the ways in among the pages while accounts are on', async () => {
+    expect(rows((await answer('/sign-on', browser)).body)[0]).toEqual({ href: '/sign-in', closest: true })
+  })
+
+  it('lists no page when none is close to the address, and says so', async () => {
+    for (const path of ['/xyz', '/login']) {
+      const res = await answer(path, browser)
+      expect(res.status, path).toBe(404)
+      expect(rows(res.body), path).toEqual([])
+      expect(read(ranking(res.body)), path).toContain(
+        `Nothing on the roster is close to that address. ${path}: not on the roster`
+      )
+    }
+  })
+
+  it('shows the address as it was asked when it is not valid percent-encoding', async () => {
+    const res = await answer('/%E0%A4%A', browser)
+    expect([res.status, res.type]).toEqual([404, expect.stringMatching(/^text\/html/)])
+    expect(read(main(res.body))).toContain('Crossfeed has no page at /%E0%A4%A.')
+  })
+
+  it('cuts a long address to 80 characters on the page', async () => {
+    const res = await answer(`/${'a'.repeat(1999)}`, browser)
+    expect([res.status, res.type]).toEqual([404, expect.stringMatching(/^text\/html/)])
+    expect(read(main(res.body))).toContain(`Crossfeed has no page at /${'a'.repeat(78)}….`)
+    expect(main(res.body)).not.toContain('a'.repeat(79))
+  })
 
   it('shows a browser the 404 page in the marketing shell, with ways back', async () => {
     env.GUEST_PITCHES = 'off'
@@ -858,7 +915,8 @@ describe('a page that is not there', () => {
 
   it('links nowhere behind accounts while they are off, as their pages are 404 then too', async () => {
     env.ACCOUNTS = 'off'
-    for (const path of ['/no-such-page', '/app/new', '/sign-in']) {
+    // The last ranks Sign in first while accounts are on (above).
+    for (const path of ['/no-such-page', '/app/new', '/sign-in', '/sign-on']) {
       const res = await answer(path, browser)
       expect(res.status, path).toBe(404)
       expect(words(main(res.body)), path).toContain('Not on the roster.')

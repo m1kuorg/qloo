@@ -500,7 +500,9 @@ const IndexRow = ({ caption, children }: { caption: Child; children: Child }) =>
     <p class="max-w-[46ch] text-pretty text-muted-foreground lg:col-span-5 lg:col-start-8 lg:max-w-none">{caption}</p>
   </li>
 )
-const DOCS = [
+// The developer docs' pages under Developers, each with its name and a line on what's there: the footer
+// indexes them while accounts are off, and the 404 page ranks them among the site's pages (routes/marketing).
+export const DOCS = [
   {
     href: '/docs/api',
     label: 'REST API',
