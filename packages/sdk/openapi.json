@@ -1307,6 +1307,38 @@
             },
             "description": "One per work type, once the pitches are ranked."
           },
+          "pitchRanking": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ranking",
+                  "ranked",
+                  "failed"
+                ]
+              },
+              "order": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Pitch IDs by what each pitch says, most on-topic first."
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "order",
+              "error"
+            ],
+            "description": "The pitches ranked by what they say, from each one's subject and opening, the show's name and the past guests' works, with no Qloo data; `failed` with the reason in `error`. Absent on runs from before it."
+          },
           "replies": {
             "type": [
               "array",
@@ -1360,6 +1392,15 @@
           "closing": null,
           "pastGuests": [],
           "lists": null,
+          "pitchRanking": {
+            "status": "ranked",
+            "order": [
+              "pitch-02",
+              "pitch-01",
+              "pitch-03"
+            ],
+            "error": null
+          },
           "replies": null,
           "repliesEdited": false
         }
@@ -1499,6 +1540,14 @@
                 },
                 "sharedTags": {
                   "$ref": "#/components/schemas/SharedTags"
+                },
+                "pitchRank": {
+                  "type": "integer",
+                  "description": "Its rank by what its pitch says among this list's pitches, once `pitchRanking` is `ranked`; absent on runs from before it."
+                },
+                "move": {
+                  "type": "integer",
+                  "description": "Pitch rank minus its work's rank in this list, so a pitch who listens lifts climbs; with `pitchRank`."
                 }
               },
               "required": [

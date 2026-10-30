@@ -127,6 +127,9 @@ The book, show, film, or podcast a pitched guest is promoting; the only thing ab
 **Verdict**:
 A booker's decision on a pitch: book, decline, or later.
 
+**Pitch ranking**:
+Claude's ranking of a pitch run's pitches by what each pitch says, from its subject and opening alone, never its sender, with no Qloo data: what the publicists' own words would pick, set beside who listens.
+
 ## Trust
 
 **Evidence**:

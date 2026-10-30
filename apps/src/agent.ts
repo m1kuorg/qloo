@@ -4,7 +4,7 @@ import { claude, declined } from './claude'
 import type { DemographicCheck } from './demographics'
 import { CALL, callNumber, type CallEvidence, type Evidence } from './evidence'
 import { pitchReader } from './extract'
-import { finalistsOf, markFinalists, notScorable, rankable, scorable, type Ranking } from './fit'
+import { finalistsOf, markFinalists, notScorable, rankable, scorable, withPitchMoves, type Ranking } from './fit'
 import { blankEvidence, globalGateway, IN_FLIGHT, REQUESTS, type QlooGateway, type QlooResult } from './gateway'
 import {
   qlooType,
@@ -19,6 +19,7 @@ import {
   type WorkMatch
 } from './inbox'
 import { inProgress, MAX_COMPS, MAX_QLOO_CALLS, MAX_TURNS } from './limits'
+import { pitchRequest, rankByPitch, type PitchRanking } from './pitch-ranking'
 import {
   angleOf,
   cpmProblem,
@@ -338,6 +339,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     this.sql`CREATE TABLE IF NOT EXISTS paused (run TEXT PRIMARY KEY, assistant TEXT, results TEXT)`
     // Topic baselines by a hash of their request, so the same launch and roster rank the same way.
     this.sql`CREATE TABLE IF NOT EXISTS topic_baselines (key TEXT PRIMARY KEY, ranking TEXT)`
+    // Pitch rankings by a hash of their request, as topic baselines are.
+    this.sql`CREATE TABLE IF NOT EXISTS pitch_rankings (key TEXT PRIMARY KEY, ranking TEXT)`
     // A run is kept alive while its loop runs, so one still running at startup lost its loop.
     const run = this.state.run
     if (run?.status === 'running') this.finish(run.id, 'The run was interrupted. Start it again.')
@@ -362,6 +365,13 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       this.setState({
         ...this.state,
         topic: { ...topic, status: 'failed', error: 'The topic ranking was interrupted. Run the launch again' }
+      })
+    const booking = this.state.booking
+    if (booking?.pitchRanking?.status === 'ranking')
+      this.landPitchRanking(booking.run, {
+        status: 'failed',
+        order: [],
+        error: 'The pitch ranking was interrupted. Rank the pitches again'
       })
     const inbox = this.state.inbox
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
@@ -702,7 +712,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
         show: { name: show.name, entity: show.entity! },
         pastGuests: pastGuests.map((g) => ({ ...g, match: null })),
         lists: null,
-        replies: null
+        replies: null,
+        pitchRanking: { status: 'ranking', order: [], error: null }
       },
       run: newRun(run),
       runs: [
@@ -716,6 +727,12 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
         }
       ]
     })
+    // Beside the agent loop, not a tool of it, as the topic baseline is: it needs no Qloo data.
+    const works = pastGuests.map((g) => g.work)
+    const pitches = this.state.inbox!.pitches.filter(rankable)
+    void this.keepAliveWhile(() => this.rankPitchesByWords(run, show.name, works, pitches)).catch((e) =>
+      this.landPitchRanking(run, { status: 'failed', order: [], error: `The pitch ranking stopped: ${message(e)}` })
+    )
     void this.keepAliveWhile(() => this.runPitches(run)).catch((e) =>
       this.finish(run, `The run stopped: ${message(e)}`)
     )
@@ -1072,6 +1089,42 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
           log({ event: 'sample_run', run, error: message(e) })
         )
     }
+  }
+
+  // The pitch run's pitch ranking, from the cache when the same show, past guests' works and pitches
+  // were ranked before. Only a full ranking is kept, so a failed one is tried again next run.
+  private async rankPitchesByWords(run: string, show: string, works: Work[], pitches: Pitch[]) {
+    const started = Date.now()
+    const request = await pitchRequest(show, works, pitches)
+    const [cached] = this.sql<{ ranking: string }>`SELECT ranking FROM pitch_rankings WHERE key = ${request.key}`
+    const ranking: PitchRanking = cached
+      ? { status: 'ranked', order: JSON.parse(cached.ranking), error: null }
+      : await rankByPitch(this.env, request)
+    if (!cached && ranking.status === 'ranked') {
+      const order = JSON.stringify(ranking.order)
+      this.sql`INSERT OR REPLACE INTO pitch_rankings (key, ranking) VALUES (${request.key}, ${order})`
+    }
+    log({
+      event: 'pitch_ranking',
+      run,
+      status: ranking.status,
+      cacheHit: Boolean(cached),
+      latencyMs: Date.now() - started
+    })
+    this.landPitchRanking(run, ranking)
+  }
+
+  // A pitch ranking lands in synced state while its run's booking is the inbox's, and in what its run
+  // ended with, since the run can end first.
+  private landPitchRanking(run: string, pitchRanking: PitchRanking) {
+    const booking = this.state.booking
+    if (booking?.run === run) this.setState({ ...this.state, booking: withPitchMoves({ ...booking, pitchRanking }) })
+    const [ended] = this.sql<{ booking: string | null }>`
+      SELECT json_extract(snapshot, '$.booking') AS booking FROM runs WHERE id = ${run} AND snapshot IS NOT NULL`
+    const kept: Booking | null = ended?.booking ? JSON.parse(ended.booking) : null
+    if (kept?.run !== run) return
+    const patched = JSON.stringify(withPitchMoves({ ...kept, pitchRanking }))
+    this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.booking', json(${patched})) WHERE id = ${run}`
   }
 
   // Counts `n` Qloo calls against the visitor's calls for the day before they're made, or refuses them
@@ -1834,7 +1887,9 @@ function pitchBrief({ show, pastGuests }: Booking, inbox: Inbox) {
 
 // One structured line in Workers Logs, like the gateway's qloo_call lines.
 const log = (
-  line: { event: 'model_call' | 'run_summary' | 'topic_baseline' | 'sample_run' } & Record<string, unknown>
+  line: {
+    event: 'model_call' | 'run_summary' | 'topic_baseline' | 'pitch_ranking' | 'sample_run'
+  } & Record<string, unknown>
 ) => console.log(JSON.stringify(line))
 
 // What a run has spent against its limits, from its row in `runs`.

@@ -106,7 +106,12 @@ afterEach(() => {
   env.GUEST_PITCHES = 'off'
 })
 
-const finished = (s: Session) => s.until((state: State) => state.run !== null && state.run.status !== 'running')
+// The run has stopped running, and its pitch ranking, beside it, has landed.
+const finished = (s: Session) =>
+  s.until(
+    (state: State) =>
+      state.run !== null && state.run.status !== 'running' && state.booking?.pitchRanking?.status !== 'ranking'
+  )
 
 // A session with the show imported and the pitches loaded and read, its compares answered from
 // `compared` once a run starts.
@@ -950,7 +955,11 @@ describe("the inbox's tabs", () => {
         'Pitches for Night Shift Cinema Qloo data',
         'One list per type of work, each from its own Qloo call, so a rank in one list can’t be compared with a rank in another.'
       ],
-      ['Books · 3 ranked', `Ranked against Night Shift Cinema. ${calls('book')}`],
+      // The pitch ranking, in inbox order as the fake gives it, finds one on-topic pitch out of the top band.
+      [
+        'Books · 3 ranked',
+        `Night Ferry reads most on-topic but falls out of the top band by who listens. Ranked against Night Shift Cinema. ${calls('book')}`
+      ],
       ['Films · 2 ranked', `Ranked against Night Shift Cinema. ${calls('film')}`],
       ['TV shows · 1 ranked', `Ranked against Night Shift Cinema. ${calls('tv_show')}`],
       [

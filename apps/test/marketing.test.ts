@@ -296,6 +296,10 @@ describe('the privacy page and the beta terms', () => {
     for (const heading of ['What reaches Qloo', 'What reaches Anthropic', 'What Crossfeed keeps', 'How deletion works'])
       expect(text).toContain(heading)
     expect(text).toContain('Never a pitch’s text, a guest’s name, an email address, or a sender’s details.')
+    expect(text).toContain('runs the agent, the topic ranking, the pitch reader, and the pitch ranking. It gets:')
+    expect(text).toContain(
+      'for each pitch run’s pitch ranking, each pitch’s subject and up to the first 600 characters of its text, never its sender, with the show’s name and the past guests’ works, and nothing from Qloo.'
+    )
     expect(text).toContain('Crossfeed never stores your IP address or writes it to its own logs.')
     expect(text).toContain(
       'In your browser: one cookie, __Host-crossfeed_member , which holds your session’s token and is sent only to Crossfeed, over HTTPS. It’s HttpOnly and lasts 30 days, renewed while you use Crossfeed, or a day for a guest. There are no analytics, ads, or third-party scripts.'

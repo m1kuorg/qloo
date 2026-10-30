@@ -11,7 +11,7 @@ import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { linkVariants } from '@/components/ui/variants'
 import type { Run, RunSnapshot, RunSummary, Show, SlowCall } from '../agent'
-import { NO_ANGLE, tagged, type PitchList, type SharedTags } from '../fit'
+import { NO_ANGLE, pitchFinding, tagged, type PitchList, type SharedTags } from '../fit'
 import {
   workNoun,
   workTypes,
@@ -937,7 +937,9 @@ const typePlural: Record<WorkType, string> = { book: 'Books', film: 'Films', tv_
 
 // The pitched works ranked against the show, one list per work type, each an h3 section, by position
 // and band. Raw scores stay in each ranking call's evidence, and lists from separate calls aren't
-// compared. Under them, what a band is and how many set-aside pitches were never sent to Qloo.
+// compared. Over them, while the pitch ranking works or once it failed, a line that says so, since the
+// lists then have no Pitch column; under them, what a band is and how many set-aside pitches were
+// never sent to Qloo.
 function PitchLists({
   booking,
   lists,
@@ -958,6 +960,7 @@ function PitchLists({
   opened: string | null
 }) {
   const setAside = pitches.filter((p) => p.status === 'no_work' || p.status === 'unreadable' || p.status === 'failed')
+  const ranking = booking.pitchRanking // runs from before the pitch ranking have none
   return (
     <Section
       id="lists-h"
@@ -965,12 +968,24 @@ function PitchLists({
       badge={<Source of="qloo" />}
       description="One list per type of work, each from its own Qloo call, so a rank in one list can’t be compared with a rank in another."
     >
+      {ranking?.status === 'ranking' ? (
+        <p className="max-w-[72ch]">
+          <StateLine kind="loading">Ranking the pitches by what they say for the Pitch column…</StateLine>
+        </p>
+      ) : ranking?.status === 'failed' ? (
+        <p className="max-w-[72ch]">
+          <StateLine kind="empty">
+            No Pitch column: {ranking.error}. The lists stand by who listens without it.
+          </StateLine>
+        </p>
+      ) : null}
       {/* Each list's table ends it, so its h3 sections stand further apart than their own parts. */}
       <div className="flex flex-col gap-8">
         {lists.map((list) => (
           <RankedPitches
             key={list.type}
             list={list}
+            byPitch={ranking?.status === 'ranked'}
             pitches={pitches}
             sample={sample}
             selected={selected}
@@ -989,12 +1004,14 @@ function PitchLists({
 }
 
 // One work type's list, an h3 section whose sentence says what it was ranked against, or why it
-// wasn't, with its calls; then, in the fit chart's anatomy, a compact real table: the rank, the work as
-// Qloo matched it, which opens its pitch, with the guest as Claude read them, or as the sample gives
-// them, and the tags it shares with the show, then its band. Its rules bleed 8px past the text, as the
+// wasn't, with its calls, led once the pitch ranking is in by its finding; then, in the fit chart's
+// anatomy, a compact real table: the rank, the work as Qloo matched it, which opens its pitch, with the
+// guest as Claude read them, or as the sample gives them, and the tags it shares with the show, then
+// its pitch rank once the pitch ranking is in, then its band. Its rules bleed 8px past the text, as the
 // chart's do.
 function RankedPitches({
   list,
+  byPitch,
   pitches,
   sample,
   selected,
@@ -1003,6 +1020,7 @@ function RankedPitches({
   opened
 }: {
   list: PitchList
+  byPitch: boolean // the pitch ranking is in, so the list has a Pitch column and a finding
   pitches: Pitch[]
   sample: boolean
   selected: string | null
@@ -1021,6 +1039,7 @@ function RankedPitches({
         ? `Ranked against ${names}.`
         : null
   const cell = 'border-b py-2.5 align-baseline group-data-selected/row:bg-muted'
+  const finding = byPitch && list.rows.length > 0 ? pitchFinding(list.rows) : null
   return (
     <Section
       id={id}
@@ -1033,7 +1052,10 @@ function RankedPitches({
               Not ranked: {sentence(list.error)}
             </StateLine>
           ) : (
-            against
+            <>
+              {finding && `${finding} `}
+              {against}
+            </>
           )}
           {list.calls.map((call) => (
             <Fragment key={call}>
@@ -1058,6 +1080,14 @@ function RankedPitches({
                     Public work · guest {!sample && <Source of="agent" />}
                   </span>
                 </th>
+                {/* The rank Claude gave the pitch from what it says, Agent's even for the sample inbox. */}
+                {byPitch && (
+                  <th scope="col" className="border-b pb-2 pl-3 text-right align-bottom font-normal">
+                    <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                      Pitch <Source of="agent" />
+                    </span>
+                  </th>
+                )}
                 <th scope="col" className="w-24 border-b pr-2 pb-2 pl-3 text-left align-bottom font-normal">
                   Fit
                 </th>
@@ -1090,6 +1120,11 @@ function RankedPitches({
                         )}
                       </span>
                     </th>
+                    {byPitch && (
+                      <td className={cn(cell, 'pl-3 text-right text-muted-foreground')}>
+                        {r.pitchRank === undefined ? '–' : <span className="tabular-nums">#{r.pitchRank}</span>}
+                      </td>
+                    )}
                     <td className={cn(cell, 'pr-2 pl-3')}>
                       <FitBand band={r.band} finalist={false} />
                     </td>

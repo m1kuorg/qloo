@@ -695,7 +695,15 @@ describe('triaging pitches through the MCP server', () => {
     expect(done.text).toContain(
       `Pitch run ${runId} for Night Shift Cinema: completed. It ended saying: Drafted 1 book and 2 later.`
     )
-    expect(done.text).toContain('1. pitch-02 Paper Moons')
+    expect(done.text).toContain('1. pitch-02 Paper Moons: top, pitch rank 2')
+    expect(done.text).toContain(
+      "Pitch ranks are Claude's, from each pitch's subject and opening alone, not Qloo data. A climber ranks 3 or more places higher by who listens than by its pitch."
+    )
+    expect(done.structured.pitchRanking).toEqual({
+      status: 'ranked',
+      order: ['pitch-01', 'pitch-02', 'pitch-03'],
+      error: null
+    })
     expect(done.text).toContain(
       [
         "- pitch-01, later, draft: Let's revisit Night Ferry in spring.",

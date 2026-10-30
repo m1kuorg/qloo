@@ -1050,7 +1050,15 @@ const PitchList = z
           entity: WorkCandidate,
           rank: z.number().int().openapi({ description: 'From 1, within this list only.' }),
           band: Band,
-          sharedTags: SharedTags.optional()
+          sharedTags: SharedTags.optional(),
+          pitchRank: z.number().int().optional().openapi({
+            description:
+              "Its rank by what its pitch says among this list's pitches, once `pitchRanking` is `ranked`; absent on runs from before it."
+          }),
+          move: z.number().int().optional().openapi({
+            description:
+              "Pitch rank minus its work's rank in this list, so a pitch who listens lifts climbs; with `pitchRank`."
+          })
         })
       )
       .openapi({ description: 'In fit order.' }),
@@ -1109,6 +1117,17 @@ const PitchRun = PitchRunFields.extend({
     })
   ),
   lists: z.array(PitchList).nullable().openapi({ description: 'One per work type, once the pitches are ranked.' }),
+  pitchRanking: z
+    .object({
+      status: z.enum(['ranking', 'ranked', 'failed']),
+      order: z.array(z.string()).openapi({ description: 'Pitch IDs by what each pitch says, most on-topic first.' }),
+      error: z.string().nullable()
+    })
+    .optional()
+    .openapi({
+      description:
+        "The pitches ranked by what they say, from each one's subject and opening, the show's name and the past guests' works, with no Qloo data; `failed` with the reason in `error`. Absent on runs from before it."
+    }),
   replies: z.array(Reply).nullable().openapi({ description: 'One per pitch, in inbox order, once drafted.' }),
   repliesEdited: z.boolean().openapi({
     description:
@@ -1131,6 +1150,7 @@ const PitchRun = PitchRunFields.extend({
     closing: null,
     pastGuests: [],
     lists: null,
+    pitchRanking: { status: 'ranked', order: ['pitch-02', 'pitch-01', 'pitch-03'], error: null },
     replies: null,
     repliesEdited: false
   }

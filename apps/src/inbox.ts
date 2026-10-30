@@ -4,6 +4,7 @@
 // read, which is skipped and named.
 import type { PitchList, SharedTags } from './fit'
 import { MAX_PAST_GUESTS } from './limits'
+import type { PitchRanking } from './pitch-ranking'
 import { personalIn, type Candidate } from './resolve'
 import { Refusal } from './refusal'
 import sampleInbox from './sample-inbox.json'
@@ -82,6 +83,8 @@ export type Booking = {
   pastGuests: PastGuest[]
   lists: PitchList[] | null
   replies: PitchReply[] | null // one per pitch, in inbox order, as draft_replies drafts them
+  // The pitches ranked by what they say, beside the run (pitch-ranking.ts); absent on runs from before it.
+  pitchRanking?: PitchRanking
   // An edit or a discard changed a reply since the agent drafted them, so the run's closing line,
   // Claude's words as the run completed, may give counts the replies no longer have (#213).
   repliesEdited?: true
