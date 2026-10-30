@@ -588,14 +588,16 @@ describe("the roster page's Overlap tab", () => {
     await agent.call('updateShow', 'Paper Trail', { compId: id('Deep Cuts') })
     const few = await agent.until((s) => s.roster.some((show) => show.resolution === 'mapped'))
 
-    // The header is the same on both tabs, every panel is in the page, and Shows opens first.
+    // The header is the same on every tab, every panel is in the page, and Shows opens first.
     const html = page(few)
     expect(tabsOf(hooked(html, 'data-canvas')[0])).toEqual({
       label: 'Roster sections',
-      tabs: ['Shows', 'Overlap'],
-      panels: ['shown', 'hidden']
+      tabs: ['Shows', 'Overlap', 'Listeners'],
+      panels: ['shown', 'hidden', 'hidden']
     })
-    expect(words(html)).toMatch(/^Roster 4 shows · 3 resolved, 1 mapped to a comp Details Import shows Shows Overlap /)
+    expect(words(html)).toMatch(
+      /^Roster 4 shows · 3 resolved, 1 mapped to a comp Details Import shows Shows Overlap Listeners /
+    )
     // Paper Trail and Deep Cuts are one Qloo show, so there are three: too few, and nothing to start.
     expect(sections(tab(few))).toEqual([
       [

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   fakeClaude,
   fakeCompare,
+  fakeDemographics,
   fakeInsights,
   fakeQloo,
   fakeReader,
@@ -105,6 +106,8 @@ const LAUNCH_TOOLS = [
   'search_comps',
   'get_overlap',
   'measure_overlap',
+  'get_listeners',
+  'profile_listeners',
   'list_launches',
   'create_launch',
   'start_launch_run',
@@ -176,6 +179,7 @@ describe('the MCP server', () => {
       'get_network',
       'get_roster',
       'get_overlap',
+      'get_listeners',
       'list_launches',
       'get_launch',
       'get_evidence',
@@ -347,6 +351,76 @@ describe("the roster's overlap through the MCP server", () => {
           code: 'conflict',
           message:
             'Measuring the overlap needs at least 4 shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has 3. Match or map more of its shows first.'
+        }
+      }
+    })
+  })
+})
+
+describe("the roster's listener profile through the MCP server", () => {
+  it("profiles it, then reads each show's leans in words, with the finding", async () => {
+    fakeQloo({ search })
+    // Made-up figures, unlike any Qloo returns; Qloo has none for Ghost Signal Radio.
+    const ages = ['24_and_younger', '25_to_29', '30_to_34', '35_to_44', '45_to_54', '55_and_older']
+    const listeners = (entity_id: string, age: number[], male: number) => ({
+      entity_id,
+      age: Object.fromEntries(ages.map((b, i) => [b, age[i]])),
+      gender: { male, female: -male }
+    })
+    fakeDemographics([
+      listeners('e-0001', [-0.1, 0.2, 0.15, 0.05, -0.1, -0.2], 0.25),
+      listeners('e-0501', [-0.2, 0.1, 0.12, -0.05, -0.1, -0.1], 0.3),
+      listeners('e-0502', [0.1, -0.05, -0.02, -0.1, 0, 0.2], -0.15)
+    ])
+    const { network, call, secret } = await networkWithKey()
+    const client = assistant(secret)
+    expect((await client.call('get_listeners')).text).toBe(
+      "The roster's listeners haven't been profiled yet: profile them with profile_listeners, once at least 4 shows are matched in Qloo."
+    )
+    await call(`/api/v1/networks/${network}/roster`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'Night Shift Cinema\nCorner Booth\nSlow Burn\nGhost Signal Radio\n'
+    })
+    await client.until('get_roster', {}, (r: { status: string }) => r.status === 'settled')
+
+    // It answers once its call is out, which may have landed by the time it reads the profile back.
+    const started = await client.call('profile_listeners')
+    expect(started.isError).toBe(false)
+    expect(['profiling', 'profiled']).toContain(started.structured.status)
+    const read = await client.until(
+      'get_listeners',
+      {},
+      (l: { status: string; profiledAt: string }) => l.status !== 'profiling'
+    )
+    expect(read.text).toBe(
+      [
+        `The roster's listener profile, made ${read.structured.profiledAt}: each show's leans by age band and gender, relative to the average in Qloo, which describe listeners, not people.`,
+        'Most of the 3 shows Qloo has a profile for lean toward listeners aged 25 to 29 and 30 to 34, and most lean male; Slow Burn leans differently.',
+        '- Night Shift Cinema: leans toward listeners aged 25 to 29 (+0.200), 30 to 34 (+0.150), and 35 to 44 (+0.050); its listeners lean male (+0.250).',
+        '- Corner Booth: leans toward listeners aged 25 to 29 (+0.100) and 30 to 34 (+0.120); its listeners lean male (+0.300).',
+        '- Slow Burn: leans toward listeners aged 24 and younger (+0.100) and 55 and older (+0.200); its gender lean, \u22120.150, is too slight to count. It leans differently from most.',
+        '- Ghost Signal Radio: no listener profile in Qloo.'
+      ].join('\n')
+    )
+    expect(read.structured).toMatchObject({ status: 'profiled', stale: false })
+
+    // Profiled, a roster under four matched shows is refused with what it needs.
+    await call(`/api/v1/networks/${network}/roster?replace=true`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'Night Shift Cinema\nCorner Booth\nSlow Burn\n'
+    })
+    expect((await client.call('get_listeners')).text).toContain(
+      "The roster's matched shows have changed since its listeners were profiled: profile them again with profile_listeners."
+    )
+    expect(await client.call('profile_listeners')).toMatchObject({
+      isError: true,
+      structured: {
+        error: {
+          code: 'conflict',
+          message:
+            'Profiling the listeners needs at least 4 shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has 3. Match or map more of its shows first.'
         }
       }
     })

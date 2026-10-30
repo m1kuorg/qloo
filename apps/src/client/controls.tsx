@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { round } from '../demographics'
 import { bandMeter, type Band } from '../fit'
 import type { Candidate } from '../resolve'
 import { GUEST_NETWORK_CLEARS } from '../text'
@@ -195,13 +194,8 @@ export const percentile = (p: number | null) => (p === null ? '–' : (p * 100).
 // An affinity, or a tag's score, to three decimals: "0.978".
 export const score = (x: number | null) => (x === null ? '–' : x.toFixed(3))
 
-// A demographic score, to three decimals, as Qloo sends it and the mismatch check rounds it
-// (demographics.ts), signed with a true minus sign: "−0.248", "+0.420". No lean, −0 included, is "0.000".
-export const demographic = (x: number | null) => {
-  if (x === null) return '–'
-  const r = round(x)
-  return r === 0 ? '0.000' : `${r > 0 ? '+' : '\u2212'}${Math.abs(r).toFixed(3)}`
-}
+// A demographic score, to three decimals, signed with a true minus sign: "−0.248", "+0.420".
+export { demographic } from '../demographics'
 
 // A day as the app writes it, such as "Oct 19", from an ISO string or epoch ms.
 export const day = (when: string | number) =>

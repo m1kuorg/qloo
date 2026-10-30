@@ -73,6 +73,16 @@ console.log(overlap.closePairs) // such as [['Deep Cuts', 'Field Notes']]
 
 Measuring again with the roster's matched shows unchanged asks only for the shows whose ranking is missing or failed. `overlap.stale` says when they've changed since.
 
+To see who the roster's shows reach, profile its listeners: one Qloo call for every show matched in Qloo, at least four of them. Each show gets its lean by age band and toward male listeners, relative to the average in Qloo, which describes listeners, not people:
+
+```ts
+await crossfeed.roster.profileListeners()
+const listeners = await crossfeed.waitForListeners()
+for (const show of listeners.shows) console.log(show.show, show.status, show.lean) // { age, male }, or null when `missing`
+```
+
+Profiling again with the roster's matched shows unchanged asks nothing. `listeners.stale` says when they've changed since.
+
 Then plan the launch and run it. A run asks the person planning it its questions, such as the slot budget; relay each one and answer with their words:
 
 ```ts
@@ -125,10 +135,11 @@ await crossfeed.replies.discard(id, 'pitch-02')
 
 ## Wait for long work
 
-An import, a comp search, measuring the overlap, an inbox load, and a run answer at once while the work goes on. Each wait helper polls its resource until the work settles:
+An import, a comp search, measuring the overlap, profiling the listeners, an inbox load, and a run answer at once while the work goes on. Each wait helper polls its resource until the work settles:
 
 - `waitForRoster()` resolves once no show or comp search is still pending.
 - `waitForOverlap()` resolves once the roster's overlap is no longer `measuring`: `measured`, or `failed` with its `error`.
+- `waitForListeners()` resolves once the roster's listener profile is no longer `profiling`: `profiled`, or `failed` with its `error`.
 - `waitForInbox()` resolves once no pitch is still being read.
 - `waitForRun({ launchId, runId })` and `waitForRun({ pitchRunId })` resolve once the run is `completed`, or `waiting` on its `question`. A run that `failed` or `stopped` rejects with a `run_failed` or `run_stopped` `CrossfeedError` whose message says why.
 

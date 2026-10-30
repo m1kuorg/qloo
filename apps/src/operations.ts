@@ -27,6 +27,7 @@ import type { Band, FitRow, PitchList, Ranking } from './fit'
 import { globalGateway, type Usage } from './gateway'
 import type { Inbox, PastGuest, Pitch, PitchInput, PitchReply, Skipped } from './inbox'
 import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
+import { rosterRows, type Lean, type ListenerProfile, type ListenerStatus } from './listeners'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
 import { closePairs, closestCount, entityShows, isStale, rosterEntities, type Entity, type Overlap } from './overlap'
 import { Refusal } from './refusal'
@@ -170,12 +171,19 @@ export async function measureOverlap({ env, network }: OperationContext): Promis
   return overlapOf(await stateOf(networkAgent))
 }
 
-function overlapOf({ roster, overlap }: State): RosterOverlap {
+// How the roster's analyses name a Qloo show: by its first show on the roster, with the other shows matched
+// or mapped to it as `sameAs`, or as Qloo names it once none is on the roster.
+function namer(roster: Show[]) {
   const onRoster = entityShows(roster)
-  const named = ({ id, name }: Entity): NamedShow => {
+  return ({ id, name }: Entity): NamedShow => {
     const [show = name, ...sameAs] = (onRoster.get(id)?.shows ?? []).map((s) => s.name)
     return { show, sameAs }
   }
+}
+
+function overlapOf({ roster, overlap }: State): RosterOverlap {
+  const onRoster = entityShows(roster)
+  const named = namer(roster)
   const measuredIds = new Set(overlap?.key.split(','))
   const rows = new Map(overlap?.rows.map((r) => [r.entity.id, r]))
   // Each entity once, where its first show is on the roster.
@@ -211,6 +219,46 @@ function overlapOf({ roster, overlap }: State): RosterOverlap {
     closestCount: closestCount(overlap ? measuredIds.size : rosterEntities(roster).length),
     shows: entities.map(row),
     closePairs: closePairs(ordered).map(([a, b]) => [name(a), name(b)])
+  }
+}
+
+// The roster's listener profile as a program reads it (listeners.ts): each show's leans by age band and
+// gender, relative to the average in Qloo, from one demographics call. One row per distinct Qloo entity on
+// the roster, in roster order, named as the overlap names it. No call number is given, as the overlap's
+// read gives none.
+export type RosterListeners = {
+  status: 'unprofiled' | ListenerProfile['status']
+  error: string | null
+  profiledAt: string | null
+  stale: boolean // the roster's matched shows have changed since it was made
+  shows: ListenerShow[]
+}
+export type ListenerShow = NamedShow & {
+  status: ListenerStatus // missing: Qloo has no listener profile for it
+  lean: Lean | null
+}
+
+export async function getListeners({ env, network }: OperationContext): Promise<RosterListeners> {
+  return listenersOf(await stateOf(await agent(env, network)))
+}
+
+// Starts profiling the roster's listeners, and returns at once with it profiling, or as it is when the
+// roster's entities are unchanged since a profile that landed. It's one Qloo call, counted against the
+// network's daily calls.
+export async function profileListeners({ env, network }: OperationContext): Promise<RosterListeners> {
+  const networkAgent = await agent(env, network)
+  await networkAgent.profileListeners()
+  return listenersOf(await stateOf(networkAgent))
+}
+
+function listenersOf({ roster, listenerProfile: profile }: State): RosterListeners {
+  const named = namer(roster)
+  return {
+    status: profile?.status ?? 'unprofiled',
+    error: profile?.error ?? null,
+    profiledAt: profile?.profiledAt ?? null,
+    stale: profile ? isStale(profile, roster) : false,
+    shows: rosterRows(roster, profile).map(({ entity, status, lean }) => ({ ...named(entity), status, lean }))
   }
 }
 

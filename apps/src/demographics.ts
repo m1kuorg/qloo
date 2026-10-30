@@ -41,14 +41,26 @@ export type FinalistCheck = {
 }
 
 // Qloo's values carry float noise, such as 0.20600000000000004; three places is its own precision,
-// and the inspector shows a demographic score as this rounds it (`demographic` in client/controls.tsx).
+// and the inspector shows a demographic score as this rounds it (`demographic`).
 export const round = (x: number) => Math.round(x * 1000) / 1000
+
+// A demographic score, to three decimals, as Qloo sends it and the mismatch check rounds it, signed with
+// a true minus sign: "−0.248", "+0.420". No lean, −0 included, is "0.000". The app's one format for it
+// (client/controls.tsx), which the MCP server's words about the listener profile share.
+export const demographic = (x: number | null) => {
+  if (x === null) return '–'
+  const r = round(x)
+  return r === 0 ? '0.000' : `${r > 0 ? '+' : '\u2212'}${Math.abs(r).toFixed(3)}`
+}
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
 
 export const ageWords = (bucket: string) => bucket.replaceAll('_', ' ')
 
-const skewOf = (male: number): Skew | null => (Math.abs(male) < MISMATCH.skew ? null : male > 0 ? 'male' : 'female')
+// How a lean toward male listeners counts in the check: as a skew only once it's at least MISMATCH.skew
+// either way, toward male listeners or, below zero, female ones. The listener profile counts it so too.
+export const skewOf = (male: number): Skew | null =>
+  Math.abs(male) < MISMATCH.skew ? null : male > 0 ? 'male' : 'female'
 
 // Checks the ranking's finalists against the launch profile: the mean, per bucket, of the anchors
 // Qloo returned demographics for. Only a bucket above 0 is over-indexed, so a launch can have fewer

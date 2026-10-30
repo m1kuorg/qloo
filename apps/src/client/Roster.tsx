@@ -6,6 +6,7 @@ import { holdsSample } from '../roster'
 import { EvidencePanel, useEvidence } from './Evidence'
 import { canvas, frame, Inspector, InspectorToggle, useInspector } from './Frame'
 import { NetworkGate, useNetwork, type NetworkConnection, type NetworkPage } from './NetworkPage'
+import { ListenersSection } from './Listeners'
 import { OverlapSection } from './Overlap'
 import { PageEmpty, PageHeader, PageTabs, useFormDialog } from './PageHeader'
 import { RosterFailures, RosterImport, rosterSummary, RosterTable, ShowEditor } from './RosterModules'
@@ -26,11 +27,11 @@ export function RosterPage({ agentPath, network }: { agentPath: string; network:
 // badged sample while a show holds a sample figure, the page's one sample label (ADR 0007), the same
 // on every tab; then its tabs. Shows has the shows Qloo failed on and the roster table, whose rows'
 // match chips say what's left to settle, and whose shows open in the inspector's Show tab beside it (a
-// sheet under 1360px), closed until then; Overlap has which of its shows share listeners. A call on
-// either opens in the inspector's Evidence tab. An empty roster has the empty state instead, with
-// Import shows and no inspector or tabs; either opens the import in its dialog. Every member's edits,
-// and a measure of the overlap, reach the others through synced state. Tests render it from a network
-// agent's synced state.
+// sheet under 1360px), closed until then; Overlap has which of its shows share listeners, and Listeners
+// who they reach. A call on any of them opens in the inspector's Evidence tab. An empty roster has the
+// empty state instead, with Import shows and no inspector or tabs; either opens the import in its dialog.
+// Every member's edits, a measure of the overlap and a profile of the listeners reach the others through
+// synced state. Tests render it from a network agent's synced state.
 export function NetworkRoster({
   agent,
   connection = { lost: null, reconnecting: false }
@@ -123,6 +124,19 @@ export function NetworkRoster({
                       agent={agent}
                       roster={roster}
                       overlap={state.overlap}
+                      openCall={inspector.showCall}
+                      opened={evidence.opened?.call ?? null}
+                    />
+                  )
+                },
+                {
+                  id: 'listeners',
+                  title: 'Listeners',
+                  content: (
+                    <ListenersSection
+                      agent={agent}
+                      roster={roster}
+                      profile={state.listenerProfile}
                       openCall={inspector.showCall}
                       opened={evidence.opened?.call ?? null}
                     />

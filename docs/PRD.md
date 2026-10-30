@@ -14,6 +14,7 @@ Contents:
     1.  [Launches, each planned on its own](#launches-each-planned-on-its-own)
     1.  [The roster and the inbox, with uploads](#the-roster-and-the-inbox-with-uploads)
     1.  [The roster's overlap](#the-rosters-overlap)
+    1.  [The roster's listener profile](#the-rosters-listener-profile)
     1.  [Promo inventory](#promo-inventory)
     1.  [Settings and the account page](#settings-and-the-account-page)
     1.  [The API, the SDK, MCP, and skills](#the-api-the-sdk-mcp-and-skills)
@@ -76,6 +77,10 @@ The roster and the booking inbox belong to the network, each on its own page. Me
 ### The roster's overlap
 
 A member, an API key, or an assistant measures the roster's overlap: one closed-list ranking in Qloo per show matched in Qloo, that show as the only anchor and the rest of the roster as the candidates, with shows on the same Qloo show measured once and shows left out of launches included. Each show then has its closest shows by listener overlap, as ranks and bands within its own ranking, and two shows that each rank among the other's closest are a close pair. Measuring needs four such shows, reserves its calls on the network's daily limit first, and is refused when Crossfeed's shared daily requests couldn't take it and still leave a run's. A show whose ranking failed keeps its reason, measuring again asks only for what's missing or failed, and the overlap says when the roster's matched shows have changed since. Members read it on the roster page's Overlap tab, each show's whole ranking opening under its row, and programs through the API, the SDK, and MCP.
+
+### The roster's listener profile
+
+A member, an API key, or an assistant profiles the roster's listeners: one demographics call in Qloo for every show matched in Qloo, with shows on the same Qloo show asked once and shows left out of launches included. Each show then has its lean by age band and gender, relative to the average in Qloo, which describes listeners, never people; a show Qloo has no profile for says so. A finding in words names the age bands and the gender most of the shows lean toward, by the demographic check's own rules, and the shows that lean differently. It's started, reserved, refused, and marked stale as measuring the overlap is. Members read it on the roster page's Listeners tab, each lean an ink bar either side of zero labelled with its signed figure, and programs through the API, the SDK, and MCP.
 
 ### Promo inventory
 
@@ -219,6 +224,11 @@ The analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), lists the
 90. As a programmer, I want a sentence that totals the network's committed slots and value, priced as each order was, so that I can tell my boss in one line.
 91. As a member, I want the inventory to say when some launches haven't reported yet, so that a partial total never reads as whole.
 92. As a developer, I want each launch's finalists and order lines in the launches list through the API, so that a script can total the inventory itself.
+93. As a programmer, I want each show's listener lean by age band and gender, each a bar either side of zero labelled with its signed figure, so that I know who each show reaches and can compare shows without reading every number.
+94. As a programmer, I want a finding in words that names the age bands most of my roster leans toward and the shows that lean differently, so that I see my network's shape at a glance.
+95. As a member, I want the profile made in one Qloo call, refused at the limits as measuring the overlap is, to say when the roster's matched shows have changed since, and to say it describes listeners, not people, so that it costs almost nothing, stays honest, and no one reads it as a claim about a person.
+96. As a member, I want the profile's call cited and its evidence open in the roster's inspector, so that I can check what Qloo returned.
+97. As a developer, or a programmer using an assistant, I want to read and start the listener profile through the REST API, the SDK, and MCP, so that a script or my assistant can answer "who does this network reach?".
 
 ## Implementation Decisions
 
