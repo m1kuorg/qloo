@@ -149,8 +149,10 @@ function ListenersTable({ profile, rows }: { profile: ListenerProfile; rows: Ret
                   {ageWords(b)}
                 </th>
               ))}
-              {/* Its two ends name which way a bar leans; screen readers hear what the column holds. */}
-              <th scope="col" className={cn(head, 'pr-3')}>
+              {/* Its two ends name which way a bar leans; screen readers hear what the column holds. Each
+                  visually hidden span in the table has a positioned holder (`relative`), so it stays in the
+                  table's scrolling region and never widens the page on a phone. */}
+              <th scope="col" className={cn(head, 'relative pr-3')}>
                 <span className="flex justify-between gap-1" aria-hidden="true">
                   <span>Female</span>
                   <span>Male</span>
@@ -180,7 +182,7 @@ function ListenersTable({ profile, rows }: { profile: ListenerProfile; rows: Ret
                     <LeanCells lean={lean!} scale={scale} />
                   ) : state === 'profiling' ? (
                     AGE_BUCKETS.concat('male').map((b, i) => (
-                      <td key={b} className="border-b px-3 py-3 align-top">
+                      <td key={b} className="relative border-b px-3 py-3 align-top">
                         {i === 0 && <span className="vh">Profiling</span>}
                         <span className="flex flex-col items-center gap-1.5">
                           <Skeleton className="h-5 w-12" />
@@ -190,7 +192,7 @@ function ListenersTable({ profile, rows }: { profile: ListenerProfile; rows: Ret
                     ))
                   ) : (
                     // Its words stand under its name; screen readers hear the cells hold nothing, not "blank".
-                    <td colSpan={AGE_BUCKETS.length + 1} className="border-b">
+                    <td colSpan={AGE_BUCKETS.length + 1} className="relative border-b">
                       <span className="vh">None</span>
                     </td>
                   )}
@@ -248,7 +250,7 @@ function LeanCell({ value, scale, zone }: { value: number; scale: number; zone?:
   return (
     <td className="border-b px-3 py-3 align-top">
       <span className="flex flex-col gap-1.5">
-        <span className="text-center">{figure}</span>
+        <span className="relative text-center">{figure}</span>
         <span className="relative h-3" aria-hidden="true">
           {zone !== undefined && (
             <span
