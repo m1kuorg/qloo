@@ -867,6 +867,25 @@ describe('a page that is not there', () => {
     expect(read(ranking(res.body))).toContain('/docs/ap: not on the roster')
   })
 
+  it('sets the ranking as a piece of the app on its stage, its rows links the keyboard reaches', async () => {
+    const { body } = await answer('/docs/ap', browser)
+    // The markup from the opening of the element carrying `attribute` in `html` on.
+    const from = (html: string, attribute: string) => {
+      const at = html.search(new RegExp(`<[a-z]+\\b[^>]*\\s${attribute}\\b`))
+      expect(at, attribute).toBeGreaterThanOrEqual(0)
+      return html.slice(at)
+    }
+    // The stage ends the main landmark, so what follows the piece of the app's root there is in it, on
+    // the stage: the ranking's heading and every row's link, and no other link is on the stage.
+    const stage = from(main(body), 'data-stage')
+    const panel = from(stage, 'data-ui')
+    expect(words(panel)).toContain('Closest on the roster')
+    expect(hrefs(stage)).toEqual(['/docs/api', '/docs', '/docs/agents'])
+    expect(hrefs(panel)).toEqual(['/docs/api', '/docs', '/docs/agents'])
+    // Unlike the landing page's pictures, nothing on it is inert.
+    expect(stage).not.toMatch(/\sinert\b/)
+  })
+
   it('ranks the ways in among the pages while accounts are on', async () => {
     expect(rows((await answer('/sign-on', browser)).body)[0]).toEqual({ href: '/sign-in', closest: true })
   })
@@ -985,6 +1004,8 @@ describe('a page that fails', () => {
       'Dead air. Something went wrong in Crossfeed as it loaded this page: try again in a moment. Dashboard Ray ID 8f1e2d3c4b5a6978-SIN'
     )
     expect(ways(main(body), body)).toEqual([`/app/${id}`])
+    // With no ranking, it has no stage.
+    expect(main(body)).not.toMatch(/\sdata-stage\b/)
     // The marketing shell's links, and no island.
     expect(body.match(/<header[\s\S]*?<\/header>/)?.[0]).toMatch(/<a [^>]*href="\/docs"[^>]*>Developers<\/a>/)
     expect(body).not.toContain('id="root"')

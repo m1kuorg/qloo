@@ -1578,9 +1578,10 @@ marketing.get('/terms', marketingShell('Beta terms', TERMS), (c) => c.render(<Te
 const way = buttonVariants({ variant: 'secondary', size: 'lg' })
 
 // A status page, the 404 page or the error page, in the marketing shell as the Worker's answer with
-// `status`: its heading at poster size, then under it one sentence, its ways back (`ways`, each an <li>),
-// and anything else it says; and what stands beside them from 1024px (`beside`), the 404 page's ranking,
-// under them below. A page to preview or index has a `description` for its card.
+// `status`: its heading, then under it one sentence, its ways back (`ways`, each an <li>), and anything
+// else it says; and on the 404 page, under them, the signal stage it lays its `panel` on, the ranking.
+// The heading is at poster size on a page with no stage, and at display size beside one. A page to
+// preview or index has a `description` for its card.
 function statusPage(
   c: Context<{ Bindings: Env }>,
   status: 404 | 500,
@@ -1591,9 +1592,37 @@ function statusPage(
     sentence: Child
     ways: Child
     children?: Child
-    beside?: Child
+    panel?: Child
   }
 ) {
+  // The text's columns from 1024px, its heading's size, and its sentence's measure and the room above
+  // it: beside a stage, six columns at display size; without one, eight at poster size.
+  const look = page.panel
+    ? { columns: 'lg:col-span-6', heading: 'type-display', sentence: 'mt-8 max-w-[40ch]' }
+    : { columns: 'lg:col-span-8', heading: 'type-poster', sentence: 'mt-10 max-w-[34em] md:mt-12' }
+  const text = (
+    <div class={look.columns}>
+      {/* No wider than 6em, so "Not on the roster." breaks after "the" at every width; from 1024px
+          its eight columns are what hold "Not on the" at poster size, and six at display size. */}
+      <h1 class={cn('max-w-[6em]', look.heading)}>
+        <span class="line-mask">
+          <span class="block motion-safe:animate-line-up">{page.heading}</span>
+        </span>
+      </h1>
+      <p
+        class={cn(
+          look.sentence,
+          'type-title font-normal text-pretty motion-safe:animate-rise-in max-md:text-lg/[1.45]'
+        )}
+      >
+        {page.sentence}
+      </p>
+      <ul data-stagger class="mt-8 flex flex-wrap gap-3">
+        {page.ways}
+      </ul>
+      {page.children}
+    </div>
+  )
   return c.html(
     html`<!DOCTYPE html>${(
         <MarketingPage
@@ -1604,33 +1633,41 @@ function statusPage(
           path={c.req.path}
           accounts={c.env.ACCOUNTS === 'on'}
         >
-          {/* At least 60% of the window tall, so the footer's index and name start at the fold rather than
-              in the first screen, where they would outweigh the page's heading, without a window of
-              nothing above it. */}
-          <main
-            class={cn(
-              marketingFrame,
-              'grid min-h-[60svh] content-start gap-x-6 gap-y-16 pt-16 md:pt-32 lg:grid-cols-12'
-            )}
-          >
-            <div class="lg:col-span-8">
-              {/* No wider than 6em, so "Not on the roster." breaks after "the" at every width; from 1024px
-                  its eight columns are what hold "Not on the" at poster size. */}
-              <h1 class="max-w-[6em] type-poster">
-                <span class="line-mask">
-                  <span class="block motion-safe:animate-line-up">{page.heading}</span>
-                </span>
-              </h1>
-              <p class="mt-10 max-w-[34em] type-title font-normal text-pretty motion-safe:animate-rise-in max-md:text-lg/[1.45] md:mt-12">
-                {page.sentence}
-              </p>
-              <ul data-stagger class="mt-8 flex flex-wrap gap-3">
-                {page.ways}
-              </ul>
-              {page.children}
-            </div>
-            {page.beside && <div class="lg:col-span-4 lg:col-start-9">{page.beside}</div>}
-          </main>
+          {page.panel ? (
+            // From 1024px the first screen less the header's height (shell.tsx), the stage taking what the
+            // text leaves of it, so it runs to the fold; below, the stage is as tall as its panel and the
+            // room around it. Either way it meets the footer, taking back the margin the shell sets above
+            // it, as the landing page's closing band does. The text and the stage are rows of their own,
+            // so no window's height has one over the other.
+            <main class="-mb-24 flex flex-col md:-mb-40 lg:min-h-[calc(100svh_-_5rem)]">
+              <div class={cn(marketingFrame, 'grid gap-x-6 pt-16 lg:grid-cols-12')}>{text}</div>
+              {/* The panel sits 16px in on phones and at the frame's margin from 768px, as wide as the
+                  stage less that, with as much room under it; and from 1024px 56px into the stage's eight
+                  columns, up to 620px wide, 56px clear of the stage's foot. It sits as far under the
+                  corner's cut as the cut drops, and 24px more (data-stage in style.css). The stage clips
+                  it sideways, so while it settles from its larger size the page never scrolls sideways. */}
+              <div
+                data-stage
+                class="mt-12 grow overflow-x-clip bg-signal text-signal-foreground motion-safe:animate-shutter"
+              >
+                <div
+                  class={cn(
+                    marketingFrame,
+                    'pt-[calc(var(--cut-rise)_+_1.5rem)] pb-4 max-md:px-4 md:pb-10 lg:grid lg:grid-cols-12 lg:gap-x-6 lg:pb-14'
+                  )}
+                >
+                  <div class="lg:col-span-8 lg:col-start-5 lg:pl-14">{page.panel}</div>
+                </div>
+              </div>
+            </main>
+          ) : (
+            // At least 60% of the window tall, so the footer's index and name start at the fold rather than
+            // in the first screen, where they would outweigh the page's heading, without a window of
+            // nothing above it.
+            <main class={cn(marketingFrame, 'grid min-h-[60svh] content-start gap-x-6 pt-16 md:pt-32 lg:grid-cols-12')}>
+              {text}
+            </main>
+          )}
         </MarketingPage>
       )}`,
     status
@@ -1699,10 +1736,11 @@ function closest(path: string, accounts: boolean) {
 
 // What the Worker answers when nothing serves a request, or a route refuses one as not found: the 404
 // page to a browser asking for a page, with ways back home, and while ACCOUNTS is on, to the sample
-// network, as guest sign-in, and to the visitor's networks; and beside them the site's pages closest to
-// the address asked for, set as a launch's re-rank sets its finalists, with the address itself under
-// them as not on the roster. The address is shown as Hono read it, decoded where it could be, cut to 80
-// characters. Otherwise Hono's plain 404.
+// network, as guest sign-in, and to the visitor's networks; and on its stage, under them, the site's
+// pages closest to the address asked for, as a piece of the app ranks a roster, the closest marked as a
+// finalist is, with the address itself under them as not on the roster. Unlike the landing page's
+// pictures it's no picture: each row is a link. The address is shown as Hono read it, decoded where it
+// could be, cut to 80 characters. Otherwise Hono's plain 404.
 export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
   if (!pageRequest(c)) return c.text('404 Not Found', 404)
   const chars = [...c.req.path]
@@ -1717,41 +1755,56 @@ export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
     description: 'Crossfeed has no page at this address: the link may be mistyped, or what it led to was deleted.',
     heading: 'Not on the roster.',
     sentence: <>Crossfeed has no page at {address}. The link may be mistyped, or what it led to was deleted.</>,
-    beside: (
-      <section aria-labelledby="closest-h">
-        <h2 id="closest-h" class="type-ui font-medium text-muted-foreground motion-safe:animate-rise-in">
+    // A panel on the card, in the card's ink rather than the stage's, as the app sets its panels: its
+    // heading, then a row a page, each one line of 44px, ruled as the app's ranked rows are, the page's
+    // name and the closest's chip on the left and its path on the right, or under them at the left when
+    // the panel is too narrow for both. A row's wash and rule reach 8px past its words, which keeps its
+    // focus ring inside the card.
+    panel: (
+      <section
+        aria-labelledby="closest-h"
+        data-ui
+        class="w-full rounded-xl bg-card p-4 type-ui text-card-foreground origin-top-left motion-safe:animate-settle lg:max-w-[620px] lg:p-5"
+      >
+        <h2 id="closest-h" class="type-body font-semibold">
           Closest on the roster
         </h2>
         {ranked.length ? (
-          <ol role="list" data-stagger class="mt-3 flex flex-col gap-1">
+          <ol role="list" data-stagger class="mt-3 flex flex-col">
             {ranked.map(({ href, label }, i) => (
               <li>
-                {/* The row's wash reaches past its words, which line up with the heading; from 1024px it
-                    stops at the frame's right edge. */}
                 <a
                   class={cn(
-                    'group -mx-4 block rounded-lg px-4 py-3 active:translate-y-px lg:mr-0',
+                    rowRuleBelow,
+                    'group -mx-2 flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-0.5 px-2 py-2.5 active:translate-y-px',
                     i === 0 && 'bg-signal-tint'
                   )}
                   href={href}
                 >
-                  <span class="block type-title decoration-2 underline-offset-[0.12em] group-hover:underline">
-                    {label}
-                  </span>
-                  <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 type-ui text-muted-foreground">
+                  <span class="flex items-center gap-2">
+                    <span class="text-[15px] leading-snug font-semibold decoration-2 underline-offset-4 group-hover:underline">
+                      {label}
+                    </span>
                     {i === 0 && <span class={badgeVariants({ mark: 'signal' })}>Closest</span>}
-                    <span translate="no">{href}</span>
+                  </span>
+                  <span translate="no" class="text-muted-foreground">
+                    {href}
                   </span>
                 </a>
               </li>
             ))}
           </ol>
         ) : (
-          <p class="mt-3 type-title font-normal text-pretty motion-safe:animate-rise-in motion-safe:[animation-delay:550ms]">
+          <p
+            class={cn(
+              rowRuleBelow,
+              '-mx-2 mt-3 px-2 py-2.5 text-[15px] leading-snug text-pretty motion-safe:animate-rise-in motion-safe:[animation-delay:550ms]'
+            )}
+          >
             Nothing on the roster is close to that address.
           </p>
         )}
-        <p class="mt-4 type-ui text-muted-foreground motion-safe:animate-rise-in motion-safe:[animation-delay:760ms]">
+        <p class="mt-3 text-muted-foreground motion-safe:animate-rise-in motion-safe:[animation-delay:760ms]">
           {address}: not on the roster
         </p>
       </section>
