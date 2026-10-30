@@ -10,8 +10,9 @@ export const listParts = <T>(items: T[]): (T | string)[] =>
     i === 0 ? [item] : [i < items.length - 1 ? ', ' : items.length < 3 ? ' and ' : ', and ', item]
   )
 
-// A show's move from its topic rank to its fit rank, as the charts set it (positive is a climb):
-// the glyph, and the words a screen reader hears instead.
+// A show's move, as the charts set it (positive is a climb): from its topic rank to its fit rank on the
+// fit chart, or since an earlier run on a launch's Changes tab, which says a move of 0 its own way. The
+// glyph, and the words a screen reader hears instead.
 export const moveGlyph = (move: number) => (move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '=')
 export const moveWords = (move: number) =>
   move === 0
