@@ -242,11 +242,13 @@ export function withPitchMoves<B extends Pick<Booking, 'lists' | 'pitchRanking'>
 }
 
 // A list's finding once its pitch ranks are in: how many pitches climb by who listens, led by the
-// highest-placed, then the pitches that read most on-topic, the top band by pitch rank, but fall out of
-// the top band by who listens. Each pitch is named by its work, as the list names it. A list too short
-// for a climb says nothing of climbs, and one with nothing to say has no finding.
+// highest-placed, then the pitches that read most on-topic, the top band by pitch rank, but whose work
+// falls out of the top band by who listens, judged by its first row as its move is. Each pitch is named by
+// its work, as the list names it. A list too short for a climb says nothing of climbs, and one with
+// nothing to say has no finding.
 export function pitchFinding(rows: PitchRow[]): string | null {
   const ranked = rows.filter((r) => r.pitchRank !== undefined)
+  const workBand = (r: PitchRow) => rows.find((w) => w.entity.id === r.entity.id)!.band
   const [top, ...more] = ranked.filter((r) => r.move! >= CLIMB)
   const others = more.length
     ? `, and ${more.length} more ${more.length === 1 ? 'pitch climbs' : 'pitches climb'} ${CLIMB} or more`
@@ -260,7 +262,7 @@ export function pitchFinding(rows: PitchRow[]): string | null {
   const onTopic = [
     ...new Set(
       ranked
-        .filter((r) => band(r.pitchRank! - 1, ranked.length) === 'top' && r.band !== 'top')
+        .filter((r) => band(r.pitchRank! - 1, ranked.length) === 'top' && workBand(r) !== 'top')
         .toSorted((a, b) => a.pitchRank! - b.pitchRank!)
         .map((r) => r.entity.name)
     )

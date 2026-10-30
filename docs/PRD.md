@@ -72,7 +72,7 @@ The dashboard, the network's home, lists what needs a member (a launch's questio
 
 ### The roster and the inbox, with uploads
 
-The roster and the booking inbox belong to the network, each on its own page. Members drop or pick a roster CSV, or a text file of names, or paste names; re-importing keeps every show already settled and looks up only new ones. Members drop or pick pitch emails as `.eml` files, an `.mbox` export, or a text file of pitches separated by lines of `---`; each pitch keeps its sender and subject inside Crossfeed. An upload that can't be read is refused with why; an email too long to read is skipped and named.
+The roster and the booking inbox belong to the network, each on its own page. Members drop or pick a roster CSV, or a text file of names, or paste names; re-importing keeps every show already settled and looks up only new ones. Members drop or pick pitch emails as `.eml` files, an `.mbox` export, or a text file of pitches separated by lines of `---`; each pitch keeps its sender and subject apart from its text, and neither reaches Qloo. An upload that can't be read is refused with why; an email too long to read is skipped and named.
 
 ### The roster's overlap
 
@@ -194,7 +194,7 @@ The spec, [#155](https://github.com/m1kuorg/qloo/issues/155), lists 98 stories f
 65. As a programmer, I want to see who started each run and who approved the order, a program's runs named by their API key, and a deleted member named "Former member", so that everyone in the network knows whose plan it is.
 66. As a programmer, I want to delete a launch I no longer need after being asked, so that the list stays useful.
 67. As a programmer, I want to drop my roster's CSV on the roster page, and re-import next week's file without losing the matches I settled, so that I import my spreadsheet as it is.
-68. As a booker, I want to drop `.eml` files, an `.mbox` export, or a text file of pitches on the inbox, with each sender's details kept inside Crossfeed and an email too long to read skipped and named, so that I load pitches straight from my email client.
+68. As a booker, I want to drop `.eml` files, an `.mbox` export, or a text file of pitches on the inbox, with each sender's details kept apart from the pitch's text and away from Qloo, and an email too long to read skipped and named, so that I load pitches straight from my email client.
 69. As a member, I want to see today's usage against the network's daily limits and when they reset, so that a refused run is never a surprise.
 70. As an owner, I want to add the network's own Qloo key, tested before it's saved and shown only by its last four characters, and remove it, so that my calls run on my own Qloo agreement.
 71. As an owner, I want to delete the network after typing its name, so that its roster, launches, pitches, evidence, and keys are wiped.
@@ -241,7 +241,7 @@ The [TRD](TRD.md) gives call parameters, storage, routes, limits, and configurat
 - **Topic baseline.** One model call ranks the roster by topic from show names and the network's own descriptions, with no Qloo input. It is the without-Qloo counterfactual the UI shows beside the fit ranking.
 - **Pitch ranking.** Its counterpart for a pitch run: one model call ranks the pitches by what they say, from each pitch's subject and opening, never its sender, with the show's name and the past guests' works and no Qloo input. Each list shows it beside who listens, and it doesn't count as a model run.
 - **Insertion order.** Lines of show, slot count, and angle for the finalists. The model proposes slot counts; code, not the model, computes slot value and totals and rejects a draft that exceeds the slot budget, or one drafted before every finalist's shared tags are in, or one with an angle Qloo's tags don't back. It has two states, draft and approved, and only an approved order exports.
-- **Pitch reader and reply drafter.** The model extracts the guest and public work from each pitch and drafts replies. The guest's name and the sender's details stay inside Crossfeed; only the work's title and type reach the gateway.
+- **Pitch reader and reply drafter.** The model extracts the guest and public work from each pitch and drafts replies. The reader gets each pitch whole, its sender's details included, and the pitch ranking each pitch's subject and opening, never its sender; the agent that drafts the replies never sees the guest's name or the sender's details, and only the work's title and type reach the gateway.
 - **The agent.** Claude runs a tool loop over these modules in an agent: one per signed-in network for its roster and inbox, the guest network included, and one per launch for its runs ([ADR 0001](/docs/adr/0001-agents-per-network-and-launch.md)). It asks questions through a question tool that pauses the run until the human answers. Approving and exporting are actions in the app the model has no tool for, so it can propose but never commit.
 - **A directory beside the agents.** A D1 database holds only what has to be looked up across agents: members, passkeys, sessions, networks, memberships, invite links, and API keys, each secret kept as a hash.
 - **Passkeys only, built in-house.** No password, email, or OAuth; a one-time recovery code stands in for email recovery ([ADR 0003](/docs/adr/0003-passkeys-built-in-house.md)).

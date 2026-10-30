@@ -1126,7 +1126,7 @@ const PitchRun = PitchRunFields.extend({
     .optional()
     .openapi({
       description:
-        "The pitches ranked by what they say, from each one's subject and opening, the show's name and the past guests' works, with no Qloo data; `failed` with the reason in `error`. Absent on runs from before it."
+        "The pitches ranked by what they say, from each one's subject and opening, the show's name and the past guests' works, with no Qloo data; `failed` with the reason in `error`. It runs beside the run, so a completed run can still read `ranking`: read it again for the pitch ranks. Absent on runs from before it."
     }),
   replies: z.array(Reply).nullable().openapi({ description: 'One per pitch, in inbox order, once drafted.' }),
   repliesEdited: z.boolean().openapi({

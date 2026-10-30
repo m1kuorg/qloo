@@ -436,7 +436,7 @@ function serverFor(ctx: OperationContext) {
 
   tool(
     'get_pitch_run',
-    `Read a pitch run: its status, the question it waits on and how to answer it, its ranked lists, one per work type, and the reply it drafted to each pitch. ${approvesReply}`,
+    `Read a pitch run: its status, the question it waits on and how to answer it, its ranked lists, one per work type, with each pitch's rank by what it says (Claude's reading, not Qloo data), and the reply it drafted to each pitch. ${approvesReply}`,
     z.object({ runId }),
     READ,
     async (input) => {
@@ -712,6 +712,9 @@ function pitchRunText(run: PitchRun, inbox: string) {
     )
   else if (run.lists?.length && run.pitchRanking?.status === 'failed')
     lines.push(`No pitch ranks: ${run.pitchRanking.error}.`)
+  // The pitch ranking runs beside the run, so it can land after the run has ended.
+  else if (run.lists?.length && run.pitchRanking?.status === 'ranking')
+    lines.push('The pitch ranks are still coming: read the run again with get_pitch_run in a few seconds.')
   if (run.replies) {
     lines.push('Replies:', ...run.replies.map((r) => `- ${r.pitch}, ${r.verdict}, ${r.status}: ${r.draft}`))
     lines.push(`Only a member of the network approves a reply, in the app: ${inbox}`)

@@ -53,7 +53,7 @@ Signing in as a guest opens the guest network, which holds a sample network buil
 
 The topic ranks shifted by up to four places between sessions; Qloo's didn't change. It's one network and one launch: an example, not a study.
 
-A booker without Qloo has only the publicist's words to go on. Crossfeed never scores a pitch's text. It pulls out the public work the guest is promoting and ranks that work against the show's listeners. In the sample inbox, The Rehearsal is pitched as a show about aviation safety, which reads as off-topic for a movie podcast. Qloo still ranks it 2nd of 5 TV shows against The Big Picture, in the top band ([live check]).
+A booker without Qloo has only the publicist's words to go on. Crossfeed ranks the public work the guest is promoting against the show's listeners, not the pitch's wording. The wording gets a rank of its own beside it, Claude's reading of each pitch's subject and opening, so the list shows where the two disagree. In the sample inbox, The Rehearsal is pitched as a show about aviation safety, which reads as off-topic for a movie podcast. Qloo still ranks it 2nd of 5 TV shows against The Big Picture, in the top band ([live check]).
 
 ## Technological implementation
 
@@ -157,7 +157,7 @@ A judge opens the URL on a type-led landing page whose one live thing is the re-
 - **A decision the user can defend:** the approved order shows which call and which shared tags put each show there. It also shows where a finalist's listeners differ from the launch's.
 - **Safe with other people's inboxes:** only public works reach Qloo.
   - On the live demo, before it retired, two sessions' full logs held 81 and 73 Qloo calls. None held a guest name, sender name, or email address from the sample inbox ([live check]).
-  - Pitch text does go to Anthropic, to extract the work and draft replies. The sample inbox is synthetic: its publicists are fictional, at `example.com` addresses.
+  - Pitch text does go to Anthropic: each pitch whole, to extract its work, and each pitch's subject and opening, never its sender, to rank the pitches by what they say. The agent that drafts the replies gets neither. The sample inbox is synthetic: its publicists are fictional, at `example.com` addresses.
 
 [sample network]: https://github.com/m1kuorg/qloo/blob/main/apps/src/sample-network.json
 

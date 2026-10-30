@@ -1,8 +1,9 @@
+import { evictAllDurableObjects, runInDurableObject } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { RunSnapshot, State } from '../src/agent'
+import type { CrossfeedAgent, RunSnapshot, State } from '../src/agent'
 import type { Session as Agent } from '../src/client/App'
 import { InboxWorkspace } from '../src/client/Inbox'
 import sample from '../src/sample-inbox.json'
@@ -391,9 +392,10 @@ describe('ranking the pitches by what they say', () => {
     'Night Owls': work('f-0006', 'Night Owls', '2016')
   }
 
-  // A session with the show imported and the film pitches loaded and read.
-  async function filmsLoaded() {
-    fakeQloo({ search: filmSearch })
+  // A session with the show imported and the film pitches loaded and read, each work searched in
+  // `searched`.
+  async function filmsLoaded(searched = filmSearch) {
+    fakeQloo({ search: searched })
     fakeInsights(filmScores)
     fakeReader(films.length, (t) => {
       const f = films.find((f) => t.includes(`${f.guest} made`))!
@@ -405,12 +407,11 @@ describe('ranking the pitches by what they say', () => {
     await s.until((state) => state.inbox?.status === 'done')
     return s
   }
-  // Starts a pitch run against the show and Mae Ford's Glass Harbor, ranking every pitch.
-  const start = async (s: Omit<Session, 'cookie'>) => {
-    fakeClaude([
-      turn(toolUse('rank_pitches', { show_id: 'e-0001', past_guest_work_ids: ['f-0101'], pitch_ids: ids })),
-      turn(text('Ranked.'))
-    ])
+  // Starts a pitch run against the show and Mae Ford's Glass Harbor, ranking every pitch, its first turn
+  // held until `held` resolves.
+  const start = async (s: Omit<Session, 'cookie'>, held?: Promise<void>) => {
+    const rank = turn(toolUse('rank_pitches', { show_id: 'e-0001', past_guest_work_ids: ['f-0101'], pitch_ids: ids }))
+    fakeClaude([held ? () => held.then(() => rank) : rank, turn(text('Ranked.'))])
     return (await s.call<{ runId: string }>('startPitches', { show: 'Night Shift Cinema', pastGuests: [film] })).runId
   }
   // The section over the lists, as the browser renders it from synced state.
@@ -523,6 +524,102 @@ describe('ranking the pitches by what they say', () => {
     expect(state.booking!.lists![0].rows.find((r) => r.pitch === 'pitch-03')).toMatchObject({ pitchRank: 5, move: 4 })
     const snapshot = await s.call<RunSnapshot>('getRun', runId)
     expect(snapshot.booking).toEqual(state.booking)
+  })
+
+  it('ranks every read pitch with a public work, so one whose match is confirmed during the run still gets a pitch rank', async () => {
+    // Night Owls has two same-year candidates in Qloo, so it's ambiguous until the booker confirms one,
+    // after the run has started.
+    const s = await filmsLoaded({
+      ...filmSearch,
+      'Night Owls': [...work('f-0006', 'Night Owls', '2016'), ...work('f-0007', 'Night Owls', '2016')]
+    })
+    const release = Promise.withResolvers<void>()
+    await start(s, release.promise)
+    await s.until((state) => state.booking?.pitchRanking?.status === 'ranked')
+    await s.call('confirmWork', 'pitch-07', 'f-0006')
+    release.resolve()
+    const state = await finished(s)
+
+    expect(topicNames(pitchRankingRequests()[0])).toEqual(ids)
+    const [list] = state.booking!.lists!
+    expect(list.rows.map((r) => r.pitch).toSorted()).toEqual(ids)
+    expect(list.rows.filter((r) => r.pitchRank === undefined)).toEqual([])
+    expect(list.rows.find((r) => r.pitch === 'pitch-07')).toMatchObject({ rank: 4, pitchRank: 7, move: 3 })
+  })
+
+  it('caps what it sends: past 30,000 characters of subjects and openings, the openings share what the subjects leave', async () => {
+    // 50 pitches, each with a 200-character subject and a body well past 600 characters. Only the first's
+    // work is in Qloo, but every one is read with a work, so every one is ranked.
+    const n = (i: number) => String(i + 1).padStart(2, '0')
+    const subject = (i: number) => `Pitch ${n(i)} `.padEnd(200, 'x')
+    const body = (i: number) => `Guest ${n(i)} made Book ${n(i)}.${'abcdefghij'.repeat(90)}`
+    const fifty = Array.from({ length: 50 }, (_, i) => `Subject: ${subject(i)}\n\n${body(i)}`).join('\n---\n')
+    fakeQloo({ search: { ...search, 'Book 01': work('b-0301', 'Book 01', '2020') } })
+    fakeReader(50, (t) => {
+      const i = Number(/Guest (\d+) made/.exec(t)![1])
+      return { guest: `Guest ${i}`, work: { title: `Book ${String(i).padStart(2, '0')}`, type: 'book', year: 2020 } }
+    })
+    const s = await session()
+    await s.importRoster('Night Shift Cinema')
+    await s.call('loadInbox', { text: fifty })
+    await s.until((state) => state.inbox?.status === 'done')
+    fakeClaude([turn(text('Nothing to rank yet.'))])
+    await s.call('startPitches', { show: 'Night Shift Cinema', pastGuests: [] })
+    await finished(s)
+
+    const [request] = pitchRankingRequests()
+    const blocks = [
+      ...request.messages[0].content.matchAll(/<pitch id="(pitch-\d+)">\nSubject: (.*)\n(.*)\n<\/pitch>/g)
+    ]
+    expect(blocks.map((b) => b[1])).toHaveLength(50)
+    // The subjects take 10,000 characters, so each of the 50 openings gets 400 of the 20,000 left, and an
+    // ellipsis says it was cut.
+    for (const [, , subjectSent, opening] of blocks) {
+      expect(subjectSent).toHaveLength(200)
+      expect(opening).toHaveLength(401)
+      expect(opening.endsWith('…')).toBe(true)
+    }
+    expect(body(0).length).toBeGreaterThan(600)
+    const sent = blocks.reduce((sum, [, , subjectSent, opening]) => sum + subjectSent.length + opening.length, 0)
+    expect(sent).toBeLessThanOrEqual(30_000 + 50)
+    // With each pitch's tags and labels, the whole request stays under 34,000 characters, about 8,500 tokens.
+    expect(request.messages[0].content.length).toBeLessThan(34_000)
+  })
+
+  it('fails a ranking a restart interrupted, in the inbox and in what its run ended with', async () => {
+    const s = await filmsLoaded()
+    const runId = await start(s)
+    await finished(s)
+    // Stand in for an agent a deploy stopped once its run had ended but with its pitch ranking still out:
+    // the lists without pitch ranks, in the inbox and in what the run ended with. Then restart it, as the
+    // deploy does.
+    const agent = env.CrossfeedAgent.get(env.CrossfeedAgent.idFromName(s.cookie.split('=')[1]))
+    await runInDurableObject(agent, (session: CrossfeedAgent, { storage }) => {
+      const { booking } = session.state
+      const unranked = booking!.lists!.map((l) => ({ ...l, rows: l.rows.map(({ pitchRank: _, move: __, ...r }) => r) }))
+      const out = { ...booking!, lists: unranked, pitchRanking: { status: 'ranking' as const, order: [], error: null } }
+      session.setState({ ...session.state, booking: out })
+      storage.sql.exec(
+        `UPDATE runs SET snapshot = json_set(snapshot, '$.booking', json(?)) WHERE id = ?`,
+        JSON.stringify(out),
+        runId
+      )
+    })
+    await evictAllDurableObjects({ webSockets: 'close' })
+    const again = await openSession(s.cookie)
+    open.push(again)
+
+    const interrupted = {
+      status: 'failed',
+      order: [],
+      error: 'The pitch ranking was interrupted. Rank the pitches again'
+    }
+    expect(again.state()!.booking!.pitchRanking).toEqual(interrupted)
+    expect((await again.call<RunSnapshot>('getRun', runId)).booking!.pitchRanking).toEqual(interrupted)
+    // The lists stand by who listens, and a line says why there's no Pitch column.
+    expect(words(lists(again.state()!))).toContain(
+      'No Pitch column: The pitch ranking was interrupted. Rank the pitches again. The lists stand by who listens without it.'
+    )
   })
 
   it('leaves the lists as they were, saying why, when Claude declines to rank the pitches', async () => {

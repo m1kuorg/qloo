@@ -727,9 +727,11 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
         }
       ]
     })
-    // Beside the agent loop, not a tool of it, as the topic baseline is: it needs no Qloo data.
+    // Beside the agent loop, not a tool of it, as the topic baseline is: it needs no Qloo data. It ranks
+    // every read pitch with a public work, the pitches rank_pitches lists, whatever Qloo matched, so a work
+    // confirmed during the run still gets its pitch rank.
     const works = pastGuests.map((g) => g.work)
-    const pitches = this.state.inbox!.pitches.filter(rankable)
+    const pitches = this.state.inbox!.pitches.filter((p) => p.status === 'read' && p.work)
     void this.keepAliveWhile(() => this.rankPitchesByWords(run, show.name, works, pitches)).catch((e) =>
       this.landPitchRanking(run, { status: 'failed', order: [], error: `The pitch ranking stopped: ${message(e)}` })
     )
