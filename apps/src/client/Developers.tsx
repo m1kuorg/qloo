@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { linkVariants } from '@/components/ui/variants'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { buttonVariants, linkVariants } from '@/components/ui/variants'
+import { assistants, CHATGPT, type AssistantSetup, type Snippet, type Step } from '../assistants'
 import type { ApiKey, CheckedKey } from '../directory'
 import type { ToolKind } from '../routes/mcp'
-import { CONNECTED, GUEST_NETWORK_CLEARS, listOf, MAX_NAME } from '../text'
+import { GUEST_NETWORK_CLEARS, listOf, MAX_NAME } from '../text'
 import { Alert, clock, Code, day, KeyValue, KeyValues, send, ShownOnce, useAction, useCopy } from './controls'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { PageHeader, Section } from './PageHeader'
@@ -47,9 +49,9 @@ type NewKey = Pick<Made, 'id' | 'name'>
 
 // The Developers page, which answers "How do I connect my assistant to this network?", in one column as
 // settings' is: the header, then its sections in the order a member connects one: the addresses a client
-// asks for, the API key it acts with, an owner creating one here and seeing it once, the steps for
-// Claude Code, the check that sees the new key's first request, and what an assistant can do with it.
-// Only ShownOnce ever shows a key: every command reads it from CROSSFEED_API_KEY. Tests render it from
+// asks for, the API key it acts with, an owner creating one here and seeing it once, the steps for each
+// assistant, the check that sees the new key's first request, and what an assistant can do with it.
+// Only ShownOnce ever shows a key: no command, configuration or link holds one. Tests render it from
 // the props the server gave the page; `connection` is null until the agent's state arrives.
 export function Developers({
   network,
@@ -101,22 +103,24 @@ function CopyButton({ value, what }: { value: string; what: string }) {
   )
 }
 
-// A command to paste, with Copy beside its caption, or what one prints (`output`), with none, set as the
-// docs set them: on the tone step, the caption over the code, which scrolls sideways inside it on a narrow
-// screen rather than wrapping. `name` says which command a Copy copies. A command runs as it's pasted:
-// no comment and no placeholder, as zsh would run either as words.
-function Snippet({ caption, name, children }: { caption: string; name?: string; children: string }) {
+// A block of code a step shows, set as the docs set theirs: on the tone step, its caption over the code,
+// which scrolls sideways inside it on a narrow screen rather than wrapping, the caption the file it goes
+// in when it names one. One that runs as it's pasted has Copy beside its caption, named for what it
+// copies; what a command prints, or a format with a placeholder for the key, has none.
+function SnippetBlock({ snippet: { label, file, code, copy } }: { snippet: Snippet }) {
   return (
-    <figure
-      className="flex min-w-0 flex-col rounded-xl bg-muted"
-      data-copyable={name ? true : undefined}
-      data-output={name ? undefined : true}
-    >
+    <figure className="flex min-w-0 flex-col rounded-xl bg-muted" data-snippet>
       <figcaption className="flex min-h-10 items-center justify-between gap-3 pt-1 pr-1 pl-4 type-caption text-muted-foreground max-md:min-h-12">
-        {caption}
-        {name && (
+        {file ? (
+          <code className="font-mono text-xs" translate="no">
+            {file}
+          </code>
+        ) : (
+          label
+        )}
+        {copy && (
           <span className="flex items-center">
-            <CopyButton value={children} what={name} />
+            <CopyButton value={code} what={copy} />
           </span>
         )}
       </figcaption>
@@ -125,7 +129,7 @@ function Snippet({ caption, name, children }: { caption: string; name?: string; 
         translate="no"
         className="overflow-x-auto overscroll-x-contain px-4 pb-3.5 font-mono text-[13px] leading-relaxed focus-visible:-outline-offset-2"
       >
-        <code>{children}</code>
+        <code>{code}</code>
       </pre>
     </figure>
   )
@@ -238,8 +242,8 @@ function KeySection({
           </form>
           {made && (
             <ShownOnce key={made.id} id="dev-key-secret" label="New API key" noun="key" value={made.secret} mono>
-              Copy it now: Crossfeed shows each key only once. Then put it in your shell as{' '}
-              <Code>CROSSFEED_API_KEY</Code>, the first step under Your assistant, so no command you paste holds it.
+              Copy it now: Crossfeed shows each key only once. Then keep it where your assistant reads it, which for
+              most is an environment variable, <Code>CROSSFEED_API_KEY</Code>, set as Your assistant’s first step shows.
             </ShownOnce>
           )}
           <Alert error={error} />
@@ -262,61 +266,98 @@ function KeySection({
   )
 }
 
-// Claude Code's steps, each a numbered line over the command it runs: the key into the shell's
-// CROSSFEED_API_KEY with nothing echoed, so it's in no command and no history; the server added, the
-// shell filling the header in from the variable; and `claude mcp list`, with the line it prints for a
-// server it reached. Then the plugin, which sets the server up with the skills.
+// The steps for each assistant, from the module the MCP docs render too (assistants.ts), behind a picker
+// of them in tabs on the segmented track. Which one shows is this section's own state, never the URL's
+// hash, which the page's own tabs keep. Every panel stays mounted, so the page rendered on the server
+// holds every assistant's steps. Then the sentence on ChatGPT, which can't connect yet.
 function Assistant({ mcp }: { mcp: string }) {
+  const all = assistants(mcp)
   return (
     <Section
       id="assistant-h"
       title="Your assistant"
-      description="Claude Code connects to the MCP server with one command, which takes the key from your shell."
+      description="How each assistant connects to the MCP server, with the key in no command, configuration or link you copy."
     >
-      <ol className="flex list-outside list-decimal flex-col gap-6 pl-5 marker:text-muted-foreground">
-        <li>
-          <div className="flex flex-col gap-3">
-            <p>
-              Put the key in your shell as <Code>CROSSFEED_API_KEY</Code>: in bash or zsh, run this, paste the key, and
-              press Return. Nothing shows as you paste, and the key stays out of your shell’s history.
-            </p>
-            <Snippet caption="Shell" name="command that reads the key">
-              {'read -rs CROSSFEED_API_KEY && export CROSSFEED_API_KEY'}
-            </Snippet>
-          </div>
-        </li>
-        <li>
-          <div className="flex flex-col gap-3">
-            <p>
-              Add Crossfeed’s MCP server to Claude Code, in the folder you’ll use it from. Claude Code keeps the key
-              from then on, in plain text in its own config file, <Code>~/.claude.json</Code>.
-            </p>
-            <Snippet caption="Shell" name="claude mcp add command">
-              {`claude mcp add --transport http crossfeed ${mcp} \\\n  --header "Authorization: Bearer $CROSSFEED_API_KEY"`}
-            </Snippet>
-          </div>
-        </li>
-        <li>
-          <div className="flex flex-col gap-3">
-            <p>
-              Check it: <Code>claude mcp list</Code> should show it connected.
-            </p>
-            <Snippet caption="Shell" name="claude mcp list command">
-              {'claude mcp list'}
-            </Snippet>
-            <Snippet caption="Output">{`crossfeed: ${mcp} (HTTP) - ${CONNECTED}`}</Snippet>
-          </div>
-        </li>
-      </ol>
-      <p className="text-muted-foreground">
-        The Crossfeed plugin installs two skills that teach Claude Code to plan launch promos and triage guest pitches,
-        with the MCP server: see{' '}
-        <a className={linkVariants()} href="/docs/agents">
-          Skills and plugin
-        </a>
-        .
-      </p>
+      <Tabs defaultValue={all[0].id} className="gap-6">
+        {/* Wider than the column, as on a phone, the list scrolls sideways, with room around the track for the focus ring. */}
+        <div className="-m-1 overflow-x-auto overscroll-x-contain p-1">
+          <TabsList aria-label="Assistants" className="max-w-none *:shrink-0">
+            {all.map((a) => (
+              <TabsTrigger key={a.id} value={a.id}>
+                {a.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+        {all.map((a) => (
+          <TabsContent key={a.id} value={a.id} keepMounted className="flex flex-col gap-6" data-assistant={a.id}>
+            <Setup assistant={a} />
+          </TabsContent>
+        ))}
+      </Tabs>
+      <p className="text-muted-foreground">{CHATGPT}</p>
     </Section>
+  )
+}
+
+// A sentence of the module's, each run between backticks set as code.
+const Marked = ({ text }: { text: string }) => (
+  <>{text.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part))}</>
+)
+
+// One assistant's setup: its steps, each a numbered line over its links and the blocks it runs; then
+// the way for when they can't work, and a line leading on, as the plugin for Claude Code.
+function Setup({ assistant: { steps, otherwise, more } }: { assistant: AssistantSetup }) {
+  return (
+    <>
+      <ol className="flex list-outside list-decimal flex-col gap-6 pl-5 marker:text-muted-foreground">
+        {steps.map((step, i) => (
+          <li key={i}>
+            <StepBody step={step} />
+          </li>
+        ))}
+      </ol>
+      {otherwise && <StepBody step={otherwise} />}
+      {more && (
+        <p className="text-muted-foreground">
+          {more.text}{' '}
+          <a className={linkVariants()} href={more.link.href}>
+            {more.link.label}
+          </a>
+          .
+        </p>
+      )}
+    </>
+  )
+}
+
+// A step's sentence, then each link as a secondary button over what it does, which describes it, then its
+// blocks. A link to a web page opens in a tab of its own, so this page keeps the key it showed.
+function StepBody({ step }: { step: Step }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p>
+        <Marked text={step.text} />
+      </p>
+      {step.links?.map((link) => (
+        <div key={link.id} className="flex flex-col items-start gap-1.5">
+          <a
+            className={buttonVariants({ variant: 'secondary' })}
+            href={link.href}
+            aria-describedby={`${link.id}-note`}
+            {...(link.away && { target: '_blank', rel: 'noreferrer' })}
+          >
+            {link.label}
+          </a>
+          <p id={`${link.id}-note`}>
+            <Marked text={link.caveat} />
+          </p>
+        </div>
+      ))}
+      {step.snippets?.map((snippet, i) => (
+        <SnippetBlock key={i} snippet={snippet} />
+      ))}
+    </div>
   )
 }
 
@@ -523,16 +564,13 @@ function Watching({ name, watch, again }: { name: string; watch: Watch; again: (
       {watch.state === 'stopped' && (
         <ul className="flex list-outside list-disc flex-col gap-1.5 pl-5 marker:text-muted-foreground">
           <li>
-            The key: <Code>CROSSFEED_API_KEY</Code> holds all of it, from <Code>cf_live_</Code> on, and it’s still in
-            use.
+            The key: the assistant has all of it, from <Code>cf_live_</Code> on, and it isn’t revoked.
           </li>
           <li>
-            The variable: it was set in the shell you ran <Code>claude mcp add</Code> in. If it wasn’t, run{' '}
-            <Code>claude mcp remove crossfeed</Code>, set it, and add the server again.
+            The variable: <Code>CROSSFEED_API_KEY</Code> is set where the assistant runs, if it reads the key from
+            there.
           </li>
-          <li>
-            Claude Code: it connects as a session starts, so start a new one, or run <Code>claude mcp list</Code>.
-          </li>
+          <li>The assistant: it started again after you added the server, as most connect only as they start.</li>
         </ul>
       )}
       <Button variant="secondary" onClick={again}>

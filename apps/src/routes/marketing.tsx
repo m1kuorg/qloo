@@ -1131,19 +1131,22 @@ export const TableScroll = ({ label, children }: { label: string; children: Chil
 // without interactivecomments reads as words, no placeholder to fill in, and never what a command
 // prints, which is a block of its own. It has a Copy button across from its caption, in an inert
 // <template> that the docs' copy.ts puts in place, so without JavaScript there's no button, and the
-// code is still there to select. The button's name says what it copies after its visible word, "Copy
-// Shell" or "Copy plugins/crossfeed/.mcp.json", as the island's name theirs ("Copy record"). Its words,
+// code is still there to select. The button's name says what it copies after its visible word: `name`,
+// as "Copy claude mcp add command", or else its caption, "Copy Shell" or "Copy
+// plugins/crossfeed/.mcp.json", as the island's name theirs ("Copy record"). Its words,
 // "Copy", "Copied" and "Copy failed", are the ticket's (#360); its states, not tried, copied and
 // refused, are the island's (useCopy), and a visually hidden status says each.
 export const Code = ({
   label,
   file,
   copy = false,
+  name,
   children
 }: {
   label?: string
   file?: string
   copy?: boolean
+  name?: string
   children: string
 }) => (
   <figure class="grid grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-xl bg-muted">
@@ -1157,7 +1160,7 @@ export const Code = ({
           <Copy class="group-data-[copied=true]/button:hidden" />
           <Check class="hidden group-data-[copied=true]/button:block" />
           <span data-copy-label>Copy</span>
-          <span class="vh">{` ${file ?? label}`}</span>
+          <span class="vh">{` ${name ?? file ?? label}`}</span>
         </button>
         <span role="status" class="vh" />
       </template>
