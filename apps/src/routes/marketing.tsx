@@ -1648,10 +1648,10 @@ const pageRequest = (c: Context) =>
 
 // Crossfeed's own pages closest to the address a visitor asked for, closest first, three at most, as a
 // launch ranks a roster: home, the developer docs, privacy and the beta terms, and while accounts are on
-// the ways in. A page's overlap is the Dice coefficient of the character pairs, repeats counted, of the
-// address and the page's address or its name, whichever is higher, each lowercased with its slashes,
-// dashes, underscores and dots read as spaces. Only the address's first 200 characters count, a page
-// under 0.4 isn't close, and pages that tie keep this order.
+// the ways in. A page's similarity to the address is the Dice coefficient of their character pairs,
+// repeats counted, against the page's address or its name, whichever is higher, each lowercased with its
+// slashes, dashes, underscores and dots read as spaces. Only the address's first 200 characters count, a
+// page under a similarity of 0.4 isn't close, and pages that tie keep this order.
 function closest(path: string, accounts: boolean) {
   const pages = [
     { href: '/', label: 'Home' },
@@ -1667,28 +1667,33 @@ function closest(path: string, accounts: boolean) {
         ]
       : [])
   ]
-  const pairs = (text: string) => {
-    const read = text
+  const pairs = (raw: string) => {
+    const text = raw
       .toLowerCase()
       .replace(/[\s/._-]+/g, ' ')
       .trim()
-    return Array.from({ length: Math.max(read.length - 1, 0) }, (_, i) => read.slice(i, i + 2))
+    return Array.from({ length: Math.max(text.length - 1, 0) }, (_, i) => text.slice(i, i + 2))
   }
   const asked = pairs(path.slice(0, 200))
-  const overlap = (text: string) => {
-    const left = pairs(text)
-    const total = asked.length + left.length
-    const shared = asked.filter((pair) => {
-      const i = left.indexOf(pair)
-      if (i >= 0) left.splice(i, 1)
-      return i >= 0
-    }).length
+  const similarity = (text: string) => {
+    const pagePairs = pairs(text)
+    const unmatched = new Map<string, number>()
+    for (const pair of pagePairs) unmatched.set(pair, (unmatched.get(pair) ?? 0) + 1)
+    let shared = 0
+    for (const pair of asked) {
+      const count = unmatched.get(pair) ?? 0
+      if (count > 0) {
+        unmatched.set(pair, count - 1)
+        shared++
+      }
+    }
+    const total = asked.length + pagePairs.length
     return total ? (2 * shared) / total : 0
   }
   return pages
-    .map(({ href, label }) => ({ href, label, overlap: Math.max(overlap(href), overlap(label)) }))
-    .filter((page) => page.overlap >= 0.4)
-    .sort((a, b) => b.overlap - a.overlap)
+    .map(({ href, label }) => ({ href, label, similarity: Math.max(similarity(href), similarity(label)) }))
+    .filter((page) => page.similarity >= 0.4)
+    .sort((a, b) => b.similarity - a.similarity)
     .slice(0, 3)
 }
 

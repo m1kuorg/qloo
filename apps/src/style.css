@@ -528,9 +528,10 @@
   }
 }
 
-/* A status page's lists (routes/marketing.tsx), its ways back and the 404 page's ranking: after the
-   sentence has risen in, each item rises in 70ms after the one before. Only with motion allowed, so
-   with reduced motion every item is in place from the start. */
+/* A status page's lists (routes/marketing.tsx), its ways back and the 404 page's ranking: the first item
+   starts to rise in 70ms after the sentence does (rise-in's 480ms), and each item after it 70ms after
+   the one before. Only with motion allowed, so with reduced motion every item is in place from the
+   start. */
 @media (prefers-reduced-motion: no-preference) {
   [data-stagger] > * {
     animation: var(--animate-rise-in);
