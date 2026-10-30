@@ -1,16 +1,21 @@
 // The roster's overlap: one closed-list ranking in Qloo per distinct entity the roster's shows are matched
 // or mapped to, measured from a member's page or through the REST API, kept in the network's synced
-// state as each show's closest shows, and read back with its close pairs. Each test drives a member's
-// network through its agent's client protocol or the API, against the fake Qloo.
+// state as each show's closest shows, and read back with its close pairs, and the roster page's Overlap
+// tab, which shows it. Each test drives a member's network through its agent's client protocol or the
+// API, against the fake Qloo, and renders the page from the synced state.
 import { evictAllDurableObjects, runInDurableObject } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { State } from '../src/agent'
+import type { NetworkConnection } from '../src/client/NetworkPage'
+import { NetworkRoster } from '../src/client/Roster'
 import type { Evidence } from '../src/evidence'
 import type { NetworkAgent } from '../src/network-agent'
 import type { RosterOverlap } from '../src/operations'
 import { fakeInsights, fakeQloo, requests, type Insight } from './fake'
-import { networkWithKey, poll, type Session } from './session'
+import { hooked, networkWithKey, openMember, poll, sections, tabsOf, type Session } from './session'
 
 // Made-up shows, each its own Qloo entity at a made-up place on a line, so a show's listeners overlap
 // most with the shows nearest it; and Paper Trail, which Qloo has no match for until it's mapped.
@@ -543,5 +548,186 @@ describe("measuring the roster's overlap", () => {
       ['C-01', '/search'],
       ['C-149', '/v2/insights']
     ])
+  })
+})
+
+describe("the roster page's Overlap tab", () => {
+  // The roster page as a member reads it, from the network agent's synced state; its Overlap tab's
+  // section; and one of that section's rows, by the show that names it.
+  const page = (state: State) =>
+    renderToStaticMarkup(createElement(NetworkRoster, { agent: { state, stub: {} } as unknown as NetworkConnection }))
+  const tab = (state: State) => hooked(page(state), 'data-overlap')[0]
+  const row = (state: State, show: string) => words(hooked(tab(state), `data-overlap-row="${show}"`)[0])
+  const rowsOf = (state: State) =>
+    [...tab(state).matchAll(/data-overlap-row="([^"]+)"[^>]*data-state="([^"]+)"/g)].map(([, show, s]) => [show, s])
+  const words = (html: string) =>
+    html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&#x27;|&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const heading = 'Who shares whose listeners Qloo data'
+
+  // Six shows on five Qloo shows: Paper Trail mapped to Deep Cuts, which is on the roster too, and Night
+  // Ferry left out of launches.
+  const mapped = ['Paper Trail', 'Deep Cuts', 'Signal Boost', 'Field Notes', 'Corner Booth', 'Night Ferry']
+  async function settle(agent: Omit<Session, 'cookie'>) {
+    await agent.searchComps('Paper Trail', 'Deep Cuts')
+    await agent.call('updateShow', 'Paper Trail', { compId: id('Deep Cuts') })
+    await agent.call('updateShow', 'Night Ferry', { excluded: true })
+    return agent.until((s) => s.roster.find((show) => show.name === 'Night Ferry')!.excluded)
+  }
+
+  it("is the roster's second tab, saying what a measure needs, then offering one with what it may spend", async () => {
+    fakeQloo({ search })
+    fakeInsights(overlapping)
+    const { agent } = await network(['Deep Cuts', 'Signal Boost', 'Field Notes', 'Paper Trail'])
+    await agent.searchComps('Paper Trail', 'Deep Cuts')
+    await agent.call('updateShow', 'Paper Trail', { compId: id('Deep Cuts') })
+    const few = await agent.until((s) => s.roster.some((show) => show.resolution === 'mapped'))
+
+    // The header is the same on both tabs, every panel is in the page, and Shows opens first.
+    const html = page(few)
+    expect(tabsOf(hooked(html, 'data-canvas')[0])).toEqual({
+      label: 'Roster sections',
+      tabs: ['Shows', 'Overlap'],
+      panels: ['shown', 'hidden']
+    })
+    expect(words(html)).toMatch(/^Roster 4 shows · 3 resolved, 1 mapped to a comp Details Import shows Shows Overlap /)
+    // Paper Trail and Deep Cuts are one Qloo show, so there are three: too few, and nothing to start.
+    expect(sections(tab(few))).toEqual([
+      [
+        heading,
+        'Measuring the overlap needs at least 4 shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has 3. Match or map more of its shows first.'
+      ]
+    ])
+    expect(tab(few)).not.toContain('<button')
+
+    // With a fourth, it's not measured yet, and offers to, one call a Qloo show at most.
+    const ready = await agent.importRoster(
+      ['Deep Cuts', 'Signal Boost', 'Field Notes', 'Paper Trail', 'Corner Booth'].join('\n')
+    )
+    expect(sections(tab(ready))).toEqual([[heading, 'The roster’s overlap hasn’t been measured yet.']])
+    expect(words(tab(ready))).toBe(
+      `${heading} The roster’s overlap hasn’t been measured yet. Measure the overlap Up to 4 Qloo calls`
+    )
+    expect(tab(ready)).toMatch(/<button[^>]*aria-describedby="overlap-cost"[^>]*>Measure the overlap<\/button>/)
+    expect(requests.filter((r) => r.url.pathname === '/v2/insights')).toEqual([])
+  })
+
+  it("shows each show's closest shows in the roster's order, with its rank, band, and call, its close pairs marked", async () => {
+    fakeQloo({ search })
+    fakeInsights(overlapping)
+    const { agent } = await network(mapped)
+    await settle(agent)
+    await agent.call('measureOverlap')
+    const state = await agent.until(measured)
+
+    // The finding: Deep Cuts and Signal Boost each rank as the other's closest, and Night Ferry, at the
+    // end of the line, is no show's. With five Qloo shows, each has one closest show.
+    expect(sections(tab(state))).toEqual([[heading, '1 close pair, and 1 of 5 shows is no other show’s closest show.']])
+    // One row a Qloo show, in the roster's order, Paper Trail naming the one Deep Cuts shares, with no
+    // action, since every ranking landed and nothing changed.
+    expect(rowsOf(state)).toEqual(
+      ['Paper Trail', 'Signal Boost', 'Field Notes', 'Corner Booth', 'Night Ferry'].map((s) => [s, 'measured'])
+    )
+    expect(tab(state)).not.toContain('Measure again')
+    // Each row says what the roster says of its show, then its closest show's rank, the other show named
+    // as the roster names it, a close pair named as one, its band in words, and the ranking's call. The
+    // lookups and the comp search are C-01 to C-07, and the rankings follow in entity order.
+    expect(row(state, 'Paper Trail')).toBe(
+      'Paper Trail Mapped to Deep Cuts · Same Qloo show as Deep Cuts #1 Signal Boost , a close pair Strong C-08 Show all 4'
+    )
+    expect(row(state, 'Signal Boost')).toBe('Signal Boost #1 Paper Trail , a close pair Strong C-09 Show all 4')
+    expect(row(state, 'Field Notes')).toBe('Field Notes #1 Signal Boost Strong C-10 Show all 4')
+    expect(row(state, 'Night Ferry')).toBe('Night Ferry Left out #1 Corner Booth Strong C-12 Show all 4')
+    // Each call opens its evidence in the inspector, and Show all opens the whole ranking under its row.
+    expect(tab(state)).toMatch(
+      /<button[^>]*aria-controls="evidence"[^>]*aria-label="Evidence for Paper Trail’s ranking: call C-08"/
+    )
+    expect(tab(state)).toMatch(/<button[^>]*aria-expanded="false"[^>]*aria-controls="ranking-e-0001"/)
+    // Ink only: nothing on the tab carries the signal.
+    expect(tab(state)).not.toMatch(/\b(bg|text|border|fill|decoration)-signal/)
+    expect(words(tab(state))).toContain(
+      'Close pair: two shows that each rank among the other’s closest show. Measured '
+    )
+
+    // The whole ranking is in the call's evidence, which the page reads by its call.
+    const [record] = await agent.call<Evidence[]>('getEvidence', ['C-08'])
+    expect(record.affinities.map((a) => a.name)).toEqual(['Signal Boost', 'Field Notes', 'Corner Booth', 'Night Ferry'])
+  })
+
+  it("shows a teammate's measure as it runs, show by show, then what it found", async () => {
+    fakeQloo({ search })
+    env.QLOO_TIMEOUT_MS = '10000'
+    const held = Promise.withResolvers<void>()
+    fakeInsights(async (body) => {
+      if (body['signal.interests.entities'] !== id('Deep Cuts')) await held.promise
+      return overlapping(body)
+    })
+    const { ada, network: id_, agent } = await network(mapped)
+    await settle(agent)
+    const grace = await openMember({ name: 'Grace Booker', invite: await ada.invite(id_) })
+    const theirs = await grace.connect(`/agents/network/${id_}`, {})
+    open.push(theirs)
+
+    await agent.call('measureOverlap')
+    const measuring = await theirs.until((s) => s.overlap?.answered === 1)
+    // Its progress is the section's sentence, in a status region; the rows still out hold skeleton lines,
+    // and the action has gone.
+    expect(sections(tab(measuring))).toEqual([[heading, 'Working Measuring the overlap: 1 of 5 shows ranked.']])
+    expect(tab(measuring)).toMatch(/<span role="status">.*Measuring the overlap: 1 of 5 shows ranked\.<\/span>/)
+    expect(rowsOf(measuring)).toEqual([
+      ['Paper Trail', 'measured'],
+      ...['Signal Boost', 'Field Notes', 'Corner Booth', 'Night Ferry'].map((s) => [s, 'measuring'])
+    ])
+    expect(row(measuring, 'Signal Boost')).toBe('Signal Boost Measuring')
+    expect(hooked(tab(measuring), 'data-overlap-row="Signal Boost"')[0]).toMatch(
+      /aria-busy="true"[\s\S]*data-slot="skeleton"/
+    )
+    expect(tab(measuring)).not.toMatch(/>Measure (the overlap|again)</)
+
+    held.resolve()
+    const done = await theirs.until(measured)
+    expect(sections(tab(done))).toEqual([[heading, '1 close pair, and 1 of 5 shows is no other show’s closest show.']])
+    expect(rowsOf(done).map(([, s]) => s)).toEqual(Array(5).fill('measured'))
+  })
+
+  it('says why a ranking failed, offers to measure what failed, and what changed since', async () => {
+    fakeQloo({ search })
+    fakeInsights((body) => (body['signal.interests.entities'] === id('Signal Boost') ? 503 : overlapping(body)))
+    const { agent } = await network(four)
+    await agent.call('measureOverlap')
+    const partial = await agent.until(measured)
+    // The finding counts what landed: Signal Boost's ranking failed, so Deep Cuts can't be named its close
+    // pair, and Deep Cuts and Corner Booth are no landed show's closest.
+    expect(sections(tab(partial))).toEqual([
+      [heading, 'No close pairs, and 2 of 3 shows are no other show’s closest show.']
+    ])
+    expect(row(partial, 'Signal Boost')).toBe(
+      'Signal Boost Failed Qloo returned 503: fake failure, after 2 retries. C-06'
+    )
+    expect(row(partial, 'Deep Cuts')).toBe('Deep Cuts #1 Signal Boost Strong C-05 Show all 3')
+    expect(words(tab(partial))).toContain('Measure again Up to 1 Qloo call')
+
+    // Once the roster's matched shows change, it says so, and measuring again asks for every show.
+    fakeInsights(overlapping)
+    const grown = await agent.importRoster([...four, 'Slow Burn'].join('\n'))
+    expect(words(tab(grown))).toContain(
+      'The roster’s matched shows have changed since the overlap was measured, so measure it again to read it as the roster is now. Measure again Up to 5 Qloo calls'
+    )
+    expect(row(grown, 'Slow Burn')).toBe('Slow Burn Not measured yet')
+
+    // Under four, it says what it needs in place of the overlap.
+    const fewer = await agent.importRoster(four.slice(0, 3).join('\n'))
+    expect(sections(tab(fewer))).toEqual([
+      [
+        heading,
+        'Measuring the overlap needs at least 4 shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has 3. Match or map more of its shows first.'
+      ]
+    ])
+    expect(tab(fewer)).not.toContain('data-overlap-table')
   })
 })

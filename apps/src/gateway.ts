@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import type { CallEvidence } from './evidence'
+import { scoredOf } from './fit'
 import { isQlooHost } from './qloo-hosts'
 import { GUEST_NETWORK, modelRuns, sha256 } from './text'
 
@@ -476,9 +477,7 @@ export class QlooGateway extends DurableObject<Env> {
     const unexplained = raw.filter((r) => !r.query?.explainability?.['signal.interests.entities'])
     if (unexplained.length > 0)
       return this.fail(evidence, `Qloo returned no explainability for ${names(unexplained)}, so it ignored the request`)
-    const scored = affinities
-      .filter((a): a is Ranked['scored'][number] => a.affinity !== null)
-      .sort((a, b) => b.affinity - a.affinity)
+    const scored = scoredOf(affinities)
     if (scored.length === 0) {
       evidence.error = "Qloo returned no affinity for any candidate, so the anchors' signal didn't score"
       return { ok: false, error: evidence.error, unscored: true, evidence }

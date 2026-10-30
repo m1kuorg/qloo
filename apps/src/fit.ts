@@ -2,7 +2,7 @@
 // closed-list ranking of the roster, and the pitch lists, one per work type. Raw affinities stay in
 // the evidence; the charts get ranks.
 import type { Show } from './agent'
-import type { QlooResult, Ranked } from './gateway'
+import type { Affinity, QlooResult, Ranked } from './gateway'
 import type { Pitch, Work, WorkCandidate, WorkMatch, WorkType } from './inbox'
 import type { Candidate } from './resolve'
 
@@ -139,6 +139,12 @@ export function rankRoster(
 // The band of the `i`th of `n` ranked results, from 0: the third of the ranking it falls in.
 const bands: Band[] = ['top', 'middle', 'bottom']
 export const band = (i: number, n: number) => bands[Math.floor((i * 3) / n)]
+
+// A ranking's scored candidates, best first: those Qloo gave an affinity, highest first, ties in the
+// order Qloo returned them. The gateway ranks every closed list so, and the roster's overlap reads an
+// anchor's whole ranking back from its call's evidence so (overlap.ts), so the two never disagree.
+export const scoredOf = (affinities: Affinity[]): Ranked['scored'] =>
+  affinities.filter((a): a is Ranked['scored'][number] => a.affinity !== null).sort((a, b) => b.affinity - a.affinity)
 
 // A pitch a ranking can score: read, with a public work matched to one Qloo entity. A pitch set aside
 // with no public work, unreadable, or failed never is.

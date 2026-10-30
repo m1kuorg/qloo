@@ -583,8 +583,10 @@ const TwinId = ({ id, shown }: { id: string; shown: string | undefined }) =>
 
 // The evidence on show: `openCall` opens a call's record, or closes it when it's already open.
 // Only the latest click's answer lands, with the log it came in, whose records name the entities
-// every record's IDs stand for (`names`).
-export function useEvidence(agent: Session) {
+// every record's IDs stand for (`names`). With `calls`, it asks only for the open call's record and
+// theirs, the records that name what the page shows, as the roster page asks for its lookups', since
+// measuring the roster's overlap takes the network's whole log past a megabyte; without, the whole log.
+export function useEvidence(agent: Session, calls?: string[]) {
   const [opened, setOpened] = useState<Opened | null>(null)
   const [log, setLog] = useState<Evidence[]>([])
   const names = useMemo(() => namesOf(log), [log])
@@ -595,7 +597,7 @@ export function useEvidence(agent: Session) {
     if (closing) return setOpened(null)
     setOpened({ call, status: 'loading' })
     try {
-      const log = await agent.stub.getEvidence()
+      const log = await (calls ? agent.stub.getEvidence([call, ...calls]) : agent.stub.getEvidence())
       if (latest.current !== call) return
       setLog(log)
       setOpened({ call, status: 'loaded', record: log.find((e) => e.call === call) })
