@@ -12,13 +12,13 @@ import mcpConfig from '../../../plugins/crossfeed/.mcp.json?raw'
 import planLaunchPromos from '../../../plugins/crossfeed/skills/plan-launch-promos/SKILL.md?raw'
 import triageGuestPitches from '../../../plugins/crossfeed/skills/triage-guest-pitches/SKILL.md?raw'
 import { MAX_SHOWS } from '../agent'
-import { badgeVariants, linkVariants, marketingFrame } from '../components/ui/variants'
+import { assistants, CHATGPT, type Assistant, type Step } from '../assistants'
+import { badgeVariants, buttonVariants, linkVariants, marketingFrame } from '../components/ui/variants'
 import { ChevronDown } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { REFUSALS, type RefusalCode } from '../refusal'
 import { marketingShell } from '../shell'
-import { CONNECTED } from '../text'
 import { MAX_UPLOAD_BYTES, megabytes } from '../upload'
 import { apiDocument } from './api'
 import { cap, Code, PRIVACY, TableScroll, TERMS } from './marketing'
@@ -49,7 +49,8 @@ export const PAGES = [
   {
     path: '/docs/mcp',
     title: 'MCP server',
-    description: 'The tools Crossfeed’s MCP server offers at /mcp, and the command that adds it to Claude Code.'
+    description:
+      'The tools Crossfeed’s MCP server offers at /mcp, and how to connect Claude Code, Claude, Cursor, VS Code, Codex or another MCP client to it.'
   },
   {
     path: '/docs/agents',
@@ -127,20 +128,52 @@ const OpenApi = ({ accounts }: { accounts: boolean }) =>
     </code>
   )
 
-// The commands that connect Claude Code to the MCP server of the deployment at `origin` and check it,
-// then, in a block of its own, the line the check prints once it's connected.
-const McpAdd = ({ origin }: { origin: string }) => (
+// One assistant's setup as the Developers page gives it, from the module both render (assistants.ts):
+// its steps, each a numbered sentence over its links and its blocks, a command or a configuration with
+// Copy; then the way for when they can't work, and, unless `bare`, a line leading on. A link to a web
+// page opens in a tab of its own, as the Developers page's does.
+const Setup = ({ assistant: { steps, otherwise, more }, bare = false }: { assistant: Assistant; bare?: boolean }) => (
   <>
-    <Code label="Shell" copy>{`
-claude mcp add --transport http crossfeed ${origin}/mcp \\
-  --header "Authorization: Bearer $CROSSFEED_API_KEY"
-claude mcp list
-`}</Code>
-    <p>
-      <code>claude mcp list</code> should then show it connected:
-    </p>
-    <Code label="Output">{`crossfeed: ${origin}/mcp (HTTP) - ${CONNECTED}`}</Code>
+    <ol class="flex list-outside list-decimal flex-col gap-6 pl-6 marker:text-muted-foreground">
+      {steps.map((step) => (
+        <li>
+          <StepBody step={step} />
+        </li>
+      ))}
+    </ol>
+    {otherwise && <StepBody step={otherwise} />}
+    {more && !bare && (
+      <p>
+        {more.text} <a href={more.link.href}>{more.link.label}</a>.
+      </p>
+    )}
   </>
+)
+const StepBody = ({ step }: { step: Step }) => (
+  <div class="flex flex-col gap-3">
+    <p>
+      <Prose text={step.text} />
+    </p>
+    {step.links?.map((link) => (
+      <div class="flex flex-col items-start gap-1.5">
+        <a
+          href={link.href}
+          class={buttonVariants({ variant: 'secondary', className: 'no-underline' })}
+          {...(link.away && { target: '_blank', rel: 'noreferrer' })}
+        >
+          {link.label}
+        </a>
+        <p class="text-muted-foreground">
+          <Prose text={link.caveat} />
+        </p>
+      </div>
+    ))}
+    {step.snippets?.map((s) => (
+      <Code label={s.label} file={s.file} copy={!!s.copy} name={s.copy}>
+        {s.code}
+      </Code>
+    ))}
+  </div>
 )
 
 // The note every page carries while accounts are off, as in production until the product opens.
@@ -1032,7 +1065,7 @@ try {
 
 type Tool = Awaited<ReturnType<typeof listedTools>>[number]
 
-const mcpPage = (tools: Tool[], origin: string): Page => ({
+const mcpPage = (tools: Tool[], origin: string, accounts: boolean): Page => ({
   path: '/docs/mcp',
   lede: (
     <>
@@ -1044,15 +1077,29 @@ const mcpPage = (tools: Tool[], origin: string): Page => ({
   sections: [
     {
       id: 'connect',
-      title: 'Connect Claude Code',
+      title: 'Connect your assistant',
       body: (
         <>
-          <p>With one of the network’s API keys in your environment:</p>
-          <McpAdd origin={origin} />
           <p>
-            Any MCP client that sends a header of your choice connects the same way. The{' '}
-            <a href="/docs/agents">plugin</a> sets the server up with two skills that teach the assistant the flows.
+            Each assistant reads one of the network’s API keys from where you keep it, or asks you for it: no command,
+            configuration or link here holds one.
+            {accounts && (
+              <>
+                {' '}
+                Signed in, <a href="/app/developers">Connect your AI</a>, on your network’s Developers page, makes a key
+                and gives the same steps.
+              </>
+            )}
           </p>
+          {assistants(`${origin}/mcp`).map((a) => (
+            <div data-assistant={a.id} class="flex flex-col gap-4 pt-4">
+              <h3 id={`connect-${a.id}`} class="scroll-mt-8 font-semibold">
+                {a.name}
+              </h3>
+              <Setup assistant={a} />
+            </div>
+          ))}
+          <p class="pt-4">{CHATGPT}</p>
         </>
       )
     },
@@ -1312,8 +1359,8 @@ claude plugin install crossfeed@crossfeed
       title: 'Without the plugin',
       body: (
         <>
-          <p>Connect the MCP server with one of the network’s API keys in your environment:</p>
-          <McpAdd origin={origin} />
+          <p>Connect the MCP server to Claude Code with one of the network’s API keys:</p>
+          <Setup assistant={assistants(`${origin}/mcp`).find((a) => a.id === 'claude-code')!} bare />
           <p>
             Then copy a skill’s directory from <code>plugins/crossfeed/skills</code> into <code>~/.claude/skills</code>,
             or wherever your client reads skills from. Each skill’s text is also served here, at a stable URL:{' '}
@@ -1356,7 +1403,9 @@ docs.get('/docs/api', shell('/docs/api'), (c) =>
   renderPage(c, apiPage(apiDocument(originOf(c)), originOf(c), c.env.ACCOUNTS === 'on'))
 )
 docs.get('/docs/sdk', shell('/docs/sdk'), (c) => renderPage(c, sdkPage(originOf(c))))
-docs.get('/docs/mcp', shell('/docs/mcp'), async (c) => renderPage(c, mcpPage(await listedTools(), originOf(c))))
+docs.get('/docs/mcp', shell('/docs/mcp'), async (c) =>
+  renderPage(c, mcpPage(await listedTools(), originOf(c), c.env.ACCOUNTS === 'on'))
+)
 docs.get('/docs/agents', shell('/docs/agents'), (c) => renderPage(c, agentsPage(originOf(c))))
 
 // Each skill's text, as its SKILL.md holds it.

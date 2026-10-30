@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import inbox from '../src/sample-inbox.json'
 import network from '../src/sample-network.json'
 import { REFUSALS } from '../src/refusal'
-import { networkWithKey, openMember } from './session'
+import { expectLinks, parsed, setups } from './assistants'
+import { hooked, networkWithKey, openMember } from './session'
 
 const origin = 'https://crossfeed.test'
 const get = (path: string) => exports.default.fetch(`${origin}${path}`)
@@ -42,6 +43,15 @@ const words = (html: string) =>
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
+// A code block's text as it's copied, without its markup, its lines and spaces kept.
+const copied = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
 // The picture of the app among the page's figures whose words include `text`, as markup.
 const picture = (html: string, text: string) => {
   const figure = html.split(/(?=<figure\b)/).find((f) => words(f).includes(text)) ?? ''
@@ -580,6 +590,48 @@ describe('the developer docs', () => {
     }
   )
 
+  it('connect each assistant as the Developers page does, at the deployment’s own address, with no key, and lead to the page while accounts are on', async () => {
+    const html = main(await page('/docs/mcp'))
+    expect(words(html)).toContain('Connect your assistant')
+    // A heading for each assistant, over its blocks as the Developers page shows them.
+    const shown = hooked(html, 'data-assistant').map((part) => ({
+      name: words(part.match(/<h3\b[^>]*>([\s\S]*?)<\/h3>/)![1]).trim(),
+      blocks: part
+        .split(/(?=<figure\b)/)
+        .slice(1)
+        .map((f) => {
+          const figure = f.slice(0, f.indexOf('</figure>'))
+          const button = figure.match(/<template data-copy\b[^>]*>[\s\S]*?(<button\b[\s\S]*?<\/button>)/)?.[1]
+          return parsed([
+            words(figure.match(/<figcaption\b[\s\S]*?<\/figcaption>/)![0]).trim(),
+            button
+              ? words(button)
+                  .trim()
+                  .replace(/^Copy /, '')
+              : null,
+            copied(figure.match(/<pre\b[^>]*>([\s\S]*?)<\/pre>/)![1])
+          ])
+        }),
+      links: [...part.matchAll(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(
+        ([, href, label]) => [words(label).trim(), href.replace(/&amp;/g, '&')] as [string, string]
+      )
+    }))
+    expect(shown.map(({ name, blocks }) => [name, blocks])).toEqual(setups(`${origin}/mcp`))
+    expectLinks(
+      shown.flatMap((s) => s.links).filter(([label]) => label !== 'Skills and plugin'),
+      `${origin}/mcp`
+    )
+    expect(html).toMatch(
+      /<a\b[^>]*href="https:\/\/claude\.ai\/customize\/[^"]*"[^>]*target="_blank"[^>]*rel="noreferrer"/
+    )
+    expect(words(html)).toContain(
+      'ChatGPT can’t connect yet: its custom MCP servers sign in with OAuth or not at all, and Crossfeed’s MCP server takes an API key.'
+    )
+    expect(hrefs(html)).toContain('/app/developers')
+    env.ACCOUNTS = 'off'
+    expect(hrefs(main(await page('/docs/mcp')))).not.toContain('/app/developers')
+  })
+
   it('say how to install the SDK from the repo, make a client, wait for long work, and handle errors', async () => {
     const text = words(main(await page('/docs/sdk')))
     expect(text).toContain('git clone https://github.com/m1kuorg/qloo.git')
@@ -689,14 +741,33 @@ describe('the developer docs', () => {
         ['TypeScript', null]
       ],
       '/docs/mcp': [
-        ['Shell', 'Copy Shell'],
+        // Each assistant's, as the Developers page gives them (assistants.ts).
+        ['Shell', 'Copy command that reads the key'],
+        ['Shell', 'Copy claude mcp add command'],
+        ['Shell', 'Copy claude mcp list command'],
         ['Output', null],
+        // Claude Desktop's, with a placeholder for the key.
+        ['claude_desktop_config.json', null],
+        ['Shell', 'Copy command that reads the key'],
+        ['PowerShell', 'Copy PowerShell commands that set the key'],
+        ['~/.cursor/mcp.json', 'Copy Cursor configuration'],
+        ['Shell', 'Copy command that reads the key'],
+        ['PowerShell', 'Copy PowerShell commands that set the key'],
+        ['mcp.json', 'Copy VS Code configuration'],
+        ['mcp.json', 'Copy VS Code configuration that asks for the key'],
+        ['Shell', 'Copy command that reads the key'],
+        ['Shell', 'Copy codex mcp add command'],
+        ['URL', 'Copy MCP server address'],
+        // The header's format, with a placeholder for the key.
+        ['HTTP', null],
         ['A launch through the MCP server Illustration', null]
       ],
       '/docs/agents': [
         ['plugins/crossfeed/.mcp.json', 'Copy plugins/crossfeed/.mcp.json'],
         ['Shell', 'Copy Shell'],
-        ['Shell', 'Copy Shell'],
+        ['Shell', 'Copy command that reads the key'],
+        ['Shell', 'Copy claude mcp add command'],
+        ['Shell', 'Copy claude mcp list command'],
         ['Output', null]
       ]
     })
@@ -713,7 +784,7 @@ describe('the developer docs', () => {
     for (const path of docs)
       for (const { caption, copy, code } of figures(await page(path)))
         if (copy && caption === 'Shell') shells.push(code)
-    expect(shells).toHaveLength(6)
+    expect(shells).toHaveLength(14)
     for (const code of shells) {
       expect(code).not.toMatch(/(^|\s)#/)
       expect(code).not.toMatch(/…|<[^>]*>/)

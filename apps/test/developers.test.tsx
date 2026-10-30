@@ -5,6 +5,7 @@ import { env, exports } from 'cloudflare:workers'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Developers } from '../src/client/Developers'
+import { expectLinks, parsed, setups } from './assistants'
 import { facts, hooked, openGuest, openMember, rootData, sections, type Guest, type Member } from './session'
 
 const origin = 'https://crossfeed.test'
@@ -72,17 +73,41 @@ const words = (html: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-// Each code block a reader can copy, then each they can't, such as expected output, as its caption and
-// its text.
-const blocks = (html: string, hook: 'data-copyable' | 'data-output') =>
-  hooked(html, hook).map((figure) => [
-    words(figure.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/)![1]).replace(/ Copy.*$/, ''),
-    figure
-      .match(/<pre\b[^>]*>([\s\S]*?)<\/pre>/)![1]
-      .replace(/<[^>]+>/g, '')
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
-  ])
+// Markup's text, its entities as the characters they stand for.
+const unescaped = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#x27;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+
+// The assistants' picker, as a reader meets it: its tabs' names, the chosen one's, and each tab's panel
+// as its code blocks, each its caption, what its Copy names (null for none) and its code, and its
+// links, each its words and where it goes.
+const picker = (html: string) => {
+  const list = hooked(html, 'role="tablist"')[0]
+  const tabs = [...list.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)]
+  return {
+    tabs: tabs.map(([, , name]) => words(name)),
+    chosen: tabs.filter(([, attrs]) => attrs.includes('aria-selected="true"')).map(([, , name]) => words(name)),
+    panels: hooked(html, 'data-assistant').map((panel) => ({
+      blocks: hooked(panel, 'data-snippet').map((figure) => {
+        const caption = figure.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/)![1]
+        const button = caption.match(/<button\b[\s\S]*?<\/button>/)?.[0]
+        return parsed([
+          words(caption.replace(/<span class="flex[\s\S]*$/, '')),
+          button ? words(button).replace(/^Copy /, '') : null,
+          unescaped(figure.match(/<pre\b[^>]*>([\s\S]*?)<\/pre>/)![1])
+        ])
+      }),
+      links: [...panel.matchAll(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(
+        ([, href, label]) => [words(label), unescaped(href)] as [string, string]
+      )
+    }))
+  }
+}
 
 // A JSON-RPC request to the MCP server with an API key, as an MCP client sends it.
 const mcp = (secret: string, method: string, params?: object) =>
@@ -105,7 +130,7 @@ const initialize = (secret: string) =>
   })
 
 describe('the Developers page', () => {
-  it("gives Claude Code's steps with the network's own MCP address, reading the key from CROSSFEED_API_KEY, and no key in any of them", async () => {
+  it("gives each assistant's steps behind a picker, with the network's own MCP address, and no key in any of them", async () => {
     const ada = await openMember()
     const id = await created(ada)
     const { secret } = await key(ada, id)
@@ -120,7 +145,7 @@ describe('the Developers page', () => {
       ['API key', 'Each assistant acts for Night Shift Audio with an API key of its own.'],
       [
         'Your assistant',
-        'Claude Code connects to the MCP server with one command, which takes the key from your shell.'
+        'How each assistant connects to the MCP server, with the key in no command, configuration or link you copy.'
       ],
       ['Check the connection', 'When each of Night Shift Audio’s API keys last reached it, to the minute.'],
       [
@@ -132,16 +157,38 @@ describe('the Developers page', () => {
     expect(words(hooked(html, 'data-addresses')[0])).toContain(
       `MCP server ${origin}/mcp Copy MCP server address REST API ${origin}/api/v1 Copy REST API address Network ID ${id} Copy network ID`
     )
-    // Each command runs as it's pasted: no comment, no placeholder, and the key only as the variable.
-    expect(blocks(html, 'data-copyable')).toEqual([
-      ['Shell', 'read -rs CROSSFEED_API_KEY && export CROSSFEED_API_KEY'],
-      [
-        'Shell',
-        `claude mcp add --transport http crossfeed ${origin}/mcp \\\n  --header "Authorization: Bearer $CROSSFEED_API_KEY"`
-      ],
-      ['Shell', 'claude mcp list']
-    ])
-    expect(blocks(html, 'data-output')).toEqual([['Output', `crossfeed: ${origin}/mcp (HTTP) - ✔ Connected`]])
+    // A tab for each assistant, Claude Code's open, and every panel on the page, each with its blocks:
+    // each command runs as it's pasted, with no comment and no placeholder, and the key only as the
+    // variable, and a block with the docs' placeholder for the key has no Copy.
+    const { tabs, chosen, panels } = picker(html)
+    const expected = setups(`${origin}/mcp`)
+    expect(tabs).toEqual(expected.map(([name]) => name))
+    expect(chosen).toEqual(['Claude Code'])
+    expect(panels.map((p) => p.blocks)).toEqual(expected.map(([, blocks]) => blocks))
+    for (const { blocks } of panels)
+      for (const [caption, copy, code] of blocks)
+        if (copy && caption === 'Shell') expect(code).not.toMatch(/(^|\s)#|…|<[^>]*>/)
+    expectLinks(
+      panels.flatMap((p) => p.links).filter(([label]) => label !== 'Skills and plugin'),
+      `${origin}/mcp`
+    )
+    // Claude's links open in a tab of their own, so the page keeps a key it showed; the apps' links say
+    // they open the app if it's there, and how to start it with the variable.
+    expect(html).toMatch(
+      /<a\b[^>]*href="https:\/\/claude\.ai\/customize\/[^"]*"[^>]*target="_blank"[^>]*rel="noreferrer"/
+    )
+    const text = words(html)
+    for (const app of ['Cursor', 'VS Code'])
+      expect(text).toContain(
+        `Add to ${app} Opens ${app} if it’s installed. Start ${app} from the terminal where you set the variable first, or it has no key to send.`
+      )
+    expect(text).toContain(
+      'On Windows, in PowerShell, the first line asks for the key and sets it for that window, and the second keeps it for apps you start afterwards.'
+    )
+    expect(text).toContain('Request headers are a beta that only some organizations have')
+    expect(text).toContain(
+      'ChatGPT can’t connect yet: its custom MCP servers sign in with OAuth or not at all, and Crossfeed’s MCP server takes an API key.'
+    )
     expect(html).toMatch(/<a\b[^>]*href="\/docs\/agents"[^>]*>Skills and plugin<\/a>/)
     // Only the one-time reveal shows a key, and the page holds none, nor any key's prefix.
     for (const shown of [served, html]) {
