@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Launch, Show } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
-import { FINALISTS, topicFinding, type FitRow, type Ranking } from '../fit'
+import { FINALISTS, topicFinding, type FitRow, type Ranking, type SharedTags } from '../fit'
 import { dollars, slotPrice } from '../order'
 import { sameName } from '../resolve'
 import type { Move, Topic } from '../topic'
@@ -46,16 +46,16 @@ const rowGrid = {
     "grid gap-x-3 gap-y-1 grid-cols-[2rem_minmax(0,1fr)_auto] [grid-template-areas:'rank_name_fit'_'rank_slot_slot'] md:gap-x-4 md:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_8rem] md:[grid-template-areas:'rank_name_fit_slot']"
 }
 
-// Who the chart's ranking is against, as its heading asks it.
-const whoShares = (names: string[]) =>
+// Who the chart's ranking is against, as its heading asks it, and the launch report's.
+export const whoShares = (names: string[]) =>
   names.length === 1
     ? `Who shares ${names[0]}’s listeners`
     : names.length
       ? `Who shares the listeners of ${listOf(names)}`
       : 'Who shares the launch’s listeners'
 
-// The chart's finding, from the ranking and the topic moves.
-const finding = (ranking: Ranking, moves: Move[] | null) =>
+// The chart's finding, from the ranking and the topic moves, which the launch report states too.
+export const finding = (ranking: Ranking, moves: Move[] | null) =>
   topicFinding(ranking.rows.filter((r) => r.finalist).length, moves && moves.filter((m) => m.climber))
 
 // The fit chart: the roster ranked by listener overlap with the launch, its finding its sentence, then
@@ -285,12 +285,7 @@ export function FitChart({
                             <p className="type-caption text-muted-foreground">
                               {shared && (
                                 <>
-                                  {shared.error
-                                    ? `Shared tags failed: ${shared.error}`
-                                    : shared.tags.length > 0
-                                      ? shared.tags.join('\u00a0· ') // a separator never starts a line
-                                      : 'No distinctive shared tags'}{' '}
-                                  {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
+                                  {tagWords(shared)} {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
                                   {notes.length > 0 && ' · '}
                                 </>
                               )}
@@ -385,9 +380,18 @@ export function FitChart({
 const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' })
 const lastGrapheme = (name: string) => [...graphemes.segment(name)].at(-1)?.segment ?? ''
 
+// What a finalist's shared tags say under its name: the tags, why their compare failed, or that it
+// found none. A separator never starts a line.
+export const tagWords = (shared: SharedTags) =>
+  shared.error
+    ? `Shared tags failed: ${shared.error}`
+    : shared.tags.length > 0
+      ? shared.tags.join('\u00a0· ')
+      : 'No distinctive shared tags'
+
 // What one promo slot on a show displaces, from its downloads and the CPM; or the figure it's missing.
 // The value and the downloads under it share a right edge; on a phone's second line they run on.
-function SlotValue({ show, cpm }: { show: Show | undefined; cpm: number | null }) {
+export function SlotValue({ show, cpm }: { show: Show | undefined; cpm: number | null }) {
   const downloads = show?.downloads ?? null // shows from before downloads have none
   const { slotValue, gap } = slotPrice(downloads, cpm)
   if (slotValue === null)
@@ -414,7 +418,7 @@ function SlotValue({ show, cpm }: { show: Show | undefined; cpm: number | null }
 
 // The demographic check in one line, citing its call: who the launch's listeners are, in words,
 // and how many finalists' listeners differ. The values stay in the call's evidence.
-function DemographicSummary({
+export function DemographicSummary({
   check,
   ranking,
   openCall,

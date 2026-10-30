@@ -167,6 +167,7 @@ export type RunSummary = {
   startedById?: string // the member's ID, so their name can be forgotten with their account (forgetMember)
   replayed?: true // the stored sample run, replayed
   fromSample?: true // the run one of the guest network's sample launches was seeded with
+  orderApproved?: true // its own order, as the run keeps it, is approved, so the run has a report (#407)
 }
 
 // Who starts a launch's run: a member by name, with their ID, or an API key by its name alone.
@@ -383,6 +384,9 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
     if (inbox?.status === 'reading') this.finishInbox(inbox.id, 'Reading was interrupted. Load the inbox again.')
     // Calls are timed in memory, so none is still waiting after a restart.
     if (this.state.slowCalls?.length) this.setState({ ...this.state, slowCalls: [] })
+    // Runs from before #407 don't say whether their order is approved, which what they kept does.
+    const runs = this.withApprovals(this.state.runs)
+    if (JSON.stringify(runs) !== JSON.stringify(this.state.runs)) this.setState({ ...this.state, runs })
     // A new engine session opens on the sample network, looked up like an import, so its calls count among
     // the visitor's; past their limit, it opens empty. Tests turn this off.
     if (firstStart && this.opensOnSample && this.env.SAMPLE_NETWORK === 'on') {
@@ -1335,9 +1339,19 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       change.status === 'approved' && approvedBy
         ? { ...change, approvedBy, ...(approvedById && { approvedById }), approvedAt }
         : change
-    this.setState({ ...this.state, insertionOrder: order })
     this.sql`UPDATE runs SET snapshot = json_set(snapshot, '$.insertionOrder', json(${JSON.stringify(order)}))
       WHERE id = ${order.run} AND snapshot IS NOT NULL`
+    this.setState({ ...this.state, insertionOrder: order, runs: this.withApprovals(this.state.runs) })
+  }
+
+  // `runs`, each marked `orderApproved` while the order its run keeps is its own and approved, and only
+  // then, so the Runs list links that run's report.
+  private withApprovals(runs: RunSummary[]): RunSummary[] {
+    const approved = new Set(
+      this.sql<{ id: string }>`SELECT id FROM runs WHERE json_extract(snapshot, '$.insertionOrder.run') = id
+        AND json_extract(snapshot, '$.insertionOrder.status') = 'approved'`.map((r) => r.id)
+    )
+    return runs.map(({ orderApproved: _, ...run }) => (approved.has(run.id) ? { ...run, orderApproved: true } : run))
   }
 
   // Names `name` in place of member `memberId` on each order they approved that an ended run keeps, with
@@ -1764,6 +1778,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       rosterChanged: false
     })
     this.keepSnapshot(run)
+    // Its row says whether its order is approved as the run now keeps it, whatever the captured row said.
+    this.setState({ ...this.state, runs: this.withApprovals(this.state.runs) })
   }
 
   // Copies evidence records into this log under new numbers, in their order, each labelled by `mark`

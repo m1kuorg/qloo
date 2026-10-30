@@ -19,11 +19,12 @@ import type { Session as Agent } from '../src/client/App'
 import { EvidencePanel, namesOf } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
 import { Launches } from '../src/client/Launches'
+import { LaunchReport } from '../src/client/Report'
 import type { Evidence } from '../src/evidence'
 import { globalGateway } from '../src/gateway'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
-import { NetworkAgent } from '../src/network-agent'
+import { launchAgentName, NetworkAgent } from '../src/network-agent'
 import { refusalCode } from '../src/refusal'
 import type { KeptRun } from '../src/sample-launches'
 import { networkLinks } from '../src/shell'
@@ -300,7 +301,8 @@ describe("a launch's page and agent", () => {
         `data-role="${role}"`,
         `data-roster-link="/app/${network}/roster"`,
         `data-settings-link="/app/${network}/settings"`,
-        `data-orders-link="/app/${network}/launches/${id}/insertion-orders"`
+        `data-orders-link="/app/${network}/launches/${id}/insertion-orders"`,
+        `data-reports-link="/app/${network}/launches/${id}/report"`
       ])
         expect(root).toContain(attribute)
       // A launch belongs to the Launches page, which lists it: the shell's one nav marks Launches, and
@@ -2540,88 +2542,89 @@ describe('the pages, as a member reads them', () => {
   })
 })
 
+// Four more made-up shows for the made-up roster, so it has 10 shows matched in Qloo, and each show 3
+// closest shows.
+const more = {
+  'Night Ferry': show('e-0701', 'Night Ferry'),
+  'Static Bloom': show('e-0702', 'Static Bloom'),
+  'Deep Cuts': show('e-0703', 'Deep Cuts'),
+  'Signal Boost': show('e-0704', 'Signal Boost')
+}
+const names: Record<string, string> = Object.fromEntries(
+  [...Object.values(search), ...Object.values(more)].flat().map((e) => [e.entity_id, e.name])
+)
+// Each Qloo show's made-up place on a line, so its listeners overlap most with the shows nearest it. Of
+// the order's shows, Corner Booth and Slow Burn each rank among the other's 3 closest shows, and Paper
+// Route and Field Notes are in no pair with another of them.
+const places: Record<string, number> = {
+  'e-0501': 0,
+  'e-0502': 1,
+  'e-0701': 3,
+  'e-0702': 7,
+  'e-0503': 20,
+  'e-0601': 21,
+  'e-0505': 22,
+  'e-0102': 40,
+  'e-0703': 41,
+  'e-0704': 42
+}
+// Qloo ranks the roster against the launch as rankAsked has it, and against one of the roster's own
+// shows by how near each candidate's place in `spots` is to that show's. Made-up scores.
+const overlapping = (spots: Record<string, number>) => {
+  rankAsked()
+  fakeInsights((body) => {
+    const anchor = String(body['signal.interests.entities'])
+    const candidates = String(body['filter.results.entities']).split(',')
+    if (anchor === 'e-0001') return fit.filter((r) => candidates.includes(r.entity_id))
+    return candidates.map((c) => ({
+      entity_id: c,
+      name: names[c],
+      affinity: 0.95 - Math.abs(spots[anchor] - spots[c]) / 100
+    }))
+  })
+}
+// The made-up network's roster with the four more shows, settled, and its overlap measured unless
+// `measure` is false.
+async function measured(owner: Member, network: string, { measure = true } = {}) {
+  const roster = await rosterOf(owner, network)
+  fakeQloo({ search: { ...search, ...more } })
+  const rows = Object.keys(more).map((name, i) => `${name},${4000 - i * 500}`)
+  await roster.call('importRoster', [csv, ...rows].join('\n'), 'csv')
+  await roster.until((s) => s.roster.length === 10 && s.roster.every((r) => r.resolution !== 'pending'))
+  if (measure) {
+    await roster.call('measureOverlap')
+    await roster.until((s) => s.overlap?.status === 'measured')
+  }
+  return roster
+}
+// A new launch run to a drafted order on the network, as drafted() runs one, doing `meanwhile` while
+// it waits on the budget, before it drafts.
+async function planned(
+  member: Member,
+  network: string,
+  meanwhile: (agent: Omit<Session, 'cookie'>) => Promise<void> = async () => {}
+) {
+  fakeClaude([
+    turn(resolve('Night Shift Cinema')),
+    turn(rank('e-0001')),
+    turn(askBudget),
+    turn(askExclusions),
+    turn(findTags),
+    turn(draft),
+    turn(text('Drafted the insertion order.'))
+  ])
+  const { id, agent } = await launch(member, network)
+  await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+  const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+  await meanwhile(agent)
+  await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+  const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+  await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+  await agent.until(ended)
+  return { id, agent }
+}
+
 describe('close pairs in the plan', () => {
-  // Four more made-up shows for the made-up roster, so it has 10 shows matched in Qloo, and each show 3
-  // closest shows.
-  const more = {
-    'Night Ferry': show('e-0701', 'Night Ferry'),
-    'Static Bloom': show('e-0702', 'Static Bloom'),
-    'Deep Cuts': show('e-0703', 'Deep Cuts'),
-    'Signal Boost': show('e-0704', 'Signal Boost')
-  }
-  const names: Record<string, string> = Object.fromEntries(
-    [...Object.values(search), ...Object.values(more)].flat().map((e) => [e.entity_id, e.name])
-  )
-  // Each Qloo show's made-up place on a line, so its listeners overlap most with the shows nearest it. Of
-  // the order's shows, Corner Booth and Slow Burn each rank among the other's 3 closest shows, and Paper
-  // Route and Field Notes are in no pair with another of them.
-  const places: Record<string, number> = {
-    'e-0501': 0,
-    'e-0502': 1,
-    'e-0701': 3,
-    'e-0702': 7,
-    'e-0503': 20,
-    'e-0601': 21,
-    'e-0505': 22,
-    'e-0102': 40,
-    'e-0703': 41,
-    'e-0704': 42
-  }
-  // Qloo ranks the roster against the launch as rankAsked has it, and against one of the roster's own
-  // shows by how near each candidate's place in `spots` is to that show's. Made-up scores.
-  const overlapping = (spots: Record<string, number>) => {
-    rankAsked()
-    fakeInsights((body) => {
-      const anchor = String(body['signal.interests.entities'])
-      const candidates = String(body['filter.results.entities']).split(',')
-      if (anchor === 'e-0001') return fit.filter((r) => candidates.includes(r.entity_id))
-      return candidates.map((c) => ({
-        entity_id: c,
-        name: names[c],
-        affinity: 0.95 - Math.abs(spots[anchor] - spots[c]) / 100
-      }))
-    })
-  }
-  // The made-up network's roster with the four more shows, settled, and its overlap measured unless
-  // `measure` is false.
-  async function measured(owner: Member, network: string, { measure = true } = {}) {
-    const roster = await rosterOf(owner, network)
-    fakeQloo({ search: { ...search, ...more } })
-    const rows = Object.keys(more).map((name, i) => `${name},${4000 - i * 500}`)
-    await roster.call('importRoster', [csv, ...rows].join('\n'), 'csv')
-    await roster.until((s) => s.roster.length === 10 && s.roster.every((r) => r.resolution !== 'pending'))
-    if (measure) {
-      await roster.call('measureOverlap')
-      await roster.until((s) => s.overlap?.status === 'measured')
-    }
-    return roster
-  }
-  // A new launch run to a drafted order on the network, as drafted() runs one, doing `meanwhile` while
-  // it waits on the budget, before it drafts.
-  async function planned(
-    member: Member,
-    network: string,
-    meanwhile: (agent: Omit<Session, 'cookie'>) => Promise<void> = async () => {}
-  ) {
-    fakeClaude([
-      turn(resolve('Night Shift Cinema')),
-      turn(rank('e-0001')),
-      turn(askBudget),
-      turn(askExclusions),
-      turn(findTags),
-      turn(draft),
-      turn(text('Drafted the insertion order.'))
-    ])
-    const { id, agent } = await launch(member, network)
-    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
-    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
-    await meanwhile(agent)
-    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
-    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
-    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
-    await agent.until(ended)
-    return { id, agent }
-  }
   const words = (html: string) =>
     html
       .replace(/<[^>]+>/g, ' ')
@@ -2951,5 +2954,354 @@ describe('close pairs in the plan', () => {
     expect(pairLines(page(network, state, id))).toEqual([
       `Qloo data Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
     ])
+  })
+})
+
+describe("a launch's report", () => {
+  const words = (html: string) =>
+    html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&#x27;|&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const page = (network: string) => ({
+    id: network,
+    name: 'Night Shift Audio',
+    role: 'owner' as const,
+    links: networkLinks(env, network)
+  })
+  // The report of run `run`, or of the latest approved, from the launch's state as its page has it and
+  // what the page would read: earlier runs as getRun returns them, and the launch's evidence.
+  const report = (
+    network: string,
+    id: string,
+    state: State,
+    run: string | null,
+    reads: { runs?: Record<string, RunSnapshot>; evidence?: Evidence[] }
+  ) =>
+    renderToStaticMarkup(
+      <LaunchReport
+        agent={{ state, stub: {} } as unknown as Agent}
+        network={page(network)}
+        launch={`/app/${network}/launches/${id}`}
+        run={run}
+        reads={reads}
+      />
+    )
+  // The launch's page, with where its runs' reports open.
+  const workspace = (network: string, id: string, state: State) =>
+    renderToStaticMarkup(
+      <LaunchWorkspace
+        agent={{ state, stub: {} } as unknown as Agent}
+        network={page(network)}
+        orders={`/app/${network}/launches/${id}/insertion-orders`}
+        reports={`/app/${network}/launches/${id}/report`}
+      />
+    )
+  // The report links on a page, by their words, or the name a screen reader hears, and where they go.
+  const reportLinks = (html: string) =>
+    [...html.matchAll(/<a\b([^>]*)>([^<]*)<\/a>/g)]
+      .filter(([, attributes]) => /\shref="[^"]*\/report\//.test(attributes))
+      .map(([, attributes, inner]) => [
+        attributes.match(/\saria-label="([^"]*)"/)?.[1] ?? inner,
+        attributes.match(/\shref="([^"]*)"/)![1]
+      ])
+  // Each call number the report cites, as the links it is, and the entries of its "Calls cited".
+  const callLinks = (html: string) => [...html.matchAll(/<a\b[^>]*\shref="#call-(C-\d+)"/g)].map(([, call]) => call)
+  const entries = (html: string) =>
+    [...hooked(html, 'data-calls-cited')[0].matchAll(/<tr\b[^>]*\sid="call-(C-\d+)"[^>]*>(.*?)<\/tr>/g)].map(
+      ([, call, row]) => [call, words(row)]
+    )
+  const byNumber = (a: string, b: string) => Number(a.slice(2)) - Number(b.slice(2))
+  const made = (at: string) =>
+    `${new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+  const print = /<button\b([^>]*)>Print or save as PDF<\/button>/
+  // Made-up listeners of the launch and its finalists, by age band and gender, against the average.
+  const profile = (entity_id: string, lean: number) => ({
+    entity_id,
+    age: {
+      '24_and_younger': -lean,
+      '25_to_29': lean,
+      '30_to_34': lean / 2,
+      '35_to_44': 0.05,
+      '45_to_54': -0.1,
+      '55_and_older': -0.3
+    },
+    gender: { male: lean, female: -lean }
+  })
+
+  it('sets an approved run out as a document: its facts, the finding, the finalists by who listens, the demographics, close pairs, the plan and the calls it cites, with no ID or URN', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const grace = await teammate(ada, network)
+    overlapping(places)
+    await measured(ada, network)
+    fakeDemographics(['e-0001', ...finalists].map((e, i) => profile(e, 0.3 - i * 0.02)))
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(toolUse('check_demographics', { anchor_ids: ['e-0001'], candidate_ids: finalists })),
+      turn(draft),
+      turn(text('Drafted the insertion order.'))
+    ])
+    const { id, agent } = await launch(ada, network)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    await agent.until(ended)
+    await (await connect(grace, `/agents/launch/${network}/${id}`)).call('approveInsertionOrder', 'IO-0001')
+    const state = await agent.until((s) => s.insertionOrder?.status === 'approved')
+    const log = await agent.call<Evidence[]>('getEvidence')
+    const run = state.run!.id
+    expect(state.runs).toEqual([expect.objectContaining({ id: run, orderApproved: true })])
+
+    // The plan links its run's report once it's approved, and so does the run's entry in Runs.
+    expect(reportLinks(workspace(network, id, state))).toEqual([
+      ['Open the report', `/app/${network}/launches/${id}/report/${run}`],
+      ['Report of run 1', `/app/${network}/launches/${id}/report/${run}`]
+    ])
+
+    const html = report(network, id, state, null, { evidence: log })
+    // By default the latest approved run's, by its ID the same.
+    expect(report(network, id, state, run, { evidence: log })).toBe(html)
+    expect(words(html.match(/<h1\b.*?<\/h1>/)![0])).toBe('Night Shift Cinema')
+    expect(sampleLabels(html)).toEqual([])
+    const searched = state.launch!.match!.evidence
+    const at = new Date(state.insertionOrder!.approvedAt!)
+    expect(facts(html)).toEqual([
+      ['Qloo match', `Night Shift Cinema ${searched}`],
+      ['Run', 'Run 1'],
+      ['Started', `${made(state.runs[0].startedAt)} by Ada Programmer`],
+      ['CPM', '$25'],
+      [
+        'Approved',
+        `By Grace Booker on ${at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+      ]
+    ])
+    // Its sections in order, the finding as the fit chart states it.
+    const chart = sections(workspace(network, id, state)).find(
+      ([title]) => title === 'Who shares Night Shift Cinema’s listeners'
+    )!
+    expect(sections(html)).toEqual([
+      chart,
+      [
+        'Close pairs',
+        `From the roster’s overlap, measured ${made(state.rosterOverlap!.measuredAt!).split(',')[0]}, as the run copied it when it started.`
+      ],
+      [
+        'The plan',
+        'Agent drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷ 1,000.'
+      ],
+      ['Insertion order IO-0001 Approved'],
+      [
+        'Calls cited Qloo data',
+        'Each Qloo call the report cites, by its number: what kind of call it was, and when it was made.'
+      ]
+    ])
+    // The finalists by who listens, each with its band, its shared tags and their call, and its slot value.
+    const tags = (show: string) => state.ranking!.rows.find((r) => r.show === show)!.sharedTags!.call
+    const [finalistTable] = hooked(html, 'data-report-finalists')
+    expect(words(finalistTable)).toBe(
+      [
+        'Rank Show Fit Slot value',
+        `1 Corner Booth Film ${tags('Corner Booth')} Strong $1,200 48,000 downloads`,
+        `2 Slow Burn Film ${tags('Slow Burn')} Strong $1,000 40,000 downloads`,
+        `3 Paper Route Film ${tags('Paper Route')} Good $650 26,000 downloads`,
+        `4 Field Notes Film ${tags('Field Notes')} · Mapped to Field Notes: Books Good $438 17,500 downloads`,
+        `5 Ghost Signal Film ${tags('Ghost Signal')} · Mapped to Ghost Signal Radio Fair $225 9,000 downloads`
+      ].join(' ')
+    )
+    // Then the demographics line, the close pair and the plan's lines, with their angles and prices.
+    const page = words(html)
+    expect(page).toContain(
+      `Demographics ${state.demographics!.call} · Checked against the listeners of Night Shift Cinema`
+    )
+    const [cb, sb] = ['Corner Booth', 'Slow Burn'].map(
+      (show) => state.rosterOverlap!.rows.find((r) => r.entity.name === show)!.copy!
+    )
+    expect(page).toContain(
+      `Close pairs From the roster’s overlap, measured ${made(state.rosterOverlap!.measuredAt!).split(',')[0]}, as the run copied it when it started. Qloo data Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
+    )
+    expect(page).toContain(
+      `Corner Booth 8 $9,600 Late-night regulars stay up for the call-ins. ${tags('Corner Booth')} $1,200 a slot`
+    )
+    expect(page).toContain('Total 20 $19,076')
+
+    // Every call number is a link to its entry in "Calls cited", which lists every call it cites and no
+    // other, in call order, each with its kind and when it was made.
+    expect(html).not.toContain('aria-controls="evidence"')
+    const cited = [...new Set(callLinks(html))].sort(byNumber)
+    expect(entries(html).map(([call]) => call)).toEqual(cited)
+    expect(cited).toEqual(
+      [
+        searched,
+        state.ranking!.call,
+        ...finalists.map((e) => tags(state.ranking!.rows.find((r) => r.entity.id === e)!.show)),
+        state.demographics!.call,
+        cb,
+        sb
+      ].sort(byNumber)
+    )
+    const record = (call: string) => log.find((e) => e.call === call)!
+    expect(Object.fromEntries(entries(html))).toMatchObject({
+      [searched]: `${searched} Search ${made(record(searched).at)}`,
+      [state.ranking!.call]:
+        `${state.ranking!.call} Ranking by listener overlap ${made(record(state.ranking!.call).at)}`,
+      [tags('Corner Booth')]: `${tags('Corner Booth')} Shared tags ${made(record(tags('Corner Booth')).at)}`,
+      [state.demographics!.call]:
+        `${state.demographics!.call} Listener age and gender ${made(record(state.demographics!.call).at)}`,
+      [cb]: `${cb} Ranking by listener overlap From the roster’s overlap, as Qloo answered the network ${made(record(cb).at)}`
+    })
+    // Everything has arrived, so it prints; until the calls it cites have, it doesn't, so a skeleton never
+    // prints.
+    expect(html.match(print)![1]).toContain('aria-disabled="false"')
+    const reading = report(network, id, state, null, {})
+    expect(reading.match(print)![1]).toContain('aria-disabled="true"')
+    expect(entries(reading)).toEqual(cited.map((call) => [call, call]))
+
+    // It carries what the app shows of the run: no request parameter, entity ID, URN, raw affinity or score,
+    // and no ID of the run or the launch.
+    expect(html).not.toMatch(/\be-\d{4}\b/)
+    expect(html).not.toContain('urn:')
+    expect(html).not.toMatch(/signal\.|filter\.|explainability/)
+    expect(html.replace(/\sclass="[^"]*"/g, '')).not.toMatch(/\d\.\d{2,}/)
+    expect(html).not.toContain(run)
+    expect(html).not.toContain(id)
+  })
+
+  it("reports an earlier approved run, by default and by its ID, and a draft's or a run's with no order only says it opens once its plan is approved", async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    const runOne = agent.state()!.run!.id
+    // Before approval, no report: the plan and Runs link none, and the report says it opens once approved.
+    const before = agent.state()!
+    expect(reportLinks(workspace(network, id, before))).toEqual([])
+    const notYet = report(network, id, before, null, {})
+    expect(words(notYet)).toBe(
+      'Night Shift Cinema Launch report This run’s report opens once its plan is approved. Review the plan'
+    )
+    expect(notYet).toContain(`href="/app/${network}/launches/${id}#plan"`)
+    expect(notYet).not.toMatch(print)
+    expect(sections(notYet)).toEqual([])
+    expect(facts(notYet)).toEqual([])
+
+    // Approved, then edited back to draft, then approved again: the run's entry follows.
+    await agent.call('approveInsertionOrder', 'IO-0001')
+    expect((await agent.until((s) => s.insertionOrder?.status === 'approved')).runs[0].orderApproved).toBe(true)
+    const lines = before.insertionOrder!.lines.map(({ show, slots, angle }) => ({ show, slots: slots + 1, angle }))
+    await agent.call('editInsertionOrder', 'IO-0001', lines)
+    expect((await agent.until((s) => s.insertionOrder?.status === 'draft')).runs[0].orderApproved).toBeUndefined()
+    await agent.call('approveInsertionOrder', 'IO-0001')
+    await agent.until((s) => s.runs[0].orderApproved === true)
+
+    // A second run drafts an order of its own, a draft, and a third drafts none.
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft),
+      turn(text('Drafted it again.')),
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(text('Ranked it, with no order.'))
+    ])
+    const again = async () => {
+      const runs = agent.state()!.runs.length
+      await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+      const budget = await agent.until((s) => s.runs.length > runs && s.run?.question?.kind === 'budget')
+      await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+      const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+      await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+      return agent.until(ended)
+    }
+    const runTwo = (await again()).run!.id
+    const state = await again()
+    const runThree = state.run!.id
+    expect(state.runs.map((r) => r.orderApproved)).toEqual([true, undefined, undefined])
+    expect(state.insertionOrder).toBeNull()
+    // Only run 1's entry links its report; the latest run has no plan to link one.
+    expect(reportLinks(workspace(network, id, state))).toEqual([
+      ['Report of run 1', `/app/${network}/launches/${id}/report/${runOne}`]
+    ])
+
+    // The report defaults to run 1, the latest approved, read as getRun keeps it; by its ID, the same.
+    const reads = {
+      runs: { [runOne]: await agent.call<RunSnapshot>('getRun', runOne) },
+      evidence: await agent.call<Evidence[]>('getEvidence')
+    }
+    const html = report(network, id, state, null, reads)
+    expect(report(network, id, state, runOne, reads)).toBe(html)
+    expect(facts(html)).toContainEqual(['Run', 'Run 1'])
+    expect(words(html)).toContain('Total 24 ')
+    expect(html.match(print)![1]).toContain('aria-disabled="false"')
+    // Run 2's draft and run 3, with no order, have none.
+    for (const run of [runTwo, runThree]) {
+      const none = report(network, id, state, run, {
+        runs: { [runTwo]: await agent.call<RunSnapshot>('getRun', runTwo) }
+      })
+      expect(words(none), run).toBe(
+        'Night Shift Cinema Launch report This run’s report opens once its plan is approved. Review the plan'
+      )
+      expect(none, run).not.toMatch(print)
+    }
+    // A run the launch doesn't have says so.
+    expect(words(report(network, id, state, crypto.randomUUID(), {}))).toBe(
+      'Night Shift Cinema Launch report Error This launch has no such run. Open the launch'
+    )
+  })
+
+  it('opens at the launch’s address, with or without a run’s ID, for its network’s members alone, marking Launches', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    const run = agent.state()!.run!.id
+    const stranger = await openMember({ name: 'Mal Stranger' })
+    for (const path of ['report', `report/${run}`]) {
+      const res = await ada.fetch(`/app/${network}/launches/${id}/${path}`)
+      expect(res.status, path).toBe(200)
+      const html = await res.text()
+      const root = html.match(/<div id="root"([^>]*)>/)![1]
+      for (const attribute of [
+        'data-page="launch-report"',
+        `data-agent-path="/agents/launch/${network}/${id}"`,
+        `data-launch-link="/app/${network}/launches/${id}"`
+      ])
+        expect(root, path).toContain(attribute)
+      if (path === 'report') expect(root).not.toContain('data-run-id')
+      else expect(root).toContain(`data-run-id="${run}"`)
+      // It belongs to the launch, under Launches: the rail marks Launches, the top bar leads back to the list,
+      // and its slot after it, which the island fills with the launch's name as a link to its page.
+      expect(currentLinks(html), path).toEqual([['Launches', `/app/${network}/launches`, 'true']])
+      expect(html).toMatch(/<li\b[^>]*\sid="shell-launch"[^>]*><\/li>/)
+      expect((await stranger.fetch(`/app/${network}/launches/${id}/${path}`)).status, path).toBe(404)
+      expect((await ada.fetch(`/app/${network}/launches/${crypto.randomUUID()}/${path}`)).status, path).toBe(404)
+    }
+  })
+
+  it('marks the runs of a launch from before reports whose orders are approved, as it next starts', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const { id, agent } = await drafted(ada, network)
+    await agent.call('approveInsertionOrder', 'IO-0001')
+    const approved = await agent.until((s) => s.runs[0].orderApproved === true)
+    // Stand in for a launch from before #407, whose runs don't say whether their order is approved.
+    const stub = env.LaunchAgent.get(env.LaunchAgent.idFromName(launchAgentName(network, id)))
+    await runInDurableObject(stub, (launch: LaunchAgent) => {
+      launch.setState({ ...launch.state, runs: launch.state.runs.map(({ orderApproved: _, ...r }) => r) })
+    })
+    expect((await connect(ada, `/agents/launch/${network}/${id}`)).state()!.runs[0].orderApproved).toBeUndefined()
+    await evictDurableObject(stub, { webSockets: 'close' })
+    expect((await connect(ada, `/agents/launch/${network}/${id}`)).state()!.runs).toEqual(approved.runs)
   })
 })

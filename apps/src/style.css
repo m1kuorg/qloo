@@ -7,8 +7,8 @@
 /* Served by Vite from the app's own origin, as the Content-Security-Policy needs. */
 @import '@fontsource-variable/schibsted-grotesk';
 
-/* System dark mode only: no class, no toggle. */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/* System dark mode only: no class, no toggle. On screen only: paper is printed light (below). */
+@custom-variant dark (@media screen and (prefers-color-scheme: dark));
 
 /* Arial sized to Schibsted Grotesk's average letter width and line box, so text set in it while the
    font loads takes the same space and doesn't re-wrap when the font swaps in. The bold face matches
@@ -72,7 +72,7 @@
   --scrim: rgb(18 19 24 / 0.4);
 }
 
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root {
     --background: #0e0f12;
     --foreground: #ececf1;
@@ -667,6 +667,29 @@
 }
 .base-ui-disable-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* On paper, whatever the screen's scheme: a document's margins, the light scheme's ink on white rather
+   than the cool grey ground, and every fill a page draws as a mark, such as a fit meter's bars and the
+   plan's signal dots, which browsers otherwise leave out. The shells print no rail, top bar or skip link
+   (print:hidden). The launch report (Report.tsx, data-report) keeps each section, row and heading from
+   breaking across pages where the page leaves room. */
+@media print {
+  @page {
+    margin: 16mm 18mm;
+  }
+  :root {
+    color-scheme: light;
+    --background: #ffffff;
+    print-color-adjust: exact;
+  }
+  [data-report] section,
+  [data-report] tr {
+    break-inside: avoid;
+  }
+  [data-report] :is(h1, h2, h3) {
+    break-after: avoid;
+  }
 }
 
 /* With reduced motion, every animation and transition ends at once, on its final, static state. */

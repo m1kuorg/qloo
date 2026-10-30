@@ -19,6 +19,7 @@ import { Launches } from '../src/client/Launches'
 import { utcDay } from '../src/client/controls'
 import { EvidencePanel, namesOf } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
+import { LaunchReport } from '../src/client/Report'
 import type { Evidence } from '../src/evidence'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
@@ -28,7 +29,17 @@ import { WIPES_PER_RUN } from '../src/wipe'
 import { fakeClaude, fakeCompare, fakeInsights, fakeQloo, modelRequests, requests, text, toolUse, turn } from './fake'
 import { capturedRunOf, sampleLaunchesSql } from './capture'
 import { counting } from './counting'
-import { api, hooked, openGuest, openMember, readAfterReset, sampleLabels, type Guest, type Session } from './session'
+import {
+  api,
+  facts,
+  hooked,
+  openGuest,
+  openMember,
+  readAfterReset,
+  sampleLabels,
+  type Guest,
+  type Session
+} from './session'
 
 // Made-up IDs for three of the sample's public show names, and for the made-up launches; every other
 // name finds nothing.
@@ -320,9 +331,40 @@ describe("the guest network's sample launches", () => {
       expect(words(evidence), name!).toContain('From the sample data, as Qloo answered it')
       expect(words(evidence), name!).not.toContain('Replayed')
 
+      // Its report, once its order is approved, carries the page's one "sample" badge too, in its h1, and
+      // says the approval is the sample data's.
+      const reported = renderToStaticMarkup(
+        <LaunchReport
+          agent={{ state: launch.state(), stub: {} } as unknown as Agent}
+          network={{
+            id: 'guest-network',
+            name: 'Guest network',
+            role: 'owner',
+            links: networkLinks(env, 'guest-network')
+          }}
+          launch={`/app/guest-network/launches/${id}`}
+          run={null}
+          reads={{ evidence: log }}
+        />
+      )
+      expect(sampleLabels(reported), name!).toEqual(name === 'Night Shift Cinema' ? [`h1: ${name}`] : [])
+      expect(words(reported), name!).toContain(
+        name === 'Night Shift Cinema' ? 'Print or save as PDF' : 'This run’s report opens once its plan is approved.'
+      )
+
       if (name === 'Night Shift Cinema') {
         expect(state.insertionOrder).toMatchObject({ status: 'approved', approvedBy: 'Guest', fromSample: true })
         expect(page).toContain('Approved in the sample data')
+        expect(runs[0].orderApproved).toBe(true)
+        expect(facts(reported)).toContainEqual([
+          'Approved',
+          'In the sample data, by Guest as it was captured, not by anyone in this network'
+        ])
+        expect(facts(reported)).toContainEqual(['CPM', '$20, the sample network’s'])
+        // Its calls are all the sample data's, which it says once, under them.
+        expect(words(reported)).toContain(
+          'Each call’s answer is from the sample data, as Qloo answered it when the run was captured.'
+        )
       } else if (name === 'Paper Moons') {
         expect(state.insertionOrder).toMatchObject({ status: 'draft', slots: 10, total: 86_400 })
         expect(state.insertionOrder!.fromSample).toBeUndefined()

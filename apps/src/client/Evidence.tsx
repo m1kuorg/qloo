@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon, CopyIcon } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -39,9 +39,14 @@ export type Opened =
 // to as the inspector closes.
 export type OpenCall = (call: string, from: HTMLElement) => void
 
+// Where each call number leads on a page with no inspector, by its call: on the launch report
+// (Report.tsx), its entry in the report's "Calls cited". Null on every other page.
+export const CallLinks = createContext<((call: string) => string) | null>(null)
+
 // A cited call number: opens that call's evidence in the inspector, or closes it when it's open, passing
-// itself as what opened it. `label` says what it's evidence for, and screen readers hear it before the
-// number. Codes aren't translated. `className` adds to its classes.
+// itself as what opened it; or, under CallLinks, a link to the call's entry in the page's list of calls.
+// `label` says what it's evidence for, and screen readers hear it before the number. Codes aren't
+// translated. `className` adds to its classes.
 export function CallButton({
   call,
   label,
@@ -55,6 +60,18 @@ export function CallButton({
   openCall: OpenCall
   className?: string
 }) {
+  const link = useContext(CallLinks)
+  if (link)
+    return (
+      <a
+        href={link(call)}
+        className={cn(callVariants(), className)}
+        aria-label={`${label}: call ${call}`}
+        translate="no"
+      >
+        {call}
+      </a>
+    )
   return (
     <button
       type="button"
@@ -222,6 +239,30 @@ const kindOf = ({ endpoint, params }: Evidence) =>
 // its order, rather than a roster lookup, which it copies as it starts: the network makes no other
 // ranking a launch copies.
 const fromOverlap = (record: Evidence) => !!record.copiedFrom && kindOf(record) === 'ranking'
+
+// A call as the launch report's "Calls cited" lists it, with none of what was sent: what kind of Qloo
+// request it was, and where its answer came from when the launch didn't make the request itself.
+export function citedCall(record: Evidence) {
+  const kind = kindOf(record)
+  return {
+    kind: kind ? kindWords[kind] : 'Qloo request',
+    from: record.replayed
+      ? 'From the stored sample run, as Qloo answered it then'
+      : record.fromSample
+        ? 'From the sample data, as Qloo answered it when the run was captured'
+        : record.copiedFrom
+          ? fromOverlap(record)
+            ? 'From the roster’s overlap, as Qloo answered the network'
+            : 'From the network’s roster, as Qloo answered the network'
+          : null
+  }
+}
+const kindWords = {
+  search: 'Search',
+  ranking: 'Ranking by listener overlap',
+  compare: 'Shared tags',
+  demographics: 'Listener age and gender'
+}
 
 const failed = {
   search: 'The search failed.',

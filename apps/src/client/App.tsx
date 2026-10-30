@@ -31,22 +31,25 @@ export type Links = { roster: string }
 
 // A launch's page of `network` (Launch.tsx), on its connected agent; tests render it from a launch's
 // synced state. It ranks the network's roster, read-only here, and its approved insertion orders
-// export under `orders`, as `<orders>/<id>.csv`. The canvas reads in the order a run asks for
-// attention: the launch and its readout, the launch form, the agent's question, then, from the first
-// run on, the run's sections in tabs: Ranking (the fit chart), Plan once there's an order, Changes once
-// the launch has two completed runs, and Roster. Before it there's only the roster. The inspector beside
-// it, closed until something opens it, holds what a person checks: the run's trace and a call's
-// evidence. `earlier` holds earlier runs as getRun returns them, which Changes reads itself unless it's
-// given them, as the tests give them.
+// export under `orders`, as `<orders>/<id>.csv`, and the reports of the runs that drafted them open
+// under `reports`, as `<reports>/<run id>`, on a launch's page; an engine session's has none. The
+// canvas reads in the order a run asks for attention: the launch and its readout, the launch form, the
+// agent's question, then, from the first run on, the run's sections in tabs: Ranking (the fit chart),
+// Plan once there's an order, Changes once the launch has two completed runs, and Roster. Before it
+// there's only the roster. The inspector beside it, closed until something opens it, holds what a
+// person checks: the run's trace and a call's evidence. `earlier` holds earlier runs as getRun returns
+// them, which Changes reads itself unless it's given them, as the tests give them.
 export function Workspace({
   agent,
   network,
   orders,
+  reports,
   earlier
 }: {
   agent: Session
   network: NetworkPage
   orders: string
+  reports?: string
   earlier?: Record<string, RunSnapshot>
 }) {
   // An earlier run being viewed: the page shows what it ended with, read-only, instead of the latest.
@@ -58,15 +61,9 @@ export function Workspace({
   // The latest run, unless it's a guest pitch run, which the inbox page shows instead.
   const run = shown?.run && shown.booking?.run !== shown.run.id ? shown.run : null
   const runs = agent.state?.runs ?? []
-  // Whether the shown run's CPM is labelled the sample's: as its copy of the roster took the label, or
-  // as the sample it carries says, as an engine session's does, and The Watch's runs from before the
-  // copy took one (#333).
-  const sampleCpm = !!(shown?.sample?.cpm || shown?.sampleCpm)
-  // Whether the page shows the sample data (ADR 0007), which its title's one badge says: the guest
-  // network's sample launch, which carries the sample; a run one of the sample launches was seeded with;
-  // a roster still holding sample figures, as another launch of the guest network ranks; or a run priced
-  // at the labelled sample CPM.
-  const sample = !!shown?.sample || !!run?.capturedAt || holdsSample(roster) || sampleCpm
+  const sampleCpm = sampleCpmOf(shown)
+  // Whether the page shows the sample data, which its title's one badge says.
+  const sample = showsSample(shown, run)
   // Live, never a run's snapshot: calls waiting on Qloo right now. Sessions from before it have none.
   const slowCalls = agent.state?.slowCalls ?? []
   const evidence = useEvidence(agent)
@@ -144,6 +141,7 @@ export function Workspace({
             viewing={viewing?.id ?? null}
             view={async (id) => setViewing(id === null ? null : { id, state: await agent.stub.getRun(id) })}
             counted="network"
+            report={reports ? (id) => `${reports}/${id}` : undefined}
           />
         )}
         {roster.length > 0 && <RosterCheck roster={roster} />}
@@ -243,6 +241,7 @@ export function Workspace({
                             openCall={showCall}
                             opened={opened?.call ?? null}
                             exportHref={`${orders}/${order.id}.csv`}
+                            reportHref={reports ? `${reports}/${order.run}` : null}
                             actions={
                               viewing || inProgress(run, order.run)
                                 ? null
@@ -299,6 +298,18 @@ export function Workspace({
     </div>
   )
 }
+
+// Whether a run's state, the launch's own or a snapshot getRun returns, prices its slots at a CPM
+// labelled the sample's: as its copy of the roster took the label, or as the sample it carries says, as an
+// engine session's does, and The Watch's runs from before the copy took one (#333).
+export const sampleCpmOf = (shown: RunSnapshot | undefined) => !!(shown?.sample?.cpm || shown?.sampleCpm)
+
+// Whether it shows the sample data (ADR 0007), as a launch's page and its report say once each, in their
+// title's badge: the guest network's sample launch, which carries the sample; `run`, if one of the sample
+// launches was seeded with it; a roster still holding sample figures, as another launch of the guest
+// network ranks; or a run priced at the labelled sample CPM.
+export const showsSample = (shown: RunSnapshot | undefined, run: Run | null) =>
+  !!shown?.sample || !!run?.capturedAt || holdsSample(shown?.roster ?? []) || sampleCpmOf(shown)
 
 // The head of the canvas: the title row, the on-air readout, and the launch form. The title row names
 // the launch, badged sample while the page shows the sample data, with its Qloo match and comps, and

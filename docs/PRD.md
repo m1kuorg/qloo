@@ -86,6 +86,10 @@ A member, an API key, or an assistant profiles the roster's listeners: one demog
 
 The Launches page has two tabs: Launches, the table, and Inventory, the network's promo inventory across its launches. For each show on the roster or in an order, it says how many launches made the show a finalist, and the slots and value the network's orders commit to it, approved apart from drafted, grouped as in an order, a finalist only, or never a finalist, with each launch an order commits it to linking to that launch's plan. A sentence gives the slots approved and what they're worth as each order was priced, naming the sample CPM where it applies, then the slots drafted apart, never added to them, and how many shows have never been a finalist. Each launch reports these facts from what its runs ended with, so an approved order keeps counting while the launch runs again, and the tab says how many launches haven't reported yet rather than reading a partial total as whole. Programs read the same facts in the launches list through the API, the SDK, and MCP.
 
+### The launch report
+
+A run whose insertion order is approved has a report, a page under its launch set out as a document to read, print or save as PDF, so a member can hand their boss or ad operations the plan and why. It gives the launch's comps or Qloo match, the run, when it started and who started it, the CPM and whether it's the sample's, and who approved the order and when; then the finding, the finalists by who listens with their bands, shared tags, and slot values, the demographics, the close pairs, and the plan's lines, angles and prices; then "Calls cited", each Qloo call it cites with its kind and when it was made, which every call number in it links to. It carries the sample badge when its run is the sample's, and what the app shows of a run, never what was sent to Qloo, an ID, a URN, or a raw score. It opens on the latest run whose order is approved, or a run named by its ID from that run's entry in Runs, and the plan links it once approved. Like the CSV, a run whose order isn't approved has none: its page says the report opens once the plan is approved, and nothing prints. It's for the network's members only, with no public link.
+
 ### Settings and the account page
 
 Settings hold the network's name and CPM, its members and invite links, its API keys, its own Qloo key, today's usage against its daily caps (marked Beta), and deleting the network. Owners change them; members see them read-only. The account page holds the member's name, their passkeys, a new recovery code, signing out everywhere, their networks, and deleting their account. Adding a passkey, a new recovery code, and deleting the account first ask the member to confirm it's them, unless they did in the last five minutes.
@@ -235,6 +239,15 @@ The analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), lists the
 101.  As a member, I want the pairs to follow my edits to the order's lines, so that a show I removed isn't flagged.
 102.  As a developer, I want the close pairs of a run's order through the API, so that a script or assistant can warn about them too.
 103.  As a visitor in the guest network, I want the sample roster's overlap and listener profile already made when I arrive, so that I see both at once.
+104.  As a programmer, I want a report page for a launch whose plan is approved, reading top to bottom, so that I can hand my boss or ad operations the plan and why.
+105.  As a programmer, I want it to print cleanly to paper or PDF, with no rail, controls or dark background, so that it leaves Crossfeed readable.
+106.  As a member, I want the report to carry the finding, the ranked finalists with their shared tags, the demographics, close pairs and the plan with its prices, so that it's the whole case.
+107.  As a member, I want the report's Qloo figures to cite their call numbers, with an index of those calls at the end saying what kind of call each was and when, so that a reader can trace a claim on paper.
+108.  As a member, I want the report to say who approved the order and when, so that a reader knows it's a commitment.
+109.  As a member, I want the report of an earlier approved run from its Runs entry, so that I can report the run ad operations received.
+110.  As a member, I want a run with no approved order to say that its report opens once the plan is approved, so that a draft never leaves Crossfeed.
+111.  As a member, I want the report to carry the sample badge when its run is the sample's, so that sample data never leaves as real.
+112.  As a member, I want the report visible to the network's members only, so that the network's data and Qloo's stay private.
 
 ## Implementation Decisions
 
