@@ -673,6 +673,21 @@ describe("the roster page's Overlap tab", () => {
     ])
     // The table is named by its heading's words alone, not its chip's.
     expect(tableName(table, tab(state))).toBe('Who shares whose listeners')
+    // Its rows are two tables, the roster's first half then its second, which stand side by side on a
+    // wide canvas, each with the same head and its region saying which shows it holds.
+    const tables = hooked(tab(state), 'data-overlap-table')
+    expect(tables.map((t) => [...t.matchAll(/data-overlap-row="([^"]+)"/g)].map(([, show]) => show))).toEqual([
+      ['Paper Trail', 'Signal Boost', 'Field Notes'],
+      ['Corner Booth', 'Night Ferry']
+    ])
+    expect([...tables[1].matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map(([, h]) => words(h))).toEqual([
+      'Show',
+      'Closest shows'
+    ])
+    expect([...tab(state).matchAll(/role="region" aria-label="(Overlap table[^"]*)"/g)].map(([, l]) => l)).toEqual([
+      'Overlap table, shows 1 to 3 of 5',
+      'Overlap table, shows 4 to 5 of 5'
+    ])
     // Each call opens its evidence in the inspector, and Show all opens the whole ranking under its row.
     expect(tab(state)).toMatch(
       /<button[^>]*aria-controls="evidence"[^>]*aria-label="Evidence for Paper Trail’s ranking: call C-08"/

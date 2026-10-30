@@ -233,14 +233,13 @@ export function Inventory({ state, launchesLink }: { state: State | undefined; l
 // The table's frame and head, in the ranked-list anatomy: a real table, its rules bleeding 8px past the
 // text, figures right-aligned; narrower than the table, it scrolls in its region with the show column held
 // at the left, ruled where they meet, a name too long for it breaking anywhere rather than widening it.
-// Its five columns need no more than 64rem, so on a wide canvas it stops there rather than leaving a gap
-// of half the screen between a show's name and its figures.
+// It takes the canvas's width, as the Launches table does.
 const head = 'border-b pb-2 pl-3 text-right align-bottom font-normal'
 const cell = 'border-b py-3 pl-3 text-right align-top'
 const held = 'sticky left-0 bg-background pl-2 text-left wrap-anywhere max-lg:border-r max-lg:pr-3'
 function InventoryTable({ children }: { children: ReactNode }) {
   return (
-    <ScrollTable label="Promo inventory table" className="-mx-2 max-w-[65rem]">
+    <ScrollTable label="Promo inventory table" className="-mx-2 max-w-none">
       {/* Positioned, so Never a finalist's visually hidden "None"s scroll and clip with the table, not the page. */}
       <table className="relative w-full min-w-[36rem] border-separate border-spacing-0" aria-labelledby="inventory-h">
         <thead className="type-caption text-muted-foreground">

@@ -137,7 +137,11 @@ type Read = { status: 'loading' } | { status: 'loaded'; record: Evidence } | { s
 // sideways in its region with the show's column held at the left, as the roster's table does. Each row's
 // "Show all", under its closest shows' call, opens its whole ranking under it, read from that call's
 // evidence record, in the fit chart's ranked-row anatomy; a row still measuring holds skeleton lines where
-// its closest shows will be.
+// its closest shows will be. From two shows it's two tables, the roster's first half then its second,
+// side by side once the section is 70rem (1120px) wide, the window's 1224px with the inspector closed and
+// 1584px with it open, so the rows fill the canvas's width. Narrower, they stack, the second's head read
+// but not seen, so they show as one. Tailwind only builds classes it finds whole, so 70rem is written out
+// in each.
 function OverlapTable({
   agent,
   overlap,
@@ -195,132 +199,165 @@ function OverlapTable({
       <span className="vh">, a close pair</span>
     </>
   )
+  const entries = [...onRoster.values()]
+  const half = Math.ceil(entries.length / 2)
+  const columns = [entries.slice(0, half), entries.slice(half)].filter((c) => c.length > 0)
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <ScrollTable label="Overlap table" className="-mx-2 max-w-none">
-        {/* --show is the show column's width, which a whole ranking open under a row is indented by from
-            768px, so it stands under the closest shows. Its two columns fit a 390px phone. */}
-        <table
-          className="w-full min-w-[23rem] border-separate border-spacing-0 [--show:11rem] md:[--show:18rem]"
-          aria-labelledby="overlap-h-title"
-          aria-describedby="overlap-cap"
-          data-overlap-table
-        >
-          <thead className="type-caption text-muted-foreground">
-            <tr>
-              <th scope="col" className={cn(head, heldShow, 'w-(--show)')}>
-                Show
-              </th>
-              <th scope="col" className={cn(head, 'pr-2')}>
-                Closest shows
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...onRoster.values()].map(({ entity, shows }) => {
-              const [first] = shows
-              const row = rows.get(entity.id)
-              const state = row
-                ? row.error
-                  ? 'failed'
-                  : 'measured'
-                : overlap.status === 'measuring' && measured.has(entity.id)
-                  ? 'measuring'
-                  : 'unmeasured'
-              const isOpen = state === 'measured' && open.includes(row!.call)
-              const call = row && (
-                <CallButton
-                  call={row.call}
-                  label={`Evidence for ${possessive(first.name)} ranking`}
-                  opened={opened}
-                  openCall={openCall}
-                />
-              )
-              return (
-                <Fragment key={entity.id}>
-                  <tr data-overlap-row={first.name} data-state={state} aria-busy={state === 'measuring' || undefined}>
-                    <AnalysisShow entity={entity} shows={shows} className={cn(isOpen && 'border-b-transparent')} />
-                    <td className={cn(cell, 'pr-2', isOpen && 'border-b-transparent')}>
-                      {state === 'measured' ? (
-                        <div className="flex flex-col items-start gap-1.5">
-                          <ol className="flex flex-col gap-1" aria-label={`${possessive(first.name)} closest shows`}>
-                            {row!.closest.map((c) => (
-                              <li
-                                key={c.id}
-                                className="relative grid grid-cols-[2rem_minmax(8rem,1fr)] items-baseline gap-x-3"
-                              >
-                                <span className="text-muted-foreground tabular-nums">{`#${c.rank}`}</span>
-                                <span className="break-words">
-                                  {name(c)}
-                                  {paired(entity.id, c.id) && pairMark}
-                                </span>
-                              </li>
-                            ))}
-                          </ol>
-                          {/* Its number on the ranks' edge, its fill reaching past it. */}
-                          <span className="-ml-1">{call}</span>
-                          {/* The whole ranking's action, under the call it reads, so it stays by its row at every
+    <div className="flex min-w-0 flex-col gap-2 @container">
+      <div className="grid @min-[70rem]:grid-cols-2 @min-[70rem]:gap-x-12">
+        {columns.map((column, i) => {
+          // The second table's head, while the tables stack: no rule or padding, its words visually hidden.
+          const stackedHead = i > 0 && '@max-[70rem]:border-0 @max-[70rem]:p-0'
+          const headWords = (words: string) => (i > 0 ? <span className="@max-[70rem]:vh">{words}</span> : words)
+          return (
+            <ScrollTable
+              key={i}
+              label={
+                columns.length > 1
+                  ? `Overlap table, shows ${i * half + 1} to ${i * half + column.length} of ${entries.length}`
+                  : 'Overlap table'
+              }
+              className="-mx-2 max-w-none"
+            >
+              {/* --show is the show column's width, which a whole ranking open under a row is indented by from
+                  768px, so it stands under the closest shows. Its two columns fit a 390px phone; side by side,
+                  it narrows to 16rem, so at 1280px a closest show's name and its mark keep to one line.
+                  Positioned, so the second head's hidden words scroll and clip with the table, not the page. */}
+              <table
+                className="relative w-full min-w-[23rem] border-separate border-spacing-0 [--show:11rem] md:[--show:18rem] @min-[70rem]:[--show:16rem]"
+                aria-labelledby="overlap-h-title"
+                aria-describedby="overlap-cap"
+                data-overlap-table
+              >
+                <thead className="type-caption text-muted-foreground">
+                  <tr>
+                    <th scope="col" className={cn(head, heldShow, 'w-(--show)', stackedHead)}>
+                      {headWords('Show')}
+                    </th>
+                    <th scope="col" className={cn(head, 'pr-2', stackedHead)}>
+                      {headWords('Closest shows')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {column.map(({ entity, shows }) => {
+                    const [first] = shows
+                    const row = rows.get(entity.id)
+                    const state = row
+                      ? row.error
+                        ? 'failed'
+                        : 'measured'
+                      : overlap.status === 'measuring' && measured.has(entity.id)
+                        ? 'measuring'
+                        : 'unmeasured'
+                    const isOpen = state === 'measured' && open.includes(row!.call)
+                    const call = row && (
+                      <CallButton
+                        call={row.call}
+                        label={`Evidence for ${possessive(first.name)} ranking`}
+                        opened={opened}
+                        openCall={openCall}
+                      />
+                    )
+                    return (
+                      <Fragment key={entity.id}>
+                        <tr
+                          data-overlap-row={first.name}
+                          data-state={state}
+                          aria-busy={state === 'measuring' || undefined}
+                        >
+                          <AnalysisShow
+                            entity={entity}
+                            shows={shows}
+                            className={cn(isOpen && 'border-b-transparent')}
+                          />
+                          <td className={cn(cell, 'pr-2', isOpen && 'border-b-transparent')}>
+                            {state === 'measured' ? (
+                              <div className="flex flex-col items-start gap-1.5">
+                                <ol
+                                  className="flex flex-col gap-1"
+                                  aria-label={`${possessive(first.name)} closest shows`}
+                                >
+                                  {row!.closest.map((c) => (
+                                    <li
+                                      key={c.id}
+                                      className="relative grid grid-cols-[2rem_minmax(8rem,1fr)] items-baseline gap-x-3"
+                                    >
+                                      <span className="text-muted-foreground tabular-nums">{`#${c.rank}`}</span>
+                                      <span className="break-words">
+                                        {name(c)}
+                                        {paired(entity.id, c.id) && pairMark}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ol>
+                                {/* Its number on the ranks' edge, its fill reaching past it. */}
+                                <span className="-ml-1">{call}</span>
+                                {/* The whole ranking's action, under the call it reads, so it stays by its row at every
                               width and in view on a phone without scrolling the table; its text on the ranks'
                               edge. */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="relative -ml-2.5"
-                            aria-expanded={isOpen}
-                            aria-controls={`ranking-${entity.id}`}
-                            onClick={() => toggle(row!)}
-                          >
-                            {isOpen ? 'Show fewer' : `Show all ${measured.size - 1}`}
-                            {/* Which show's ranking, so a screen reader's list of buttons tells the rows' apart. */}
-                            <span className="vh">{` of ${possessive(first.name)} ranking`}</span>
-                            <ChevronDownIcon
-                              data-icon="inline-end"
-                              aria-hidden="true"
-                              className="transition-transform group-aria-expanded/button:rotate-180"
-                            />
-                          </Button>
-                        </div>
-                      ) : state === 'failed' ? (
-                        <p className="max-w-[48ch]">
-                          <StateLine kind="failed">{sentence(row!.error!)}</StateLine> {call}
-                        </p>
-                      ) : state === 'measuring' ? (
-                        <div className="relative flex flex-col gap-2 py-0.5">
-                          <span className="vh">Measuring</span>
-                          {Array.from({ length: Math.max(k, 1) }, (_, i) => (
-                            <Skeleton key={i} className="h-4 w-56 max-w-full" />
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">Not measured yet</span>
-                      )}
-                    </td>
-                  </tr>
-                  {isOpen && (
-                    <tr id={`ranking-${entity.id}`}>
-                      <td colSpan={2} className="border-b pb-4 pl-2">
-                        {/* On a phone it stays in view however far the table is scrolled; from 768px it
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="relative -ml-2.5"
+                                  aria-expanded={isOpen}
+                                  aria-controls={`ranking-${entity.id}`}
+                                  onClick={() => toggle(row!)}
+                                >
+                                  {isOpen ? 'Show fewer' : `Show all ${measured.size - 1}`}
+                                  {/* Which show's ranking, so a screen reader's list of buttons tells the rows' apart. */}
+                                  <span className="vh">{` of ${possessive(first.name)} ranking`}</span>
+                                  <ChevronDownIcon
+                                    data-icon="inline-end"
+                                    aria-hidden="true"
+                                    className="transition-transform group-aria-expanded/button:rotate-180"
+                                  />
+                                </Button>
+                              </div>
+                            ) : state === 'failed' ? (
+                              <p className="max-w-[48ch]">
+                                <StateLine kind="failed">{sentence(row!.error!)}</StateLine> {call}
+                              </p>
+                            ) : state === 'measuring' ? (
+                              <div className="relative flex flex-col gap-2 py-0.5">
+                                <span className="vh">Measuring</span>
+                                {Array.from({ length: Math.max(k, 1) }, (_, i) => (
+                                  <Skeleton key={i} className="h-4 w-56 max-w-full" />
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">Not measured yet</span>
+                            )}
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr id={`ranking-${entity.id}`}>
+                            <td colSpan={2} className="border-b pb-4 pl-2">
+                              {/* On a phone it stays in view however far the table is scrolled; from 768px it
                             stands under the closest shows. */}
-                        <div className="sticky left-2 w-[calc(100vw-3rem)] max-w-xl md:static md:w-full md:max-w-none md:pl-[calc(var(--show)+0.25rem)]">
-                          <WholeRanking
-                            show={first.name}
-                            call={row!.call}
-                            read={reads[row!.call]}
-                            again={() => void read(row!.call)}
-                            name={name}
-                            paired={(id) => paired(entity.id, id) && pairMark}
-                            candidates={measured.size - 1}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              )
-            })}
-          </tbody>
-        </table>
-      </ScrollTable>
+                              <div className="sticky left-2 w-[calc(100vw-3rem)] max-w-xl md:static md:w-full md:max-w-none md:pl-[calc(var(--show)+0.25rem)]">
+                                <WholeRanking
+                                  show={first.name}
+                                  call={row!.call}
+                                  read={reads[row!.call]}
+                                  again={() => void read(row!.call)}
+                                  name={name}
+                                  paired={(id) => paired(entity.id, id) && pairMark}
+                                  candidates={measured.size - 1}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </ScrollTable>
+          )
+        })}
+      </div>
       <div id="overlap-cap" className="flex max-w-[72ch] flex-col gap-1 type-caption text-muted-foreground">
         <p>
           {k === 1
