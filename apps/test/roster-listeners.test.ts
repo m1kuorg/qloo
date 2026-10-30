@@ -511,24 +511,27 @@ describe("the roster page's Listeners tab", () => {
     expect(hooked(tab(state), 'data-listener-row="Slow Burn"')[0]).toMatch(
       /<th[^>]*>[\s\S]*No listener profile in Qloo\.[\s\S]*<\/th>/
     )
-    // A bar each, its side the lean's sign and its tone too, ink for a lean toward, secondary ink for one
-    // away, its length the lean's size on one scale for the table, its largest lean, 0.312, up to 0.4; and
-    // the gender column's zone, ±0.2 on that scale.
-    const bars = [
-      ...hooked(tab(state), 'data-listener-row="Corner Booth"')[0].matchAll(
-        /<span class="(absolute inset-y-0\.5 [^"]*)" style="width:([^"]+)"/g
-      )
-    ]
-    const tone = (cls: string) => (cls.includes('bg-muted-foreground') ? 'secondary ink' : 'ink')
-    expect(bars.map(([, cls, width]) => [cls.includes('left-1/2') ? 'right' : 'left', tone(cls), width])).toEqual([
-      ['left', 'secondary ink', '37.75%'],
-      ['left', 'secondary ink', '14.375%'],
-      ['left', 'secondary ink', '2.5%'],
+    // A bar each, its side the lean's sign, its length the lean's size on one scale for the table, its
+    // largest lean, 0.312, up to 0.4, and its tone: in an age column, ink for a lean toward the band and
+    // secondary ink for one away; in the gender column, ink either way, since leaning female is a lean toward
+    // a group as leaning male is. And the gender column's zone, ±0.2 on that scale.
+    const bars = (show: string) =>
+      [
+        ...hooked(tab(state), `data-listener-row="${show}"`)[0].matchAll(
+          /<span class="(absolute inset-y-0\.5 [^"]*)" style="width:([^"]+)" data-tone="([^"]+)"/g
+        )
+      ].map(([, cls, width, tone]) => [cls.includes('left-1/2') ? 'right' : 'left', tone, width])
+    expect(bars('Corner Booth')).toEqual([
+      ['left', 'secondary', '37.75%'],
+      ['left', 'secondary', '14.375%'],
+      ['left', 'secondary', '2.5%'],
       ['right', 'ink', '17.875%'],
       ['right', 'ink', '20.25%'],
       ['right', 'ink', '11.375%'],
-      ['left', 'secondary ink', '28.25%']
+      ['left', 'ink', '28.25%']
     ])
+    expect(bars('Paper Trail').at(-1)).toEqual(['right', 'ink', '39%'])
+    expect(tab(state).match(/class="[^"]*bg-muted-foreground[^"]*" style="width:[^"]+" data-tone="ink"/)).toBeNull()
     expect(hooked(tab(state), 'data-zone')).toHaveLength(5)
     expect(hooked(tab(state), 'data-zone')[0]).toContain('left:calc(50% - 25%);width:calc(2 * 25%)')
     // No bar is signal orange, and no colour says which way a show leans.

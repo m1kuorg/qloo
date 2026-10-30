@@ -224,13 +224,15 @@ const LeanCells = ({ lean, scale }: { lean: Lean; scale: number }) => (
 
 // One lean as a bar left or right of a zero line, its length the lean's size on the table's `scale` (in
 // tenths, so half the cell is that many tenths), under its signed figure in the demographic format,
-// centred over the line, so a column's figures align. A lean toward a group, above average, is in ink, as
-// the finding is about those; one away from it is in secondary ink, a tone, never a hue. With `zone`, the
-// gender column's, the tone-step zone of ±zone around the line is drawn under the bar, and screen readers
-// hear which way it leans, and whether that counts.
+// centred over the line, so a column's figures align. A lean toward an age band, above average, is in ink,
+// as the finding is about those; one away from it is in secondary ink, a tone, never a hue. With `zone`, the
+// gender column's, every lean is toward a group, male or female, so both sides are ink; the tone-step zone
+// of ±zone around the line is drawn under the bar, and screen readers hear which way it leans, and whether
+// that counts.
 function LeanCell({ value, scale, zone }: { value: number; scale: number; zone?: number }) {
   const lean = round(value)
   const half = (x: number) => `${Math.min(Math.abs(x) * 500, scale * 50) / scale}%`
+  const toward = lean > 0 || zone !== undefined
   const figure = (
     <>
       {demographic(lean)}
@@ -259,9 +261,11 @@ function LeanCell({ value, scale, zone }: { value: number; scale: number; zone?:
             <span
               className={cn(
                 'absolute inset-y-0.5',
-                lean > 0 ? 'left-1/2 rounded-r-[2px] bg-foreground' : 'right-1/2 rounded-l-[2px] bg-muted-foreground'
+                lean > 0 ? 'left-1/2 rounded-r-[2px]' : 'right-1/2 rounded-l-[2px]',
+                toward ? 'bg-foreground' : 'bg-muted-foreground'
               )}
               style={{ width: half(lean) }}
+              data-tone={toward ? 'ink' : 'secondary'}
             />
           )}
           <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-muted-foreground" />
