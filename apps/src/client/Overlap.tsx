@@ -137,9 +137,11 @@ type Read = { status: 'loading' } | { status: 'loaded'; record: Evidence } | { s
 // sideways in its region with the show's column held at the left, as the roster's table does. Each row's
 // "Show all", under its closest shows' call, opens its whole ranking under it, read from that call's
 // evidence record, in the fit chart's ranked-row anatomy; a row still measuring holds skeleton lines where
-// its closest shows will be. It's two tables, the roster's first half then its second, side by side once
-// the section is 70rem wide, 1280px with the inspector closed and 1600px with it open, so the rows fill
-// the canvas's width. Narrower, they stack, the second's head read but not seen, so they show as one.
+// its closest shows will be. From two shows it's two tables, the roster's first half then its second,
+// side by side once the section is 70rem (1120px) wide, the window's 1224px with the inspector closed and
+// 1584px with it open, so the rows fill the canvas's width. Narrower, they stack, the second's head read
+// but not seen, so they show as one. Tailwind only builds classes it finds whole, so 70rem is written out
+// in each.
 function OverlapTable({
   agent,
   overlap,
@@ -205,8 +207,8 @@ function OverlapTable({
       <div className="grid @min-[70rem]:grid-cols-2 @min-[70rem]:gap-x-12">
         {columns.map((column, i) => {
           // The second table's head, while the tables stack: no rule or padding, its words visually hidden.
-          const stacked = i > 0 && '@max-[70rem]:border-0 @max-[70rem]:p-0'
-          const title = (words: string) => (i > 0 ? <span className="@max-[70rem]:vh">{words}</span> : words)
+          const stackedHead = i > 0 && '@max-[70rem]:border-0 @max-[70rem]:p-0'
+          const headWords = (words: string) => (i > 0 ? <span className="@max-[70rem]:vh">{words}</span> : words)
           return (
             <ScrollTable
               key={i}
@@ -229,11 +231,11 @@ function OverlapTable({
               >
                 <thead className="type-caption text-muted-foreground">
                   <tr>
-                    <th scope="col" className={cn(head, heldShow, 'w-(--show)', stacked)}>
-                      {title('Show')}
+                    <th scope="col" className={cn(head, heldShow, 'w-(--show)', stackedHead)}>
+                      {headWords('Show')}
                     </th>
-                    <th scope="col" className={cn(head, 'pr-2', stacked)}>
-                      {title('Closest shows')}
+                    <th scope="col" className={cn(head, 'pr-2', stackedHead)}>
+                      {headWords('Closest shows')}
                     </th>
                   </tr>
                 </thead>
