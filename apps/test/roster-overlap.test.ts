@@ -635,23 +635,29 @@ describe("the roster page's Overlap tab", () => {
     )
     expect(tab(state)).not.toContain('Measure again')
     // Each row says what the roster says of its show, then its closest show's rank, the other show named
-    // as the roster names it, a close pair named as one, its band in words, and the ranking's call. The
-    // lookups and the comp search are C-01 to C-07, and the rankings follow in entity order.
+    // as the roster names it, a close pair named as one, and the ranking's call; then Show all, named for
+    // whose ranking it opens. The lookups and the comp search are C-01 to C-07, and the rankings follow in
+    // entity order.
     expect(row(state, 'Paper Trail')).toBe(
-      'Paper Trail Mapped to Deep Cuts · Same Qloo show as Deep Cuts #1 Signal Boost , a close pair Strong C-08 Show all 4'
+      'Paper Trail Mapped to Deep Cuts · Same Qloo show as Deep Cuts #1 Signal Boost , a close pair C-08 Show all 4 of Paper Trail’s ranking'
     )
-    expect(row(state, 'Signal Boost')).toBe('Signal Boost #1 Paper Trail , a close pair Strong C-09 Show all 4')
-    expect(row(state, 'Field Notes')).toBe('Field Notes #1 Signal Boost Strong C-10 Show all 4')
-    expect(row(state, 'Night Ferry')).toBe('Night Ferry Left out #1 Corner Booth Strong C-12 Show all 4')
+    expect(row(state, 'Signal Boost')).toBe(
+      'Signal Boost #1 Paper Trail , a close pair C-09 Show all 4 of Signal Boost’s ranking'
+    )
+    expect(row(state, 'Field Notes')).toBe('Field Notes #1 Signal Boost C-10 Show all 4 of Field Notes’s ranking')
+    expect(row(state, 'Night Ferry')).toBe(
+      'Night Ferry Left out #1 Corner Booth C-12 Show all 4 of Night Ferry’s ranking'
+    )
     // Each call opens its evidence in the inspector, and Show all opens the whole ranking under its row.
     expect(tab(state)).toMatch(
       /<button[^>]*aria-controls="evidence"[^>]*aria-label="Evidence for Paper Trail’s ranking: call C-08"/
     )
     expect(tab(state)).toMatch(/<button[^>]*aria-expanded="false"[^>]*aria-controls="ranking-e-0001"/)
-    // Ink only: nothing on the tab carries the signal.
-    expect(tab(state)).not.toMatch(/\b(bg|text|border|fill|decoration)-signal/)
+    // The close pair is marked on both its shows' rows, and the caption says what the mark means and that
+    // a closest show is always in its ranking's top band.
+    expect(hooked(tab(state), 'data-close-pair')).toHaveLength(2)
     expect(words(tab(state))).toContain(
-      'Close pair: two shows that each rank among the other’s closest show. Measured '
+      'Each show’s closest show is the first in its own ranking of the rest of the roster, one Qloo call per show. Bands are thirds of that ranking, as Show all gives them, so it’s in the top band. Close pair: two shows that each rank among the other’s closest show. Measured '
     )
 
     // The whole ranking is in the call's evidence, which the page reads by its call.
@@ -701,15 +707,15 @@ describe("the roster page's Overlap tab", () => {
     const { agent } = await network(four)
     await agent.call('measureOverlap')
     const partial = await agent.until(measured)
-    // The finding counts what landed: Signal Boost's ranking failed, so Deep Cuts can't be named its close
-    // pair, and Deep Cuts and Corner Booth are no landed show's closest.
+    // The finding counts what landed, as the shows ranked: Signal Boost's ranking failed, so Deep Cuts can't
+    // be named its close pair, and Deep Cuts and Corner Booth are no landed show's closest.
     expect(sections(tab(partial))).toEqual([
-      [heading, 'No close pairs, and 2 of 3 shows are no other show’s closest show.']
+      [heading, 'No close pairs, and 2 of the 3 ranked are no other show’s closest show.']
     ])
     expect(row(partial, 'Signal Boost')).toBe(
       'Signal Boost Failed Qloo returned 503: fake failure, after 2 retries. C-06'
     )
-    expect(row(partial, 'Deep Cuts')).toBe('Deep Cuts #1 Signal Boost Strong C-05 Show all 3')
+    expect(row(partial, 'Deep Cuts')).toBe('Deep Cuts #1 Signal Boost C-05 Show all 3 of Deep Cuts’s ranking')
     expect(words(tab(partial))).toContain('Measure again Up to 1 Qloo call')
 
     // Once the roster's matched shows change, it says so, and measuring again asks for every show.

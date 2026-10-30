@@ -74,7 +74,7 @@ export function OverlapSection({
     ) : landed.length === 0 ? (
       <StateLine kind="failed">{sentence(overlap.error ?? 'No show’s ranking landed.')}</StateLine>
     ) : (
-      finding(overlap.rows, k)
+      finding(overlap.rows, overlap.key.split(',').length, k)
     )
   return (
     <Section
@@ -137,16 +137,18 @@ export function OverlapSection({
 const closestWords = (k: number) => (k === 1 ? 'closest show' : `${k} closest shows`)
 
 // The overlap's finding, counted over the rows that landed: its close pairs, or that there are none, and
-// how many shows rank among no other show's closest. It says only what was measured.
-function finding(rows: OverlapRow[], k: number) {
+// how many shows rank among no other show's closest. It says only what was measured, so when fewer than
+// the `measured` shows' rankings landed, it counts them as the ones ranked, never as the roster.
+function finding(rows: OverlapRow[], measured: number, k: number) {
   const pairs = closePairs(rows).length
   const shows = rows.filter((r) => !r.error).length
+  const partial = shows < measured
   const alone = apart(rows).length
   const among = (whose: string) => (k === 1 ? `${whose} ${closestWords(k)}` : `among ${whose} ${closestWords(k)}`)
   return `${pairs === 0 ? 'No close pairs' : count(pairs, 'close pair')}, and ${
     alone === 0
-      ? `every show is ${among('another show’s')}`
-      : `${alone} of ${count(shows, 'show')} ${alone === 1 ? 'is' : 'are'} ${among('no other show’s')}`
+      ? `every ${partial ? 'ranked show' : 'show'} is ${among('another show’s')}`
+      : `${alone} of ${partial ? `the ${shows} ranked` : count(shows, 'show')} ${alone === 1 ? 'is' : 'are'} ${among('no other show’s')}`
   }.`
 }
 
@@ -173,7 +175,8 @@ function OverlapTable({
   openCall: OpenCall
   opened: string | null
 }) {
-  // The rows whose whole ranking is open, by entity, and each ranking read, by call.
+  // The rows whose whole ranking is open, and each ranking read, both by call, so a row measured again,
+  // with a call of its own, starts closed.
   const [open, setOpen] = useState<string[]>([])
   const [reads, setReads] = useState<Record<string, Read>>({})
   const rows = new Map(overlap.rows.map((r) => [r.entity.id, r]))
@@ -195,9 +198,8 @@ function OverlapTable({
     }
   }
   const toggle = (row: OverlapRow) => {
-    const id = row.entity.id
-    if (open.includes(id)) return setOpen(open.filter((o) => o !== id))
-    setOpen([...open, id])
+    if (open.includes(row.call)) return setOpen(open.filter((o) => o !== row.call))
+    setOpen([...open, row.call])
     const status = reads[row.call]?.status
     if (status !== 'loaded' && status !== 'loading') void read(row.call)
   }
@@ -211,22 +213,28 @@ function OverlapTable({
   // visually hidden span, which its row holds (`relative`) so it never widens the page as the table scrolls.
   const pairMark = (
     <>
-      <ArrowLeftRightIcon aria-hidden="true" className="ml-1.5 inline-block size-3.5 align-[-0.125rem]" />
+      <ArrowLeftRightIcon
+        aria-hidden="true"
+        className="ml-1.5 inline-block size-3.5 align-[-0.125rem]"
+        data-close-pair
+      />
       <span className="vh">, a close pair</span>
     </>
   )
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <ScrollTable label="Overlap table" className="-mx-2 max-w-none">
+        {/* --show is the show column's width, which a whole ranking open under a row is indented by from
+            768px, so it stands under the closest shows. */}
         <table
-          className="w-full min-w-[36rem] border-separate border-spacing-0"
+          className="w-full min-w-[34rem] border-separate border-spacing-0 [--show:11rem] md:[--show:18rem]"
           aria-labelledby="overlap-h"
           aria-describedby="overlap-cap"
           data-overlap-table
         >
           <thead className="type-caption text-muted-foreground">
             <tr>
-              <th scope="col" className={cn(head, held, 'w-44 md:w-72')}>
+              <th scope="col" className={cn(head, held, 'w-(--show)')}>
                 Show
               </th>
               <th scope="col" className={head}>
@@ -247,7 +255,7 @@ function OverlapTable({
                 : overlap.status === 'measuring' && measured.has(entity.id)
                   ? 'measuring'
                   : 'unmeasured'
-              const isOpen = state === 'measured' && open.includes(entity.id)
+              const isOpen = state === 'measured' && open.includes(row!.call)
               // What the roster says of the show, under its name, and the shows matched to the same Qloo
               // show, which are measured once and listed with it.
               const notes = [
@@ -284,14 +292,13 @@ function OverlapTable({
                             {row!.closest.map((c) => (
                               <li
                                 key={c.id}
-                                className="relative grid grid-cols-[2rem_minmax(10rem,16rem)_auto] items-baseline gap-x-3"
+                                className="relative grid grid-cols-[2rem_minmax(10rem,1fr)] items-baseline gap-x-3"
                               >
                                 <span className="text-muted-foreground tabular-nums">{`#${c.rank}`}</span>
                                 <span className="break-words">
                                   {name(c)}
                                   {paired(entity.id, c.id) && pairMark}
                                 </span>
-                                <FitBand band={c.band} finalist={false} />
                               </li>
                             ))}
                           </ol>
@@ -318,12 +325,14 @@ function OverlapTable({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="-my-1 -mr-1.5"
+                          className="relative -my-1 -mr-1.5"
                           aria-expanded={isOpen}
                           aria-controls={`ranking-${entity.id}`}
                           onClick={() => toggle(row!)}
                         >
                           {isOpen ? 'Show fewer' : `Show all ${measured.size - 1}`}
+                          {/* Which show's ranking, so a screen reader's list of buttons tells the rows' apart. */}
+                          <span className="vh">{` of ${first.name}’s ranking`}</span>
                           <ChevronDownIcon
                             data-icon="inline-end"
                             aria-hidden="true"
@@ -338,7 +347,7 @@ function OverlapTable({
                       <td colSpan={3} className="border-b pb-4 pl-2">
                         {/* On a phone it stays in view however far the table is scrolled; from 768px it
                             stands under the closest shows. */}
-                        <div className="sticky left-2 w-[calc(100vw-3rem)] max-w-xl md:static md:w-full md:max-w-none md:pl-[18.25rem]">
+                        <div className="sticky left-2 w-[calc(100vw-3rem)] max-w-xl md:static md:w-full md:max-w-none md:pl-[calc(var(--show)+0.25rem)]">
                           <WholeRanking
                             show={first.name}
                             call={row!.call}
@@ -360,7 +369,9 @@ function OverlapTable({
       </ScrollTable>
       <div id="overlap-cap" className="flex max-w-[72ch] flex-col gap-1 type-caption text-muted-foreground">
         <p>
-          {`Each show’s closest shows are the first ${k} in its own ranking of the rest of the roster, one Qloo call per show, and bands are thirds of that ranking.`}
+          {k === 1
+            ? 'Each show’s closest show is the first in its own ranking of the rest of the roster, one Qloo call per show. Bands are thirds of that ranking, as Show all gives them, so it’s in the top band.'
+            : `Each show’s closest shows are the first ${k} in its own ranking of the rest of the roster, one Qloo call per show. Bands are thirds of that ranking, as Show all gives them, so they’re all in the top band.`}
         </p>
         <p>
           <ArrowLeftRightIcon aria-hidden="true" className="mr-1.5 inline-block size-3.5 align-[-0.125rem]" />
