@@ -23,13 +23,13 @@ import type {
 import type { DemographicCheck } from './demographics'
 import type { Evidence } from './evidence'
 import { networkName, renameNetwork, renameNetworkForKey, type Member, type Role } from './directory'
-import { matched, type Band, type FitRow, type PitchList, type Ranking } from './fit'
+import type { Band, FitRow, PitchList, Ranking } from './fit'
 import { globalGateway, type Usage } from './gateway'
 import type { Inbox, PastGuest, Pitch, PitchInput, PitchReply, Skipped } from './inbox'
 import { summaryOf } from './launch-agent'
 import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
-import { closePairs, closestCount, isStale, rosterEntities, type Entity, type Overlap } from './overlap'
+import { closePairs, closestCount, entityShows, isStale, rosterEntities, type Entity, type Overlap } from './overlap'
 import { Refusal } from './refusal'
 import { offeredBy, type Candidate } from './resolve'
 import { holdsSample, type RosterFormat } from './roster'
@@ -172,15 +172,15 @@ export async function measureOverlap({ env, network }: OperationContext): Promis
 }
 
 function overlapOf({ roster, overlap }: State): RosterOverlap {
-  const shows = roster.filter(matched)
+  const onRoster = entityShows(roster)
   const named = ({ id, name }: Entity): NamedShow => {
-    const [show = name, ...sameAs] = shows.filter((s) => s.entity.id === id).map((s) => s.name)
+    const [show = name, ...sameAs] = (onRoster.get(id)?.shows ?? []).map((s) => s.name)
     return { show, sameAs }
   }
   const measuredIds = new Set(overlap?.key.split(','))
   const rows = new Map(overlap?.rows.map((r) => [r.entity.id, r]))
   // Each entity once, where its first show is on the roster.
-  const entities = [...new Map(shows.map((s) => [s.entity.id, { id: s.entity.id, name: s.entity.name }])).values()]
+  const entities = [...onRoster.values()].map((e) => e.entity)
   const row = (entity: Entity): OverlapShow => {
     const landed = rows.get(entity.id)
     if (!landed)
