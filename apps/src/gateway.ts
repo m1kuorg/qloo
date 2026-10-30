@@ -244,9 +244,12 @@ export class QlooGateway extends DurableObject<Env> {
   }
 
   // Counts `n` Qloo calls for `visitor` today before they're made, or refuses them all if they would
-  // pass QLOO_VISITOR_DAILY_CALL_CAP. Imports and comp searches ask first, so a refused one keeps
-  // nothing; every other call is counted as it's made (forVisitor).
-  async reserveCalls(visitor: string, n: number): Promise<string | null> {
+  // pass QLOO_VISITOR_DAILY_CALL_CAP. Imports, comp searches, and measuring the roster's overlap ask
+  // first, so a refused one keeps nothing; every other call is counted as it's made (forVisitor). With `leave`, as measuring the
+  // roster's overlap asks, it also refuses them when this instance's requests left today under
+  // QLOO_DAILY_CALL_CAP couldn't take them and still leave `leave`, a run's calls, so one network's calls
+  // can't stop the day's runs for every network that shares the instance.
+  async reserveCalls(visitor: string, n: number, leave = 0): Promise<string | null> {
     const day = utcDay()
     const key = await sha256(`${visitor}:${day}`)
     // From here on nothing awaits, so concurrent reservations can't both pass the limit.
@@ -255,6 +258,15 @@ export class QlooGateway extends DurableObject<Env> {
     const who = whoCounts(visitor)
     if (this.used('visitor_calls', key, day) + n > limit)
       return `This would take ${who.you} past ${limit} Qloo calls today, the most ${who.limitFor} can make in a UTC day${who.sharedClause}, cache hits included; they reset at 00:00 UTC`
+    const cap = Number(this.env.QLOO_DAILY_CALL_CAP) || 0
+    const left = Math.max(0, cap - this.callsToday())
+    if (leave > 0 && n + leave > left) {
+      const pool =
+        this.ctx.id.name === GLOBAL
+          ? "Crossfeed's shared pool, which every network on Crossfeed's Qloo key draws on,"
+          : "The network's own Qloo key"
+      return `${pool} has ${left} of its ${cap} Qloo requests a day left, too few for up to ${n} more and a run's ${leave} after them; it resets at 00:00 UTC`
+    }
     this.add('visitor_calls', key, day, n)
     return null
   }

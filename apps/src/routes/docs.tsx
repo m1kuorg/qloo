@@ -438,11 +438,12 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
       body: (
         <>
           <p>
-            An import, a comp search, an inbox load, and a run answer 202 at once with the resource as it stands; read
-            the resource until the work settles. A run is <code>running</code>, or <code>waiting</code> on its question;
-            then <code>completed</code>, or <code>stopped</code> or <code>failed</code> with the reason in{' '}
-            <code>error</code>. With one of the network’s API keys in <code>CROSSFEED_API_KEY</code> and its ID in{' '}
-            <code>CROSSFEED_NETWORK_ID</code>, both from its settings, import a made-up roster:
+            An import, a comp search, measuring the roster’s overlap, an inbox load, and a run answer 202 at once with
+            the resource as it stands; read the resource until the work settles. A run is <code>running</code>, or{' '}
+            <code>waiting</code> on its question; then <code>completed</code>, or <code>stopped</code> or{' '}
+            <code>failed</code> with the reason in <code>error</code>. With one of the network’s API keys in{' '}
+            <code>CROSSFEED_API_KEY</code> and its ID in <code>CROSSFEED_NETWORK_ID</code>, both from its settings,
+            import a made-up roster:
           </p>
           <Code label="Shell" copy>{`
 curl -X POST "${origin}/api/v1/networks/$CROSSFEED_NETWORK_ID/roster" \\
@@ -831,7 +832,7 @@ const apiPage = (doc: Doc, origin: string, accounts: boolean): Page => {
               </li>
               <li>
                 <CostChip cost="Calls Qloo" /> It counts in the network’s daily Qloo calls: an import’s lookups, a comp
-                search, or a run resumed by an answer.
+                search, measuring the roster’s overlap, or a run resumed by an answer.
               </li>
               <li>
                 <SessionOnly /> Only a member’s session, from one of Crossfeed’s pages, can send it. An API key answers
@@ -1029,6 +1030,10 @@ for (const reply of run.replies ?? []) console.log(reply.pitch, reply.verdict, r
           <ul>
             <li>
               <code>waitForRoster()</code> resolves once no show or comp search is pending.
+            </li>
+            <li>
+              <code>waitForOverlap()</code> resolves once the roster’s overlap, which{' '}
+              <code>roster.measureOverlap()</code> starts, is no longer <code>measuring</code>.
             </li>
             <li>
               <code>waitForInbox()</code> resolves once no pitch is still being read.

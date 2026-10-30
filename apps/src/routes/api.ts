@@ -26,6 +26,7 @@ import {
   getLaunchEvidence,
   getLaunchRun,
   getNetwork,
+  getOverlap,
   getPitchRun,
   listPitchRuns,
   getRoster,
@@ -33,6 +34,7 @@ import {
   importRoster,
   listLaunches,
   loadInbox,
+  measureOverlap,
   searchComps,
   startLaunchRun,
   startPitchRun,
@@ -528,6 +530,128 @@ api.openapi(
 // What a ranking ranked against, such as a launch or a show, and a row's third of its ranking.
 const Anchor = z.object({ id: z.string(), name: z.string() })
 const Band = z.enum(['top', 'middle', 'bottom'])
+
+// A show as the overlap names it: the first roster show on its Qloo show, and any others matched or
+// mapped to the same one.
+const sameAs = z
+  .array(z.string())
+  .openapi({ description: 'The other roster shows matched or mapped to the same Qloo show, measured with it.' })
+const OverlapShow = z
+  .object({
+    show: z.string(),
+    sameAs,
+    status: z.enum(['unmeasured', 'measuring', 'measured', 'failed']).openapi({
+      description:
+        '`measured` once its ranking landed, `failed` with the error, `measuring` while its call is out, or `unmeasured`: not in the latest measure, or one a restart interrupted before its call answered.'
+    }),
+    closest: z.array(z.object({ show: z.string(), sameAs, rank: z.number().int(), band: Band })).openapi({
+      description:
+        "Its closest shows by listener overlap, best first: each one's rank and band, the third, within this show's own ranking of the rest of the roster."
+    }),
+    error: z.string().nullable().openapi({ description: 'Why its ranking failed.' })
+  })
+  .openapi('OverlapShow')
+const RosterOverlap = z
+  .object({
+    status: z.enum(['unmeasured', 'measuring', 'measured', 'failed']).openapi({
+      description:
+        "`unmeasured` until the first measure; `measuring` while calls are out, so poll until it isn't; `measured` once every call answered, a failed show's reason on its row; or `failed`, when a restart interrupted it or no show's ranking landed, with the error."
+    }),
+    error: z.string().nullable(),
+    progress: z.object({ answered: z.number().int(), asked: z.number().int() }).nullable().openapi({
+      description: "The latest measure's shows: how many it asked Qloo about, and how many have answered."
+    }),
+    measuredAt: z.string().nullable().openapi({ description: 'When it was last measured.' }),
+    stale: z.boolean().openapi({
+      description:
+        "Whether the roster's matched shows have changed since it was measured, so it should be measured again. A show's figures, status or exclusion don't count."
+    }),
+    closestCount: z.number().int().openapi({
+      description: 'How many closest shows each show has: 3, or fewer on a roster of under 10 matched shows.'
+    }),
+    shows: z.array(OverlapShow).openapi({ description: 'Each show matched in Qloo, in roster order.' }),
+    closePairs: z.array(z.tuple([z.string(), z.string()])).openapi({
+      description: "Pairs of shows that each rank among the other's closest shows."
+    })
+  })
+  .openapi('RosterOverlap', {
+    example: {
+      status: 'measured',
+      error: null,
+      progress: { answered: 4, asked: 4 },
+      measuredAt: '2026-10-20T09:30:00.000Z',
+      stale: false,
+      closestCount: 1,
+      shows: [
+        {
+          show: 'Deep Cuts',
+          sameAs: [],
+          status: 'measured',
+          closest: [{ show: 'Field Notes', sameAs: [], rank: 1, band: 'top' }],
+          error: null
+        },
+        {
+          show: 'Field Notes',
+          sameAs: [],
+          status: 'measured',
+          closest: [{ show: 'Deep Cuts', sameAs: [], rank: 1, band: 'top' }],
+          error: null
+        },
+        {
+          show: 'Signal Boost',
+          sameAs: ['Signal Boost Shorts'],
+          status: 'measured',
+          closest: [{ show: 'Corner Booth', sameAs: [], rank: 1, band: 'top' }],
+          error: null
+        },
+        {
+          show: 'Corner Booth',
+          sameAs: [],
+          status: 'failed',
+          closest: [],
+          error: 'Qloo returned 503: Service Unavailable, after 2 retries'
+        }
+      ],
+      closePairs: [['Deep Cuts', 'Field Notes']]
+    }
+  })
+
+api.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/v1/networks/{networkId}/roster/overlap',
+    tags: ['Roster'],
+    summary: "Read the roster's overlap",
+    description:
+      "Which of the roster's shows share listeners with each other, as Qloo measured it: each show's closest shows, as ranks and bands within its own ranking, and the close pairs, two shows each among the other's closest.",
+    request: { params: NetworkParams },
+    responses: {
+      200: { description: "The roster's overlap.", content: { 'application/json': { schema: RosterOverlap } } },
+      ...errors(...AUTH_ERRORS)
+    }
+  }),
+  async (c) => c.json(await getOverlap(context(c)), 200)
+)
+
+api.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/v1/networks/{networkId}/roster/overlap',
+    tags: ['Roster'],
+    summary: "Measure the roster's overlap",
+    description:
+      "Ranks the rest of the roster against each show matched in Qloo, one Qloo call each, counting shows on the same Qloo show once and including shows left out of launches. It takes at least 4 such shows and a roster with no lookup pending, and is refused while a measure runs. It answers 202 at once with the overlap measuring; poll it until it isn't. With the roster's matched shows unchanged, it asks only the shows whose ranking is missing or failed, so it's up to one call per show, and none once every ranking has landed. It counts against the network's daily Qloo calls, and is refused when the Qloo requests left today, Crossfeed's shared ones or the network's own key's, couldn't take it and still leave a run's 60.",
+    request: { params: NetworkParams },
+    responses: {
+      202: {
+        description: 'The overlap, measuring, or as it was when there was nothing left to measure.',
+        content: { 'application/json': { schema: RosterOverlap } }
+      },
+      ...errors(401, 403, 404, 409, 429)
+    }
+  }),
+  async (c) => c.json(await measureOverlap(context(c)), 202)
+)
 
 const Work = z
   .object({ title: z.string(), type: z.enum(workTypes), year: z.number().int().nullable() })
@@ -1675,6 +1799,8 @@ const COSTS: Record<string, Cost> = {
   'POST /api/v1/networks/{networkId}/roster': 'Calls Qloo',
   'PATCH /api/v1/networks/{networkId}/roster/shows/{name}': 'Changes',
   'POST /api/v1/networks/{networkId}/roster/shows/{name}/comp-search': 'Calls Qloo',
+  'GET /api/v1/networks/{networkId}/roster/overlap': 'Reads',
+  'POST /api/v1/networks/{networkId}/roster/overlap': 'Calls Qloo',
   'GET /api/v1/networks/{networkId}/inbox': 'Reads',
   'POST /api/v1/networks/{networkId}/inbox': 'Spends a model run',
   'PATCH /api/v1/networks/{networkId}/inbox/pitches/{pitchId}': 'Changes',

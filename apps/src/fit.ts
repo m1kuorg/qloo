@@ -78,9 +78,12 @@ export type PitchList = {
 export const FINALISTS = 5
 const LEAD = 0.05 // how far the top anchor's share must beat the next one's to name it
 
+// A show matched in Qloo, directly or through a comp, whether or not it's left out of launches.
+export const matched = (show: Show): show is Show & { entity: Candidate } =>
+  (show.resolution === 'resolved' || show.resolution === 'mapped') && show.entity !== null
+
 // A show the ranking can score: matched in Qloo, directly or through a comp, and not left out.
-export const scorable = (show: Show): show is Show & { entity: Candidate } =>
-  (show.resolution === 'resolved' || show.resolution === 'mapped') && show.entity !== null && !show.excluded
+export const scorable = (show: Show): show is Show & { entity: Candidate } => matched(show) && !show.excluded
 
 // Why the roster state keeps a show from being scored, or null when it can be. The chart's Not
 // scored list and the run's first message both give these reasons, so they never disagree.
@@ -133,8 +136,9 @@ export function rankRoster(
   return { call, anchors, error: result.ok ? null : result.error, rows, notScored }
 }
 
+// The band of the `i`th of `n` ranked results, from 0: the third of the ranking it falls in.
 const bands: Band[] = ['top', 'middle', 'bottom']
-const band = (i: number, n: number) => bands[Math.floor((i * 3) / n)]
+export const band = (i: number, n: number) => bands[Math.floor((i * 3) / n)]
 
 // A pitch a ranking can score: read, with a public work matched to one Qloo entity. A pitch set aside
 // with no public work, unreadable, or failed never is.

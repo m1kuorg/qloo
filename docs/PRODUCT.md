@@ -4,7 +4,7 @@
 
 Crossfeed is an agent that tells a podcast network which of its own shows should promote a launch, and which pitched guests its listeners actually want, by scoring the network's own lists in Qloo. It runs as a signed-in product a network's members share, which anyone tries as a guest, in one click, on a sample network. This is the durable product record that design and build work start from. The [PRD](PRD.md) says what ships, the [TRD](TRD.md) says how, and [GLOSSARY.md](/GLOSSARY.md) defines the terms.
 
-The choices it rests on were confirmed on 2026-10-17 for the hackathon entry and taken as the spec's defaults on 2026-10-19 for the product, and are listed under [Decisions](#decisions).
+The choices it rests on were confirmed on 2026-10-17 for the hackathon entry and taken as the spec's defaults on 2026-10-19 for the product and on 2026-10-30 for its analysis, and are listed under [Decisions](#decisions).
 
 Contents:
 
@@ -24,6 +24,7 @@ Contents:
 1.  [Decisions](#decisions)
     1.  [Hackathon decisions](#hackathon-decisions)
     1.  [Product decisions](#product-decisions)
+    1.  [Analysis decisions](#analysis-decisions)
 1.  [See also](#see-also)
 
 ## Platform
@@ -69,6 +70,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 
 - Resolve a roster from show names to Qloo entities, asking the human about ambiguous matches and letting them map misses to comps. Qloo doesn't find podcasts by Spotify ID, so names are the input ([TRD](TRD.md#qloo-integration)).
 - Rank a roster against a launch, or its comps, with Qloo explainability.
+- Measure which of a roster's own shows share listeners with each other: one Qloo ranking per show matched in Qloo, the show against the rest of the roster, giving each show its closest shows by rank and band, and the close pairs, two shows each among the other's closest.
 - Flag demographic mismatches between the launch and its top roster shows.
 - Draft a host-read angle per finalist from the tags it shares with the launch, and none where Qloo returned no shared tags.
 - Write an insertion order that prices each slot from the network's own downloads and CPM.
@@ -147,6 +149,13 @@ Taken on 2026-10-19 in the product spec, [#155](https://github.com/m1kuorg/qloo/
 1.  **Launches:** the spec's "projects" are launches. The Launches page lists them; the roster and the inbox belong to the network.
 1.  **Billing:** none. No payments and no invented prices; settings show usage against the daily caps under a "Beta" label.
 1.  **Publishing:** the SDK, the MCP server, the skills, and the plugin are built in the repo and served by the live app; publishing to npm or a public marketplace waits for approval in [#63](https://github.com/m1kuorg/qloo/issues/63), like the repository itself.
+
+### Analysis decisions
+
+Taken on 2026-10-30 in the analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), each the recommended answer of a grilling round answered for the owner, and stated in the pull request that carries it:
+
+1.  **Measuring the overlap is started, never automatic:** a member or an API key measures the roster's overlap; an import never does, since it spends a Qloo call per show.
+1.  **Close pairs scale with the roster:** a show's closest shows are its top three, or as many as the top band of its ranking holds on a roster of under ten matched shows, so a close pair means the same on a small roster as on a large one.
 
 ## See also
 

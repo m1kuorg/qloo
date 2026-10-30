@@ -13,6 +13,7 @@ Contents:
     1.  [Networks and members](#networks-and-members)
     1.  [Launches, each planned on its own](#launches-each-planned-on-its-own)
     1.  [The roster and the inbox, with uploads](#the-roster-and-the-inbox-with-uploads)
+    1.  [The roster's overlap](#the-rosters-overlap)
     1.  [Settings and the account page](#settings-and-the-account-page)
     1.  [The API, the SDK, MCP, and skills](#the-api-the-sdk-mcp-and-skills)
     1.  [Success criteria](#success-criteria)
@@ -23,6 +24,7 @@ Contents:
     1.  [Evidence and trust stories](#evidence-and-trust-stories)
     1.  [Sample and operation stories](#sample-and-operation-stories)
     1.  [Product stories](#product-stories)
+    1.  [Analysis stories](#analysis-stories)
 1.  [Implementation Decisions](#implementation-decisions)
 1.  [Testing Decisions](#testing-decisions)
 1.  [Out of Scope](#out-of-scope)
@@ -69,6 +71,10 @@ The dashboard, the network's home, lists what needs a member (a launch's questio
 ### The roster and the inbox, with uploads
 
 The roster and the booking inbox belong to the network, each on its own page. Members drop or pick a roster CSV, or a text file of names, or paste names; re-importing keeps every show already settled and looks up only new ones. Members drop or pick pitch emails as `.eml` files, an `.mbox` export, or a text file of pitches separated by lines of `---`; each pitch keeps its sender and subject inside Crossfeed. An upload that can't be read is refused with why; an email too long to read is skipped and named.
+
+### The roster's overlap
+
+A member, an API key, or an assistant measures the roster's overlap: one closed-list ranking in Qloo per show matched in Qloo, that show as the only anchor and the rest of the roster as the candidates, with shows on the same Qloo show measured once and shows left out of launches included. Each show then has its closest shows by listener overlap, as ranks and bands within its own ranking, and two shows that each rank among the other's closest are a close pair. Measuring needs four such shows, reserves its calls on the network's daily limit first, and is refused when Crossfeed's shared daily requests couldn't take it and still leave a run's. A show whose ranking failed keeps its reason, measuring again asks only for what's missing or failed, and the overlap says when the roster's matched shows have changed since. Programs read it through the API, the SDK, and MCP.
 
 ### Settings and the account page
 
@@ -191,6 +197,17 @@ The spec, [#155](https://github.com/m1kuorg/qloo/issues/155), lists 98 stories f
 78. As a programmer, I want no program, script, or assistant to approve an insertion order or a reply, so that nothing ships without a member.
 79. As the operator, I want each network counted against daily limits of its own, as a visitor is, with caps on networks per member, launches per network, open invite links, API keys in use per network, sign-ups per visitor, and invited sign-ups per inviter, so that the free beta can't be used to multiply limits.
 80. As the operator, I want one switch, `ACCOUNTS`, that turns sign-in and everything behind it off, so that `main` stays deployable and sign-ups can stop at once.
+
+### Analysis stories
+
+The analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), lists the stories for reading the network rather than one launch, and its tickets build them. These have shipped:
+
+81. As a programmer, I want to measure which of my own shows share listeners with each other, one Qloo ranking per show matched in Qloo, so that I plan promos by who listens rather than by genre.
+82. As a programmer, I want each show's closest shows by listener overlap, as ranks and bands within its own ranking, and the pairs of shows that each rank among the other's closest, so that I see which of my shows reach the same kind of listener.
+83. As a member, I want measuring refused, with the limit that refused it, when it would pass the network's daily Qloo calls or leave Crossfeed's shared daily requests too low for a run, so that one measure can't stop the day's runs.
+84. As a member, I want a show whose ranking failed to keep its reason while the rest land, and measuring again to ask only for the shows missing or failed, so that a retry doesn't spend calls twice.
+85. As a member, I want a teammate's second start refused while a measure runs, a measure a restart interrupted to say so and keep what landed, and the overlap to say when the roster's matched shows have changed since it was measured, so that we don't spend calls twice or read a stale overlap as current.
+86. As a developer, or a programmer using an assistant, I want to read and start the overlap through the REST API, the SDK, and MCP, so that a script or my assistant can answer "which of my shows share listeners?".
 
 ## Implementation Decisions
 

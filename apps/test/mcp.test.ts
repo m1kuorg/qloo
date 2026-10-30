@@ -103,6 +103,8 @@ const LAUNCH_TOOLS = [
   'import_roster',
   'update_show',
   'search_comps',
+  'get_overlap',
+  'measure_overlap',
   'list_launches',
   'create_launch',
   'start_launch_run',
@@ -173,6 +175,7 @@ describe('the MCP server', () => {
     expect(reads).toEqual([
       'get_network',
       'get_roster',
+      'get_overlap',
       'list_launches',
       'get_launch',
       'get_evidence',
@@ -282,6 +285,73 @@ const finalists = fit.map((r) => r.entity_id)
 // Made-up tags each finalist shares with the launch, but Field Notes, which shares none.
 const night = { tag_id: 'urn:tag:keyword:media:night_owls', name: 'Night Owls', score: 0.6131 }
 const compare = { 'e-0501': [night], 'e-0502': [night], 'e-0601': [night] }
+
+describe("the roster's overlap through the MCP server", () => {
+  it("measures it, then reads each show's closest shows and its close pairs, not the whole rankings", async () => {
+    fakeQloo({ search })
+    // Made-up scores: every show's ranking puts the others in this order.
+    const order = ['e-0501', 'e-0502', 'e-0001', 'e-0601']
+    fakeInsights((body) =>
+      String(body['filter.results.entities'])
+        .split(',')
+        .map((c) => ({ entity_id: c, name: c, affinity: 0.9 - order.indexOf(c) / 100 }))
+    )
+    const { network, call, secret } = await networkWithKey()
+    const client = assistant(secret)
+    expect((await client.call('get_overlap')).text).toBe(
+      "The roster's overlap isn't measured yet: measure it with measure_overlap, once at least 4 shows are matched in Qloo."
+    )
+    await call(`/api/v1/networks/${network}/roster`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'Night Shift Cinema\nCorner Booth\nSlow Burn\nGhost Signal Radio\n'
+    })
+    await client.until('get_roster', {}, (r: { status: string }) => r.status === 'settled')
+
+    const started = await client.call('measure_overlap')
+    expect(started).toMatchObject({ isError: false, structured: { progress: { asked: 4 } } })
+    const read = await client.until(
+      'get_overlap',
+      {},
+      (o: { status: string; measuredAt: string }) => o.status !== 'measuring'
+    )
+    expect(read.text).toBe(
+      [
+        `The roster's overlap, measured ${read.structured.measuredAt}: each show's closest show by listener overlap in Qloo, by rank and band within its own ranking.`,
+        '- Night Shift Cinema: #1 Corner Booth (top band).',
+        '- Corner Booth: #1 Slow Burn (top band).',
+        '- Slow Burn: #1 Corner Booth (top band).',
+        '- Ghost Signal Radio: #1 Corner Booth (top band).',
+        "Corner Booth and Slow Burn are each other's closest show by listener overlap."
+      ].join('\n')
+    )
+    expect(read.structured).toMatchObject({
+      status: 'measured',
+      closestCount: 1,
+      closePairs: [['Corner Booth', 'Slow Burn']]
+    })
+
+    // Measured, a roster under four matched shows is refused with what it needs.
+    await call(`/api/v1/networks/${network}/roster?replace=true`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'Night Shift Cinema\nCorner Booth\nSlow Burn\n'
+    })
+    expect((await client.call('get_overlap')).text).toContain(
+      "The roster's matched shows have changed since it was measured: measure it again with measure_overlap."
+    )
+    expect(await client.call('measure_overlap')).toMatchObject({
+      isError: true,
+      structured: {
+        error: {
+          code: 'conflict',
+          message:
+            'Measuring the overlap needs at least 4 shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has 3. Match or map more of its shows first.'
+        }
+      }
+    })
+  })
+})
 
 describe('planning a launch through the MCP server', () => {
   it('sets up the roster, relays each question for the human to answer, and reads the draft order', async () => {

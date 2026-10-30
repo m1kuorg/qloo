@@ -146,16 +146,18 @@ export type Insight = {
 }
 
 // Serves `POST /v2/insights` from `answer`, given the request's flat dotted-key body: the results
-// to return, or an HTTP status that answers with an error body in Qloo's shape. Demographics
-// requests are left to `fakeDemographics`.
-export function fakeInsights(answer: Insight[] | number | ((body: Record<string, unknown>) => Insight[] | number)) {
+// to return, or an HTTP status that answers with an error body in Qloo's shape, or a promise of either,
+// to hold one request's answer while a test looks. Demographics requests are left to `fakeDemographics`.
+export function fakeInsights(
+  answer: Insight[] | number | ((body: Record<string, unknown>) => Insight[] | number | Promise<Insight[] | number>)
+) {
   network.use(
     ...qlooHosts().map((host) =>
       http.post(`${host}/v2/insights`, async ({ request }) => {
         const body = JSON.parse(await request.clone().text())
         if (body['filter.type'] === 'urn:demographics') return
         await record(request)
-        const results = typeof answer === 'function' ? answer(body) : answer
+        const results = typeof answer === 'function' ? await answer(body) : answer
         if (typeof results === 'number')
           return HttpResponse.json({ error: { message: 'fake failure', code: results } }, { status: results })
         const anchors = String(body['signal.interests.entities'] ?? '').split(',')

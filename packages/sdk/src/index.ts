@@ -11,6 +11,7 @@ export type Network = Schemas['Network']
 export type Usage = Schemas['Usage']
 export type Roster = Schemas['Roster']
 export type Show = Schemas['Show']
+export type RosterOverlap = Schemas['RosterOverlap']
 export type LaunchPlan = Schemas['LaunchPlan']
 export type LaunchSummary = Schemas['LaunchSummary']
 export type Launch = Schemas['Launch']
@@ -157,7 +158,16 @@ export class Crossfeed {
       this.#json('post', '/api/v1/networks/{networkId}/roster/shows/{name}/comp-search', {
         params: { name },
         json: { query }
-      })
+      }),
+    /** Which of its shows share listeners: each show's closest shows in Qloo, and the close pairs. */
+    overlap: ({ signal }: ReadOptions = {}) =>
+      this.#json('get', '/api/v1/networks/{networkId}/roster/overlap', { signal }),
+    /**
+     * Measures the overlap, one Qloo call per show matched in Qloo, or with the roster's matched shows
+     * unchanged, per show whose ranking is missing or failed. It answers at once with the overlap
+     * measuring; wait with `waitForOverlap`.
+     */
+    measureOverlap: () => this.#json('post', '/api/v1/networks/{networkId}/roster/overlap', {})
   }
 
   /** The network's launches, each with its own runs and insertion orders. */
@@ -305,6 +315,16 @@ export class Crossfeed {
     if (settled.status === 'failed' || settled.status === 'stopped')
       throw new CrossfeedError(`run_${settled.status}`, settled.error ?? `Run ${id} ${settled.status}.`, null)
     return settled
+  }
+
+  /** Resolves with the roster's overlap once it's no longer measuring: measured, or failed with why. */
+  waitForOverlap(options: WaitOptions = {}): Promise<RosterOverlap> {
+    return poll(
+      (signal) => this.roster.overlap({ signal }),
+      (overlap) => overlap.status !== 'measuring',
+      'The overlap was still measuring',
+      options
+    )
   }
 
   /** Resolves with the inbox once no pitch is still being read. */

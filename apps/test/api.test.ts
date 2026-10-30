@@ -452,6 +452,7 @@ describe('the OpenAPI document', () => {
     const costly: Record<string, string> = {
       'POST /roster': 'Calls Qloo',
       'POST /roster/shows/{name}/comp-search': 'Calls Qloo',
+      'POST /roster/overlap': 'Calls Qloo',
       'POST /inbox': 'Spends a model run',
       'POST /pitch-runs': 'Spends a model run',
       'POST /pitch-runs/{runId}/answer': 'Calls Qloo',

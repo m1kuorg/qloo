@@ -512,6 +512,238 @@
           "query"
         ]
       },
+      "RosterOverlap": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "unmeasured",
+              "measuring",
+              "measured",
+              "failed"
+            ],
+            "description": "`unmeasured` until the first measure; `measuring` while calls are out, so poll until it isn't; `measured` once every call answered, a failed show's reason on its row; or `failed`, when a restart interrupted it or no show's ranking landed, with the error."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "answered": {
+                "type": "integer"
+              },
+              "asked": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "answered",
+              "asked"
+            ],
+            "description": "The latest measure's shows: how many it asked Qloo about, and how many have answered."
+          },
+          "measuredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was last measured."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "Whether the roster's matched shows have changed since it was measured, so it should be measured again. A show's figures, status or exclusion don't count."
+          },
+          "closestCount": {
+            "type": "integer",
+            "description": "How many closest shows each show has: 3, or fewer on a roster of under 10 matched shows."
+          },
+          "shows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverlapShow"
+            },
+            "description": "Each show matched in Qloo, in roster order."
+          },
+          "closePairs": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Pairs of shows that each rank among the other's closest shows."
+          }
+        },
+        "required": [
+          "status",
+          "error",
+          "progress",
+          "measuredAt",
+          "stale",
+          "closestCount",
+          "shows",
+          "closePairs"
+        ],
+        "example": {
+          "status": "measured",
+          "error": null,
+          "progress": {
+            "answered": 4,
+            "asked": 4
+          },
+          "measuredAt": "2026-10-20T09:30:00.000Z",
+          "stale": false,
+          "closestCount": 1,
+          "shows": [
+            {
+              "show": "Deep Cuts",
+              "sameAs": [],
+              "status": "measured",
+              "closest": [
+                {
+                  "show": "Field Notes",
+                  "sameAs": [],
+                  "rank": 1,
+                  "band": "top"
+                }
+              ],
+              "error": null
+            },
+            {
+              "show": "Field Notes",
+              "sameAs": [],
+              "status": "measured",
+              "closest": [
+                {
+                  "show": "Deep Cuts",
+                  "sameAs": [],
+                  "rank": 1,
+                  "band": "top"
+                }
+              ],
+              "error": null
+            },
+            {
+              "show": "Signal Boost",
+              "sameAs": [
+                "Signal Boost Shorts"
+              ],
+              "status": "measured",
+              "closest": [
+                {
+                  "show": "Corner Booth",
+                  "sameAs": [],
+                  "rank": 1,
+                  "band": "top"
+                }
+              ],
+              "error": null
+            },
+            {
+              "show": "Corner Booth",
+              "sameAs": [],
+              "status": "failed",
+              "closest": [],
+              "error": "Qloo returned 503: Service Unavailable, after 2 retries"
+            }
+          ],
+          "closePairs": [
+            [
+              "Deep Cuts",
+              "Field Notes"
+            ]
+          ]
+        }
+      },
+      "OverlapShow": {
+        "type": "object",
+        "properties": {
+          "show": {
+            "type": "string"
+          },
+          "sameAs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The other roster shows matched or mapped to the same Qloo show, measured with it."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unmeasured",
+              "measuring",
+              "measured",
+              "failed"
+            ],
+            "description": "`measured` once its ranking landed, `failed` with the error, `measuring` while its call is out, or `unmeasured`: not in the latest measure, or one a restart interrupted before its call answered."
+          },
+          "closest": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "show": {
+                  "type": "string"
+                },
+                "sameAs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The other roster shows matched or mapped to the same Qloo show, measured with it."
+                },
+                "rank": {
+                  "type": "integer"
+                },
+                "band": {
+                  "type": "string",
+                  "enum": [
+                    "top",
+                    "middle",
+                    "bottom"
+                  ]
+                }
+              },
+              "required": [
+                "show",
+                "sameAs",
+                "rank",
+                "band"
+              ]
+            },
+            "description": "Its closest shows by listener overlap, best first: each one's rank and band, the third, within this show's own ranking of the rest of the roster."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why its ranking failed."
+          }
+        },
+        "required": [
+          "show",
+          "sameAs",
+          "status",
+          "closest",
+          "error"
+        ]
+      },
       "Inbox": {
         "type": "object",
         "properties": {
@@ -3226,6 +3458,154 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller can't do this, such as a member's session changing what only an owner does, or writing without an `Origin` of one of Crossfeed's pages (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The resource's state refuses this (`conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{networkId}/roster/overlap": {
+      "get": {
+        "tags": [
+          "Roster"
+        ],
+        "summary": "Read the roster's overlap",
+        "description": "Which of the roster's shows share listeners with each other, as Qloo measured it: each show's closest shows, as ranks and bands within its own ranking, and the close pairs, two shows each among the other's closest.",
+        "x-crossfeed-cost": "Reads",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The roster's overlap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterOverlap"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No API key or session, or one that is unknown or revoked (`unauthorized`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource, or one the caller cannot reach (`not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A cap (`limit`), such as a daily cap or the launches a network keeps, or the per-minute rate limit (`rate_limited`) refuses this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Roster"
+        ],
+        "summary": "Measure the roster's overlap",
+        "description": "Ranks the rest of the roster against each show matched in Qloo, one Qloo call each, counting shows on the same Qloo show once and including shows left out of launches. It takes at least 4 such shows and a roster with no lookup pending, and is refused while a measure runs. It answers 202 at once with the overlap measuring; poll it until it isn't. With the roster's matched shows unchanged, it asks only the shows whose ranking is missing or failed, so it's up to one call per show, and none once every ranking has landed. It counts against the network's daily Qloo calls, and is refused when the Qloo requests left today, Crossfeed's shared ones or the network's own key's, couldn't take it and still leave a run's 60.",
+        "x-crossfeed-cost": "Calls Qloo",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The network's ID, from its settings.",
+              "example": "0b6e8d2a-4c1f-4e8a-9d3b-2f5a7c9e1d40"
+            },
+            "required": true,
+            "description": "The network's ID, from its settings.",
+            "name": "networkId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The overlap, measuring, or as it was when there was nothing left to measure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterOverlap"
                 }
               }
             }

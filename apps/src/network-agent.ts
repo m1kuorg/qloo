@@ -12,10 +12,24 @@ import {
   type State
 } from './agent'
 import { sampleLaunchRows } from './directory'
-import { CALL } from './evidence'
-import { globalGateway } from './gateway'
+import { CALL, callNumber } from './evidence'
+import { globalGateway, type QlooGateway } from './gateway'
 import { readSampleInbox, type Booking, type Inbox, type Pitch, type PitchReply } from './inbox'
 import type { LaunchAgent } from './launch-agent'
+import { MAX_QLOO_CALLS } from './limits'
+import {
+  byEntity,
+  closestCount,
+  closestOf,
+  entityKey,
+  MIN_OVERLAP_ENTITIES,
+  OVERLAP_INTERRUPTED,
+  OVERLAP_MEASURING,
+  rosterEntities,
+  toMeasure,
+  type Entity,
+  type OverlapRow
+} from './overlap'
 import { Refusal } from './refusal'
 import { holdsSample } from './roster'
 import { sample, sampleCpm, sampleRoster, type Sample } from './sample'
@@ -159,6 +173,11 @@ export class NetworkAgent extends CrossfeedAgent {
     // stopped reading is (CrossfeedAgent.onStart): its lookups are tried again (loadSampleInbox).
     const inbox = this.state.inbox
     if (inbox?.sample && inbox.status === 'reading') this.finishInbox(inbox.id, LOOKUP_RETRIED)
+    // A measure is kept alive while its calls are out, so one still measuring at startup lost them. The
+    // rows that landed stay, and measuring again asks only the rest.
+    const overlap = this.state.overlap
+    if (overlap?.status === 'measuring')
+      this.setState({ ...this.state, overlap: { ...overlap, status: 'failed', error: OVERLAP_INTERRUPTED } })
     await super.onStart(props)
     if (this.name !== GUEST_NETWORK) return
     if (this.env.SAMPLE_NETWORK === 'on' && !props?.clearing) {
@@ -289,6 +308,132 @@ export class NetworkAgent extends CrossfeedAgent {
     } catch (e) {
       console.error(JSON.stringify({ event: 'sample_inbox_load', error: String(e) }))
     }
+  }
+
+  // Measures the roster's overlap (overlap.ts), from a member's page or a program: one ranking in Qloo
+  // per distinct entity the roster's shows are matched or mapped to, that entity the only anchor and the
+  // others the candidates. It needs four such entities, no lookup still pending, and no measure already
+  // running. With the roster's entities unchanged since the last measure, it asks only the anchors whose
+  // ranking hasn't landed, and with none left, nothing. It reserves one call per anchor on the network's
+  // daily calls, and is refused, too, when the gateway's requests left today couldn't take them and still
+  // leave a run's. It returns once the calls are out, since 50 of them take about the client's 30-second
+  // call timeout, and each anchor's row lands as its call answers.
+  @callable()
+  async measureOverlap() {
+    const ready = () => {
+      const pending = this.state.roster.filter((s) => s.resolution === 'pending').length
+      if (pending > 0)
+        throw new Refusal(
+          'conflict',
+          `The roster is still looking up ${pending === 1 ? '1 show' : `${pending} shows`} in Qloo. Measure the overlap once the lookups have settled.`
+        )
+      if (this.state.overlap?.status === 'measuring') throw new Refusal('conflict', OVERLAP_MEASURING)
+    }
+    ready()
+    // A start still reserving its calls is measuring too, so two starts at once reserve once.
+    if (this.startingOverlap) throw new Refusal('conflict', OVERLAP_MEASURING)
+    const { entities, key, anchors } = toMeasure(this.state.roster, this.state.overlap)
+    if (entities.length < MIN_OVERLAP_ENTITIES)
+      throw new Refusal(
+        'conflict',
+        `Measuring the overlap needs at least ${MIN_OVERLAP_ENTITIES} shows matched in Qloo, counting shows matched to the same Qloo show once; the roster has ${entities.length}. Match or map more of its shows first.`
+      )
+    if (anchors.length === 0) return
+    this.startingOverlap = true
+    let gateway: DurableObjectStub<QlooGateway>
+    try {
+      gateway = await this.reserveCalls(this.limitKey(), anchors.length, MAX_QLOO_CALLS)
+    } finally {
+      this.startingOverlap = false
+    }
+    ready() // again, since an import may have started meanwhile
+    if (entityKey(rosterEntities(this.state.roster)) !== key)
+      throw new Refusal(
+        'conflict',
+        "The roster's matched shows changed as the measure started, so it didn't. Measure the overlap again."
+      )
+    // A ranking that failed is asked again, so only the rows that landed stay, and only for these entities.
+    const prior = this.state.overlap?.key === key ? this.state.overlap : null
+    // Numbered now, in entity order, so the calls' numbers follow the anchors'.
+    const seqs = anchors.map(() => this.numberCall())
+    this.setState({
+      ...this.state,
+      overlap: {
+        status: 'measuring',
+        error: null,
+        key,
+        asked: anchors.length,
+        answered: 0,
+        measuredAt: prior?.measuredAt ?? null,
+        rows: prior?.rows.filter((r) => !r.error) ?? []
+      }
+    })
+    // All at once: the gateway paces, limits, and retries the calls. Anything that breaks outside an
+    // anchor's own call, such as landing its row, fails the measure, so it can't stay measuring.
+    const k = closestCount(entities.length)
+    void this.keepAliveWhile(() =>
+      Promise.all(anchors.map((anchor, i) => this.rankAnchor(anchor, entities, k, seqs[i], gateway)))
+    ).catch((e) => {
+      const error = `Measuring the overlap failed: ${e instanceof Error ? e.message : String(e)}`
+      console.error(JSON.stringify({ event: 'overlap_measure', error }))
+      const overlap = this.state.overlap
+      if (overlap?.status === 'measuring')
+        this.setState({ ...this.state, overlap: { ...overlap, status: 'failed', error } })
+    })
+  }
+
+  // Whether a measure is reserving its calls (measureOverlap).
+  private startingOverlap = false
+
+  // Ranks the other entities against one anchor through `reserved`, where its call was reserved, and lands
+  // its row: its top `k`, or why the ranking failed.
+  private async rankAnchor(
+    anchor: Entity,
+    entities: Entity[],
+    k: number,
+    seq: number,
+    reserved: DurableObjectStub<QlooGateway>
+  ) {
+    const candidates = entities.filter((e) => e.id !== anchor.id).map((e) => e.id)
+    let row: OverlapRow
+    try {
+      const { call, result } = await this.qloo(
+        (gateway) => gateway.rank([anchor.id], candidates, 'urn:entity:podcast'),
+        null,
+        seq,
+        reserved
+      )
+      row = result.ok
+        ? { entity: anchor, call, closest: closestOf(result.data.scored, k), error: null }
+        : { entity: anchor, call, closest: [], error: result.error }
+    } catch (e) {
+      // Anything else that breaks still lands the row, so the measure can't stay measuring.
+      const error = `The ranking failed: ${e instanceof Error ? e.message : String(e)}`
+      row = { entity: anchor, call: callNumber(seq), closest: [], error }
+    }
+    this.landOverlapRow(row)
+  }
+
+  // Lands an anchor's row, unless its entity has left the roster since the measure started, and ends the
+  // measure with its last answer: measured, or failed when no anchor's ranking has landed.
+  private landOverlapRow(row: OverlapRow) {
+    const overlap = this.state.overlap
+    if (overlap?.status !== 'measuring') return
+    const onRoster = rosterEntities(this.state.roster).some((e) => e.id === row.entity.id)
+    const rows = [...overlap.rows.filter((r) => r.entity.id !== row.entity.id), ...(onRoster ? [row] : [])].sort(
+      byEntity
+    )
+    const answered = overlap.answered + 1
+    const ended =
+      answered < overlap.asked
+        ? {}
+        : rows.some((r) => !r.error)
+          ? { status: 'measured' as const, measuredAt: new Date().toISOString() }
+          : {
+              status: 'failed' as const,
+              error: "No show's ranking landed, as each show's row says. Measure the overlap again."
+            }
+    this.setState({ ...this.state, overlap: { ...overlap, rows, answered, ...ended } })
   }
 
   // Its Qloo calls go through its own gateway instance while it has a Qloo key of its own (ADR 0004).

@@ -62,6 +62,17 @@ await crossfeed.network.update({ cpm: 25 })
 
 A roster of show names, one per line, goes as `{ type: 'text/plain' }`. Importing over a roster that has shows needs `{ replace: true }`.
 
+To see which of the roster's shows share listeners with each other, measure its overlap: one Qloo call per show matched in Qloo, at least four of them. Each show gets its closest shows, by rank and band within its own ranking, and two shows each among the other's closest are a close pair:
+
+```ts
+await crossfeed.roster.measureOverlap()
+const overlap = await crossfeed.waitForOverlap()
+for (const show of overlap.shows) console.log(show.show, show.closest) // each { show, rank, band }
+console.log(overlap.closePairs) // such as [['Deep Cuts', 'Field Notes']]
+```
+
+Measuring again with the roster's matched shows unchanged asks only for the shows whose ranking is missing or failed. `overlap.stale` says when they've changed since.
+
 Then plan the launch and run it. A run asks the person planning it its questions, such as the slot budget; relay each one and answer with their words:
 
 ```ts
@@ -114,9 +125,10 @@ await crossfeed.replies.discard(id, 'pitch-02')
 
 ## Wait for long work
 
-An import, a comp search, an inbox load, and a run answer at once while the work goes on. Each wait helper polls its resource until the work settles:
+An import, a comp search, measuring the overlap, an inbox load, and a run answer at once while the work goes on. Each wait helper polls its resource until the work settles:
 
 - `waitForRoster()` resolves once no show or comp search is still pending.
+- `waitForOverlap()` resolves once the roster's overlap is no longer `measuring`: `measured`, or `failed` with its `error`.
 - `waitForInbox()` resolves once no pitch is still being read.
 - `waitForRun({ launchId, runId })` and `waitForRun({ pitchRunId })` resolve once the run is `completed`, or `waiting` on its `question`. A run that `failed` or `stopped` rejects with a `run_failed` or `run_stopped` `CrossfeedError` whose message says why.
 
