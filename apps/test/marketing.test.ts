@@ -867,6 +867,20 @@ describe('a page that is not there', () => {
     expect(read(ranking(res.body))).toContain('/docs/ap: not on the roster')
   })
 
+  it('sets the ranking as a piece of the app on its stage, its rows links the keyboard reaches', async () => {
+    const { body } = await answer('/docs/ap', browser)
+    // Beside a stage, the heading is at display size, not the poster size of a page without one.
+    expect(main(body)).toMatch(/<h1\b[^>]*\sclass="[^"]*\btype-display\b/)
+    // The piece of the app, from its root on: the ranking's heading and every row's link.
+    const root = ranking(body).search(/<[a-z]+\b[^>]*\sdata-ui\b/)
+    expect(root).toBeGreaterThanOrEqual(0)
+    const fragment = ranking(body).slice(root)
+    expect(words(fragment)).toContain('Closest on the roster')
+    expect(hrefs(fragment)).toEqual(['/docs/api', '/docs', '/docs/agents'])
+    // Unlike the landing page's pictures, nothing in it is inert.
+    expect(ranking(body)).not.toMatch(/\sinert\b/)
+  })
+
   it('ranks the ways in among the pages while accounts are on', async () => {
     expect(rows((await answer('/sign-on', browser)).body)[0]).toEqual({ href: '/sign-in', closest: true })
   })
@@ -985,6 +999,8 @@ describe('a page that fails', () => {
       'Dead air. Something went wrong in Crossfeed as it loaded this page: try again in a moment. Dashboard Ray ID 8f1e2d3c4b5a6978-SIN'
     )
     expect(ways(main(body), body)).toEqual([`/app/${id}`])
+    // With no ranking, and so no stage, its heading stays at poster size.
+    expect(main(body)).toMatch(/<h1\b[^>]*\sclass="[^"]*\btype-poster\b/)
     // The marketing shell's links, and no island.
     expect(body.match(/<header[\s\S]*?<\/header>/)?.[0]).toMatch(/<a [^>]*href="\/docs"[^>]*>Developers<\/a>/)
     expect(body).not.toContain('id="root"')

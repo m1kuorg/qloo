@@ -198,7 +198,7 @@
   letter-spacing: -0.025em;
   font-weight: 600;
 }
-/* The landing h1, a two-line statement across the page, and the 404 and error pages' headings
+/* The landing h1, a two-line statement across the page, and the error page's heading
    (routes/marketing.tsx): 12.5vw, and 17vw flush left on phones. */
 @utility type-poster {
   font-size: clamp(96px, 12.5vw, 200px);
@@ -233,6 +233,29 @@
     from {
       opacity: 0;
       transform: translateY(12px);
+    }
+  }
+}
+/* The 404 page's stage (data-stage, below) opens from its left edge like a shutter, its corner cut kept
+   as it opens, while the piece of the app on it settles from 1.12 times its size. Each has only a
+   starting state, as line-up has, so what's at rest is the stage uncut and the piece at its size. */
+@theme {
+  --animate-shutter: shutter 1100ms cubic-bezier(0.76, 0, 0.24, 1) 150ms both;
+  --animate-settle: settle 1500ms var(--ease-lift) 150ms both;
+  @keyframes shutter {
+    from {
+      clip-path: polygon(
+        var(--start) 0,
+        var(--start) 0,
+        var(--start) 100%,
+        var(--start) 100%,
+        var(--start) var(--cut-rise)
+      );
+    }
+  }
+  @keyframes settle {
+    from {
+      transform: scale(1.12);
     }
   }
 }
@@ -506,6 +529,35 @@
   --secondary: #e8e9ee;
   --secondary-foreground: #121318;
   --ring: #121318;
+}
+
+/* The 404 page's stage (routes/marketing.tsx), the second colour field: signal orange across the page's
+   width, cut to start at the fifth of twelve columns from 1024px (--start) and at the left edge below,
+   so it bleeds off the right edge at any width. Its top-left corner is cut away at the slope of the
+   mark's bars (mark.tsx), 0.364, across two columns from 1024px and 72px below (--cut), so it drops
+   --cut-rise down the stage's left edge. From 1024px the frame's content is --inner wide
+   (marketingFrame: 40px margins, up to 1376px, 24px gutters), so the fifth column starts a third of it
+   and a third of a gutter past the margin, and two columns and their gutter are a sixth of it less
+   20px. */
+[data-stage] {
+  --start: 0px;
+  --cut: 4.5rem;
+  --cut-rise: calc(var(--cut) * 0.364);
+  clip-path: polygon(
+    calc(var(--start) + var(--cut)) 0,
+    100% 0,
+    100% 100%,
+    var(--start) 100%,
+    var(--start) var(--cut-rise)
+  );
+  @media (width >= 64rem) {
+    --inner: min(100% - 5rem, 86rem);
+    --start: calc((100% - var(--inner)) / 2 + (var(--inner) + 1.5rem) / 3);
+    --cut: calc(var(--inner) / 6 - 1.25rem);
+    /* A height, where a percentage is of the stage's height, so it reads the frame from the window's
+       width instead, which a classic scrollbar makes it differ from by under a pixel. */
+    --cut-rise: calc((min(100vw - 5rem, 86rem) / 6 - 1.25rem) * 0.364);
+  }
 }
 
 /* Section entrances on the landing page: a part that client/reveal.ts has waiting below the window is
