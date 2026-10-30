@@ -244,8 +244,8 @@ export class QlooGateway extends DurableObject<Env> {
   }
 
   // Counts `n` Qloo calls for `visitor` today before they're made, or refuses them all if they would
-  // pass QLOO_VISITOR_DAILY_CALL_CAP. Imports and comp searches ask first, so a refused one keeps
-  // nothing; every other call is counted as it's made (forVisitor). With `leave`, as measuring the
+  // pass QLOO_VISITOR_DAILY_CALL_CAP. Imports, comp searches, and measuring the roster's overlap ask
+  // first, so a refused one keeps nothing; every other call is counted as it's made (forVisitor). With `leave`, as measuring the
   // roster's overlap asks, it also refuses them when this instance's requests left today under
   // QLOO_DAILY_CALL_CAP couldn't take them and still leave `leave`, a run's calls, so one network's calls
   // can't stop the day's runs for every network that shares the instance.

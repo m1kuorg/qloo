@@ -438,11 +438,12 @@ const overview = (env: Env, origin: string, tools: number): Page => ({
       body: (
         <>
           <p>
-            An import, a comp search, an inbox load, and a run answer 202 at once with the resource as it stands; read
-            the resource until the work settles. A run is <code>running</code>, or <code>waiting</code> on its question;
-            then <code>completed</code>, or <code>stopped</code> or <code>failed</code> with the reason in{' '}
-            <code>error</code>. With one of the network’s API keys in <code>CROSSFEED_API_KEY</code> and its ID in{' '}
-            <code>CROSSFEED_NETWORK_ID</code>, both from its settings, import a made-up roster:
+            An import, a comp search, measuring the roster’s overlap, an inbox load, and a run answer 202 at once with
+            the resource as it stands; read the resource until the work settles. A run is <code>running</code>, or{' '}
+            <code>waiting</code> on its question; then <code>completed</code>, or <code>stopped</code> or{' '}
+            <code>failed</code> with the reason in <code>error</code>. With one of the network’s API keys in{' '}
+            <code>CROSSFEED_API_KEY</code> and its ID in <code>CROSSFEED_NETWORK_ID</code>, both from its settings,
+            import a made-up roster:
           </p>
           <Code label="Shell" copy>{`
 curl -X POST "${origin}/api/v1/networks/$CROSSFEED_NETWORK_ID/roster" \\

@@ -318,6 +318,64 @@ describe("measuring the roster's overlap", () => {
     expect(rankings()).toHaveLength(4)
   })
 
+  it('checks the roster again after reserving, refusing a start an import overtook, which keeps the calls it reserved', async () => {
+    fakeQloo({ search })
+    fakeInsights(overlapping)
+    const { network: id_, call, agent } = await network(four)
+    // Slow Burn's lookup is held, so it's still pending when the measure's reservation comes back.
+    env.QLOO_TIMEOUT_MS = '10000'
+    const lookups = Promise.withResolvers<void>()
+    fakeQloo({ search, held: lookups.promise })
+    const [imported, measuring] = await Promise.allSettled([
+      agent.call('importRoster', [...four, 'Slow Burn'].join('\n')),
+      agent.call('measureOverlap')
+    ])
+    expect(imported.status).toBe('fulfilled')
+    expect(measuring).toMatchObject({
+      status: 'rejected',
+      reason: new Error(
+        'The roster is still looking up 1 show in Qloo. Measure the overlap once the lookups have settled.'
+      )
+    })
+    expect(agent.state()!.overlap).toBeUndefined()
+    expect(rankings()).toEqual([])
+    // The 4 lookups, the import's 1, and the 4 the refused measure reserved, which it keeps.
+    const usage = await (await call(`/api/v1/networks/${id_}/usage`)).json<{ qlooCalls: { used: number } }>()
+    expect(usage.qlooCalls.used).toBe(9)
+    lookups.resolve()
+    await agent.until((s) => s.roster.every((show) => show.resolution !== 'pending'))
+  })
+
+  it("checks a network's own Qloo key's requests left today, not the shared pool's", async () => {
+    const OWN = 'qk-made-up-7f3a'
+    fakeQloo({ search, keys: [OWN, env.QLOO_API_KEY] })
+    fakeInsights(overlapping)
+    const { ada, network: id_ } = await networkWithKey()
+    const added = await ada.fetch(`/app/${id_}/settings/qloo-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host: 'https://api.qloo.com', key: OWN })
+    })
+    expect(added.status).toBe(200)
+    const agent = await ada.connect(`/agents/network/${id_}`, {})
+    open.push(agent)
+    await agent.importRoster(four.join('\n'))
+    // The key's test search and the four lookups are its key's first 5 requests today; Crossfeed's shared
+    // pool has made none, so at 68 a day it would take the measure.
+    env.QLOO_DAILY_CALL_CAP = '68'
+    await expect(agent.call('measureOverlap')).rejects.toThrow(
+      "The network's own Qloo key has 63 of its 68 Qloo requests a day left, too few for up to 4 more and a run's 60 after them; it resets at 00:00 UTC."
+    )
+    env.QLOO_DAILY_CALL_CAP = '69'
+    await agent.call('measureOverlap')
+    expect((await agent.until(measured)).overlap).toMatchObject({ status: 'measured', asked: 4, answered: 4 })
+    const ranked = requests.filter((r) => r.url.pathname === '/v2/insights')
+    expect(ranked.map((r) => [r.url.origin, r.headers.get('X-Api-Key')])).toEqual(
+      ranked.map(() => ['https://api.qloo.com', OWN])
+    )
+    expect(ranked).toHaveLength(4)
+  })
+
   it('keeps a failed ranking with its reason beside the rest, and measuring again asks only for it', async () => {
     fakeQloo({ search })
     fakeInsights((body) => (body['signal.interests.entities'] === id('Signal Boost') ? 503 : overlapping(body)))

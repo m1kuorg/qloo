@@ -177,7 +177,7 @@ function overlapOf({ roster, overlap }: State): RosterOverlap {
     const [show = name, ...sameAs] = shows.filter((s) => s.entity.id === id).map((s) => s.name)
     return { show, sameAs }
   }
-  const measured = new Set(overlap?.key.split(','))
+  const measuredIds = new Set(overlap?.key.split(','))
   const rows = new Map(overlap?.rows.map((r) => [r.entity.id, r]))
   // Each entity once, where its first show is on the roster.
   const entities = [...new Map(shows.map((s) => [s.entity.id, { id: s.entity.id, name: s.entity.name }])).values()]
@@ -186,7 +186,7 @@ function overlapOf({ roster, overlap }: State): RosterOverlap {
     if (!landed)
       return {
         ...named(entity),
-        status: overlap?.status === 'measuring' && measured.has(entity.id) ? 'measuring' : 'unmeasured',
+        status: overlap?.status === 'measuring' && measuredIds.has(entity.id) ? 'measuring' : 'unmeasured',
         closest: [],
         error: null
       }
@@ -209,7 +209,7 @@ function overlapOf({ roster, overlap }: State): RosterOverlap {
     progress: overlap ? { answered: overlap.answered, asked: overlap.asked } : null,
     measuredAt: overlap?.measuredAt ?? null,
     stale: overlap ? isStale(overlap, roster) : false,
-    closestCount: closestCount(overlap ? measured.size : rosterEntities(roster).length),
+    closestCount: closestCount(overlap ? measuredIds.size : rosterEntities(roster).length),
     shows: entities.map(row),
     closePairs: closePairs(ordered).map(([a, b]) => [name(a), name(b)])
   }

@@ -368,11 +368,18 @@ export class NetworkAgent extends CrossfeedAgent {
         rows: prior?.rows.filter((r) => !r.error) ?? []
       }
     })
-    // All at once: the gateway paces, limits, and retries the calls.
+    // All at once: the gateway paces, limits, and retries the calls. Anything that breaks outside an
+    // anchor's own call, such as landing its row, fails the measure, so it can't stay measuring.
     const k = closestCount(entities.length)
     void this.keepAliveWhile(() =>
       Promise.all(anchors.map((anchor, i) => this.rankAnchor(anchor, entities, k, seqs[i], gateway)))
-    )
+    ).catch((e) => {
+      const error = `Measuring the overlap failed: ${e instanceof Error ? e.message : String(e)}`
+      console.error(JSON.stringify({ event: 'overlap_measure', error }))
+      const overlap = this.state.overlap
+      if (overlap?.status === 'measuring')
+        this.setState({ ...this.state, overlap: { ...overlap, status: 'failed', error } })
+    })
   }
 
   // Whether a measure is reserving its calls (measureOverlap).
