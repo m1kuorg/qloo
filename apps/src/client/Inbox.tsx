@@ -28,7 +28,7 @@ import {
   type WorkType
 } from '../inbox'
 import { MAX_PAST_GUESTS } from '../limits'
-import { MAX_TITLE } from '../text'
+import { MAX_TITLE, possessive } from '../text'
 import { sameName } from '../resolve'
 import { readPitchUpload } from '../upload'
 import type { Links, Session } from './App'
@@ -1217,7 +1217,7 @@ export function RankedPitches({
                           {r.pitchRank! - move}.{' '}
                           <CallButton
                             call={list.calls.at(-1)!}
-                            label={`Evidence for ${r.entity.name}’s listener rank`}
+                            label={`Evidence for ${possessive(r.entity.name)} listener rank`}
                             opened={opened}
                             openCall={openCall}
                           />

@@ -558,6 +558,16 @@ describe("the roster page's Overlap tab", () => {
     renderToStaticMarkup(createElement(NetworkRoster, { agent: { state, stub: {} } as unknown as NetworkConnection }))
   const tab = (state: State) => hooked(page(state), 'data-overlap')[0]
   const row = (state: State, show: string) => words(hooked(tab(state), `data-overlap-row="${show}"`)[0])
+  // A row's cells in words, in order.
+  const cells = (state: State, show: string) =>
+    [...hooked(tab(state), `data-overlap-row="${show}"`)[0].matchAll(/<t([dh])\b[^>]*>([\s\S]*?)<\/t\1>/g)].map(
+      ([, , cell]) => words(cell)
+    )
+  // What names a table, as a screen reader hears it: the words of the element its aria-labelledby names.
+  const tableName = (table: string, html: string) => {
+    const by = table.match(/^<table\b[^>]*\saria-labelledby="([^"]+)"/)![1]
+    return words(html.match(new RegExp(`id="${by}"[^>]*>(.*?)</span>`))![1])
+  }
   const rowsOf = (state: State) =>
     [...tab(state).matchAll(/data-overlap-row="([^"]+)"[^>]*data-state="([^"]+)"/g)].map(([, show, s]) => [show, s])
   const words = (html: string) =>
@@ -646,10 +656,23 @@ describe("the roster page's Overlap tab", () => {
     expect(row(state, 'Signal Boost')).toBe(
       'Signal Boost #1 Paper Trail , a close pair C-09 Show all 4 of Signal Boost’s ranking'
     )
-    expect(row(state, 'Field Notes')).toBe('Field Notes #1 Signal Boost C-10 Show all 4 of Field Notes’s ranking')
+    expect(row(state, 'Field Notes')).toBe('Field Notes #1 Signal Boost C-10 Show all 4 of Field Notes’ ranking')
     expect(row(state, 'Night Ferry')).toBe(
       'Night Ferry Left out #1 Corner Booth C-12 Show all 4 of Night Ferry’s ranking'
     )
+    // Two columns, the show and its closest shows, and Show all under the call in the closest shows' cell,
+    // so it stands by its row at every width.
+    const table = hooked(tab(state), 'data-overlap-table')[0]
+    expect([...table.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map(([, h]) => words(h))).toEqual([
+      'Show',
+      'Closest shows'
+    ])
+    expect(cells(state, 'Paper Trail')).toEqual([
+      'Paper Trail Mapped to Deep Cuts · Same Qloo show as Deep Cuts',
+      '#1 Signal Boost , a close pair C-08 Show all 4 of Paper Trail’s ranking'
+    ])
+    // The table is named by its heading's words alone, not its chip's.
+    expect(tableName(table, tab(state))).toBe('Who shares whose listeners')
     // Each call opens its evidence in the inspector, and Show all opens the whole ranking under its row.
     expect(tab(state)).toMatch(
       /<button[^>]*aria-controls="evidence"[^>]*aria-label="Evidence for Paper Trail’s ranking: call C-08"/
@@ -717,7 +740,7 @@ describe("the roster page's Overlap tab", () => {
     expect(row(partial, 'Signal Boost')).toBe(
       'Signal Boost Failed Qloo returned 503: fake failure, after 2 retries. C-06'
     )
-    expect(row(partial, 'Deep Cuts')).toBe('Deep Cuts #1 Signal Boost C-05 Show all 3 of Deep Cuts’s ranking')
+    expect(row(partial, 'Deep Cuts')).toBe('Deep Cuts #1 Signal Boost C-05 Show all 3 of Deep Cuts’ ranking')
     expect(words(tab(partial))).toContain('Measure again Up to 1 Qloo call')
 
     // Once the roster's matched shows change, it says so, and measuring again asks for every show.

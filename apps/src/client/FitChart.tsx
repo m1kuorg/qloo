@@ -8,6 +8,7 @@ import { ageWords, type DemographicCheck } from '../demographics'
 import { FINALISTS, topicFinding, type FitRow, type Ranking } from '../fit'
 import { dollars, slotPrice } from '../order'
 import { sameName } from '../resolve'
+import { possessive } from '../text'
 import type { Move, Topic } from '../topic'
 import { FitBand, listOf, NotScored } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
@@ -49,7 +50,7 @@ const rowGrid = {
 // Who the chart's ranking is against, as its heading asks it, and the launch report's.
 export const whoShares = (names: string[]) =>
   names.length === 1
-    ? `Who shares ${names[0]}’s listeners`
+    ? `Who shares ${possessive(names[0])} listeners`
     : names.length
       ? `Who shares the listeners of ${listOf(names)}`
       : 'Who shares the launch’s listeners'
@@ -297,7 +298,7 @@ export function FitChart({
                           </p>
                           <p>
                             <Source of="qloo" /> Listener overlap with {anchors} ranks it{'\u00a0'}
-                            {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}’s fit`)}
+                            {r.rank}. {callButton(ranking.call, `Evidence for ${possessive(r.show)} fit`)}
                           </p>
                           {r.leadingComp && <p>Led by {r.leadingComp.name}.</p>}
                           {shared && !shared.error && shared.tags.length > 0 && (

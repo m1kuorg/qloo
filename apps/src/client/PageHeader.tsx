@@ -216,7 +216,7 @@ export function Section({
   children,
   ...data
 }: {
-  id: string // the heading's, which names the section
+  id: string // the heading's, which names the section; its words alone, chips left out, are `<id>-title`
   title: ReactNode // its words, with a code such as an order's ID in its own type
   description?: ReactNode // one sentence
   level?: 2 | 3
@@ -235,7 +235,8 @@ export function Section({
           tabIndex={heading ? -1 : undefined}
           className={cn('font-semibold text-balance break-words', level === 2 && 'type-body')}
         >
-          {title}
+          {/* Its words alone, so a table under it is named by them, without a chip's. */}
+          <span id={`${id}-title`}>{title}</span>
           {/* 8px after the title's last word, a space widened rather than a margin, so chips wrapped
               onto a line of their own start at the title's left edge. */}
           {badge && (

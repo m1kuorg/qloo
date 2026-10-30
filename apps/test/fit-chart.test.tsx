@@ -129,15 +129,16 @@ describe('the fit chart', () => {
 
     expect(words(hooked(chart(state), 'role="rowgroup"')[0])).toBe('Rank Move Show Topic Agent Fit Slot value')
     // The glyph is for the eye, its words for screen readers, as are both ranks, the lens's first; the
-    // band is the meter's word.
+    // band is the meter's word. The topic rank, folded under the show on a phone where the header is
+    // hidden, carries the Agent chip's mark there, which screen readers hear as its word.
     expect(row(state, 'Signal Boost')).toBe(
-      '2 2nd by who listens, 6th by topic ▲4 Up 4 places Signal Boost Finalist Topic #6 Strong – No network CPM'
+      '2 2nd by who listens, 6th by topic ▲4 Up 4 places Signal Boost Finalist Agent Topic #6 Strong – No network CPM'
     )
     expect(row(state, 'Paper Trail')).toBe(
-      '3 3rd by who listens, 2nd by topic ▼1 Down 1 place Paper Trail Finalist Topic #2 Strong – No network CPM'
+      '3 3rd by who listens, 2nd by topic ▼1 Down 1 place Paper Trail Finalist Agent Topic #2 Strong – No network CPM'
     )
     expect(row(state, 'Corner Booth')).toBe(
-      '6 6th by who listens, 5th by topic ▼1 Down 1 place Corner Booth Topic #5 Good – No network CPM'
+      '6 6th by who listens, 5th by topic ▼1 Down 1 place Corner Booth Agent Topic #5 Good – No network CPM'
     )
     // A climber's name opens why it moved; no other show's does.
     const climber = hooked(chart(state), 'data-show="Signal Boost"')[0]

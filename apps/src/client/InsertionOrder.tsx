@@ -11,7 +11,7 @@ import { buttonVariants } from '@/components/ui/variants'
 import type { Budget, Show } from '../agent'
 import { NO_ANGLE, type SharedTags } from '../fit'
 import {
-  closePairWords,
+  closePairTail,
   noClosePairWords,
   planPairs,
   STALE_PAIRS,
@@ -19,7 +19,7 @@ import {
   type OverlapCopy,
   type PlanPairs
 } from '../overlap'
-import { MAX_ANGLE } from '../text'
+import { MAX_ANGLE, possessive } from '../text'
 import {
   angleOptional,
   dollars,
@@ -398,24 +398,38 @@ function Checks({ priced, budget }: { priced: Priced; budget: Budget | null }) {
   )
 }
 
-// What the plan says of the close pairs among its lines' shows (planPairs), under the checks: each pair in
-// ink, the Qloo data chip before it and both shows' rankings' calls after, or that no two of its shows are
-// one, citing every ranking it checked; then, muted, the shows it has no ranking of; or, in place of all of
-// it, muted, that the overlap is stale for this run. With no overlap copied, it says nothing. The launch
-// report says them too.
+// What the plan says of the close pairs among its lines' shows (planPairs), under the checks: one lead
+// line, the Qloo data chip and "Close pairs by listener overlap", over a list of the pairs in ink, each its
+// two shows and both shows' rankings' calls, screen readers hearing the whole sentence; or that no two of
+// its shows are one, citing every ranking it checked; then, muted, the shows it has no ranking of; or, in
+// place of all of it, muted, that the overlap is stale for this run. With no overlap copied, it says
+// nothing. The launch report says them too, under a heading of their own with the chip (`headed`), so
+// there the list stands with no lead line and no chip of its own.
 export function ClosePairs({
   pairs,
   openCall,
-  opened
+  opened,
+  headed = false
 }: {
   pairs: PlanPairs | null
   openCall: OpenCall
   opened: string | null
+  headed?: boolean
 }) {
   if (!pairs) return null
   const { closestCount: k, checked, unchecked } = pairs
   const cite = (show: string, call: string) => (
-    <CallButton call={call} label={`Evidence for ${show}’s closest shows`} opened={opened} openCall={openCall} />
+    <CallButton
+      call={call}
+      label={`Evidence for ${possessive(show)} closest shows`}
+      opened={opened}
+      openCall={openCall}
+    />
+  )
+  const chip = !headed && (
+    <>
+      <Source of="qloo" />{' '}
+    </>
   )
   return (
     <div className="flex flex-col gap-1" data-close-pairs>
@@ -423,14 +437,25 @@ export function ClosePairs({
         <p className="max-w-[72ch] text-muted-foreground">{STALE_PAIRS}</p>
       ) : (
         <>
-          {pairs.pairs.map(({ shows: [a, b], calls: [x, y] }) => (
-            <p key={`${a} ${b}`} className="max-w-[72ch]">
-              <Source of="qloo" /> {closePairWords(a, b, k)} {cite(a, x)} {cite(b, y)}
+          {pairs.pairs.length > 0 && !headed && (
+            <p>
+              <Source of="qloo" /> Close pairs by listener overlap
             </p>
-          ))}
+          )}
+          {pairs.pairs.length > 0 && (
+            <ul className="flex max-w-[72ch] list-outside list-disc flex-col gap-1 pl-5 marker:text-muted-foreground">
+              {pairs.pairs.map(({ shows: [a, b], calls: [x, y] }) => (
+                <li key={`${a} ${b}`}>
+                  {`${a} and ${b}`}
+                  <span className="vh">{closePairTail(k)}</span> {cite(a, x)} {cite(b, y)}
+                </li>
+              ))}
+            </ul>
+          )}
           {pairs.pairs.length === 0 && unchecked.length === 0 && (
             <p className="max-w-[72ch] text-muted-foreground">
-              <Source of="qloo" /> {noClosePairWords(k)}{' '}
+              {chip}
+              {noClosePairWords(k)}{' '}
               {checked.map(({ show, call }, i) => (
                 <Fragment key={call}>
                   {i > 0 && ' '}

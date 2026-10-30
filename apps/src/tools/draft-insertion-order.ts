@@ -46,7 +46,7 @@ export const draftInsertionOrder: Tool<Input> = {
               angle: {
                 type: ['string', 'null'],
                 description:
-                  "One or two sentences the show's host can build the read on: what in the launch its listeners would want, built only from the tags shared_tags returned for it. Not its rank or score. Null for a finalist shared_tags returned no tags for."
+                  "One or two sentences the show's host can build the read on: what in the launch its listeners would want, built only from the tags shared_tags returned for it. Call the people who hear the show its listeners, never its audience. Not its rank or score. Null for a finalist shared_tags returned no tags for."
               }
             },
             required: ['show', 'slots', 'angle'],

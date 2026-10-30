@@ -26,6 +26,10 @@ export const moveWords = (move: number, baseline = 'topic rank') =>
 // an icon.
 export const CONNECTED = '✔ Connected' // taste-skill-ignore
 
+// A name, such as a show's or a work's, as its owner, as a page says it: "The Watch’s", or after a
+// final s only the apostrophe, "The Rewatchables’".
+export const possessive = (name: string) => (name.endsWith('s') ? `${name}’` : `${name}’s`)
+
 // A rank as words: "2nd".
 export const nth = (n: number) =>
   `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`

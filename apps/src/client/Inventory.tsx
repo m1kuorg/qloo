@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import { Fragment, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { linkVariants } from '@/components/ui/variants'
 import type { CommittedLines, LaunchSummary, State } from '../agent'
@@ -268,11 +268,12 @@ function InventoryTable({ children }: { children: ReactNode }) {
   )
 }
 
-// A show's row: its name, then the launches its orders commit it to, each a link to that launch's plan,
-// and whether it has left the roster; then its figures, a zero in muted ink, and an approved value `–`
-// when none of its lines was priced. Counts and slots align as tabular figures, and money stays
-// proportional. In Never a finalist (`none`), whose figures are all zero, the cells are left empty and
-// say "None" to screen readers, as the launches table's do, so the group reads as the list of names it is.
+// A show's row: its name, then the launches its orders commit it to, a list of one to a line, so a launch
+// named by its comps never reads as several, each a link to that launch's plan, and whether it has left
+// the roster; then its figures, a zero in muted ink, and an approved value `–` when none of its lines was
+// priced. Counts and slots align as tabular figures, and money stays proportional. In Never a finalist
+// (`none`), whose figures are all zero, the cells are left empty and say "None" to screen readers, as the
+// launches table's do, so the group reads as the list of names it is.
 function InventoryRow({ row: r, launchesLink, none }: { row: Row; launchesLink: string; none: boolean }) {
   const zero = (n: number, text = String(n)) =>
     none ? <span className="vh">None</span> : n === 0 ? <span className="text-muted-foreground">{text}</span> : text
@@ -281,16 +282,16 @@ function InventoryRow({ row: r, launchesLink, none }: { row: Row; launchesLink: 
       <th scope="row" className={cn(cell, held, 'min-w-44 font-normal lg:min-w-56')}>
         <span className="text-[15px] leading-snug font-semibold">{r.show}</span>
         {r.launches.length > 0 && (
-          <span className="block type-caption text-muted-foreground">
-            {r.launches.map((l, i) => (
-              <Fragment key={l.id}>
-                {i > 0 && ', '}
+          // Launches stand 4px apart, so one whose name wraps still reads as one launch.
+          <ul className="flex flex-col gap-1 type-caption text-muted-foreground">
+            {r.launches.map((l) => (
+              <li key={l.id}>
                 <a className={linkVariants()} href={`${launchesLink}/${l.id}#plan`}>
                   {launchTitle(l.name, l.comps)}
                 </a>
-              </Fragment>
+              </li>
             ))}
-          </span>
+          </ul>
         )}
         {!r.onRoster && <span className="block type-caption text-muted-foreground">No longer on the roster</span>}
       </th>

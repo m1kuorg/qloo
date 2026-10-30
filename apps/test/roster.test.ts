@@ -313,7 +313,7 @@ describe('the roster as its page shows it', () => {
     const html = editor(await s.importRoster(roster), 'Night Shift Cinema')
 
     expect(html).toMatch(
-      /<h2\b[^>]*\sid="show-ed"[^>]*>Night Shift Cinema<(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Resolved</
+      /<h2\b[^>]*\sid="show-ed"[^>]*><span id="show-ed-title">Night Shift Cinema<\/span>(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Resolved</
     )
     expect(sections(html)).toEqual([['Night Shift Cinema Resolved', 'Matched in Qloo, so a launch can propose it.']])
     // Its state's live region tells screen readers only of a change while the tab is open, so it opens empty.
@@ -333,7 +333,9 @@ describe('the roster as its page shows it', () => {
     const html = editor(await s.importRoster(roster), 'Deep Cuts')
 
     // Its match chip follows the show's name in the heading, after its last line however it wraps.
-    expect(html).toMatch(/<h2\b[^>]*\sid="show-ed"[^>]*>Deep Cuts<(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Ambiguous</)
+    expect(html).toMatch(
+      /<h2\b[^>]*\sid="show-ed"[^>]*><span id="show-ed-title">Deep Cuts<\/span>(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Ambiguous</
+    )
     expect(sections(html)).toEqual([
       ['Deep Cuts Ambiguous', 'Qloo found more than one show by this name. Pick the match.']
     ])

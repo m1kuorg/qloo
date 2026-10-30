@@ -443,7 +443,7 @@ describe("the inspector's Pitch tab", () => {
 
     // Its chip follows its subject in the heading.
     expect(html).toMatch(
-      /<h2\b[^>]*\sid="pitch-ed"[^>]*>Ada Quill on Night Ferry<(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Matched</
+      /<h2\b[^>]*\sid="pitch-ed"[^>]*><span id="pitch-ed-title">Ada Quill on Night Ferry<\/span>(?:(?!<\/h2>).)*\sdata-slot="badge"[^>]*>Matched</
     )
     expect(sections(html)).toEqual([
       ['Ada Quill on Night Ferry Matched', 'Its work matched in Qloo, so a run can rank it.']
