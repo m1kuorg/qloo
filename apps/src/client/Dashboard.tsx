@@ -497,7 +497,7 @@ function inboxLine(inbox: Inbox | null) {
 // a numbered list under its count; "Connect your AI" once any of its keys, revoked or not, has been
 // used for a request, as Assistants and API says (`keys`), and while that couldn't be read, neither done
 // nor not: the step says so, and the count leaves it out. A member can dismiss it for themselves; it
-// stays for everyone else. Dismiss stays focusable while it works, and a second press sends nothing.
+// stays for everyone else. Dismiss is disabled while it works, and stays focusable.
 function Checklist({
   state,
   network,

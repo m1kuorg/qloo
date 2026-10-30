@@ -104,12 +104,12 @@ function reveal(el: HTMLElement | null) {
   if (top < 48 || top > window.innerHeight - 64) el.scrollIntoView({ block: 'start' })
 }
 
-// The playground panel. It loads the OpenAPI document the first time its tab opens (`opened`), not while
-// it's hidden, unless the page was given it (`loaded`), as the tests give it; until then it shows
-// nothing, as no one sees it. When it fails, Try again loads it again, and Operations' heading takes
-// focus from the button, which goes as the load starts, and once more as the operations show, as the
-// heading over them is another. `api` is the REST API's address on the app's own origin, for the curl
-// command; the page itself sends to its own origin.
+// The playground panel. It loads the OpenAPI document the first time its tab opens (`opened`), unless
+// the page was given it (`loaded`), as the tests give it. Until then it shows nothing. A status region
+// says it's loading. When the load fails, Try again loads it again. Operations' heading takes focus
+// from the button, which goes as the load starts. It takes focus again when the operations show, but
+// only if focus would otherwise be lost. `api` is the REST API's address on the app's own origin, for
+// the curl command. The page itself sends to its own origin.
 export function Playground({
   network,
   api,
@@ -139,29 +139,30 @@ export function Playground({
     if (opened && doc.state === 'idle') void load()
   }, [opened])
   const heading = useRef<HTMLHeadingElement>(null)
-  // Whether Try again was pressed, so the operations' heading takes focus once they show.
+  // Whether Try again was pressed. Once the operations show, their heading takes focus, but only if
+  // focus went with the loading state's heading. Focus moved elsewhere meanwhile stays there.
   const retried = useRef(false)
   useEffect(() => {
     if (doc.state !== 'ready' || !retried.current) return
     retried.current = false
-    heading.current?.focus()
+    if (document.activeElement === document.body) heading.current?.focus()
   }, [doc.state])
 
   if (doc.state === 'idle') return null
   if (doc.state === 'ready') return <Workbench network={network} api={api} doc={doc.doc} heading={heading} />
   return (
     <Section id="pg-operations-h" heading={heading} title="Operations" description={OPERATIONS} data-operations>
+      {/* Kept while a load fails and starts again, so its line is said as it comes back. Empty, it takes
+          no room. */}
+      <p role="status" className="empty:absolute">
+        {doc.state === 'loading' && <StateLine kind="loading">Loading the REST API’s operations…</StateLine>}
+      </p>
       {doc.state === 'loading' ? (
-        <>
-          <p>
-            <StateLine kind="loading">Loading the REST API’s operations…</StateLine>
-          </p>
-          <div className="flex max-w-72 flex-col gap-2">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-11" />
-            ))}
-          </div>
-        </>
+        <div className="flex max-w-72 flex-col gap-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-11" />
+          ))}
+        </div>
       ) : (
         <div className="flex flex-col items-start gap-3">
           <p role="alert">

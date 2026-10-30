@@ -192,11 +192,11 @@ function Addresses({ network, mcp, api }: { network: NetworkPage; mcp: string; a
 }
 
 // The key an assistant acts with. An owner names one, Claude Code's by default, and creates it with
-// settings' route, and sees it this once, its field taking focus from the button, which stays focusable
-// while it's disabled, as it is while it works and once the name is cleared; a refusal, or a request
+// settings' route. The key shows this once, and its field takes focus from the button. The button stays
+// focusable while it's disabled: while it works, and once the name is cleared. A refusal, or a request
 // that failed, stops showing the key made before, as settings does. A member reads that only an owner
-// creates them, and who the network's owners are, to ask. In a network on the guest budget, it says
-// every guest shares its keys and when they're cleared, as every guest shares its runs.
+// creates keys, and who the network's owners are, to ask. In a network on the guest budget, it says
+// every guest shares its keys and when they're cleared.
 function KeySection({
   network,
   owners,

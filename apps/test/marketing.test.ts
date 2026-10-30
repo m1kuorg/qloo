@@ -788,6 +788,31 @@ describe('the developer docs', () => {
     }
   })
 
+  // A long command breaks where its shell reads on, so no line's end hides past its block's edge at 1440.
+  // In bash and zsh a backslash ends a line with nothing after it, since a space after it would end the
+  // command there, and the last line has none, or the shell would wait for more. Each line is measured
+  // with the preview's address, the longest a deployment has, as the page shows the request's own.
+  it('break a long copyable command into lines of at most 60 characters that still run as pasted', async () => {
+    const res = await exports.default.fetch('https://crossfeed-preview.m1kuorg.workers.dev/docs/mcp')
+    expect(res.status).toBe(200)
+    const shells = main(await res.text())
+      .split(/(?=<figure\b)/)
+      .slice(1)
+      .map((f) => f.slice(0, f.indexOf('</figure>')))
+      .filter((f) => /<figcaption\b[^>]*>(Shell|PowerShell)<\/figcaption>/.test(f) && f.includes('<template data-copy'))
+      .map((f) => copied(f.match(/<pre\b[^>]*>([\s\S]*?)<\/pre>/)![1]))
+    expect(shells.filter((code) => code.includes('https://crossfeed-preview.m1kuorg.workers.dev/mcp'))).not.toEqual([])
+    for (const code of shells) {
+      const lines = code.split('\n')
+      for (const line of lines) {
+        expect(line.length, line).toBeLessThanOrEqual(60)
+        // A backslash only as the line's last character.
+        expect(line, line).toMatch(/^[^\\]*\\?$/)
+      }
+      expect(lines.at(-1), code).not.toMatch(/\\$/)
+    }
+  })
+
   it("are linked from the landing page's developers band and the top bar's Developers", async () => {
     const html = await page('/')
     const band = html.match(/<section id="developers"[\s\S]*?<\/section>/)?.[0] ?? ''
