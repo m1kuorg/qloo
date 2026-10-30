@@ -60,7 +60,7 @@ export const draftInsertionOrder: Tool<Input> = {
   },
   note: ({ lines }) =>
     `Drafting the insertion order: ${lines.length} shows, ${lines.reduce((n, l) => n + l.slots, 0)} slots`,
-  async run({ lines }, { run, state, update }) {
+  async run({ lines }, { run, state, update, citeOverlap }) {
     const now = state()
     const finalists = finalistsOf(now.ranking)
     if (finalists.length === 0)
@@ -118,6 +118,8 @@ export const draftInsertionOrder: Tool<Input> = {
     const n = now.runs.findIndex((r) => r.id === run) + 1
     const order: InsertionOrder = { id: `IO-${String(n).padStart(4, '0')}`, run, status: 'draft', ...priced }
     update((state) => (state.run?.id === run ? { ...state, insertionOrder: order } : state))
+    // The plan names its close pairs once there's an order, each citing both shows' rankings.
+    await citeOverlap()
     const gaps = priced.lines.filter((l) => l.gap).map((l) => `${l.show}: ${l.gap}`)
     return {
       content: JSON.stringify({

@@ -239,6 +239,7 @@ export function Workspace({
                             sharedTags={Object.fromEntries(
                               (shown.ranking?.rows ?? []).flatMap((r) => (r.sharedTags ? [[r.show, r.sharedTags]] : []))
                             )}
+                            overlap={shown.rosterOverlap}
                             openCall={showCall}
                             opened={opened?.call ?? null}
                             exportHref={`${orders}/${order.id}.csv`}

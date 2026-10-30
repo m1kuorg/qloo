@@ -7,8 +7,9 @@ import type { RunSnapshot, RunSummary } from './agent'
 import { CALL, type Evidence } from './evidence'
 
 // A run as a replay or a seed keeps it: what it ended with, less the guest pitch flow's fields, which are
-// the network's own, and every evidence record that cites.
-export type KeptRun = { state: Omit<RunSnapshot, 'inbox' | 'booking'>; evidence: Evidence[] }
+// the network's own, and the roster's overlap, which cites the network's calls; and every evidence record
+// that cites.
+export type KeptRun = { state: Omit<RunSnapshot, 'inbox' | 'booking' | 'rosterOverlap'>; evidence: Evidence[] }
 
 // The run one of the sample launches is seeded with: its row in the launch's list of runs, the run kept,
 // and when it was captured (ISO time).
@@ -21,9 +22,13 @@ export type SampleLaunchesRow = { key: string; chunk: string }
 export type KeyedRun = { key: string; run: CapturedRun }
 
 // What a replay or a seed keeps of the state a run ended with: all of it but the guest pitch flow's
-// fields, and each comp search, whose query a person typed; and from `log`, every record it cites. Null
-// when a record it cites is missing.
-export function keptRun({ inbox: _, booking: __, ...ended }: RunSnapshot, log: Evidence[]): KeptRun | null {
+// fields, each comp search, whose query a person typed, and the roster's overlap, which cites the
+// network's calls rather than this log's, so no ranking of it, failed or not, keeps the run from being
+// stored; and from `log`, every record it cites. Null when a record it cites is missing.
+export function keptRun(
+  { inbox: _, booking: __, rosterOverlap: ___, ...ended }: RunSnapshot,
+  log: Evidence[]
+): KeptRun | null {
   const state = { ...ended, roster: ended.roster.map((s) => ({ ...s, compSearch: null })) }
   const cited = new Set(JSON.stringify(state).match(CALL))
   const evidence = log.filter((e) => cited.has(e.call))

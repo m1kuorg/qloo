@@ -59,7 +59,14 @@ import {
 } from '../operations'
 import { leanWords, listenerFinding, listenerShape } from '../listeners'
 import { dollars } from '../order'
-import { MIN_OVERLAP_ENTITIES } from '../overlap'
+import {
+  closePairWords,
+  MIN_OVERLAP_ENTITIES,
+  noClosePairWords,
+  STALE_PAIRS,
+  uncheckedWords,
+  type PlanPairs
+} from '../overlap'
 import { Refusal, refusalCode } from '../refusal'
 import type { Candidate } from '../resolve'
 import { networkLinks } from '../shell'
@@ -657,12 +664,27 @@ const orderText = (order: OrderInfo, page: string) =>
       (l) =>
         `- ${l.show}: ${l.slots} slots${l.slotValue === null ? `, no value (${l.gap})` : ` at ${dollars(l.slotValue)}, ${dollars(l.value!)}`}. ${l.angle ?? NO_ANGLE}`
     ),
+    ...closePairsText(order.closePairs),
     order.status === 'approved'
       ? order.fromSample
         ? `Approved in the guest network's sample data, by ${order.approvedBy} as its run was captured, not by a member of this network. Editing it returns it to draft: ${page}`
         : `Approved by ${order.approvedBy} in the app. Editing it returns it to draft: ${page}`
       : `Change its lines with edit_order. Only a member of the network approves it, in the app: ${page}`
   ].join('\n')
+
+// What the plan says of the close pairs among the order's shows, in the plan's words (planPairs), so an
+// assistant can warn of them from the text alone: one line per pair, or that there's none; the shows it
+// can't check; or that the overlap is stale. Nothing when the run copied no overlap.
+function closePairsText(pairs: PlanPairs | undefined) {
+  if (!pairs) return []
+  if (pairs.stale) return [STALE_PAIRS]
+  const k = pairs.closestCount
+  return [
+    ...pairs.pairs.map(({ shows: [a, b] }) => closePairWords(a, b, k)),
+    ...(pairs.pairs.length === 0 && pairs.unchecked.length === 0 ? [noClosePairWords(k)] : []),
+    ...(pairs.unchecked.length > 0 ? [uncheckedWords(pairs.unchecked)] : [])
+  ]
+}
 
 // An inbox as the assistant reads it: one line per pitch, saying what an ambiguous one needs.
 const inboxText = (inbox: InboxInfo) =>

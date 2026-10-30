@@ -70,7 +70,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 
 - Resolve a roster from show names to Qloo entities, asking the human about ambiguous matches and letting them map misses to comps. Qloo doesn't find podcasts by Spotify ID, so names are the input ([TRD](TRD.md#qloo-integration)).
 - Rank a roster against a launch, or its comps, with Qloo explainability.
-- Measure which of a roster's own shows share listeners with each other: one Qloo ranking per show matched in Qloo, the show against the rest of the roster, giving each show its closest shows by rank and band, and the close pairs, two shows each among the other's closest.
+- Measure which of a roster's own shows share listeners with each other: one Qloo ranking per show matched in Qloo, the show against the rest of the roster, giving each show its closest shows by rank and band, and the close pairs, two shows each among the other's closest, which a launch's plan names among its shows.
 - Total a network's promo inventory across its launches: for each show, how many launches made it a finalist, and the slots and value their orders commit to it, approved apart from drafted, from what each launch's runs ended with.
 - Profile who a roster's own shows reach: one Qloo demographics call for every show matched in Qloo, giving each show its lean by age band and gender relative to the average in Qloo, and a finding in words naming the bands most of the roster leans toward and the shows that lean differently. It describes listeners, never people.
 - Flag demographic mismatches between the launch and its top roster shows.

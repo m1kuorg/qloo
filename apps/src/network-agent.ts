@@ -33,6 +33,7 @@ import {
   MIN_OVERLAP_ENTITIES,
   OVERLAP_INTERRUPTED,
   OVERLAP_MEASURING,
+  overlapCopy,
   rosterEntities,
   toMeasure,
   tooFew,
@@ -756,7 +757,8 @@ export class NetworkAgent extends CrossfeedAgent {
   private planning = 0
 
   // The roster and CPM a run of launch `id` starts from, with whether the CPM is labelled the sample's,
-  // the evidence records the roster cites, whether the network has a Qloo key of its own, and the sample
+  // the evidence records the roster cites, the roster's last completed overlap without its records, which
+  // the run copies as it drafts its order, whether the network has a Qloo key of its own, and the sample
   // for the guest network's sample launch, for the launch's agent to copy (launch-agent.ts). Over RPC
   // only. Comp searches stay here, since a launch never edits a show. Refused for a launch the list no
   // longer has, and while a show is still being looked up, so no run ranks a roster half looked up.
@@ -775,12 +777,15 @@ export class NetworkAgent extends CrossfeedAgent {
         `The network's roster is still looking up ${pending === 1 ? '1 show' : `${pending} shows`} in Qloo. Start the run once the lookups have settled, so it ranks every show.`
       )
     const roster = this.state.roster.map((s) => ({ ...s, compSearch: null }))
+    // Only the records the roster cites are read, since measuring the overlap takes the whole log past a
+    // megabyte.
     const cited = new Set(JSON.stringify(roster).match(CALL))
     return {
       roster,
       cpm: this.state.cpm,
       sampleCpm: this.state.sample?.cpm ?? false,
-      evidence: this.getEvidence().filter((e) => cited.has(e.call)),
+      evidence: this.getEvidence([...cited]),
+      overlap: overlapCopy(this.state.overlap),
       ownKey: hasOwnKey(this.ctx.storage),
       sample: id === this.ctx.storage.kv.get(SAMPLE_LAUNCH) ? this.state.sample : null
     }

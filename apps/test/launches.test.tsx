@@ -20,10 +20,12 @@ import { EvidencePanel, namesOf } from '../src/client/Evidence'
 import { LaunchWorkspace } from '../src/client/Launch'
 import { Launches } from '../src/client/Launches'
 import type { Evidence } from '../src/evidence'
+import { globalGateway } from '../src/gateway'
 import worker from '../src/index'
 import { LaunchAgent } from '../src/launch-agent'
 import { NetworkAgent } from '../src/network-agent'
 import { refusalCode } from '../src/refusal'
+import type { KeptRun } from '../src/sample-launches'
 import { networkLinks } from '../src/shell'
 import {
   fakeClaude,
@@ -50,6 +52,7 @@ import {
   facts,
   hooked,
   inspectorClosed,
+  networkWithKey,
   openGuest,
   openMember,
   openSession,
@@ -1356,6 +1359,72 @@ describe('a launch on the sample roster', () => {
     })
   })
 
+  it('stores The Watch’s run as the sample run without the overlap it copied, though one of the sample roster’s rankings failed (#404)', async () => {
+    const { network, id, agent } = await guestSampleLaunch()
+    // The overlap's ranking against House of R fails; the rest land.
+    fakeInsights((body) =>
+      body['signal.interests.entities'] === 'e-1101'
+        ? 503
+        : sampleFit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id))
+    )
+    await network.call('measureOverlap')
+    const overlap = (await network.until((s) => s.overlap?.status === 'measured')).overlap!
+    expect(overlap.rows.find((r) => r.entity.id === 'e-1101')?.error).toEqual(expect.any(String))
+    // Qloo answers the next call, a comp search, so it's no longer failing as The Watch starts.
+    await network.searchComps('The Zach Lowe Show', 'The Lowe Post')
+    await network.until((s) => s.roster.find((r) => r.name === 'The Zach Lowe Show')?.compSearch?.status === 'done')
+    const finalists = ['e-0301', 'e-0201', 'e-1101']
+    fakeCompare(
+      Object.fromEntries(
+        finalists.map((f) => [f, [{ tag_id: 'urn:tag:keyword:media:film', name: 'Film', score: 0.6 }]])
+      )
+    )
+    const logged = vi.spyOn(console, 'log')
+    fakeClaude([
+      ...theWatch().slice(0, 4),
+      turn(toolUse('shared_tags', { anchor_ids: ['e-0601'], candidate_ids: finalists })),
+      turn(
+        toolUse('draft_insertion_order', {
+          lines: ['The Big Picture', 'The Rewatchables', 'House of R'].map((show) => ({
+            show,
+            slots: 4,
+            angle: 'Film listeners.'
+          }))
+        })
+      ),
+      turn(text('Drafted the insertion order.'))
+    ])
+    await agent.call('startLaunch', { name: 'The Watch' })
+    const live = await answerSample(agent)
+    expect(live.run?.status).toBe('completed')
+
+    // The plan names its pair from the overlap the run copied, and says it can't check House of R.
+    const calls = Object.fromEntries(
+      (await agent.call<Evidence[]>('getEvidence'))
+        .filter((e) => e.endpoint === '/v2/insights' && e.copiedFrom)
+        .map((e) => [e.params['signal.interests.entities'], e.call])
+    )
+    expect(Object.keys(calls).toSorted()).toEqual(['e-0201', 'e-0301'])
+    expect(hooked(guestPage(live, id), 'data-close-pairs').map(words)).toEqual([
+      `Qloo data The Big Picture and The Rewatchables are each other’s closest show by listener overlap. ${calls['e-0301']} ${calls['e-0201']} The roster’s overlap has no ranking of House of R for this run, so the plan can’t say whether it’s in a close pair.`
+    ])
+    // The run is stored as the sample run all the same, without the overlap or its copied rankings.
+    await vi.waitFor(() =>
+      expect(logged.mock.calls.flat().some((line) => String(line).includes('"event":"sample_run"'))).toBe(true)
+    )
+    const stored: KeptRun = JSON.parse((await globalGateway(env).sampleRun())!)
+    expect(stored.state.run?.id).toBe(live.run!.id)
+    expect(stored.state).not.toHaveProperty('rosterOverlap')
+    expect(stored.evidence.filter((e) => e.copiedFrom && e.endpoint === '/v2/insights')).toEqual([])
+    // Replayed, it's the stored run, which says nothing of pairs.
+    env.QLOO_DAILY_CALL_CAP = '0'
+    await agent.call('startLaunch', { name: 'The Watch' })
+    const replayed = await agent.until((s) => ended(s) && s.run?.id !== live.run!.id)
+    expect(replayed.run).toMatchObject({ status: 'completed', replayed: capped })
+    expect(replayed.rosterOverlap).toBeUndefined()
+    expect(hooked(guestPage(replayed, id), 'data-close-pairs')).toEqual([])
+  })
+
   const own = 'so runs on your own data wait until Qloo answers again'
 
   it("doesn't replay the guest network's sample launch once a guest changes its roster or runs it as another launch, nor carry the sample on another launch", async () => {
@@ -2464,5 +2533,419 @@ describe('the pages, as a member reads them', () => {
     await vi.waitFor(async () =>
       expect(await runInDurableObject(stub, (_, { storage }) => storage.kv.get('crossfeed_inventory_asked'))).toBe(1)
     )
+  })
+})
+
+describe('close pairs in the plan', () => {
+  // Four more made-up shows for the made-up roster, so it has 10 shows matched in Qloo, and each show 3
+  // closest shows.
+  const more = {
+    'Night Ferry': show('e-0701', 'Night Ferry'),
+    'Static Bloom': show('e-0702', 'Static Bloom'),
+    'Deep Cuts': show('e-0703', 'Deep Cuts'),
+    'Signal Boost': show('e-0704', 'Signal Boost')
+  }
+  const names: Record<string, string> = Object.fromEntries(
+    [...Object.values(search), ...Object.values(more)].flat().map((e) => [e.entity_id, e.name])
+  )
+  // Each Qloo show's made-up place on a line, so its listeners overlap most with the shows nearest it. Of
+  // the order's shows, Corner Booth and Slow Burn each rank among the other's 3 closest shows, and Paper
+  // Route and Field Notes are in no pair with another of them.
+  const places: Record<string, number> = {
+    'e-0501': 0,
+    'e-0502': 1,
+    'e-0701': 3,
+    'e-0702': 7,
+    'e-0503': 20,
+    'e-0601': 21,
+    'e-0505': 22,
+    'e-0102': 40,
+    'e-0703': 41,
+    'e-0704': 42
+  }
+  // Qloo ranks the roster against the launch as rankAsked has it, and against one of the roster's own
+  // shows by how near each candidate's place in `spots` is to that show's. Made-up scores.
+  const overlapping = (spots: Record<string, number>) => {
+    rankAsked()
+    fakeInsights((body) => {
+      const anchor = String(body['signal.interests.entities'])
+      const candidates = String(body['filter.results.entities']).split(',')
+      if (anchor === 'e-0001') return fit.filter((r) => candidates.includes(r.entity_id))
+      return candidates.map((c) => ({
+        entity_id: c,
+        name: names[c],
+        affinity: 0.95 - Math.abs(spots[anchor] - spots[c]) / 100
+      }))
+    })
+  }
+  // The made-up network's roster with the four more shows, settled, and its overlap measured unless
+  // `measure` is false.
+  async function measured(owner: Member, network: string, { measure = true } = {}) {
+    const roster = await rosterOf(owner, network)
+    fakeQloo({ search: { ...search, ...more } })
+    const rows = Object.keys(more).map((name, i) => `${name},${4000 - i * 500}`)
+    await roster.call('importRoster', [csv, ...rows].join('\n'), 'csv')
+    await roster.until((s) => s.roster.length === 10 && s.roster.every((r) => r.resolution !== 'pending'))
+    if (measure) {
+      await roster.call('measureOverlap')
+      await roster.until((s) => s.overlap?.status === 'measured')
+    }
+    return roster
+  }
+  // A new launch run to a drafted order on the network, as drafted() runs one, doing `meanwhile` while
+  // it waits on the budget, before it drafts.
+  async function planned(
+    member: Member,
+    network: string,
+    meanwhile: (agent: Omit<Session, 'cookie'>) => Promise<void> = async () => {}
+  ) {
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft),
+      turn(text('Drafted the insertion order.'))
+    ])
+    const { id, agent } = await launch(member, network)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await meanwhile(agent)
+    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    await agent.until(ended)
+    return { id, agent }
+  }
+  const words = (html: string) =>
+    html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  // The launch's page as a member reads it.
+  const page = (network: string, state: State, id: string) =>
+    renderToStaticMarkup(
+      <LaunchWorkspace
+        agent={{ state, stub: {} } as unknown as Agent}
+        network={{ id: network, name: 'Night Shift Audio', role: 'owner', links: networkLinks(env, network) }}
+        orders={`/app/${network}/launches/${id}/insertion-orders`}
+      />
+    )
+  // What the plan says of close pairs, line by line, and whether each line is muted.
+  const pairLines = (html: string) =>
+    hooked(html, 'data-close-pairs').flatMap((said) =>
+      [...said.matchAll(/<p\b([^>]*)>(.*?)<\/p>/g)].map(([, attributes, line]) =>
+        attributes.includes('text-muted-foreground') ? `muted: ${words(line)}` : words(line)
+      )
+    )
+  // The overlap rankings a launch's log holds, which it copied from its network's.
+  const copiedRankings = async (agent: Omit<Session, 'cookie'>) =>
+    (await agent.call<Evidence[]>('getEvidence')).filter((e) => e.endpoint === '/v2/insights' && e.copiedFrom)
+  const anchorOf = (e: Evidence) => e.params['signal.interests.entities']
+  // The text an assistant reads from MCP tool `name`, with the network's API key `secret`.
+  const mcpText = async (secret: string, name: string, args: object) => {
+    const res = await exports.default.fetch('https://crossfeed.test/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${secret}`
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } })
+    })
+    const body = await res.text()
+    const json = res.headers.get('Content-Type')?.includes('text/event-stream')
+      ? body
+          .split('\n')
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5))
+          .join('')
+      : body
+    const { result } = JSON.parse(json) as { result: { content: { text: string }[] } }
+    return result.content.map((c) => c.text).join('\n')
+  }
+  const runOf = async (call: (path: string) => Promise<Response>, network: string, id: string, state: State) =>
+    (await call(`/api/v1/networks/${network}/launches/${id}/runs/${state.run!.id}`)).json<{
+      insertionOrder: Record<string, unknown> & { closePairs?: unknown }
+    }>()
+
+  it('names each close pair among its order’s shows, citing both shows’ rankings it copied as it drafted, and an edit that drops a line drops its pair', async () => {
+    const { ada, network, call, secret } = await networkWithKey()
+    overlapping(places)
+    const roster = await measured(ada, network)
+    const overlap = roster.state()!.overlap!
+    const networkLog = await roster.call<Evidence[]>('getEvidence')
+    const { id, agent } = await planned(ada, network, async (agent) => {
+      // As the run starts, it copies the overlap with the roster, citing the network's calls, and none of
+      // their records.
+      expect(agent.state()!.rosterOverlap).toEqual({
+        key: overlap.key,
+        measuredAt: overlap.measuredAt,
+        rows: overlap.rows
+      })
+      expect(await copiedRankings(agent)).toEqual([])
+    })
+    const state = agent.state()!
+
+    // As it drafted its order, it copied its 5 finalists' rankings into its log, in the network's order,
+    // each marked with the network's call it copies, and noted each one's copy on its row.
+    const copies = await copiedRankings(agent)
+    expect(copies.map(anchorOf)).toEqual(['e-0102', 'e-0501', 'e-0502', 'e-0503', 'e-0601'])
+    for (const copy of copies) {
+      const original = networkLog.find((e) => e.call === copy.copiedFrom)!
+      expect(copy).toEqual({ ...original, call: copy.call, copiedFrom: original.call })
+    }
+    expect(state.rosterOverlap!.rows.filter((r) => r.copy).map((r) => [r.call, r.copy])).toEqual(
+      copies.map((e) => [e.copiedFrom, e.call])
+    )
+    const copyOf = (entity: string) => copies.find((e) => anchorOf(e) === entity)!.call
+    const [cb, sb, pr, fn] = ['e-0501', 'e-0502', 'e-0503', 'e-0102'].map(copyOf)
+
+    // The plan names the pair under its checks, in ink, with the Qloo data chip and both calls.
+    const html = page(network, state, id)
+    expect(pairLines(html)).toEqual([
+      `Qloo data Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
+    ])
+    expect(html).toContain(`aria-label="Evidence for Corner Booth’s closest shows: call ${cb}"`)
+    expect(html).toContain(`aria-label="Evidence for Slow Burn’s closest shows: call ${sb}"`)
+    // A program reads it on the run's order, citing the calls the launch's evidence holds.
+    const pairs = {
+      closestCount: 3,
+      stale: false,
+      pairs: [{ shows: ['Corner Booth', 'Slow Burn'], calls: [cb, sb] }],
+      checked: [
+        { show: 'Corner Booth', call: cb },
+        { show: 'Slow Burn', call: sb },
+        { show: 'Paper Route', call: pr },
+        { show: 'Field Notes', call: fn }
+      ],
+      unchecked: []
+    }
+    expect((await runOf(call, network, id, state)).insertionOrder.closePairs).toEqual(pairs)
+    // An assistant reads the pair in the order's text, as the plan words it.
+    expect(await mcpText(secret, 'get_launch', { launchId: id })).toContain(
+      '\nCorner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap.\n'
+    )
+
+    // A copied ranking's evidence says it's from the roster's overlap, and which of the network's calls.
+    const record = copies.find((e) => e.call === cb)!
+    const opened = renderToStaticMarkup(
+      <EvidencePanel
+        opened={{ call: cb, status: 'loaded', record }}
+        names={namesOf(await agent.call<Evidence[]>('getEvidence'))}
+        runs={state.runs}
+      />
+    )
+    expect(sections(opened)[0][0]).toBe(`Evidence · ${cb} Qloo data From the roster’s overlap`)
+    expect(words(opened)).toContain(
+      `Answer From the roster’s overlap, the network’s call ${record.copiedFrom} , as Qloo answered it then; the run made no new request`
+    )
+
+    // Dropping Slow Burn's line drops the pair, which was never stored: no two of the plan's shows are one.
+    const order = state.insertionOrder!
+    const edited = await call(`/api/v1/networks/${network}/launches/${id}/insertion-orders/${order.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lines: order.lines
+          .filter((l) => l.show !== 'Slow Burn')
+          .map(({ show, slots, angle }) => ({ show, slots, angle }))
+      })
+    })
+    expect(edited.status).toBe(200)
+    expect((await edited.json<{ closePairs: unknown }>()).closePairs).toEqual({
+      ...pairs,
+      pairs: [],
+      checked: pairs.checked.filter((c) => c.show !== 'Slow Burn')
+    })
+    // The plan says so, citing each ranking it checked.
+    const after = await agent.until((s) => s.insertionOrder?.lines.length === 3)
+    expect(pairLines(page(network, after, id))).toEqual([
+      `muted: Qloo data No two of the plan’s shows each rank among the other’s 3 closest shows by listener overlap. ${cb} ${pr} ${fn}`
+    ])
+  })
+
+  it('copies each finalist’s ranking once, however many times the run drafts its order', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    overlapping(places)
+    await measured(ada, network)
+    // The agent drafts twice in one turn, then once more.
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft, draft),
+      turn(draft),
+      turn(text('Drafted the insertion order.'))
+    ])
+    const { agent } = await launch(ada, network)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    const state = await agent.until(ended)
+
+    expect(state.run?.status).toBe('completed')
+    const copies = await copiedRankings(agent)
+    expect(copies.map(anchorOf)).toEqual(['e-0102', 'e-0501', 'e-0502', 'e-0503', 'e-0601'])
+    expect(state.rosterOverlap!.rows.filter((r) => r.copy).map((r) => r.copy)).toEqual(copies.map((e) => e.call))
+  })
+
+  it('copies no overlap into a run started while a measure runs, or after one failed, and the plan says nothing of pairs', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    const roster = await measured(ada, network, { measure: false })
+    // The overlap's rankings wait until the run has started.
+    const held = Promise.withResolvers<void>()
+    rankAsked()
+    fakeInsights(async (body) => {
+      const candidates = String(body['filter.results.entities']).split(',')
+      if (body['signal.interests.entities'] === 'e-0001') return fit.filter((r) => candidates.includes(r.entity_id))
+      await held.promise
+      return candidates.map((c) => ({ entity_id: c, name: names[c], affinity: 0.9 }))
+    })
+    await roster.call('measureOverlap')
+    await roster.until((s) => s.overlap?.status === 'measuring')
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft),
+      turn(text('Drafted the insertion order.'))
+    ])
+    const { id, agent } = await launch(ada, network)
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    expect(agent.state()!.rosterOverlap).toBeUndefined()
+    held.resolve()
+    await roster.until((s) => s.overlap?.status === 'measured')
+    const budget = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', budget.run!.question!.id, { slots: 20 })
+    const exclusions = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', exclusions.run!.question!.id, { exclude: [] })
+    const during = await agent.until(ended)
+    // The overlap measured since doesn't reach the run, which drafted with none.
+    expect(during.insertionOrder).not.toBeNull()
+    expect(during.rosterOverlap).toBeUndefined()
+    expect(await copiedRankings(agent)).toEqual([])
+    expect(hooked(page(network, during, id), 'data-close-pairs')).toEqual([])
+
+    // A show joins the roster, and the measure of it fails at every ranking.
+    fakeQloo({ search: { ...search, ...more, 'Night Owl': show('e-0705', 'Night Owl') } })
+    const rows = [...Object.keys(more), 'Night Owl'].map((name) => `${name},1000`)
+    await roster.call('importRoster', [csv, ...rows].join('\n'), 'csv')
+    await roster.until((s) => s.roster.length === 11 && s.roster.every((r) => r.resolution !== 'pending'))
+    rankAsked()
+    fakeInsights((body) =>
+      body['signal.interests.entities'] === 'e-0001'
+        ? fit.filter((r) => String(body['filter.results.entities']).split(',').includes(r.entity_id))
+        : 503
+    )
+    await roster.call('measureOverlap')
+    expect((await roster.until((s) => s.overlap?.status !== 'measuring')).overlap?.status).toBe('failed')
+    // Qloo answers the next call, a comp search the gateway hasn't cached, so it's no longer failing as the
+    // run starts.
+    await roster.searchComps('Ghost Signal', 'Ghost Signal Weekly')
+    await roster.until((s) => s.roster.find((r) => r.name === 'Ghost Signal')?.compSearch?.status === 'done')
+    fakeClaude([
+      turn(resolve('Night Shift Cinema')),
+      turn(rank('e-0001')),
+      turn(askBudget),
+      turn(askExclusions),
+      turn(findTags),
+      turn(draft),
+      turn(text('Drafted it again.'))
+    ])
+    await agent.call('startLaunch', { name: 'Night Shift Cinema' })
+    const again = await agent.until((s) => s.run?.question?.kind === 'budget')
+    await agent.call('answer', again.run!.question!.id, { slots: 20 })
+    const left = await agent.until((s) => s.run?.question?.kind === 'exclusions')
+    await agent.call('answer', left.run!.question!.id, { exclude: [] })
+    const after = await agent.until((s) => ended(s) && s.run?.closing === 'Drafted it again.')
+    expect(after.insertionOrder).not.toBeNull()
+    expect(after.rosterOverlap).toBeUndefined()
+    expect(await copiedRankings(agent)).toEqual([])
+    expect(hooked(page(network, after, id), 'data-close-pairs')).toEqual([])
+  })
+
+  it('says nothing of pairs on a roster whose overlap was never measured, and copies none', async () => {
+    const { ada, network, call } = await networkWithKey()
+    overlapping(places)
+    await measured(ada, network, { measure: false })
+    const { id, agent } = await planned(ada, network)
+    const state = agent.state()!
+
+    expect(state.insertionOrder).not.toBeNull()
+    expect(state.rosterOverlap).toBeUndefined()
+    expect(await copiedRankings(agent)).toEqual([])
+    expect(hooked(page(network, state, id), 'data-close-pairs')).toEqual([])
+    expect((await runOf(call, network, id, state)).insertionOrder).not.toHaveProperty('closePairs')
+  })
+
+  it('says in one muted line that an overlap measured before the roster’s matched shows changed is stale, and names no pairs', async () => {
+    const { ada, network, call } = await networkWithKey()
+    overlapping(places)
+    const roster = await measured(ada, network)
+    // A show joins the roster, so the overlap no longer covers its matched shows.
+    fakeQloo({ search: { ...search, ...more, 'Night Owl': show('e-0705', 'Night Owl') } })
+    const rows = [...Object.keys(more), 'Night Owl'].map((name) => `${name},1000`)
+    await roster.call('importRoster', [csv, ...rows].join('\n'), 'csv')
+    await roster.until((s) => s.roster.length === 11 && s.roster.every((r) => r.resolution !== 'pending'))
+    const { id, agent } = await planned(ada, network)
+    const state = agent.state()!
+
+    expect(pairLines(page(network, state, id))).toEqual([
+      'muted: The roster’s matched shows had changed since its overlap was measured, so the plan can’t say which of its shows are close pairs. Measure the overlap again, then run again.'
+    ])
+    expect((await runOf(call, network, id, state)).insertionOrder.closePairs).toEqual({
+      closestCount: 3,
+      stale: true,
+      pairs: [],
+      checked: [],
+      unchecked: []
+    })
+    // It names no pair, so it copies no ranking.
+    expect(await copiedRankings(agent)).toEqual([])
+  })
+
+  it('keeps the overlap its run copied as it started, whatever a measure made later finds', async () => {
+    const ada = await openMember()
+    const network = await created(ada)
+    overlapping(places)
+    const roster = await measured(ada, network)
+    const first = roster.state()!.overlap!
+    const { id, agent } = await planned(ada, network, async () => {
+      // While the run waits, a show joins the roster and the overlap is measured again, now with Corner
+      // Booth and Slow Burn far apart.
+      fakeQloo({ search: { ...search, ...more, 'Night Owl': show('e-0705', 'Night Owl') } })
+      const rows = [...Object.keys(more), 'Night Owl'].map((name) => `${name},1000`)
+      await roster.call('importRoster', [csv, ...rows].join('\n'), 'csv')
+      await roster.until((s) => s.roster.length === 11 && s.roster.every((r) => r.resolution !== 'pending'))
+      overlapping({ ...places, 'e-0502': 60, 'e-0705': 30 })
+      await roster.call('measureOverlap')
+      const again = await roster.until((s) => s.overlap?.status === 'measured' && s.overlap.key !== first.key)
+      const corner = again.overlap!.rows.find((r) => r.entity.id === 'e-0501')!
+      expect(corner.closest.map((c) => c.id)).not.toContain('e-0502')
+    })
+    const state = agent.state()!
+
+    // The run's copy is the first measure, and its records are the first measure's calls.
+    expect(state.rosterOverlap).toMatchObject({ key: first.key, measuredAt: first.measuredAt })
+    const copies = await copiedRankings(agent)
+    expect(copies.map((e) => e.copiedFrom)).toEqual(
+      first.rows
+        .filter((r) => ['e-0102', 'e-0501', 'e-0502', 'e-0503', 'e-0601'].includes(r.entity.id))
+        .map((r) => r.call)
+    )
+    const [cb, sb] = ['e-0501', 'e-0502'].map((entity) => copies.find((e) => anchorOf(e) === entity)!.call)
+    expect(pairLines(page(network, state, id))).toEqual([
+      `Qloo data Corner Booth and Slow Burn each rank among the other’s 3 closest shows by listener overlap. ${cb} ${sb}`
+    ])
   })
 })

@@ -76,7 +76,7 @@ The roster and the booking inbox belong to the network, each on its own page. Me
 
 ### The roster's overlap
 
-A member, an API key, or an assistant measures the roster's overlap: one closed-list ranking in Qloo per show matched in Qloo, that show as the only anchor and the rest of the roster as the candidates, with shows on the same Qloo show measured once and shows left out of launches included. Each show then has its closest shows by listener overlap, as ranks and bands within its own ranking, and two shows that each rank among the other's closest are a close pair. Measuring needs four such shows, reserves its calls on the network's daily limit first, and is refused when Crossfeed's shared daily requests couldn't take it and still leave a run's. A show whose ranking failed keeps its reason, measuring again asks only for what's missing or failed, and the overlap says when the roster's matched shows have changed since. Members read it on the roster page's Overlap tab, each show's whole ranking opening under its row, and programs through the API, the SDK, and MCP.
+A member, an API key, or an assistant measures the roster's overlap: one closed-list ranking in Qloo per show matched in Qloo, that show as the only anchor and the rest of the roster as the candidates, with shows on the same Qloo show measured once and shows left out of launches included. Each show then has its closest shows by listener overlap, as ranks and bands within its own ranking, and two shows that each rank among the other's closest are a close pair. Measuring needs four such shows, reserves its calls on the network's daily limit first, and is refused when Crossfeed's shared daily requests couldn't take it and still leave a run's. A show whose ranking failed keeps its reason, measuring again asks only for what's missing or failed, and the overlap says when the roster's matched shows have changed since. Members read it on the roster page's Overlap tab, each show's whole ranking opening under its row, and programs through the API, the SDK, and MCP. A launch's run copies the overlap as it stands when the run starts, as it copies the roster, and its plan names each close pair among its lines' shows, citing both shows' rankings, or says the overlap is stale or has no ranking of a line's show.
 
 ### The roster's listener profile
 
@@ -229,6 +229,11 @@ The analysis spec, [#399](https://github.com/m1kuorg/qloo/issues/399), lists the
 95. As a member, I want the profile made in one Qloo call, refused at the limits as measuring the overlap is, to say when the roster's matched shows have changed since, and to say it describes listeners, not people, so that it costs almost nothing, stays honest, and no one reads it as a claim about a person.
 96. As a member, I want the profile's call cited and its evidence open in the roster's inspector, so that I can check what Qloo returned.
 97. As a developer, or a programmer using an assistant, I want to read and start the listener profile through the REST API, the SDK, and MCP, so that a script or my assistant can answer "who does this network reach?".
+98. As a programmer, I want the plan to say when two of its shows are a close pair, citing both shows' overlap calls, so that I think twice before buying both and can check it.
+99. As a programmer, I want a run to use the overlap as it was when the run started, as it uses the roster, so that a later measure doesn't silently change an earlier plan.
+100.  As a member, I want the plan to say nothing about pairs when the overlap was never measured, and to say when it was stale or partial for this run, so that silence is never read as evidence.
+101.  As a member, I want the pairs to follow my edits to the order's lines, so that a show I removed isn't flagged.
+102.  As a developer, I want the close pairs of a run's order through the API, so that a script or assistant can warn about them too.
 
 ## Implementation Decisions
 

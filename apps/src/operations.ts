@@ -30,7 +30,17 @@ import { launchAgentName, networkLimitKey, ownGateway } from './network-agent'
 import { rosterRows, type Lean, type ListenerProfile, type ListenerStatus } from './listeners'
 import { cpmProblem, type InsertionOrder, type LineInput } from './order'
 import type { PitchRanking } from './pitch-ranking'
-import { closePairs, closestCount, entityShows, isStale, rosterEntities, type Entity, type Overlap } from './overlap'
+import {
+  closePairs,
+  closestCount,
+  entityShows,
+  isStale,
+  planPairs,
+  rosterEntities,
+  type Entity,
+  type Overlap,
+  type PlanPairs
+} from './overlap'
 import { Refusal } from './refusal'
 import { offeredBy, type Candidate } from './resolve'
 import { holdsSample, type RosterFormat } from './roster'
@@ -351,13 +361,15 @@ export async function answerLaunchRun(
 }
 
 // Changes the lines of the launch's current insertion order, once its run has ended, and returns it
-// priced again. Editing an approved order returns it to draft, so a member must approve it again.
+// priced again, with its close pairs as its lines now stand. Editing an approved order returns it to
+// draft, so a member must approve it again.
 export async function editOrder(
   { env, network }: OperationContext,
   input: { launchId: string; orderId: string; lines: LineInput[] }
 ): Promise<OrderInfo> {
   const launch = await launchAgent(env, network, input.launchId)
-  return orderOf((await launch.editInsertionOrder(input.orderId, input.lines)) as InsertionOrder)
+  const order = (await launch.editInsertionOrder(input.orderId, input.lines)) as InsertionOrder
+  return orderOf(order, await stateOf(launch))
 }
 
 // An insertion order of the launch, the current one or an earlier run's, as CSV for ad operations,
@@ -378,8 +390,8 @@ export async function exportOrder(
 }
 
 // The launch's evidence log: one record per Qloo call its runs made or copied from the roster's
-// lookups, oldest first, each with what was sent and what came back. The records of one of the guest
-// network's sample launches keep the API's shape, without the mark the app labels them with.
+// lookups and overlap, oldest first, each with what was sent and what came back. The records of one of
+// the guest network's sample launches keep the API's shape, without the mark the app labels them with.
 export async function getLaunchEvidence(
   { env, network }: OperationContext,
   input: { launchId: string }
@@ -501,19 +513,23 @@ async function launchRunOf(launch: LaunchStub, state: State, id: string): Promis
     },
     topic: topic && { status: topic.status, order: topic.order, error: topic.error },
     demographics,
-    insertionOrder: insertionOrder && orderOf(insertionOrder)
+    insertionOrder: insertionOrder && orderOf(insertionOrder, ended)
   }
 }
 
 // An insertion order as a program reads it: who approved it by name, never by their member ID; whether
 // it has been edited since the agent drafted it, so its run's closing line may quote figures it no longer
-// has; and, for one of the guest network's sample launches, whether its approval is the sample data's
-// (`fromSample`, ADR 0002).
-export type OrderInfo = Omit<InsertionOrder, 'approvedById' | 'edited'> & { edited: boolean }
-const orderOf = ({ approvedById: _, edited, ...order }: InsertionOrder): OrderInfo => ({
-  ...order,
-  edited: edited ?? false
-})
+// has; for one of the guest network's sample launches, whether its approval is the sample data's
+// (`fromSample`, ADR 0002); and the close pairs among its lines' shows, from the overlap its run copied
+// with `run`'s roster (planPairs), absent when the run copied none.
+export type OrderInfo = Omit<InsertionOrder, 'approvedById' | 'edited'> & { edited: boolean; closePairs?: PlanPairs }
+const orderOf = (
+  { approvedById: _, edited, ...order }: InsertionOrder,
+  run: Pick<State, 'rosterOverlap' | 'roster'>
+): OrderInfo => {
+  const pairs = planPairs(run.rosterOverlap, order.lines, run.roster)
+  return { ...order, edited: edited ?? false, ...(pairs && { closePairs: pairs }) }
+}
 
 // The network's inbox as a program reads it: `empty` until pitches are loaded, `reading` while the
 // agent reads each for its guest and public work and looks the work up in Qloo, or for the sample inbox,

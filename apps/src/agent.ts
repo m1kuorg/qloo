@@ -34,7 +34,7 @@ import {
 } from './order'
 import { candidateLabels, lookup, lookupWork, offeredBy, sameName, type Candidate, type Lookup } from './resolve'
 import type { ListenerProfile } from './listeners'
-import type { Overlap } from './overlap'
+import { isStale, type Overlap, type OverlapCopy } from './overlap'
 import { holdsSample, parseRoster, type RosterFigure, type RosterFormat, type RosterRow } from './roster'
 import { Refusal } from './refusal'
 import { sample, sampleCpm, sampleRoster, type Sample, type SampleFigure } from './sample'
@@ -208,6 +208,10 @@ export type State = {
   // A launch's agent only (launch-agent.ts): whether its network's roster has changed since the latest
   // run copied it; absent until a run has.
   rosterChanged?: boolean
+  // A launch's agent only: the network's overlap as the latest run copied it with the roster (RosterCopy),
+  // which the plan's close pairs are read from (planPairs); absent when the network had no completed
+  // measure then, and on runs from before #404.
+  rosterOverlap?: OverlapCopy
   // A launch's agent only: whether the CPM the latest run copied was labelled the sample's, as its
   // network's was as the run started (RosterCopy), or as the run it was seeded with was priced at the
   // sample CPM (seedRun). Absent until a run has, and on runs from before #333: their page reads the label
@@ -250,14 +254,16 @@ export type RunSnapshot = Omit<State, 'runs'>
 
 // What a launch's run ranks, copied from its network's agent as the run starts (launch-agent.ts): the
 // roster and CPM, whether the CPM is labelled the sample's, and the evidence records the roster cites.
-// And whether the network has a Qloo key of its own, so the run's calls go through the right gateway,
-// and for the guest network's sample launch, the sample as the network now holds it (ADR 0007), null
-// for any other launch.
+// The roster's last completed overlap (overlapCopy), citing the network's calls with none of their
+// records, or null. And whether the network has a Qloo key of its own, so the run's calls go through the
+// right gateway, and for the guest network's sample launch, the sample as the network now holds it (ADR
+// 0007), null for any other launch.
 export type RosterCopy = {
   roster: Show[]
   cpm: number | null
   sampleCpm: boolean // the network's Sample.cpm, for every launch (#333)
   evidence: Evidence[]
+  overlap: OverlapCopy | null
   ownKey: boolean
   sample: Sample | null
 }
@@ -659,16 +665,63 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
 
   // A network's roster and CPM as a launch's run copies them, with the records the roster cites copied
   // into this log under new numbers, each marked with the network's call it copies, the CPM's label,
-  // written every run so none outlasts the copy it came with, and the sample it carries, if any.
+  // written every run so none outlasts the copy it came with, the sample it carries, if any, and the
+  // roster's overlap, if any, as it came, its records left with the network until the run drafts its order
+  // (citeOverlap).
   private copyRoster({
     roster,
     cpm,
     sampleCpm: labelled,
     evidence,
+    overlap,
     sample
-  }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'sampleCpm' | 'sample' | 'rosterChanged'> {
+  }: RosterCopy): Pick<State, 'roster' | 'cpm' | 'sampleCpm' | 'sample' | 'rosterChanged' | 'rosterOverlap'> {
     const copied = this.copyEvidence(roster, evidence, (copy, from) => ({ ...copy, copiedFrom: from.call }))
-    return { roster: copied, cpm, sampleCpm: labelled, sample, rosterChanged: this.rosterChangedSince(copied) }
+    return {
+      roster: copied,
+      cpm,
+      sampleCpm: labelled,
+      sample,
+      rosterChanged: this.rosterChangedSince(copied),
+      rosterOverlap: overlap ?? undefined
+    }
+  }
+
+  // Copies into this log the records of the network's overlap calls that the finalists' rows cite, as the
+  // run drafts its order, each marked with the network's call it copies, so every close pair the plan can
+  // name cites a record this session holds (planPairs). A row copied already keeps its copy, and with no
+  // overlap copied, or one stale against the run's roster, which names no pairs, there's nothing to copy.
+  // A copy that fails is logged, and leaves its rows uncopied, which the plan says it can't check.
+  private async citeOverlap(run: string) {
+    const copied = this.state.rosterOverlap
+    if (!copied || isStale(copied, this.state.roster)) return
+    const finalists = new Set(finalistsOf(this.state.ranking).map((r) => r.entity.id))
+    const wanted = copied.rows.filter((r) => finalists.has(r.entity.id) && !r.copy)
+    if (wanted.length === 0) return
+    let records: Evidence[]
+    try {
+      records = await this.networkEvidence(wanted.map((r) => r.call))
+    } catch (e) {
+      return console.error(JSON.stringify({ event: 'overlap_copy', run, error: message(e) }))
+    }
+    // As it is now: a draft beside this one may have copied a row meanwhile.
+    const overlap = this.state.rosterOverlap
+    if (this.state.run?.id !== run || !overlap) return
+    const fresh = records.filter((e) => overlap.rows.some((r) => r.call === e.call && !r.copy))
+    const numbers = this.copyEvidence(
+      fresh.map((e) => e.call),
+      fresh,
+      (copy, from) => ({ ...copy, copiedFrom: from.call })
+    )
+    const copies = new Map(fresh.map((e, i) => [e.call, numbers[i]]))
+    const rows = overlap.rows.map((r) => (!r.copy && copies.has(r.call) ? { ...r, copy: copies.get(r.call) } : r))
+    this.setState({ ...this.state, rosterOverlap: { ...overlap, rows } })
+  }
+
+  // The records of the network's calls `calls`, which a launch's run copies its finalists' rankings from
+  // (citeOverlap): a launch's agent asks its network (launch-agent.ts). An engine session copies no overlap.
+  protected async networkEvidence(_calls: string[]): Promise<Evidence[]> {
+    return []
   }
 
   // Starts a guest pitch run and returns at once. The past guests' works are looked up in Qloo like
@@ -1543,7 +1596,8 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
       update: (change) => {
         const next = change(this.state)
         if (next !== this.state) this.setState(next)
-      }
+      },
+      citeOverlap: () => this.citeOverlap(run)
     }
     let result: ToolResult
     try {
@@ -1661,8 +1715,10 @@ export class CrossfeedAgent extends Agent<Env, State, SessionProps> {
   private replay(run: string, stored: KeptRun, reason: string) {
     const { state: ended, evidence } = asRun(stored, stored.state.run!.id, run)
     const state = this.copyEvidence(ended, evidence, (copy) => ({ ...copy, replayed: true }))
+    // The stored run keeps no overlap (keptRun), so the one this start copied, of another roster, goes.
+    const { rosterOverlap: _, ...current } = this.state
     this.setState({
-      ...this.state,
+      ...current,
       ...state,
       run: { ...state.run!, replayed: reason },
       runs: this.state.runs.map((s) => (s.id === run ? { ...s, replayed: true } : s))
