@@ -163,6 +163,7 @@
   --ease-swap: cubic-bezier(0.2, 0, 0, 1);
   --ease-lift: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-plate: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-shutter: cubic-bezier(0.76, 0, 0.24, 1);
   --default-transition-duration: 150ms;
   --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
@@ -236,11 +237,12 @@
     }
   }
 }
-/* The 404 page's stage (data-stage, below) opens from its left edge like a shutter, its corner cut kept
-   as it opens, while the piece of the app on it settles from 1.12 times its size. Each has only a
-   starting state, as line-up has, so what's at rest is the stage uncut and the piece at its size. */
+/* The 404 page's stage (data-stage, below) opens like a shutter, from nothing at its left edge to its
+   resting shape, its top-left corner cut all the way, while the piece of the app on it settles from
+   1.12 times its size. Each has only a starting state, as line-up has, so at rest, and wherever they
+   don't run, the stage has its resting shape and the piece its size. */
 @theme {
-  --animate-shutter: shutter 1100ms cubic-bezier(0.76, 0, 0.24, 1) 150ms both;
+  --animate-shutter: shutter 1100ms var(--ease-shutter) 150ms both;
   --animate-settle: settle 1500ms var(--ease-lift) 150ms both;
   @keyframes shutter {
     from {

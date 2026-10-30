@@ -1579,8 +1579,8 @@ const way = buttonVariants({ variant: 'secondary', size: 'lg' })
 
 // A status page, the 404 page or the error page, in the marketing shell as the Worker's answer with
 // `status`: its heading, then under it one sentence, its ways back (`ways`, each an <li>), and anything
-// else it says; and on the 404 page, under them, its stage (`stage`), the signal field the ranking sits
-// on. The heading is at poster size on a page with no stage, and at display size beside one. A page to
+// else it says; and on the 404 page, under them, the signal stage it lays its `panel` on, the ranking.
+// The heading is at poster size on a page with no stage, and at display size beside one. A page to
 // preview or index has a `description` for its card.
 function statusPage(
   c: Context<{ Bindings: Env }>,
@@ -1592,23 +1592,27 @@ function statusPage(
     sentence: Child
     ways: Child
     children?: Child
-    stage?: Child
+    panel?: Child
   }
 ) {
+  // The text's columns from 1024px, its heading's size, and its sentence's measure and the room above
+  // it: beside a stage, six columns at display size; without one, eight at poster size.
+  const look = page.panel
+    ? { columns: 'lg:col-span-6', heading: 'type-display', sentence: 'mt-8 max-w-[40ch]' }
+    : { columns: 'lg:col-span-8', heading: 'type-poster', sentence: 'mt-10 max-w-[34em] md:mt-12' }
   const text = (
-    <div class={page.stage ? 'lg:col-span-6' : 'lg:col-span-8'}>
+    <div class={look.columns}>
       {/* No wider than 6em, so "Not on the roster." breaks after "the" at every width; from 1024px
           its eight columns are what hold "Not on the" at poster size, and six at display size. */}
-      <h1 class={cn('max-w-[6em]', page.stage ? 'type-display' : 'type-poster')}>
+      <h1 class={cn('max-w-[6em]', look.heading)}>
         <span class="line-mask">
           <span class="block motion-safe:animate-line-up">{page.heading}</span>
         </span>
       </h1>
       <p
         class={cn(
-          page.stage ? 'mt-8 max-w-[40ch]' : 'mt-10 max-w-[34em]',
-          'type-title font-normal text-pretty motion-safe:animate-rise-in max-md:text-lg/[1.45]',
-          !page.stage && 'md:mt-12'
+          look.sentence,
+          'type-title font-normal text-pretty motion-safe:animate-rise-in max-md:text-lg/[1.45]'
         )}
       >
         {page.sentence}
@@ -1629,17 +1633,19 @@ function statusPage(
           path={c.req.path}
           accounts={c.env.ACCOUNTS === 'on'}
         >
-          {page.stage ? (
-            // The first screen less the header's height (shell.tsx), the stage taking what the text leaves
-            // of it, so the stage runs to the fold and meets the footer, taking back the margin the shell
-            // sets above it, as the landing page's closing band does. The text and the stage are rows of
-            // their own, so no window's height has one over the other.
-            <main class="-mb-24 flex min-h-[calc(100svh_-_4rem)] flex-col md:-mb-40 md:min-h-[calc(100svh_-_5rem)]">
+          {page.panel ? (
+            // From 1024px the first screen less the header's height (shell.tsx), the stage taking what the
+            // text leaves of it, so it runs to the fold; below, the stage is as tall as its panel and the
+            // room around it. Either way it meets the footer, taking back the margin the shell sets above
+            // it, as the landing page's closing band does. The text and the stage are rows of their own,
+            // so no window's height has one over the other.
+            <main class="-mb-24 flex flex-col md:-mb-40 lg:min-h-[calc(100svh_-_5rem)]">
               <div class={cn(marketingFrame, 'grid gap-x-6 pt-16 lg:grid-cols-12')}>{text}</div>
-              {/* The piece of the app on it sits 16px in on phones, at the frame's margin from 768px, and
-                  56px into the stage's eight columns from 1024px, and as far under the corner's cut as
-                  the cut drops, and 24px more (data-stage in style.css). The stage clips it sideways, so
-                  while it settles from its larger size the page never scrolls sideways. */}
+              {/* The panel sits 16px in on phones and at the frame's margin from 768px, as wide as the
+                  stage less that, with as much room under it; and from 1024px 56px into the stage's eight
+                  columns, up to 620px wide, 56px clear of the stage's foot. It sits as far under the
+                  corner's cut as the cut drops, and 24px more (data-stage in style.css). The stage clips
+                  it sideways, so while it settles from its larger size the page never scrolls sideways. */}
               <div
                 data-stage
                 class="mt-12 grow overflow-x-clip bg-signal text-signal-foreground motion-safe:animate-shutter"
@@ -1647,10 +1653,10 @@ function statusPage(
                 <div
                   class={cn(
                     marketingFrame,
-                    'pt-[calc(var(--cut-rise)_+_1.5rem)] pb-14 max-md:px-4 md:pb-20 lg:grid lg:grid-cols-12 lg:gap-x-6'
+                    'pt-[calc(var(--cut-rise)_+_1.5rem)] pb-4 max-md:px-4 md:pb-10 lg:grid lg:grid-cols-12 lg:gap-x-6 lg:pb-14'
                   )}
                 >
-                  <div class="lg:col-span-8 lg:col-start-5 lg:pl-14">{page.stage}</div>
+                  <div class="lg:col-span-8 lg:col-start-5 lg:pl-14">{page.panel}</div>
                 </div>
               </div>
             </main>
@@ -1658,12 +1664,7 @@ function statusPage(
             // At least 60% of the window tall, so the footer's index and name start at the fold rather than
             // in the first screen, where they would outweigh the page's heading, without a window of
             // nothing above it.
-            <main
-              class={cn(
-                marketingFrame,
-                'grid min-h-[60svh] content-start gap-x-6 gap-y-16 pt-16 md:pt-32 lg:grid-cols-12'
-              )}
-            >
+            <main class={cn(marketingFrame, 'grid min-h-[60svh] content-start gap-x-6 pt-16 md:pt-32 lg:grid-cols-12')}>
               {text}
             </main>
           )}
@@ -1756,14 +1757,14 @@ export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
     sentence: <>Crossfeed has no page at {address}. The link may be mistyped, or what it led to was deleted.</>,
     // A panel on the card, in the card's ink rather than the stage's, as the app sets its panels: its
     // heading, then a row a page, each one line of 44px, ruled as the app's ranked rows are, the page's
-    // name and the closest's chip on the left and its path on the right, wrapping under them when the
-    // panel is too narrow for both. A row's wash and rule reach 8px past its words, which keeps its
+    // name and the closest's chip on the left and its path on the right, or under them at the left when
+    // the panel is too narrow for both. A row's wash and rule reach 8px past its words, which keeps its
     // focus ring inside the card.
-    stage: (
+    panel: (
       <section
         aria-labelledby="closest-h"
         data-ui
-        class="w-full max-w-[620px] rounded-xl bg-card p-4 type-ui text-card-foreground origin-top-left motion-safe:animate-settle lg:p-5"
+        class="w-full rounded-xl bg-card p-4 type-ui text-card-foreground origin-top-left motion-safe:animate-settle lg:max-w-[620px] lg:p-5"
       >
         <h2 id="closest-h" class="type-body font-semibold">
           Closest on the roster
@@ -1775,7 +1776,7 @@ export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
                 <a
                   class={cn(
                     rowRuleBelow,
-                    'group -mx-2 flex min-h-11 flex-wrap items-center gap-x-4 gap-y-0.5 px-2 py-2.5 active:translate-y-px',
+                    'group -mx-2 flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-0.5 px-2 py-2.5 active:translate-y-px',
                     i === 0 && 'bg-signal-tint'
                   )}
                   href={href}
@@ -1786,7 +1787,7 @@ export const notFound: NotFoundHandler<{ Bindings: Env }> = (c) => {
                     </span>
                     {i === 0 && <span class={badgeVariants({ mark: 'signal' })}>Closest</span>}
                   </span>
-                  <span translate="no" class="ml-auto text-muted-foreground">
+                  <span translate="no" class="text-muted-foreground">
                     {href}
                   </span>
                 </a>
