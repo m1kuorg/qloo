@@ -12,8 +12,8 @@ import type { ToolKind } from '../routes/mcp'
 import { GUEST_NETWORK_CLEARS, listOf, MAX_NAME } from '../text'
 import { Alert, clock, Code, day, KeyValue, KeyValues, send, ShownOnce, useAction, useCopy } from './controls'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
-import { PageHeader, Section } from './PageHeader'
-import { settingsColumn } from './settings/Module'
+import { PageHeader, PageTabs, Section } from './PageHeader'
+import { Playground, type OpenApi } from './Playground'
 import { connectionOf, StateLine, type Connection } from './states'
 
 // What the server gives the Developers page besides its network: the MCP server's and the REST API's
@@ -47,12 +47,15 @@ export function DevelopersPage({
 type Made = { id: string; name: string; secret: string }
 type NewKey = Pick<Made, 'id' | 'name'>
 
-// The Developers page, which answers "How do I connect my assistant to this network?", in one column as
-// settings' is: the header, then its sections in the order a member connects one: the addresses a client
-// asks for, the API key it acts with, an owner creating one here and seeing it once, the steps for each
-// assistant, the check that sees the new key's first request, and what an assistant can do with it.
-// Only ShownOnce ever shows a key: no command, configuration or link holds one. Tests render it from
-// the props the server gave the page; `connection` is null until the agent's state arrives.
+// The Developers page, which answers "How do I connect my assistant to this network?", on the canvas as
+// the launch page is: the header, then two tabs. Connect your AI (#connect) has its sections in one
+// column as settings' are, in the order a member connects one: the addresses a client asks for, the API
+// key it acts with, an owner creating one here and seeing it once, the steps for each assistant, the
+// check that sees the new key's first request, and what an assistant can do with it. Only ShownOnce ever
+// shows a key: no command, configuration or link holds one. The playground (#playground) sends the REST
+// API's operations, and loads them the first time its tab shows. Tests render it from the props the
+// server gave the page, and the playground from the OpenAPI document they give it (`openapi`);
+// `connection` is null until the agent's state arrives.
 export function Developers({
   network,
   connection = { lost: null, reconnecting: false },
@@ -60,27 +63,43 @@ export function Developers({
   api,
   keys,
   owners,
-  tools
-}: { network: NetworkPage; connection?: Connection | null } & Loaded) {
+  tools,
+  openapi
+}: { network: NetworkPage; connection?: Connection | null; openapi?: OpenApi } & Loaded) {
   const [made, setMade] = useState<Made | null>(null)
   const [listed, setListed] = useState(keys)
+  const [playground, setPlayground] = useState(false)
+  const connect = (
+    <div className="flex max-w-180 flex-col gap-12">
+      <Addresses network={network} mcp={mcp} api={api} />
+      <KeySection network={network} owners={owners} made={made} onMade={setMade} />
+      <Assistant mcp={mcp} />
+      {/* A new key starts a new wait, whose reads list it with the other keys in use. */}
+      <Check
+        key={made?.id}
+        network={network}
+        keys={listed}
+        awaited={made && { id: made.id, name: made.name }}
+        onKeys={setListed}
+      />
+      <Tools network={network} tools={tools} />
+    </div>
+  )
   return (
-    <main className={settingsColumn}>
+    <main className="flex min-w-0 flex-col gap-6 px-4 pt-6 pb-10 lg:px-6">
       <PageHeader title="Developers" connection={connection} />
-      <div className="flex flex-col gap-12">
-        <Addresses network={network} mcp={mcp} api={api} />
-        <KeySection network={network} owners={owners} made={made} onMade={setMade} />
-        <Assistant mcp={mcp} />
-        {/* A new key starts a new wait, whose reads list it with the other keys in use. */}
-        <Check
-          key={made?.id}
-          network={network}
-          keys={listed}
-          awaited={made && { id: made.id, name: made.name }}
-          onKeys={setListed}
-        />
-        <Tools network={network} tools={tools} />
-      </div>
+      <PageTabs
+        label="Developers sections"
+        onShown={(id) => id === 'playground' && setPlayground(true)}
+        tabs={[
+          { id: 'connect', title: 'Connect your AI', content: connect },
+          {
+            id: 'playground',
+            title: 'Playground',
+            content: <Playground network={network} api={api} opened={playground} loaded={openapi} />
+          }
+        ]}
+      />
     </main>
   )
 }

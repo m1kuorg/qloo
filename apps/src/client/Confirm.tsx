@@ -13,13 +13,16 @@ import { Spinner } from '@/components/ui/spinner'
 import { Alert } from './controls'
 
 // A destructive action as its confirm asks it: the question, what follows from it, the verb on the
-// destructive button and its words while it runs, and the escape on the other button.
+// destructive button and its words while it runs, and the escape on the other button. `primary` puts the
+// verb on the ink primary instead, for a send that spends or changes but deletes nothing, as the
+// playground's do.
 export type Confirmation = {
   title: string
   consequence: ReactNode
   verb: string
   busy: string
   keep: string
+  primary?: boolean
   // Runs from the dialog, which shows a refusal and stays open, and closes once it's done. With
   // `after`, the dialog closes first and the action runs once it's gone, which handles its own
   // refusal: a change that may ask the member to confirm it's them must, so the step-up never stacks
@@ -88,7 +91,11 @@ export function useConfirm(fallback?: RefObject<HTMLElement | null>) {
             <Alert error={error} />
             <AlertDialogFooter>
               <AlertDialogCancel disabled={busy}>{asked.keep}</AlertDialogCancel>
-              <AlertDialogAction disabled={busy} onClick={() => void go()}>
+              <AlertDialogAction
+                variant={asked.primary ? 'default' : undefined}
+                disabled={busy}
+                onClick={() => void go()}
+              >
                 {busy && <Spinner data-icon="inline-start" />}
                 {busy ? asked.busy : asked.verb}
               </AlertDialogAction>

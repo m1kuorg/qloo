@@ -271,12 +271,19 @@ export type PageTab = { id: string; title: string; content: ReactNode }
 // the hash without a history entry. A hash that names none is left alone, so the first tab
 // shows, as it does once the chosen one goes away. Tabs
 // activate by hand, Base UI's default: arrow keys move focus, and Enter or Space opens a tab. Wider
-// than the page, as on a phone, the list scrolls sideways, keeping the open tab in view.
-export function PageTabs({ label, tabs }: { label: string; tabs: PageTab[] }) {
+// than the page, as on a phone, the list scrolls sideways, keeping the open tab in view. `onShown` hears
+// the tab that shows, as the page opens and each time it changes, for a panel that waits to load until
+// it's first seen, as the Developers page's playground does.
+export function PageTabs({ label, tabs, onShown }: { label: string; tabs: PageTab[]; onShown?: (id: string) => void }) {
   const [chosen, setChosen] = useState(() => (typeof location === 'undefined' ? '' : location.hash.slice(1)))
   const shown = tabs.some((t) => t.id === chosen) ? chosen : tabs[0].id
   const named = useRef(tabs)
   named.current = tabs
+  const heard = useRef(onShown)
+  heard.current = onShown
+  useEffect(() => {
+    heard.current?.(shown)
+  }, [shown])
   const track = useRef<HTMLDivElement>(null)
   // The hash whose element was in a hidden panel as the hash changed, so the browser's jump to it
   // couldn't land: it's made once the panel shows.
