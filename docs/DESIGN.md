@@ -493,10 +493,12 @@ Look at the PNG at full size and at about 600px wide before committing it.
 The repository's README opens on a wider banner in the same system, `docs/readme/banner-light.png` and `banner-dark.png`, 1280×640 at two device pixels to a CSS pixel, one for each colour scheme, which the README's `<picture>` picks by the reader's GitHub theme. `docs/readme/banner.html` is their one source, and `docs/readme/banner.sh` photographs it in each scheme through `apps/scripts/banner.sh`, with the same checks.
 
 - **Type-led:** the mark and wordmark top left, a line on what Crossfeed is in muted text under them, and the claim, "Rank by who listens", bottom left at 108px.
-- **One artefact:** beside the claim, the re-rank as a slope chart: the landing page's made-up roster by topic on the left and by who listens on the right, each show's line joining its two ranks. The climbers' lines, and their ▲ moves, are in signal; every other line is muted. Under it, "Illustration: made-up shows, not Qloo data."
+- **One artefact:** beside the claim, the re-rank as a slope chart: the landing page's made-up roster by topic on the left and by who listens on the right, each show's line joining its two ranks. The climbers' lines are in signal and their ▲ moves in signal ink; every other line is muted. Under it, "Illustration: made-up shows, not Qloo data."
 - **Nothing else:** no gradient, glow, texture or ASCII field.
 
 Look at both PNGs at full size and at about 830px wide, as GitHub shows a README, before committing them.
+
+The README's architecture diagram, `docs/readme/architecture-light.svg` and `architecture-dark.svg`, is in the same tokens: [Archify](https://github.com/tt-a1i/archify) renders `docs/readme/architecture.json`, and `docs/readme/export-architecture.mjs` restyles its viewer in this file's colours and Schibsted Grotesk, Crossfeed's clients in ink, its server outlined in ink, Cloudflare's services on the tone step, the outside parts outlined in the control colour, and the one path through the gateway to Qloo in signal, then saves the viewer's SVG export once per scheme with its ground taken out, so each sits on the reader's GitHub theme. Re-run it after changing the diagram or these tokens, as its header shows.
 
 ## Components and recipes
 

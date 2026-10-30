@@ -298,7 +298,7 @@ Made with [contrib.rocks](https://contrib.rocks).
 
 ## License
 
-See [LICENSE](/LICENSE) for more information.
+Apache 2.0. See [LICENSE](/LICENSE) for more information.
 
 Third-party files keep their own licenses:
 

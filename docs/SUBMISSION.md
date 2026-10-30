@@ -47,7 +47,7 @@ Open <https://crossfeed.m1kuorg.workers.dev> and select **Open the sample networ
 2.  **Roster**, then **Overlap** and **Listeners**: which of the network's own shows share listeners, and who each show reaches.
 3.  **Inbox**, then **Rank**, then **Rank pitches**: the pitched guests' public works ranked against The Big Picture by who listens, and a drafted reply to every pitch.
 
-Every guest shares the guest network, which is cleared every day at 12:00 UTC, and one set of daily limits: 10 model runs a day across all guests, reset at 00:00 UTC. Once they're spent, The Watch replays its stored run while no guest has changed the roster or The Watch, and other runs stop and say why. The [README](https://github.com/m1kuorg/qloo#readme) shows how to run Crossfeed locally with your own Qloo and Anthropic keys.
+Every guest shares the guest network, which is cleared every day at 12:00 UTC ([ADR 0008]), and one set of daily limits: 10 model runs a day across all guests, reset at 00:00 UTC ([TRD agent limits]). Once they're spent, The Watch replays its stored run while no guest has changed the roster or The Watch, and other runs stop and say why. The [README](https://github.com/m1kuorg/qloo#readme) shows how to run Crossfeed locally with your own Qloo and Anthropic keys.
 
 ## What breaks without Qloo
 
@@ -158,6 +158,7 @@ Beside the pitch run, one Claude call ranks the pitches by what each one says, f
 [TRD gateway rules]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#gateway-rules
 [TRD replay]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#caching-caps-and-replay
 [TRD agent limits]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#agent-limits
+[ADR 0008]: https://github.com/m1kuorg/qloo/blob/main/docs/adr/0008-guests-share-one-guest-member-again.md
 [limits.ts]: https://github.com/m1kuorg/qloo/blob/main/apps/src/limits.ts
 [TRD listener profile]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#listener-profile
 [TRD pitch ranking]: https://github.com/m1kuorg/qloo/blob/main/docs/TRD.md#other-model-calls

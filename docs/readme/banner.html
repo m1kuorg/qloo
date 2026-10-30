@@ -159,6 +159,7 @@
       // The landing page's roster in listener order, with each show's rank by topic, as
       // routes/marketing.tsx sets it. A show that climbs three or more places is a climber, as the
       // fit chart marks one.
+      const CLIMB = 3 // fit.ts's CLIMB
       const roster = [
         ['Case Notes', 1],
         ['The Harbour', 6],
@@ -182,9 +183,9 @@
       document.fonts.ready.then(() => {
         // Climbers last, so their lines cross over the rest.
         const order = roster.map(([name, topic], i) => ({ name, topic, rank: i + 1, move: topic - (i + 1) }))
-        order.sort((a, b) => (a.move >= 3) - (b.move >= 3))
+        order.sort((a, b) => (a.move >= CLIMB) - (b.move >= CLIMB))
         for (const { name, topic, rank, move } of order) {
-          const g = el('g', move >= 3 ? { class: 'climb' } : {})
+          const g = el('g', move >= CLIMB ? { class: 'climb' } : {})
           g.append(
             el('path', {
               class: 'line',
@@ -198,7 +199,7 @@
           g.append(right)
           // In the page first, so the name has a width to measure.
           rows.append(g)
-          if (move >= 3) {
+          if (move >= CLIMB) {
             // The move's triangle, drawn rather than typed, as the face has no ▲.
             const end = 410 + right.getComputedTextLength() + 14
             g.append(

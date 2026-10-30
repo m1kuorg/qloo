@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renders the link-embed banner into public/ from scripts/banner.html, its one source (docs/DESIGN.md,
 # "Link-embed banner"): a Playwright screenshot in Chrome, through playwright-cli from Homebrew
-# (`brew install playwright-cli`), at 1200x630 and one device pixel to a CSS pixel. The page sets its
+# (`brew install playwright-cli`), by default at 1200x630 and one device pixel to a CSS pixel. The page sets its
 # type in the face `bun install` puts in node_modules/, so run that first. Run it from apps/ after
 # changing the banner, then look at the PNG at full size and about 600px wide (apps/README.md,
 # "Link-embed banner").
@@ -20,15 +20,16 @@ command -v playwright-cli >/dev/null || {
   exit 1
 }
 
+source=${BANNER_SOURCE:-scripts/banner.html}
 # Unfurlers keep an image by its URL for days, so a changed banner takes the next number, here and in
 # BANNER in src/shell.tsx, which also gives its size.
-source=${BANNER_SOURCE:-scripts/banner.html}
 banner=${BANNER_OUT:-public/og-1.png}
 width=${BANNER_WIDTH:-1200}
 height=${BANNER_HEIGHT:-630}
 scale=${BANNER_SCALE:-1}
 scheme=${BANNER_SCHEME:-light}
-# Social cards take a far larger file, but a small one unfurls quickly on a slow connection.
+# Social cards take a far larger file, but a small one unfurls quickly on a slow connection; the README's
+# banner, at twice the pixels, sets its own.
 limit=${BANNER_LIMIT:-300000}
 session=crossfeed-banner
 work=$(mktemp -d)
