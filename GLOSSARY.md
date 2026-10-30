@@ -107,6 +107,10 @@ The ad revenue a promo slot displaces: downloads per episode times CPM, divided 
 **Insertion order**:
 The approved launch plan: which shows, how many slots, each slot's angle, and the total slot value.
 
+**Launch report**:
+A run's approved insertion order set out as a page to read and print, with the finding, the finalists, and the Qloo calls it cites; a run whose order isn't approved has none.
+_Avoid_: Export, which is the order's CSV
+
 **Promo inventory**:
 The promo slots the network's insertion orders commit to each of its shows, approved apart from drafted, beside how many launches made each show a finalist.
 

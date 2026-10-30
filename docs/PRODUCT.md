@@ -76,6 +76,7 @@ Co-listening beats topic. An LLM alone pairs a true-crime launch with the networ
 - Flag demographic mismatches between the launch and its top roster shows.
 - Draft a host-read angle per finalist from the tags it shares with the launch, and none where Qloo returned no shared tags.
 - Write an insertion order that prices each slot from the network's own downloads and CPM.
+- Set out a run whose insertion order is approved as a launch report, a page to read, print or save as PDF for a boss or ad operations: the run's facts and who approved it, the finding, the finalists by who listens, the demographics, close pairs, the plan with its prices, and the Qloo calls it cites.
 - Read a booking inbox, resolve each guest through their public work, rank the pitched works against the show and its best past guests, and draft book, decline, or later replies.
 - Show the evidence behind every claim: the Qloo call, its entities and tags, and the affinities it returned, kept apart from the model's interpretation.
 - Keep a network's roster, inbox, and launches for its members: passkey sign-in with a recovery code, networks with owners and members, invite links, a dashboard of what needs a member, the latest runs, today's usage, and the API keys' use, with a setup checklist, a Launches page listing the launches, each launch planned on its own with every run kept, and teammates' changes shown live.
@@ -160,6 +161,7 @@ Taken on 2026-10-30 in the analysis spec, [#399](https://github.com/m1kuorg/qloo
 1.  **The guest network measures both daily:** once its sample roster's lookups settle after each daily clearing or a reset, it measures the overlap and profiles the listeners, on the guest budget, so a visitor finds both tabs filled when they arrive; after the first day the calls are cache hits.
 1.  **Close pairs scale with the roster:** a show's closest shows are its top three, or as many as the top band of its ranking holds on a roster of under ten matched shows, so a close pair means the same on a small roster as on a large one.
 1.  **No Analysis rail item:** what the analysis adds goes where its object lives, so the network's promo inventory is a tab of the Launches page, and the phone's bottom bar keeps its six names.
+1.  **A report only of an approved plan, and only for members:** a launch report exists only for a run whose insertion order is approved, as the CSV export does, so a draft never leaves Crossfeed on paper either; it's one of the network's pages, with no public link, since Qloo data is never published.
 1.  **Approved and drafted are never added together:** a launch's latest approved order keeps counting as approved while a newer run drafts another, which counts as drafted beside it; an approved order edited back to draft is a draft, so the latest order still approved counts.
 
 ## See also

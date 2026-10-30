@@ -68,7 +68,11 @@ const pages: Record<string, () => Promise<ReactNode>> = {
     import('./Launches').then(({ LaunchesPage }) => <LaunchesPage agentPath={d.agentPath!} network={network()} />),
   launch: () =>
     import('./Launch').then(({ LaunchPage }) => (
-      <LaunchPage agentPath={d.agentPath!} network={network()} orders={d.ordersLink!} />
+      <LaunchPage agentPath={d.agentPath!} network={network()} orders={d.ordersLink!} reports={d.reportsLink!} />
+    )),
+  'launch-report': () =>
+    import('./Report').then(({ ReportPage }) => (
+      <ReportPage agentPath={d.agentPath!} network={network()} launch={d.launchLink!} run={d.runId ?? null} />
     )),
   'network-roster': () =>
     import('./Roster').then(({ RosterPage }) => <RosterPage agentPath={d.agentPath!} network={network()} />),

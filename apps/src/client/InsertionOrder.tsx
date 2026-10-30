@@ -40,7 +40,8 @@ import { StateLine } from './states'
 // card; only the programmer edits, approves, and exports. Its lines carry the signal mark, since
 // they're what the agent puts forward. Under the checks, the close pairs among its lines' shows, from
 // the overlap the run copied. Editing turns the lines' cells into fields in place, with the totals,
-// checks and close pairs following what's typed.
+// checks and close pairs following what's typed. Once it's approved, it exports as CSV, and its run's
+// report opens at `reportHref`.
 export function InsertionOrderPanel({
   order,
   roster,
@@ -50,6 +51,7 @@ export function InsertionOrderPanel({
   actions,
   readOnly,
   exportHref,
+  reportHref,
   sharedTags,
   overlap,
   openCall,
@@ -63,6 +65,7 @@ export function InsertionOrderPanel({
   actions: { edit: (lines: LineInput[]) => Promise<void>; approve: () => Promise<void> } | null
   readOnly: string | null // why there are no actions, such as an earlier run being viewed
   exportHref: string | null // where an approved order's CSV downloads, if it has an export here
+  reportHref: string | null // where an approved order's run's report opens, if it has one here
   sharedTags: Record<string, SharedTags> // by show, the compare its angle draws on, or that returned no tags
   overlap: OverlapCopy | undefined // the roster's overlap as the order's run copied it, if it had one
   openCall: OpenCall
@@ -97,48 +100,25 @@ export function InsertionOrderPanel({
     approving.current = true
     if (!(await run(actions!.approve))) approving.current = false
   }
-  const sample = (line: OrderLine) =>
-    sampleCpm || !!roster.find((s) => s.name === line.show)?.sample?.includes('downloads')
-  const exported = approved && exportHref && (
-    <a ref={exportLink} className={buttonVariants({ variant: 'secondary' })} href={exportHref} download>
-      Export CSV
-    </a>
+  const sample = sampleLine(roster, sampleCpm)
+  const exported = approved && (exportHref || reportHref) && (
+    <>
+      {exportHref && (
+        <a ref={exportLink} className={buttonVariants({ variant: 'secondary' })} href={exportHref} download>
+          Export CSV
+        </a>
+      )}
+      {reportHref && (
+        <a className={buttonVariants({ variant: 'secondary' })} href={reportHref}>
+          Open the report
+        </a>
+      )}
+    </>
   )
   return (
-    <Section
-      id="plan-h"
-      title="The plan"
-      description={
-        <>
-          <Source of="agent" /> drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷
-          1,000.
-        </>
-      }
-      data-io
-    >
+    <Section id="plan-h" title="The plan" description={PLAN_SENTENCE} data-io>
       <div className="rounded-xl bg-card p-4 lg:p-5">
-        <Section
-          id="io-h"
-          level={3}
-          title={
-            <span>
-              Insertion order{' '}
-              <code className="font-mono font-medium" translate="no">
-                {order.id}
-              </code>
-            </span>
-          }
-          badge={
-            approved ? (
-              <Badge variant="outline">
-                <CheckIcon aria-hidden="true" />
-                Approved
-              </Badge>
-            ) : (
-              <Badge>Draft</Badge>
-            )
-          }
-        >
+        <Section id="io-h" level={3} title={<OrderTitle order={order} />} badge={<OrderBadge order={order} />}>
           {editing && actions ? (
             <EditLines
               order={order}
@@ -158,29 +138,7 @@ export function InsertionOrderPanel({
             />
           ) : (
             <>
-              <Lines priced={order} sample={sample}>
-                {(line) => ({
-                  angle: (
-                    <p className="max-w-[72ch]" data-angle>
-                      <span className={line.angle ? undefined : 'text-muted-foreground'}>{line.angle ?? NO_ANGLE}</span>
-                      {sharedTags[line.show] && (
-                        <>
-                          {' '}
-                          <CallButton
-                            call={sharedTags[line.show].call}
-                            label={`Evidence for the tags ${line.show} shares`}
-                            opened={opened}
-                            openCall={openCall}
-                          />
-                        </>
-                      )}
-                    </p>
-                  ),
-                  slots: line.slots,
-                  value: <Value line={line} />,
-                  price: <SlotPrice line={line} />
-                })}
-              </Lines>
+              <OrderLines order={order} sample={sample} sharedTags={sharedTags} openCall={openCall} opened={opened} />
               <Checks priced={order} budget={budget} />
               <ClosePairs pairs={planPairs(overlap, order.lines, roster)} openCall={openCall} opened={opened} />
               {approved && order.approvedBy && order.approvedAt && (
@@ -236,6 +194,80 @@ export function InsertionOrderPanel({
         </Section>
       </div>
     </Section>
+  )
+}
+
+// The plan's sentence, the launch report's too: who drafted what, and how code prices it.
+export const PLAN_SENTENCE = (
+  <>
+    <Source of="agent" /> drafted the slots and angles, and code prices each slot at downloads per episode × CPM ÷
+    1,000.
+  </>
+)
+
+// The insertion order's heading, its ID in its own type, and its status beside it.
+export const OrderTitle = ({ order }: { order: InsertionOrder }) => (
+  <span>
+    Insertion order{' '}
+    <code className="font-mono font-medium" translate="no">
+      {order.id}
+    </code>
+  </span>
+)
+export const OrderBadge = ({ order }: { order: InsertionOrder }) =>
+  order.status === 'approved' ? (
+    <Badge variant="outline">
+      <CheckIcon aria-hidden="true" />
+      Approved
+    </Badge>
+  ) : (
+    <Badge>Draft</Badge>
+  )
+
+// Whether a line's value is priced from sample figures: at the CPM labelled the sample's, or from its
+// show's sample downloads, as its total's caption says.
+export const sampleLine = (roster: Show[], sampleCpm: boolean) => (line: OrderLine) =>
+  sampleCpm || !!roster.find((s) => s.name === line.show)?.sample?.includes('downloads')
+
+// The order's lines as they stand, each with its angle and its tags' call, its slots and value, and its
+// slot price, then the total: the plan's, and the launch report's.
+export function OrderLines({
+  order,
+  sample,
+  sharedTags,
+  openCall,
+  opened
+}: {
+  order: InsertionOrder
+  sample: (line: OrderLine) => boolean
+  sharedTags: Record<string, SharedTags>
+  openCall: OpenCall
+  opened: string | null
+}) {
+  return (
+    <Lines priced={order} sample={sample}>
+      {(line) => ({
+        angle: (
+          <p className="max-w-[72ch]" data-angle>
+            <span className={line.angle ? undefined : 'text-muted-foreground'}>{line.angle ?? NO_ANGLE}</span>
+            {sharedTags[line.show] && (
+              <>
+                {' '}
+                <CallButton
+                  call={sharedTags[line.show].call}
+                  label={`Evidence for the tags ${line.show} shares`}
+                  opened={opened}
+                  openCall={openCall}
+                />
+              </>
+            )}
+          </p>
+        ),
+        slots: line.slots,
+        value: <Value line={line} />,
+        price: <SlotPrice line={line} />
+      })}
+    </Lines>
   )
 }
 
@@ -369,8 +401,9 @@ function Checks({ priced, budget }: { priced: Priced; budget: Budget | null }) {
 // What the plan says of the close pairs among its lines' shows (planPairs), under the checks: each pair in
 // ink, the Qloo data chip before it and both shows' rankings' calls after, or that no two of its shows are
 // one, citing every ranking it checked; then, muted, the shows it has no ranking of; or, in place of all of
-// it, muted, that the overlap is stale for this run. With no overlap copied, it says nothing.
-function ClosePairs({
+// it, muted, that the overlap is stale for this run. With no overlap copied, it says nothing. The launch
+// report says them too.
+export function ClosePairs({
   pairs,
   openCall,
   opened

@@ -344,17 +344,38 @@ appPages.get('/app/:networkId/inbox', async (c) => {
 
 // A launch of the network, planned in its own workspace: its runs, their charts and questions, and the
 // insertion order, ranked against the network's roster. Only a launch on the network's list opens.
-// Its approved orders export under its own address.
+// Its approved orders export under its own address, and its runs' reports open there.
 appPages.get('/app/:networkId/launches/:launchId', async (c) => {
   const { networkId, launchId } = c.req.param()
   const network = await networkPage(c, networkId)
   if (!network || !(await listsLaunch(c.env, network.id, launchId))) return c.notFound()
+  const launch = `${networkLinks(c.env, network.id).launches}/${launchId}`
   return c.render(
     <Island
       page="launch"
       {...island(c, network)}
       data-agent-path={`/agents/launch/${network.id}/${launchId}`}
-      data-orders-link={`${networkLinks(c.env, network.id).launches}/${launchId}/insertion-orders`}
+      data-orders-link={`${launch}/insertion-orders`}
+      data-reports-link={`${launch}/report`}
+    />
+  )
+})
+
+// A launch's report: the approved plan of run `runId`, or with no run named, of the latest run whose
+// order is approved, set as a document to read and print, on the launch's agent as its page is
+// (Report.tsx). A run whose order isn't approved has none, as a draft doesn't export. For the network's
+// members only, as every page here; there's no public link.
+appPages.get('/app/:networkId/launches/:launchId/report/:runId?', async (c) => {
+  const { networkId, launchId, runId } = c.req.param()
+  const network = await networkPage(c, networkId)
+  if (!network || !(await listsLaunch(c.env, network.id, launchId))) return c.notFound()
+  return c.render(
+    <Island
+      page="launch-report"
+      {...island(c, network)}
+      data-agent-path={`/agents/launch/${network.id}/${launchId}`}
+      data-launch-link={`${networkLinks(c.env, network.id).launches}/${launchId}`}
+      data-run-id={runId}
     />
   )
 })

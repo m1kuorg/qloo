@@ -5,9 +5,10 @@ import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { applyD1Migrations, reset, type D1Migration } from 'cloudflare:test'
 import { env, exports } from 'cloudflare:workers'
 import { afterEach, beforeEach, onTestFailed } from 'vitest'
-import type { State } from '../src/agent'
+import type { RunSnapshot, State } from '../src/agent'
 import type { Links } from '../src/client/App'
 import type { NetworkPage } from '../src/client/NetworkPage'
+import type { Evidence } from '../src/evidence'
 import { WIPED } from '../src/gateway'
 import type { RosterFormat } from '../src/roster'
 import { softwareAuthenticator, type Authenticator } from './authenticator'
@@ -113,6 +114,37 @@ export const sampleLabels = (html: string) =>
         : `after: ${said(before).slice(-60)}`
     }
   )
+
+// What a handoff page, such as a launch's report, carries of Qloo that it never may (TRD, "Handoff
+// pages"), as its markup has it, leaving its classes out: every entity ID in the run's state `shown`, as its
+// roster, ranking, overlap, launch and demographic check hold them; every affinity and score that `log`'s
+// records hold, as Qloo wrote it or to three places, as the inspector shows it; a URN; and the name of a
+// request parameter. Empty when it carries none.
+export function handoffLeaks(html: string, shown: RunSnapshot, log: Evidence[]) {
+  const markup = html.replace(/\sclass="[^"]*"/g, '')
+  const ids = new Set<string>()
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(walk)
+    else if (value && typeof value === 'object')
+      for (const [key, v] of Object.entries(value)) {
+        if (key === 'id' && typeof v === 'string') ids.add(v)
+        else walk(v)
+      }
+  }
+  walk([shown.roster, shown.ranking, shown.rosterOverlap, shown.launch, shown.demographics])
+  const scores = log
+    .flatMap((e) => [
+      ...e.affinities.flatMap((a) => [a.affinity, ...a.explainability.map((x) => x.score)]),
+      ...e.tags.map((t) => t.score)
+    ])
+    .filter((n): n is number => n !== null && !Number.isInteger(n))
+  const written = new Set(scores.flatMap((n) => [String(n), n.toFixed(3)]))
+  return [
+    ...[...ids].filter((id) => markup.includes(id)),
+    ...[...written].filter((n) => new RegExp(`(?<![\\d.])${n.replace('.', '\\.')}(?![\\d])`).test(markup)),
+    ...(markup.match(/urn:[\w:.-]*|signal\.\w+|filter\.\w+|explainability/g) ?? [])
+  ]
+}
 
 // A page's tabs: its tab list's name, each tab's words, and whether each panel shows, every panel
 // being in the page whichever tab is chosen.

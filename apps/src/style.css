@@ -7,8 +7,17 @@
 /* Served by Vite from the app's own origin, as the Content-Security-Policy needs. */
 @import '@fontsource-variable/schibsted-grotesk';
 
-/* System dark mode only: no class, no toggle. */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/* System dark mode only: no class, no toggle. On screen only: paper is printed light (below). */
+@custom-variant dark (@media screen and (prefers-color-scheme: dark));
+/* On paper, on a page set out to print, as the launch report is (Report.tsx, data-report), and no other:
+   the shell's rail, top bar and skip link leave it (shell.tsx). */
+@custom-variant report-print {
+  @media print {
+    :root:has([data-report]) & {
+      @slot;
+    }
+  }
+}
 
 /* Arial sized to Schibsted Grotesk's average letter width and line box, so text set in it while the
    font loads takes the same space and doesn't re-wrap when the font swaps in. The bold face matches
@@ -72,7 +81,7 @@
   --scrim: rgb(18 19 24 / 0.4);
 }
 
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root {
     --background: #0e0f12;
     --foreground: #ececf1;
@@ -667,6 +676,31 @@
 }
 .base-ui-disable-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* The launch report on paper (Report.tsx, data-report), and no other page: a document's margins, white
+   rather than the cool grey ground, and every fill it draws as a mark, such as a fit meter's bars and the
+   plan's signal dots, which browsers otherwise leave out; and each section, row and heading kept from
+   breaking across pages where the page leaves room. The shell around it prints no rail, top bar or skip
+   link (report-print, above). Its ink is the light scheme's, as on every page's paper, since the dark
+   tokens are the screen's. */
+@media print {
+  @page report {
+    margin: 16mm 18mm;
+  }
+  :root:has([data-report]) {
+    page: report;
+    color-scheme: light;
+    --background: #ffffff;
+    print-color-adjust: exact;
+  }
+  [data-report] section,
+  [data-report] tr {
+    break-inside: avoid;
+  }
+  [data-report] :is(h1, h2, h3) {
+    break-after: avoid;
+  }
 }
 
 /* With reduced motion, every animation and transition ends at once, on its final, static state. */

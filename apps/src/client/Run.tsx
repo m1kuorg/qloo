@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { RadioGroup, RadioGroupItem, RadioGroupSegment } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
-import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
+import { buttonVariants, segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
 import type { Budget, Launch, Question, Reply, Run, RunSummary } from '../agent'
 import { finalistsOf, markFinalists, type Ranking } from '../fit'
 import { MAX_COMPS } from '../limits'
@@ -178,14 +178,16 @@ export const runNumber = (runs: RunSummary[], id: string) => runs.findIndex((r) 
 // Every run the agent started that `include` keeps, newest first, numbered among all of them: its
 // number and what it ran, when and by whom it started, how it ended, and the one shown, or View, which
 // opens an earlier run read-only to compare it with the latest. `latest` is the run the page shows
-// when none is viewed, the last run started unless the page says otherwise.
+// when none is viewed, the last run started unless the page says otherwise. On a launch's page, a run
+// whose order is approved links its report, where `report` says it is.
 export function RunList({
   runs,
   include = () => true,
   latest = runs.at(-1)?.id,
   viewing,
   view,
-  counted
+  counted,
+  report
 }: {
   runs: RunSummary[]
   include?: (run: RunSummary) => boolean
@@ -193,6 +195,7 @@ export function RunList({
   viewing: string | null
   view: (id: string | null) => Promise<void>
   counted: 'visitor' | 'network' // whom the daily limits on model runs count
+  report?: (run: string) => string // where a run's report opens
 }) {
   const { busy, error, run } = useAction()
   // View gives way to Shown on the run it opens, so focus goes to the list's heading, not the page.
@@ -230,7 +233,16 @@ export function RunList({
                   {r.replayed && ' · Replayed'}
                   {r.fromSample && ' · Sample data'}
                 </span>
-                <span className="col-start-2 row-span-2 row-start-1 justify-self-end">
+                <span className="col-start-2 row-span-2 row-start-1 flex items-center gap-1 justify-self-end">
+                  {report && r.orderApproved && (
+                    <a
+                      href={report(r.id)}
+                      aria-label={`Report of run ${r.n}`}
+                      className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                    >
+                      Report
+                    </a>
+                  )}
                   {shown ? (
                     <span className="type-caption text-muted-foreground">Shown</span>
                   ) : (
