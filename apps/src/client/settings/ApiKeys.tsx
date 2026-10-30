@@ -8,16 +8,18 @@ import { linkVariants } from '@/components/ui/variants'
 import type { ApiKey } from '../../directory'
 import { MAX_NAME } from '../../text'
 import { useConfirm } from '../Confirm'
-import { Alert, day, ScrollTable, send, ShownOnce, useAction } from '../controls'
+import { Alert, day, GuestKeys, ScrollTable, send, ShownOnce, useAction } from '../controls'
 import type { NetworkPage } from '../NetworkPage'
 import { StateLine } from '../states'
 import { cell, head, Module } from './Module'
 
 // The settings' API keys module: the keys a script or an assistant acts for the network with, through
-// the API, short of approving anything (ADR 0002). An owner creates one, sees its secret this once,
-// and revokes it, which stops it at once; the list shows each by its prefix and dates. `keys` is null
-// for a member, who sees only who makes them. Its last line leads owners and members alike to Connect
-// your AI, on the Developers page, for how an assistant connects with a key.
+// the API, short of approving anything (ADR 0002). An owner creates one, sees its secret this once, its
+// field taking focus from the button, and revokes it, which stops it at once; the list shows each by its
+// prefix and dates. In a network on the guest budget, the form says every guest shares the keys, as the
+// Developers page's does. `keys` is null for a member, who sees only who makes them. Its last line leads
+// owners and members alike to Connect your AI, on the Developers page, for how an assistant connects
+// with a key.
 export function ApiKeysModule({ network, keys }: { network: NetworkPage; keys: ApiKey[] | null }) {
   const heading = useRef<HTMLHeadingElement>(null)
   return (
@@ -106,7 +108,7 @@ function OwnerKeys({
               placeholder="Such as Nightly roster sync"
               required
             />
-            <Button type="submit" variant="secondary" disabled={busy || !name.trim()}>
+            <Button type="submit" variant="secondary" disabled={busy || !name.trim()} focusableWhenDisabled>
               {busy && <Spinner data-icon="inline-start" />}
               {busy ? 'Working…' : 'Create API key'}
             </Button>
@@ -120,6 +122,7 @@ function OwnerKeys({
         </ShownOnce>
       )}
       <Alert error={error} />
+      {network.guestBudget && <GuestKeys />}
       {keys.length === 0 ? (
         <p>
           <StateLine kind="empty">No API keys in use.</StateLine>

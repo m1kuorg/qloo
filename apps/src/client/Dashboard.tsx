@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { CheckIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode, type RefObject } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -92,6 +92,9 @@ export function Dashboard({
 } & Loaded) {
   // New launch's dialog, which Needs you's empty state and the checklist open.
   const planning = useFormDialog('New launch')
+  // Needs you's heading, the next block in the page's order, which takes focus once Setup is dismissed,
+  // its Dismiss gone with it.
+  const needsYou = useRef<HTMLHeadingElement>(null)
   // Setup's place, kept while the agent's state is on its way, since it shows until it's dismissed.
   const checklist = !state || !state.checklistDismissed?.includes(memberId)
   const launches = state?.launches ?? []
@@ -124,7 +127,10 @@ export function Dashboard({
                 network={network}
                 keys={keys}
                 setup={setup}
-                dismiss={dismiss}
+                dismiss={async () => {
+                  await dismiss()
+                  needsYou.current?.focus()
+                }}
                 plan={planning.show}
               />
             </div>
@@ -133,7 +139,7 @@ export function Dashboard({
           ))}
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-span-2 lg:row-start-1">
           <div className={card}>
-            <NeedsYou state={state} network={network} inbox={inbox} newLaunch={planning.button()} />
+            <NeedsYou state={state} network={network} inbox={inbox} newLaunch={planning.button()} heading={needsYou} />
           </div>
           <div className={card}>
             <LatestRuns state={state} network={network} />
@@ -170,12 +176,14 @@ function NeedsYou({
   state,
   network,
   inbox,
-  newLaunch
+  newLaunch,
+  heading
 }: {
   state: State | undefined
   network: NetworkPage
   inbox: Waiting[]
   newLaunch: ReactNode // New launch, for the empty state
+  heading: RefObject<HTMLHeadingElement | null>
 }) {
   const rows: Waiting[] = [
     ...needsYou(state?.launches ?? []).map((l) => ({
@@ -189,6 +197,7 @@ function NeedsYou({
   return (
     <Section
       id="needs-you-h"
+      heading={heading}
       title="Needs you"
       description={
         network.links.inbox
@@ -488,7 +497,7 @@ function inboxLine(inbox: Inbox | null) {
 // a numbered list under its count; "Connect your AI" once any of its keys, revoked or not, has been
 // used for a request, as Assistants and API says (`keys`), and while that couldn't be read, neither done
 // nor not: the step says so, and the count leaves it out. A member can dismiss it for themselves; it
-// stays for everyone else.
+// stays for everyone else. Dismiss is disabled while it works, and stays focusable.
 function Checklist({
   state,
   network,
@@ -504,7 +513,7 @@ function Checklist({
   dismiss: () => Promise<unknown>
   plan: () => void
 }) {
-  const { error, run } = useAction()
+  const { busy, error, run } = useAction()
   const owner = network.role === 'owner'
   const { roster, settings } = network.links
   // A step links where it's done only for a member who can do it there, in settings the tab it's done
@@ -570,7 +579,14 @@ function Checklist({
           : `${done} of ${items.length} done${unknown ? `, ${count(unknown, 'unknown', 'unknown')}` : ''}`
       }
       actions={
-        <Button variant="ghost" size="sm" className="-my-1 -mr-1.5" onClick={() => void run(dismiss)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-my-1 -mr-1.5"
+          disabled={busy}
+          focusableWhenDisabled
+          onClick={() => void run(dismiss)}
+        >
           Dismiss
         </Button>
       }

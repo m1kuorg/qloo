@@ -1,6 +1,6 @@
 import { cn } from 'cn'
-import { CheckIcon, ChevronDownIcon, CopyIcon } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { CheckIcon, CopyIcon } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,6 +14,7 @@ import type { Session } from './App'
 import {
   day,
   demographic,
+  Fold,
   KeyValue,
   KeyValues,
   listParts,
@@ -420,26 +421,6 @@ function EntityNames({ ids, noun, names }: { ids: string[]; noun: Noun; names: N
     </Fold>
   )
 }
-
-// A disclosure, closed, its summary underlined with a chevron, 44px tall on a phone, where its words
-// stay on the first line, level with a label beside them.
-function Fold({ summary, children, ...data }: { summary: string; children: ReactNode } & DataAttributes) {
-  return (
-    <details className="group/fold" {...data}>
-      <summary className="group/summary block w-fit cursor-pointer list-none rounded-sm max-md:min-h-11 [&::-webkit-details-marker]:hidden">
-        <span className="inline-flex items-center gap-1 underline decoration-muted-foreground decoration-1 underline-offset-4 group-hover/summary:decoration-foreground">
-          {summary}
-          <ChevronDownIcon
-            aria-hidden="true"
-            className="size-4 text-muted-foreground transition-transform group-open/fold:rotate-180"
-          />
-        </span>
-      </summary>
-      {children}
-    </details>
-  )
-}
-type DataAttributes = { [attribute: `data-${string}`]: string | boolean | undefined }
 
 // An error in words: each entity ID in it as the entity's name, dropping the ID the gateway writes
 // after a name, as in "Deep Cuts (e-0002)".

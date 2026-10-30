@@ -986,6 +986,7 @@ describe('settings', () => {
     const read = words(html)
     expect(read).toContain('API keys Each key lets a script or an assistant act for Night Shift Audio')
     expect(read).toContain('Key name Create API key')
+    expect(read).not.toContain('Every guest shares')
     expect(read).toContain(
       `Key Created Last used Actions Nightly sync ${secret.slice(0, 12)}… Oct 19 by Ada Programmer Oct 21 Revoke`
     )
@@ -1128,7 +1129,10 @@ describe('settings', () => {
     expect(read).toMatch(
       /Member Role Joined Actions Guest You Owner \w{3} \d{1,2} Dot Pruitt Owner \w{3} \d{1,2} Make member Remove You’re signed in as Guest, the account every guest shares, so you can’t leave or change its role\. Invite links/
     )
-    expect(read).toContain('Key name Create API key')
+    // Beside the form that creates a key, the line the Developers page has too: every guest shares the keys.
+    expect(read).toContain(
+      'Key name Create API key Every guest shares this network’s API keys, as they share its runs and one set of daily limits, and the keys are cleared every day at 12:00 UTC, so add nothing private with one.'
+    )
     expect(read).toContain(
       'From then on it shows only its last four characters. Every guest shares a key added here, and sees its last four characters.'
     )

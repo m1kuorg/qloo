@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import { CheckIcon, CopyIcon } from 'lucide-react'
+import { CheckIcon, ChevronDownIcon, CopyIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { round } from '../demographics'
 import { bandMeter, type Band } from '../fit'
 import type { Candidate } from '../resolve'
+import { GUEST_NETWORK_CLEARS } from '../text'
 import { StateLine } from './states'
 
 // A write to one of the Worker's routes, as JSON, answered with JSON or `{ error }`. `fetch` sends the
@@ -433,8 +434,10 @@ export function CopyButton({
 }
 
 // Something shown once, such as a new invite link or API key, in a read-only field that selects
-// itself, with a button that copies it, and `children` saying what to do with it. Key it by what it
-// shows, so a new one starts uncopied.
+// itself, with a button that copies it, and `children` saying what to do with it, which describes the
+// field. It appears as the button that made it is pressed, so its field takes focus as it does, brought
+// into view: a screen reader then hears what it is, that it's shown once, and the value, ready to copy.
+// Key it by what it shows, so a new one starts uncopied, and takes focus again.
 export function ShownOnce({
   id,
   label,
@@ -451,19 +454,23 @@ export function ShownOnce({
   children: ReactNode
 }) {
   const [failed, setFailed] = useState(false)
+  const field = useRef<HTMLInputElement>(null)
+  const shown = useIntoView<HTMLDivElement>(field)
   return (
-    <div className="flex flex-col gap-1.5">
+    <div ref={shown} className="flex flex-col gap-1.5">
       <label htmlFor={id} className="font-medium">
         {label}
       </label>
       <div className="flex gap-2">
         <Input
+          ref={field}
           id={id}
           className={cn('min-w-0 flex-1', mono && 'font-mono')}
           value={value}
           readOnly
           onFocus={(e) => e.target.select()}
           spellCheck={false}
+          aria-describedby={`${id}-note`}
         />
         <CopyButton value={value} what={noun} size="default" onCopied={(copied) => setFailed(!copied)} />
       </div>
@@ -473,14 +480,48 @@ export function ShownOnce({
           This browser didn’t let Crossfeed copy it. Select the {noun} and copy it yourself.
         </StateLine>
       )}
-      <p className="type-caption text-muted-foreground">{children}</p>
+      <p id={`${id}-note`} className="type-caption text-muted-foreground">
+        {children}
+      </p>
     </div>
   )
 }
 
-// A rail module opened from a table row can sit far from it, as in a single column: it's brought into
-// view once, and `focus`, if given, then takes focus without scrolling again. A block body, because
-// newer browsers' scrollIntoView returns a promise, which React would call as a cleanup.
+// In a network on the guest budget, the line beside each form that creates an API key, the Developers
+// page's and settings': every guest shares the network's keys, and they're cleared every day.
+export const GuestKeys = () => (
+  <p className="text-muted-foreground">
+    Every guest shares this network’s API keys, as they share its runs and one set of daily limits, and the keys are
+    cleared every day at <span className="whitespace-nowrap">{GUEST_NETWORK_CLEARS},</span> so add nothing private with
+    one.
+  </p>
+)
+
+// A disclosure, closed, its summary underlined with a chevron, 44px tall on a phone, where its words
+// stay on the first line, level with a label beside them: the evidence's long lists and stored record,
+// and the playground answer's headers.
+export function Fold({ summary, children, ...data }: { summary: string; children: ReactNode } & DataAttributes) {
+  return (
+    <details className="group/fold" {...data}>
+      <summary className="group/summary block w-fit cursor-pointer list-none rounded-sm max-md:min-h-11 [&::-webkit-details-marker]:hidden">
+        <span className="inline-flex items-center gap-1 underline decoration-muted-foreground decoration-1 underline-offset-4 group-hover/summary:decoration-foreground">
+          {summary}
+          <ChevronDownIcon
+            aria-hidden="true"
+            className="size-4 text-muted-foreground transition-transform group-open/fold:rotate-180"
+          />
+        </span>
+      </summary>
+      {children}
+    </details>
+  )
+}
+type DataAttributes = { [attribute: `data-${string}`]: string | boolean | undefined }
+
+// A rail module opened from a table row can sit far from it, as in a single column, and a secret
+// shown once can appear under the window's edge: it's brought into view once, and `focus`, if given,
+// then takes focus without scrolling again. A block body, because newer browsers' scrollIntoView
+// returns a promise, which React would call as a cleanup.
 export function useIntoView<T extends HTMLElement>(focus?: RefObject<HTMLElement | null>) {
   const ref = useRef<T>(null)
   useEffect(() => {

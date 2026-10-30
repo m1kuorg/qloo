@@ -9,8 +9,20 @@ import { buttonVariants, linkVariants } from '@/components/ui/variants'
 import { assistants, CHATGPT, type AssistantSetup, type Snippet, type Step } from '../assistants'
 import type { ApiKey, CheckedKey } from '../directory'
 import type { ToolKind } from '../routes/mcp'
-import { GUEST_NETWORK_CLEARS, listOf, MAX_NAME } from '../text'
-import { Alert, clock, Code, CopyButton, day, KeyValue, KeyValues, send, ShownOnce, useAction } from './controls'
+import { listOf, MAX_NAME } from '../text'
+import {
+  Alert,
+  clock,
+  Code,
+  CopyButton,
+  day,
+  GuestKeys,
+  KeyValue,
+  KeyValues,
+  send,
+  ShownOnce,
+  useAction
+} from './controls'
 import { NetworkGate, useNetwork, type NetworkPage } from './NetworkPage'
 import { PageHeader, PageTabs, Section } from './PageHeader'
 import { Playground } from './Playground'
@@ -180,10 +192,11 @@ function Addresses({ network, mcp, api }: { network: NetworkPage; mcp: string; a
 }
 
 // The key an assistant acts with. An owner names one, Claude Code's by default, and creates it with
-// settings' route, and sees it this once; a refusal, or a request that failed, stops showing the key made
-// before, as settings does. A member reads that only an owner creates them, and who the network's owners
-// are, to ask. In a network on the guest budget, it says every guest shares its keys and when they're
-// cleared, as every guest shares its runs.
+// settings' route. The key shows this once, and its field takes focus from the button. The button stays
+// focusable while it's disabled: while it works, and once the name is cleared. A refusal, or a request
+// that failed, stops showing the key made before, as settings does. A member reads that only an owner
+// creates keys, and who the network's owners are, to ask. In a network on the guest budget, it says
+// every guest shares its keys and when they're cleared.
 function KeySection({
   network,
   owners,
@@ -235,7 +248,7 @@ function KeySection({
                   placeholder="Such as Claude Code"
                   required
                 />
-                <Button type="submit" disabled={busy || !name.trim()}>
+                <Button type="submit" disabled={busy || !name.trim()} focusableWhenDisabled>
                   {busy && <Spinner data-icon="inline-start" />}
                   {busy ? 'Creating…' : 'Create API key'}
                 </Button>
@@ -257,13 +270,7 @@ function KeySection({
             ` ${network.name}’s ${owners.length === 1 ? 'owner is' : 'owners are'} ${listOf(owners)}.`}
         </p>
       )}
-      {network.guestBudget && (
-        <p className="text-muted-foreground">
-          Every guest shares this network’s API keys, as they share its runs and one set of daily limits, and the keys
-          are cleared every day at <span className="whitespace-nowrap">{GUEST_NETWORK_CLEARS},</span> so add nothing
-          private with one.
-        </p>
-      )}
+      {network.guestBudget && <GuestKeys />}
     </Section>
   )
 }
@@ -281,16 +288,15 @@ function Assistant({ mcp }: { mcp: string }) {
       description="How each assistant connects to the MCP server, with the key in no command, configuration or link you copy."
     >
       <Tabs defaultValue={all[0].id} className="gap-6">
-        {/* Wider than the column, as on a phone, the list scrolls sideways, with room around the track for the focus ring. */}
-        <div className="-m-1 overflow-x-auto overscroll-x-contain p-1">
-          <TabsList aria-label="Assistants" className="max-w-none *:shrink-0">
-            {all.map((a) => (
-              <TabsTrigger key={a.id} value={a.id}>
-                {a.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+        {/* Wider than the column, as on a phone, the list wraps onto a second row, each row's tabs sharing
+            its width, so every assistant shows and the arrow keys still move through them in order. */}
+        <TabsList aria-label="Assistants" className="h-auto flex-wrap max-md:h-auto max-md:*:grow">
+          {all.map((a) => (
+            <TabsTrigger key={a.id} value={a.id}>
+              {a.name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
         {all.map((a) => (
           <TabsContent key={a.id} value={a.id} keepMounted className="flex flex-col gap-6" data-assistant={a.id}>
             <Setup assistant={a} />
@@ -422,6 +428,8 @@ function Check({
   onKeys: (keys: CheckedKey[]) => void
 }) {
   const section = useRef<HTMLDivElement>(null)
+  // The section's heading, which takes focus from Check again, as the button goes with the wait it starts.
+  const heading = useRef<HTMLHeadingElement>(null)
   const [watch, setWatch] = useState<Watch>({ state: 'waiting' })
   useEffect(() => {
     if (!awaited || watch.state !== 'waiting' || !section.current) return
@@ -484,6 +492,7 @@ function Check({
   return (
     <Section
       id="check-h"
+      heading={heading}
       title="Check the connection"
       description={`When each of ${network.name}’s API keys last reached it, to the minute.`}
       data-check
@@ -498,7 +507,14 @@ function Check({
           <>
             {awaited && (
               <div role="status" className="flex flex-col items-start gap-3">
-                <Watching name={awaited.name} watch={watch} again={() => setWatch({ state: 'waiting' })} />
+                <Watching
+                  name={awaited.name}
+                  watch={watch}
+                  again={() => {
+                    setWatch({ state: 'waiting' })
+                    heading.current?.focus()
+                  }}
+                />
               </div>
             )}
             {keys.length === 0 ? (

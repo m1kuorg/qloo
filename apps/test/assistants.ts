@@ -17,7 +17,7 @@ const shell = (name: string): Block => [
 const powershell = (name: string): Block => [
   'PowerShell',
   `${name} PowerShell commands that set the key`,
-  "$k = Read-Host 'Crossfeed API key' -AsSecureString\n$env:CROSSFEED_API_KEY = [System.Net.NetworkCredential]::new('', $k).Password\n[Environment]::SetEnvironmentVariable('CROSSFEED_API_KEY', $env:CROSSFEED_API_KEY, 'User')"
+  "$k = Read-Host 'Crossfeed API key' -AsSecureString\n$env:CROSSFEED_API_KEY =\n  [System.Net.NetworkCredential]::new('', $k).Password\n[Environment]::SetEnvironmentVariable(\n  'CROSSFEED_API_KEY', $env:CROSSFEED_API_KEY, 'User')"
 ]
 const header = { Authorization: 'Bearer ${env:CROSSFEED_API_KEY}' }
 
@@ -29,7 +29,7 @@ export const setups = (mcp: string): [name: string, blocks: Block[]][] => [
       [
         'Shell',
         'claude mcp add command',
-        `claude mcp add --transport http crossfeed ${mcp} \\\n  --header "Authorization: Bearer $CROSSFEED_API_KEY"`
+        `claude mcp add --transport http crossfeed \\\n  ${mcp} \\\n  --header "Authorization: Bearer $CROSSFEED_API_KEY"`
       ],
       ['Shell', 'claude mcp list command', 'claude mcp list'],
       ['Output', null, `crossfeed: ${mcp} (HTTP) - ✔ Connected`]
@@ -86,7 +86,7 @@ export const setups = (mcp: string): [name: string, blocks: Block[]][] => [
       [
         'Shell',
         'codex mcp add command',
-        `codex mcp add crossfeed --url ${mcp} \\\n  --bearer-token-env-var CROSSFEED_API_KEY`
+        `codex mcp add crossfeed \\\n  --url ${mcp} \\\n  --bearer-token-env-var CROSSFEED_API_KEY`
       ]
     ]
   ],
