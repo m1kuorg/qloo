@@ -52,7 +52,7 @@ The programmer names the launch, or up to three comps if it's unreleased. Crossf
 
 ### Guest pitches
 
-The booker picks the show, names the public works of its best past guests, and loads the inbox. Crossfeed extracts each guest's public work, resolves the work in Qloo, and sets aside any pitch without one. It ranks the pitched works against the show and those past guests in one list per work type, because Qloo scores from separate calls can't be compared, proposes an episode angle for each top pitch from the tags it shares with the show, and drafts book, decline, or later replies for the booker to approve one by one. Beside each run, Claude ranks the pitches by what they say, from their subjects and openings alone, so each list gives a pitch rank beside who listens and names the pitches who listens lifts past their wording, and the on-topic ones that fall out of its top band. The flow shipped second and has been on in production since its live check ([#57](https://github.com/m1kuorg/qloo/issues/57)).
+The booker picks the show, names the public works of its best past guests, and loads the inbox. Crossfeed extracts each guest's public work, resolves the work in Qloo, and sets aside any pitch without one. It ranks the pitched works against the show and those past guests in one list per work type, because Qloo scores from separate calls can't be compared, proposes an episode angle for each top pitch from the tags it shares with the show, and drafts book, decline, or later replies for the booker to approve one by one. Beside each run, Claude ranks the pitches by what they say, from their subjects and openings alone, so each list gives a pitch rank beside who listens, re-ranks between the two with the fit chart's lens, and names the pitches who listens lifts past their wording, and the on-topic ones that fall out of its top band. The flow shipped second and has been on in production since its live check ([#57](https://github.com/m1kuorg/qloo/issues/57)).
 
 ### Evidence and approval
 
@@ -266,7 +266,7 @@ The [TRD](TRD.md) gives call parameters, storage, routes, limits, and configurat
 - **One seam:** outbound HTTP. Tests replace Qloo and Anthropic at the network boundary and run everything inside Crossfeed for real, D1 included, with its migrations applied before each test. The Anthropic fake replays scripted tool calls, so agent runs are deterministic, and passkey ceremonies run against a software authenticator that signs as a browser's would.
 - **Behaviors to cover:**
   - The gateway bounds its retries, serves cache hits, stops at the daily cap, and reports an unscored signal as an error.
-  - The topic baseline and fit ranking render side by side, with moves, and each pitch list gives its pitch ranks and finding.
+  - The topic baseline and fit ranking render side by side, with moves, and each pitch list gives its pitch ranks, moves and finding under both lenses.
   - Insertion order math, that a draft over the slot budget is rejected, and that export fails before approval.
   - A question pauses the run, and the answer resumes it.
   - No recorded Qloo request contains a guest name or an email address, checked across the whole sample inbox and across uploaded emails.

@@ -20,14 +20,13 @@ import {
   segmentedTrackVariants
 } from '../components/ui/variants'
 import { GUEST_SESSION_MS, SESSION_MS } from '../directory'
-import { bandMeter, CLIMB, FINALISTS, type Band } from '../fit'
+import { bandMeter, CLIMB, FINALISTS, topicFinding, type Band } from '../fit'
 import { Check, ChevronDown, Copy, LoaderCircle } from '../icons'
 import { MAX_PITCH_CHARS, MAX_PITCHES } from '../inbox'
 import { MAX_QLOO_CALLS, MAX_TURNS } from '../limits'
 import { CSV_HEADER, dollars, slotPrice } from '../order'
 import { DOCS, GuestButton, MarketingPage, marketingShell, networkLinks, type AppVariables } from '../shell'
 import { GUEST_NETWORK_CLEARS, moveGlyph, moveWords, nth } from '../text'
-import { topicFinding } from '../topic'
 
 export const marketing = new Hono<{ Bindings: Env }>()
 

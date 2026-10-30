@@ -1,45 +1,50 @@
 import { cn } from 'cn'
-import { ChevronDownIcon } from 'lucide-react'
-import { Fragment, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { RadioGroup, RadioGroupSegment } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
-import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/variants'
 import type { Launch, Show } from '../agent'
 import { ageWords, type DemographicCheck } from '../demographics'
-import { FINALISTS, type FitRow, type Ranking } from '../fit'
+import { FINALISTS, topicFinding, type FitRow, type Ranking } from '../fit'
 import { dollars, slotPrice } from '../order'
 import { sameName } from '../resolve'
-import { moveGlyph, moveWords, nth } from '../text'
-import { topicFinding, type Move, type Topic } from '../topic'
+import type { Move, Topic } from '../topic'
 import { FitBand, listOf, NotScored } from './controls'
 import { CallButton, type OpenCall } from './Evidence'
 import { Section } from './PageHeader'
+import {
+  LensSource,
+  LensSwitch,
+  MoveCell,
+  MoveHeader,
+  OtherRankCell,
+  OtherRankHeader,
+  RankCell,
+  useRerank,
+  WhyRow,
+  WhyToggle,
+  type AgentRanking
+} from './Rerank'
 import { Source } from './Source'
 import { sentence, StateLine } from './states'
 
-// The two orders the chart's lens switches between: Qloo's listener overlap, and the topic-only
-// plan Claude ranks from names and descriptions alone.
-type Lens = 'listeners' | 'topic'
+// The chart's lens switches between Qloo's listener overlap and the topic-only plan Claude ranks from
+// names and descriptions alone.
+const byTopic: AgentRanking = { by: 'by topic', column: 'Topic', rank: 'topic rank' }
 
-// The rows are a grid with a table's roles, not a <table>, so they can travel when the lens
-// re-orders them (a transform on a <tr> is unreliable). Each row is its own grid on one template, so
-// the columns line up: fixed widths, the show taking the rest. From 768px one line: rank, move,
-// show, topic, fit, slot value (at 976px: 40 + 48 + 512 + 96 + 72 + 128 + 5 × 16 gaps = 976). Under
-// it each row folds to two: rank, show and fit, then the move, the topic rank and the slot value.
-// Without a topic column there's no move or topic. Rows bleed their tint and rule 8px past the text,
-// and each is opaque, so rows passing each other mid-travel don't show through.
+// The rows are the re-rank's grid (Rerank.tsx). Each row is its own grid on one template, so the
+// columns line up: fixed widths, the show taking the rest. From 768px one line: rank, move, show, topic,
+// fit, slot value (at 976px: 40 + 48 + 512 + 96 + 72 + 128 + 5 × 16 gaps = 976). Under it each row folds
+// to two: rank, show and fit, then the move, the topic rank and the slot value. Without a topic column
+// there's no move or topic. Rows bleed their tint and rule 8px past the text, and each is opaque, so
+// rows passing each other mid-travel don't show through.
 const rowGrid = {
   topic:
-    "grid gap-x-3 gap-y-1 grid-cols-[2rem_auto_auto_minmax(0,1fr)_auto] [grid-template-areas:'rank_show_show_show_fit'_'rank_move_topic_slot_slot'] md:gap-x-4 md:grid-cols-[2.5rem_3rem_minmax(0,1fr)_6rem_4.5rem_8rem] md:[grid-template-areas:'rank_move_show_topic_fit_slot']",
+    "grid gap-x-3 gap-y-1 grid-cols-[2rem_auto_auto_minmax(0,1fr)_auto] [grid-template-areas:'rank_name_name_name_fit'_'rank_move_other_slot_slot'] md:gap-x-4 md:grid-cols-[2.5rem_3rem_minmax(0,1fr)_6rem_4.5rem_8rem] md:[grid-template-areas:'rank_move_name_other_fit_slot']",
   plain:
-    "grid gap-x-3 gap-y-1 grid-cols-[2rem_minmax(0,1fr)_auto] [grid-template-areas:'rank_show_fit'_'rank_slot_slot'] md:gap-x-4 md:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_8rem] md:[grid-template-areas:'rank_show_fit_slot']"
+    "grid gap-x-3 gap-y-1 grid-cols-[2rem_minmax(0,1fr)_auto] [grid-template-areas:'rank_name_fit'_'rank_slot_slot'] md:gap-x-4 md:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_8rem] md:[grid-template-areas:'rank_name_fit_slot']"
 }
 const bleed = '-mx-2 px-2'
-
-// The re-rank: each row travels from where it was to its new place, staggered by its new place.
-const TRAVEL = { duration: 450, easing: 'cubic-bezier(0.215, 0.61, 0.355, 1)', stagger: 20 } // --ease-plate
 
 // Who the chart's ranking is against, as its heading asks it.
 const whoShares = (names: string[]) =>
@@ -86,38 +91,21 @@ export function FitChart({
   cpm: number | null
   sampleCpm: boolean // the CPM is still the sample network's, as the footnote says
 }) {
-  const [lens, setLens] = useState<Lens>('listeners')
   const [all, setAll] = useState(false)
-  // The climber whose "Why it moved" row is open.
-  const [why, setWhy] = useState<string | null>(null)
-  // Each row's element by show, and where each row was on screen just before the lens switched.
-  const rowEls = useRef(new Map<string, HTMLElement>())
-  const before = useRef<Map<string, number> | null>(null)
   const moves = topic?.status === 'ranked' && ranking && !ranking.error ? topic.moves : null
-  const order = rowOrder(ranking?.rows ?? [], lens, moves)
-  // Flip: the rows are in their new places now, before the browser paints; each starts where it was and
-  // travels to where it is. In three passes, so the layout is worked out once, not once a row: stop
-  // every travel still running, read where every row now is, then start them all.
-  useLayoutEffect(() => {
-    const first = before.current
-    before.current = null
-    if (!first) return
-    // Only the rows on screen are counted, so the stagger runs down the chart evenly.
-    const els = order.flatMap((r) => rowEls.current.get(r.show) ?? [])
-    for (const el of els) for (const a of el.getAnimations()) a.cancel()
-    const now = els.map((el) => el.getBoundingClientRect().top)
-    els.forEach((el, i) => {
-      const from = first.get(el.dataset.show!)
-      const by = from === undefined ? 0 : from - now[i]
-      if (Math.abs(by) < 1) return
-      el.animate([{ transform: `translateY(${by}px)` }, { transform: 'none' }], {
-        duration: TRAVEL.duration,
-        easing: TRAVEL.easing,
-        delay: i * TRAVEL.stagger,
-        fill: 'backwards'
-      })
-    })
-  }, [lens])
+  const byShow = new Map(moves?.map((m) => [m.show, m]))
+  // A show's ranks as the lens reads them: by fit, and by topic alone.
+  const ranks = (r: FitRow) => ({ key: r.show, rank: r.rank, agentRank: byShow.get(r.show)?.topicRank ?? null })
+  // The lens, its travel, and the climber whose "Why it moved" row is open.
+  const {
+    lens,
+    agent: topicLens,
+    order,
+    switchLens,
+    rowRef,
+    why,
+    toggleWhy
+  } = useRerank(ranking?.rows ?? [], ranks, moves !== null)
 
   const title = whoShares(
     ranking?.anchors.map((a) => a.name) ?? (launch?.name ? [launch.name] : (launch?.comps.map((c) => c.name) ?? []))
@@ -141,7 +129,7 @@ export function FitChart({
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className={cn(rowGrid.plain, bleed, 'items-center border-b py-3')}>
                 <Skeleton className="h-7 w-6 justify-self-end [grid-area:rank]" />
-                <Skeleton className="h-4 w-48 max-w-full [grid-area:show]" />
+                <Skeleton className="h-4 w-48 max-w-full [grid-area:name]" />
                 <Skeleton className="h-3 w-5 [grid-area:fit]" />
                 <Skeleton className="h-4 w-16 justify-self-end [grid-area:slot]" />
               </div>
@@ -152,15 +140,6 @@ export function FitChart({
     )
 
   const anchors = listOf(ranking.anchors.map((a) => a.name))
-  const byShow = new Map(moves?.map((m) => [m.show, m]))
-  const switchLens = (next: Lens) => {
-    if (next === lens) return
-    // Where each row is now, as seen, mid-travel included; with reduced motion they jump instead.
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-      before.current = new Map([...rowEls.current].map(([show, el]) => [show, el.getBoundingClientRect().top]))
-    setWhy(null)
-    setLens(next)
-  }
   // What's in contention, which the chart shows until "Show all": the finalists, a topic-only plan's
   // picks (its top five, after the shows left out), the climbers, and the shows left out.
   const topicPicks = new Set(
@@ -175,7 +154,6 @@ export function FitChart({
   const shown = all ? order : order.filter(featured)
   const folded = order.length - order.filter(featured).length
   const grid = moves ? rowGrid.topic : rowGrid.plain
-  const topicLens = moves !== null && lens === 'topic'
   // A ranking without shows Qloo failed to look up is partial, never presented as the whole roster.
   const missing = ranking.error ? [] : ranking.notScored.filter((n) => failed.includes(n.show)).map((n) => n.show)
   const show = (name: string) => roster.find((s) => s.name === name)
@@ -205,33 +183,12 @@ export function FitChart({
         {!ranking.error && (
           <>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              {moves && (
-                <RadioGroup
-                  aria-label="Order the chart"
-                  value={lens}
-                  onValueChange={(next) => switchLens(next as Lens)}
-                  className={segmentedTrackVariants({ className: 'flex' })}
-                >
-                  <RadioGroupSegment value="listeners" className={segmentedItemVariants()}>
-                    By who listens
-                  </RadioGroupSegment>
-                  <RadioGroupSegment value="topic" className={segmentedItemVariants()}>
-                    By topic
-                  </RadioGroupSegment>
-                </RadioGroup>
-              )}
-              {/* Where the order on screen comes from. */}
-              <p className="type-caption text-muted-foreground">
-                {moves && lens === 'topic' ? (
-                  <>
-                    <Source of="agent" /> Ranked by topic alone, from show names and descriptions
-                  </>
-                ) : (
-                  <>
-                    <Source of="qloo" /> Ranked by listener overlap with {anchors}
-                  </>
-                )}
-              </p>
+              {moves && <LensSwitch label="Order the chart" agent={byTopic} lens={lens} onChange={switchLens} />}
+              <LensSource
+                agent={topicLens}
+                listeners={`Ranked by listener overlap with ${anchors}`}
+                byAgent="Ranked by topic alone, from show names and descriptions"
+              />
               {topic?.status === 'ranking' ? (
                 <StateLine kind="loading">Ranking the roster by topic alone for the Topic column…</StateLine>
               ) : topic && topic.status !== 'ranked' ? (
@@ -247,33 +204,12 @@ export function FitChart({
                   <span role="columnheader" className="text-right [grid-area:rank]">
                     Rank
                   </span>
-                  {moves && (
-                    <span role="columnheader" className="[grid-area:move]">
-                      Move
-                    </span>
-                  )}
-                  <span role="columnheader" className="[grid-area:show]">
+                  {moves && <MoveHeader />}
+                  <span role="columnheader" className="[grid-area:name]">
                     Show
                   </span>
-                  {/* The other lens's rank, labelled by who ranked it: the topic rank Claude gave it, or under
-                    "By topic" the listener rank Qloo's data gave it. Wider than its column, the header runs
-                    left into the show's, which has room. */}
-                  {moves && (
-                    <span
-                      role="columnheader"
-                      className="flex w-max items-center gap-1.5 justify-self-end [grid-area:topic]"
-                    >
-                      {topicLens ? (
-                        <>
-                          Listeners <Source of="qloo" />
-                        </>
-                      ) : (
-                        <>
-                          Topic <Source of="agent" />
-                        </>
-                      )}
-                    </span>
-                  )}
+                  {/* The other lens's rank: the topic rank Claude gave it, or under "By topic" its listener rank. */}
+                  {moves && <OtherRankHeader lens={lens} agent={byTopic} />}
                   <span role="columnheader" className="[grid-area:fit]">
                     Fit
                   </span>
@@ -286,6 +222,7 @@ export function FitChart({
                 {shown.map((r) => {
                   const move = byShow.get(r.show)
                   const open = move?.climber === true && why === r.show
+                  const ranked = ranks(r)
                   const out = leftOut.includes(r.show)
                   const flagged = r.finalist ? demographics?.rows.find((d) => d.show === r.show)?.reasons : null
                   const shared = r.sharedTags ?? null // runs from before shared tags have none
@@ -303,10 +240,7 @@ export function FitChart({
                     <Fragment key={r.show}>
                       <div
                         role="row"
-                        ref={(el) => {
-                          if (el) rowEls.current.set(r.show, el)
-                          else rowEls.current.delete(r.show)
-                        }}
+                        ref={rowRef(r.show)}
                         className={cn(
                           grid,
                           bleed,
@@ -318,57 +252,26 @@ export function FitChart({
                         data-finalist={r.finalist || undefined}
                         data-left-out={out || undefined}
                       >
-                        {/* The rank in the lens's order, the order the rows are in; screen readers hear both
-                          ranks, the lens's first. */}
-                        <span role="cell" className="text-right type-title tabular-nums [grid-area:rank]">
-                          {moves ? (
-                            <>
-                              <span aria-hidden="true">{topicLens ? (move?.topicRank ?? '–') : r.rank}</span>
-                              <span className="vh">{rankWords(r.rank, move?.topicRank ?? null, lens)}</span>
-                            </>
-                          ) : (
-                            r.rank
-                          )}
-                        </span>
+                        <RankCell row={ranked} lens={moves ? lens : null} agent={byTopic} />
                         {moves && (
-                          <span
-                            role="cell"
-                            className={cn(
-                              'tabular-nums [grid-area:move]',
-                              move?.climber ? 'font-semibold text-signal-ink' : 'text-muted-foreground'
-                            )}
-                          >
-                            {move && (
-                              <>
-                                <span aria-hidden="true">{moveGlyph(move.move)}</span>
-                                <span className="vh">{moveWords(move.move)}</span>
-                              </>
-                            )}
-                          </span>
+                          <MoveCell move={move?.move ?? null} climber={move?.climber === true} agent={byTopic} />
                         )}
-                        <div role="cell" className="flex min-w-0 flex-col gap-1 [grid-area:show]">
+                        <div role="cell" className="flex min-w-0 flex-col gap-1 [grid-area:name]">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             {/* A name sizes to its words, so one too long for the row, such as a name with no
                                 spaces, breaks anywhere. */}
                             {move?.climber ? (
                               // The chevron rides on the name's last character, so a name that wraps, or breaks
                               // inside a word, keeps it beside its end rather than at the row's far edge.
-                              <button
-                                type="button"
-                                className="group/why inline-block cursor-pointer text-left text-[15px] leading-snug font-semibold wrap-anywhere underline decoration-muted-foreground decoration-1 underline-offset-4 hover:decoration-foreground max-md:min-h-11"
-                                aria-expanded={open}
-                                aria-controls={`why-${r.rank}`}
-                                onClick={() => setWhy(open ? null : r.show)}
+                              <WhyToggle
+                                open={open}
+                                controls={`why-${r.rank}`}
+                                onToggle={() => toggleWhy(r.show)}
+                                className="text-[15px] leading-snug font-semibold wrap-anywhere"
+                                end={end}
                               >
                                 {r.show.slice(0, r.show.length - end.length)}
-                                <span className="whitespace-nowrap">
-                                  {end}
-                                  <ChevronDownIcon
-                                    aria-hidden="true"
-                                    className="ml-1 inline-block size-4 align-[-0.1875rem] text-muted-foreground transition-transform group-aria-expanded/why:rotate-180"
-                                  />
-                                </span>
-                              </button>
+                              </WhyToggle>
                             ) : (
                               <span className="text-[15px] leading-snug font-semibold wrap-anywhere">{r.show}</span>
                             )}
@@ -396,20 +299,7 @@ export function FitChart({
                             <p className="type-caption text-muted-foreground">{flagged.join('. ')}.</p>
                           ) : null}
                         </div>
-                        {moves && (
-                          <span role="cell" className="text-right text-muted-foreground [grid-area:topic]">
-                            <span className="md:hidden" aria-hidden="true">
-                              {topicLens ? 'Listeners' : 'Topic'}{' '}
-                            </span>
-                            {topicLens ? (
-                              <span className="tabular-nums">#{r.rank}</span>
-                            ) : move ? (
-                              <span className="tabular-nums">#{move.topicRank}</span>
-                            ) : (
-                              '–'
-                            )}
-                          </span>
-                        )}
+                        {moves && <OtherRankCell row={ranked} lens={lens} agent={byTopic} />}
                         <span role="cell" className="[grid-area:fit]">
                           <FitBand band={r.band} finalist={r.finalist} quiet />
                         </span>
@@ -418,33 +308,25 @@ export function FitChart({
                         </span>
                       </div>
                       {open && (
-                        <div role="row" id={`why-${r.rank}`} className={cn(grid, bleed, 'border-b pb-3', tint)}>
-                          {/* Under the show and the columns after it. */}
-                          <div
-                            role="cell"
-                            aria-colspan={moves ? 6 : 4}
-                            className="flex flex-col gap-1.5 [grid-column:show-start/-1] [grid-row:1/-1]"
-                          >
-                            <p className="font-semibold">Why it moved</p>
-                            {/* Topic rank is Claude's baseline, fit rank Qloo's: each labelled, neither
-                              wrapped off its words. */}
+                        <WhyRow id={`why-${r.rank}`} className={cn(grid, bleed, 'border-b pb-3', tint)} columns={6}>
+                          {/* Topic rank is Claude's baseline, fit rank Qloo's: each labelled, neither wrapped off
+                            its words. */}
+                          <p>
+                            <Source of="agent" /> Topic alone ranks it{'\u00a0'}
+                            {move.topicRank}.
+                          </p>
+                          <p>
+                            <Source of="qloo" /> Listener overlap with {anchors} ranks it{'\u00a0'}
+                            {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}’s fit`)}
+                          </p>
+                          {r.leadingComp && <p>Led by {r.leadingComp.name}.</p>}
+                          {shared && !shared.error && shared.tags.length > 0 && (
                             <p>
-                              <Source of="agent" /> Topic alone ranks it{'\u00a0'}
-                              {move.topicRank}.
+                              Shared tags: {listOf(shared.tags)}.{' '}
+                              {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
                             </p>
-                            <p>
-                              <Source of="qloo" /> Listener overlap with {anchors} ranks it{'\u00a0'}
-                              {r.rank}. {callButton(ranking.call, `Evidence for ${r.show}’s fit`)}
-                            </p>
-                            {r.leadingComp && <p>Led by {r.leadingComp.name}.</p>}
-                            {shared && !shared.error && shared.tags.length > 0 && (
-                              <p>
-                                Shared tags: {listOf(shared.tags)}.{' '}
-                                {callButton(shared.call, `Evidence for the tags ${r.show} shares`)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                          )}
+                        </WhyRow>
                       )}
                     </Fragment>
                   )
@@ -500,22 +382,6 @@ export function FitChart({
 // modifiers, or a flag.
 const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' })
 const lastGrapheme = (name: string) => [...graphemes.segment(name)].at(-1)?.segment ?? ''
-
-// A row's two ranks in words, the lens's first: "2nd by who listens, 6th by topic". A show the topic
-// ranking doesn't place has no topic rank.
-function rankWords(fit: number, topic: number | null, lens: Lens) {
-  const listeners = `${nth(fit)} by who listens`
-  const byTopic = topic === null ? 'not ranked by topic' : `${nth(topic)} by topic`
-  return lens === 'topic' ? `${byTopic}, ${listeners}` : `${listeners}, ${byTopic}`
-}
-
-// The rows in the lens's order: fit order, or topic rank, with any show the topic ranking doesn't
-// place after the rest, in fit order.
-function rowOrder(rows: FitRow[], lens: Lens, moves: Move[] | null) {
-  if (lens === 'listeners' || !moves) return rows
-  const rank = new Map(moves.map((m) => [m.show, m.topicRank]))
-  return rows.toSorted((a, b) => (rank.get(a.show) ?? Infinity) - (rank.get(b.show) ?? Infinity) || a.rank - b.rank)
-}
 
 // What one promo slot on a show displaces, from its downloads and the CPM; or the figure it's missing.
 // The value and the downloads under it share a right edge; on a phone's second line they run on.
